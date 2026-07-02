@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ deploy.LANG }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1102,7 +1102,7 @@ function renderChinaMap(provinces) {
   if (pvMax === 0) pvMax = 1;
 
   // 加载中国地图 GeoJSON
-  fetch('/static/china.json')
+  fetch('/admin/analytics/static/china.json')
     .then(function(r){ return r.json(); })
     .then(function(geoJson){
       echarts.registerMap('china', geoJson);
