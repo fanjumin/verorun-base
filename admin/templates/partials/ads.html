@@ -1,0 +1,117 @@
+window.l_ads=function(){
+  document.getElementById("pt").textContent="{{ _('Ad Management') }}";
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  fetch("/admin/ads",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var ads=d.data||[];
+    var pages={"*":"{{ _('Entire Site') }}","plaza":"{{ _('Plaza') }}","guilds":"{{ _('Camp') }}","debates":"{{ _('Debate') }}","alerts":"{{ _('Alert') }}","ranking":"{{ _('Ranking') }}","arena":"{{ _('Competitive') }}","cognition":"{{ _('Cognitive Map') }}"};
+    var h='<div class="sbar"><input id="adSearch" placeholder="{{ _('Search Ads') }}..." oninput="filterAds()"><button class="btn bp" onclick="showAdForm()">+ {{ _('New Ad') }}</button></div>';
+    h+='<div class="cd"><div class="st">{{ _('Ad List') }} ('+ads.length+')</div><table id="adTable"><tr><th>ID</th><th>{{ _('Name') }}</th><th>{{ _('Page') }}</th><th>{{ _('Position') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>{{ _('Sort') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!ads.length)h+='<tr><td colspan="8"><div class="em">{{ _('No Ads') }}</div></td></tr>';
+    else ads.forEach(function(a){
+      var st=a.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Disable') }}</span>';
+      h+='<tr data-search="'+esc(a.name)+' '+esc(a.page)+'">';
+      h+='<td>'+a.id+'</td><td>'+esc(a.name)+'</td><td>'+(pages[a.page]||a.page)+'</td><td>'+a.position+'</td>';
+      h+='<td>'+(a.ad_type=='image'?'🖼 {{ _('Image') }}':'📝 {{ _('Code') }}')+'</td><td>'+st+'</td><td>'+a.sort_order+'</td>';
+      h+='<td><button class="btn bs bo" onclick="editAd('+a.id+')">{{ _('Edit') }}</button> ';
+      h+='<button class="btn bs bo" onclick="toggleAd('+a.id+','+(a.is_active?0:1)+')">'+(a.is_active?'{{ _('Disable') }}':'{{ _('Enabled') }}')+'</button> ';
+      h+='<button class="btn bs bo" style="color:#f85149" onclick="deleteAd('+a.id+')">{{ _('Delete') }}</button></td></tr>';
+    });
+    h+='</table></div>';
+    h+='<div class="cd" id="adForm" style="display:none;margin-top:16px"><div class="st" id="adFormTitle">{{ _('New Ad') }}</div>';
+    h+='<div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Name') }}</label><input class="in" id="adName" style="width:100%"></div>';
+    h+='<div><label style="font-size:12px;color:var(--dim)">{{ _('Page') }}</label><select class="sl" id="adPage" style="width:100%">';
+    Object.keys(pages).forEach(function(k){h+='<option value="'+k+'">'+pages[k]+'</option>'});
+    h+='</select></div></div>';
+    h+='<div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Position') }}</label><select class="sl" id="adPos" style="width:100%"><option value="sidebar">{{ _('Sidebar') }}</option></select></div>';
+    h+='<div><label style="font-size:12px;color:var(--dim)">{{ _('Type') }}</label><select class="sl" id="adType" style="width:100%" onchange="toggleAdType()"><option value="image">{{ _('Image Ad') }}</option><option value="code">{{ _('Ad Code') }}</option></select></div></div>';
+    h+='<div id="adImageFields"><div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Image') }}URL</label><input class="in" id="adImageUrl" style="width:100%" placeholder="https://..."></div>';
+    h+='<div><label style="font-size:12px;color:var(--dim)">{{ _('Redirect Link') }}</label><input class="in" id="adLinkUrl" style="width:100%" placeholder="https://..."></div></div></div>';
+    h+='<div id="adCodeField" style="display:none"><label style="font-size:12px;color:var(--dim)">{{ _('Ad Code') }}</label><textarea class="ta" id="adCode" style="width:100%;height:120px;font-family:monospace;font-size:11px" placeholder="{{ _('Paste') }} AdSense {{ _('Or Other Ad Code') }}..."></textarea></div>';
+    h+='<div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Sort') }}</label><input class="in" id="adSort" style="width:80px" value="0" type="number"></div>';
+    h+='<div style="display:flex;align-items:flex-end;gap:8px"><button class="btn bp" onclick="saveAd()">{{ _('Save') }}</button><button class="btn bo" onclick="hideAdForm()">{{ _('Cancel') }}</button></div></div>';
+    h+='<input type="hidden" id="adEditId" value="">';
+    document.getElementById("mc").innerHTML=h;
+  });
+};
+var _adsCache=[];
+function filterAds(){
+  var q=(document.getElementById("adSearch")?.value||"").toLowerCase();
+  document.querySelectorAll("#adTable tr[data-search]").forEach(function(r){
+    r.style.display=(!q||(r.getAttribute("data-search")||"").toLowerCase().includes(q))?"":"none";
+  });
+}
+function showAdForm(id){
+  document.getElementById("adEditId").value=id||"";
+  document.getElementById("adFormTitle").textContent=id?"{{ _('Edit Ad') }}":"{{ _('New Ad') }}";
+  if(id){
+    fetch("/admin/ads",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+      var a=(d.data||[]).find(function(x){return x.id==id});
+      if(!a)return;
+      document.getElementById("adName").value=a.name||"";
+      document.getElementById("adPage").value=a.page||"*";
+      document.getElementById("adPos").value=a.position||"sidebar";
+      document.getElementById("adType").value=a.ad_type||"image";
+      document.getElementById("adImageUrl").value=a.image_url||"";
+      document.getElementById("adLinkUrl").value=a.link_url||"";
+      document.getElementById("adCode").value=a.ad_code||"";
+      document.getElementById("adSort").value=a.sort_order||0;
+      toggleAdType();
+    });
+  }else{
+    document.getElementById("adName").value="";
+    document.getElementById("adImageUrl").value="";
+    document.getElementById("adLinkUrl").value="";
+    document.getElementById("adCode").value="";
+    document.getElementById("adSort").value="0";
+    toggleAdType();
+  }
+  document.getElementById("adForm").style.display="block";
+}
+function hideAdForm(){
+  document.getElementById("adForm").style.display="none";
+  document.getElementById("adEditId").value="";
+}
+function toggleAdType(){
+  var t=document.getElementById("adType").value;
+  document.getElementById("adImageFields").style.display=t=="image"?"":"none";
+  document.getElementById("adCodeField").style.display=t=="code"?"":"none";
+}
+function editAd(id){showAdForm(id)}
+function saveAd(){
+  var id=document.getElementById("adEditId").value;
+  var data={
+    name:document.getElementById("adName").value.trim(),
+    page:document.getElementById("adPage").value,
+    position:document.getElementById("adPos").value,
+    ad_type:document.getElementById("adType").value,
+    image_url:document.getElementById("adImageUrl").value.trim(),
+    link_url:document.getElementById("adLinkUrl").value.trim(),
+    ad_code:document.getElementById("adCode").value.trim(),
+    sort_order:parseInt(document.getElementById("adSort").value)||0
+  };
+  if(!data.name){showToast("{{ _('Enter ad name') }}","error");return}
+  var url=id?"/admin/ads/"+id:"/admin/ads";
+  var method=id?"PUT":"POST";
+  fetch(url,{method:method,headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast(id?"✅ {{ _('Updated') }}":"✅ {{ _('Created') }}","success");hideAdForm();l_ads()}
+    else showToast(d.error||"{{ _('Save failed') }}","error");
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+function toggleAd(id,v){
+  fetch("/admin/ads/"+id,{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({is_active:v})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success)l_ads();
+    else showToast(d.error||"{{ _('Operation Failed') }}","error");
+  });
+}
+function deleteAd(id){
+  if(!confirm("{{ _('Delete this ad?') }}"))return;
+  fetch("/admin/ads/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('✅ Deleted') }}","success");l_ads()}
+    else showToast(d.error||"{{ _('Delete failed') }}","error");
+  });
+}
+
+// ============================
+// 📦 {{ _('Shop') }} — l_shop_products ({{ _('Product Management') }})
+// ============================

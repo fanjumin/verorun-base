@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""
+analytics/workflow_nodes.py — 分析系统 Workflow 节点处理器
+
+可注册到 orchestrator 的 WorkflowEngine 中，配合 DAG 引擎自动运行。
+
+注册方式（在 admin/app.py 中）:
+  from analytics.workflow_nodes import register_analytics_handlers
+  register_analytics_handlers(workflow_engine)
+
+节点类型:
+  - analytics_report:      生成分析报告（日报/周报）
+  - analytics_insight:     AI 解读报告生成可读摘要
+  - analytics_alert_check: 执行告警检查
+  - analytics_export:      导出数据到 CSV
+  - analytics_event:       记录自定义事件
+"""
+
+import os
+import sys
+import json
+import time
+from datetime import datetime, timedelta
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from analytics.tracker import generate_report, generate_insight_text
+from analytics import models as am
+
+
+def handle_analytics_report(node_def: dict, input_data: dict) -> dict:
+    """
+    生成分析报告节点
+
+    配置:
+      - days: 报告天数 (默认 7)
+      - report_type: "summary" | "full" (默认 "full")
+      - output: "json" | "text" (默认 "json")
+    """
+    config = node_def.get('config', {})
+    days = config.get('days', 7)
+    report_type = config.get('report_type', 'full')
+    output = config.get('output', 'json')
+
+    try:
+        report = generate_report(days)
+
+        if output == 'text':
+            text = generate_insight_text(report)
+            return {
+                'success': True,
+                'output': text,
+                'report_type': 'text',
+            }
+
+        # JSON 精简/完整
+        if report_type == 'summary':
+            result = {
+                'success': True,
+                'summary': report['summary'],
+                'period': f'past_{days}_days',
+                'generated_at': report['generated_at'],
+            }
+        else:
+            result = {
+                'success': True,
+                'data': report,
+            }
+        return result
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def handle_analytics_insight(node_def: dict, input_data: dict) -> dict:
+    """
+    AI 解读报告节点
+
+    将分析报告发给 智能体 生成可读解读。
+    需要 input_data 中包含 report 数据，或配置中指定 days。
+
+    配置:
+      - days: 报告天数 (默认 7)
+      - use_ai: 是否用 AI 解读 (默认 true)
+    """
+    config = node_def.get('config', {})
+    days = config.get('days', 7)
+
+    try:
+        # 如果是被工作流串联调用，input_data 可能包含 report
+        report = input_data.get('data') if isinstance(input_data, dict) else None
+        if not report:
+            report = generate_report(days)
+
+        # 生成文字洞察
+        text = generate_insight_text(report)
+
+        # AI 增强解读（可选）
+        use_ai = config.get('use_ai', True)
+        ai_analysis = ''
+        if use_ai:
+            ai_analysis = _ai_interpret(report, text)
+
+        result = {
+            'success': True,
+            'summary_text': text,
+            'ai_analysis': ai_analysis,
+            'report': report if config.get('include_raw', False) else None,
+        }
+        return result
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def handle_analytics_alert_check(node_def: dict, input_data: dict) -> dict:
+    """
+    执行告警检查节点
+
+    配置:
+      - notify: 是否通知 (默认 true)
+    """
+    config = node_def.get('config', {})
+    notify = config.get('notify', True)
+
+    conn = am.get_db()
+    try:
+        triggered = am.check_alerts(conn)
+        result = {
+            'success': True,
+            'checked_at': datetime.now().isoformat(),
+            'triggered_count': len(triggered),
+            'triggered': triggered,
+        }
+        return result
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+    finally:
+        conn.close()
+
+
+def handle_analytics_export(node_def: dict, input_data: dict) -> dict:
+    """
+    导出数据节点
+
+    配置:
+      - type: "trend" | "pages" | "sources" | "geo" (默认 "trend")
+      - days: 天数 (默认 30)
+    """
+    config = node_def.get('config', {})
+    export_type = config.get('type', 'trend')
+    days = config.get('days', 30)
+
+    conn = am.get_db()
+    try:
+        if export_type == 'trend':
+            data = am.get_trend(conn, days)
+        elif export_type == 'pages':
+            data = am.get_page_rank(conn, days, 100)
+        elif export_type == 'sources':
+            data = am.get_source_analysis(conn, days)
+        elif export_type == 'geo':
+            data = am.get_geo_distribution(conn, days)
+        else:
+            return {'success': False, 'error': f'Unknown type: {export_type}'}
+
+        return {
+            'success': True,
+            'type': export_type,
+            'count': len(data),
+            'data': data,
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+    finally:
+        conn.close()
+
+
+def handle_analytics_event(node_def: dict, input_data: dict) -> dict:
+    """
+    记录自定义事件节点（供 Workflow 在工作流执行过程中记录事件）
+
+    配置:
+      - event_name: 事件名
+      - category: 分类
+      - label: 标签
+      - value: 数值
+    """
+    config = node_def.get('config', {})
+    event_name = config.get('event_name') or input_data.get('event_name', 'workflow_step')
+
+    try:
+        from analytics.tracker import track_event
+        event_id = track_event(
+            event_name=event_name,
+            category=config.get('category', 'workflow'),
+            label=config.get('label', ''),
+            value=config.get('value', 0),
+            path=node_def.get('id', ''),
+            service_name='orchestrator',
+            metadata={'workflow_node': node_def.get('id', '')},
+        )
+        return {
+            'success': True,
+            'event_id': event_id,
+            'event_name': event_name,
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def handle_analytics_cleanup(node_def: dict, input_data: dict) -> dict:
+    """清理过期日志节点"""
+    config = node_def.get('config', {})
+    retention_days = config.get('retention_days', 30)
+
+    conn = am.get_db()
+    try:
+        deleted = am.cleanup_old_logs(conn, retention_days)
+        return {
+            'success': True,
+            'deleted_logs': deleted,
+            'retention_days': retention_days,
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+    finally:
+        conn.close()
+
+
+# ─── AI 解读 ──────────────────────────────────────────────────────────────────
+
+def _ai_interpret(report: dict, text: str) -> str:
+    """
+    使用 智能体 对统计数据进行专业解读
+    复用平台已有的 DashScope API 配置
+    """
+    try:
+        from models import get_db
+        conn = get_db()
+        row = conn.execute(
+            "SELECT value FROM system_config WHERE key='dashscope_text_key'"
+        ).fetchone()
+        conn.close()
+        api_key = row['value'] if row else ''
+        if not api_key:
+            return ''
+    except:
+        return ''
+
+    import urllib.request
+    prompt = f"""你是一个专业的数据分析师。请根据以下网站统计数据，输出一段简洁的运营洞察（150字内），指出关键趋势和建议：
+
+{text}
+
+请输出格式：
+📊 运营洞察
+关键发现：
+建议："""
+    body = json.dumps({
+        "model": "qwen-turbo",
+        "messages": [
+            {"role": "system", "content": "你是一个资深数据运营分析师，擅长从数据中提取 actionable insights。"},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.5,
+        "max_tokens": 1024
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+        data=body, method='POST'
+    )
+    req.add_header('Authorization', f'Bearer {api_key}')
+    req.add_header('Content-Type', 'application/json')
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return data.get('choices', [{}])[0].get('message', {}).get('content', '')
+    except:
+        return ''
+
+
+# ─── 注册器 ────────────────────────────────────────────────────────────────────
+
+def register_analytics_handlers(engine):
+    """
+    将所有分析节点处理器注册到 WorkflowEngine
+
+    用法:
+        from analytics.workflow_nodes import register_analytics_handlers
+        register_analytics_handlers(worker_pool.workflow_engine)
+    """
+    engine.register_node_handler('analytics_report', handle_analytics_report)
+    engine.register_node_handler('analytics_insight', handle_analytics_insight)
+    engine.register_node_handler('analytics_alert_check', handle_analytics_alert_check)
+    engine.register_node_handler('analytics_export', handle_analytics_export)
+    engine.register_node_handler('analytics_event', handle_analytics_event)
+    engine.register_node_handler('analytics_cleanup', handle_analytics_cleanup)
+
+    print(f'[Analytics Workflow] ✅ 已注册 6 个自定义节点处理器')
+
+
+# ─── 快捷方式（创建预设工作流） ────────────────────────────────────────────────
+
+def create_daily_report_workflow(conn) -> int:
+    """
+    创建每日分析报告工作流定义
+    返回 workflow_id
+    """
+    definition = json.dumps({
+        "nodes": [
+            {
+                "id": "generate_report",
+                "type": "analytics_report",
+                "name": "生成日报",
+                "config": {"days": 1, "report_type": "full", "output": "json"}
+            },
+            {
+                "id": "ai_insight",
+                "type": "analytics_insight",
+                "name": "AI解读",
+                "config": {"days": 1, "use_ai": True}
+            },
+            {
+                "id": "notify_admin",
+                "type": "notify",
+                "name": "推送管理员",
+                "config": {
+                    "channels": ["notification"],
+                    "title": "📊 每日分析报告"
+                }
+            }
+        ],
+        "edges": [
+            {"from": "generate_report", "to": "ai_insight"},
+            {"from": "ai_insight", "to": "notify_admin"}
+        ]
+    })
+
+    from orchestrator import models as om
+    wf_id = om.create_workflow(
+        conn=conn,
+        name="📊 每日分析报告",
+        description="每天自动生成分析报告并 AI 解读",
+        definition=definition,
+        is_active=1,
+    )
+    return wf_id
+
+
+def create_weekly_report_workflow(conn) -> int:
+    """创建周报工作流"""
+    definition = json.dumps({
+        "nodes": [
+            {
+                "id": "generate_report",
+                "type": "analytics_report",
+                "name": "生成周报",
+                "config": {"days": 7, "report_type": "full", "output": "json"}
+            },
+            {
+                "id": "ai_insight",
+                "type": "analytics_insight",
+                "name": "AI深度解读",
+                "config": {"days": 7, "use_ai": True, "include_raw": True}
+            },
+            {
+                "id": "notify_admin",
+                "type": "notify",
+                "name": "推送报告",
+                "config": {
+                    "channels": ["notification", "email"],
+                    "title": "📊 本周运营报告"
+                }
+            }
+        ],
+        "edges": [
+            {"from": "generate_report", "to": "ai_insight"},
+            {"from": "ai_insight", "to": "notify_admin"}
+        ]
+    })
+
+    from orchestrator import models as om
+    wf_id = om.create_workflow(
+        conn=conn,
+        name="📊 每周运营报告",
+        description="每周自动生成长周期分析报告和 AI 深度解读",
+        definition=definition,
+        is_active=1,
+    )
+    return wf_id

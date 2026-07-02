@@ -1,0 +1,273 @@
+window.l_brand=function(){
+  document.getElementById("pt").textContent="{{ _('Brand Settings') }}";
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  fetch("/admin/brand-settings",{headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(!d.success||!d.data){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return;}
+      renderBrand(d.data);
+    }).catch(function(){mc.innerHTML='<div class="em">{{ _('Connection Failed') }}</div>';});
+
+  function renderBrand(b){
+    var h='';
+    h+='<div>';
+    h+='<div class="cd" style="margin-bottom:16px"><div class="st">{{ _('Site') }} Logo</div>';
+    h+='<div style="display:flex;gap:20px;align-items:center;margin-top:8px">';
+    h+='<div style="width:100px;height:50px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center">';
+    h+=b.logo_url?'<img src="'+escAttr(b.logo_url)+'" style="max-width:90px;max-height:44px;object-fit:contain">':'<span style="font-size:24px;font-weight:900;color:var(--dim)">E</span>';
+    h+='</div>';
+    h+='<div style="flex:1">';
+    h+='<label class="btn btn-sm bp" style="cursor:pointer;margin-right:8px">{{ _('Upload') }} Logo<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" onchange="brandUploadLogo(this)"></label>';
+    if(b.logo_url){h+='<button class="btn btn-sm" style="color:var(--rose);border-color:var(--rose)" onclick="brandDeleteLogo()">{{ _('Reset to Default') }}</button>';}
+    h+='<div style="font-size:11px;color:var(--dim);margin-top:6px">{{ _('Suggestion') }} 200×50px PNG/SVG，{{ _('Max') }} 500KB</div>';
+    h+='</div></div></div>';
+    // {{ _('Icon Only') }} Logo
+    h+='<div class="cd" style="margin-bottom:16px"><div class="st">{{ _('Icon Only') }} Logo（Favicon / {{ _('Sidebar') }}）</div>';
+    h+='<div style="display:flex;gap:20px;align-items:center;margin-top:8px">';
+    h+='<div style="width:56px;height:56px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center">';
+    h+=b.logo_icon_url?'<img src="'+escAttr(b.logo_icon_url)+'" style="max-width:48px;max-height:48px;object-fit:contain">':'<span style="font-size:20px;font-weight:900;color:var(--dim)">EK</span>';
+    h+='</div>';
+    h+='<div style="flex:1">';
+    h+='<label class="btn btn-sm bp" style="cursor:pointer;margin-right:8px">{{ _('Upload Icon') }}<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" onchange="brandUploadLogoIcon(this)"></label>';
+    if(b.logo_icon_url){h+='<button class="btn btn-sm" style="color:var(--rose);border-color:var(--rose)" onclick="brandDeleteLogoIcon()">{{ _('Reset to Default') }}</button>';}
+    h+='<div style="font-size:11px;color:var(--dim);margin-top:6px">{{ _('Suggestion') }} 64×64px PNG/SVG，{{ _('Used For') }} Favicon {{ _('& Small Size Scenarios') }}</div>';
+    h+='</div></div></div>';
+    var fields=[
+      {k:'company_name',label:'{{ _('Company Name') }}',ph:'{{ _('EasyKai Network') }}'},
+      {k:'site_name_cn',label:'{{ _('Chinese Site Name') }}',ph:'{{ _('EasyKai Network') }}'},
+      {k:'software_name',label:'{{ _('Software Name') }}（{{ _('Footer Display') }}）',ph:'{{ _('EasyKai') }}AI'},
+      {k:'site_name_en',label:'{{ _('English Site Name') }}',ph:'EasyKai'},
+      {k:'slogan',label:'Slogan / {{ _('Slogan') }}',ph:'{{ _('Agent') }} {{ _('Smart Finance Platform') }}'},
+      {k:'tagline',label:'Tagline / {{ _('Subtitle') }}',ph:'{{ _('Agent') }} {{ _('Applied Tech') }}'},
+      {k:'description',label:'{{ _('Brief Description') }}（Footer {{ _('Left Text') }}）',ph:'为 {{ _('Agent') }} {{ _('Build Financial Analysis') }}...',ta:true},
+      {k:'copyright',label:'{{ _('Copyright') }}',ph:'© 2026 {{ _('EasyKai') }}AI | Multi-Agent AI Operating System'},
+    ];
+    h+='<div class="cd" style="margin-bottom:16px"><div class="st">{{ _('Brand Info') }} <span style="font-size:11px;color:var(--dim)">{{ _('Current Version') }} v'+esc(b.version||'0.9.5')+'</span></div>';
+    fields.forEach(function(f){
+      h+='<div style="margin-bottom:12px">';
+      h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:4px">'+esc(f.label)+'</label>';
+      if(f.ta){
+        h+='<textarea class="in" id="brand_'+f.k+'" style="width:100%;min-height:50px;resize:vertical">'+esc(b[f.k]||'')+'</textarea>';
+      }else{
+        h+='<input class="in" id="brand_'+f.k+'" value="'+escAttr(b[f.k]||'')+'" placeholder="'+esc(f.ph)+'" style="width:100%">';
+      }
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<div class="cd" style="margin-bottom:16px"><div class="st">SEO {{ _('Settings') }}</div>';
+    var seoFields=[
+      {k:'seo_title',label:'SEO Title',ph:''},
+      {k:'seo_desc',label:'SEO Description',ph:''},
+    ];
+    seoFields.forEach(function(f){
+      h+='<div style="margin-bottom:12px">';
+      h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:4px">'+esc(f.label)+'</label>';
+      h+='<textarea class="in" id="brand_'+f.k+'" style="width:100%;min-height:40px;resize:vertical">'+esc(b[f.k]||'')+'</textarea>';
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<div class="cd" style="margin-bottom:16px"><div class="st">{{ _('Enterprise & Compliance') }}</div>';
+    var complianceFields=[
+      {k:'icp_number',label:'ICP {{ _('ICP No.') }}（{{ _('Support') }} HTML）',ph:'<a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026017510号-1</a>',ta:true},
+      {k:'security_number',label:'{{ _('ICP No.') }}（{{ _('Support') }} HTML，{{ _('Leave Empty to Hide') }}）',ph:'<a href="https://beian.mps.gov.cn/#/query/webSearch?code=32031102020288" rel="noreferrer" target="_blank">{{ _('Jiangsu Public Security') }}32031102020288号</a>',ta:true},
+      {k:'contact_email',label:'{{ _('Contact Email') }}',ph:'{{ deploy.email('hi') }}'},
+    ];
+    complianceFields.forEach(function(f){
+      h+='<div style="margin-bottom:12px">';
+      h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:4px">'+esc(f.label)+'</label>';
+      if(f.ta){
+        h+='<textarea class="in" id="brand_'+f.k+'" style="width:100%;min-height:36px;resize:vertical;font-family:monospace;font-size:12px" placeholder="'+esc(f.ph)+'">'+esc(b[f.k]||'')+'</textarea>';
+      }else{
+        h+='<input class="in" id="brand_'+f.k+'" value="'+escAttr(b[f.k]||'')+'" placeholder="'+esc(f.ph)+'" style="width:100%">';
+      }
+      h+='</div>';
+    });
+    h+='</div>';
+    // {{ _('Sub-brand Management') }}（TradeMind）- {{ _('Expandable') }}
+    h+='<div class="cd" style="margin-bottom:16px;border-left:3px solid var(--accent)">';
+    h+='<div class="st" style="cursor:pointer;margin:0;padding:12px 16px;user-select:none" id="subbrand_hdr" onclick="toggleSubBrand()">▶ {{ _('Sub-brand Management') }}</div>';
+    h+='<div id="subbrand_body" style="display:none;padding:0 16px 12px">';
+    h+='<div id="subbrand_content" style="min-height:40px"></div>';
+    h+='</div></div>';
+    h+='<div class="cd" style="margin-bottom:16px"><div class="st">Favicon（{{ _('Optional') }}）</div>';
+    h+='<div style="display:flex;gap:12px;align-items:center;margin-top:8px">';
+    if(b.favicon_url){h+='<img src="'+escAttr(b.favicon_url)+'" style="width:32px;height:32px;border-radius:4px">';}
+    h+='<label class="btn btn-sm bp" style="cursor:pointer">{{ _('Upload') }} Favicon<input type="file" accept="image/png,image/x-icon,.ico" style="display:none" onchange="brandUploadFavicon(this)"></label>';
+    if(b.favicon_url){h+='<button class="btn btn-sm" style="color:var(--rose);border-color:var(--rose)" onclick="brandDeleteFavicon()">{{ _('Reset to Default') }}</button>';}
+    h+='<span style="font-size:11px;color:var(--dim)">{{ _('Suggestion') }} 32×32px PNG/ICO</span>';
+    h+='</div></div>';
+    h+='<div style="text-align:center;margin-top:20px">';
+    h+='<button class="btn bp" style="padding:10px 40px;font-size:15px" onclick="brandSave()">{{ _('Save Settings') }}</button>';
+    h+='</div>';
+    h+='</div>';
+    mc.innerHTML=h;
+  }
+};
+
+function brandSave(){
+  var fields=['company_name','site_name_cn','site_name_en','slogan','tagline','description','copyright','seo_title','seo_desc','icp_number','security_number','contact_email','logo_full_url','logo_icon_url','software_name','software_slogan'];
+  var swFields=['software_name','software_slogan'];
+  var data={};
+  fields.forEach(function(k){
+    var el=document.getElementById("brand_"+k);
+    if(el){data[k]=el.value;}
+  });
+  fetch("/admin/brand-settings",{
+    method:"PUT",
+    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
+    body:JSON.stringify(data)
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Brand settings saved') }}","success")}else{showToast(d.error||"{{ _('Save failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Save failed') }}","error")});
+}
+
+function brandUploadLogo(input){
+  if(!input.files||!input.files[0])return;
+  var fd=new FormData();fd.append("logo",input.files[0]);
+  fetch("/admin/brand-settings/logo",{method:"POST",headers:{"Authorization":"Bearer "+T},body:fd})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){showToast("{{ _('Logo updated') }}","success");go("brand")}
+      else{showToast(d.error||"{{ _('Upload failed') }}","error")}
+    }).catch(function(){showToast("{{ _('Upload failed') }}","error")});
+}
+
+function brandDeleteLogo(){
+  if(!confirm("{{ _('Restore default logo?') }}"))return;
+  fetch("/admin/brand-settings/logo",{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){showToast("{{ _('Default logo restored') }}","success");go("brand")}
+      else{showToast(d.error||"{{ _('Operation Failed') }}","error")}
+    }).catch(function(){showToast("{{ _('Operation Failed') }}","error")});
+}
+
+function brandUploadFavicon(input){
+  if(!input.files||!input.files[0])return;
+  var fd=new FormData();fd.append("favicon",input.files[0]);
+  fetch("/admin/brand-settings/favicon",{method:"POST",headers:{"Authorization":"Bearer "+T},body:fd})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){showToast("{{ _('Favicon updated') }}","success");go("brand")}
+      else{showToast(d.error||"{{ _('Upload failed') }}","error")}
+    }).catch(function(){showToast("{{ _('Upload failed') }}","error")});
+}
+
+function brandDeleteFavicon(){
+  if(!confirm("{{ _('Restore default favicon?') }}"))return;
+  fetch("/admin/brand-settings/favicon",{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){showToast("{{ _('Default favicon restored') }}","success");go("brand")}
+      else{showToast(d.error||"{{ _('Operation Failed') }}","error")}
+    }).catch(function(){showToast("{{ _('Operation Failed') }}","error")});
+}
+
+function brandUploadLogoIcon(input){
+  if(!input.files||!input.files[0])return;
+  var fd=new FormData();fd.append("logo_icon",input.files[0]);
+  fetch("/admin/brand-settings/logo-icon",{method:"POST",headers:{"Authorization":"Bearer "+T},body:fd})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){showToast("{{ _('Icon updated') }}","success");go("brand")}
+      else{showToast(d.error||"{{ _('Upload failed') }}","error")}
+    }).catch(function(){showToast("{{ _('Upload failed') }}","error")});
+}
+
+function brandDeleteLogoIcon(){
+  if(!confirm("{{ _('Restore default icon?') }}"))return;
+  fetch("/admin/brand-settings/logo-icon",{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){showToast("{{ _('Default icon restored') }}","success");go("brand")}
+      else{showToast(d.error||"{{ _('Operation Failed') }}","error")}
+    }).catch(function(){showToast("{{ _('Operation Failed') }}","error")});
+}
+
+// =============================================
+// {{ _('Sub-brand Management') }} — {{ _('Inlined in Brand Settings Page') }}
+// =============================================
+var subBrandLoaded=false;
+function toggleSubBrand(){
+  var body=document.getElementById("subbrand_body");
+  var hdr=document.getElementById("subbrand_hdr");
+  if(!subBrandLoaded){
+    hdr.textContent='{{ _('▼ Sub-brand Management') }}';
+    body.style.display="block";
+    loadTmBrand();
+    subBrandLoaded=true;
+  }else{
+    var vis=body.style.display==="none";
+    body.style.display=vis?"block":"none";
+    hdr.textContent=(vis?"▼":"▶")+" {{ _('Sub-brand Management') }}";
+  }
+}
+
+function loadTmBrand(){
+  var el=document.getElementById("subbrand_content");
+  el.innerHTML='<div class="lo" style="margin:12px 0"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  fetch("/admin/tm-brand-settings",{headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:loadTmBrand()">{{ _('Retry') }}</a></div>';return;}
+      renderTmBrandInline(d.data);
+    }).catch(function(){el.innerHTML='<div class="em">{{ _('Connection Failed') }} — <a href="javascript:loadTmBrand()">{{ _('Retry') }}</a></div>';});
+}
+
+function renderTmBrandInline(b){
+  var h='';
+  // Logo
+  h+='<div style="margin-top:8px"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">TradeMind Logo</div>';
+  h+='<div style="display:flex;gap:16px;align-items:center">';
+  h+='<div style="width:80px;height:40px;background:var(--card);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center">';
+  h+=b.logo_url?'<img src="'+escAttr(b.logo_url)+'" style="max-width:72px;max-height:36px;object-fit:contain">':'<span style="font-size:20px;font-weight:900;color:var(--dim)">TM</span>';
+  h+='</div>';
+  h+='<div><label class="btn btn-sm bp" style="cursor:pointer;margin-right:8px">{{ _('Upload') }} Logo<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" onchange="tmBrandUploadLogo(this)"></label>';
+  if(b.logo_url){h+='<button class="btn btn-sm" style="color:var(--rose);border-color:var(--rose)" onclick="tmBrandDeleteLogo()">{{ _('Reset to Default') }}</button>';}
+  h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">{{ _('Suggestion') }} 200×50px PNG/SVG，{{ _('Max') }} 500KB</div>';
+  h+='</div></div></div>';
+
+  var tmFields=[
+    {k:'site_name_cn',label:'{{ _('Chinese Name') }}',ph:'TradeMind'},
+    {k:'site_name_en',label:'{{ _('English Name') }}',ph:'TradeMind'},
+    {k:'slogan',label:'Slogan / {{ _('Slogan') }}',ph:'AI{{ _('Driven') }}A{{ _('Stock Analysis Platform') }}'},
+    {k:'tagline',label:'Tagline / {{ _('Subtitle') }}',ph:''},
+    {k:'description',label:'{{ _('Product Description') }}',ph:'{{ _('For') }}A{{ _('Data Analysis for Retail & Professional Investors') }}API{{ _('Platform') }}。',ta:true},
+    {k:'copyright',label:'{{ _('Copyright') }}',ph:''},
+  ];
+  h+='<div style="margin-top:12px"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">{{ _('Brand Info') }}</div>';
+  tmFields.forEach(function(f){
+    h+='<div style="margin-bottom:10px">';
+    h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:3px">'+esc(f.label)+'</label>';
+    if(f.ta){
+      h+='<textarea class="in" id="tmb_'+f.k+'" style="width:100%;min-height:40px;resize:vertical">'+esc(b[f.k]||'')+'</textarea>';
+    }else{
+      h+='<input class="in" id="tmb_'+f.k+'" value="'+escAttr(b[f.k]||'')+'" placeholder="'+esc(f.ph)+'" style="width:100%">';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+
+  var tmSeo=[
+    {k:'seo_title',label:'SEO Title',ph:'TradeMind — AI{{ _('Driven') }}A{{ _('Stock Analysis Platform') }}'},
+    {k:'seo_desc',label:'SEO Description',ph:'{{ _('For') }}A{{ _('Data Analysis for Retail & Professional Investors') }}API{{ _('Platform') }}。'},
+  ];
+  h+='<div style="margin-top:12px"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">SEO {{ _('Settings') }}</div>';
+  tmSeo.forEach(function(f){
+    h+='<div style="margin-bottom:10px">';
+    h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:3px">'+esc(f.label)+'</label>';
+    h+='<textarea class="in" id="tmb_'+f.k+'" style="width:100%;min-height:36px;resize:vertical">'+esc(b[f.k]||'')+'</textarea>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<div style="text-align:center;margin-top:16px">';
+  h+='<button class="btn bp" style="padding:8px 32px;font-size:14px" onclick="tmBrandSave()">{{ _('Save Sub-brand Settings') }}</button>';
+  h+='</div>';
+  document.getElementById("subbrand_content").innerHTML=h;
+}
+
+// 原 TradeMind {{ _('Standalone Page Render') }}（{{ _('Kept for Backward Compatibility') }}，{{ _('But No Longer Called from Sidebar') }}）
+// =============================================
+// TradeMind {{ _('Sub Brand Settings') }}
+// =============================================

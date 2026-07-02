@@ -1,0 +1,630 @@
+window.l_social=function(){
+  var h='';
+  h+='<div style="margin-bottom:12px;display:flex;gap:4px;flex-wrap:wrap">';
+  h+='<button class="btn bp" onclick="socialTab(0)" id="soc-t0">{{ _('Article Edit') }}</button>';
+  h+='<button class="btn bo" onclick="socialTab(1)" id="soc-t1">🎨 {{ _('Add Image') }}</button>';
+  h+='<button class="btn bo" onclick="socialTab(2)" id="soc-t2">📤 {{ _('Publish') }}</button>';
+  h+='<span style="flex:1"></span>';
+  h+='<span id="socConfigStatus" style="font-size:10px;color:var(--dim);align-self:center"></span>';
+  h+='</div><div id="socContent"></div>';
+  document.getElementById("mc").innerHTML=h;
+  // Show config status
+  fetch("/admin/social/check-config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var st=[];
+    d.data.platforms.forEach(function(p){
+      if(p.configured)st.push(p.icon+" "+p.name+"✅");
+      else st.push(p.icon+" "+p.name+"❌");
+    });
+    document.getElementById("socConfigStatus").textContent=st.join(" | ");
+  }).catch(function(){});
+  socialTab(0);
+};
+
+var socArticle={title:"",summary:"",body_html:""};
+var socCoverUrl="";
+
+function socialTab(n){
+  document.querySelectorAll('[id^="soc-t"]').forEach(function(e){e.className="btn bo"});
+  var el=document.getElementById("soc-t"+n);
+  if(el)el.className="btn bp";
+  if(n===0)socialEditor();
+  else if(n===1)socialImageGen();
+  else if(n===2)socialPublish();
+}
+
+// ── Tab 0: {{ _('Article Edit') }} ──
+function socialEditor(){
+  var h='<div class="cd"><div class="st">{{ _('Edit Content') }}</div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Platform') }}</div>';
+  h+='<select class="sl" id="socPlatform" style="flex:1" onchange="socialUpdateContentTypes()"><option value="wechat">{{ _('WeChat OA Articles') }}</option><option value="weibo">{{ _('Weibo') }}</option></select></div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Type') }}</div>';
+  h+='<select class="sl" id="socType" style="flex:1"><option value="article">{{ _('Article') }}</option><option value="announcement">{{ _('Notification') }}</option><option value="promotion">{{ _('Promote') }}</option></select></div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Theme') }}</div><input class="in" id="socTopic" placeholder="{{ _('Enter Topic') }}，如：AI {{ _('Transform Finance') }}" style="flex:1"></div>';
+  h+='<div style="margin-top:8px;display:flex;gap:8px">';
+  h+='<button class="btn bp" onclick="socialGen()">🤖 AI {{ _('Generate') }}</button>';
+  h+='<button class="btn bo" onclick="socialClearEditor()">{{ _('Clear') }}</button></div></div>';
+  h+='<button class="btn bo" onclick="socialImportFromCMS()">📥 从CMS{{ _('Import') }}</button>';
+
+  h+='<div class="cd" style="margin-top:12px"><div class="st">{{ _('Content') }}</div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Title') }}</div><input class="in" id="socTitle" placeholder="{{ _('Title') }}" style="flex:1" value="'+esc(socArticle.title)+'"></div>';
+  h+='<div class="fl" id="socSummaryRow"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Summary') }}</div><input class="in" id="socSummary" placeholder="{{ _('Summary') }}（{{ _('Optional') }}）" style="flex:1" value="'+esc(socArticle.summary)+'"></div>';
+  h+='<div style="font-size:11px;color:var(--dim);margin:8px 0 4px">{{ _('Body') }}</div>';
+  h+='<textarea class="ta" id="socBody" style="min-height:200px;width:100%" placeholder="{{ _('Body Content') }}...">'+esc(socArticle.body_html)+'</textarea>';
+  h+='<div style="margin-top:6px;display:flex;gap:6px"><button class="btn bo bs" onclick="socAiformat()">🤖 AI{{ _('Layout') }}</button><button class="btn bo bs" onclick="socAicover()">🎨 AI{{ _('Add Image') }}</button></div>';
+  h+='<div id="socCmsImportList" style="margin-top:8px;display:none"></div>';
+  h+='</div>';
+
+  document.getElementById("socContent").innerHTML=h;
+}
+
+
+
+function socialImportFromCMS(){
+  var el=document.getElementById("socCmsImportList");
+  if(!el){showToast("{{ _('Use this feature in the editor first') }}","error");return}
+  if(el.style.display!="none"&&el.innerHTML){el.style.display="none";return}
+  el.style.display="block";
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}CMS{{ _('Article') }}...</div>';
+  fetch("/admin/social/import-from-cms",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var posts=d.data;
+    if(!posts.length){el.innerHTML='<div class="em">{{ _('No Published') }}CMS{{ _('Article') }}</div>';return}
+    var h='<div class="st" style="font-size:12px">{{ _('Select') }}CMS{{ _('Article Import') }}</div><table><tr><th>{{ _('Title') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
+    posts.forEach(function(p){
+      h+='<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-weight:600">'+esc(p.title)+'</td>';
+      h+='<td>'+esc(p.category)+'</td>';
+      h+='<td style="font-size:10px;color:var(--dim)">'+(p.published_at||p.created_at||'').slice(0,10)+'</td>';
+      h+='<td><button class="btn bo bs" onclick="socialImportCMSArticle('+p.id+')">{{ _('Import') }}</button></td></tr>';
+    });
+    h+='</table><div style="margin-top:8px"><button class="btn bo bs" onclick="document.getElementById(&#39;socCmsImportList&#39;).style.display=&#39;none&#39;">{{ _('Close') }}</button></div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+
+function socialImportCMSArticle(id){
+  fetch("/admin/social/import-from-cms",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){showToast("{{ _('Load failed') }}","error");return}
+    var post=null;
+    for(var i=0;i<d.data.length;i++){if(d.data[i].id===id){post=d.data[i];break}}
+    if(!post){showToast("{{ _('Article not found') }}","error");return}
+    socArticle.title=post.title||"";
+    socArticle.summary=post.excerpt||"";
+    socArticle.body_html=post.content||"";
+    socCoverUrl=post.cover_image||"";
+    socialEditor();
+    showToast("{{ _('Imported') }}: "+post.title,"success");
+    var el=document.getElementById("socCmsImportList");
+    if(el)el.style.display="none";
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+function socAiformat(){
+  var body=document.getElementById("socBody").value;
+  var title=document.getElementById("socTitle").value.trim();
+  if(!body){showToast("{{ _('Body cannot be empty') }}","error");return}
+  showToast("{{ _('AI Formatting (~10s)...') }}","");
+  fetch("/admin/content-factory/ai-format",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({content:body,title:title})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){document.getElementById("socBody").value=d.formatted;showToast("{{ _('Layout complete') }}","success")}
+    else{showToast(d.error||"{{ _('Layout Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+function socAicover(){
+  var title=document.getElementById("socTitle").value.trim()||"{{ _('Article Image') }}";
+  var p=prompt("{{ _('Image Description') }}（{{ _('Auto Generate if Empty') }}）:",title+" {{ _('Fintech') }} {{ _('Dark Sci-Fi') }}");
+  if(p===null)return;
+  showToast("{{ _('AI Generating Image (~30s)...') }}","");
+  fetch("/admin/content-factory/ai-cover",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({title:title,prompt:p||""})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      var img='<img src="'+d.image_url+'" style="max-width:100%;border-radius:8px">';
+      document.getElementById("socBody").value+="\n\n[{{ _('Add Image') }}] "+d.image_url;
+      showToast("{{ _('Image generated, URL inserted at bottom') }}","success")
+    }else{showToast(d.error||"{{ _('Image Attach Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+function socialUpdateContentTypes(){
+  var platform=document.getElementById("socPlatform").value;
+  var typeSel=document.getElementById("socType");
+  var summaryRow=document.getElementById("socSummaryRow");
+  if(platform==="weibo"){
+    typeSel.innerHTML='<option value="weibo">{{ _('Weibo') }}</option>';
+    if(summaryRow)summaryRow.style.display="none";
+  }else{
+    typeSel.innerHTML='<option value="article">{{ _('Article') }}</option><option value="announcement">{{ _('Notification') }}</option><option value="promotion">{{ _('Promote') }}</option>';
+    if(summaryRow)summaryRow.style.display="flex";
+  }
+}
+
+function socialClearEditor(){
+  document.getElementById("socTitle").value="";
+  document.getElementById("socSummary").value="";
+  document.getElementById("socBody").value="";
+}
+
+function socialGen(){
+  var topic=document.getElementById("socTopic").value.trim();
+  var type=document.getElementById("socType").value;
+  if(!topic){showToast("{{ _('Enter a topic') }}","error");return}
+  document.getElementById("socContent").innerHTML='<div class="lo"><div class="s"></div>AI {{ _('Generating') }}...</div>';
+  fetch("/admin/social/generate",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({topic:topic,content_type:type})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(!d.success){document.getElementById("socContent").innerHTML='<div class="em">'+esc(d.error||"{{ _('Generation Failed') }}")+'</div>';return}
+      var a=d.data;
+      socArticle={title:a.title||"",summary:a.summary||"",body_html:a.body_html||""};
+      socialEditor();
+      showToast("{{ _('Generation complete') }}","success");
+    }).catch(function(){document.getElementById("socContent").innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+
+// ── Tab 1: {{ _('Add Image') }} ──
+function socialImageGen(){
+  var h='<div class="cd"><div class="st">AI {{ _('Image Generation') }}（{{ _('Tongyi Wanxiang') }}）</div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Description') }}</div><input class="in" id="socImgPrompt" placeholder="{{ _('Describe Image Effect') }}，如：{{ _('Ink Landscape') }}" style="flex:1"></div>';
+  h+='<div style="margin:8px 0;display:flex;gap:12px">';
+  h+='<label style="font-size:11px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="socIsCover" checked> {{ _('As Cover Image') }}</label></div>';
+  h+='<button class="btn bp" onclick="socialGenImage()">🎨 {{ _('Generate Picture') }}</button>';
+  h+='</div>';
+  h+='<div id="socImgResult" style="margin-top:12px"></div>';
+  if(socCoverUrl){
+    h+='<div class="cd"><div class="st">{{ _('Current Cover') }}</div><img src="'+esc(socCoverUrl)+'" style="max-width:100%;max-height:300px;border-radius:8px">';
+    h+='<div style="margin-top:8px"><button class="btn bo" onclick="socCoverUrl=\'\';showToast(\'{{ _('Cleared') }}\',\'success\')">{{ _('Clear Cover') }}</button></div></div>';
+  }
+  document.getElementById("socContent").innerHTML=h;
+}
+
+function socialGenImage(){
+  var prompt=document.getElementById("socImgPrompt").value.trim();
+  var isCover=document.getElementById("socIsCover").checked;
+  var title=socArticle.title;
+  if(!prompt&&!title){showToast("{{ _('Enter image description') }}","error");return}
+  document.getElementById("socImgResult").innerHTML='<div class="lo"><div class="s"></div>{{ _('Tongyi Wanxiang Generating') }}...</div>';
+  fetch("/admin/social/generate-image",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({prompt:prompt,title:title,cover:isCover})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(!d.success){document.getElementById("socImgResult").innerHTML='<div class="em">'+esc(d.error||"{{ _('Generation Failed') }}")+'</div>';return}
+      var url=d.data.image_url;
+      socCoverUrl=url;
+      var h='<div class="cd"><div class="st">{{ _('Generation Result') }}</div>';
+      h+='<img src="'+esc(url)+'" style="max-width:100%;max-height:350px;border-radius:8px">';
+      h+='<div style="margin-top:8px;display:flex;gap:8px">';
+      h+='<button class="btn bp" onclick="socCoverUrl=\''+esc(url)+'\';showToast(\'{{ _('Set as Cover') }}\',\'success\')">{{ _('Set as Cover') }}</button>';
+      h+='<button class="btn bo" onclick="window.open(\''+esc(url)+'\',\'_blank\')">{{ _('View Original') }}</button></div></div>';
+      document.getElementById("socImgResult").innerHTML=h;
+      showToast("{{ _('Image generated') }}","success");
+    }).catch(function(){document.getElementById("socImgResult").innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+
+// ── Tab 2: {{ _('Publish') }} ──
+function socialPublish(){
+  fetch("/admin/social/check-config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(cfg){
+    var platforms=cfg.success?cfg.data.platforms:[];
+    var h='';
+
+    // Platform selection
+    h+='<div class="cd"><div class="st">{{ _('Push To') }}</div>';
+    h+='<div style="display:flex;gap:12px;flex-wrap:wrap">';
+    platforms.forEach(function(p){
+      var checked=p.configured?"checked":"";
+      var disabled=p.configured?"":"disabled";
+      h+='<label style="font-size:12px;display:flex;align-items:center;gap:4px;opacity:'+(p.configured?1:0.4)+'">';
+      h+='<input type="checkbox" class="socPlatformCheck" value="'+p.id+'" '+checked+' '+disabled+'>';
+      h+=p.icon+' '+p.name;
+      if(!p.configured)h+=' <span style="font-size:9px;color:var(--dim)">({{ _('Not Configured') }})</span>';
+      h+='</label>';
+    });
+    h+='</div></div>';
+
+    // Any platform configured?
+    var hasAny=platforms.some(function(p){return p.configured});
+    if(!hasAny){
+      h+='<div class="cd"><div class="st">⚠️ {{ _('No Configured Platform') }}</div>';
+      h+='<p style="font-size:12px;color:var(--dim)">{{ _('First') }}「{{ _('System Settings') }}」{{ _('Configure WeChat OA') }}、{{ _('Weibo or Tongyi Wanxiang') }} API Key</p>';
+      h+='<button class="btn bp" onclick="go(\'config\')">{{ _('Go to Config') }}</button></div>';
+      document.getElementById("socContent").innerHTML=h;
+      return;
+    }
+
+    // Preview
+    h+='<div class="cd"><div class="st">{{ _('Preview') }}</div>';
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(socArticle.title||"（{{ _('No Title') }}）")+'</div>';
+    h+='<div style="font-size:11px;color:var(--dim);margin-bottom:8px">'+esc(socArticle.summary||"")+'</div>';
+    if(socCoverUrl){
+      h+='<img src="'+esc(socCoverUrl)+'" style="max-width:100%;max-height:200px;border-radius:8px;margin-bottom:8px">';
+    }
+    h+='<div style="font-size:12px;max-height:250px;overflow-y:auto;border:1px solid var(--border);padding:12px;border-radius:8px;background:var(--bg2)">'+(socArticle.body_html||"（{{ _('No Body') }}）")+'</div>';
+    h+='</div>';
+
+    // Publish
+    h+='<div class="cd" style="margin-top:12px"><div class="st">{{ _('Publish') }}</div>';
+    h+='<label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" id="socAutoPub"> {{ _('Direct WeChat Publish') }}（{{ _('Unchecked') }}={{ _('Draft Only') }}；{{ _('Always Direct Publish to Weibo') }}）</label>';
+    h+='<button class="btn bp" onclick="socialDoPublish()">📤 {{ _('Send to Selected Platform') }}</button>';
+    h+='</div>';
+
+    // History
+    h+='<div class="cd" style="margin-top:12px"><div class="st">{{ _('Push History') }}</div><div id="socHistory"><div class="lo"><div class="s"></div></div></div></div>';
+
+    document.getElementById("socContent").innerHTML=h;
+    loadSocialHistory();
+  }).catch(function(){document.getElementById("socContent").innerHTML='<div class="em">{{ _('Check Configuration Failed') }}</div>'});
+}
+
+function socialDoPublish(){
+  var te=document.getElementById("socTitle");
+  var se=document.getElementById("socSummary");
+  var be=document.getElementById("socBody");
+  if(te&&te.value) socArticle.title=te.value;
+  if(se&&se.value) socArticle.summary=se.value;
+  if(be&&be.value) socArticle.body_html=be.value;
+
+  if(!socArticle.title||!socArticle.body_html){showToast("{{ _('Title and body are required') }}","error");return}
+
+  // Get selected platforms
+  var platforms=[];
+  document.querySelectorAll(".socPlatformCheck:checked").forEach(function(cb){platforms.push(cb.value)});
+  if(!platforms.length){showToast("{{ _('Select at least one platform') }}","error");return}
+
+  var autoPub=document.getElementById("socAutoPub")&&document.getElementById("socAutoPub").checked;
+
+  fetch("/admin/social/publish",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({
+    title:socArticle.title,
+    body:socArticle.body_html,
+    body_html:socArticle.body_html,
+    summary:socArticle.summary,
+    author:"admin",
+    cover_image_url:socCoverUrl||"",
+    platforms:platforms,
+    auto_publish:autoPub,
+  })}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      var msgs=d.data.results.map(function(r){return r.platform+": "+(r.message||r.error||r.status)});
+      showToast(msgs.join(" | "),d.data.results.some(function(r){return r.status=="failed"})?"error":"success");
+      loadSocialHistory();
+    }else{
+      showToast(d.error||"{{ _('Failed to send') }}","error");
+    }
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+function loadSocialHistory(){
+  var el=document.getElementById("socHistory");
+  if(!el)return;
+  fetch("/admin/social/history?limit=20",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var items=d.data.items;
+    if(!items||!items.length){el.innerHTML='<div class="em">{{ _('No Push Records') }}</div>';return}
+    var h='{{ _('<table><tr><th>Platform</th><th>Title</th><th>Status</th><th>ID</th><th>Time</th><th>Action</th></tr>') }}';
+    var statusMap={draft:"{{ _('Draft') }}",publishing:"{{ _('Publishing') }}",published:"{{ _('Published') }}",failed:"{{ _('Failed') }}"};
+    var platformIcon={wechat:"💬",weibo:"📢",toutiao:"📰"};
+    items.forEach(function(r){
+      var st=statusMap[r.status]||r.status;
+      var stCls=r.status==="published"?"on":(r.status==="failed"?"off":"pd");
+      var icon=platformIcon[r.platform]||"📤";
+      h+='<tr><td>'+icon+'</td>';
+      h+='<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(r.title)+'</td>';
+      h+='<td><span class="bdg '+stCls+'">'+st+'</span></td>';
+      h+='<td style="font-size:10px;font-family:monospace">'+(r.publish_id||r.media_id?"#"+esc(r.publish_id||r.media_id):"-")+'</td>';
+      h+='<td style="font-size:11px;color:var(--dim)">'+(r.created_at||"")+'</td>';
+      h+='<td><button class="btn bo bs" onclick="socialDeleteHistory('+r.id+')">{{ _('Delete') }}</button></td></tr>';
+    });
+    h+='</table><div style="font-size:10px;color:var(--dim);margin-top:8px">{{ _('Total: ') }}'+d.data.total+'{{ _(' entries') }}</div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
+}
+
+function socialDeleteHistory(id){
+  if(!confirm("{{ _('Delete?') }}"))return;
+  fetch("/admin/social/history/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){loadSocialHistory();showToast("{{ _('Deleted') }}","success")}
+    else{showToast(d.error||"{{ _('Delete failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+
+// ============================
+// 🏭 {{ _('Content Factory') }}
+// ============================
+var cfTab=0, cfSources=[], cfRawContents=[], cfProcessed=[];
+
+// ── {{ _('Multimedia Generation') }} ──
+
+// ── PPT {{ _('Generate') }} ──
+window.l_ppt_gen=function(){
+  document.getElementById("pt").textContent="{{ _('PPT Generation') }}";
+  var h='<div class="cd" style="margin-bottom:12px"><div class="st">📊 AI {{ _('Presentation Generation') }}</div>';
+  h+='<div style="font-size:12px;color:var(--muted);margin-bottom:12px">{{ _('Enter Topic') }}，AI {{ _('Auto-generate Structured Presentation') }}（.pptx），Dark {{ _('Tech Style') }}，16:9 {{ _('Widescreen') }}。</div>';
+  h+='<div class="g2">';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Demo Theme') }} *</div><input class="in" id="pptTopic" placeholder="如：{{ _('AI in Financial Risk Control') }}" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Pages') }}</div><select class="sl" id="pptSlides" style="width:100%">';
+  [5,8,10,12,15,20].forEach(function(n){h+='<option value="'+n+'"'+(n==8?' selected':'')+'>'+n+'{{ _(' pages') }}</option>'});
+  h+='</select></div>';
+  h+='</div>';
+  h+='<div style="margin-top:12px"><button class="btn bp" id="pptGenBtn" onclick="pptGenerate()">🚀 {{ _('Generate') }} PPT</button></div>';
+  h+='</div><div id="pptResult"></div>';
+  document.getElementById("mc").innerHTML=h;
+};
+function pptGenerate(){
+  var topic=document.getElementById("pptTopic").value.trim();
+  if(!topic){showToast("{{ _('Enter demo topic') }}","error");return}
+  var slides=parseInt((document.getElementById("pptPages")||{}).value)||10;
+  var style=document.getElementById("pptStyle").value.trim()||'Dark{{ _('Tech Style') }}，16:9';
+  var btn=document.getElementById("pptGenBtn");
+  btn.disabled=true;btn.textContent="{{ _('Generating...') }}";
+  var el=document.getElementById("pptResult");
+  el.innerHTML='<div class="lo"><div class="s"></div>AI {{ _('Creating') }}，约15-30秒...</div>';
+  fetch("/admin/generate-ppt",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({topic:topic,slides:slides,style:style})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    btn.disabled=false;btn.textContent="{{ _('🤖 AI Generate PPT') }}";
+    if(!d.success){el.innerHTML='<div class="em">'+esc(d.error||"{{ _('Generation Failed') }}")+'</div>';return}
+    el.innerHTML='<div class="cd" style="border-color:var(--accent)"><div class="st">✅ {{ _('Generated Successfully') }} — '+d.slides+' 页</div>'
+      +'<div style="font-size:11px;color:var(--dim);margin:4px 0">'+esc(d.filename)+'</div>'
+      +'<a class="btn bp" href="'+d.url+'" download style="margin-top:8px;text-decoration:none">⬇ {{ _('Download') }} PPTX</a></div>';
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent="{{ _('🤖 AI Generate PPT') }}";
+    el.innerHTML='<div class="em">{{ _('Request Failed') }} — {{ _('Please Refresh & Retry') }}</div>';
+  });
+}
+
+function imgGenerate(){
+  var prompt=(document.getElementById("imgPrompt")||{}).value;
+  if(!prompt||!prompt.trim()){showToast("{{ _('Enter a prompt') }}","error");return}
+  var style=document.getElementById("imgStyle").value||'realistic';
+  var count=parseInt(document.getElementById("imgCount").value)||1;
+  var btn=document.getElementById("imgGenBtn");
+  btn.disabled=true;btn.textContent="{{ _('Generating...') }}";
+  var el=document.getElementById("imgResult");
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Image Generation In Progress') }}，约10-30秒...</div>';
+  fetch("/admin/generate-image",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({prompt:prompt.trim(),style:style,count:count})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    btn.disabled=false;btn.textContent="{{ _('🎨 Generate Image') }}";
+    if(!d.success){el.innerHTML='<div class="em">'+esc(d.error||"{{ _('Generation Failed') }}")+'</div>';return}
+    var h='';
+    (d.images||[]).forEach(function(img){
+      h+='<div style="text-align:center"><img src="'+img.url+'" style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display=\'none\'"><br><a href="'+img.url+'" download class="btn bo bs" style="font-size:10px;margin-top:4px">⬇ {{ _('Download') }}</a></div>';
+    });
+    if(!h)h='<div class="em">{{ _('No Results') }}</div>';
+    el.innerHTML=h;
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent="{{ _('🎨 Generate Image') }}";
+    el.innerHTML='<div class="em">{{ _('Request Failed') }}</div>';
+  });
+}
+// ── {{ _('Multimedia Generation') }} ──
+var mvTab=0;
+window.l_media_video=function(){
+  mvSwitchTab(mvTab||0);
+};
+function mvSwitchTab(t){
+  mvTab=t;
+  var parent=document.getElementById("cmsContent")||document.getElementById("mc");
+  var h='<div style="margin-bottom:10px;display:flex;gap:4px">';
+  h+='<button class="btn '+(t===0?'bp':'bo')+'" onclick="mvSwitchTab(0)">🎙️ {{ _('Audio Source Management') }}</button>';
+  h+='<button class="btn '+(t===1?'bp':'bo')+'" onclick="mvSwitchTab(1)">🎬 {{ _('Video Creation') }}</button>';
+  h+='<button class="btn '+(t===2?'bp':'bo')+'" onclick="mvSwitchTab(2)">📋 {{ _('Publish Management') }}</button>';
+  h+='</div><div id="mvContent"></div>';
+  parent.innerHTML=h;
+  if(t===0)mvTabVoice();
+  else if(t===1)mvTabCreate();
+  else mvTabList();
+}
+
+// ── Tab 1: {{ _('Voice Management') }} ──
+function mvTabVoice(){
+  var el=document.getElementById("mvContent");
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading Voice List') }}...</div>';
+  fetch("/admin/media/voice/list",{headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var h='<div class="cd" style="margin-bottom:12px"><div class="st">+ {{ _('Clone New Voice') }}</div>';
+    h+='<div class="g2">';
+    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Voice Name') }} *</div><input class="in" id="mvVoiceName" placeholder="如：{{ _('My Voices') }}" style="width:100%"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Audio Sample') }} URL *</div><input class="in" id="mvVoiceUrl" placeholder="https://... {{ _('Publicly Accessible') }} wav/mp3" style="width:100%"></div>';
+    h+='</div>';
+    h+='<div style="font-size:10px;color:var(--muted);margin:4px 0">{{ _('Format') }}: wav/mp3, 16kHz {{ _('Mono') }}, 10-30秒。{{ _('Upload Audio to Public URL First') }}。</div>';
+    h+='<button class="btn bp" onclick="mvCloneVoice()">{{ _('Submit Clone') }}</button></div>';
+
+    // {{ _('Voice List') }}
+    h+='<div class="cd"><div class="st">{{ _('Cloned Voices') }}</div>';
+    if(!d.data||!d.data.length){
+      h+='<div class="em">{{ _('No Voices') }}，{{ _('Please Clone First') }}</div>';
+    }else{
+      h+='<table><tr><th>{{ _('Name') }}</th><th>Voice ID</th><th>{{ _('Status') }}</th><th>{{ _('Created') }}</th><th>{{ _('Actions') }}</th></tr>';
+      d.data.forEach(function(v){
+        var st=v.status==="ready"?'<span class="bdg on">{{ _('Ready') }}</span>':v.status==="pending"?'<span class="bdg" style="background:var(--accent2)">{{ _('Cloning') }}</span>':'<span class="bdg off">{{ _('Failed') }}</span>';
+        h+='<tr><td>'+esc(v.name)+'</td><td style="font-size:10px">'+esc(v.external_voice_id||"—")+'</td><td>'+st+'</td><td style="font-size:10px;color:var(--dim)">'+esc(v.created_at||"")+'</td>';
+        h+='<td><button class="btn bo bs" style="color:#f85149" onclick="mvDelVoice('+v.id+')">{{ _('Delete') }}</button></td></tr>';
+      });
+      h+='</table>';
+    }
+    h+='</div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+
+function mvCloneVoice(){
+  var name=document.getElementById("mvVoiceName").value.trim();
+  var url=document.getElementById("mvVoiceUrl").value.trim();
+  if(!name||!url){showToast("{{ _('Name and URL are required') }}","error");return}
+  var btn=event.target;btn.disabled=true;btn.textContent="{{ _('Submitting...') }}";
+  fetch("/admin/media/voice/clone",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({name:name,audio_url:url})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    btn.disabled=false;btn.textContent="{{ _('Submit Clone') }}";
+    if(d.success){showToast("{{ _('Voice clone task submitted') }}");mvTabVoice()}
+    else showToast(d.error||"{{ _('Clone Failed') }}","error");
+  }).catch(function(e){btn.disabled=false;btn.textContent="{{ _('Submit Clone') }}";showToast("{{ _('Request Failed') }}","error")});
+}
+
+function mvDelVoice(id){
+  if(!confirm("{{ _('Delete this voice?') }}"))return;
+  fetch("/admin/media/voice/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.success)mvTabVoice();else showToast(d.error,"error")});
+}
+
+// ── Tab 2: {{ _('Video Creation') }} ──
+function mvTabCreate(){
+  var el=document.getElementById("mvContent");
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading Voice List') }}...</div>';
+  fetch("/admin/media/voice/list",{headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    var voices=d.data||[];
+    var readyVoices=voices.filter(function(v){return v.status==="ready"});
+    var h='<div class="cd"><div class="st">🎬 {{ _('Create Video') }}</div>';
+    h+='<div class="g2">';
+    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Video Title') }} *</div><input class="in" id="mvTitle" placeholder="如：{{ _('Feature Release') }}" style="width:100%"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Select Voice') }} *</div><select class="sl" id="mvVoiceId" style="width:100%">';
+    if(!readyVoices.length)h+='<option value="">— {{ _('No Ready Voices') }}，{{ _('Please Clone First') }} —</option>';
+    else readyVoices.forEach(function(v){h+='<option value="'+v.id+'">'+esc(v.name)+' ('+esc(v.external_voice_id||"")+')</option>'});
+    h+='</select></div>';
+    h+='</div>';
+    h+='<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">{{ _('Script') }} *（{{ _('Suggestion') }}50-500字）</div>';
+    h+='<textarea class="in" id="mvText" placeholder="{{ _('Enter Digital Human Script') }}..." style="width:100%;min-height:120px;font-size:13px;line-height:1.5"></textarea></div>';
+    h+='<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">{{ _('Digital Human Avatar') }} URL</div>';
+    h+='<input class="in" id="mvAvatar" placeholder="https://... {{ _('Photo') }}URL（{{ _('Leave Empty for Default Avatar') }}）" style="width:100%"></div>';
+    h+='<div style="margin-top:12px"><button class="btn bp" onclick="mvCreateVideo()">🎬 {{ _('Generate Video') }}</button></div>';
+    h+='</div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+
+function mvCreateVideo(){
+  var title=document.getElementById("mvTitle").value.trim();
+  var text=document.getElementById("mvText").value.trim();
+  var voiceId=document.getElementById("mvVoiceId").value;
+  var avatar=document.getElementById("mvAvatar").value.trim();
+  if(!title||!text){showToast("{{ _('Title and copy are required') }}","error");return}
+  if(!voiceId){showToast("{{ _('Please select a cloned voice first') }}","error");return}
+  var btn=event.target;btn.disabled=true;btn.textContent="{{ _('Submitting...') }}";
+  fetch("/admin/media/video/create",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({title:title,text:text,voice_id:voiceId,image_url:avatar})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    btn.disabled=false;btn.textContent="{{ _('Generate Video') }}";
+    if(d.success){showToast("{{ _('Video generation task submitted') }}");mvTab=2;l_media_video()}
+    else showToast(d.error||"{{ _('Creation Failed') }}","error");
+  }).catch(function(e){btn.disabled=false;btn.textContent="{{ _('Generate Video') }}";showToast("{{ _('Request Failed') }}","error")});
+}
+
+// ── Tab 3: {{ _('Publish Management') }} ──
+var mvPolling=null, mvPubChannel=0;  // 0={{ _('Internal Channels') }}, 1={{ _('External Channels') }}
+function mvTabList(){
+  if(mvPolling){clearInterval(mvPolling);mvPolling=null}
+  var el=document.getElementById("mvContent");
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Load Video List') }}...</div>';
+  fetch("/admin/media/video/list?limit=50",{headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var items=d.data.items||[];
+    var h='';
+
+    // {{ _('Channel Switch') }}
+    var channels=[["🏠 {{ _('Internal Channels') }}","{{ _('Homepage Video Window') }}"],["🌐 {{ _('External Channels') }}","{{ _('Publish to Douyin') }}、{{ _('Kuaishou & Other Social Media') }}"]];
+    h+='<div style="display:flex;gap:6px;margin-bottom:12px">';
+    channels.forEach(function(c,i){
+      var sel=i===mvPubChannel;
+      h+='<div class="cd" onclick="mvPubChannel='+i+';mvTabList()" style="flex:1;cursor:pointer;padding:12px;border-color:'+(sel?'var(--accent)':'var(--border)')+';background:'+(sel?'rgba(47,107,255,0.06)':'')+'">';
+      h+='<div style="font-size:13px;font-weight:600;color:'+(sel?'var(--accent)':'var(--text)')+'">'+c[0]+'</div>';
+      h+='<div style="font-size:10px;color:var(--dim);margin-top:2px">'+c[1]+'</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+
+    // {{ _('Video List') }}
+    var doneItems=items.filter(function(t){return t.status==="done"});
+    h+='<div class="cd"><div class="st">📋 {{ _('Publishable Videos') }} ('+doneItems.length+'/'+items.length+')</div>';
+
+    if(!doneItems.length){
+      h+='<div class="em">{{ _('No Completed Videos') }}，{{ _('First') }}「{{ _('Video Creation') }}」{{ _('Generate In') }}</div>';
+    }else if(mvPubChannel===0){
+      // {{ _('Internal Channels') }}：{{ _('Homepage Display') }} + {{ _('Download') }}
+      h+='<table><tr><th>{{ _('Title') }}</th><th>{{ _('Sound') }}</th><th>{{ _('Home') }}</th><th>{{ _('Actions') }}</th></tr>';
+      doneItems.forEach(function(t){
+        var hp=t.is_homepage?'<span class="bdg on">{{ _('Showing') }}</span>':'<span class="bdg off">{{ _('Not Shown') }}</span>';
+        h+='<tr><td>'+esc(t.title)+'</td><td style="font-size:11px">'+esc(t.voice_name||"—")+'</td><td>'+hp+'</td>';
+        h+='<td><a class="btn bo bs" href="/admin/media/video/'+t.id+'/download" target="_blank">{{ _('Download') }}</a> ';
+        h+='<button class="btn bo bs" onclick="mvToggleHomepage('+t.id+')">'+(t.is_homepage?'{{ _('Unset Home') }}':'{{ _('Homepage Display') }}')+'</button>';
+        h+='<button class="btn bo bs" style="color:#f85149" onclick="mvDelVideo('+t.id+')">{{ _('Delete') }}</button></td></tr>';
+      });
+      h+='</table>';
+    }else{
+      // {{ _('External Channels') }}：{{ _('Douyin') }}、{{ _('Kuaishou') }}
+      h+='<table><tr><th>{{ _('Title') }}</th><th>{{ _('Sound') }}</th><th>{{ _('Douyin') }}</th><th>{{ _('Kuaishou') }}</th><th>{{ _('Actions') }}</th></tr>';
+      doneItems.forEach(function(t){
+        var dy=t.published_douyin?'<span class="bdg on">{{ _('Published') }}</span>':'<span class="bdg off">{{ _('Unpublished') }}</span>';
+        h+='<tr><td>'+esc(t.title)+'</td><td style="font-size:11px">'+esc(t.voice_name||"—")+'</td>';
+        h+='<td>'+dy+'</td><td><span class="bdg off" style="font-size:10px">{{ _('In Development') }}</span></td>';
+        h+='<td><a class="btn bo bs" href="/admin/media/video/'+t.id+'/download" target="_blank">{{ _('Download') }}</a> ';
+        if(!t.published_douyin)h+='<button class="btn bo bs" onclick="mvPublishDouyin('+t.id+')">{{ _('Post to Douyin') }}</button> ';
+        h+='<button class="btn bo bs" style="color:#f85149" onclick="mvDelVideo('+t.id+')">{{ _('Delete') }}</button></td></tr>';
+      });
+      h+='</table>';
+    }
+    h+='</div>';
+
+    // {{ _('Processing') }}/{{ _('Failed Task List') }}
+    var otherItems=items.filter(function(t){return t.status!=="done"});
+    if(otherItems.length>0){
+      h+='<div class="cd" style="margin-top:4px"><div class="st">⏳ {{ _('Processing') }} / {{ _('Failed') }} ('+otherItems.length+')</div>';
+      h+='<table style="font-size:11px"><tr><th>{{ _('Title') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr>';
+      otherItems.forEach(function(t){
+        var st=t.status==="processing"?'<span class="bdg" style="background:var(--accent2)">{{ _('Generating') }}</span>':t.status==="pending"?'<span class="bdg" style="background:var(--warn)">{{ _('Waiting') }}</span>':'<span class="bdg off">{{ _('Failed') }}</span>';
+        h+='<tr><td>'+esc(t.title)+'</td><td>'+st+'</td>';
+        h+='<td>'+(t.status==="processing"?'<span style="font-size:10px;color:var(--accent)">{{ _('Polling') }}...</span>':t.status==="failed"?'<button class="btn bo bs" onclick="mvRetry('+t.id+')">{{ _('Retry') }}</button>':'')
+        +'<button class="btn bo bs" style="color:#f85149;margin-left:4px" onclick="mvDelVideo('+t.id+')">{{ _('Delete') }}</button></td></tr>';
+      });
+      h+='</table></div>';
+    }
+
+    el.innerHTML=h;
+    // {{ _('Auto Poll') }}
+    var processingIds=[];
+    items.forEach(function(t){if(t.status==="processing")processingIds.push(t.id)});
+    if(processingIds.length>0){
+      mvPolling=setInterval(function(){processingIds.forEach(function(id){mvPollStatus(id)})},5000);
+    }
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+
+function mvPollStatus(tid){
+  fetch("/admin/media/video/"+tid+"/status",{headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success)return;
+    if(d.data.status==="done"||d.data.status==="failed")mvTabList();
+  }).catch(function(){});
+}
+
+function mvToggleHomepage(tid){
+  fetch("/admin/media/video/"+tid+"/toggle-homepage",{method:"POST",headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.success)mvTabList();else showToast(d.error,"error")});
+}
+
+function mvPublishDouyin(tid){
+  if(!confirm("{{ _('Publish to Douyin?') }}"))return;
+  showToast("{{ _('Douyin publish under development, download video and publish manually') }}","warn");
+}
+
+function mvRetry(tid){
+  var btn=event.target;btn.disabled=true;btn.textContent="{{ _('Retrying...') }}";
+  fetch("/admin/media/video/"+tid+"/retry",{method:"POST",headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    btn.disabled=false;btn.textContent="{{ _('Retry') }}";
+    if(d.success){showToast("{{ _('Re-submitted') }}");mvTabList()}
+    else showToast(d.error,"error");
+  }).catch(function(e){btn.disabled=false;btn.textContent="{{ _('Retry') }}";showToast("{{ _('Request Failed') }}","error")});
+}
+
+function mvDelVideo(tid){
+  if(!confirm("{{ _('Delete this video? File will be permanently removed.') }}"))return;
+  fetch("/admin/media/video/"+tid,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.success)mvTabList();else showToast(d.error,"error")});
+}
+

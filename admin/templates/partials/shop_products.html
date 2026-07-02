@@ -1,0 +1,258 @@
+window.l_shop_products=function(){
+  document.getElementById("pt").textContent="{{ _('📦 Product Management') }}";
+  loadShopProducts();
+};
+
+function loadShopProducts(){
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  // {{ _('Collect Filter Conditions') }}
+  var params = [];
+  var searchInput = document.getElementById("spSearch");
+  var catFilter = document.getElementById("spCategory");
+  var statusFilter = document.getElementById("spStatus");
+  var search = searchInput ? searchInput.value.trim() : '';
+  var catId = catFilter ? parseInt(catFilter.value) : 0;
+  var status = statusFilter ? parseInt(statusFilter.value) : -1;
+  if(search) params.push('search='+encodeURIComponent(search));
+  if(catId > 0) params.push('category_id='+catId);
+  if(status >= 0) params.push('is_active='+status);
+  var qs = params.length ? '?'+params.join('&') : '';
+
+  fetch("/shop/products"+qs,{headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success)return;
+    var ps=d.data||[];
+    var types={"vip":"VIP{{ _('Plan') }}","template":"{{ _('Templates') }}","token":"{{ _('Usage Packs') }}","service":"{{ _('Services') }}","plugin":"{{ _('Plugins') }}"};
+    var h = '';
+
+    // {{ _('Filter Bar') }}
+    h += '<div class="sbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+    h += '<input class="in" id="spSearch" placeholder="{{ _('Search Product Name') }}..." style="flex:1;min-width:120px;font-size:12px;padding:6px 10px" onkeyup="if(event.key===\'Enter\')loadShopProducts()" value="'+esc(searchInput?searchInput.value:'')+'">';
+    h += '<select class="sl" id="spCategory" style="font-size:12px;padding:6px 10px" onchange="loadShopProducts()"><option value="0">{{ _('All Categories') }}</option></select>';
+    h += '<select class="sl" id="spStatus" style="font-size:12px;padding:6px 10px" onchange="loadShopProducts()">';
+    h += '<option value="-1">{{ _('All Status') }}</option><option value="1">{{ _('List') }}</option><option value="0">{{ _('Unlist') }}</option>';
+    h += '</select>';
+    h += '<button class="btn bp bs" onclick="showProductForm()">+ {{ _('New Product') }}</button>';
+    h += '</div>';
+
+    h+='<div class="cd"><div class="st">{{ _('Product List') }} ('+ps.length+')</div><table><tr><th>ID</th><th>{{ _('Title') }}</th><th>{{ _('Type') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Price') }}</th><th>{{ _('Stock') }}</th><th>{{ _('Sales') }}</th><th>{{ _('Status') }}</th><th>{{ _('Sort') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!ps.length)h+='<tr><td colspan="10"><div class="em">{{ _('No Products') }}</div></td></tr>';
+    else ps.forEach(function(p){
+      var st=p.is_active?'<span class="bdg on">{{ _('List') }}</span>':'<span class="bdg off">{{ _('Unlist') }}</span>';
+      h+='<tr>';
+      h+='<td>'+p.id+'</td><td>'+esc(p.title)+(p.subtitle?'<br><span style="font-size:10px;color:var(--dim)">'+esc(p.subtitle)+'</span>':'')+'</td>';
+      h+='<td>'+(types[p.product_type]||p.product_type)+'</td>';
+      h+='<td style="font-size:11px;color:var(--dim)">'+esc(p.category_name||p.category||'-')+'</td>';
+      h+='<td style="color:var(--accent)">¥'+p.price+'</td>';
+      h+='<td>'+p.stock+'</td><td>'+p.sales_count+'</td><td>'+st+'</td><td>'+p.sort_order+'</td>';
+      h+='<td><button class="btn bs bo" onclick="editProduct('+p.id+')">{{ _('Edit') }}</button> ';
+      h+='<button class="btn bs bo" onclick="toggleProduct('+p.id+','+(p.is_active?0:1)+')">'+(p.is_active?'{{ _('Unlist') }}':'{{ _('List') }}')+'</button> ';
+      h+='<button class="btn bs bo" style="color:#f85149" onclick="deleteProduct('+p.id+')">{{ _('Delete') }}</button></td></tr>';
+    });
+    h+='</table></div>';
+    // {{ _('Form') }}
+    h+='<div class="cd" id="productForm" style="display:none;margin-top:16px"><div class="st" id="productFormTitle">{{ _('New Product') }}</div>';
+    h+='<div class="g2"><div><label>{{ _('Title') }}</label><input class="in" id="pTitle" style="width:100%"></div>';
+    h+='<div><label>{{ _('Subtitle') }}</label><input class="in" id="pSubtitle" style="width:100%"></div></div>';
+    h+='<div class="g2"><div><label>{{ _('Type') }}</label><select class="sl" id="pType" style="width:100%"><option value="service">{{ _('Services') }}</option><option value="vip">VIP{{ _('Plan') }}</option><option value="template">{{ _('Templates') }}</option><option value="token">{{ _('Usage Packs') }}</option><option value="plugin">{{ _('Plugins') }}</option></select></div>';
+    h+='<div><label>{{ _('Categories') }} <span style="font-size:10px;color:var(--dim);cursor:pointer" onclick="l_shop_categories()">{{ _('Category Management') }} →</span></label><select class="sl" id="pCategory" style="width:100%"><option value="">{{ _('Select Category') }}...</option></select></div></div>';
+    h+='<div class="g2"><div><label>{{ _('Price') }} (¥)</label><input class="in" id="pPrice" type="number" step="0.01" style="width:100%"></div>';
+    h+='<div><label>{{ _('Original Price') }} (¥)</label><input class="in" id="pOrigPrice" type="number" step="0.01" style="width:100%"></div></div>';
+    h+='<div class="g2"><div><label>{{ _('Stock') }}</label><input class="in" id="pStock" type="number" style="width:100%"></div>';
+    h+='<div><label>{{ _('Sort') }}</label><input class="in" id="pSort" type="number" style="width:60px"></div></div>';
+    h+='<div><label>{{ _('Thumbnail') }}</label><div style="display:flex;gap:6px">';
+    h+='<input class="in" id="pThumb" style="flex:1" placeholder="{{ _('Image') }}URL{{ _('Or Upload') }}/{{ _('Auto-fill After Selection') }}">';
+    h+='<input type="file" id="pUploadFile" accept="image/*" style="display:none" onchange="uploadProductImage()">';
+    h+='<button class="btn bp bs" onclick="document.getElementById(\'pUploadFile\').click()" title="{{ _('Local Upload') }}">📤 {{ _('Upload') }}</button>';
+    h+='<button class="btn bo bs" onclick="openMediaPicker()" title="{{ _('Choose from Library') }}">🖼 {{ _('Select Image') }}</button>';
+    h+='<button class="btn bo bs" onclick="openAIImageGen()" title="AI{{ _('Generate Image & Auto-fill') }}">🤖 AI{{ _('Generate') }}</button>';
+    h+='</div></div>';
+    h+='<div id="pGallery" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;min-height:0"></div>';
+    h+='<div style="margin-top:4px;font-size:11px;color:var(--dim)">{{ _('First Image is Main Product Image') }}，{{ _('Click Image to Set as Thumbnail') }}，{{ _('Drag to Sort') }}</div>';
+    h+='<div style="margin-top:8px"><label>{{ _('Features') }} ({{ _('One Per Line') }})</label><textarea class="ta" id="pFeatures" style="width:100%;height:80px;font-size:12px" placeholder="AI{{ _('Smart Chat') }}&#10;{{ _('Generate Site in One Click') }}&#10;SEO{{ _('Auto Optimize') }}"></textarea></div>';
+    h+='<div style="margin-top:8px"><label>{{ _('Description') }} <span style="font-size:11px;color:var(--dim);font-weight:400">（{{ _('Supports Mixed Media') }}）</span></label><div id="pDescEditor" style="min-height:200px;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div></div>';
+    h+='<div style="margin-top:8px;display:flex;gap:8px"><button class="btn bp" onclick="saveProduct()">{{ _('Save') }}</button><button class="btn bs bo" id="previewProductBtn" onclick="previewProduct()" style="display:none">🔍 {{ _('Preview') }}</button><button class="btn bo" onclick="hideProductForm()">{{ _('Cancel') }}</button></div>';
+    h+='<input type="hidden" id="pEditId" value="">';
+    h+='</div>'; // close productForm
+    // {{ _('Spec Management Panel') }}（{{ _('Show Only When Editing') }}）
+    h+='<div class="cd" id="specPanel" style="display:none;margin-top:16px">';
+    h+='<div class="st">📏 {{ _('Spec') }}/SKU {{ _('Management') }}</div>';
+    h+='<div id="specContent" style="margin-top:8px"><div class="lo"><div class="s"></div></div></div>';
+    h+='</div>';
+
+    document.getElementById("mc").innerHTML = h;
+
+    // {{ _('Loading Category Dropdown') }}
+    fetch("/shop/categories", {headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d2){
+      if(!d2.success) return;
+      var list = d2.data && d2.data.list ? d2.data.list : (d2.data||[]);
+      if(!Array.isArray(list)) list = [];
+
+      // {{ _('Filter Bar Category Dropdown') }}
+      var spCat = document.getElementById("spCategory");
+      if(spCat){
+        spCat.innerHTML = '<option value="0">{{ _('All Categories') }}</option>';
+        list.forEach(function(c){
+          var opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.name;
+          if(catId === c.id) opt.selected = true;
+          spCat.appendChild(opt);
+        });
+      }
+
+      // {{ _('Form Category Dropdown') }}
+      var formCat = document.getElementById("pCategory");
+      if(formCat){
+        formCat.innerHTML = '<option value="">{{ _('Select Category') }}...</option>';
+        list.forEach(function(c){
+          var opt = document.createElement("option");
+          opt.value = c.name;
+          opt.textContent = c.name;
+          formCat.appendChild(opt);
+        });
+      }
+
+      // {{ _('Restore Status Filter') }}
+      var spSt = document.getElementById("spStatus");
+      if(spSt && status >= 0) spSt.value = String(status);
+    });
+  });
+}
+
+var _shopProds=[];
+function showProductForm(id){
+  document.getElementById("pEditId").value=id||"";
+  document.getElementById("productFormTitle").textContent=id?"{{ _('Edit Product') }}":"{{ _('New Product') }}";
+
+  // {{ _('Show the Form First') }}，{{ _('Otherwise') }} Quill {{ _('Initializing in Hidden Element Crashes') }}
+  document.getElementById("productForm").style.display="block";
+
+  // {{ _('Initialize') }} Quill {{ _('Editor') }}（{{ _('Initialize After Element is Displayed') }}）
+  setTimeout(function(){
+    var editorEl = document.getElementById("pDescEditor");
+    if(editorEl && !window._pQuill){
+      window._pQuill = new Quill('#pDescEditor', {
+        theme: 'snow',
+        placeholder: '{{ _('Enter Product Description') }}，{{ _('Supports Mixed Media') }}...',
+        modules: {
+          toolbar: {
+            container: [
+              ['bold','italic','underline','strike'],
+              [{list:'ordered'},{list:'bullet'}],
+              ['link','blockquote','code-block'],
+              [{size:['small',false,'large','huge']}],
+              [{color:[]},{background:[]}],
+              ['image','clean']
+            ],
+            handlers: {
+              image: function(){
+                openMediaPickerForQuill(window._pQuill);
+              }
+            }
+          }
+        }
+      });
+    }
+    // {{ _('Loading Category Dropdown Options') }}
+    loadCategorySelect(function(){
+      // {{ _('Load or Clear Content') }}
+      if(id){
+        document.getElementById("previewProductBtn").style.display="inline-flex";
+        fetch("/shop/products/"+id,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+          if(!d.success||!d.data)return;
+          var p=d.data;
+          document.getElementById("pTitle").value=p.title||"";
+          document.getElementById("pSubtitle").value=p.subtitle||"";
+          document.getElementById("pType").value=p.product_type||"service";
+          document.getElementById("pCategory").value=p.category||"";
+          document.getElementById("pPrice").value=p.price||"";
+          document.getElementById("pOrigPrice").value=p.original_price||"";
+          document.getElementById("pStock").value=p.stock||"";
+          document.getElementById("pSort").value=p.sort_order||"0";
+          document.getElementById("pThumb").value=p.thumbnail||"";
+          renderProductGallery(p.images||[]);
+          var fs=p.features;if(typeof fs==="string")try{fs=JSON.parse(fs)}catch(e){fs=[]}
+          document.getElementById("pFeatures").value=(fs||[]).join("\\n");
+          if(window._pQuill) window._pQuill.root.innerHTML = p.description||"";
+          // {{ _('Show Spec Panel & Load Data') }}
+          var sp = document.getElementById("specPanel");
+          if(sp){sp.style.display="block"; loadSpecManagement(id);}
+        });
+      }else{
+        document.getElementById("pCategory").value="";
+        ["pTitle","pSubtitle","pPrice","pOrigPrice","pStock","pThumb","pFeatures"].forEach(function(i){
+          var el=document.getElementById(i);if(el)el.value="";
+        });
+        if(window._pQuill) window._pQuill.root.innerHTML = "";
+        document.getElementById("pSort").value="0";
+        document.getElementById("pType").value="service";
+        renderProductGallery([]);
+        var sp = document.getElementById("specPanel");
+        if(sp) sp.style.display = "none";
+      }
+    });
+  }, 50);
+}
+function hideProductForm(){
+  document.getElementById("productForm").style.display="none";
+  document.getElementById("pEditId").value="";
+}
+function previewProduct(){
+  var id=document.getElementById("pEditId").value;
+  if(id) window.open('/shop/preview/'+id,'_blank');
+}
+function saveProduct(){
+  var id=document.getElementById("pEditId").value;
+  var data={
+    title: document.getElementById("pTitle").value.trim(),
+    subtitle: document.getElementById("pSubtitle").value.trim(),
+    product_type: document.getElementById("pType").value,
+    category: document.getElementById("pCategory").value.trim(),
+    price: parseFloat(document.getElementById("pPrice").value)||0,
+    original_price: parseFloat(document.getElementById("pOrigPrice").value)||0,
+    stock: parseInt(document.getElementById("pStock").value)||0,
+    sort_order: parseInt(document.getElementById("pSort").value)||0,
+    thumbnail: document.getElementById("pThumb").value.trim(),
+    images: _shopImages,
+    category_id: 0,
+    features: document.getElementById("pFeatures").value.split("\\n").map(function(s){return s.trim()}).filter(function(s){return s}),
+    description: window._pQuill ? window._pQuill.root.innerHTML : ""
+  };
+  if(!data.title){showToast("{{ _('Enter a title') }}","error");return;}
+  var url=id?"/shop/products/"+id:"/shop/products";
+  var method=id?"PUT":"POST";
+  fetch(url,{method:method,headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.success){showToast(id?"✅ {{ _('Updated') }}":"✅ {{ _('Created') }}","success");hideProductForm();l_shop_products()}
+      else showToast(d.error||"{{ _('Failed') }}","error");
+    });
+}
+
+// ── {{ _('Loading Category Dropdown') }} ──
+function loadCategorySelect(callback){
+  var sel = document.getElementById("pCategory");
+  if(!sel) return;
+  fetch("/shop/categories", {headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success){if(callback)callback();return}
+     var list = d.data && d.data.list ? d.data.list : (d.data||[]);
+     if(!Array.isArray(list)) list = [];
+     // {{ _('Retain') }}"{{ _('Select Category') }}"{{ _('Options') }}
+     sel.innerHTML = '<option value="">{{ _('Select Category') }}...</option>';
+     list.forEach(function(c){
+      var opt = document.createElement("option");
+      opt.value = c.name;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+    if(callback) callback();
+  })
+  .catch(function(){if(callback)callback()});
+}
+
+// ── {{ _('Product Categories Management') }} ──

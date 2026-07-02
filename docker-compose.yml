@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  easykai:
+    image: easykai/easykai:latest
+    container_name: easykai
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - easykai_data:/app/data
+      - easykai_uploads:/app/admin/static
+      - easykai_platform_uploads:/app/platform/static
+    environment:
+      - DB_PATH=/app/data/easykai.db
+      - EASYKAI_MODE=${EASYKAI_MODE:-client}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
+      - EASYKAI_HEARTBEAT_URL=${EASYKAI_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  easykai_data:
+  easykai_uploads:
+  easykai_platform_uploads:

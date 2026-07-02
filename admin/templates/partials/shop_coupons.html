@@ -1,0 +1,221 @@
+window.l_shop_coupons=function(){
+  document.getElementById("pt").textContent="{{ _('📦 Coupons') }}";
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  loadCouponView();
+};
+function loadCouponView(){
+  fetch("/shop/coupons",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var cs=d.data||[];
+    var h='<div class="sbar"><button class="btn bp" onclick="showCouponForm()">+ {{ _('New Coupons') }}</button>';
+    h+='<button class="btn bs bo" onclick="loadCouponStats()">📊 {{ _('Statistics') }}</button>';
+    h+='<input id="couponSearch" placeholder="{{ _('Search Code') }}/{{ _('Name') }}..." oninput="filterCoupons()" style="flex:1;max-width:200px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"></div>';
+    // {{ _('Stats Summary') }}
+    h+='<div class="gr" id="couponSummary"></div>';
+    // Coupon Form
+    h+='<div class="cd" id="couponForm" style="display:none;margin-top:16px"><div class="st" id="couponFormTitle">{{ _('New Coupons') }}</div>';
+    h+='<div class="g2"><div><label>{{ _('Coupon Code') }}</label><input class="in" id="cCode" style="width:100%;font-family:monospace" placeholder="SUMMER2026"></div>';
+    h+='<div><label>{{ _('Name') }}</label><input class="in" id="cName" style="width:100%" placeholder="{{ _('Summer Sale') }}"></div></div>';
+    h+='<div class="g3"><div><label>{{ _('Categories') }}</label><select class="sl" id="cCategory"><option value="general">{{ _('General Coupon') }}</option><option value="new_user">{{ _('New User Offer') }}</option><option value="threshold">{{ _('Discount Coupon') }}</option><option value="promotion">{{ _('Promo Coupon') }}</option></select></div>';
+    h+='<div><label>{{ _('Discount Type') }}</label><select class="sl" id="cType" onchange="toggleCouponType()"><option value="fixed">{{ _('Fixed Amount') }}</option><option value="percent">{{ _('Percentage') }}</option><option value="free_shipping">{{ _('Free Shipping') }}</option><option value="first_month_percent">{{ _('First Month Special') }}</option></select></div>';
+    h+='<div><label>{{ _('Face Value') }}</label><input class="in" id="cValue" type="number" step="0.01" placeholder="0.00" style="width:100%"></div></div>';
+    h+='<div class="g3"><div><label>{{ _('Min. Spend') }} (¥)</label><input class="in" id="cMin" type="number" step="0.01" value="0" style="width:100%"></div>';
+    h+='<div><label>{{ _('Minimum Purchase Qty') }}</label><input class="in" id="cMinQty" type="number" value="0" style="width:100%"></div>';
+    h+='<div><label>{{ _('Per User Limit') }}</label><input class="in" id="cPerUser" type="number" value="1" style="width:100%"></div></div>';
+    h+='<div class="g2"><div><label>{{ _('Usage Count Limit') }} (0={{ _('Unlimited') }})</label><input class="in" id="cLimit" type="number" value="0" style="width:100%"></div>';
+    h+='<div><label>{{ _('Expiry Time') }}</label><input class="in" id="cExpire" type="date" style="width:100%"></div></div>';
+    h+='<div><label>{{ _('Description') }}</label><textarea class="ta" id="cDesc" style="width:100%;height:50px;font-size:11px" placeholder="{{ _('Optional') }}：{{ _('Coupon Description') }}，{{ _('Display to User') }}"></textarea></div>';
+    h+='<div><label>{{ _('Applicable Products') }}ID ({{ _('Comma Separated') }}，{{ _('Leave Empty') }}={{ _('All') }})</label><input class="in" id="cProducts" style="width:100%;font-family:monospace" placeholder="1,5,12"></div>';
+    h+='<div style="margin-top:8px;display:flex;gap:8px"><button class="btn bp" onclick="saveCoupon()">{{ _('Save') }}</button><button class="btn bo" onclick="hideCouponForm()">{{ _('Cancel') }}</button></div>';
+    h+='<input type="hidden" id="cEditId" value=""></div>';
+    // Coupon table
+    h+='<div class="cd"><div class="st">{{ _('Coupons List') }} ('+cs.length+')</div><div style="overflow-x:auto"><table id="couponTable"><tr><th>ID</th><th>{{ _('Code') }}</th><th>{{ _('Name') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Type') }}</th><th>{{ _('Face Value') }}</th><th>{{ _('Min. Spend') }}</th><th>{{ _('Used') }}/{{ _('Total') }}</th><th>{{ _('Usage Rate') }}</th><th>{{ _('Expired') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!cs.length)h+='<tr><td colspan="12"><div class="em">{{ _('No Coupons') }}</div></td></tr>';
+    else cs.forEach(function(c){
+      var st=c.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Disable') }}</span>';
+      var catMap={general:'{{ _('General') }}',new_user:'{{ _('New User') }}',threshold:'{{ _('Discount') }}',promotion:'{{ _('Promotion') }}'};
+      var typeMap={fixed:'{{ _('Fixed') }}',percent:'{{ _('Percentage') }}',free_shipping:'{{ _('Free Shipping') }}'};
+      h+='<tr class="couponRow" data-search="'+esc(c.code+' '+c.name).toLowerCase()+'"><td>'+c.id+'</td>';
+      h+='<td style="font-family:monospace">'+esc(c.code)+'</td>';
+      h+='<td>'+esc(c.name||'-')+'</td>';
+      h+='<td>'+(catMap[c.coupon_category]||c.coupon_category)+'</td>';
+      h+='<td>'+(typeMap[c.coupon_type]||c.coupon_type)+'</td>';
+      h+='<td>'+(c.coupon_type==='percent'?c.value+'%':'¥'+c.value)+'</td>';
+      h+='<td>¥'+(c.min_amount||0)+'</td>';
+      h+='<td>'+c.used_count+'/'+(c.usage_limit||'∞')+'</td>';
+      h+='<td>'+(c.usage_rate||0)+'%</td>';
+      h+='<td style="font-size:10px;white-space:nowrap">'+(c.expire_at?c.expire_at.slice(0,10):'{{ _('Permanent') }}')+'</td><td>'+st+'</td>';
+      h+='<td style="white-space:nowrap"><button class="btn bs bo" onclick="showCouponForm('+c.id+')">{{ _('Edit') }}</button> ';
+      h+='<button class="btn bs bo" onclick="toggleCoupon('+c.id+','+(c.is_active?0:1)+')">'+(c.is_active?'{{ _('Disable') }}':'{{ _('Enabled') }}')+'</button> ';
+      h+='<button class="btn bs bo" onclick="showDistributeForm('+c.id+',\''+esc(c.code)+'\')">{{ _('Issue') }}</button> ';
+      h+='<button class="btn bs bo" onclick="showRedemptions('+c.id+')">{{ _('Record') }}</button></td></tr>';
+    });
+    h+='</table></div></div>';
+    // Distribute form
+    h+='<div class="cd" id="distributeForm" style="display:none;margin-top:16px"><div class="st">{{ _('Issue Coupons') }} <span id="distCode"></span></div>';
+    h+='<div style="margin-bottom:8px"><label><input type="radio" name="distMode" value="all" checked onchange="toggleDistMode()"> {{ _('Issue to All Users') }}</label>';
+    h+='<label style="margin-left:16px"><input type="radio" name="distMode" value="specific" onchange="toggleDistMode()"> {{ _('Specific User') }}ID</label></div>';
+    h+='<div id="distUserIds" style="display:none"><textarea class="ta" id="distUserIdsInput" placeholder="{{ _('One Per Line Users') }}ID" style="width:100%;height:80px;font-size:11px"></textarea></div>';
+    h+='<div style="margin-top:8px"><button class="btn bp" onclick="doDistribute()">{{ _('Confirm Issuance') }}</button> <button class="btn bo" onclick="document.getElementById(\'distributeForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>';
+    h+='<input type="hidden" id="distCouponId"></div>';
+    // Redemption log
+    h+='<div class="cd" id="redemptionLog" style="display:none;margin-top:16px"><div class="st">{{ _('Usage History') }}</div><div id="redemptionContent"></div></div>';
+    document.getElementById("mc").innerHTML=h;
+    // Load summary stats
+    loadCouponStats(true);
+  });
+}
+function filterCoupons(){
+  var q=(document.getElementById("couponSearch")?.value||"").toLowerCase();
+  document.querySelectorAll(".couponRow").forEach(function(r){
+    r.style.display=(!q||r.getAttribute("data-search").includes(q))?"":"none";
+  });
+}
+function loadCouponStats(summaryOnly){
+  fetch("/shop/coupons/stats",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var s=d.data;
+    var summaryEl=document.getElementById("couponSummary");
+    if(summaryEl){
+      summaryEl.innerHTML=hk("{{ _('Total Coupons') }}",s.total_coupons,"")+hk("{{ _('Enabling') }}",s.active_coupons,"#3fb950")+hk("{{ _('Total Usage Count') }}",s.total_used,"#58a6ff")+hk("{{ _('Total Saved') }}","¥"+s.total_discount,"#d2a8ff");
+    }
+    if(!summaryOnly){
+      // Show full stats view
+      var h='<div class="gr">'+hk("{{ _('Total Coupons') }}",s.total_coupons,"")+hk("{{ _('Enabling') }}",s.active_coupons,"#3fb950")+hk("{{ _('Total Usage Count') }}",s.total_used,"#58a6ff")+hk("{{ _('Total Saved') }}","¥"+s.total_discount,"#d2a8ff")+'</div>';
+      if(s.by_category&&s.by_category.length){
+        h+='<div class="cd"><div class="st">{{ _('Statistics by Category') }}</div><table><tr><th>{{ _('Categories') }}</th><th>{{ _('Count') }}</th></tr>';
+        s.by_category.forEach(function(x){h+='<tr><td>'+esc(x.coupon_category)+'</td><td>'+x.c+'</td></tr>'});
+        h+='</table></div>';
+      }
+      if(s.top_used&&s.top_used.length){
+        h+='<div class="cd"><div class="st">{{ _('Usage Rank') }} Top 10</div><table><tr><th>{{ _('Code') }}</th><th>{{ _('Name') }}</th><th>{{ _('Usage Count') }}</th></tr>';
+        s.top_used.forEach(function(x){h+='<tr><td>'+esc(x.code)+'</td><td>'+esc(x.name||'-')+'</td><td>'+x.used_count+'</td></tr>'});
+        h+='</table></div>';
+      }
+      h+='<div style="margin-top:8px"><button class="btn bo" onclick="l_shop_coupons()">← {{ _('Back to List') }}</button></div>';
+      document.getElementById("mc").innerHTML=h;
+    }
+  });
+}
+// ── Form helpers ──
+window.couponCategoryMap={general:'{{ _('General') }}',new_user:'{{ _('New User Offer') }}',threshold:'{{ _('Discount') }}',promotion:'{{ _('Promotion') }}'};
+window.couponTypeMap={fixed:'{{ _('Fixed Amount') }}',percent:'{{ _('Percentage') }}',free_shipping:'{{ _('Free Shipping') }}',first_month_percent:'{{ _('First Month Special') }}'};
+function toggleCouponType(){
+  var t=document.getElementById("cType").value;
+  document.getElementById("cValue").disabled=(t==='free_shipping');
+  if(t==='free_shipping')document.getElementById("cValue").value=0;
+}
+function showCouponForm(id){
+  document.getElementById("cEditId").value=id||"";
+  document.getElementById("couponFormTitle").textContent=id?"{{ _('Edit Coupons') }}":"{{ _('New Coupons') }}";
+  if(id){
+    fetch("/shop/coupons",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+      var c=(d.data||[]).find(function(x){return x.id==id});if(!c)return;
+      document.getElementById("cCode").value=c.code||"";
+      document.getElementById("cName").value=c.name||"";
+      document.getElementById("cCategory").value=c.coupon_category||"general";
+      document.getElementById("cType").value=c.coupon_type||"fixed";
+      document.getElementById("cValue").value=c.value||"";
+      document.getElementById("cMin").value=c.min_amount||"";
+      document.getElementById("cMinQty").value=c.min_quantity||0;
+      document.getElementById("cPerUser").value=c.per_user_limit||1;
+      document.getElementById("cLimit").value=c.usage_limit||"";
+      document.getElementById("cExpire").value=(c.expire_at||"").slice(0,10);
+      document.getElementById("cDesc").value=c.description||"";
+      document.getElementById("cProducts").value=c.applicable_products||"";
+      toggleCouponType();
+    });
+  }else{
+    ["cCode","cName","cValue","cMin","cLimit","cExpire","cDesc","cProducts"].forEach(function(i){
+      var el=document.getElementById(i);if(el)el.value=""
+    });
+    document.getElementById("cCategory").value="general";
+    document.getElementById("cType").value="fixed";
+    document.getElementById("cMinQty").value=0;
+    document.getElementById("cPerUser").value=1;
+  }
+  document.getElementById("couponForm").style.display="block";
+  document.getElementById("couponForm").scrollIntoView({behavior:"smooth"});
+}
+function hideCouponForm(){
+  document.getElementById("couponForm").style.display="none";
+  document.getElementById("cEditId").value="";
+}
+function saveCoupon(){
+  var id=document.getElementById("cEditId").value;
+  var data={
+    code: document.getElementById("cCode").value.trim().toUpperCase(),
+    name: document.getElementById("cName").value.trim(),
+    coupon_category: document.getElementById("cCategory").value,
+    coupon_type: document.getElementById("cType").value,
+    value: parseFloat(document.getElementById("cValue").value)||0,
+    min_amount: parseFloat(document.getElementById("cMin").value)||0,
+    min_quantity: parseInt(document.getElementById("cMinQty").value)||0,
+    per_user_limit: parseInt(document.getElementById("cPerUser").value)||1,
+    usage_limit: parseInt(document.getElementById("cLimit").value)||0,
+    expire_at: document.getElementById("cExpire").value||"",
+    description: document.getElementById("cDesc").value.trim(),
+    applicable_products: document.getElementById("cProducts").value.trim()
+  };
+  if(!data.code){showToast("{{ _('Enter coupon code') }}","error");return;}
+  var url=id?"/shop/coupons/"+id:"/shop/coupons";
+  var method=id?"PUT":"POST";
+  fetch(url,{method:method,headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.success){showToast(id?"✅ {{ _('Updated') }}":"✅ {{ _('Created') }}","success");hideCouponForm();l_shop_coupons()}
+      else showToast(d.error||"{{ _('Failed') }}","error");
+    });
+}
+function toggleCoupon(id,active){
+  fetch("/shop/coupons/"+id,{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({is_active:active})})
+    .then(function(r){return r.json()}).then(function(d){if(d.success){showToast("{{ _('✅ Completed') }}","success");l_shop_coupons()}});
+}
+// ── Distribute ──
+function showDistributeForm(cid,code){
+  document.getElementById("distCouponId").value=cid;
+  document.getElementById("distCode").textContent="— "+code;
+  document.getElementById("distributeForm").style.display="block";
+  document.getElementById("distributeForm").scrollIntoView({behavior:"smooth"});
+}
+function toggleDistMode(){
+  var mode=document.querySelector('input[name="distMode"]:checked').value;
+  document.getElementById("distUserIds").style.display=mode==="specific"?"block":"none";
+}
+function doDistribute(){
+  var cid=document.getElementById("distCouponId").value;
+  var mode=document.querySelector('input[name="distMode"]:checked').value;
+  var data={coupon_id:parseInt(cid),all_users:mode==="all"};
+  if(mode==="specific"){
+    var ids=document.getElementById("distUserIdsInput").value.trim().split("\n").map(function(x){return parseInt(x.trim())}).filter(function(x){return!isNaN(x)});
+    if(!ids.length){showToast("{{ _('Enter user ID') }}","error");return}
+    data.user_ids=ids;
+  }
+  fetch("/shop/coupons/distribute",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.success){showToast(d.message||"✅ {{ _('Issued') }}","success");document.getElementById("distributeForm").style.display="none";l_shop_coupons()}
+      else showToast(d.error||"{{ _('Failed') }}","error");
+    });
+}
+// ── Redemption Log ──
+function showRedemptions(cid){
+  var el=document.getElementById("redemptionLog");
+  var content=document.getElementById("redemptionContent");
+  el.style.display="block";
+  content.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  el.scrollIntoView({behavior:"smooth"});
+  fetch("/shop/coupons/"+cid+"/redemptions",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var rs=d.data;
+    var h='<div style="margin-bottom:6px;color:var(--dim)">共 '+rs.total+' {{ _('Records') }}</div><table><tr><th>ID</th><th>{{ _('User') }}</th><th>{{ _('Order No.') }}</th><th>{{ _('Discount') }}(分)</th><th>{{ _('Time') }}</th></tr>';
+    if(!rs.redemptions||!rs.redemptions.length)h+='<tr><td colspan="5"><div class="em">{{ _('No Usage History') }}</div></td></tr>';
+    else rs.redemptions.forEach(function(r){
+      h+='<tr><td>'+r.id+'</td><td>'+(r.nickname||r.phone||'#'+r.user_id)+'</td><td style="font-size:10px">'+esc(r.order_no)+'</td><td>'+(r.discount_fen/100).toFixed(2)+'</td><td style="font-size:10px;color:var(--dim)">'+(r.created_at||'').slice(0,16)+'</td></tr>';
+    });
+    h+='</table>';
+    content.innerHTML=h;
+  });
+}
+
+// ============================
+// 📦 {{ _('Shop') }} — l_shop_purchases ({{ _('Purchases') }})
+// ============================

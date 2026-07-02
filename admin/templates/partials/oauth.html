@@ -1,0 +1,76 @@
+window.l_oauth=function(){
+  document.getElementById("pt").textContent="{{ _('OAuth Login Config') }}";
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  fetch("/admin/oauth/configs?provider=all",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var h='';
+    h+='<div class="cd" style="margin-bottom:12px"><div class="st">{{ _('Add') }}/{{ _('Edit Site') }} OAuth {{ _('Config') }}</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">';
+    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Site Domain') }}</div><input class="in" id="oaDomain" placeholder="shop.abc.com" style="width:100%"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Login Platform') }}</div><select class="in" id="oaProvider" style="width:100%" onchange="oaProviderChange()">';
+    h+='<option value="douyin">{{ _('Douyin') }}</option>';
+    h+='<option value="wechat">{{ _('WeChat') }}</option>';
+    h+='<option value="alipay">{{ _('Alipay') }}</option>';
+    h+='</select></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">Client Key (AppID)</div><input class="in" id="oaKey" placeholder="{{ _('Open Platform') }} App ID" style="width:100%"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">Client Secret</div><input class="in" id="oaSecret" type="password" placeholder="{{ _('Required on First Entry') }}，{{ _('Edit (Optional)') }}" style="width:100%"></div>';
+    h+='</div>';
+    h+='<div style="color:var(--dim);font-size:11px;margin-bottom:8px">{{ _('Callback URL Auto-Generated') }}: <code style="color:var(--accent)" id="oaCallbackPreview">https://<span id="oaDomainPreview">{{ _('Your Domain') }}</span>/auth/douyin/callback</code></div>';
+    h+='<button class="btn bp" onclick="oaSave()">{{ _('Save') }}</button></div>';
+    h+='<div class="cd"><div class="st">{{ _('Configured Sites') }}</div>';
+    h+='<table><tr><th>{{ _('Domain') }}</th><th>{{ _('Platform') }}</th><th>Client Key</th><th>Client Secret</th><th>{{ _('Status') }}</th><th>{{ _('Callback URL') }}</th><th>{{ _('Actions') }}</th></tr>';
+    (d.data||[]).forEach(function(c){
+      var providerLabel={'douyin':'{{ _('Douyin') }}','wechat':'{{ _('WeChat') }}','alipay':'{{ _('Alipay') }}'}[c.provider]||c.provider;
+      var callbackPath={'douyin':'/auth/douyin/callback','wechat':'/auth/wechat/callback','alipay':'/auth/alipay/callback'}[c.provider]||'/auth/douyin/callback';
+      h+='<tr><td>'+esc(c.site_domain)+'</td>';
+      h+='<td><span class="bdg">'+providerLabel+'</span></td>';
+      h+='<td><code>'+esc(c.client_key)+'</code></td>';
+      h+='<td><code style="color:var(--dim)">'+(c.has_secret?esc(c.client_secret_masked):'<span style="color:#f85149">{{ _('Not Configured') }}</span>')+'</code></td>';
+      h+='<td>'+(c.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Disable') }}</span>')+'</td>';
+      h+='<td><code style="font-size:10px">https://'+esc(c.site_domain)+callbackPath+'</code></td>';
+      h+='<td><button class="btn bo bs" onclick="oaEdit('+c.id+',\''+c.provider+'\')">{{ _('Edit') }}</button> <button class="btn bo bs" style="color:#f85149" onclick="oaDelete('+c.id+')">{{ _('Delete') }}</button></td></tr>';
+    });
+    h+='</table></div>';
+    mc.innerHTML=h;
+  }).catch(function(){mc.innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+};
+function oaProviderChange(){
+  var provider=document.getElementById("oaProvider").value;
+  var domain=document.getElementById("oaDomain").value.trim()||'{{ _('Your Domain') }}';
+  var paths={'douyin':'/auth/douyin/callback','wechat':'/auth/wechat/callback','alipay':'/auth/alipay/callback'};
+  document.getElementById("oaCallbackPreview").innerHTML='https://<span id="oaDomainPreview">'+domain+'</span>'+paths[provider];
+}
+function oaEdit(id,provider){
+  fetch("/admin/oauth/configs?provider=all",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var cfg=d.data.find(function(x){return x.id===id});
+    if(!cfg)return;
+    document.getElementById("oaDomain").value=cfg.site_domain;
+    document.getElementById("oaProvider").value=provider;
+    document.getElementById("oaKey").value=cfg.client_key;
+    document.getElementById("oaSecret").value="";
+    document.getElementById("oaSecret").placeholder=cfg.has_secret?"{{ _('Configured') }}（{{ _('Leave Empty to Keep Original') }}）":"{{ _('Please enter') }} Secret";
+    document.getElementById("oaDomain").dataset.editId=id;
+    document.getElementById("oaDomainPreview").textContent=cfg.site_domain;
+    oaProviderChange();
+  });
+}
+function oaSave(){
+  var domain=document.getElementById("oaDomain").value.trim();
+  var provider=document.getElementById("oaProvider").value;
+  var key=document.getElementById("oaKey").value.trim();
+  var secret=document.getElementById("oaSecret").value.trim();
+  if(!domain||!key){showToast("{{ _('Please fill in domain and Client Key') }}","error");return}
+  fetch("/admin/oauth/configs",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({site_domain:domain,provider:provider,client_key:key,client_secret:secret})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("✅ {{ _('Saved') }}，{{ _('Callback URL') }}: "+d.data.callback_url,"success");window.l_oauth()}
+    else{showToast(d.error||"{{ _('Save failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+function oaDelete(id){
+  if(!confirm("{{ _('Delete this config?') }}"))return;
+  fetch("/admin/oauth/configs/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Deleted') }}");window.l_oauth()}
+    else{showToast(d.error||"{{ _('Delete failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}

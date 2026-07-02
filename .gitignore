@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temp diagnostic files
+_*.py
+_*.cjs
+_*.txt
+_*.html
+_test_output.txt
+
+# Environment
+.env
+*.env.local
+
+# OS
+Thumbs.db
+.DS_Store

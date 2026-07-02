@@ -1,0 +1,32 @@
+function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
+
+if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>'}else{init()}
+
+function init(){
+  var c=document.getElementById("mc");
+  var to=setTimeout(function(){c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px;margin-bottom:8px">{{ _('Connection Timeout') }}，{{ _('Check Network or') }} <a href="/admin/login">{{ _('Re-login') }}</a></div></div>'},8000);
+  fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
+    clearTimeout(to);
+    if(r.status===403){c.innerHTML='<div class="em">{{ _('Admin Only') }}</div>';return Promise.reject()}
+    if(r.status===401){c.innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>';return Promise.reject()}
+    return r.json()
+  }).then(function(d){if(d.success){document.getElementById("an").textContent="{{ _('Admin') }}";go("dashboard")}else{c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px">'+esc(d.error||"{{ _('Load failed') }}")+' <a href="/admin/login">{{ _("Please Re-login") }}</a></div></div>'}}).catch(function(){clearTimeout(to);c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px">{{ _("Connection Failed") }}：<a href="/admin/login">{{ _("Please Re-login") }}</a></div></div>'})
+}
+
+function logout(){
+  fetch("/admin/logout",{method:"POST",headers:{"Authorization":"Bearer "+T}}).catch(function(){});
+  localStorage.removeItem("sso_token");
+  localStorage.removeItem("tm_token");
+  localStorage.removeItem("token");
+  document.cookie="sso_token=; path=/; max-age=0";
+  showToast("{{ _('Logged out') }}","success");
+  setTimeout(function(){window.location.href="/admin/login"},800);
+}
+
+function go(s){
+  document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
+  var el=document.getElementById("n-"+s);if(el)el.classList.add("sel");
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  if(typeof window["l_"+s]=="function")window["l_"+s]();
+}
+

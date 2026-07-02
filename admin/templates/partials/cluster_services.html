@@ -1,0 +1,308 @@
+window.l_cluster_services=function(){
+  document.getElementById('pt').textContent='{{ _('Site Group Management') }}';
+  var mc=document.getElementById('mc');
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  csEditingId=null;
+
+  fetch('/admin/cluster/services',{headers:{'Authorization':'Bearer '+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success||!d.data){mc.innerHTML='<div class="em">'+esc(d.error||'{{ _('Load failed') }}')+'</div>';return}
+    render(d.data);
+  })
+  .catch(function(e){mc.innerHTML='<div class="em">{{ _('Request Failed') }}: '+esc(e.message)+'</div>'});
+
+  function render(services){
+    var h='<div class="cd"><div class="st" style="display:flex;justify-content:space-between;align-items:center">';
+    h+='{{ _('Site Group Management') }} <span style="font-weight:400;font-size:11px;color:var(--dim)">共 '+services.length+' {{ _('Services') }}</span>';
+    h+='<span>';
+    h+='<button class="btn bs bp" onclick="csShowForm(null)" style="font-size:11px">+ {{ _('Add Service') }}</button> ';
+    h+='<button class="btn bs" onclick="l_cluster_services()" style="font-size:11px">{{ _('Refresh') }}</button>';
+    h+='</span>';
+    h+='</div>';
+
+    // Form area (hidden by default)
+    h+='<div id="cs-form" style="display:none;margin-bottom:16px;padding:16px 20px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card)">';
+    h+='<div id="cs-form-title" style="font-size:14px;font-weight:600;margin-bottom:14px">{{ _('Add Service') }}</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px">';
+    // row 1
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Service ID') }} *</label><input id="cs-f-sn" class="in" placeholder="例: myapp" style="width:100%"></div>';
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Display Name') }} *</label><input id="cs-f-dn" class="in" placeholder="例: My App" style="width:100%"></div>';
+    // row 2
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Domain') }} *</label><input id="cs-f-dom" class="in" placeholder="例: admin.your-site.com" style="width:100%"></div>';
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Port') }} *</label><input id="cs-f-port" class="in" type="number" placeholder="8080" style="width:100%"></div>';
+    // row 3
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Type Management') }}</label><select id="cs-f-mt" class="in" style="width:100%"><option value="tmux">tmux</option><option value="systemd">systemd</option></select></div>';
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Name Management') }}</label><input id="cs-f-mn" class="in" placeholder="tmux session 或 systemd unit" style="width:100%"></div>';
+    // row 4
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Working Directory') }}</label><input id="cs-f-wd" class="in" placeholder="/home/easykai/.../myservice" style="width:100%"></div>';
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Start Command') }}</label><input id="cs-f-cmd" class="in" placeholder="python3 -B app.py 8080" style="width:100%"></div>';
+    // row 5
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Health Check Path') }}</label><input id="cs-f-hu" class="in" placeholder="/health" style="width:100%"></div>';
+    h+='<div><label style="font-size:11px;color:var(--dim)">{{ _('Sort') }}</label><input id="cs-f-so" class="in" type="number" placeholder="0" style="width:100%"></div>';
+    h+='</div>';
+    h+='<div style="margin-top:12px;display:flex;gap:8px">';
+    h+='<button class="btn bp" onclick="csSaveService()" style="font-size:11px">{{ _('Save') }}</button>';
+    h+='<button class="btn bs" onclick="document.getElementById(\'cs-form\').style.display=\'none\';csEditingId=null" style="font-size:11px">{{ _('Cancel') }}</button>';
+    h+='<span id="cs-form-msg" style="font-size:11px;align-self:center"></span>';
+    h+='</div>';
+    h+='</div>';
+
+    for(var i=0;i<services.length;i++){
+      var s=services[i];
+      var st=s.status||{};
+      var running=st.running;
+      var dot=running?'<span style="color:#00ff9f;font-size:14px">●</span>':'<span style="color:#ff4444;font-size:14px">●</span>';
+      var statusText=running?'{{ _('Running') }}':'{{ _('Stopped') }}';
+      var statusColor=running?'var(--green)':'var(--rose)';
+
+      h+='<div class="svc-card" style="margin-bottom:16px;padding:18px 20px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card)">';
+
+      // Header row
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+      h+='<div style="display:flex;align-items:center;gap:10px">';
+      h+=dot+' ';
+      h+='<span style="font-size:15px;font-weight:600">'+esc(s.display_name)+'</span>';
+      h+='<span style="font-size:12px;color:var(--dim)">'+esc(s.domain)+' :'+s.port+'</span>';
+      h+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+statusColor+'15;color:'+statusColor+'">'+statusText+'</span>';
+      h+='</div>';
+      // CRUD buttons (right)
+      h+='<div style="display:flex;gap:6px">';
+      h+='<button class="btn bs" style="font-size:10px;padding:2px 8px" onclick="csShowForm('+s.id+')">{{ _('Edit') }}</button>';
+      h+='<button class="btn bs" style="font-size:10px;padding:2px 8px;color:var(--rose)" onclick="csDeleteService('+s.id+',\''+escAttr(s.display_name)+'\')">{{ _('Delete') }}</button>';
+      h+='</div>';
+      h+='</div>';
+
+      // Info row
+      h+='<div style="font-size:11px;color:var(--dim);margin-bottom:14px;display:flex;gap:20px;flex-wrap:wrap">';
+      if(st.pid) h+='<span>PID: '+st.pid+'</span>';
+      if(st.uptime) h+='<span>{{ _('Started At') }}: '+esc(st.uptime)+'</span>';
+      if(st.cpu) h+='<span>CPU: '+esc(st.cpu)+'%</span>';
+      if(st.mem) h+='<span>MEM: '+esc(st.mem)+'%</span>';
+      h+='<span>{{ _('Management') }}: '+esc(s.manager_type)+' · '+esc(s.manager_name)+'</span>';
+      h+='</div>';
+
+      // Action buttons
+      h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+      h+='<button class="btn bs bp" onclick="csAction('+s.id+',\'start\')" style="font-size:11px" '+(!running?'':'disabled')+'>{{ _('Launch') }}</button>';
+      h+='<button class="btn bs" style="font-size:11px;color:var(--rose)" onclick="csAction('+s.id+',\'stop\')" '+(!running?'disabled':'')+'>{{ _('Stop') }}</button>';
+      h+='<button class="btn bs" style="font-size:11px" onclick="csAction('+s.id+',\'restart\')">{{ _('Restart') }}</button>';
+      h+='<button class="btn bs" style="font-size:11px" onclick="csLogs('+s.id+',\''+escAttr(s.display_name)+'\')">{{ _('Log') }}</button>';
+      h+='<button class="btn bs" style="font-size:11px" onclick="csHealth('+s.id+',\''+escAttr(s.display_name)+'\')">{{ _('Health Check') }}</button>';
+      h+='</div>';
+
+      // Status feedback area
+      h+='<div id="cs-msg-'+s.id+'" style="margin-top:10px;font-size:11px"></div>';
+
+      h+='</div>';
+    }
+    h+='</div>';
+    mc.innerHTML=h;
+  }
+}
+
+// ── Show create/edit form ──
+function csShowForm(sid){
+  var form=document.getElementById('cs-form');
+  if(!form) return;
+  form.style.display='block';
+  var title=document.getElementById('cs-form-title');
+  document.getElementById('cs-form-msg').innerHTML='';
+
+  if(sid===null){
+    // Create mode
+    csEditingId=null;
+    if(title) title.textContent='{{ _('Add Service') }}';
+    document.getElementById('cs-f-sn').value='';
+    document.getElementById('cs-f-dn').value='';
+    document.getElementById('cs-f-dom').value='';
+    document.getElementById('cs-f-port').value='';
+    document.getElementById('cs-f-mt').value='tmux';
+    document.getElementById('cs-f-mn').value='';
+    document.getElementById('cs-f-wd').value='';
+    document.getElementById('cs-f-cmd').value='';
+    document.getElementById('cs-f-hu').value='/health';
+    document.getElementById('cs-f-so').value='0';
+    document.getElementById('cs-f-sn').disabled=false;
+    form.scrollIntoView({behavior:'smooth'});
+    return;
+  }
+
+  // Edit mode: fetch service data
+  csEditingId=sid;
+  if(title) title.textContent='{{ _('Edit Service') }}';
+  fetch('/admin/cluster/services',{headers:{'Authorization':'Bearer '+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success||!d.data) return;
+    for(var i=0;i<d.data.length;i++){
+      if(d.data[i].id===sid){
+        var s=d.data[i];
+        document.getElementById('cs-f-sn').value=s.service_name||'';
+        document.getElementById('cs-f-sn').disabled=true; // can't change service_name
+        document.getElementById('cs-f-dn').value=s.display_name||'';
+        document.getElementById('cs-f-dom').value=s.domain||'';
+        document.getElementById('cs-f-port').value=s.port||'';
+        document.getElementById('cs-f-mt').value=s.manager_type||'tmux';
+        document.getElementById('cs-f-mn').value=s.manager_name||'';
+        document.getElementById('cs-f-wd').value=s.workdir||'';
+        document.getElementById('cs-f-cmd').value=s.start_cmd||'';
+        document.getElementById('cs-f-hu').value=s.health_url||'/health';
+        document.getElementById('cs-f-so').value=s.sort_order||0;
+        break;
+      }
+    }
+    form.scrollIntoView({behavior:'smooth'});
+  });
+}
+
+// ── Save (create or update) ──
+function csSaveService(){
+  var msgEl=document.getElementById('cs-form-msg');
+  if(!msgEl) return;
+  msgEl.innerHTML='<span style="color:var(--dim)">{{ _('Saving') }}...</span>';
+
+  var body={
+    display_name: document.getElementById('cs-f-dn').value.trim(),
+    domain: document.getElementById('cs-f-dom').value.trim(),
+    port: parseInt(document.getElementById('cs-f-port').value)||0,
+    manager_type: document.getElementById('cs-f-mt').value,
+    manager_name: document.getElementById('cs-f-mn').value.trim(),
+    workdir: document.getElementById('cs-f-wd').value.trim(),
+    start_cmd: document.getElementById('cs-f-cmd').value.trim(),
+    health_url: document.getElementById('cs-f-hu').value.trim(),
+    sort_order: parseInt(document.getElementById('cs-f-so').value)||0
+  };
+
+  var isEdit=(csEditingId!==null);
+  if(!isEdit){
+    body.service_name=document.getElementById('cs-f-sn').value.trim();
+    if(!body.service_name||!body.display_name||!body.domain||!body.port){
+      msgEl.innerHTML='<span style="color:var(--rose)">{{ _('Identifier') }}/{{ _('Name') }}/{{ _('Domain') }}/{{ _('Port is Required') }}</span>';return;
+    }
+  }
+
+  var method=isEdit?'PUT':'POST';
+  var url=isEdit?'/admin/cluster/services/'+csEditingId:'/admin/cluster/services';
+
+  fetch(url,{method:method,headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){
+      msgEl.innerHTML='<span style="color:var(--green)">'+esc(d.message||'{{ _('Saved') }}')+'</span>';
+      document.getElementById('cs-form').style.display='none';
+      csEditingId=null;
+      setTimeout(function(){l_cluster_services()},800);
+    }else{
+      msgEl.innerHTML='<span style="color:var(--rose)">'+esc(d.error||'{{ _('Save failed') }}')+'</span>';
+    }
+  })
+  .catch(function(e){
+    msgEl.innerHTML='<span style="color:var(--rose)">{{ _('Request Failed') }}: '+esc(e.message)+'</span>';
+  });
+}
+
+// ── Delete service ──
+function csDeleteService(sid, name){
+  if(!confirm('{{ _('Confirm Delete Service') }}「'+name+'」？\n{{ _('This Operation Cannot Be Recovered') }}。')) return;
+  var mc=document.getElementById('mc');
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Deleting') }}...</div>';
+
+  fetch('/admin/cluster/services/'+sid,{method:'DELETE',headers:{'Authorization':'Bearer '+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){
+      l_cluster_services();
+    }else{
+      mc.innerHTML='<div class="em">'+esc(d.error||'{{ _('Delete failed') }}')+' <button class="btn bs" onclick="l_cluster_services()">{{ _('Back') }}</button></div>';
+    }
+  })
+  .catch(function(e){
+    l_cluster_services();
+  });
+}
+
+// ── Helper: action buttons ──
+function csAction(sid, action){
+  var labels={start:'{{ _('Launch') }}',stop:'{{ _('Stop') }}',restart:'{{ _('Restart') }}'};
+  var msgEl=document.getElementById('cs-msg-'+sid);
+  if(!msgEl) return;
+  msgEl.innerHTML='<span style="color:var(--dim)">⏳ '+labels[action]+'{{ _("In Progress...") }}</span>';
+
+  fetch('/admin/cluster/services/'+sid+'/'+action,{method:'POST',headers:{'Authorization':'Bearer '+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){
+      var st=d.status||{};
+      var ok=action==='stop'?!st.running:st.running;
+      msgEl.innerHTML='<span style="color:'+(ok?'var(--green)':'var(--amber)')+'">'+(d.message||labels[action]+'{{ _('Complete') }}')+'</span>';
+      // Refresh after 1.5s
+      setTimeout(function(){l_cluster_services()},1500);
+    }else{
+      msgEl.innerHTML='<span style="color:var(--rose)">'+esc(d.error||'{{ _('Operation Failed') }}')+'</span>';
+    }
+  })
+  .catch(function(e){
+    msgEl.innerHTML='<span style="color:var(--rose)">{{ _('Request Failed') }}: '+esc(e.message)+'</span>';
+  });
+}
+
+function csLogs(sid, name){
+  var mc=document.getElementById('mc');
+  mc.innerHTML='<div class="cd"><div class="st">'+esc(name)+' — {{ _('Log') }} <button class="btn bs" onclick="l_cluster_services()" style="font-size:11px">← {{ _('Back') }}</button> <button class="btn bs" onclick="csLogs('+sid+',\''+escAttr(name)+'\')" style="font-size:11px">{{ _('Refresh') }}</button></div>';
+  mc.innerHTML+='<div id="cs-log-area" style="background:#0a0a0e;border:1px solid var(--border);border-radius:8px;padding:14px;max-height:500px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;color:#aaa">{{ _('Loading...') }}...</div>';
+  mc.innerHTML+='</div>';
+
+  fetch('/admin/cluster/services/'+sid+'/logs?lines=200',{headers:{'Authorization':'Bearer '+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    var el=document.getElementById('cs-log-area');
+    if(!el) return;
+    if(d.success){
+      var src=d.source?'<div style="color:var(--dim);margin-bottom:8px">{{ _('Source') }}: '+esc(d.source)+'</div>':'';
+      el.innerHTML=src+(d.log||'({{ _('No Logs') }})');
+    }else{
+      el.innerHTML='<span style="color:var(--rose)">'+esc(d.error||'{{ _('Load failed') }}')+'</span>';
+    }
+  })
+  .catch(function(e){
+    var el=document.getElementById('cs-log-area');
+    if(el) el.innerHTML='<span style="color:var(--rose)">{{ _('Request Failed') }}: '+esc(e.message)+'</span>';
+  });
+}
+
+function csHealth(sid, name){
+  var mc=document.getElementById('mc');
+  mc.innerHTML='<div class="cd"><div class="st">'+esc(name)+' — {{ _('Health Check') }} <button class="btn bs" onclick="l_cluster_services()" style="font-size:11px">← {{ _('Back') }}</button></div>';
+  mc.innerHTML+='<div id="cs-health-area" style="margin-top:12px">{{ _('Checking') }}...</div>';
+  mc.innerHTML+='</div>';
+
+  fetch('/admin/cluster/services/'+sid+'/health',{headers:{'Authorization':'Bearer '+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    var el=document.getElementById('cs-health-area');
+    if(!el) return;
+    var h='';
+    h+='<div style="margin-bottom:10px">';
+    h+='<span style="padding:4px 12px;border-radius:6px;font-size:12px;';
+    if(d.healthy) h+='background:rgba(0,255,159,0.12);color:#00ff9f';
+    else h+='background:rgba(255,68,68,0.12);color:#ff4444';
+    h+='">'+(d.healthy?'● {{ _('Health') }}':'● {{ _('Abnormal') }}')+'</span>';
+    h+=' <span style="font-size:11px;color:var(--dim)">HTTP '+d.http_code+'</span>';
+    h+='</div>';
+    h+='<div style="font-size:11px;color:var(--dim);margin-bottom:8px">URL: '+esc(d.url)+'</div>';
+    if(d.error) h+='<div style="color:var(--rose);font-size:11px;margin-bottom:8px">{{ _('Error') }}: '+esc(d.error)+'</div>';
+    if(d.parsed){
+      h+='<div style="background:#0a0a0e;border:1px solid var(--border);border-radius:6px;padding:12px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:#aaa">'+esc(JSON.stringify(d.parsed,null,2))+'</div>';
+    }else if(d.body){
+      h+='<div style="background:#0a0a0e;border:1px solid var(--border);border-radius:6px;padding:12px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:#aaa">'+esc(d.body)+'</div>';
+    }
+    el.innerHTML=h;
+  })
+  .catch(function(e){
+    var el=document.getElementById('cs-health-area');
+    if(el) el.innerHTML='<span style="color:var(--rose)">{{ _('Request Failed') }}: '+esc(e.message)+'</span>';
+  });
+}
+// {{ _('Plan Management') }} — l_plans
+// ============================

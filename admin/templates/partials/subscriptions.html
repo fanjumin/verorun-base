@@ -1,0 +1,59 @@
+window.l_subscriptions=function(){
+  document.getElementById("pt").textContent="{{ _('Subscription List') }}";
+  var h='<div style="margin-bottom:12px;display:flex;gap:8px">';
+  h+='<input class="in" id="subSearch" placeholder="{{ _('Search Users') }}..." style="flex:1" onkeyup="searchSub(event)">';
+  h+='<select class="in" id="subStatusFilter" onchange="loadSubs()" style="width:140px">';
+  h+='<option value="">{{ _('All Status') }}</option><option value="active">{{ _('Active') }}</option><option value="trialing">{{ _('Trial') }}</option>';
+  h+='<option value="past_due">{{ _('Overdue') }}</option><option value="canceled">{{ _('Cancelled') }}</option><option value="expired">{{ _('Expired') }}</option>';
+  h+='</select></div><div id="subList"><div class="lo"><div class="s"></div></div></div>';
+  document.getElementById("mc").innerHTML=h;
+  loadSubs();
+};
+function loadSubs(){
+  var search=document.getElementById("subSearch").value;
+  var status=document.getElementById("subStatusFilter").value;
+  var query='?limit=100';
+  if(search)query+='&search='+encodeURIComponent(search);
+  if(status)query+='&status='+status;
+  fetch("/subscription/admin/subscriptions"+query,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){document.getElementById("subList").innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var list=d.data||d;
+    var subs=list.subscriptions||[];
+    var h='<div class="cd"><div class="st">{{ _('Subscribe') }} ('+(list.total||subs.length)+')</div><table><tr><th>ID</th><th>{{ _('User') }}</th><th>{{ _('Plan') }}</th><th>{{ _('Billing Cycle') }}</th><th>{{ _('Status') }}</th><th>{{ _('Expired') }}</th><th>{{ _('Auto-Renew') }}</th><th>{{ _('Payment Method') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!subs.length)h+='<tr><td colspan="9"><div class="em">{{ _('No Subscriptions') }}</div></td></tr>';
+    else subs.forEach(function(s){
+      var stCls={active:'on',trialing:'pd',past_due:'off',canceled:'off',expired:'off'};
+      var sc=s.status=='past_due'||s.status=='canceled'||s.status=='expired'?'off':'on';
+      if(s.status=='trialing')sc='pd';
+      h+='<tr><td>'+s.id+'</td><td>'+esc(s.nickname||s.phone||'UID:'+s.user_id)+'</td>';
+      h+='<td>'+esc(s.plan_key)+'</td><td>'+s.period+'</td>';
+      h+='<td><span class="bdg '+sc+'">'+s.status+'</span></td>';
+      h+='<td>'+(s.current_period_end||'-').slice(0,10)+'</td>';
+      h+='<td>'+(s.auto_renew?'✅':'❌')+'</td>';
+      h+='<td>'+(s.payment_method||'-')+'</td>';
+      h+='<td><button class="btn bs bo" onclick="manualRenew('+s.id+')">{{ _('Renew') }}</button> ';
+      h+='<button class="btn bs bo" onclick="forceCancel('+s.id+')" style="color:#f85149">{{ _('Cancel') }}</button></td></tr>';
+    });
+    h+='</table></div>';
+    document.getElementById("subList").innerHTML=h;
+  }).catch(function(){document.getElementById("subList").innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+}
+function searchSub(e){if(e.key=='Enter')loadSubs()}
+function manualRenew(sid){
+  if(!confirm('{{ _('Manually renew this subscription?') }}'))return;
+  fetch("/subscription/admin/subscriptions/"+sid+"/manual-renew",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('✅ Renewed') }}","success");loadSubs()}
+    else showToast(d.error||"{{ _('Operation Failed') }}","error");
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+function forceCancel(sid){
+  if(!confirm('{{ _('⚠️ User will be downgraded to free. Confirm?') }}'))return;
+  fetch("/subscription/admin/subscriptions/"+sid+"/force-cancel",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('✅ Force cancelled') }}","success");loadSubs()}
+    else showToast(d.error||"{{ _('Operation Failed') }}","error");
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+// ============================
+// {{ _('Order Management') }} — l_sub_orders
+// ============================

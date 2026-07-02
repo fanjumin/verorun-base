@@ -1,0 +1,23 @@
+window.l_sub_orders=function(){
+  document.getElementById("pt").textContent="{{ _('Subscription Order Management') }}";
+  var h='<div id="subOrderList"><div class="lo"><div class="s"></div></div></div>';
+  document.getElementById("mc").innerHTML=h;
+  fetch("/subscription/admin/orders?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var orders=d.data&&d.data.orders?d.data.orders:(d.orders||[]);
+    var h='<div class="cd"><div class="st">{{ _('Subscription Orders') }} ('+(d.data&&d.data.total||orders.length)+')</div><table><tr><th>{{ _('Order No.') }}</th><th>{{ _('User') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Type') }}</th><th>{{ _('Plan') }}</th><th>{{ _('Payment') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>';
+    orders.forEach(function(o){
+      var st=o.status=='paid'?'<span class="bdg on">{{ _('Paid') }}</span>':'<span class="bdg pd">'+o.status+'</span>';
+      h+='<tr><td style="font-size:11px">'+esc(o.order_no)+'</td><td>'+esc(o.nickname||'UID:'+o.user_id)+'</td>';
+      h+='<td>¥'+(o.amount_fen/100).toFixed(2)+'</td><td>'+esc(o.item_type)+'</td>';
+      h+='<td>'+esc(o.plan_key)+'/'+o.period+'</td><td>'+(o.payment_method||'-')+'</td>';
+      h+='<td>'+st+'</td><td style="font-size:11px">'+(o.paid_at||o.created_at||'').slice(0,16)+'</td></tr>';
+    });
+    h+='</table></div>';
+    document.getElementById("subOrderList").innerHTML=h;
+  });
+};
+
+// ============================
+// {{ _('Coupon Management') }} — l_coupons
+// ============================
