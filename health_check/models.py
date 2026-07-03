@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Health Check — 数据库模型
+Health Check — Database Models
 ============================
-所有健康巡检相关的数据表。复用主库 (site.db)。
+All health check related database tables. Reuses the main database (site.db).
 
-表结构:
-  health_checks     — 检查项定义（注册了哪些检查、配置、启用/禁用）
-  check_history     — 每次巡检的各检查项结果明细
-  check_runs        — 每次巡检批次信息
-  alert_config      — 告警规则配置
-  alert_history     — 已发送的告警记录
-  health_trend      — 每日聚合统计（用于趋势图）
+Table structure:
+  health_checks     — Check item definitions (registered checks, configuration, enable/disable)
+  check_history     — Detailed results of each check item per inspection run
+  check_runs        — Batch information for each inspection run
+  alert_config      — Alert rule configuration
+  alert_history     — Sent alert records
+  health_trend      — Daily aggregated statistics (for trend charts)
 
 @package health_monitor
 """
@@ -40,60 +40,60 @@ def get_db():
 
 
 def init_health_tables():
-    """初始化所有健康巡检表（幂等：IF NOT EXISTS）"""
+    """Initialize all health check tables (idempotent: IF NOT EXISTS)"""
     with get_db() as conn:
         conn.executescript("""
             -- =============================================
-            -- 1. 检查项定义表
+            -- 1. Check item definition table
             -- =============================================
             CREATE TABLE IF NOT EXISTS health_checks (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                name            TEXT NOT NULL,                    -- 检查项名称（如 "核心API检查"）
-                check_key       TEXT NOT NULL UNIQUE,             -- 唯一键（如 "core_api"）
-                category        TEXT NOT NULL DEFAULT 'system',   -- 分类: system/external/workflow/agent/cms/community/ssl/error
-                description     TEXT DEFAULT '',                  -- 描述
-                config          TEXT DEFAULT '{}',                -- JSON 配置（超时时间、URL等）
-                is_active       INTEGER DEFAULT 1,                -- 是否启用
-                severity        TEXT DEFAULT 'warning'            -- 告警级别: info/warning/critical
+                name            TEXT NOT NULL,                    -- Check item name (e.g. "Core API Check")
+                check_key       TEXT NOT NULL UNIQUE,             -- Unique key (e.g. "core_api")
+                category        TEXT NOT NULL DEFAULT 'system',   -- Category: system/external/workflow/agent/cms/community/ssl/error
+                description     TEXT DEFAULT '',                  -- Description
+                config          TEXT DEFAULT '{}',                -- JSON config (timeout, URLs, etc.)
+                is_active       INTEGER DEFAULT 1,                -- Whether enabled
+                severity        TEXT DEFAULT 'warning'            -- Severity level: info/warning/critical
                     CHECK(severity IN ('info','warning','critical')),
-                sort_order      INTEGER DEFAULT 0,                -- 排序
+                sort_order      INTEGER DEFAULT 0,                -- Sort order
                 created_at      TEXT DEFAULT (datetime('now')),
                 updated_at      TEXT DEFAULT (datetime('now'))
             );
 
             -- =============================================
-            -- 2. 巡检批次表（每次触发巡检为一个批次）
+            -- 2. Check run table (each triggered inspection is one batch)
             -- =============================================
             CREATE TABLE IF NOT EXISTS check_runs (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 trigger_type    TEXT NOT NULL DEFAULT 'manual',   -- manual/scheduled/workflow
-                trigger_info    TEXT DEFAULT '',                  -- 触发详情（如 cron job id）
-                total_checks    INTEGER DEFAULT 0,                -- 总检查项数
-                passed          INTEGER DEFAULT 0,                -- 通过数
-                warnings        INTEGER DEFAULT 0,                -- 警告数
-                errors          INTEGER DEFAULT 0,                -- 错误数
-                duration_ms     INTEGER DEFAULT 0,                -- 总耗时(ms)
+                trigger_info    TEXT DEFAULT '',                  -- Trigger details (e.g. cron job id)
+                total_checks    INTEGER DEFAULT 0,                -- Total check items
+                passed          INTEGER DEFAULT 0,                -- Passed count
+                warnings        INTEGER DEFAULT 0,                -- Warning count
+                errors          INTEGER DEFAULT 0,                -- Error count
+                duration_ms     INTEGER DEFAULT 0,                -- Total duration (ms)
                 status          TEXT DEFAULT 'completed'          -- completed/running/failed
                     CHECK(status IN ('running','completed','failed')),
-                summary         TEXT DEFAULT '',                  -- 运行摘要
+                summary         TEXT DEFAULT '',                  -- Run summary
                 created_at      TEXT DEFAULT (datetime('now'))
             );
 
             -- =============================================
-            -- 3. 检查结果明细表
+            -- 3. Check history/details table
             -- =============================================
             CREATE TABLE IF NOT EXISTS check_history (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id          INTEGER NOT NULL,                 -- 关联 check_runs.id
-                check_id        INTEGER NOT NULL,                 -- 关联 health_checks.id
-                check_key       TEXT NOT NULL,                    -- 冗余，方便查询
-                check_name      TEXT NOT NULL,                    -- 冗余
-                category        TEXT NOT NULL,                    -- 冗余
+                run_id          INTEGER NOT NULL,                 -- References check_runs.id
+                check_id        INTEGER NOT NULL,                 -- References health_checks.id
+                check_key       TEXT NOT NULL,                    -- Redundant, for convenient querying
+                check_name      TEXT NOT NULL,                    -- Redundant
+                category        TEXT NOT NULL,                    -- Redundant
                 status          TEXT NOT NULL DEFAULT 'passed'    -- passed/warning/error
                     CHECK(status IN ('passed','warning','error')),
-                response_time_ms INTEGER DEFAULT 0,               -- 响应时间(ms)
-                message         TEXT DEFAULT '',                  -- 结果消息
-                detail          TEXT DEFAULT '{}',                -- JSON 详情
+                response_time_ms INTEGER DEFAULT 0,               -- Response time (ms)
+                message         TEXT DEFAULT '',                  -- Result message
+                detail          TEXT DEFAULT '{}',                -- JSON details
                 checked_at      TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_check_history_run
@@ -104,15 +104,15 @@ def init_health_tables():
                 ON check_history(checked_at);
 
             -- =============================================
-            -- 4. 告警规则配置表
+            -- 4. Alert rule configuration table
             -- =============================================
             CREATE TABLE IF NOT EXISTS alert_config (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                name            TEXT NOT NULL,                    -- 规则名称
-                check_key       TEXT DEFAULT '*',                 -- 关联检查项（'*' 表示全部）
-                severity        TEXT DEFAULT 'warning',           -- 触发级别: warning/critical
-                consecutive     INTEGER DEFAULT 1,                -- 连续失败N次才告警
-                notify_method   TEXT DEFAULT 'email',             -- email/站内信/webhook/全部
+                name            TEXT NOT NULL,                    -- Rule name
+                check_key       TEXT DEFAULT '*',                 -- Associated check item ('*' means all)
+                severity        TEXT DEFAULT 'warning',           -- Trigger severity: warning/critical
+                consecutive     INTEGER DEFAULT 1,                -- Alert after N consecutive failures
+                notify_method   TEXT DEFAULT 'email',             -- email/internal message/webhook/all
                 webhook_url     TEXT DEFAULT '',                  -- Webhook URL
                 is_active       INTEGER DEFAULT 1,
                 created_at      TEXT DEFAULT (datetime('now')),
@@ -120,7 +120,7 @@ def init_health_tables():
             );
 
             -- =============================================
-            -- 5. 告警历史表
+            -- 5. Alert history table
             -- =============================================
             CREATE TABLE IF NOT EXISTS alert_history (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,7 +128,7 @@ def init_health_tables():
                 check_key       TEXT NOT NULL,
                 check_name      TEXT NOT NULL,
                 run_id          INTEGER DEFAULT 0,
-                status          TEXT NOT NULL,                    -- 触发时的状态
+                status          TEXT NOT NULL,                    -- Status at trigger time
                 message         TEXT DEFAULT '',
                 notify_method   TEXT DEFAULT '',
                 is_read         INTEGER DEFAULT 0,
@@ -136,7 +136,7 @@ def init_health_tables():
             );
 
             -- =============================================
-            -- 6. 每日健康趋势表
+            -- 6. Daily health trend table
             -- =============================================
             CREATE TABLE IF NOT EXISTS health_trend (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,37 +146,42 @@ def init_health_tables():
                 warnings        INTEGER DEFAULT 0,
                 errors          INTEGER DEFAULT 0,
                 avg_response_ms INTEGER DEFAULT 0,
-                health_score    REAL DEFAULT 100.0,              -- 健康分 0-100
+                health_score    REAL DEFAULT 100.0,              -- Health score 0-100
                 created_at      TEXT DEFAULT (datetime('now'))
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_health_trend_date
                 ON health_trend(date);
         """)
-        print(f'[HealthCheck] ✅ 数据库表已初始化')
+        print(f'[HealthCheck] ✅ Database tables initialized')
 
 
-# ─── 种子数据：注册默认检查项 ───────────────────────────────────────────────
+# ─── Seed data: register default check items ───────────────────────────────────────────────
 
 DEFAULT_CHECKS = [
     # (check_key, name, category, description, config, severity, sort)
-    ('core_api',       '核心API检查',      'system',    '所有子站（主站/Platform/Admin）健康端点检查', '{"timeout":5,"endpoints":["/health"]}', 'warning', 10),
-    ('database',       '数据库连接检查',    'system',    'SQLite/PostgreSQL 连接状态',   '{"timeout":3}',                                    'critical', 20),
-    ('redis',          'Redis缓存检查',     'system',    'Redis 缓存服务连接状态',       '{"timeout":3}',                                    'warning', 25),
-    ('server_resources','服务器资源检查',   'system',    'CPU/内存/磁盘使用率',          '{"cpu_threshold":90,"mem_threshold":85,"disk_threshold":85,"timeout":10}', 'warning', 30),
-    ('external_apis',  '外部依赖API检查',   'external',  '股票行情/AI接口/支付等依赖',    '{"timeout":10,"endpoints":["https://httpbin.org/get"]}', 'warning', 40),
-    ('ssl_cert',       'SSL证书检查',      'ssl',       '各子域名 SSL 证书到期时间',     '{"domains":[],"expire_warn_days":30}', 'warning', 50),
-    ('workflow_engine','工作流引擎检查',    'workflow',  'Cron/Workflow 调度器运行状态',  '{"timeout":5}',                                    'warning', 60),
-    ('agent_matrix',   'Agent矩阵检查',    'agent',     '主Agent + 子Agent在线状态',     '{"timeout":10}',                                   'warning', 70),
-    ('content_factory','内容工厂检查',      'cms',       '采集通道/加工队列状态',         '{"timeout":5}',                                    'warning', 80),
-    ('media_integrity','媒体完整性检查',    'cms',       '扫描数据库中引用的媒体文件/头像，检测磁盘上是否真实存在',
+    ('core_api',       'Core API Check',        'system',    'Health endpoint check for all subsites (Site/Platform/Admin)', '{"timeout":5,"endpoints":["/health"]}', 'warning', 10),
+    ('database',       'Database Connection',   'system',    'SQLite/PostgreSQL connection status',  '{"timeout":3}',                                    'critical', 20),
+    ('redis',          'Redis Cache',           'system',    'Redis cache service connection status', '{"timeout":3}',                                    'warning', 25),
+    ('server_resources','Server Resources',     'system',    'CPU/Memory/Disk usage monitoring',     '{"cpu_threshold":90,"mem_threshold":85,"disk_threshold":85,"timeout":10}', 'warning', 30),
+    ('external_apis',  'External Dependencies', 'external',  'Stock quotes/AI API/Payment dependencies', '{"timeout":10,"endpoints":["https://httpbin.org/get"]}', 'warning', 40),
+    ('ssl_cert',       'SSL Certificate',       'ssl',       'SSL certificate expiry check for all subdomains', '{"domains":[],"expire_warn_days":30}', 'warning', 50),
+    ('workflow_engine','Workflow Engine',       'workflow',  'Cron/Workflow scheduler running status', '{"timeout":5}',                                   'warning', 60),
+    ('agent_matrix',   'Agent Matrix',          'agent',     'Primary agent + sub-agent online status','{"timeout":10}',                                   'warning', 70),
+    ('content_factory','Content Factory',       'cms',       'Collection channels / processing queue status', '{"timeout":5}',                                    'warning', 80),
+    ('media_integrity','Media Integrity',       'cms',       'Scan media files/avatars referenced in DB and verify disk existence',
      '{"dry_run":true,"max_fixes_per_run":20}', 'warning', 85),
-    ('sse_ws',         'SSE/WS连接检查',    'system',    'SSE推送/WebSocket连接状态',    '{"timeout":5}',                                    'warning', 95),
-    ('error_logs',     '错误日志统计',      'error',     '最近24小时错误日志统计',        '{"hours":24,"threshold":50}',                      'warning', 100),
+    ('sse_ws',         'SSE/WebSocket',         'system',    'SSE push / WebSocket connection status','{"timeout":5}',                                    'warning', 95),
+    ('error_logs',     'Error Logs',            'error',     'Error log count in the last 24 hours',  '{"hours":24,"threshold":50}',                      'warning', 100),
+    # ── Discovery checkers ──
+    ('discovery_modules',   'Module Discovery',           'system',   'Auto-discover project modules and detect changes',               '{}', 'info', 5),
+    ('discovery_endpoints', 'Endpoint Discovery',         'system',   'Discover Flask endpoints and detect route changes',               '{}', 'info', 6),
+    ('discovery_tables',    'Database Table Discovery',   'database', 'Auto-discover database tables, row counts, and column changes',    '{}', 'info', 7),
+    ('discovery_plugins',   'Plugin Discovery',           'system',   'Auto-discover plugins and their health check registration status', '{}', 'info', 8),
 ]
 
 
 def seed_default_checks():
-    """初始化默认检查项（仅当表为空时）"""
+    """Initialize default check items (only when the table is empty)"""
     with get_db() as conn:
         count = conn.execute('SELECT COUNT(*) as c FROM health_checks').fetchone()['c']
         if count > 0:
@@ -188,13 +193,13 @@ def seed_default_checks():
                 (ck, name, cat, desc, cfg, sev, sort)
             )
         conn.commit()
-        print(f'[HealthCheck] ✅ 已注册 {len(DEFAULT_CHECKS)} 个默认检查项')
+        print(f'[HealthCheck] ✅ Registered {len(DEFAULT_CHECKS)} default check items')
 
 
-# ─── 查询辅助 ──────────────────────────────────────────────────────────────
+# ─── Query helpers ──────────────────────────────────────────────────────────────
 
 def get_active_checks():
-    """获取所有启用的检查项"""
+    """Retrieve all enabled check items"""
     with get_db() as conn:
         rows = conn.execute(
             'SELECT * FROM health_checks WHERE is_active=1 ORDER BY sort_order'
@@ -203,7 +208,7 @@ def get_active_checks():
 
 
 def get_recent_runs(limit=20):
-    """获取最近的巡检批次"""
+    """Retrieve recent inspection batches"""
     with get_db() as conn:
         rows = conn.execute(
             'SELECT * FROM check_runs ORDER BY created_at DESC LIMIT ?',
@@ -213,7 +218,7 @@ def get_recent_runs(limit=20):
 
 
 def get_history_for_run(run_id):
-    """获取某次巡检的详细结果"""
+    """Retrieve detailed results for a specific inspection run"""
     with get_db() as conn:
         rows = conn.execute(
             'SELECT * FROM check_history WHERE run_id=? ORDER BY id',
@@ -223,7 +228,7 @@ def get_history_for_run(run_id):
 
 
 def get_latest_status():
-    """获取最近一次已完成巡检的状态统计"""
+    """Retrieve status statistics from the most recent completed inspection run"""
     with get_db() as conn:
         run = conn.execute(
             "SELECT * FROM check_runs WHERE status='completed' ORDER BY created_at DESC LIMIT 1"
@@ -240,7 +245,7 @@ def get_latest_status():
 
 
 def get_health_trend(days=7):
-    """获取最近 N 天的健康趋势"""
+    """Retrieve health trend data for the last N days"""
     with get_db() as conn:
         since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         rows = conn.execute(
@@ -251,7 +256,7 @@ def get_health_trend(days=7):
 
 
 def get_alerts(limit=50):
-    """获取告警历史"""
+    """Retrieve alert history"""
     with get_db() as conn:
         rows = conn.execute(
             'SELECT * FROM alert_history ORDER BY created_at DESC LIMIT ?',

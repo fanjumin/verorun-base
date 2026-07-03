@@ -1,67 +1,67 @@
-# 系统健康巡检中心 — 添加新检查项开发指南
+# Health Check Center — Developer Guide for Adding New Checkers
 
-## 架构概览
+## Architecture Overview
 
 ```
 checkers.py                    routes.py                    admin/templates/health.html
 ┌──────────────────┐           ┌──────────────────┐         ┌──────────────────────┐
-│  BaseHealthCheck │           │  GET /api/status  │         │  ⚙️ 管理检查项 tab     │
-│  (抽象基类)      │           │  POST /api/run    │ ◄────── │  📦 注册表显示       │
-│         ↑        │           │  GET /api/checks  │         │  ＋一键添加          │
-│  继承实现        │           │  GET /api/checkers/registry│  🗑 删除/排序/配置   │
-│  @register 注册  │           │  POST /api/checkers/register│                    │
+│  BaseHealthCheck │           │  GET /api/status  │         │  ⚙️ Manage Checkers Tab│
+│  (Abstract Base) │           │  POST /api/run    │ ◄────── │  📦 Registry Display   │
+│         ↑        │           │  GET /api/checks  │         │  ＋One-click Add       │
+│  Subclass Impl   │           │  GET /api/checkers/registry│  🗑 Delete/Sort/Config │
+│  @register Hook  │           │  POST /api/checkers/register│                      │
 │         ↑        │           └──────────────────┘         └──────────────────────┘
 │  CheckerRegistry │
-│  (全局注册表)    │
+│  (Global Registry)│
 └──────────────────┘
 ```
 
-**核心概念：**
-- **BaseHealthCheck** — 所有检查器的抽象基类
-- **@register(check_key)** — 将检查器类注册到全局注册表
-- **CheckerRegistry** — 管理所有注册的检查器，支持 list / get / unregister
-- **health_checks 表** — 存储检查项的启用/禁用、配置、排序等状态
-- **健康巡检运行引擎** — 遍历 health_checks 表中启用的项，逐一执行检查
+**Core Concepts:**
+- **BaseHealthCheck** — Abstract base class for all checkers
+- **@register(check_key)** — Registers a checker class into the global registry
+- **CheckerRegistry** — Manages all registered checkers, supports list / get / unregister
+- **health_checks table** — Stores checker enable/disable, config, sort order, etc.
+- **Health Check Runner** — Iterates enabled items in the health_checks table and executes them
 
 ---
 
-## 方式一：代码注册（推荐）
+## Method 1: Code Registration (Recommended)
 
-### 步骤 1：在 checkers.py 中编写检查器类
+### Step 1: Write a Checker Class in checkers.py
 
 ```python
 from health_check.checkers import BaseHealthCheck, CheckResult, register
 
-@register('my_business_api')          # ← 唯一键，与 DB 中 check_key 对应
+@register('my_business_api')          # ← Unique key, corresponds to DB check_key
 class MyBusinessAPIHealthCheck(BaseHealthCheck):
-    # ── 元数据（必填） ──
+    # ── Metadata (required) ──
     check_key = 'my_business_api'
-    name = '业务 API 检查'              # 管理后台显示的名称
-    category = 'external'              # 分类: system/external/workflow/agent/cms/community/ssl/error
-    severity = 'warning'               # 告警级别: info/warning/critical
-    description = '检查特定业务 API 的可用性和响应时间'
-    sort_order = 55                    # 排序值（越小越靠前）
+    name = 'Business API Check'              # Name displayed in admin panel
+    category = 'external'              # Category: system/external/workflow/agent/cms/community/ssl/error
+    severity = 'warning'               # Severity: info/warning/critical
+    description = 'Check availability and response time of a specific business API'
+    sort_order = 55                    # Sort order (lower = higher priority)
 
-    # ── 配置默认值（可选） ──
+    # ── Config Defaults (optional) ──
     config_defaults = {
         'timeout': 5,
         'base_url': 'https://api.example.com',
     }
 
-    # ── 配置 JSON Schema（可选，管理后台可视化编辑） ──
+    # ── Config JSON Schema (optional, visual editing in admin panel) ──
     config_schema = {
         'type': 'object',
         'properties': {
-            'timeout': {'type': 'integer', 'default': 5, 'description': '超时(秒)'},
-            'base_url': {'type': 'string', 'default': 'https://api.example.com', 'description': 'API 基础 URL'},
+            'timeout': {'type': 'integer', 'default': 5, 'description': 'Timeout (seconds)'},
+            'base_url': {'type': 'string', 'default': 'https://api.example.com', 'description': 'API Base URL'},
         }
     }
 
     def check(self) -> CheckResult:
         """
-        核心检查逻辑。
-        返回 CheckResult(status, response_time_ms, message, detail)
-        其中 status: 'passed' | 'warning' | 'error'
+        Core check logic.
+        Returns CheckResult(status, response_time_ms, message, detail)
+        Where status: 'passed' | 'warning' | 'error'
         """
         start = time.time()
         try:
@@ -69,43 +69,43 @@ class MyBusinessAPIHealthCheck(BaseHealthCheck):
             code, elapsed, body = self._http_get(url, self.config.get('timeout', 5))
 
             if code == 200:
-                return CheckResult('passed', elapsed, f'API 正常 (HTTP {code})')
+                return CheckResult('passed', elapsed, f'API OK (HTTP {code})')
             else:
-                return CheckResult('error', elapsed, f'API 返回 {code}')
+                return CheckResult('error', elapsed, f'API returned {code}')
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             return CheckResult('error', elapsed, str(e))
 ```
 
-### 步骤 2：在管理后台启用
+### Step 2: Enable in Admin Panel
 
-1. 部署代码后，打开「健康巡检」→「⚙️ 检查项配置」
-2. 在「📦 可添加的检查器」区域找到你的新检查项
-3. 点击「＋添加」按钮
-4. 新检查项会自动出现在已配置列表中，默认启用
+1. After deployment, go to "Health Check" → "⚙️ Checker Config"
+2. Find your new checker in the "📦 Available Checkers" section
+3. Click the "＋Add" button
+4. The new checker will appear in the configured list, enabled by default
 
 ---
 
-## 方式二：仅 DB 记录（无需写 Python 代码）
+## Method 2: DB-Only Record (No Python Code Needed)
 
-适用于临时性的 HTTP 端点检查或不需要复杂逻辑的场景。
+Suitable for ad-hoc HTTP endpoint checks or scenarios that don't require complex logic.
 
-### 在管理后台操作
+### Operate in Admin Panel
 
-1. 打开「健康巡检」→「⚙️ 检查项配置」
-2. 在「➕ 手动添加检查项」区域填入：
+1. Go to "Health Check" → "⚙️ Checker Config"
+2. In the "➕ Manual Add Checker" section, fill in:
    - Key: `check_my_service`
-   - 名称: `我的服务检查`
-   - 分类: `external`
-   - 级别: `warning`
-3. 点击「添加」
-4. 该检查项将出现在列表中，执行时状态为 `warning`（无对应的 Python 检查器实现）
+   - Name: `My Service Check`
+   - Category: `external`
+   - Severity: `warning`
+3. Click "Add"
+4. The checker will appear in the list, with status `warning` on execution (no corresponding Python checker implementation)
 
 ---
 
-## 方式三：单独文件注册（模块化）
+## Method 3: Separate File Registration (Modular)
 
-对于复杂的检查器，可以放在单独的文件中：
+For complex checkers, place them in a separate file:
 
 ```python
 # health_check/checkers/my_custom_checker.py
@@ -114,72 +114,72 @@ from ..checkers import BaseHealthCheck, CheckResult, register
 @register('custom_check')
 class CustomCheck(BaseHealthCheck):
     check_key = 'custom_check'
-    name = '自定义检查'
+    name = 'Custom Check'
     category = 'system'
     severity = 'warning'
 
     def check(self) -> CheckResult:
-        # ... 实现
+        # ... implementation
         pass
 ```
 
-然后在 `routes.py` 或 `__init__.py` 中 import 这个文件：
+Then import this file in `routes.py` or `__init__.py`:
 
 ```python
-# 在 checkers.py 末尾或 routes.py 开头
-from .checkers.my_custom_checker import CustomCheck  # 触发 @register
+# At the end of checkers.py or the beginning of routes.py
+from .checkers.my_custom_checker import CustomCheck  # Triggers @register
 ```
 
 ---
 
-## 检查器 API 参考
+## Checker API Reference
 
-### BaseHealthCheck 类
+### BaseHealthCheck Class
 
-| 方法/属性 | 类型 | 说明 |
+| Method/Attribute | Type | Description |
 |-----------|------|------|
-| `check_key` | `str` (类属性) | 唯一标识键 |
-| `name` | `str` (类属性) | 显示名称 |
-| `category` | `str` (类属性) | 分类标签 |
-| `severity` | `str` (类属性) | 告警级别 |
-| `description` | `str` (类属性) | 描述 |
-| `sort_order` | `int` (类属性) | 排序权重 |
-| `config_defaults` | `dict` (类属性) | 默认配置 |
-| `config_schema` | `dict` (类属性) | JSON Schema |
-| `check()` | 方法 (必须实现) | 执行检查 → CheckResult |
-| `_http_get(url, timeout)` | 方法 | HTTP GET 请求 → (status, ms, body) |
-| `_exec(cmd, timeout)` | 方法 | Shell 命令 → (rc, stdout, stderr) |
+| `check_key` | `str` (Class attr) | Unique identifier key |
+| `name` | `str` (Class attr) | Display name |
+| `category` | `str` (Class attr) | Category label |
+| `severity` | `str` (Class attr) | Severity level |
+| `description` | `str` (Class attr) | Description |
+| `sort_order` | `int` (Class attr) | Sort weight |
+| `config_defaults` | `dict` (Class attr) | Default config |
+| `config_schema` | `dict` (Class attr) | JSON Schema |
+| `check()` | Method (Required) | Execute check → CheckResult |
+| `_http_get(url, timeout)` | Method | HTTP GET request → (status, ms, body) |
+| `_exec(cmd, timeout)` | Method | Shell command → (rc, stdout, stderr) |
 
-### CheckResult 类
+### CheckResult Class
 
 ```python
 CheckResult(
     status='passed',         # 'passed' | 'warning' | 'error'
-    response_time_ms=0,      # 响应时间(毫秒)
-    message='一切正常',       # 显示消息
-    detail={'key': 'value'}  # JSON 详情（自动序列化）
+    response_time_ms=0,      # Response time (ms)
+    message='Everything OK',    # Display message
+    detail={'key': 'value'}  # JSON details (auto-serialized)
 )
 ```
 
-### 工具方法
+### Utility Methods
 
 - `self._http_get(url, timeout=5)` → `(status_code, elapsed_ms, body)`
 - `self._exec(cmd, timeout=10)` → `(returncode, stdout, stderr)`
 
 ---
 
-## 常见示例模板
+## Common Example Templates
 
-### 检查特定业务 API（如社区版块接口）
+### Check a Specific Business API (e.g., Community Section Endpoints)
 
 ```python
 @register('community_api')
 class CommunityAPIHealthCheck(BaseHealthCheck):
     check_key = 'community_api'
-    name = '社区 API 检查'
+    name = 'Community API Check'
     category = 'community'
     severity = 'warning'
-    description = '检查社区 7 大版块的关键接口'
+    description = 'Check critical endpoints of the 7 community sections'
     config_defaults = {'timeout': 10}
 
     def check(self) -> CheckResult:
@@ -199,20 +199,20 @@ class CommunityAPIHealthCheck(BaseHealthCheck):
 
         elapsed = int((time.time() - start) * 1000)
         if errors == 0:
-            return CheckResult('passed', elapsed, f'所有 {len(sections)} 个版块正常')
-        return CheckResult('warning', elapsed, f'{errors}/{len(sections)} 个异常', {'sections': results})
+            return CheckResult('passed', elapsed, f'All {len(sections)} sections OK')
+        return CheckResult('warning', elapsed, f'{errors}/{len(sections)} abnormal', {'sections': results})
 ```
 
-### 检查 Agent 矩阵主/子 Agent
+### Check Agent Matrix Master/Child Agents
 
 ```python
 @register('agent_status')
 class AgentStatusHealthCheck(BaseHealthCheck):
     check_key = 'agent_status'
-    name = 'Agent 在线状态'
+    name = 'Agent Online Status'
     category = 'agent'
     severity = 'critical'
-    description = '主 Agent 和所有子 Agent 的健康状态'
+    description = 'Health status of the master agent and all child agents'
 
     def check(self) -> CheckResult:
         start = time.time()
@@ -226,23 +226,23 @@ class AgentStatusHealthCheck(BaseHealthCheck):
             online = sum(1 for a in agents if a.get('status') == 'online')
             total = len(agents)
             if online == total:
-                return CheckResult('passed', elapsed, f'{online}/{total} Agent 在线')
-            return CheckResult('warning', elapsed, f'{online}/{total} Agent 在线（{total-online} 离线）',
+                return CheckResult('passed', elapsed, f'{online}/{total} Agents Online')
+            return CheckResult('warning', elapsed, f'{online}/{total} Agents Online ({total-online} Offline)',
                                {'agents': [dict(a) for a in agents]})
         except Exception as e:
             return CheckResult('error', 0, str(e))
 ```
 
-### 检查内容工厂采集通道
+### Check Content Factory Collection Channels
 
 ```python
 @register('content_pipeline')
 class ContentPipelineCheck(BaseHealthCheck):
     check_key = 'content_pipeline'
-    name = '内容流水线检查'
+    name = 'Content Pipeline Check'
     category = 'cms'
     severity = 'warning'
-    description = '内容工厂采集通道状态、加工队列深度'
+    description = 'Content factory collection channel status and processing queue depth'
 
     def check(self) -> CheckResult:
         start = time.time()
@@ -257,22 +257,22 @@ class ContentPipelineCheck(BaseHealthCheck):
                 ).fetchone()['c']
             elapsed = int((time.time() - start) * 1000)
             return CheckResult('passed', elapsed,
-                               f'{len(channels)} 通道 | 队列深度 {queue_depth}',
+                               f'{len(channels)} channels | Queue depth {queue_depth}',
                                {'channels': [dict(c) for c in channels], 'queue_depth': queue_depth})
         except Exception as e:
             return CheckResult('error', 0, str(e))
 ```
 
-### 检查特定 Workflow 最近执行状态
+### Check Specific Workflow Recent Execution Status
 
 ```python
 @register('workflow_recent')
 class WorkflowRecentCheck(BaseHealthCheck):
     check_key = 'workflow_recent'
-    name = '最近工作流状态'
+    name = 'Recent Workflow Status'
     category = 'workflow'
     severity = 'warning'
-    description = '检查某个特定 Workflow 的最近执行状态'
+    description = 'Check the recent execution status of a specific Workflow'
     config_defaults = {'workflow_id': 1, 'max_failures': 3}
 
     def check(self) -> CheckResult:
@@ -291,24 +291,24 @@ class WorkflowRecentCheck(BaseHealthCheck):
             threshold = self.config.get('max_failures', 3)
             if failures > threshold:
                 return CheckResult('warning', elapsed,
-                                   f'最近 {len(recent)} 次执行中 {failures} 次失败（阈值 {threshold}）',
+                                   f'{failures} failures in last {len(recent)} runs (threshold: {threshold})',
                                    {'instances': [dict(r) for r in recent]})
             return CheckResult('passed', elapsed,
-                               f'最近 {len(recent)} 次执行正常')
+                               f'All {len(recent)} recent runs OK')
         except Exception as e:
             return CheckResult('error', 0, str(e))
 ```
 
-### 检查 Redis 连接池状态
+### Check Redis Connection Pool Status
 
 ```python
 @register('redis_pool')
 class RedisPoolHealthCheck(BaseHealthCheck):
     check_key = 'redis_pool'
-    name = 'Redis 连接池状态'
+    name = 'Redis Connection Pool Status'
     category = 'system'
     severity = 'warning'
-    description = 'Redis 连接池使用情况、内存、命中率'
+    description = 'Redis connection pool usage, memory, and hit rate'
     config_defaults = {'host': '127.0.0.1', 'port': 6379, 'max_clients_warn': 100}
 
     def check(self) -> CheckResult:
@@ -332,36 +332,80 @@ class RedisPoolHealthCheck(BaseHealthCheck):
             threshold = self.config.get('max_clients_warn', 100)
             if clients > threshold:
                 return CheckResult('warning', elapsed,
-                                   f'连接数 {clients} 超过阈值 {threshold}', detail)
+                                   f'Connections {clients} exceed threshold {threshold}', detail)
             return CheckResult('passed', elapsed,
-                               f'Redis 正常 | {clients} 连接 | {detail["used_memory_human"]}', detail)
+                               f'Redis OK | {clients} connections | {detail["used_memory_human"]}', detail)
         except Exception as e:
             return CheckResult('error', 0, str(e))
 ```
 
 ---
 
-## 部署验证
+## Deployment Verification
 
 ```bash
-# 1. 部署代码到服务器
+# 1. Deploy code to server
 cd ~/projects/your-project
 scp -r health_check/ your-user@your-server:/path/to/deployment/
 
-# 2. 重启 admin 服务
+# 2. Restart admin service
 ssh your-user@your-server "cd /path/to/deployment && find health_check -name __pycache__ -exec rm -rf {} + && fuser -k 8084/tcp && sleep 1 && cd admin && python3 -B app.py 8084 &"
 
-# 3. 验证新检查项可见
-# 访问你的管理后台 → 健康巡检 → ⚙️ 检查项配置
-# 在「📦 可添加的检查器」中点击「＋添加」
+# 3. Verify new checker is visible
+# Visit admin panel → Health Check → ⚙️ Checker Config
+# Click "＋Add" in "📦 Available Checkers"
 ```
 
 ---
 
-## 注意事项
+## Important Notes
 
-1. **check_key 必须唯一** — 与 DB 中 health_checks.check_key 对应
-2. **部署后需重启** — 新注册的检查器类在 admin 服务重启后才生效
-3. **DB 中已有记录** — 如果 check_key 已存在于 health_checks 表，点击「＋添加」会提示已存在
-4. **检查器不可用时** — 如果 @register 注册了但 Python 中无对应实现，执行时会标记为 warning
-5. **异步执行** — 手动巡检是异步的，点击「⚡ 立即巡检」后需等待几秒刷新
+1. **check_key must be unique** — Corresponds to health_checks.check_key in the DB
+2. **Restart after deployment** — Newly registered checker classes take effect after the admin service restarts
+3. **Existing DB record** — If the check_key already exists in the health_checks table, clicking "＋Add" will prompt that it already exists
+4. **Checker unavailable** — If @register is declared but no corresponding Python implementation exists, execution will be marked as warning
+5. **Async execution** — Manual checks are async; wait a few seconds after clicking "⚡ Run Now" for the refresh
+
+---
+
+## Resource Auto-Discovery Engine (Resource Discovery)
+
+### Overview
+
+`discovery.py` provides four auto-discovery capabilities, displayed in the "Inventory" tab:
+
+| Scanner | Discovery Content | Purpose |
+|--------|----------|------|
+| `scan_modules()` | All subdirectories containing `app.py`/`routes.py`/`models.py` in the project | Understand module distribution |
+| `scan_endpoints(app)` | All Blueprint routes registered in the Flask app | View full API endpoint list |
+| `scan_tables(db_path)` | All table names, column counts, row counts, auto-increment ID watermark in SQLite DB | Full database scan |
+| `scan_plugins()` | All installed plugins in the plugin directory with their status/health check count | Plugin registration status |
+
+### API Endpoints
+
+```
+GET /admin/health/api/discovery/status  — Triggers a full scan and returns JSON
+```
+
+### 4 Built-in Discovery Checkers
+
+| check_key | Name | Function |
+|-----------|------|------|
+| `discovery_modules` | Module Discovery | Scan module directories, track added/removed modules |
+| `discovery_endpoints` | Endpoint Discovery | Scan Flask routes, group by Blueprint |
+| `discovery_tables` | Database Table Discovery | Scan DB tables, track added/removed/changed tables |
+| `discovery_plugins` | Plugin Discovery | Scan plugin directory, report load status and health check registration |
+
+These checkers are automatically registered by `import health_check.discovery` when `admin/app.py` starts.
+
+### Usage
+
+1. After deployment, go to "Health Check" → "📦 Inventory" tab
+2. Click "⚡ Run Now" to trigger a full scan (includes discovery checkers)
+3. Enable/disable each discovery checker in "⚙️ Checker Config"
+
+### State Persistence
+
+- `discovery_modules` and `discovery_tables` save last scan results as JSON files
+- Path: `health_check/data/discovery_*.json`
+- Used to detect added/removed resource changes

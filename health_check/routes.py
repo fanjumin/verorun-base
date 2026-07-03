@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-# VeroRon 维洛智能 (verorun.com / verorun.cn)
-# 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
-
 """
-Health Check — Flask API 路由
-================================
-提供健康巡检的 REST API + 管理后台页面。
+VeroRon Intelligent (verorun.com / verorun.cn)
+Copyright (c) 2026 Fan Jumin. All Rights Reserved.
 
-注册方式：
-    from health_check import health_bp
-    app.register_blueprint(health_bp)
+Health Check — Flask API Routes
+=================================
+Provides REST API for health checks + admin dashboard page.
 
-API 端点:
-  GET   /admin/health/              — 管理后台页面
-  GET   /admin/health/api/status    — 当前状态仪表盘
-  POST  /admin/health/api/run       — 触发手动巡检
-  GET   /admin/health/api/history   — 巡检历史列表
-  GET   /admin/health/api/history/<run_id> — 某次巡检详情
-  GET   /admin/health/api/checks    — 检查项列表
-  PUT   /admin/health/api/checks/<id> — 更新检查项配置
-  GET   /admin/health/api/trend     — 健康趋势数据
-  GET   /admin/health/api/alerts    — 告警历史
-  POST  /admin/health/api/alerts/read — 标记告警已读
-  GET   /admin/health/api/export    — 导出巡检报告JSON
+Registration:
+    from health_check.routes import health_bp
+    app.register_blueprint(health_bp, url_prefix='/admin/health')
+
+API Endpoints:
+    GET   /admin/health/              — Admin dashboard page
+    GET   /admin/health/api/status    — Current status dashboard
+    POST  /admin/health/api/run       — Trigger manual check
+    GET   /admin/health/api/history   — Check history list
+    GET   /admin/health/api/history/<run_id> — Specific check details
+    GET   /admin/health/api/checks    — Check items list
+    PUT   /admin/health/api/checks/<id> — Update check item config
+    GET   /admin/health/api/trend     — Health trend data
+    GET   /admin/health/api/alerts    — Alert history
+    POST  /admin/health/api/alerts/read — Mark alerts as read
+    GET   /admin/health/api/export    — Export check report as JSON
 """
 
 import os, sys, json, time, threading
@@ -38,6 +38,7 @@ from i18n import _
 from . import models as m
 from .checkers import CheckerRegistry
 from .alerter import evaluate_and_alert
+from .discovery import DiscoveryReporter  # noqa: F401 — ensures @register decorators fire
 
 health_bp = Blueprint('health', __name__,
                       url_prefix='/admin/health',
@@ -46,7 +47,7 @@ health_bp = Blueprint('health', __name__,
                       static_url_path='/admin/health/static')
 
 
-# ─── 鉴权辅助 ──────────────────────────────────────────────────────────────
+# ─── Authentication Helper ──────────────────────────────────────────────────
 
 def _require_admin():
     from services.jwt_service import validate_token
@@ -59,16 +60,16 @@ def _require_admin():
     return payload
 
 
-# ─── 巡检执行引擎 ──────────────────────────────────────────────────────────
+# ─── Check Execution Engine ─────────────────────────────────────────────────
 
 def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
     """
-    执行一次完整巡检。
-    check_keys: 如果指定，只运行特定的检查项（如 ['core_api', 'database']）
-    返回 run_id
+    Execute a complete health check.
+    check_keys: If specified, only run specific check items (e.g. ['core_api', 'database'])
+    Returns run_id
     """
     with m.get_db() as conn:
-        # 获取所有启用的检查项
+        # Get all active check items
         if check_keys:
             rows = conn.execute(
                 'SELECT * FROM health_checks WHERE is_active=1 AND check_key IN ({})'.format(
@@ -81,7 +82,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
             ).fetchall()
 
         total = len(rows)
-        # 创建巡检批次
+        # Create check run batch
         conn.execute(
             "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (?,?,?,'running')",
             (trigger_type, trigger_info, total)
@@ -89,7 +90,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         run_id = conn.execute('SELECT last_insert_rowid() as id').fetchone()['id']
         conn.commit()
 
-    # 逐个执行检查
+    # Execute checks one by one
     results = []
     passed = warnings = errors = 0
     total_duration = 0
@@ -100,7 +101,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         checker = CheckerRegistry.get_instance(check['check_key'], config)
 
         if not checker:
-            # 无对应检查器，标记为警告
+            # No corresponding checker, mark as warning
             result = {
                 'check_id': check['id'],
                 'check_key': check['check_key'],
@@ -108,7 +109,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                 'category': check['category'],
                 'status': 'warning',
                 'response_time_ms': 0,
-                'message': _('无检查器实现: {key}').format(key=check['check_key']),
+                'message': _('No checker implementation for: {key}').format(key=check['check_key']),
                 'detail': '{}',
             }
         else:
@@ -132,7 +133,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                     'category': check['category'],
                     'status': 'error',
                     'response_time_ms': 0,
-                    'message': _('检查器异常: {err}').format(err=e),
+                    'message': _('Checker exception: {err}').format(err=e),
                     'detail': json.dumps({'error': str(e)}, ensure_ascii=False),
                 }
 
@@ -145,7 +146,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
             errors += 1
         results.append(result)
 
-    # 保存结果到数据库
+    # Save results to database
     with m.get_db() as conn:
         for r in results:
             conn.execute(
@@ -154,7 +155,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                 (run_id, r['check_id'], r['check_key'], r['check_name'], r['category'],
                  r['status'], r['response_time_ms'], r['message'], r['detail'])
             )
-        # 更新批次
+        # Update run batch
         conn.execute(
             'UPDATE check_runs SET passed=?, warnings=?, errors=?, duration_ms=?, '
             "status='completed', summary=? WHERE id=?",
@@ -163,20 +164,20 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         )
         conn.commit()
 
-    # 告警评估
+    # Alert evaluation
     try:
         evaluate_and_alert(run_id, results)
     except Exception as e:
-        print(f'[HealthCheck] 告警评估失败: {e}')
+        print(f'[HealthCheck] Alert evaluation failed: {e}')
 
-    # 更新每日趋势
+    # Update daily trend
     _update_daily_trend()
 
     return run_id
 
 
 def _update_daily_trend():
-    """更新每日健康趋势统计"""
+    """Update daily health trend statistics"""
     today = datetime.now().strftime('%Y-%m-%d')
     with m.get_db() as conn:
         stats = conn.execute(
@@ -206,12 +207,12 @@ def _update_daily_trend():
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# API 端点
+# API Endpoints
 # ═════════════════════════════════════════════════════════════════════════
 
 @health_bp.route('/')
 def health_page():
-    """管理后台页面（iframe 嵌入模式，同 analytics）"""
+    """Admin dashboard page (iframe embed mode, same as analytics)"""
     admin = _require_admin()
     if not admin:
         return '', 401
@@ -220,7 +221,7 @@ def health_page():
 
 @health_bp.route('/api/status')
 def api_status():
-    """获取当前巡检状态（最新一次巡检结果 + 总览统计）"""
+    """Get current health check status (latest run results + overview statistics)"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -228,7 +229,7 @@ def api_status():
     latest = m.get_latest_status()
     unread_alerts = m.get_unread_alert_count()
 
-    # 各分类状态统计
+    # Status statistics by category
     categories = {}
     if latest and latest.get('items'):
         for item in latest['items']:
@@ -248,16 +249,42 @@ def api_status():
     })
 
 
+@health_bp.route('/api/discovery/status')
+def api_discovery_status():
+    """Run resource discovery and return results."""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    reporter = DiscoveryReporter()
+
+    # Try to get Flask app for endpoint scanning
+    flask_app = None
+    try:
+        from flask import current_app
+        flask_app = current_app._get_current_object()
+    except (RuntimeError, AttributeError):
+        pass
+
+    result = reporter.run(flask_app=flask_app)
+
+    return jsonify({
+        'success': True,
+        'data': result,
+        'summary': reporter.summary_text(result),
+    })
+
+
 @health_bp.route('/api/run', methods=['POST'])
 def api_run():
-    """触发手动巡检"""
+    """Trigger manual health check"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
     check_keys = request.json.get('checks') if request.is_json else None
 
-    # 异步执行（避免客户端等待）
+    # Run asynchronously (avoid client waiting)
     def _async_run():
         run_health_check(trigger_type='manual', trigger_info=f'admin:{admin["user_id"]}',
                          check_keys=check_keys)
@@ -265,12 +292,12 @@ def api_run():
     t = threading.Thread(target=_async_run, daemon=True)
     t.start()
 
-    return jsonify({'success': True, 'message': _('巡检已启动，请稍后查看结果')})
+    return jsonify({'success': True, 'message': _('Health check started, results will appear shortly')})
 
 
 @health_bp.route('/api/history')
 def api_history():
-    """巡检历史列表"""
+    """Health check history list"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -309,7 +336,7 @@ def api_history():
 
 @health_bp.route('/api/history/<int:run_id>')
 def api_history_detail(run_id):
-    """某次巡检的详细结果"""
+    """Detailed results of a specific health check run"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -317,7 +344,7 @@ def api_history_detail(run_id):
     with m.get_db() as conn:
         run = conn.execute('SELECT * FROM check_runs WHERE id=?', (run_id,)).fetchone()
         if not run:
-            return jsonify({'success': False, 'error': _('巡检记录不存在')}), 404
+            return jsonify({'success': False, 'error': _('Health check record not found')}), 404
         items = m.get_history_for_run(run_id)
 
     return jsonify({
@@ -331,7 +358,7 @@ def api_history_detail(run_id):
 
 @health_bp.route('/api/checks')
 def api_checks():
-    """获取检查项列表"""
+    """Get check items list"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -349,7 +376,7 @@ def api_checks():
 
 @health_bp.route('/api/checks/<int:check_id>', methods=['PUT', 'DELETE'])
 def api_update_check(check_id):
-    """更新或删除检查项配置"""
+    """Update or delete check item configuration"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -358,16 +385,16 @@ def api_update_check(check_id):
         with m.get_db() as conn:
             conn.execute('DELETE FROM health_checks WHERE id=?', (check_id,))
             conn.commit()
-        return jsonify({'success': True, 'message': '已删除'})
+        return jsonify({'success': True, 'message': 'Deleted'})
 
     data = request.json
     if not data:
-        return jsonify({'success': False, 'error': _('无效数据')}), 400
+        return jsonify({'success': False, 'error': _('Invalid data')}), 400
 
     with m.get_db() as conn:
         check = conn.execute('SELECT * FROM health_checks WHERE id=?', (check_id,)).fetchone()
         if not check:
-            return jsonify({'success': False, 'error': _('检查项不存在')}), 404
+            return jsonify({'success': False, 'error': _('Check item not found')}), 404
 
         updates = []
         params = []
@@ -388,12 +415,12 @@ def api_update_check(check_id):
         )
         conn.commit()
 
-    return jsonify({'success': True, 'message': _('已更新')})
+    return jsonify({'success': True, 'message': _('Updated')})
 
 
 @health_bp.route('/api/trend')
 def api_trend():
-    """健康趋势数据"""
+    """Health trend data"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -415,19 +442,19 @@ def api_trend():
 
 @health_bp.route('/api/checkers/registry')
 def api_checkers_registry():
-    """获取所有已注册检查器元数据（用于管理界面）"""
+    """Get all registered checker metadata (for management UI)"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
     registered = CheckerRegistry.list_registered()
 
-    # 获取当前 DB 中的检查项配置
+    # Get check item configuration from current DB
     with m.get_db() as conn:
         db_checks = conn.execute('SELECT check_key, is_active, config, sort_order FROM health_checks').fetchall()
     db_map = {r['check_key']: dict(r) for r in db_checks}
 
-    # 合并信息
+    # Merge information
     merged = []
     for info in registered:
         ck = info['check_key']
@@ -438,7 +465,7 @@ def api_checkers_registry():
             'in_db': ck in db_map,
         })
 
-    # 也标记已注册但未在 DB 中的
+    # Also mark those not in DB but registered
     registered_keys = {r['check_key'] for r in registered}
     for ck, db_info in db_map.items():
         if ck not in registered_keys:
@@ -447,7 +474,7 @@ def api_checkers_registry():
                 'name': db_info.get('name', ck),
                 'category': 'unknown',
                 'severity': 'warning',
-                'description': '已在数据库中但无对应检查器实现',
+                'description': 'Exists in database but has no corresponding checker implementation',
                 'in_db': True,
                 'is_active': db_info.get('is_active', 0),
             })
@@ -464,7 +491,7 @@ def api_checkers_registry():
 
 @health_bp.route('/api/checkers/register', methods=['POST'])
 def api_register_check():
-    """从管理后台注册一个新检查项（写入 DB + 检查是否已有加载的 checker 类）"""
+    """Register a new check item from admin (write to DB + check if checker class is already loaded)"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -476,26 +503,26 @@ def api_register_check():
     severity = data.get('severity', 'warning')
 
     if not check_key:
-        return jsonify({'success': False, 'error': _('check_key 必填')}), 400
+        return jsonify({'success': False, 'error': _('check_key is required')}), 400
 
     checker_class = CheckerRegistry.get(check_key)
     if checker_class:
-        # 使用检查器类中定义的元数据
+        # Use metadata defined in the checker class
         inst = checker_class({})
         name = name or inst.get_name()
         category = category or inst.get_category()
         severity = severity or inst.get_severity()
         config = json.dumps(inst.get_config_defaults(), ensure_ascii=False)
     else:
-        # 只有 check_key，没有对应的 Python 检查器类
+        # Only check_key, no corresponding Python checker class
         config = '{}'
 
     with m.get_db() as conn:
         existing = conn.execute('SELECT id FROM health_checks WHERE check_key=?', (check_key,)).fetchone()
         if existing:
-            return jsonify({'success': False, 'error': f'检查项 {check_key} 已存在 (ID={existing["id"]})'})
+            return jsonify({'success': False, 'error': f'Check item {check_key} already exists (ID={existing["id"]})'})
 
-        # 获取最大 sort_order
+        # Get max sort_order
         max_order = conn.execute('SELECT COALESCE(MAX(sort_order),0)+10 as o FROM health_checks').fetchone()['o']
 
         conn.execute(
@@ -508,14 +535,14 @@ def api_register_check():
 
     return jsonify({
         'success': True,
-        'message': _('检查项 {name} 已添加').format(name=name),
+        'message': _('Check item {name} added').format(name=name),
         'data': {'id': new_id, 'check_key': check_key, 'has_checker': checker_class is not None}
     })
 
 
 @health_bp.route('/api/alerts')
 def api_alerts():
-    """告警历史"""
+    """Alert history"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -532,7 +559,7 @@ def api_alerts():
 
 @health_bp.route('/api/alerts/read', methods=['POST'])
 def api_alerts_read():
-    """标记告警已读"""
+    """Mark alerts as read"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -552,7 +579,7 @@ def api_alerts_read():
 
 @health_bp.route('/api/export')
 def api_export():
-    """导出巡检报告 JSON"""
+    """Export health check report as JSON"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
@@ -569,7 +596,7 @@ def api_export():
             ).fetchone()
 
         if not run:
-            return jsonify({'success': False, 'error': _('无可用巡检报告')}), 404
+            return jsonify({'success': False, 'error': _('No health report available')}), 404
 
         run = dict(run)
         items = conn.execute(
@@ -588,18 +615,18 @@ def api_export():
     })
 
 
-# ─── 修复执行 API ─────────────────────────────────────────────────────────
+# ─── Fix Execution API ────────────────────────────────────────────────────────
 
 @health_bp.route('/api/fix', methods=['POST'])
 def api_fix():
     """
-    执行修复操作（从巡检结果中的 fix_suggestions 选取并执行）。
-    请求体:
+    Execute fix operations (select from fix_suggestions in health check results and execute).
+    Request body:
     {
-        "run_id": 123,                  // 巡检批次 ID
-        "check_key": "media_integrity", // 检查项 key
-        "indices": [0, 1, 2],           // fix_suggestions 中的索引（选填，不传则全部执行）
-        "confirm": true                 // 确认执行（必须为 true）
+        "run_id": 123,                  // Health check run ID
+        "check_key": "media_integrity", // Check item key
+        "indices": [0, 1, 2],           // Indices in fix_suggestions (optional, all executed if not provided)
+        "confirm": true                 // Confirm execution (must be true)
     }
     """
     admin = _require_admin()
@@ -613,11 +640,11 @@ def api_fix():
     confirm = data.get('confirm', False)
 
     if not confirm:
-        return jsonify({'success': False, 'error': '请确认执行 (confirm: true)'}), 400
+        return jsonify({'success': False, 'error': 'Please confirm execution (confirm: true)'}), 400
     if not run_id or not check_key:
-        return jsonify({'success': False, 'error': 'run_id 和 check_key 必填'}), 400
+        return jsonify({'success': False, 'error': 'run_id and check_key are required'}), 400
 
-    # 从数据库读取该次巡检的 check_history 记录
+    # Read the check_history record for this run from the database
     with m.get_db() as conn:
         history_row = conn.execute(
             'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
@@ -625,7 +652,7 @@ def api_fix():
         ).fetchone()
 
     if not history_row:
-        return jsonify({'success': False, 'error': _('未找到对应的检查结果')}), 404
+        return jsonify({'success': False, 'error': _('Corresponding check result not found')}), 404
 
     history = dict(history_row)
     try:
@@ -635,18 +662,18 @@ def api_fix():
 
     fix_suggestions = detail.get('fix_suggestions', [])
     if not fix_suggestions:
-        return jsonify({'success': True, 'message': _('没有需要修复的项目')})
+        return jsonify({'success': True, 'message': _('No items need fixing')})
 
-    # 筛选要执行的建议
+    # Filter suggestions to execute
     if selected_indices is not None:
         try:
             to_apply = [fix_suggestions[i] for i in selected_indices]
         except (IndexError, TypeError):
-            return jsonify({'success': False, 'error': _('无效的索引')}), 400
+            return jsonify({'success': False, 'error': _('Invalid index')}), 400
     else:
         to_apply = fix_suggestions
 
-    # 执行修复
+    # Execute fixes
     from .checkers import FixSuggestion
     applied = 0
     errors = []
@@ -666,7 +693,7 @@ def api_fix():
                 if ok:
                     applied += 1
                 else:
-                    errors.append(f"ID={sug.record_id}: 执行失败")
+                    errors.append(f"ID={sug.record_id}: Execution failed")
             except Exception as e:
                 errors.append(f"ID={s_data.get('record_id')}: {e}")
         conn.commit()
@@ -679,17 +706,17 @@ def api_fix():
             'errors': errors,
             'run_id': run_id,
         },
-        'message': _('已修复 {applied}/{total} 条记录').format(applied=applied, total=len(to_apply))
+        'message': _('Fixed {applied}/{total} records').format(applied=applied, total=len(to_apply))
     })
 
 
-# ─── 内部 API：供 Workflow 引擎调用 ────────────────────────────────────────
+# ─── Internal API: Called by Workflow Engine ─────────────────────────────────
 
 @health_bp.route('/api/internal/run', methods=['POST'])
 def api_internal_run():
     """
-    被 Workflow/Cron 调用的内部 API（无需管理员登录，使用 secret token 验证）
-    请求头需携带 X-Health-Secret
+    Internal API called by Workflow/Cron (no admin login required, uses secret token for authentication)
+    Request header must include X-Health-Secret
     """
     secret = request.headers.get('X-Health-Secret', '')
     expected = os.environ.get('HEALTH_SECRET', 'health-monitor-internal')
@@ -706,5 +733,5 @@ def api_internal_run():
 
     return jsonify({
         'success': True,
-        'data': {'run_id': run_id, 'message': _('巡检已完成 (ID: {id})').format(id=run_id)}
+        'data': {'run_id': run_id, 'message': _('Health check completed (ID: {id})').format(id=run_id)}
     })

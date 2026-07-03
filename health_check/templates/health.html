@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ _('Health Check') }} — {{ _('系统健康巡检') }}</title>
+<title>{{ _('Health Check') }} — {{ _('System Health Check') }}</title>
 <style>
 :root {
   --bg: #0a0a14;
@@ -173,25 +173,26 @@ tr:hover td{background:rgba(108,108,240,0.04)}
   <div class="header">
     <h1>🔍 <span>{{ _('Health Check') }}</span> <span class="badge">Health Check</span></h1>
     <div class="actions">
-      <button class="btn btn-primary" onclick="runCheck()">⚡ {{ _('立即巡检') }}</button>
-      <button class="btn" onclick="exportReport()">📥 {{ _('导出报告') }}</button>
+      <button class="btn btn-primary" onclick="runCheck()">⚡ {{ _('Run Check Now') }}</button>
+      <button class="btn" onclick="exportReport()">📥 {{ _('Export Report') }}</button>
       <button class="btn btn-danger" id="alertBtn" onclick="showAlerts()" style="display:none">
-        🔔 告警 <span id="alertCount">0</span>
+        🔔 Alerts <span id="alertCount">0</span>
       </button>
-      <span class="refresh-info" id="refreshInfo">{{ _('上次更新') }}: -</span>
+      <span class="refresh-info" id="refreshInfo">{{ _('Last Updated') }}: -</span>
     </div>
   </div>
 
   <!-- Loading -->
-  <div id="loading"><div class="lo"><div class="s"></div>{{ _('加载巡检数据...') }}</div></div>
+  <div id="loading"><div class="lo"><div class="s"></div>{{ _('Loading check data...') }}</div></div>
 
   <!-- Tabs -->
   <div class="tabs" id="mainTabs" style="display:none">
     <div class="tab active" data-tab="overview" onclick="switchTab('overview')">📊 {{ _('Overview') }}</div>
-    <div class="tab" data-tab="details" onclick="switchTab('details')">📋 {{ _('详细报告') }}</div>
-    <div class="tab" data-tab="history" onclick="switchTab('history')">📜 {{ _('巡检历史') }}</div>
-    <div class="tab" data-tab="trend" onclick="switchTab('trend')">📈 {{ _('趋势') }}</div>
-    <div class="tab" data-tab="checks" onclick="switchTab('checks')">⚙️ {{ _('检查项配置') }}</div>
+    <div class="tab" data-tab="details" onclick="switchTab('details')">📋 {{ _('Detailed Report') }}</div>
+    <div class="tab" data-tab="history" onclick="switchTab('history')">📜 {{ _('Check History') }}</div>
+    <div class="tab" data-tab="trend" onclick="switchTab('trend')">📈 {{ _('Trend') }}</div>
+    <div class="tab" data-tab="checks" onclick="switchTab('checks')">⚙️ {{ _('Check Config') }}</div>
+    <div class="tab" data-tab="inventory" onclick="switchTab('inventory')">📦 {{ _('Inventory') }}</div>
   </div>
 
   <!-- Tab: Overview -->
@@ -213,15 +214,15 @@ tr:hover td{background:rgba(108,108,240,0.04)}
   <div id="tab-trend" class="tab-content" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="btn btn-sm trend-days-btn active" onclick="loadTrend(7)">{{ _('7 days') }}</button>
-      <button class="btn btn-sm trend-days-btn" onclick="loadTrend(14)">{{ _('14天') }}</button>
+      <button class="btn btn-sm trend-days-btn" onclick="loadTrend(14)">{{ _('14 Days') }}</button>
       <button class="btn btn-sm trend-days-btn" onclick="loadTrend(30)">{{ _('30 Days') }}</button>
     </div>
     <div class="glass-card">
-      <div class="ct">{{ _('健康趋势') }}</div>
+      <div class="ct">{{ _('Health Trend') }}</div>
       <div id="trendChart"></div>
     </div>
     <div class="glass-card">
-      <div class="ct">{{ _('每日健康分') }}</div>
+      <div class="ct">{{ _('Daily Score') }}</div>
       <div id="scoreChart"></div>
     </div>
   </div>
@@ -231,10 +232,16 @@ tr:hover td{background:rgba(108,108,240,0.04)}
     <div id="checksList"><div class="lo"><div class="s"></div></div></div>
   </div>
 
+  <!-- Tab: Inventory -->
+  <div id="tab-inventory" class="tab-content" style="display:none">
+    <div id="invSummary" style="margin-bottom:12px"></div>
+    <div id="invContent"><div class="lo"><div class="s"></div></div></div>
+  </div>
+
   <!-- Detail Modal -->
   <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
-      <h3>{{ _('检查详情 ') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
+      <h3>{{ _('Check Details') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
       <div id="modalBody"></div>
     </div>
   </div>
@@ -242,7 +249,7 @@ tr:hover td{background:rgba(108,108,240,0.04)}
   <!-- Alert Modal -->
   <div class="modal-overlay" id="alertModal" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()" style="max-width:600px">
-      <h3>🔔 {{ _('告警列表 ') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
+      <h3>🔔 {{ _('Alert List') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
       <div id="alertBody"></div>
     </div>
   </div>
@@ -254,7 +261,7 @@ var API = '/admin/health/api';
 var _token = T;
 var _dataCache = {};
 
-// 在已加载的文档中间（iframe/admin 注入），DOMContentLoaded 不会再触发
+// When loaded in already-rendered document (iframe/admin injection), DOMContentLoaded won't fire again
 if (document.readyState==='loading') {
   document.addEventListener('DOMContentLoaded', function(){ loadStatus(); });
 } else {
@@ -272,6 +279,7 @@ function switchTab(tab) {
   else if (tab === 'history') loadHistory();
   else if (tab === 'trend') loadTrend(7);
   else if (tab === 'checks') loadChecks();
+  else if (tab === 'inventory') loadInventory();
 }
 
 // ── Load Status ──
@@ -290,10 +298,10 @@ function loadStatus() {
         renderOverview(d.data);
         _dataCache.status = d.data;
       }
-      document.getElementById('refreshInfo').textContent = '{{ _('上次更新') }}: ' + new Date().toLocaleTimeString();
+      document.getElementById('refreshInfo').textContent = '{{ _('Last Updated') }}: ' + new Date().toLocaleTimeString();
     })
     .catch(function(){
-      document.getElementById('loading').innerHTML = '<div class="lo" style="color:var(--red)">❌ {{ _('加载失败，请检查网络') }}</div>';
+      document.getElementById('loading').innerHTML = '<div class="lo" style="color:var(--red)">❌ {{ _('Load failed, check network') }}</div>';
     });
 }
 
@@ -311,25 +319,25 @@ function renderOverview(data) {
     var errors = latest.errors || 0;
     var pct = total > 0 ? Math.round(passed * 100 / total) : 100;
     h += '<div class="stat-card '+(errors>0?'error':warnings>0?'warning':'passed')+'">';
-    h += '<div class="label">{{ _('健康度') }}</div>';
+    h += '<div class="label">{{ _('Health') }}</div>';
     h += '<div class="value '+(pct>=90?'green':pct>=70?'yellow':'red')+'">'+pct+'%</div>';
-    h += '<div class="sub">'+(errors>0?errors+' {{ _('Abnormal') }}':warnings>0?warnings+' {{ _('警告') }}':'{{ _('全部正常') }}')+'</div></div>';
+    h += '<div class="sub">'+(errors>0?errors+' {{ _('Abnormal') }}':warnings>0?warnings+' {{ _('Warnings') }}':'{{ _('All Normal') }}')+'</div></div>';
 
-    h += '<div class="stat-card passed"><div class="label">{{ _('Active') }}</div><div class="value green">'+passed+'</div><div class="sub">/'+total+' 项</div></div>';
-    h += '<div class="stat-card warning"><div class="label">{{ _('警告') }}</div><div class="value yellow">'+warnings+'</div><div class="sub">{{ _('需关注') }}</div></div>';
-    h += '<div class="stat-card error"><div class="label">{{ _('Abnormal') }}</div><div class="value red">'+errors+'</div><div class="sub">{{ _('需立即处理') }}</div></div>';
+    h += '<div class="stat-card passed"><div class="label">{{ _('Active') }}</div><div class="value green">'+passed+'</div><div class="sub">/'+total+' items</div></div>';
+    h += '<div class="stat-card warning"><div class="label">{{ _('Warnings') }}</div><div class="value yellow">'+warnings+'</div><div class="sub">{{ _('Needs Attention') }}</div></div>';
+    h += '<div class="stat-card error"><div class="label">{{ _('Abnormal') }}</div><div class="value red">'+errors+'</div><div class="sub">{{ _('Requires Immediate Action') }}</div></div>';
 
     var ms = latest.duration_ms || 0;
-    h += '<div class="stat-card passed"><div class="label">{{ _('巡检耗时') }}</div><div class="value" style="font-size:22px">'+ms+'ms</div>';
+    h += '<div class="stat-card passed"><div class="label">{{ _('Check Duration') }}</div><div class="value" style="font-size:22px">'+ms+'ms</div>';
     h += '<div class="sub">'+esc(latest.trigger_type=='manual'?'{{ _('Manual') }}':'{{ _('Auto') }}')+' · '+esc(latest.created_at||'')+'</div></div>';
   }
   h += '</div>';
 
   // Category Breakdown
   if (data.categories) {
-    h += '<div class="glass-card"><div class="ct">{{ _('分类状态') }}</div><div class="cat-grid">';
+    h += '<div class="glass-card"><div class="ct">{{ _('Category Status') }}</div><div class="cat-grid">';
     var catNames = {
-      'system':'🔧 {{ _('System') }}', 'external':'🌐 {{ _('外部依赖') }}', 'workflow':'⚡ {{ _('Workflow') }}',
+      'system':'🔧 {{ _('System') }}', 'external':'🌐 {{ _('External Dependencies') }}', 'workflow':'⚡ {{ _('Workflow') }}',
       'agent':'🤖 Agent', 'cms':'📄 {{ _('Content') }}', 'community':'🌍 {{ _('Community') }}',
       'ssl':'🔒 SSL', 'error':'📝 {{ _('Log') }}'
     };
@@ -371,7 +379,7 @@ function renderOverview(data) {
 function runCheck() {
   var btn = document.querySelector('.btn-primary');
   btn.disabled = true;
-  btn.innerHTML = '<div class="s" style="width:14px;height:14px;border-width:2px"></div> {{ _('巡检中...') }}';
+  btn.innerHTML = '<div class="s" style="width:14px;height:14px;border-width:2px"></div> {{ _('Checking...') }}';
 
   fetch(API+'/run', {
     method:'POST',
@@ -380,13 +388,13 @@ function runCheck() {
   }).then(function(r){return r.json()})
   .then(function(d){
     if (d.success) {
-      showToast('✅ {{ _('巡检已启动，5秒后自动刷新') }}');
+      showToast('✅ {{ _('Check started, auto-refresh in 5s') }}');
       setTimeout(loadStatus, 5000);
     }
   }).catch(function(){})
   .finally(function(){
     btn.disabled = false;
-    btn.innerHTML = '⚡ {{ _('立即巡检') }}';
+    btn.innerHTML = '⚡ {{ _('Run Check Now') }}';
   });
 }
 
@@ -413,8 +421,8 @@ function loadDetails(filter) {
 function renderDetailFilter(items) {
   var cats = {};
   items.forEach(function(i){cats[i.category]=true});
-  var h = '<button class="filter-btn active" onclick="filterDetail(this,\'\')">{{ _('全部 (') }}'+items.length+')</button>';
-  var catNames = {'system':'{{ _('System') }}','external':'{{ _('外部') }}','workflow':'{{ _('Workflow') }}','agent':'Agent','cms':'{{ _('Content') }}','community':'{{ _('Community') }}','ssl':'SSL','error':'{{ _('Log') }}'};
+  var h = '<button class="filter-btn active" onclick="filterDetail(this,\'\')">{{ _('All (') }}'+items.length+')</button>';
+  var catNames = {'system':'{{ _('System') }}','external':'{{ _('External') }}','workflow':'{{ _('Workflow') }}','agent':'Agent','cms':'{{ _('Content') }}','community':'{{ _('Community') }}','ssl':'SSL','error':'{{ _('Log') }}'};
   for (var cat in cats) {
     var cnt = items.filter(function(i){return i.category==cat}).length;
     h += '<button class="filter-btn" onclick="filterDetail(this,\''+cat+'\')">'+(catNames[cat]||cat)+' ('+cnt+')</button>';
@@ -430,7 +438,7 @@ function filterDetail(el, cat) {
 
 function renderDetailTable(items, filter) {
   var filtered = filter ? items.filter(function(i){return i.category==filter}) : items;
-  var h = '<div class="glass-card"><table><tr><th>{{ _('Status') }}</th><th>{{ _('Name') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Response') }}</th><th>{{ _('信息') }}</th></tr>';
+  var h = '<div class="glass-card"><table><tr><th>{{ _('Status') }}</th><th>{{ _('Name') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Response') }}</th><th>{{ _('Message') }}</th></tr>';
   filtered.forEach(function(i){
     var st = i.status == 'passed' ? 'green' : (i.status == 'warning' ? 'yellow' : 'red');
     h += '<tr onclick="showDetail('+i.id+')" style="cursor:pointer">';
@@ -451,20 +459,20 @@ function showDetail(itemId) {
   var item = items.find(function(i){return i.id==itemId});
   if (!item) return;
 
-  var st = item.status == 'passed' ? '✅ {{ _('Active') }}' : (item.status == 'warning' ? '⚠️ {{ _('警告') }}' : '❌ {{ _('Error') }}');
+  var st = item.status == 'passed' ? '✅ {{ _('Active') }}' : (item.status == 'warning' ? '⚠️ {{ _('Warnings') }}' : '❌ {{ _('Error') }}');
   var stClass = item.status == 'passed' ? 'green' : (item.status == 'warning' ? 'yellow' : 'red');
   var h = '<table><tr><td style="width:100px;color:var(--dim)">{{ _('Name') }}</td><td>'+esc(item.check_name)+'</td></tr>';
   h += '<tr><td style="color:var(--dim)">{{ _('Status') }}</td><td style="color:var(--'+stClass+')">'+st+'</td></tr>';
   h += '<tr><td style="color:var(--dim)">{{ _('Categories') }}</td><td>'+esc(item.category)+'</td></tr>';
-  h += '<tr><td style="color:var(--dim)">{{ _('响应时间') }}</td><td>'+(item.response_time_ms||0)+'ms</td></tr>';
+  h += '<tr><td style="color:var(--dim)">{{ _('Response Time') }}</td><td>'+(item.response_time_ms||0)+'ms</td></tr>';
   h += '<tr><td style="color:var(--dim)">{{ _('Message') }}</td><td>'+esc(item.message||'')+'</td></tr>';
-  h += '<tr><td style="color:var(--dim)">{{ _('检查时间') }}</td><td>'+esc(item.checked_at||'')+'</td></tr>';
+  h += '<tr><td style="color:var(--dim)">{{ _('Check Time') }}</td><td>'+esc(item.checked_at||'')+'</td></tr>';
 
   // Detail JSON
   try {
     var detail = JSON.parse(item.detail || '{}');
     if (Object.keys(detail).length > 0) {
-      h += '<tr><td style="color:var(--dim)">{{ _('详细数据') }}</td><td><pre>'+esc(JSON.stringify(detail, null, 2))+'</pre></td></tr>';
+      h += '<tr><td style="color:var(--dim)">{{ _('Details') }}</td><td><pre>'+esc(JSON.stringify(detail, null, 2))+'</pre></td></tr>';
     }
   } catch(e) {}
 
@@ -496,7 +504,7 @@ function renderHistFilter() {
 }
 
 function renderHistTable(runs) {
-  var h = '<div class="glass-card"><table><tr><th>ID</th><th>{{ _('触发方式') }}</th><th>{{ _('Active') }}</th><th>{{ _('警告') }}</th><th>{{ _('Abnormal') }}</th><th>{{ _('Duration') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
+  var h = '<div class="glass-card"><table><tr><th>ID</th><th>{{ _('Trigger') }}</th><th>{{ _('Active') }}</th><th>{{ _('Warnings') }}</th><th>{{ _('Abnormal') }}</th><th>{{ _('Duration') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
   runs.forEach(function(r){
     var st = r.errors>0?'red':r.warnings>0?'yellow':'green';
     h += '<tr>';
@@ -522,13 +530,13 @@ function viewHistory(runId) {
       var run = d.data.run;
       var items = d.data.items;
       var st = run.errors>0?'red':run.warnings>0?'yellow':'green';
-      var stText = run.errors>0?'❌ {{ _('Abnormal') }}':run.warnings>0?'⚠️ {{ _('警告') }}':'✅ {{ _('Active') }}';
+      var stText = run.errors>0?'❌ {{ _('Abnormal') }}':run.warnings>0?'⚠️ {{ _('Warnings') }}':'✅ {{ _('Active') }}';
       var h = '<div style="margin-bottom:12px;padding:8px 12px;background:var(--card2);border-radius:8px">';
-      h += '<div>{{ _('批次 ') }}#'+run.id+' · '+stText+' · '+(run.duration_ms||0)+'ms · '+esc(run.created_at||'')+'</div>';
-      h += '<div style="font-size:11px;color:var(--dim);margin-top:4px">{{ _('正常 ') }}'+run.passed+' · {{ _('警告 ') }}'+run.warnings+' · {{ _('异常 ') }}'+run.errors+'</div>';
+      h += '<div>{{ _('Batch ') }}#'+run.id+' · '+stText+' · '+(run.duration_ms||0)+'ms · '+esc(run.created_at||'')+'</div>';
+      h += '<div style="font-size:11px;color:var(--dim);margin-top:4px">{{ _('Passed ') }}'+run.passed+' · {{ _('Warnings ') }}'+run.warnings+' · {{ _('Errors ') }}'+run.errors+'</div>';
       h += '</div>';
 
-      h += '<table><tr><th>{{ _('Status') }}</th><th>{{ _('Name') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Response') }}</th><th>{{ _('信息') }}</th></tr>';
+      h += '<table><tr><th>{{ _('Status') }}</th><th>{{ _('Name') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Response') }}</th><th>{{ _('Message') }}</th></tr>';
       items.forEach(function(i){
         var s = i.status=='passed'?'green':(i.status=='warning'?'yellow':'red');
         h += '<tr><td><span class="status-dot '+s+'"></span></td>';
@@ -560,7 +568,7 @@ function loadTrend(days) {
 
 function renderTrendChart(trend) {
   if (!trend || trend.length === 0) {
-    document.getElementById('trendChart').innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px">{{ _('暂无趋势数据，请执行一次巡检') }}</div>';
+    document.getElementById('trendChart').innerHTML = '<div style="text-align:center;color:var(--dim);padding:20px">{{ _('No trend data yet, run a check first') }}</div>';
     return;
   }
   var maxCount = 0;
@@ -577,7 +585,7 @@ function renderTrendChart(trend) {
     var height = Math.max(4, (total / maxCount) * 80);
     h += '<div class="trend-bar" style="height:'+height+'px;display:flex;flex-direction:column;width:100%">';
     if (t.errors > 0) h += '<div style="flex:'+errPct+';background:var(--red);border-radius:3px 3px 0 0;min-height:2px" title="{{ _('Abnormal') }}:'+t.errors+'"></div>';
-    if (t.warnings > 0) h += '<div style="flex:'+warnPct+';background:var(--yellow);min-height:2px" title="{{ _('警告') }}:'+t.warnings+'"></div>';
+    if (t.warnings > 0) h += '<div style="flex:'+warnPct+';background:var(--yellow);min-height:2px" title="{{ _('Warnings') }}:'+t.warnings+'"></div>';
     h += '<div style="flex:'+passedPct+';background:var(--green);min-height:2px" title="{{ _('Active') }}:'+t.passed+'"></div>';
     h += '<div class="tooltip">'+esc(t.date)+': ✅'+t.passed+' ⚠️'+t.warnings+' ❌'+t.errors+'</div>';
     h += '</div>';
@@ -617,12 +625,12 @@ function renderScoreChart(trend) {
   document.getElementById('scoreChart').innerHTML = h;
 }
 
-// ── 管理检查项（升级版：注册表 + 排序 + 配置编辑 + 一键添加） ──
+// ── Manage Checks (Enhanced: Registry + Sorting + Config Editor + One-click Add) ──
 function loadChecks() {
   var container = document.getElementById('checksList');
-  container.innerHTML = '<div class="lo"><div class="s"></div>{{ _('加载检查项...') }}</div>';
+  container.innerHTML = '<div class="lo"><div class="s"></div>{{ _('Loading checks...') }}</div>';
 
-  // 并行加载 DB 列表 + 注册表
+  // Load DB list + registry in parallel
   Promise.all([
     fetch(API+'/checks', {headers:{'Authorization':'Bearer '+_token}}).then(function(r){return r.json()}),
     fetch(API+'/checkers/registry', {headers:{'Authorization':'Bearer '+_token}}).then(function(r){return r.json()})
@@ -633,11 +641,11 @@ function loadChecks() {
     var registered = (regData.success && regData.data) ? regData.data.registered : [];
     var h = '';
 
-    // ── 可用检查器注册表（可一键添加） ──
+    // ── Available Checkers Registry (One-click Add) ──
     var unregistered = registered.filter(function(r){ return !r.in_db; });
     if (unregistered.length > 0) {
       h += '<div class="glass-card">';
-      h += '<div class="ct">📦 {{ _('可添加的检查器 ') }}<span style="color:var(--accent);font-weight:400">('+unregistered.length+' {{ _('个可用)') }}</span></div>';
+      h += '<div class="ct">📦 {{ _('Available Checkers') }} <span style="color:var(--accent);font-weight:400">('+unregistered.length+' {{ _('available)') }}</span></div>';
       h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
       unregistered.forEach(function(r){
         var severityColors = {warning:'rgba(251,191,36,0.15);color:var(--yellow)', critical:'rgba(248,81,73,0.15);color:var(--red)', info:'rgba(96,165,250,0.15);color:var(--blue)'};
@@ -650,10 +658,10 @@ function loadChecks() {
       h += '</div></div>';
     }
 
-    // ── 当前已配置的检查项列表 ──
+    // ── Currently Configured Checks ──
     h += '<div class="glass-card">';
-    h += '<div class="ct">⚙️ {{ _('已配置检查项 ') }}<span style="color:var(--dim);font-weight:400">('+checks.length+' {{ _('项)') }}</span></div>';
-    h += '<table><tr><th style="width:40px">{{ _('Enabled') }}</th><th>{{ _('名称 / Key') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Level') }}</th><th style="width:60px">{{ _('Sort') }}</th><th>{{ _('Config') }}</th><th style="width:60px">{{ _('Actions') }}</th></tr>';
+    h += '<div class="ct">⚙️ {{ _('Configured Checks') }} <span style="color:var(--dim);font-weight:400">('+checks.length+' {{ _(' items)') }}</span></div>';
+    h += '<table><tr><th style="width:40px">{{ _('Enabled') }}</th><th>{{ _('Name / Key') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Level') }}</th><th style="width:60px">{{ _('Sort') }}</th><th>{{ _('Config') }}</th><th style="width:60px">{{ _('Actions') }}</th></tr>';
 
     checks.forEach(function(c){
       var isChecked = c.is_active ? 'checked' : '';
@@ -670,7 +678,7 @@ function loadChecks() {
       h += '<td><button class="btn btn-sm" onclick="deleteCheck('+c.id+',\''+esc(c.name)+'\')" style="color:var(--red)">🗑</button></td>';
       h += '</tr>';
 
-      // 隐藏的配置编辑器行
+      // Hidden config editor row
       h += '<tr id="config-row-'+c.id+'" style="display:none"><td colspan="7" style="padding:0">';
       h += '<div style="background:var(--card2);padding:8px 12px;margin:4px 0;border-radius:6px">';
       var configStr = esc(JSON.stringify(JSON.parse(c.config||'{}'), null, 2));
@@ -680,38 +688,38 @@ function loadChecks() {
     });
     h += '</table></div>';
 
-    // ── 手动添加新检查项 ──
+    // ── Manually Add New Check ──
     h += '<div class="glass-card">';
-    h += '<div class="ct">➕ {{ _('手动添加检查项') }}</div>';
+    h += '<div class="ct">➕ {{ _('Manual Add Check') }}</div>';
     h += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end">';
     h += '<div><label style="font-size:10px;color:var(--dim);display:block">Key</label><input id="newKey" placeholder="my_custom_check" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"></div>';
-    h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Name') }}</label><input id="newName" placeholder="{{ _('自定义检查" style') }}="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"></div>';
+    h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Name') }}</label><input id="newName" placeholder="{{ _('Custom Check" style') }}="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"></div>';
     h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Categories') }}</label><select id="newCat" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"><option>system</option><option>external</option><option>workflow</option><option>agent</option><option>cms</option><option>community</option><option>ssl</option><option>error</option></select></div>';
     h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Level') }}</label><select id="newSev" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"><option>warning</option><option>critical</option><option>info</option></select></div>';
     h += '<div style="padding-top:14px"><button class="btn btn-primary btn-sm" onclick="addCustomCheck()">{{ _('Add') }}</button></div>';
     h += '</div></div>';
 
-    // ── 开发帮助 ──
+    // ── Development Help ──
     h += '<div class="glass-card" style="opacity:0.7">';
-    h += '<div class="ct">📖 {{ _('添加新检查项指南') }}</div>';
+    h += '<div class="ct">📖 {{ _('Adding New Check Guide') }}</div>';
     h += '<div style="font-size:11px;color:var(--dim);line-height:1.8">';
-    h += '<b>{{ _('方式 1 ') }}— {{ _('代码注册') }}</b>（{{ _('推荐）') }}<br>';
-    h += '{{ _('在 checkers.py 中继承 BaseHealthCheck，用 ') }}@register(check_key) {{ _('注册。') }}<br>';
-    h += '{{ _('然后点击上方') }}「＋{{ _('Add') }}」{{ _('按钮写入 DB 即可生效。') }}<br><br>';
-    h += '<b>{{ _('方式 2 ') }}— {{ _('仅 DB 记录') }}</b><br>';
-    h += '{{ _('直接在上方手动添加后，在 check() 方法中实现逻辑。') }}<br>';
-    h += '{{ _('如果 check_key 发生在 Python 中已有对应的 ') }}@register {{ _('类，会自动匹配。') }}<br><br>';
-    h += '<b>{{ _('完整模板：') }}</b><br>';
+    h += '<b>{{ _('Method 1 ') }}— {{ _('Code Registration') }}</b>（{{ _('Recommended)') }}<br>';
+    h += '{{ _('Inherit BaseHealthCheck in checkers.py, use ') }}@register(check_key) {{ _('to register.') }}<br>';
+    h += '{{ _('Then click the') }}「＋{{ _('Add') }}」{{ _('button above to write to DB and it will take effect.') }}<br><br>';
+    h += '<b>{{ _('Method 2 ') }}— {{ _('DB Record Only') }}</b><br>';
+    h += '{{ _('Add manually above, then implement logic in the check() method.') }}<br>';
+    h += '{{ _('If check_key has a corresponding ') }}@register {{ _('class in Python, it will auto-match.') }}<br><br>';
+    h += '<b>{{ _('Full Template:') }}</b><br>';
     h += '<pre style="background:var(--bg);padding:8px;border-radius:6px;font-size:10px;overflow-x:auto">';
     h += '@register(\'your_key\')                                                               \n';
     h += 'class MyCheck(BaseHealthCheck):                                                       \n';
-    h += '    name = \'{{ _('我的检查') }}\'                                                                 \n';
+    h += '    name = \'{{ _('My Check') }}\'                                                                 \n';
     h += '    category = \'system\'                                                               \n';
     h += '    severity = \'warning\'                                                              \n';
     h += '    def check(self):                                                                  \n';
     h += '        start = time.time()                                                           \n';
     h += '        try:                                                                          \n';
-    h += '            # ... {{ _('你的检查逻辑 ...                                                     ') }}\n';
+    h += '            # ... {{ _('your check logic ...') }}                                                      \n';
     h += '            return CheckResult(\'passed\', 0, \'{{ _('Active') }}\')                                   \n';
     h += '        except Exception as e:                                                        \n';
     h += '            return CheckResult(\'error\', 0, str(e))                                   \n';
@@ -723,7 +731,7 @@ function loadChecks() {
   });
 }
 
-// ── 从注册表一键添加 ──
+// ── Add from Registry ──
 function addFromRegistry(checkKey) {
   fetch(API+'/checkers/register', {
     method:'POST',
@@ -731,7 +739,7 @@ function addFromRegistry(checkKey) {
     body:JSON.stringify({check_key: checkKey})
   }).then(function(r){return r.json()}).then(function(d){
     if (d.success) {
-      showToast('✅ {{ _('已添加检查项') }}: '+checkKey);
+      showToast('✅ {{ _('Check added') }}: '+checkKey);
       loadChecks();
     } else {
       showToast('❌ '+d.error);
@@ -739,7 +747,7 @@ function addFromRegistry(checkKey) {
   }).catch(function(){showToast('❌ {{ _('Request Failed') }}')});
 }
 
-// ── 切换启用/禁用 ──
+// ── Toggle Enable/Disable ──
 function toggleCheck(id, active) {
   fetch(API+'/checks/'+id, {
     method:'PUT',
@@ -750,24 +758,24 @@ function toggleCheck(id, active) {
   });
 }
 
-// ── 更新排序 ──
+// ── Update Sort ──
 function updateSort(id, val) {
   fetch(API+'/checks/'+id, {
     method:'PUT',
     headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'},
     body:JSON.stringify({sort_order: parseInt(val)||50})
   }).then(function(r){return r.json()}).then(function(d){
-    if (d.success) showToast('✅ {{ _('排序已更新') }}');
+    if (d.success) showToast('✅ {{ _('Sort updated') }}');
   });
 }
 
-// ── 配置编辑器切换 ──
+// ── Toggle Config Editor ──
 function toggleConfigEditor(id) {
   var row = document.getElementById('config-row-'+id);
   if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
 }
 
-// ── 保存配置 ──
+// ── Save Config ──
 function saveConfig(id) {
   var editor = document.getElementById('config-editor-'+id);
   if (!editor) return;
@@ -778,7 +786,7 @@ function saveConfig(id) {
       headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'},
       body:JSON.stringify({config: config})
     }).then(function(r){return r.json()}).then(function(d){
-      if (d.success) showToast('✅ {{ _('配置已保存') }}');
+      if (d.success) showToast('✅ {{ _('Config saved') }}');
       else showToast('❌ {{ _('Save failed') }}: '+d.error);
     });
   } catch(e) {
@@ -786,9 +794,9 @@ function saveConfig(id) {
   }
 }
 
-// ── 删除检查项 ──
+// ── Delete Check ──
 function deleteCheck(id, name) {
-  if (!confirm('{{ _('确定要删除检查项') }}「'+name+'」{{ _('吗？') }}')) return;
+  if (!confirm('{{ _('Are you sure you want to delete check') }}「'+name+'」{{ _('?') }}')) return;
   fetch(API+'/checks/'+id, {
     method:'DELETE',
     headers:{'Authorization':'Bearer '+_token}
@@ -798,11 +806,11 @@ function deleteCheck(id, name) {
   });
 }
 
-// ── 手动添加自定义检查 ──
+// ── Manual Add Custom Check ──
 function addCustomCheck() {
   var key = document.getElementById('newKey').value.trim();
   var name = document.getElementById('newName').value.trim();
-  if (!key) { showToast('❌ {{ _('请输入 check_key') }}'); return; }
+  if (!key) { showToast('❌ {{ _('Please enter check_key') }}'); return; }
 
   fetch(API+'/checkers/register', {
     method:'POST',
@@ -812,7 +820,7 @@ function addCustomCheck() {
       name: name || key,
       category: document.getElementById('newCat').value,
       severity: document.getElementById('newSev').value,
-      description: '{{ _('自定义检查项') }}'
+      description: '{{ _('Custom Check') }}'
     })
   }).then(function(r){return r.json()}).then(function(d){
     if (d.success) {
@@ -833,9 +841,9 @@ function showAlerts() {
       var alerts = d.data.alerts || [];
       var h = '';
       if (alerts.length === 0) {
-        h = '<div style="text-align:center;padding:20px;color:var(--dim)">{{ _('暂无告警记录') }}</div>';
+        h = '<div style="text-align:center;padding:20px;color:var(--dim)">{{ _('No alerts') }}</div>';
       } else {
-        h = '<table><tr><th>{{ _('Time') }}</th><th>{{ _('检查项') }}</th><th>{{ _('Status') }}</th><th>{{ _('Message') }}</th></tr>';
+        h = '<table><tr><th>{{ _('Time') }}</th><th>{{ _('Check') }}</th><th>{{ _('Status') }}</th><th>{{ _('Message') }}</th></tr>';
         alerts.forEach(function(a){
           var st = a.status=='passed'?'green':(a.status=='warning'?'yellow':'red');
           h += '<tr><td style="font-size:10px;color:var(--dim)">'+esc(a.created_at||'')+'</td>';
@@ -845,7 +853,7 @@ function showAlerts() {
         });
         h += '</table>';
       }
-      h += '<div style="margin-top:10px;text-align:right"><button class="btn btn-sm" onclick="markAlertsRead()">{{ _('全部标记已读') }}</button></div>';
+      h += '<div style="margin-top:10px;text-align:right"><button class="btn btn-sm" onclick="markAlertsRead()">{{ _('Mark All Read') }}</button></div>';
       document.getElementById('alertBody').innerHTML = h;
       document.getElementById('alertModal').classList.add('show');
     });
@@ -859,10 +867,112 @@ function markAlertsRead() {
   }).then(function(r){return r.json()}).then(function(d){
     if (d.success) {
       document.getElementById('alertBtn').style.display = 'none';
-      showToast('✅ {{ _('已全部标记已读') }}');
+      showToast('✅ {{ _('All marked as read') }}');
       closeModal();
     }
   });
+}
+
+// ── Inventory (Resource Discovery) ──
+function loadInventory() {
+  var container = document.getElementById('invContent');
+  container.innerHTML = '<div class="lo"><div class="s"></div></div>';
+
+  fetch(API+'/discovery/status', {headers:{'Authorization':'Bearer '+_token}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if (!d.success) {
+        container.innerHTML = '<div class="lo" style="color:var(--red)">❌ {{ _('Load failed') }}</div>';
+        return;
+      }
+      document.getElementById('invSummary').innerHTML = '<div class="glass-card" style="padding:12px 16px;font-size:12px">🔍 ' + esc(d.summary || '') + '</div>';
+      renderInventory(d.data);
+    }).catch(function(){
+      container.innerHTML = '<div class="lo" style="color:var(--red)">❌ {{ _('Load failed') }}</div>';
+    });
+}
+
+function renderInventory(data) {
+  if (!data) {
+    document.getElementById('invContent').innerHTML = '<div class="lo" style="color:var(--dim)">{{ _('No data') }}</div>';
+    return;
+  }
+  var h = '';
+
+  // ── Modules ──
+  if (data.modules && data.modules.length > 0) {
+    h += '<div class="glass-card">';
+    h += '<div class="ct">📁 {{ _('Modules') }} <span style="color:var(--accent);font-weight:400">(' + data.modules.length + ')</span></div>';
+    h += '<table><tr><th>{{ _('Name') }}</th><th>{{ _('Path') }}</th><th>{{ _('Indicators') }}</th></tr>';
+    data.modules.forEach(function(m){
+      h += '<tr><td style="font-weight:600">' + esc(m.name) + '</td>';
+      h += '<td style="color:var(--dim);font-size:11px">' + esc(m.path) + '</td>';
+      h += '<td>' + (m.indicators || []).map(function(i){return '<span class="badge">' + i + '</span>'}).join(' ') + '</td></tr>';
+    });
+    h += '</table></div>';
+  }
+
+  // ── Endpoints (by blueprint) ──
+  if (data.endpoints && data.endpoints.length > 0) {
+    h += '<div class="glass-card">';
+    h += '<div class="ct">🔗 {{ _('Endpoints') }} <span style="color:var(--accent);font-weight:400">(' + data.endpoints.length + ')</span></div>';
+
+    // Group by blueprint
+    var bpMap = {};
+    data.endpoints.forEach(function(ep){
+      var bp = ep.blueprint || '(root)';
+      if (!bpMap[bp]) bpMap[bp] = [];
+      bpMap[bp].push(ep);
+    });
+
+    for (var bp in bpMap) {
+      h += '<div style="margin-bottom:8px">';
+      h += '<div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:4px">' + esc(bp) + ' (' + bpMap[bp].length + ')</div>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+      bpMap[bp].forEach(function(ep){
+        var methods = (ep.methods || []).join(',');
+        h += '<span style="background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--dim)">';
+        h += '<span style="color:var(--green)">' + esc(methods) + '</span> ' + esc(ep.url);
+        h += '</span>';
+      });
+      h += '</div></div>';
+    }
+    h += '</div>';
+  }
+
+  // ── Database Tables ──
+  if (data.tables && data.tables.length > 0) {
+    var totalRows = 0;
+    data.tables.forEach(function(t){ if (t.row_count > 0) totalRows += t.row_count; });
+    h += '<div class="glass-card">';
+    h += '<div class="ct">🗄️ {{ _('Database Tables') }} <span style="color:var(--accent);font-weight:400">(' + data.tables.length + ' {{ _('tables') }}, ' + totalRows + ' {{ _('rows') }})</span></div>';
+    h += '<table><tr><th>{{ _('Table') }}</th><th>{{ _('Columns') }}</th><th>{{ _('Rows') }}</th><th>{{ _('Auto-inc ID') }}</th></tr>';
+    data.tables.forEach(function(t){
+      h += '<tr><td style="font-weight:600">' + esc(t.name) + '</td>';
+      h += '<td style="color:var(--dim)">' + (t.column_count || '-') + '</td>';
+      h += '<td>' + (t.row_count >= 0 ? t.row_count : '-') + '</td>';
+      h += '<td style="color:var(--dim);font-size:11px">' + (t.auto_increment_id != null ? t.auto_increment_id : '-') + '</td></tr>';
+    });
+    h += '</table></div>';
+  }
+
+  // ── Plugins ──
+  if (data.plugins && data.plugins.length > 0) {
+    var enabledCount = data.plugins.filter(function(p){return p.status === 'enabled'}).length;
+    h += '<div class="glass-card">';
+    h += '<div class="ct">🧩 {{ _('Plugins') }} <span style="color:var(--accent);font-weight:400">(' + data.plugins.length + ' {{ _('total') }}, ' + enabledCount + ' {{ _('enabled') }})</span></div>';
+    h += '<table><tr><th>{{ _('Name') }}</th><th>{{ _('Version') }}</th><th>{{ _('Status') }}</th><th>{{ _('Health Checks') }}</th></tr>';
+    data.plugins.forEach(function(p){
+      var stCls = p.status === 'enabled' ? 'green' : (p.status === 'load_error' ? 'red' : 'yellow');
+      h += '<tr><td style="font-weight:600">' + esc(p.name) + '</td>';
+      h += '<td style="color:var(--dim)">v' + esc(p.version || '-') + '</td>';
+      h += '<td><span class="status-dot ' + stCls + '"></span>' + esc(p.status) + '</td>';
+      h += '<td>' + (p.has_health_checks ? '✅ ' + (p.health_check_count || 0) : '—') + '</td></tr>';
+    });
+    h += '</table></div>';
+  }
+
+  document.getElementById('invContent').innerHTML = h || '<div class="lo" style="color:var(--dim)">{{ _('No resources discovered') }}</div>';
 }
 
 // ── Export Report ──
@@ -870,14 +980,14 @@ function exportReport() {
   fetch(API+'/export', {headers:{'Authorization':'Bearer '+_token}})
     .then(function(r){return r.json()})
     .then(function(d){
-      if (!d.success || !d.data) { showToast('❌ {{ _('暂无报告可导出') }}'); return; }
+      if (!d.success || !d.data) { showToast('❌ {{ _('No report available') }}'); return; }
       var blob = new Blob([JSON.stringify(d.data, null, 2)], {type:'application/json'});
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'health-report-'+new Date().toISOString().slice(0,10)+'.json';
       a.click();
-      showToast('✅ {{ _('报告已导出') }}');
-    }).catch(function(){showToast('❌ {{ _('导出失败') }}')});
+      showToast('✅ {{ _('Report exported') }}');
+    }).catch(function(){showToast('❌ {{ _('Export failed') }}')});
 }
 
 // ── Utilities ──
@@ -906,7 +1016,7 @@ setInterval(function(){
         if (d.success && d.data) {
           renderOverview(d.data);
           _dataCache.status = d.data;
-          document.getElementById('refreshInfo').textContent = '{{ _('上次更新') }}: ' + new Date().toLocaleTimeString();
+          document.getElementById('refreshInfo').textContent = '{{ _('Last Updated') }}: ' + new Date().toLocaleTimeString();
         }
       }).catch(function(){});
   }

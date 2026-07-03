@@ -3,7 +3,7 @@
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """Admin Panel — 管理后台 (独立端口 8084)"""
-"""VeroRon v0.9.7 — 多智能体驱动的AI内容与商业枢纽"""
+"""VeroRon v0.9.8 — Multi-agent AI Content & Commerce Hub"""
 
 import sys, os, secrets
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
@@ -169,6 +169,14 @@ seed_default_checks()
 app.register_blueprint(health_bp)
 print(f'[HealthCheck] ✅ 健康巡检已注册')
 print(f'[HealthCheck] 📋 API: /admin/health/*')
+
+# 注册定时巡检任务
+try:
+    from health_check.scheduler_setup import seed_health_schedules
+    seed_health_schedules()
+    print(f'[HealthCheck/Scheduler] ✅ 定时巡检注册完成')
+except Exception as e:
+    print(f'[HealthCheck/Scheduler] ⚠️ 定时巡检注册失败: {e}')
 
 # ===== Alibaba Open Platform API =====
 try:
