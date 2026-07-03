@@ -74,7 +74,7 @@ CMS管理: CMS管理
 CMS自动发布: CMS自动发布
 datetime: datetime
 Display name: Display name
-'Hello {name}', name='World': 'Hello {name}', name='World'
+"'Hello {name}', name='World'": "'Hello {name}', name='World'"
 Hermes 框架 · Skills 包 · SDK · 插件 — 一站式获取所有 智能体 工具: Hermes 框架 · Skills 包 · SDK · 插件
   — 一站式获取所有 智能体 工具
 Invalid or expired verification code: Invalid or expired verification code
@@ -109,13 +109,11 @@ your_username: your_username
   ''free'' %}免费试用{% else %}立即购买{% endif %}'
 '{% if tier == ''free'' %}免费试用{% else %}立即购买{% endif %}': '{% if tier == ''free''
   %}免费试用{% else %}立即购买{% endif %}'
-'{{ brand.site_name_en if brand else '''' }} 已通过': '{{ brand.site_name_en if brand
-  else '''' }} 已通过'
-'{{ category.name }} — {{ brand.site_name_en if brand else '''' }} 文档': '{{ category.name
-  }} — {{ brand.site_name_en if brand else '''' }} 文档'
+"{{ brand.site_name_en if brand else '' }} 已通过": "{{ brand.site_name_en if brand else '' }} 已通过"
+"{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档": "{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档"
 '{{ item.name }} v{{ item.version }} — 下载 — VeroRun': '{{ item.name }} v{{ item.version }} — 下载 — VeroRun'
 '{{ page.title }} — VeroRun': '{{ page.title }} — VeroRun'
-'{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''VeroRun'' }}': '{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''VeroRun'' }}'
+"{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else 'VeroRun' }}": "{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else 'VeroRun' }}"
 '{{ site.name }} - 定价方案': '{{ site.name }} - 定价方案'
 '{{ site.name }} - 智能建站平台': '{{ site.name }} - 智能建站平台'
 '{{ stats.years | default(0) }}年': '{{ stats.years | default(0) }}年'
@@ -303,8 +301,7 @@ your_username: your_username
 多轮对话: 多轮对话
 套餐: 套餐
 套餐定价: 套餐定价
-'套餐订阅 — {{ brand.site_name_en if brand else '' }}': '套餐订阅 — {{ brand.site_name_en if'
-  brand else '' }}
+"套餐订阅 — {{ brand.site_name_en if brand else '' }}": "套餐订阅 — {{ brand.site_name_en if brand else '' }}"
 套餐详情: 套餐详情
 如何: 如何
 季付: 季付
@@ -542,8 +539,7 @@ VeroRun: VeroRun
 法定代表人: 法定代表人
 法律: 法律
 注册: 注册
-'注册 {{ brand.site_name_en if brand else '' }} 智能金融平台': '注册 {{ brand.site_name_en if brand'
-  else '' }} 智能金融平台
+"注册 {{ brand.site_name_en if brand else '' }} 智能金融平台": "注册 {{ brand.site_name_en if brand else '' }} 智能金融平台"
 注册|登录: 注册|登录
 注册平台: 注册平台
 注册时间: 注册时间
@@ -587,8 +583,7 @@ VeroRun: VeroRun
 登录失败: 登录失败
 登录成功，正在跳转...: 登录成功，正在跳转...
 省2个月: 省2个月
-'看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级': '看看他们如何用{{ brand.site_name_cn'
-  if brand else 'AI建站' }}实现线上业务升级
+"看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级": "看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级"
 真实客户: 真实客户
 知识库+RAG检索: 知识库+RAG检索
 知识库RAG: 知识库RAG
@@ -785,7 +780,7 @@ VeroRun: VeroRun
 📋 我的订单: 📋 我的订单
 '📝 最后更新：{{ post.updated_at[:10] }}': '📝 最后更新：{{ post.updated_at[:10] }}'
 📝 该分类暂无文章，敬请期待。: 📝 该分类暂无文章，敬请期待。
-'📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城': '📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城
+"📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城": "📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城"
 📦 七牛云: 📦 七牛云
 📱 验证手机号: 📱 验证手机号
 🔍 预览模式 — 仅管理员可见 ·: 🔍 预览模式 — 仅管理员可见 ·
@@ -2525,12 +2520,12 @@ VeroRun: VeroRun
 扫描并加载插件...: 扫描并加载插件...
 未发现任何插件: 未发现任何插件
 插件 {name} 缺少 plugin.json: 插件 {name} 缺少 plugin.json
-插件 {name} 的 plugin.json 格式无效: {err}: 插件 {name} 的 plugin.json 格式无效: {err}
-插件目录不存在: {path}: 插件目录不存在: {path}
-插件 {name} 导入失败: {err}: 插件 {name} 导入失败: {err}
+插件 {name} 的 plugin.json 格式无效: "{err}: 插件 {name} 的 plugin.json 格式无效: {err}"
+插件目录不存在: "{path}: 插件目录不存在: {path}"
+插件 {name} 导入失败: "{err}: 插件 {name} 导入失败: {err}"
 插件 {name} 未找到继承 BasePlugin 的类: 插件 {name} 未找到继承 BasePlugin 的类
-插件 {name} 实例化失败: {err}: 插件 {name} 实例化失败: {err}
-插件 {name} 校验失败: {errs}: 插件 {name} 校验失败: {errs}
+插件 {name} 实例化失败: "{err}: 插件 {name} 实例化失败: {err}"
+插件 {name} 校验失败: "{errs}: 插件 {name} 校验失败: {errs}"
 插件名称为空: 插件名称为空
 插件描述为空: 插件描述为空
 插件作者为空: 插件作者为空
@@ -2540,17 +2535,17 @@ VeroRun: VeroRun
 依赖插件 {dep} 加载失败，无法启用: 依赖插件 {dep} 加载失败，无法启用
 依赖插件 {dep} 启用失败: 依赖插件 {dep} 启用失败
 on_enable 返回 False: on_enable 返回 False
-启用插件异常: {err}: 启用插件异常: {err}
+启用插件异常: "{err}: 启用插件异常: {err}"
 插件已启用: 插件已启用
-禁用插件异常: {err}: 禁用插件异常: {err}
+禁用插件异常: "{err}: 禁用插件异常: {err}"
 插件已禁用: 插件已禁用
-挂载路由失败: {err}: 挂载路由失败: {err}
-注册健康检查失败: {err}: 注册健康检查失败: {err}
-注册定时任务失败: {err}: 注册定时任务失败: {err}
-不支持的 trigger 类型: {t}: 不支持的 trigger 类型: {t}
-注册 DAG 节点失败: {err}: 注册 DAG 节点失败: {err}
+挂载路由失败: "{err}: 挂载路由失败: {err}"
+注册健康检查失败: "{err}: 注册健康检查失败: {err}"
+注册定时任务失败: "{err}: 注册定时任务失败: {err}"
+不支持的 trigger 类型: "{t}: 不支持的 trigger 类型: {t}"
+注册 DAG 节点失败: "{err}: 注册 DAG 节点失败: {err}"
 事件处理异常: 事件处理异常
-缺少必填配置项: {key}: 缺少必填配置项: {key}
+缺少必填配置项: "{key}: 缺少必填配置项: {key}"
 配置项 {key} 应为整数: 配置项 {key} 应为整数
 配置项 {key} 应为布尔值: 配置项 {key} 应为布尔值
 配置项 {key} 应为字符串: 配置项 {key} 应为字符串

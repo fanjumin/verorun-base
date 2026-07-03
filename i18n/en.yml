@@ -156,14 +156,11 @@ your_username: your_username
   == ''''free'''' %}Free Trial{% else %}Buy Now{% endif %}'
 '{% if tier == ''free'' %}免费试用{% else %}立即购买{% endif %}': '''{% if tier == ''''free''''
   %}Free Trial{% else %}Buy Now{% endif %}'
-'{{ brand.site_name_en if brand else '''' }} 已通过': '''{{ brand.site_name_en if brand
-  else '''''''' }} Approved'
-'{{ category.name }} — {{ brand.site_name_en if brand else '''' }} 文档': '''{{ category.name
-  }} — {{ brand.site_name_en if brand else '''''''' }} Docs'
+"{{ brand.site_name_en if brand else '' }} 已通过": "'{{ brand.site_name_en if brand else '' }} Approved'"
+"{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档": "'{{ category.name }} — {{ brand.site_name_en if brand else '' }} Docs'"
 '{{ item.name }} v{{ item.version }} — 下载 — VeroRun': '{{ item.name }} v{{ item.version }} — Download — VeroRun'
 '{{ page.title }} — VeroRun': '{{ page.title }} — VeroRun'
-'{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''VeroRun'' }}': '''{{ post.title
-  }} — Preview — {{ brand.site_name_cn if brand else ''''VeroRun'''' }}'
+"{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else 'VeroRun' }}": "'{{ post.title }} — Preview — {{ brand.site_name_cn if brand else 'VeroRun' }}'"
 '{{ site.name }} - 定价方案': '{{ site.name }} - Pricing'
 '{{ site.name }} - 智能建站平台': '{{ site.name }} - Smart Site Builder'
 '{{ stats.years | default(0) }}年': '{{ stats.years | default(0) }}yr'
@@ -444,8 +441,7 @@ your_username: your_username
 头像已移除: Avatar removed
 套餐: Plan
 套餐定价: Pricing
-'套餐订阅 — {{ brand.site_name_en if brand else '' }}': ''''Plan Subscription — {{ brand.site_name_en'
-  if brand else '''''''' }}'
+"套餐订阅 — {{ brand.site_name_en if brand else '' }}": "'Plan Subscription — {{ brand.site_name_en if brand else '' }}'"
 套餐详情: Plan Details
 如何: How to
 媒体库: Media Library
@@ -769,8 +765,7 @@ VeroRun: VeroRun
 法定代表人: Legal Representative
 法律: Legal
 注册: Sign Up
-'注册 {{ brand.site_name_en if brand else '' }} 智能金融平台': ''''Register {{ brand.site_name_en'
-  if brand else '''''''' }} Smart Finance Platform'
+"注册 {{ brand.site_name_en if brand else '' }} 智能金融平台": "'Register {{ brand.site_name_en if brand else '' }} Smart Finance Platform'"
 注册|登录: Register | Login
 注册平台: Register on Platform
 注册时间: Registered
@@ -823,8 +818,7 @@ VeroRun: VeroRun
 登录失败: Login failed
 登录成功，正在跳转...: Login successful, redirecting...
 省2个月: Save 2 Months
-'看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级': ''''See how they upgraded
-  their online business with VeroRun'
+"看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级": "'See how they upgraded their online business with VeroRun'"
 真实客户: Real Clients
 知识库+RAG检索: Knowledge Base + RAG Search
 知识库RAG: Knowledge Base RAG
@@ -1134,7 +1128,7 @@ VeroRun: VeroRun
 📋 我的订单: 📋 My Orders
 '📝 最后更新：{{ post.updated_at[:10] }}': '📝 Last Updated：{{ post.updated_at[:10] }}'
 📝 该分类暂无文章，敬请期待。: 📝 No articles in this category yet.
-'📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城': ''''📦 {{ brand.site_name_cn if brand else ''''VeroRun'''' }}Mall'
+"📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城": "'📦 {{ brand.site_name_cn if brand else 'VeroRun' }}Mall'"
 📦 七牛云: 📦 Qiniu Cloud
 📦 优惠券: 📦 Coupons
 '📦 发货 - 订单 #': '📦 Ship - Order #'
@@ -2587,12 +2581,12 @@ VeroRun: VeroRun
 扫描并加载插件...: Scanning and loading plugins...
 未发现任何插件: No plugins found
 插件 {name} 缺少 plugin.json: Plugin {name} missing plugin.json
-插件 {name} 的 plugin.json 格式无效: {err}: Plugin {name} has invalid plugin.json: {err}
-插件目录不存在: {path}: Plugin directory not found: {path}
-插件 {name} 导入失败: {err}: Plugin {name} import failed: {err}
+插件 {name} 的 plugin.json 格式无效: "{err}: Plugin {name} has invalid plugin.json: {err}"
+插件目录不存在: "{path}: Plugin directory not found: {path}"
+插件 {name} 导入失败: "{err}: Plugin {name} import failed: {err}"
 插件 {name} 未找到继承 BasePlugin 的类: Plugin {name} has no class inheriting BasePlugin
-插件 {name} 实例化失败: {err}: Plugin {name} instantiation failed: {err}
-插件 {name} 校验失败: {errs}: Plugin {name} validation failed: {errs}
+插件 {name} 实例化失败: "{err}: Plugin {name} instantiation failed: {err}"
+插件 {name} 校验失败: "{errs}: Plugin {name} validation failed: {errs}"
 插件名称为空: Plugin name is empty
 插件描述为空: Plugin description is empty
 插件作者为空: Plugin author is empty
@@ -2602,17 +2596,17 @@ VeroRun: VeroRun
 依赖插件 {dep} 加载失败，无法启用: Dependency plugin {dep} load failed, cannot enable
 依赖插件 {dep} 启用失败: Dependency plugin {dep} enable failed
 on_enable 返回 False: on_enable returned False
-启用插件异常: {err}: Enable plugin error: {err}
+启用插件异常: "{err}: Enable plugin error: {err}"
 插件已启用: Plugin enabled
-禁用插件异常: {err}: Disable plugin error: {err}
+禁用插件异常: "{err}: Disable plugin error: {err}"
 插件已禁用: Plugin disabled
-挂载路由失败: {err}: Mount routes failed: {err}
-注册健康检查失败: {err}: Register health check failed: {err}
-注册定时任务失败: {err}: Register scheduled job failed: {err}
-不支持的 trigger 类型: {t}: Unsupported trigger type: {t}
-注册 DAG 节点失败: {err}: Register DAG node failed: {err}
+挂载路由失败: "{err}: Mount routes failed: {err}"
+注册健康检查失败: "{err}: Register health check failed: {err}"
+注册定时任务失败: "{err}: Register scheduled job failed: {err}"
+不支持的 trigger 类型: "{t}: Unsupported trigger type: {t}"
+注册 DAG 节点失败: "{err}: Register DAG node failed: {err}"
 事件处理异常: Event handler error
-缺少必填配置项: {key}: Missing required config: {key}
+缺少必填配置项: "{key}: Missing required config: {key}"
 配置项 {key} 应为整数: Config {key} must be an integer
 配置项 {key} 应为布尔值: Config {key} must be a boolean
 配置项 {key} 应为字符串: Config {key} must be a string
