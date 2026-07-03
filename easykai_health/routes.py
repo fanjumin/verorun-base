@@ -588,6 +588,101 @@ def api_export():
     })
 
 
+# ─── 修复执行 API ─────────────────────────────────────────────────────────
+
+@health_bp.route('/api/fix', methods=['POST'])
+def api_fix():
+    """
+    执行修复操作（从巡检结果中的 fix_suggestions 选取并执行）。
+    请求体:
+    {
+        "run_id": 123,                  // 巡检批次 ID
+        "check_key": "media_integrity", // 检查项 key
+        "indices": [0, 1, 2],           // fix_suggestions 中的索引（选填，不传则全部执行）
+        "confirm": true                 // 确认执行（必须为 true）
+    }
+    """
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    run_id = data.get('run_id')
+    check_key = data.get('check_key', '')
+    selected_indices = data.get('indices')
+    confirm = data.get('confirm', False)
+
+    if not confirm:
+        return jsonify({'success': False, 'error': '请确认执行 (confirm: true)'}), 400
+    if not run_id or not check_key:
+        return jsonify({'success': False, 'error': 'run_id 和 check_key 必填'}), 400
+
+    # 从数据库读取该次巡检的 check_history 记录
+    with m.get_db() as conn:
+        history_row = conn.execute(
+            'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
+            (run_id, check_key)
+        ).fetchone()
+
+    if not history_row:
+        return jsonify({'success': False, 'error': _('未找到对应的检查结果')}), 404
+
+    history = dict(history_row)
+    try:
+        detail = json.loads(history.get('detail', '{}'))
+    except (json.JSONDecodeError, TypeError):
+        detail = {}
+
+    fix_suggestions = detail.get('fix_suggestions', [])
+    if not fix_suggestions:
+        return jsonify({'success': True, 'message': _('没有需要修复的项目')})
+
+    # 筛选要执行的建议
+    if selected_indices is not None:
+        try:
+            to_apply = [fix_suggestions[i] for i in selected_indices]
+        except (IndexError, TypeError):
+            return jsonify({'success': False, 'error': _('无效的索引')}), 400
+    else:
+        to_apply = fix_suggestions
+
+    # 执行修复
+    from .checkers import FixSuggestion
+    applied = 0
+    errors = []
+    with m.get_db() as conn:
+        for s_data in to_apply:
+            try:
+                sug = FixSuggestion(
+                    record_type=s_data.get('record_type', ''),
+                    table=s_data.get('table', ''),
+                    record_id=s_data.get('record_id', 0),
+                    field=s_data.get('field', ''),
+                    missing_path=s_data.get('missing_path', ''),
+                    action=s_data.get('action', 'clear_field'),
+                    reason=s_data.get('reason', ''),
+                )
+                ok = FixSuggestion.apply_fix(conn, sug)
+                if ok:
+                    applied += 1
+                else:
+                    errors.append(f"ID={sug.record_id}: 执行失败")
+            except Exception as e:
+                errors.append(f"ID={s_data.get('record_id')}: {e}")
+        conn.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'applied': applied,
+            'total': len(to_apply),
+            'errors': errors,
+            'run_id': run_id,
+        },
+        'message': _('已修复 {applied}/{total} 条记录').format(applied=applied, total=len(to_apply))
+    })
+
+
 # ─── 内部 API：供 Workflow 引擎调用 ────────────────────────────────────────
 
 @health_bp.route('/api/internal/run', methods=['POST'])

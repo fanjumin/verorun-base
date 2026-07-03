@@ -159,7 +159,7 @@ def init_health_tables():
 
 DEFAULT_CHECKS = [
     # (check_key, name, category, description, config, severity, sort)
-    ('core_api',       '核心API检查',      'system',    '所有子站 API 健康端点检查',    '{"timeout":5,"endpoints":["/health","/admin/dashboard"]}', 'warning', 10),
+    ('core_api',       '核心API检查',      'system',    '所有子站（主站/Platform/Admin）健康端点检查', '{"timeout":5,"endpoints":["/health"]}', 'warning', 10),
     ('database',       '数据库连接检查',    'system',    'SQLite/PostgreSQL 连接状态',   '{"timeout":3}',                                    'critical', 20),
     ('redis',          'Redis缓存检查',     'system',    'Redis 缓存服务连接状态',       '{"timeout":3}',                                    'warning', 25),
     ('server_resources','服务器资源检查',   'system',    'CPU/内存/磁盘使用率',          '{"cpu_threshold":90,"mem_threshold":85,"disk_threshold":85,"timeout":10}', 'warning', 30),
@@ -168,6 +168,8 @@ DEFAULT_CHECKS = [
     ('workflow_engine','工作流引擎检查',    'workflow',  'Cron/Workflow 调度器运行状态',  '{"timeout":5}',                                    'warning', 60),
     ('agent_matrix',   'Agent矩阵检查',    'agent',     '主Agent + 子Agent在线状态',     '{"timeout":10}',                                   'warning', 70),
     ('content_factory','内容工厂检查',      'cms',       '采集通道/加工队列状态',         '{"timeout":5}',                                    'warning', 80),
+    ('media_integrity','媒体完整性检查',    'cms',       '扫描数据库中引用的媒体文件/头像，检测磁盘上是否真实存在',
+     '{"dry_run":true,"max_fixes_per_run":20}', 'warning', 85),
     ('sse_ws',         'SSE/WS连接检查',    'system',    'SSE推送/WebSocket连接状态',    '{"timeout":5}',                                    'warning', 95),
     ('error_logs',     '错误日志统计',      'error',     '最近24小时错误日志统计',        '{"hours":24,"threshold":50}',                      'warning', 100),
 ]

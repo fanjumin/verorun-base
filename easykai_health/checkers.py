@@ -266,7 +266,7 @@ class CoreAPIHealthCheck(BaseHealthCheck):
     name = '核心API检查'
     category = 'system'
     severity = 'warning'
-    description = '所有子站（易站智能 / tm / platform / agent）的健康端点检查'
+    description = '所有子站（主站 Site / Platform / Admin）的健康端点检查'
     sort_order = 10
     config_defaults = {'timeout': 5, 'endpoints': ['/health']}
     config_schema = {
@@ -279,8 +279,7 @@ class CoreAPIHealthCheck(BaseHealthCheck):
     def check(self) -> CheckResult:
         endpoints = self.config.get('endpoints', ['/health'])
         subdomains = {
-            '易站智能 (portal)': (deploy.url(), 443),
-            f'{deploy.server_name("tm")} (TradeMind)': ('http://127.0.0.1:8081', 8081),
+            'easykai.cn (主站)': ('http://127.0.0.1:8081', 8081),
             deploy.server_name('platform'): ('http://127.0.0.1:8083', 8083),
             f'{deploy.server_name("agent")} (admin)': ('http://127.0.0.1:8084', 8084),
         }
@@ -289,7 +288,7 @@ class CoreAPIHealthCheck(BaseHealthCheck):
         max_time = 0
 
         for domain, (base, port) in subdomains.items():
-            url = f'{base}/health' if port == 443 else f'{base}{endpoints[0]}'
+            url = f'{base}{endpoints[0]}'
             code, elapsed, body = self._http_get(url, self.config.get('timeout', 5))
             max_time = max(max_time, elapsed)
             ok = code == 200
@@ -484,7 +483,7 @@ class SSLHealthCheck(BaseHealthCheck):
     description = '各子域名 SSL 证书到期时间检查'
     sort_order = 50
     config_defaults = {
-        'domains': ['易站智能', deploy.server_name('tm'),
+        'domains': ['www.easykai.cn',
                      deploy.server_name('platform'), deploy.server_name('agent')],
         'expire_warn_days': 30,
     }
@@ -803,6 +802,273 @@ class ErrorLogHealthCheck(BaseHealthCheck):
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             return CheckResult('passed', elapsed, f'检查跳过: {e}')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 自动修复建议 (FixSuggestion)
+# ═══════════════════════════════════════════════════════════════════════════
+# 检查器可在 CheckResult.detail 中附带 fix_suggestions 数组，
+# 系统管理员或自动修复程序可根据建议执行修复操作。
+# ═══════════════════════════════════════════════════════════════════════════
+
+class FixSuggestion:
+    """
+    修复建议 — 描述一条可执行的修复操作。
+
+    record_type:  记录类型标识（如 'media_file', 'avatar', 'brand_logo'）
+    table:        数据库表名
+    record_id:    记录 ID
+    field:        字段名（哪个字段引用了不存在的文件）
+    missing_path: 磁盘上丢失的文件路径
+    action:       建议操作: 'mark_deleted' / 'delete_record' / 'clear_field'
+    reason:       修复原因说明
+    """
+    def __init__(self, record_type: str, table: str, record_id: int,
+                 field: str, missing_path: str, action: str = 'mark_deleted',
+                 reason: str = ''):
+        self.record_type = record_type
+        self.table = table
+        self.record_id = record_id
+        self.field = field
+        self.missing_path = missing_path
+        self.action = action
+        self.reason = reason
+
+    def to_dict(self) -> dict:
+        return {
+            'record_type': self.record_type,
+            'table': self.table,
+            'record_id': self.record_id,
+            'field': self.field,
+            'missing_path': self.missing_path,
+            'action': self.action,
+            'reason': self.reason,
+        }
+
+    @staticmethod
+    def apply_fix(conn, suggestion: 'FixSuggestion') -> bool:
+        """在已有数据库连接上执行修复操作。返回 True 表示成功。"""
+        if suggestion.action == 'mark_deleted':
+            if hasattr(conn, 'execute'):
+                # SQLite
+                conn.execute(
+                    f"UPDATE {suggestion.table} SET status='deleted' WHERE id=?",
+                    (suggestion.record_id,)
+                )
+                return True
+        elif suggestion.action == 'clear_field':
+            if hasattr(conn, 'execute'):
+                conn.execute(
+                    f"UPDATE {suggestion.table} SET {suggestion.field}=? WHERE id=?",
+                    ('', suggestion.record_id)
+                )
+                return True
+        elif suggestion.action == 'delete_record':
+            if hasattr(conn, 'execute'):
+                conn.execute(
+                    f"DELETE FROM {suggestion.table} WHERE id=?",
+                    (suggestion.record_id,)
+                )
+                return True
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 媒体完整性检查器 (MediaIntegrityChecker)
+# ═══════════════════════════════════════════════════════════════════════════
+# 扫描数据库中引用的媒体/头像文件，检查磁盘上是否真实存在。
+# 发现丢失文件时报告 warning + 附带修复建议。
+# ═══════════════════════════════════════════════════════════════════════════
+
+# 项目根目录（用于定位媒体文件磁盘路径）
+PROJECT_ROOT = os.path.normpath(os.path.join(BASE_DIR, '..'))
+
+# URL 路径 → 磁盘路径的映射规则（按优先级排序）
+_PATH_MAP = [
+    ('/static/media/',     os.path.join(PROJECT_ROOT, 'admin', 'static', 'media')),
+    ('/static/avatars/',   os.path.join(PROJECT_ROOT, 'admin', 'static', 'avatars')),
+    ('/admin/static/media/', os.path.join(PROJECT_ROOT, 'admin', 'static', 'media')),
+    ('/admin/static/avatars/', os.path.join(PROJECT_ROOT, 'admin', 'static', 'avatars')),
+]
+
+
+def _url_to_fs_path(url_path: str) -> str:
+    """将 URL 路径（如 /static/media/xxx.jpg）转为本地文件系统路径。"""
+    for url_prefix, fs_dir in _PATH_MAP:
+        if url_path.startswith(url_prefix):
+            rel = url_path[len(url_prefix):]
+            # 去掉多余的 static/ 前缀（如 static/static/media/xxx → media/xxx）
+            if rel.startswith('static/'):
+                rel = rel[7:]
+            return os.path.normpath(os.path.join(fs_dir, rel)).replace('\\', '/')
+    # fallback: 尝试直接拼接
+    fname = os.path.basename(url_path)
+    return os.path.join(PROJECT_ROOT, 'admin', 'static', 'media', fname).replace('\\', '/')
+
+
+@register('media_integrity')
+class MediaIntegrityChecker(BaseHealthCheck):
+    check_key = 'media_integrity'
+    name = '媒体完整性检查'
+    category = 'cms'
+    severity = 'warning'
+    description = '扫描数据库中引用的媒体文件/头像，检测磁盘上是否真实存在'
+    sort_order = 85
+    config_defaults = {
+        'dry_run': True,           # 默认只报告不修复
+        'max_fixes_per_run': 20,   # 单次最多修复数
+    }
+    config_schema = {
+        'type': 'object',
+        'properties': {
+            'dry_run': {'type': 'boolean', 'default': True,
+                        'description': 'Dry-run 模式：只报告不执行修复'},
+            'max_fixes_per_run': {'type': 'integer', 'default': 20,
+                                  'description': '单次巡检最多修复的记录数'},
+        }
+    }
+
+    def _check_paths(self, records: list, path_field: str, record_type: str,
+                     table: str) -> list:
+        """检查一批记录的文件是否存在。返回缺失记录列表。"""
+        missing = []
+        for rec in records:
+            raw_path = rec.get(path_field, '')
+            if not raw_path:
+                continue
+            fs_path = _url_to_fs_path(raw_path)
+            if not os.path.exists(fs_path):
+                missing.append({
+                    'record': rec,
+                    'fs_path': fs_path,
+                    'raw_path': raw_path,
+                    'record_type': record_type,
+                    'table': table,
+                })
+        return missing
+
+    def _build_fix_suggestions(self, missing_items: list) -> list:
+        """为丢失记录生成修复建议。"""
+        suggestions = []
+        for item in missing_items:
+            rec = item['record']
+            action = 'clear_field'
+            reason = f'文件不存在: {item["raw_path"]}'
+            # media_files 记录可以软删除
+            if item['table'] == 'media_files':
+                action = 'mark_deleted'
+            suggestions.append(FixSuggestion(
+                record_type=item['record_type'],
+                table=item['table'],
+                record_id=rec['id'],
+                field=item.get('field', ''),
+                missing_path=item['fs_path'],
+                action=action,
+                reason=reason,
+            ))
+        return suggestions
+
+    def check(self) -> CheckResult:
+        start = time.time()
+        missing_all = []
+        dry_run = self.config.get('dry_run', True)
+        max_fixes = self.config.get('max_fixes_per_run', 20)
+
+        try:
+            from models import get_db as main_db
+        except ImportError:
+            return CheckResult('warning', 0, '主库 models 模块未安装，跳过媒体检查')
+
+        with main_db() as conn:
+            tables_found = [t['name'] for t in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()]
+
+            # ── 1. media_files 表：主媒体库 ──
+            if 'media_files' in tables_found:
+                rows = conn.execute(
+                    "SELECT id, file_path, thumb_path, original_name FROM media_files "
+                    "WHERE status IS NULL OR status!='deleted'"
+                ).fetchall()
+                for field in ('file_path', 'thumb_path'):
+                    missing_all.extend(self._check_paths(
+                        [dict(r) for r in rows], field, 'media_file', 'media_files'
+                    ))
+
+            # ── 2. users 表：头像 ──
+            if 'users' in tables_found:
+                rows = conn.execute(
+                    "SELECT id, avatar_url FROM users "
+                    "WHERE avatar_url IS NOT NULL AND avatar_url != ''"
+                ).fetchall()
+                missing_all.extend(self._check_paths(
+                    [dict(r) for r in rows], 'avatar_url', 'avatar', 'users'
+                ))
+
+            # ── 3. brand_settings: logo + favicon ──
+            if 'brand_settings' in tables_found:
+                row = conn.execute(
+                    "SELECT id, logo_url, favicon_url FROM brand_settings WHERE id=1"
+                ).fetchone()
+                if row:
+                    r = dict(row)
+                    missing_all.extend(self._check_paths(
+                        [r], 'logo_url', 'brand_logo', 'brand_settings'
+                    ))
+                    missing_all.extend(self._check_paths(
+                        [r], 'favicon_url', 'brand_favicon', 'brand_settings'
+                    ))
+
+            # ── 4. social_links: 图标 ──
+            if 'social_links' in tables_found:
+                rows = conn.execute(
+                    "SELECT id, icon_url, name FROM social_links "
+                    "WHERE icon_url IS NOT NULL AND icon_url != ''"
+                ).fetchall()
+                missing_all.extend(self._check_paths(
+                    [dict(r) for r in rows], 'icon_url', 'social_icon', 'social_links'
+                ))
+
+        # 去重：同一个文件路径被多条记录引用
+        seen_paths = set()
+        unique_missing = []
+        for item in missing_all:
+            key = (item['fs_path'], item['record']['id'], item.get('field', ''))
+            if key not in seen_paths:
+                seen_paths.add(key)
+                unique_missing.append(item)
+
+        fix_suggestions = self._build_fix_suggestions(unique_missing[:max_fixes])
+        total_missing = len(unique_missing)
+        limited = total_missing > max_fixes
+
+        elapsed = int((time.time() - start) * 1000)
+        detail = {
+            'total_missing': total_missing,
+            'max_fixes': max_fixes,
+            'limited': limited,
+            'dry_run': dry_run,
+            'items': [{
+                'record_type': item['record_type'],
+                'table': item['table'],
+                'id': item['record']['id'],
+                'field': item.get('field', ''),
+                'raw_path': item['raw_path'],
+                'fs_path': item['fs_path'],
+                'original_name': item['record'].get('original_name', ''),
+            } for item in unique_missing[:max_fixes]],
+            'fix_suggestions': [s.to_dict() for s in fix_suggestions],
+        }
+
+        if total_missing == 0:
+            return CheckResult('passed', elapsed, '所有媒体文件均存在', detail)
+
+        msg = f'发现 {total_missing} 个丢失文件'
+        if limited:
+            msg += f'（仅展示前 {max_fixes} 个）'
+        if dry_run:
+            msg += '（Dry-run 模式，未执行修复）'
+        return CheckResult('warning', elapsed, msg, detail)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
