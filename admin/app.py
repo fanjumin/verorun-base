@@ -178,13 +178,9 @@ try:
 except Exception as e:
     print(f'[HealthCheck/Scheduler] ⚠️ 定时巡检注册失败: {e}')
 
-# ===== Alibaba Open Platform API =====
-try:
-    from ali_api import init_ali_api
-    init_ali_api(app)
-    print('[AliApi] Alibaba API module registered')
-except Exception as e:
-    print(f'[AliApi] Registration failed: {e}')
+# ===== Alibaba Open Platform API (通过插件系统加载) =====
+# 插件系统已在 auth_blueprint.py:load_plugins(app) 中自动加载
+# 如需禁用请设置 plugins/ali_api/plugin.json enabled=false
 
 # ===== 自动化调度系统 (Cron + Workflow) =====
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'orchestrator'))

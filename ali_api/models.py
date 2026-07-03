@@ -562,6 +562,114 @@ class OAuthState:
         conn.commit()
 
 
+class AliApiConfig:
+    """插件自有配置表 — 替代旧 system_config 中的 alibaba_* 记录
+
+    设计目的：
+      插件化后配置不再依赖主项目的 system_config 表，
+      改用自有 ali_api_config 表，卸载时一键清理零残留。
+    """
+
+    # 需要从旧 system_config 迁移的 key 列表
+    SYSTEM_CONFIG_KEYS = [
+        'alibaba_app_key',
+        'alibaba_app_secret',
+        'alibaba_api_gateway',
+        'alibaba_redirect_domains',
+    ]
+
+    @staticmethod
+    def create_table(conn):
+        """创建配置表"""
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS ali_api_config (
+                key             TEXT PRIMARY KEY,
+                value           TEXT NOT NULL DEFAULT '',
+                description     TEXT DEFAULT '',
+                encrypted       INTEGER DEFAULT 0,
+                updated_at      TEXT DEFAULT (datetime('now','localtime'))
+            )
+        ''')
+
+    @staticmethod
+    def get(conn, key: str, default: str = '') -> str:
+        """获取配置值"""
+        row = conn.execute(
+            'SELECT value FROM ali_api_config WHERE key = ?', (key,)
+        ).fetchone()
+        return row['value'] if row else default
+
+    @staticmethod
+    def set(conn, key: str, value: str, description: str = '',
+            encrypted: int = 0):
+        """设置配置值（UPSERT）"""
+        conn.execute('''
+            INSERT INTO ali_api_config (key, value, description, encrypted, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now','localtime'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                description = COALESCE(excluded.description, ali_api_config.description),
+                encrypted = COALESCE(excluded.encrypted, ali_api_config.encrypted),
+                updated_at = datetime('now','localtime')
+        ''', (key, value, description, encrypted))
+
+    @staticmethod
+    def delete(conn, key: str):
+        """删除配置"""
+        conn.execute('DELETE FROM ali_api_config WHERE key = ?', (key,))
+
+    @staticmethod
+    def get_all(conn) -> Dict[str, str]:
+        """获取全部配置"""
+        rows = conn.execute('SELECT key, value FROM ali_api_config').fetchall()
+        return {r['key']: r['value'] for r in rows}
+
+    @staticmethod
+    def migrate_from_system_config(conn) -> bool:
+        """从旧 system_config 迁移 alibaba_* 配置到 ali_api_config
+
+        幂等：已迁移过的不会重复迁移（检查 _migrated 标记）。
+        返回 True 表示发生了迁移，False 表示无需迁移。
+        """
+        # 检查是否已迁移
+        already = conn.execute(
+            "SELECT value FROM ali_api_config WHERE key = '_migrated_from_system_config'"
+        ).fetchone()
+        if already:
+            return False
+
+        # 检查 system_config 表是否存在
+        table_check = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='system_config'"
+        ).fetchone()
+        if not table_check:
+            return False
+
+        # 逐条迁移
+        migrated = 0
+        for key in AliApiConfig.SYSTEM_CONFIG_KEYS:
+            row = conn.execute(
+                'SELECT value, description FROM system_config WHERE key = ?', (key,)
+            ).fetchone()
+            if row and row['value']:
+                is_encrypted = 1 if key in ('alibaba_app_secret',) else 0
+                AliApiConfig.set(
+                    conn, key, row['value'],
+                    description=row['description'] or '',
+                    encrypted=is_encrypted,
+                )
+                migrated += 1
+
+        # 打迁移标记
+        AliApiConfig.set(conn, '_migrated_from_system_config',
+                         '1', '迁移标记（勿删）')
+        conn.commit()
+
+        if migrated:
+            print(f'[AliApi] ✅ 已从 system_config 迁移 {migrated} 条配置到 ali_api_config')
+        return True
+
+
 # ===== 数据库初始化 =====
 
 def init_tables():
@@ -572,6 +680,7 @@ def init_tables():
         AliApiUserStats.create_table(conn)
         AliApiToken.create_table(conn)
         OAuthState.create_table(conn)
+        AliApiConfig.create_table(conn)
         conn.commit()
         print("[AliApi] 数据表初始化完成")
 

@@ -1,0 +1,9 @@
+{
+    "name": "ali_api",
+    "version": "1.0.0",
+    "description": "1688 / 阿里巴巴供应链对接插件",
+    "author": "EasyKai Team",
+    "depends_on": [],
+    "enabled": true,
+    "config": {}
+}

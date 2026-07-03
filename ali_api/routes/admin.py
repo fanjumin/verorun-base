@@ -1216,7 +1216,12 @@ def get_config():
 
 # ===== 允许的 OAuth 回调域名白名单（从配置动态获取）=====
 def _get_allowed_domains():
-    """从环境变量 + DB system_config 读取允许的重定向域名"""
+    """从环境变量 + ali_api_config 读取允许的重定向域名
+
+   优先级（回退链）：
+      1. ali_api_config 表（插件自有）
+      2. system_config 表（旧，迁移兼容）
+    """
     domains = ['localhost', '127.0.0.1']
     # 当前部署域名
     deploy_domain = os.environ.get('DEPLOY_DOMAIN', '')
@@ -1228,9 +1233,15 @@ def _get_allowed_domains():
     try:
         from ali_api.models import get_db
         with get_db() as conn:
+            # ① 优先 ali_api_config
             row = conn.execute(
-                "SELECT value FROM system_config WHERE key='alibaba_redirect_domains'"
+                "SELECT value FROM ali_api_config WHERE key='alibaba_redirect_domains'"
             ).fetchone()
+            # ② 回退 system_config
+            if not row or not row['value']:
+                row = conn.execute(
+                    "SELECT value FROM system_config WHERE key='alibaba_redirect_domains'"
+                ).fetchone()
             if row and row['value']:
                 extras = [d.strip() for d in row['value'].split(',') if d.strip()]
                 domains.extend(extras)

@@ -3,9 +3,10 @@
 阿里巴巴开放平台配置管理
 
 配置优先级：
-1. system_config 表（alibaba_app_key / alibaba_app_secret / alibaba_api_gateway）
-2. 环境变量（ALIBABA_APP_KEY / ALIBABA_APP_SECRET / ALIBABA_API_GATEWAY）
-3. 默认值
+1. ali_api_config 表（插件自有，迁移后优先）
+2. system_config 表（旧，迁移兼容）
+3. 环境变量（ALIBABA_APP_KEY / ALIBABA_APP_SECRET / ALIBABA_API_GATEWAY）
+4. 默认值
 """
 
 import os
@@ -14,16 +15,34 @@ from typing import Dict, Any, Optional
 
 
 def _get_alibaba_config_from_db() -> Dict[str, str]:
-    """从主项目 system_config 表读取阿里巴巴配置"""
+    """从插件自有 ali_api_config 表读取阿里巴巴配置
+
+    优先级（回退链）：
+      1. ali_api_config 表（插件自有）
+      2. system_config 表（旧，迁移兼容）
+    """
+    required_keys = [
+        'alibaba_app_key', 'alibaba_app_secret',
+        'alibaba_api_gateway', 'alibaba_redirect_domains',
+    ]
     try:
-        # 复用 ali_api.models 的 get_db（它已指向主项目 DB）
         from ali_api.models import get_db
         with get_db() as conn:
+            # ① 优先从 ali_api_config 读取
+            placeholders = ','.join('?' for _ in required_keys)
             rows = conn.execute(
-                "SELECT key, value FROM system_config WHERE key IN "
-                "('alibaba_app_key', 'alibaba_app_secret', 'alibaba_api_gateway')"
+                f"SELECT key, value FROM ali_api_config WHERE key IN ({placeholders})",
+                required_keys
             ).fetchall()
-        return {r['key']: r['value'].strip() for r in rows} if rows else {}
+            if rows:
+                return {r['key']: r['value'].strip() for r in rows}
+
+            # ② 回退：从旧 system_config 读取
+            rows = conn.execute(
+                f"SELECT key, value FROM system_config WHERE key IN ({placeholders})",
+                required_keys
+            ).fetchall()
+            return {r['key']: r['value'].strip() for r in rows} if rows else {}
     except Exception:
         return {}
 
