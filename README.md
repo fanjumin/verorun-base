@@ -1,8 +1,10 @@
-# 易站AI（EasyKaiSite）v0.9.3
+# VeroRunSystem — 易站AI（EasyKaiSite）
 
 **Multi-Agent AI Operating System** — 多智能体驱动的 AI 内容与商业枢纽
 
 易站AI 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、阿里巴巴供应链、自动化工作流、云服务开通等能力。
+
+> 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
 ---
 
@@ -670,11 +672,14 @@ python app.py 8083 &
 ### 部署架构
 
 ```
-Nginx (反向代理 + SSL)
+Nginx (反向代理 + SSL)  服务器: ***REMOVED***
     │
-    ├── *.easykai.cn ──→ Platform:8083
-    ├── admin.easykai.cn ──→ Admin:8084
-    └── captcha.easykai.cn ──→ Captcha:8090
+    ├── easykai.cn / www.easykai.cn (/)        ──→ Site:8081
+    ├── easykai.cn /admin/                      ──→ Admin:8084
+    ├── easykai.cn /auth/ /subscribe            ──→ Auth:8083
+    ├── easykai.cn /auth/oauth/ /user/          ──→ Site:8081
+    ├── platform.easykai.cn                     ──→ Platform:8083
+    └── agent.easykai.cn (admin)                ──→ Admin:8084
 ```
 
 ### 关键环境变量
