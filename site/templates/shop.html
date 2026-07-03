@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1.0" name="viewport"/>
-<title>{{ _('Shop') }} — {{ brand.site_name_cn if brand else _('VeroRun') }}</title>
+<title>{{ _('Shop') }} — {{ brand.site_name_cn if brand else '' }}</title>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -44,7 +44,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-cn)}
 <div id="particles-bg"></div>
 {% include '_header.html' ignore missing %}
 <div class="shop-hero">
-<h1>📦 {{ brand.site_name_cn if brand else 'VeroRun' }}{{ _('Mall') }}</h1>
+<h1>📦 {{ brand.site_name_cn if brand else '' }}{{ _('Mall') }}</h1>
 <p>{{ _('AI-Powered Site Building · Templates · Plugins · Usage Packs') }}</p>
 </div>
 <div class="cat-bar" id="catBar">

@@ -364,8 +364,8 @@ body::after {
 </div>
 
 <div class="tm-footer">
-  {{ brand.software_name if brand else '易站AI' }} ·
-  <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '苏ICP备2026017510号-1' }}</a>
+  {{ brand.software_name if brand else '' }} ·
+  <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '' }}</a>
 </div>
 
 </div><!-- /tm-page -->

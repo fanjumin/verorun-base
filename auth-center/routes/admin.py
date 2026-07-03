@@ -125,7 +125,7 @@ def dashboard():
             )]
 
         # --- Service health (outside DB) ---
-        services = [('TradeMind',8081),('Platform',8083),('Admin',8084)]
+        services = [('Platform',8081),('Platform',8083),('Admin',8084)]
         data['services'] = []
         for name, port in services:
             alive = False

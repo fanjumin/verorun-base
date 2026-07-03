@@ -4,8 +4,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>{{ page_title or (brand.seo_title if brand else '易站AI — AI建站 + 智能商业枢纽') }}</title>
-<meta content="{{ brand.seo_desc if brand else '易站AI — 一站式企业AI建站与数字化平台。智能体矩阵、知识库RAG、内容工厂、商城系统。' }}" name="description"/>
+<title>{{ page_title or (brand.seo_title if brand else '') }}</title>
+<meta content="{{ brand.seo_desc if brand else '' }}" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <!-- Fonts -->
 <link href="https://fonts.googleapis.com" rel="preconnect"/>

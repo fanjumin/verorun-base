@@ -138,7 +138,7 @@
 <!-- ═══ Nav ═══ -->
 <nav class="nav">
 <div class="nav-inner">
-<a class="nav-logo" href="/"><div class="icon">AI</div><span>{{ _('VeroRun') }}</span></a>
+<a class="nav-logo" href="/"><div class="icon">AI</div><span>{{ brand.site_name_en if brand else '' }}</span></a>
 <div class="nav-links" id="nl">
 <a href="/">{{ _('Home') }}</a>
 <a href="/ai-matrix">{{ _('AI Matrix') }}</a>
@@ -353,7 +353,7 @@
 <footer class="footer">
 <div class="footer-grid">
 <div class="footer-brand">
-<div class="footer-logo">{{ _('VeroRun') }}</div>
+<div class="footer-logo">{{ brand.site_name_en if brand else '' }}</div>
 <p>{{ _('AI Matrix-driven intelligent business platform. Not just building — AI agents run your site.') }}</p>
 </div>
 <div class="footer-col">

@@ -540,25 +540,25 @@ def init_db():
                 seo_desc        TEXT NOT NULL DEFAULT '',
                 logo_url        TEXT NOT NULL DEFAULT '',
                 favicon_url     TEXT NOT NULL DEFAULT '',
-                icp_number      TEXT NOT NULL DEFAULT '<a href=\"https://beian.miit.gov.cn/\" target=\"_blank\" rel=\"noopener\">苏ICP备2026017510号-1</a>',
-                security_number TEXT NOT NULL DEFAULT '<a href=\"https://beian.mps.gov.cn/#/query/webSearch?code=32031102020288\" rel=\"noreferrer\" target=\"_blank\">苏公网安备32031102020288号</a>',
+                icp_number      TEXT NOT NULL DEFAULT '',
+                security_number TEXT NOT NULL DEFAULT '',
                 contact_email   TEXT NOT NULL DEFAULT '',
-                software_name   TEXT NOT NULL DEFAULT 'VeroRun',
-                software_slogan TEXT NOT NULL DEFAULT 'Multi-Agent AI Operating System / 多智能体驱动的AI内容与商业枢纽',
+                software_name   TEXT NOT NULL DEFAULT '',
+                software_slogan TEXT NOT NULL DEFAULT '',
                 updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
             );
             INSERT OR IGNORE INTO brand_settings (id) VALUES (1);
 
             CREATE TABLE IF NOT EXISTS tm_brand_settings (
                 id              INTEGER PRIMARY KEY CHECK (id = 1),
-                site_name_cn    TEXT NOT NULL DEFAULT 'VeroRun',
-                site_name_en    TEXT NOT NULL DEFAULT 'TradeMind',
-                slogan          TEXT NOT NULL DEFAULT 'AI建站 + 智能商业枢纽',
+                site_name_cn    TEXT NOT NULL DEFAULT '',
+                site_name_en    TEXT NOT NULL DEFAULT '',
+                slogan          TEXT NOT NULL DEFAULT '',
                 tagline         TEXT NOT NULL DEFAULT '',
-                description     TEXT NOT NULL DEFAULT '一站式企业AI建站与数字化平台。智能体矩阵、知识库RAG、内容工厂、商城系统、1688供应链对接。',
+                description     TEXT NOT NULL DEFAULT '',
                 copyright       TEXT NOT NULL DEFAULT '',
-                seo_title       TEXT NOT NULL DEFAULT 'VeroRon 维洛智能 — AI建站 + 智能商业枢纽',
-                seo_desc        TEXT NOT NULL DEFAULT '一站式企业AI建站与数字化平台。智能体矩阵、知识库RAG、内容工厂、商城系统、1688供应链对接。',
+                seo_title       TEXT NOT NULL DEFAULT '',
+                seo_desc        TEXT NOT NULL DEFAULT '',
                 logo_url        TEXT NOT NULL DEFAULT '',
                 logo_icon_url   TEXT NOT NULL DEFAULT '',
                 updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -926,10 +926,10 @@ def init_db():
     # ── 品牌设置字段迁移：新增 company_name / tagline / icp / security / contact_email ──
     with get_db() as bm:
         for col, default_val in [
-            ('company_name',   "'易开网络'"),
+            ('company_name',   "''"),
             ('tagline',         "''"),
-            ('icp_number',      '\'<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">苏ICP备2026017510号-1</a>\''),
-            ('security_number', '\'<a href="https://beian.mps.gov.cn/#/query/webSearch?code=32031102020288" rel="noreferrer" target="_blank">苏公网安备32031102020288号</a>\''),
+            ('icp_number',      "''"),
+            ('security_number', "''"),
             ('contact_email',   "''"),
         ]:
             try:
@@ -1568,28 +1568,27 @@ def init_db():
         row = m.execute("SELECT COUNT(*) as c FROM knowledge_blocks").fetchone()
         if row['c'] == 0:
             kb_seeds = [
-                ('kb_company_001','公司基本信息','徐州易开网络科技有限公司，位于江苏省徐州市泉山区徐州工程学院科技园I座613室。服务热线：400-888-8888，电子邮箱：***REMOVED***@yahoo.com，工作时间：周一至周五 9:00-18:00。','公司,易开,徐州,地址,电话,邮箱,联系方式,工作时间,科技园','company',10),
-                ('kb_company_002','公司定位与愿景','VeroRun由徐州易开网络科技有限公司研发，定位为AI驱动的智能建站平台。公司愿景是让每个企业都能低成本拥有专业级的网站和小程序，通过AI技术降低建站门槛，助力中小企业数字化转型。','定位,愿景,使命,AI驱动,智能建站,数字化转型,中小企业','company',8),
-                ('kb_product_001','VeroRun概述','VeroRun是一站式智能建站平台，核心功能包括：AI智能体社区（多类型AI助手协作）、AI内容工厂（自动生成文案/图片/SEO）、智能工作流引擎（可视化拖拽搭建）、抖音小程序开发与运营、多端适配（PC+移动+小程序）。','VeroRun,AI建站,概述,功能,智能体,内容工厂,工作流,抖音小程序,多端适配','product',10),
-                ('kb_product_002','AI智能体社区','AI智能体社区是VeroRun的核心模块，内置多种AI助手：SEO优化助手、文案生成助手、图片设计助手、数据分析助手、客服助手等。每个智能体专注于特定任务，可独立工作也可协作完成复杂建站需求。','智能体,AI助手,SEO,文案,图片,数据分析,客服,协作','product',9),
-                ('kb_product_003','AI内容工厂','AI内容工厂可自动生成网站所需的各类内容：产品描述文案、企业介绍、新闻资讯、SEO优化文章、社交媒体配图、Banner广告图等。支持批量生成和人工微调，大幅提升内容生产效率。','内容工厂,文案生成,图片生成,SEO文章,批量生成,Banner,产品描述','product',9),
-                ('kb_product_004','智能工作流引擎','智能工作流引擎提供可视化拖拽式建站体验，用户无需编程即可搭建网站。支持组件库（导航栏、轮播图、表单、产品列表等）、页面模板、样式自定义、实时预览等功能。','工作流,拖拽,可视化,组件,模板,预览,建站,搭建','product',9),
-                ('kb_product_005','抖音小程序开发','VeroRun支持一键生成抖音小程序，与抖音生态深度集成。功能包括：抖音账号授权、小程序模板选择、支付集成、直播带货组件、短视频嵌入、数据分析看板等。','抖音,小程序,抖音小程序,直播,带货,支付,短视频,授权','product',9),
-                ('kb_product_006','多端适配能力','VeroRun支持一次搭建、多端发布：PC网站、移动H5、微信小程序、抖音小程序、支付宝小程序等。自动适配不同终端的屏幕尺寸和交互方式，确保用户体验一致。','多端,适配,PC,H5,微信小程序,支付宝小程序,响应式,跨平台','product',8),
-                ('kb_price_001','价格体系概述','VeroRun提供灵活的定价方案：基础版适合个人/初创企业（展示型网站），专业版适合中小企业（含AI内容工厂+SEO优化），企业版适合大型企业（含全部功能+定制开发+专属客服）。具体价格请咨询客服获取最新报价。','价格,多少钱,费用,报价,定价,收费,套餐,基础版,专业版,企业版','price',10),
-                ('kb_price_002','基础版方案','基础版适合个人或初创企业，包含：展示型网站搭建、5个页面、基础SEO优化、响应式适配、1年免费维护。价格亲民，是入门建站的最佳选择。','基础版,入门,展示型,个人,初创,便宜,低价','price',8),
-                ('kb_price_003','专业版方案','专业版适合中小企业，包含：企业官网搭建、AI内容工厂（文案+图片生成）、SEO深度优化、抖音小程序、数据分析看板、多端适配、2年免费维护。性价比最高，适合有线上营销需求的企业。','专业版,中小企业,企业官网,性价比,营销,SEO深度','price',8),
-                ('kb_price_004','企业版方案','企业版适合大型企业/集团，包含：全部功能、定制化开发、专属客服经理、私有化部署选项、API接口对接、员工培训、7×24小时技术支持。适合有复杂定制需求的大型组织。','企业版,大型企业,定制,私有化,API,培训,专属客服','price',8),
-                ('kb_tech_001','AI技术优势','VeroRun采用最新大语言模型技术，结合自研的建站领域知识图谱，实现智能化的网站搭建。AI可理解用户需求描述，自动推荐合适的模板、配色方案和内容布局，大幅缩短建站周期。','AI技术,大模型,知识图谱,智能推荐,模板,配色,布局,技术优势','tech',8),
-                ('kb_tech_002','源码交付说明','VeroRun支持源码交付，签约后客户可获得完整项目源码。源码包含前端代码、后端接口、数据库脚本等，客户可自行部署和二次开发。源码交付适用于专业版和企业版客户。','源码,交付,代码,部署,二次开发,前端,后端,数据库','tech',9),
-                ('kb_tech_003','安全与性能','VeroRun采用HTTPS加密传输、数据备份、DDoS防护等安全措施。网站性能方面：CDN加速、图片懒加载、代码压缩、缓存策略等，确保网站加载速度快、运行稳定。','安全,性能,HTTPS,备份,CDN,加速,加载速度,稳定,防护','tech',7),
-                ('kb_service_001','合作流程','VeroRun合作流程：1.需求沟通（了解您的业务需求和预算）；2.方案定制（AI生成个性化建站方案）；3.合同签订（明确交付内容和时间节点）；4.开发搭建（AI+人工协作高效交付）；5.验收上线（测试通过后正式发布）；6.售后维护（持续技术支持）。','流程,合作,步骤,需求,方案,合同,开发,验收,售后,维护','service',9),
-                ('kb_service_002','售后服务','VeroRun提供完善的售后服务：免费维护期（基础版1年/专业版2年/企业版3年）、7×24小时技术支持、定期系统更新、紧急故障2小时响应、免费培训（企业版）。维护期后可续费延长。','售后,维护,技术支持,更新,故障,培训,续费,服务','service',8),
-                ('kb_service_003','行业解决方案','VeroRun针对不同行业提供专属解决方案：电商零售（商品展示+在线支付）、教育培训（课程展示+在线报名）、餐饮美食（菜单展示+外卖对接）、企业服务（品牌展示+线索收集）、房地产（楼盘展示+VR看房）等。','行业,解决方案,电商,教育,餐饮,企业服务,房地产,VR看房,外卖','service',8),
-                ('kb_faq_001','建站需要多长时间','使用VeroRun，展示型网站最快1天即可上线，企业官网通常3-5个工作日，含小程序的综合方案约7-10个工作日。具体时间取决于需求复杂度和定制化程度。','时间,多久,周期,上线,工作日,快速,几天','faq',9),
-                ('kb_faq_002','是否需要技术基础','VeroRun采用可视化拖拽操作，无需编程基础即可使用。AI助手会引导您完成每一步操作。如果您有特殊定制需求，我们的技术团队会提供专业支持。','技术基础,编程,代码,不会,简单,操作,难不难,容易','faq',9),
-                ('kb_faq_003','是否支持SEO优化','VeroRun内置SEO优化功能，AI可自动生成TDK（标题、描述、关键词）、优化页面结构、生成sitemap、配置301重定向等。同时提供SEO分析报告和改进建议。','SEO,优化,搜索引擎,排名,TDK,sitemap,百度,Google','faq',8),
-                ('kb_faq_004','域名和服务器说明','VeroRun可协助客户完成域名注册和服务器配置。客户可使用自有域名，也可通过我们代购。服务器采用云部署方案，自动扩容，保障网站稳定运行。域名和服务器费用不包含在建站套餐内。','域名,服务器,云部署,扩容,注册,代购,备案','faq',7),
+                ('kb_company_001','公司基本信息','Demo Company，位于示例地址。服务热线：400-000-0000，工作时间：周一至周五 9:00-18:00。','公司,地址,电话,邮箱,联系方式,工作时间','company',10),
+                ('kb_company_002','公司定位与愿景','本平台由专业团队研发，定位为AI驱动的企业智能运营平台。公司愿景是通过AI技术降低企业运营门槛，助力中小企业数字化转型。','定位,愿景,使命,AI驱动,企业运营,数字化转型,中小企业','company',8),
+                ('kb_product_001','平台概述','企业智能运营平台，核心功能包括：AI智能体社区、自动生成文案/图片/SEO、可视化搭建工作流、多端适配等。','平台,概述,功能,智能体,工作流,多端适配','product',10),
+                ('kb_product_002','AI智能体社区','AI智能体社区是核心模块，内置多种AI助手：SEO优化助手、文案生成助手、图片设计助手、数据分析助手、客服助手等。每个智能体专注于特定任务。','智能体,AI助手,SEO,文案,图片,数据分析,客服,协作','product',9),
+                ('kb_product_003','AI内容工厂','AI内容工厂可自动生成运营所需的各类内容：产品描述文案、企业介绍、新闻资讯、SEO优化文章、营销配图、Banner广告图等。支持批量生成和人工微调。','内容工厂,文案生成,图片生成,SEO文章,批量生成,Banner','product',9),
+                ('kb_product_004','智能工作流引擎','智能工作流引擎提供可视化拖拽式页面搭建体验，无需编程即可完成页面配置。支持组件库、页面模板、样式自定义、实时预览等功能。','工作流,拖拽,可视化,组件,模板,预览','product',9),
+                ('kb_product_005','多端适配能力','支持一次搭建、多端发布：PC网站、移动H5、微信小程序、抖音小程序、支付宝小程序等。自动适配不同终端的屏幕尺寸和交互方式。','多端,适配,PC,H5,小程序,响应式,跨平台','product',8),
+                ('kb_price_001','价格体系概述','平台提供灵活的定价方案：基础版适合个人/初创企业，专业版适合中小企业，企业版适合大型企业。具体价格请咨询客服获取最新报价。','价格,多少钱,费用,报价,定价,收费,套餐,基础版,专业版,企业版','price',10),
+                ('kb_price_002','基础版方案','基础版适合个人或初创企业，包含基础功能搭建、页面上限、基础SEO优化、响应式适配。价格亲民，是入门的最佳选择。','基础版,入门,个人,初创,便宜,低价','price',8),
+                ('kb_price_003','专业版方案','专业版适合中小企业，包含企业级功能搭建、AI内容工厂、SEO深度优化、数据分析看板、多端适配。性价比最高，适合有线上运营需求的企业。','专业版,中小企业,性价比,营销,SEO深度','price',8),
+                ('kb_price_004','企业版方案','企业版适合大型企业/集团，包含全部功能、定制化开发、专属客服、API接口对接、技术支持。适合有复杂定制需求的大型组织。','企业版,大型企业,定制,API,专属客服','price',8),
+                ('kb_tech_001','AI技术优势','平台采用最新大语言模型技术，结合自研的运营领域知识图谱，实现智能化的系统配置。AI可理解用户需求描述，自动推荐合适的方案、布局和内容配置。','AI技术,大模型,知识图谱,智能推荐,技术优势','tech',8),
+                ('kb_tech_002','部署说明','平台支持多种部署方式，签约后客户可获得完整的部署方案。交付物包含前端代码、后端接口、数据库脚本等，客户可自行部署和二次开发。','部署,交付,代码,二次开发,前端,后端,数据库','tech',9),
+                ('kb_tech_003','安全与性能','平台采用HTTPS加密传输、数据备份、DDoS防护等安全措施。网站性能方面：CDN加速、图片懒加载、代码压缩、缓存策略等，确保网站加载速度快、运行稳定。','安全,性能,HTTPS,备份,CDN,加速,加载速度,稳定,防护','tech',7),
+                ('kb_service_001','合作流程','合作流程：1.需求沟通（了解您的业务需求和预算）；2.方案定制（AI生成个性化方案）；3.合同签订（明确交付内容和时间节点）；4.开发搭建（AI+人工协作高效交付）；5.验收上线（测试通过后正式发布）；6.售后维护（持续技术支持）。','流程,合作,步骤,需求,方案,合同,开发,验收,售后,维护','service',9),
+                ('kb_service_002','售后服务','平台提供完善的售后服务：免费维护期、7×24小时技术支持、定期系统更新、紧急故障2小时响应、免费培训。维护期后可续费延长。','售后,维护,技术支持,更新,故障,培训,续费,服务','service',8),
+                ('kb_service_003','行业解决方案','针对不同行业提供专属解决方案：电商零售（商品展示+在线支付）、教育培训（课程展示+在线报名）、餐饮美食（菜单展示+外卖对接）、企业服务（品牌展示+线索收集）、房地产（楼盘展示+VR看房）等。','行业,解决方案,电商,教育,餐饮,企业服务,房地产,VR看房,外卖','service',8),
+                ('kb_faq_001','搭建需要多长时间','展示型页面最快1天即可上线，企业官网通常3-5个工作日，含综合方案约7-10个工作日。具体时间取决于需求复杂度和定制化程度。','时间,多久,周期,上线,工作日,快速,几天','faq',9),
+                ('kb_faq_002','是否需要技术基础','平台采用可视化拖拽操作，无需编程基础即可使用。AI助手会引导您完成每一步操作。如果有特殊定制需求，技术支持团队会提供专业支持。','技术基础,编程,代码,不会,简单,操作,难不难,容易','faq',9),
+                ('kb_faq_003','是否支持SEO优化','平台内置SEO优化功能，AI可自动生成TDK（标题、描述、关键词）、优化页面结构、生成sitemap、配置301重定向等。同时提供SEO分析报告和改进建议。','SEO,优化,搜索引擎,排名,TDK,sitemap,百度,Google','faq',8),
+                ('kb_faq_004','域名和服务器说明','平台可协助客户完成域名注册和服务器配置。客户可使用自有域名，也可通过平台代购。服务器采用云部署方案，自动扩容，保障稳定运行。域名和服务器费用不包含在套餐内。','域名,服务器,云部署,扩容,注册,代购,备案','faq',7),
             ]
             for s in kb_seeds:
                 m.execute('INSERT OR IGNORE INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (?,?,?,?,?,?)', s)
@@ -1784,7 +1783,7 @@ def init_db():
         BASE = os.environ.get('PROJECT_ROOT', os.path.expanduser('~/project'))
         DOMAIN = os.environ.get('DEPLOY_DOMAIN', '')
         seeds = [
-            ('trademind', 'TradeMind',  f'tm.{DOMAIN}',        8081, 'tmux',  'trademind',         f'{BASE}/trademind',  'python3 -B app.py 8081', 1),
+            ('trademind', 'Trading Module',  f'tm.{DOMAIN}',        8081, 'tmux',  'trademind',         f'{BASE}/trademind',  'python3 -B app.py 8081', 1),
             ('platform',  '用户面板',   f'platform.{DOMAIN}',  8083, 'tmux',  'platform',          f'{BASE}/platform',   'python3 -B app.py 8083', 3),
             ('admin',     '管理后台',   f'agent.{DOMAIN}',     8084, 'tmux',  'admin-8084',        f'{BASE}/admin',      'python3 -B app.py 8084', 4),
         ]

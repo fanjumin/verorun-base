@@ -2,7 +2,7 @@
      2|<html lang="zh-CN">
      3|<head>
      4|<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-     5|<title>管理后台 — {{ brand.site_name_en if brand else '易站智能' }}</title>
+     <title>管理后台 — {{ brand.site_name_en if brand else '' }}</title>
      6|<link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
      7|<link rel="icon" type="image/png" sizes="16x16" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-16x16.png' }}">
      8|<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">

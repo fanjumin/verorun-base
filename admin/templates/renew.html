@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>续费 — {{ brand.site_name_cn if brand and brand.site_name_cn else 'VeroRun' }}</title>
+<title>续费 — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <style>
 /* ═══════════════════════════════════════════════════════
@@ -306,7 +306,7 @@ body::after {
   <div class="tm-card">
     <!-- Brand -->
     <div class="tm-brand">
-      <h1>{{ brand.software_name if brand else 'VeroRun' }}</h1>
+      <h1>{{ brand.software_name if brand else '' }}</h1>
       <p>{{ _('AI Matrix · Smart Business Platform') }}</p>
     </div>
 
@@ -386,7 +386,7 @@ body::after {
 </div>
 
 <div class="tm-footer">
-  {{ brand.software_name if brand else 'VeroRun' }} v0.9.5 · 多智能体AI矩阵驱动 · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '苏ICP备2026017510号-1' }}</a>
+  {{ brand.software_name if brand else '' }} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '' }}</a>
 </div>
 
 </div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>知识中心 — {{ brand.site_name_cn if brand else 'VeroRun' }}</title>
+<title>知识中心 — {{ brand.site_name_cn if brand else '' }}</title>
 <meta name="description" content="建站指南、AI应用、SEO优化、行业洞察">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 

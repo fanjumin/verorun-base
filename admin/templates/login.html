@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>登录 — {{ brand.site_name_cn if brand and brand.site_name_cn else 'VeroRun' }}</title>
+<title>登录 — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="stylesheet" href="/puzzle-captcha.css">
 <style>
@@ -385,8 +385,8 @@ body::after {
         <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
         {% endif %}
       </div>
-      <h1>{{ brand.software_name if brand else 'VeroRun' }}</h1>
-      <p>{{ brand.slogan if brand else '智能体 金融智能平台' }}</p>
+      <h1>{{ brand.software_name if brand else '' }}</h1>
+      <p>{{ brand.slogan if brand else '' }}</p>
     </div>
 
     <!-- Tabs -->
@@ -459,7 +459,7 @@ body::after {
 </div>
 
 <div class="tm-footer">
-  {{ brand.software_name if brand else 'VeroRun' }} v0.7.1 | {{ brand.software_slogan if brand else 'Multi-Agent AI Operating System' }} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '苏ICP备2026017510号-1' }}</a>
+  {{ brand.software_name if brand else '' }} v0.7.1 | {{ brand.software_slogan if brand else '' }} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '' }}</a>
 </div>
 
 </div><!-- /tm-page -->

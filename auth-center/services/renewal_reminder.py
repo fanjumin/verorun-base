@@ -95,7 +95,13 @@ def _send_reminder(conn, sub, days_before):
     elif days_before == 1:
         title = f'⚡ {plan_name} 明天到期'
         content = f'{nickname}，您的 {plan_name} 将于明天（{end_date}）到期，我们将自动为您续费。'
-        sms = f'【易站智能】您的{plan_name}明天到期，到期自动续费。{deploy.url()}/ucenter'
+        try:
+            from services.brand_service import get_brand_settings
+            _brand = get_brand_settings() or {}
+        except Exception:
+            _brand = {}
+        _brand_name = _brand.get('site_name_cn', '') or _brand.get('site_name_en', '') or ''
+        sms = f'【{_brand_name}】您的{plan_name}明天到期，到期自动续费。{deploy.url()}/ucenter'
     else:
         return
 

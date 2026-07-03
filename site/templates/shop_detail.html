@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1.0" name="viewport"/>
-<title id="pageTitle">{{ _('Product Details') }} — {{ brand.site_name_cn if brand else '易站智能' }}</title>
+<title id="pageTitle">{{ _('Product Details') }} — {{ brand.site_name_cn if brand else '' }}</title>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -75,7 +75,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-cn)}
 <script>
 var T = '{{ token or "" }}';
 if(!T){T=localStorage.getItem('sso_token')||localStorage.getItem('tm_token')||localStorage.getItem('token')||''}
-var BRAND_NAME = '{{ brand.site_name_cn if brand else "易站智能" }}';
+var BRAND_NAME = '{{ brand.site_name_cn if brand else "" }}';
 var PREVIEW = {{ 'true' if preview else 'false' }};
 var pid = parseInt(location.pathname.split('/').pop());
 
@@ -86,7 +86,7 @@ function loadDetail(){
     return r.json()
   }).then(function(d){
     if(!d.success)return;var p=d.data;
-    document.getElementById("pageTitle").textContent=p.title+' — '+(window.BRAND_NAME||'易站智能');
+    document.getElementById("pageTitle").textContent=p.title+' — '+(window.BRAND_NAME||'');
     document.getElementById("detailContent").innerHTML=renderDetail(p);
   }).catch(function(){});
 }

@@ -150,7 +150,15 @@ def send_contact_email(name, email, subject, message):
     admin_email = os.environ.get("CONTACT_TO", "")
     full_subject = f"[联系表单] {subject}"
 
-    body_text = f"""来自 易站智能 联系表单
+    try:
+        from services.brand_service import get_brand_settings
+        brand = get_brand_settings() or {}
+    except Exception:
+        brand = {}
+    site_name_cn = brand.get('site_name_cn', '') or ''
+    site_name_en = brand.get('site_name_en', '') or ''
+
+    body_text = f"""来自 {site_name_cn or site_name_en or ''} 联系表单
 
 姓名: {name}
 邮箱: {email}
@@ -162,7 +170,7 @@ def send_contact_email(name, email, subject, message):
     body_html = (
         '<!DOCTYPE html><html><body style="font-family:sans-serif;'
         'color:#333;max-width:600px;margin:20px auto">'
-        '<h2 style="color:#00d4aa">📬 来自 VeroRun 联系表单</h2>'
+        f'<h2 style="color:#00d4aa">📬 来自 {site_name_en or site_name_cn or ""} 联系表单</h2>'
         '<table style="width:100%;border-collapse:collapse">'
         f'<tr><td style="padding:8px;color:#888">姓名</td><td style="padding:8px">{name}</td></tr>'
         f'<tr><td style="padding:8px;color:#888">邮箱</td><td style="padding:8px"><a href="mailto:{email}">{email}</a></td></tr>'
