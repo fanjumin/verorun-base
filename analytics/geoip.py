@@ -33,8 +33,6 @@ IP2REGION_DB = os.path.join(os.path.dirname(__file__), 'data', 'ip2region_v4.xdb
 
 # GeoLite2 数据库路径（自动探测）
 GEOIP_DB_CANDIDATES = [
-    '/home/easykai/easykai-workspace/GeoLite2-City.mmdb',
-    '/home/easykai/data/GeoLite2-City.mmdb',
     '/usr/share/GeoIP/GeoLite2-City.mmdb',
     './data/GeoLite2-City.mmdb',
     '../data/GeoLite2-City.mmdb',

@@ -118,7 +118,7 @@ class AnalyticsMiddleware:
     用法:
         from analytics.middleware import AnalyticsMiddleware
         app = Flask(__name__)
-        AnalyticsMiddleware(app, service_name='trademind', geoip_enabled=True)
+        AnalyticsMiddleware(app, service_name='platform', geoip_enabled=True)
     """
 
     def __init__(self, app, service_name: str = 'unknown',
