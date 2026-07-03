@@ -920,7 +920,7 @@ function loadPages() {
   api('/pages?days=30&limit=20').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('pagesContent').innerHTML =
-        '<div class="empty-state"><div class="icon">📄</div><div class="text">暂无页面数据</div></div>';
+        '<div class="empty-state"><div class="icon">📄</div><div class="text">{{ _('暂无页面数据') }}</div></div>';
       return;
     }
     var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('路径') }}</th><th>PV</th><th>UV</th><th>{{ _('平均响应') }}</th></tr></thead><tbody>';
@@ -1056,11 +1056,11 @@ function loadChinaCities() {
   api('/geo/china-cities?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('chinaMapChart').innerHTML =
-        '<div class="empty-state" style="padding:60px 0"><div class="icon">🇨🇳</div><div class="text">暂无中国城市数据</div></div>';
+        '<div class="empty-state" style="padding:60px 0"><div class="icon">🇨🇳</div><div class="text">{{ _('暂无中国城市数据') }}</div></div>';
       document.getElementById('chinaCityContent').innerHTML =
-        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">暂无中国城市数据</div></div>';
+        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('暂无中国城市数据') }}</div></div>';
       document.getElementById('chinaProvinceContent').innerHTML =
-        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">暂无省份数据</div></div>';
+        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('暂无省份数据') }}</div></div>';
       return;
     }
     // 聚合省份数据（未匹配的归入「其他地区」，避免地级市混入省列表）
@@ -1071,7 +1071,7 @@ function loadChinaCities() {
       if (!prov) {
         // 不含中文 → 境外数据跳过
         if (!/[\u4e00-\u9fff]/.test(d.city||'')) return;
-        prov = "其他地区";  // 未识别的中文城市统一归类
+        prov = "{{ _('其他地区') }}";  // 未识别的中文城市统一归类
       }
       if (!provMap[prov]) provMap[prov] = {pv:0, uv:0};
       provMap[prov].pv += (d.pv||0);
@@ -1124,7 +1124,7 @@ function renderChinaMap(provinces) {
           max: pvMax,
           left: 'left',
           bottom: 10,
-          text: ['高', '低'],
+          text: ['{{ _('高') }}', '{{ _('低') }}'],
           textStyle: { color: '#6b7280' },
           inRange: {
             color: ['#0f1a2e', '#1a3860', '#2568a0', '#3d98d0', '#00f5ff']
@@ -1158,7 +1158,7 @@ function renderChinaMap(provinces) {
       charts.chinaMap.setOption(option);
     })
     .catch(function(){
-      dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">地图加载失败（网络问题），数据见下方表格</div></div>';
+      dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('地图加载失败（网络问题），数据见下方表格') }}</div></div>';
     });
 }
 

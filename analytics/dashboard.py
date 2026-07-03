@@ -61,6 +61,17 @@ def check_auth():
 
 # ─── 页面路由 ───────────────────────────────────────────────────────────────────
 
+# ─── 静态文件 ──────────────────────────────────────────────────────────────────
+
+@analytics_bp.route('/static/<path:filename>')
+def analytics_static(filename):
+    """提供静态文件，包括 china.json 地图数据等"""
+    from flask import send_from_directory
+    return send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), filename)
+
+
+# ─── 页面路由 ───────────────────────────────────────────────────────────────────
+
 @analytics_bp.route('/')
 def analytics_page():
     """渲染分析仪表盘页面"""

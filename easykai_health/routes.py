@@ -33,6 +33,7 @@ from flask import Blueprint, request, jsonify, render_template
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
+from i18n import _
 
 from . import models as m
 from .checkers import CheckerRegistry
@@ -103,11 +104,11 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
             result = {
                 'check_id': check['id'],
                 'check_key': check['check_key'],
-                'check_name': check['name'],
+                'check_name': _(check['name']),
                 'category': check['category'],
                 'status': 'warning',
                 'response_time_ms': 0,
-                'message': f'无检查器实现: {check["check_key"]}',
+                'message': _('无检查器实现: {key}').format(key=check['check_key']),
                 'detail': '{}',
             }
         else:
@@ -116,7 +117,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                 result = {
                     'check_id': check['id'],
                     'check_key': check['check_key'],
-                    'check_name': check['name'],
+                    'check_name': _(check['name']),
                     'category': check['category'],
                     'status': cr.status,
                     'response_time_ms': cr.response_time_ms,
@@ -127,11 +128,11 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                 result = {
                     'check_id': check['id'],
                     'check_key': check['check_key'],
-                    'check_name': check['name'],
+                    'check_name': _(check['name']),
                     'category': check['category'],
                     'status': 'error',
                     'response_time_ms': 0,
-                    'message': f'检查器异常: {e}',
+                    'message': _('检查器异常: {err}').format(err=e),
                     'detail': json.dumps({'error': str(e)}, ensure_ascii=False),
                 }
 
@@ -264,10 +265,7 @@ def api_run():
     t = threading.Thread(target=_async_run, daemon=True)
     t.start()
 
-    return jsonify({
-        'success': True,
-        'message': '巡检已启动，请稍后查看结果',
-    })
+    return jsonify({'success': True, 'message': _('巡检已启动，请稍后查看结果')})
 
 
 @health_bp.route('/api/history')
@@ -319,7 +317,7 @@ def api_history_detail(run_id):
     with m.get_db() as conn:
         run = conn.execute('SELECT * FROM check_runs WHERE id=?', (run_id,)).fetchone()
         if not run:
-            return jsonify({'success': False, 'error': '巡检记录不存在'}), 404
+            return jsonify({'success': False, 'error': _('巡检记录不存在')}), 404
         items = m.get_history_for_run(run_id)
 
     return jsonify({
@@ -364,12 +362,12 @@ def api_update_check(check_id):
 
     data = request.json
     if not data:
-        return jsonify({'success': False, 'error': '无效数据'}), 400
+        return jsonify({'success': False, 'error': _('无效数据')}), 400
 
     with m.get_db() as conn:
         check = conn.execute('SELECT * FROM health_checks WHERE id=?', (check_id,)).fetchone()
         if not check:
-            return jsonify({'success': False, 'error': '检查项不存在'}), 404
+            return jsonify({'success': False, 'error': _('检查项不存在')}), 404
 
         updates = []
         params = []
@@ -390,7 +388,7 @@ def api_update_check(check_id):
         )
         conn.commit()
 
-    return jsonify({'success': True, 'message': '已更新'})
+    return jsonify({'success': True, 'message': _('已更新')})
 
 
 @health_bp.route('/api/trend')
@@ -478,7 +476,7 @@ def api_register_check():
     severity = data.get('severity', 'warning')
 
     if not check_key:
-        return jsonify({'success': False, 'error': 'check_key 必填'}), 400
+        return jsonify({'success': False, 'error': _('check_key 必填')}), 400
 
     checker_class = CheckerRegistry.get(check_key)
     if checker_class:
@@ -510,7 +508,7 @@ def api_register_check():
 
     return jsonify({
         'success': True,
-        'message': f'检查项 {name} 已添加',
+        'message': _('检查项 {name} 已添加').format(name=name),
         'data': {'id': new_id, 'check_key': check_key, 'has_checker': checker_class is not None}
     })
 
@@ -571,7 +569,7 @@ def api_export():
             ).fetchone()
 
         if not run:
-            return jsonify({'success': False, 'error': '无可用巡检报告'}), 404
+            return jsonify({'success': False, 'error': _('无可用巡检报告')}), 404
 
         run = dict(run)
         items = conn.execute(
@@ -613,5 +611,5 @@ def api_internal_run():
 
     return jsonify({
         'success': True,
-        'data': {'run_id': run_id, 'message': f'巡检已完成 (ID: {run_id})'}
+        'data': {'run_id': run_id, 'message': _('巡检已完成 (ID: {id})').format(id=run_id)}
     })

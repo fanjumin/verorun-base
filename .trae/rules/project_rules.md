@@ -33,6 +33,19 @@ alwaysApply: true
 - 如果不确定是否符合规则，必须先询问我。
 
 ## 5. 服务器
-     easykai@47.103..204.180
+     easykai@***REMOVED***
      密码：***REMOVED***
      网站目录：/home/easykai/easykai-workspace/easykai.cn/
+
+## 6. 部署拓扑（Nginx 真实配置 `/etc/nginx/sites-enabled/easykai.conf`）
+
+此为服务器上真实运行的域名→端口映射，所有服务相关操作以此为准，**严禁从任何其他文档拼凑覆盖**。
+
+| 域名 | 端口 | 服务 |
+|------|------|------|
+| easykai.cn / www.easykai.cn（根路由 `/`） | `:8081` | 主站后端 |
+| easykai.cn `/admin/` | `:8084` | 管理后台 |
+| easykai.cn `/auth/` `/subscribe` | `:8083` | 认证/订阅 |
+| easykai.cn `/auth/oauth/` `/user/` | `:8081` | OAuth/用户 |
+| platform.easykai.cn | `:8083` | Platform |
+| agent.easykai.cn | `:8084` | Admin |

@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Type, Tuple
 from services.deployment_config import deploy
+from i18n import _
 
 import urllib.request
 import urllib.error
@@ -180,7 +181,7 @@ class BaseHealthCheck(ABC):
     # ── 元数据访问方法（可被子类覆盖） ──
 
     def get_name(self) -> str:
-        return self.name
+        return _(self.name)
 
     def get_category(self) -> str:
         return self.category
@@ -189,7 +190,7 @@ class BaseHealthCheck(ABC):
         return self.severity
 
     def get_description(self) -> str:
-        return self.description
+        return _(self.description)
 
     def get_sort_order(self) -> int:
         return self.sort_order
