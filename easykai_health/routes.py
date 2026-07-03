@@ -3,7 +3,7 @@
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """
-easykai-health — Flask API 路由
+Health Monitor — Flask API 路由
 ================================
 提供健康巡检的 REST API + 管理后台页面。
 
@@ -582,7 +582,7 @@ def api_export():
         'success': True,
         'data': {
             'export_time': datetime.now().isoformat(),
-            'platform': 'VeroRon 维洛智能',
+            'platform': '',
             'report': run,
         }
     })
@@ -692,7 +692,7 @@ def api_internal_run():
     请求头需携带 X-Health-Secret
     """
     secret = request.headers.get('X-Health-Secret', '')
-    expected = os.environ.get('HEALTH_SECRET', 'easykai-health-internal')
+    expected = os.environ.get('HEALTH_SECRET', 'health-monitor-internal')
     if secret != expected:
         return jsonify({'success': False, 'error': 'Forbidden'}), 403
 

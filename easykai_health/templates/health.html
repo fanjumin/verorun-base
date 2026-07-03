@@ -696,7 +696,7 @@ function loadChecks() {
     h += '<div class="ct">📖 {{ _('添加新检查项指南') }}</div>';
     h += '<div style="font-size:11px;color:var(--dim);line-height:1.8">';
     h += '<b>{{ _('方式 1 ') }}— {{ _('代码注册') }}</b>（{{ _('推荐）') }}<br>';
-    h += '{{ _('在 easykai_health/checkers.py 中继承 BaseHealthCheck，用 ') }}@register(check_key) {{ _('注册。') }}<br>';
+    h += '{{ _('在 checkers.py 中继承 BaseHealthCheck，用 ') }}@register(check_key) {{ _('注册。') }}<br>';
     h += '{{ _('然后点击上方') }}「＋{{ _('Add') }}」{{ _('按钮写入 DB 即可生效。') }}<br><br>';
     h += '<b>{{ _('方式 2 ') }}— {{ _('仅 DB 记录') }}</b><br>';
     h += '{{ _('直接在上方手动添加后，在 check() 方法中实现逻辑。') }}<br>';

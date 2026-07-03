@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-easykai-health — 数据库模型
+Health Monitor — 数据库模型
 ============================
 所有健康巡检相关的数据表。复用主库 (site.db)。
 
@@ -12,7 +12,7 @@ easykai-health — 数据库模型
   alert_history     — 已发送的告警记录
   health_trend      — 每日聚合统计（用于趋势图）
 
-@package easykai_health
+@package health_monitor
 """
 
 import os, json, time, sqlite3

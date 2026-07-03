@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-easykai-health — 告警模块
+Health Monitor — 告警模块
 =========================
 当检查项状态异常时，通过邮件/站内信/Webhook 通知管理员。
 """
@@ -150,7 +150,7 @@ def _send_webhook(message: str, webhook_url: str):
             'event': 'health_alert',
             'message': message,
             'timestamp': datetime.now().isoformat(),
-            'source': 'easykai-health',
+            'source': 'health-monitor',
         }).encode('utf-8')
         req = urllib.request.Request(webhook_url, data=data,
                                      headers={'Content-Type': 'application/json'},

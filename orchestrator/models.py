@@ -342,7 +342,7 @@ def init_orchestrator_tables():
             INSERT OR IGNORE INTO system_agents (name, description, provider, model, api_key_ref, system_prompt, capabilities)
             VALUES ('default-system-agent', '平台默认自动调度 Agent，执行内容工厂、市场监控等自动化任务',
                     'dashscope', 'qwen-turbo', 'dashscope_text_key',
-                    '你是 VeroRon 维洛智能 的自动化调度助手。你的职责是执行定时任务、处理工作流、生成内容、监控市场数据。请严格按照任务要求输出结果。',
+                    '你是平台的自动化调度助手。你的职责是执行定时任务、处理工作流、生成内容、监控市场数据。请严格按照任务要求输出结果。',
                     '["content_factory","market_monitor","data_analysis","report_generation"]');
         """)
         conn.commit()

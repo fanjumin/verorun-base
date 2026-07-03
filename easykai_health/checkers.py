@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-easykai-health — 插件化健康检查器框架
-=========================================
-高度可扩展的插件架构。所有检查器继承 BaseHealthCheck 基类，
-通过 @register 装饰器自动注册。
+Health Monitor — 健康检查器
+=============================
+所有检查器继承 BaseHealthCheck 基类，通过 @register 装饰器自动注册。
 
 添加新检查项只需三步：
   1. 在 checkers.py (或新建 checker_xxx.py) 中继承 BaseHealthCheck
@@ -279,7 +278,7 @@ class CoreAPIHealthCheck(BaseHealthCheck):
     def check(self) -> CheckResult:
         endpoints = self.config.get('endpoints', ['/health'])
         subdomains = {
-            'easykai.cn (主站)': ('http://127.0.0.1:8081', 8081),
+            _('Main Site'): ('http://127.0.0.1:8081', 8081),
             deploy.server_name('platform'): ('http://127.0.0.1:8083', 8083),
             f'{deploy.server_name("agent")} (admin)': ('http://127.0.0.1:8084', 8084),
         }
@@ -483,7 +482,7 @@ class SSLHealthCheck(BaseHealthCheck):
     description = '各子域名 SSL 证书到期时间检查'
     sort_order = 50
     config_defaults = {
-        'domains': ['www.easykai.cn',
+        'domains': [deploy.server_name(),
                      deploy.server_name('platform'), deploy.server_name('agent')],
         'expire_warn_days': 30,
     }
