@@ -16,8 +16,14 @@ function loadSystemConfig(){
     cats.forEach(function(cat){
       var items=data.filter(function(k){return k.category==cat.id});
       if(!items.length)return;
+      var sid='cfg-cat-'+cat.id;
+      var collapsed=localStorage.getItem(sid)==='1';
       c+='<div class="cd" style="margin-bottom:12px">';
-      c+='<div class="st">'+cat.title+'</div>';
+      c+='<div class="st" style="cursor:pointer;user-select:none" onclick="toggleCat(\''+cat.id+'\')">'
+        +'<span id="cfg-arr-'+cat.id+'" style="display:inline-block;width:14px;transition:transform .2s">'
+        +(collapsed?'▶':'▼')+'</span> '
+        +cat.title+'</div>';
+      c+='<div id="'+sid+'"'+(collapsed?' style="display:none"':'')+'>';
       items.forEach(function(k){
         var isSensitive=k.sensitive;
         var displayVal=k.sensitive?k.masked_value:k.value;
@@ -36,11 +42,21 @@ function loadSystemConfig(){
         }
         c+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('Save') }}</button></div>';
       });
-      c+='</div>';
+      c+='</div></div>';
     });
     document.getElementById("config-tab-content").innerHTML=c||'<div class="em">{{ _('No Config Item') }}</div>';
     loadSmsTemplatesConfig();
   }).catch(function(){document.getElementById("config-tab-content").innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
+}
+function toggleCat(catId){
+  var sec=document.getElementById('cfg-cat-'+catId);
+  var arr=document.getElementById('cfg-arr-'+catId);
+  if(!sec||!arr)return;
+  if(sec.style.display==='none'){
+    sec.style.display='';arr.textContent='▼';localStorage.setItem('cfg-cat-'+catId,'0');
+  }else{
+    sec.style.display='none';arr.textContent='▶';localStorage.setItem('cfg-cat-'+catId,'1');
+  }
 }
 function loadSmsTemplatesConfig(){
   var ct=document.getElementById("config-tab-content");

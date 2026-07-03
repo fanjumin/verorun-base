@@ -4,12 +4,17 @@
 
 """Platform — User Console (端口 8083)"""
 
-import sys, os
-# ═══ ENSURE stdlib platform is cached BEFORE project platform/ dir shadows it ═══
-import platform as _stdlib_platform
-_ = _stdlib_platform.system
+import sys, os, sysconfig
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
+
+# Prepend stdlib path LAST so it stays at sys.path[0] and prevents
+# the project's platform/ dir from shadowing stdlib platform module.
+stdlib_dir = sysconfig.get_path('stdlib')
+if stdlib_dir in sys.path:
+    sys.path.remove(stdlib_dir)
+sys.path.insert(0, stdlib_dir)
 from services.deployment_config import deploy
 from services.brand_service import get_brand_settings
 from services.notification_service import get_unread_count, mark_read
