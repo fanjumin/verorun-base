@@ -367,7 +367,7 @@ class PluginRegistry:
 
     def mount_health_checks(self, health_module) -> List[str]:
         """
-        将所有已启用插件的健康检查注册到 easykai_health 模块。
+        将所有已启用插件的健康检查注册到 health_check 模块。
         返回成功注册的插件名称列表。
         """
         registered = []

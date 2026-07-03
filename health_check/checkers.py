@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Health Monitor — 健康检查器
+Health Check — 健康检查器
 =============================
 所有检查器继承 BaseHealthCheck 基类，通过 @register 装饰器自动注册。
 

@@ -3,12 +3,12 @@
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """
-Health Monitor — Flask API 路由
+Health Check — Flask API 路由
 ================================
 提供健康巡检的 REST API + 管理后台页面。
 
 注册方式：
-    from easykai_health import health_bp
+    from health_check import health_bp
     app.register_blueprint(health_bp)
 
 API 端点:

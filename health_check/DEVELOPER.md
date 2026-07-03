@@ -30,7 +30,7 @@ checkers.py                    routes.py                    admin/templates/heal
 ### 步骤 1：在 checkers.py 中编写检查器类
 
 ```python
-from easykai_health.checkers import BaseHealthCheck, CheckResult, register
+from health_check.checkers import BaseHealthCheck, CheckResult, register
 
 @register('my_business_api')          # ← 唯一键，与 DB 中 check_key 对应
 class MyBusinessAPIHealthCheck(BaseHealthCheck):
@@ -108,7 +108,7 @@ class MyBusinessAPIHealthCheck(BaseHealthCheck):
 对于复杂的检查器，可以放在单独的文件中：
 
 ```python
-# easykai_health/checkers/my_custom_checker.py
+# health_check/checkers/my_custom_checker.py
 from ..checkers import BaseHealthCheck, CheckResult, register
 
 @register('custom_check')
@@ -346,10 +346,10 @@ class RedisPoolHealthCheck(BaseHealthCheck):
 ```bash
 # 1. 部署代码到服务器
 cd ~/projects/your-project
-scp -r easykai_health/ your-user@your-server:/path/to/deployment/
+scp -r health_check/ your-user@your-server:/path/to/deployment/
 
 # 2. 重启 admin 服务
-ssh your-user@your-server "cd /path/to/deployment && find easykai_health -name __pycache__ -exec rm -rf {} + && fuser -k 8084/tcp && sleep 1 && cd admin && python3 -B app.py 8084 &"
+ssh your-user@your-server "cd /path/to/deployment && find health_check -name __pycache__ -exec rm -rf {} + && fuser -k 8084/tcp && sleep 1 && cd admin && python3 -B app.py 8084 &"
 
 # 3. 验证新检查项可见
 # 访问你的管理后台 → 健康巡检 → ⚙️ 检查项配置

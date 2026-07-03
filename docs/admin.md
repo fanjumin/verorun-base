@@ -51,7 +51,7 @@
 | `shop_bp` | — | `routes.shop_admin` |
 | `sub_bp` | — | `routes.subscription` |
 | `cleaner_bp` | — | `routes.cleaner_agent` |
-| `health_bp` | — | `easykai_health` |
+| `health_bp` | — | `health_check` |
 | 纯后端 (无 UI) | `init_automation(app)` | `orchestrator.routes` |
 | 纯后端 (无 UI) | `init_agent_matrix(app)` | `agent_matrix.routes` |
 

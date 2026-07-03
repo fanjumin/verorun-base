@@ -30,8 +30,8 @@ from analytics.middleware import AnalyticsMiddleware
 from analytics.dashboard import analytics_bp
 from analytics.processor import AnalyticsProcessor
 from models.cms import init_cms_tables
-from easykai_health import health_bp
-from easykai_health.models import init_health_tables, seed_default_checks
+from health_check import health_bp
+from health_check.models import init_health_tables, seed_default_checks
 from routes.douyin_miniprogram import douyin_mp_bp
 from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp

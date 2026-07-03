@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Health Monitor — 数据库模型
+Health Check — 数据库模型
 ============================
 所有健康巡检相关的数据表。复用主库 (site.db)。
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Health Monitor — 告警模块
+Health Check — 告警模块
 =========================
 当检查项状态异常时，通过邮件/站内信/Webhook 通知管理员。
 """

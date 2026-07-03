@@ -36,7 +36,7 @@
 | **路由/API** | `register_routes()` | 返回 Flask Blueprint 列表 |
 | **定时任务** | `register_jobs()` | 返回 APScheduler job 配置 |
 | **DAG 工作流节点** | `register_dag_nodes()` | 注册到 WorkflowEngine |
-| **健康检查** | `register_health_checks()` | 注册到 easykai_health |
+| **健康检查** | `register_health_checks()` | 注册到 health_check |
 | **事件响应** | `get_event_handlers()` | 订阅系统事件 |
 | **数据库** | 直接使用 `get_db()` | 复用 auth-center SQLite |
 | **认证** | 复用 `jwt_service` | JWT SSO 跨子域 |
