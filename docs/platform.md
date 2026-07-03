@@ -363,12 +363,12 @@ Platform 采用多层安全策略：
 
 | 文件 | 路径 |
 |------|------|
-| 主入口 | [file:///F:/Sites/EasyKaiSite/platform/app.py](file:///F:/Sites/EasyKaiSite/platform/app.py) |
-| CMS 公开路由 | [file:///F:/Sites/EasyKaiSite/platform/cms_public.py](file:///F:/Sites/EasyKaiSite/platform/cms_public.py) |
-| 站点路由 | [file:///F:/Sites/EasyKaiSite/platform/routes/site_routes.py](file:///F:/Sites/EasyKaiSite/platform/routes/site_routes.py) |
-| CMS 模型 | [file:///F:/Sites/EasyKaiSite/auth-center/models/cms.py](file:///F:/Sites/EasyKaiSite/auth-center/models/cms.py) |
-| 数据库定义 | [file:///F:/Sites/EasyKaiSite/auth-center/models/database.py](file:///F:/Sites/EasyKaiSite/auth-center/models/database.py) |
-| 模板目录 | [file:///F:/Sites/EasyKaiSite/platform/templates/](file:///F:/Sites/EasyKaiSite/platform/templates/) |
-| 主题目录 | [file:///F:/Sites/EasyKaiSite/themes/](file:///F:/Sites/EasyKaiSite/themes/) |
-| 静态文件 | [file:///F:/Sites/EasyKaiSite/platform/static/](file:///F:/Sites/EasyKaiSite/platform/static/) |
-| 媒体文件 | [file:///F:/Sites/EasyKaiSite/admin/static/media/](file:///F:/Sites/EasyKaiSite/admin/static/media/) |
+| 主入口 | [file:///F:/Sites/VeroRunSystem/platform/app.py](file:///F:/Sites/VeroRunSystem/platform/app.py) |
+| CMS 公开路由 | [file:///F:/Sites/VeroRunSystem/platform/cms_public.py](file:///F:/Sites/VeroRunSystem/platform/cms_public.py) |
+| 站点路由 | [file:///F:/Sites/VeroRunSystem/platform/routes/site_routes.py](file:///F:/Sites/VeroRunSystem/platform/routes/site_routes.py) |
+| CMS 模型 | [file:///F:/Sites/VeroRunSystem/auth-center/models/cms.py](file:///F:/Sites/VeroRunSystem/auth-center/models/cms.py) |
+| 数据库定义 | [file:///F:/Sites/VeroRunSystem/auth-center/models/database.py](file:///F:/Sites/VeroRunSystem/auth-center/models/database.py) |
+| 模板目录 | [file:///F:/Sites/VeroRunSystem/platform/templates/](file:///F:/Sites/VeroRunSystem/platform/templates/) |
+| 主题目录 | [file:///F:/Sites/VeroRunSystem/themes/](file:///F:/Sites/VeroRunSystem/themes/) |
+| 静态文件 | [file:///F:/Sites/VeroRunSystem/platform/static/](file:///F:/Sites/VeroRunSystem/platform/static/) |
+| 媒体文件 | [file:///F:/Sites/VeroRunSystem/admin/static/media/](file:///F:/Sites/VeroRunSystem/admin/static/media/) |

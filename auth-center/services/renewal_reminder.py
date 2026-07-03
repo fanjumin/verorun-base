@@ -120,7 +120,7 @@ def notify_payment_failed(user_id, plan_name, fail_reason):
 
         title = f'❌ {plan_name} 续费失败'
         content = f'{nickname}，您的 {plan_name} 自动续费扣款失败（{fail_reason}）。系统将在未来7天内重试。请确保账户余额充足或更换支付方式，以免服务中断。'
-        sms = f'【易站智能】{plan_name}续费失败：{fail_reason}，7天内将重试。登录 {deploy.url()}/ucenter 处理。'
+        sms = f'【VeroRun】{plan_name}续费失败：{fail_reason}，7天内将重试。登录 {deploy.url()}/ucenter 处理。'
 
         _insert_notification(conn, user_id, title, content)
         if phone:

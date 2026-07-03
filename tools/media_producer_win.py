@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-EasyKai 本地媒体生产器 — Windows 版
+VeroRun 本地媒体生产器 — Windows 版
 FFmpeg/MoviePy 本地渲染 + 自动推送到 easykai 服务器
 
 用法:
@@ -290,7 +290,7 @@ def main():
   python media_producer.py upload D:\\videos\\demo.mp4
   python media_producer.py compress D:\\videos\\demo.mp4 --width 1080 --bitrate 2M
   python media_producer.py slideshow img1.jpg img2.jpg --audio bgm.mp3
-  python media_producer.py watermark D:\\videos\\demo.mp4 --text "EasyKai"
+  python media_producer.py watermark D:\\videos\\demo.mp4 --text "VeroRun"
         """
     )
     sub = parser.add_subparsers(dest='cmd', help='命令')

@@ -1500,7 +1500,7 @@ def totp_setup():
         import pyotp, qrcode, base64, io
         secret = pyotp.random_base32()
         totp = pyotp.TOTP(secret)
-        issuer = _('EasyKai AI')
+        issuer = _('VeroRun')
         label = f'{issuer}:{user["username"] or user["phone"] or user_id}'
         provisioning_uri = totp.provisioning_uri(name=label, issuer_name=issuer)
 

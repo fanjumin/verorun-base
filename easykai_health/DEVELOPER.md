@@ -345,7 +345,7 @@ class RedisPoolHealthCheck(BaseHealthCheck):
 
 ```bash
 # 1. 部署代码到服务器
-cd ~/projects/易站智能
+cd ~/projects/VeroRun
 scp -r easykai_health/ your-user@your-server:/path/to/deployment/
 
 # 2. 重启 admin 服务

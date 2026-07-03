@@ -113,15 +113,13 @@ your_username: your_username
   else '''' }} 已通过'
 '{{ category.name }} — {{ brand.site_name_en if brand else '''' }} 文档': '{{ category.name
   }} — {{ brand.site_name_en if brand else '''' }} 文档'
-'{{ item.name }} v{{ item.version }} — 下载 — EasyKai': '{{ item.name }} v{{ item.version
-  }} — 下载 — EasyKai'
-'{{ page.title }} — 易站AI': '{{ page.title }} — 易站AI'
-'{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''易站AI'' }}': '{{ post.title
-  }} — 预览 — {{ brand.site_name_cn if brand else ''易站AI'' }}'
+'{{ item.name }} v{{ item.version }} — 下载 — VeroRun': '{{ item.name }} v{{ item.version }} — 下载 — VeroRun'
+'{{ page.title }} — VeroRun': '{{ page.title }} — VeroRun'
+'{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''VeroRun'' }}': '{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''VeroRun'' }}'
 '{{ site.name }} - 定价方案': '{{ site.name }} - 定价方案'
 '{{ site.name }} - 智能建站平台': '{{ site.name }} - 智能建站平台'
 '{{ stats.years | default(0) }}年': '{{ stats.years | default(0) }}年'
-© 2026 易站AI. All rights reserved.: © 2026 易站AI. All rights reserved.
+© 2026 VeroRun. All rights reserved.: © 2026 VeroRun. All rights reserved.
 ← 旧: ← 旧
 ← 翻新前: ← 翻新前
 ← 返回: ← 返回
@@ -178,7 +176,7 @@ your_username: your_username
 今日调用次数: 今日调用次数
 今日额度使用: 今日额度使用
 从内容生产到客户服务，从电商运营到社媒发布 — AI矩阵全链路自动化: 从内容生产到客户服务，从电商运营到社媒发布 — AI矩阵全链路自动化
-从建站到运营，从内容生产到智能客服，从电商到供应链，易站AI矩阵，让您的网站7×24小时自主运转。: 从建站到运营，从内容生产到智能客服，从电商到供应链，易站AI矩阵，让您的网站7×24小时自主运转。
+从建站到运营，从内容生产到智能客服，从电商到供应链，VeroRun矩阵，让您的网站7×24小时自主运转。: 从建站到运营，从内容生产到智能客服，从电商到供应链，VeroRun矩阵，让您的网站7×24小时自主运转。
 从注册到上线，最快3天完成: 从注册到上线，最快3天完成
 价格同步: 价格同步
 任务自动分解: 任务自动分解
@@ -468,13 +466,13 @@ your_username: your_username
 无限: 无限
 无需信用卡 · 30分钟快速上手 · 随时取消: 无需信用卡 · 30分钟快速上手 · 随时取消
 无需技术团队，无需高额预算。三分钟完成建站，AI即刻上岗。: 无需技术团队，无需高额预算。三分钟完成建站，AI即刻上岗。
-易站AI: 易站AI
-易站AI — AI智能建站平台 | 一站式智能运营: 易站AI — AI智能建站平台 | 一站式智能运营
-易站AI 智能建站平台: 易站AI 智能建站平台
-易站AI提供AI智能建站、小程序建站、网站翻新、AI智能客服四大核心服务，一站式解决企业线上业务需求。: 易站AI提供AI智能建站、小程序建站、网站翻新、AI智能客服四大核心服务，一站式解决企业线上业务需求。
-易站AI智能建站平台，AI矩阵驱动网站全生命周期运营。AI建站、AI客服、AI内容、AI SEO、1688供应链、电商商城一站式解决方案。: 易站AI智能建站平台，AI矩阵驱动网站全生命周期运营。AI建站、AI客服、AI内容、AI
+VeroRun: VeroRun
+VeroRun — AI智能建站平台 | 一站式智能运营: VeroRun — AI智能建站平台 | 一站式智能运营
+VeroRun 智能建站平台: VeroRun 智能建站平台
+VeroRun提供AI智能建站、小程序建站、网站翻新、AI智能客服四大核心服务，一站式解决企业线上业务需求。: VeroRun提供AI智能建站、小程序建站、网站翻新、AI智能客服四大核心服务，一站式解决企业线上业务需求。
+VeroRun智能建站平台，AI矩阵驱动网站全生命周期运营。AI建站、AI客服、AI内容、AI SEO、1688供应链、电商商城一站式解决方案。: VeroRun智能建站平台，AI矩阵驱动网站全生命周期运营。AI建站、AI客服、AI内容、AI
   SEO、1688供应链、电商商城一站式解决方案。
-易站智能: 易站智能
+VeroRun: VeroRun
 是否提供发票？: 是否提供发票？
 是否支持退款？: 是否支持退款？
 是的，您可以随时升级或降级方案。升级立即生效，降级将在下个计费周期生效。: 是的，您可以随时升级或降级方案。升级立即生效，降级将在下个计费周期生效。
@@ -501,7 +499,7 @@ your_username: your_username
 月付价格: 月付价格
 有任何问题或建议，欢迎随时与我们联系: 有任何问题或建议，欢迎随时与我们联系
 服务: 服务
-服务 — 易站AI · AI智能建站平台: 服务 — 易站AI · AI智能建站平台
+服务 — VeroRun · AI智能建站平台: 服务 — VeroRun · AI智能建站平台
 服务企业: 服务企业
 服务客户: 服务客户
 服务条款: 服务条款
@@ -511,7 +509,7 @@ your_username: your_username
 本平台内容不构成投资建议: 本平台内容不构成投资建议
 本平台内容为 智能体 研究观点与社区交流，不构成投资建议。: 本平台内容为 智能体 研究观点与社区交流，不构成投资建议。
 本月统计: 本月统计
-本软件按原样（as-is）提供，EasyKai 不对使用本软件产生的任何交易决策、数据丢失或系统故障承担责任。下载前请确认你已阅读并同意: 本软件按原样（as-is）提供，EasyKai
+本软件按原样（as-is）提供，VeroRun 不对使用本软件产生的任何交易决策、数据丢失或系统故障承担责任。下载前请确认你已阅读并同意: 本软件按原样（as-is）提供，VeroRun
   不对使用本软件产生的任何交易决策、数据丢失或系统故障承担责任。下载前请确认你已阅读并同意
 查看: 查看
 查看价格: 查看价格
@@ -787,8 +785,7 @@ your_username: your_username
 📋 我的订单: 📋 我的订单
 '📝 最后更新：{{ post.updated_at[:10] }}': '📝 最后更新：{{ post.updated_at[:10] }}'
 📝 该分类暂无文章，敬请期待。: 📝 该分类暂无文章，敬请期待。
-'📦 {{ brand.site_name_cn if brand else '易站智能' }}商城': '📦 {{ brand.site_name_cn if brand'
-  else '易站智能' }}商城
+'📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城': '📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城
 📦 七牛云: 📦 七牛云
 📱 验证手机号: 📱 验证手机号
 🔍 预览模式 — 仅管理员可见 ·: 🔍 预览模式 — 仅管理员可见 ·
@@ -1836,7 +1833,7 @@ OAuth 登录: OAuth 登录
 时间: 时间
 时间标签: 时间标签
 易开网络: 易开网络
-易站: 易站
+VeroRun: VeroRun
 显示: 显示
 显示为元: 显示为元
 显示完整结果: 显示完整结果

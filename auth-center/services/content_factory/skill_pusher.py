@@ -46,7 +46,7 @@ pushed_via: content-factory
 
 ---
 
-> 来源: [{raw_source_url}]({raw_source_url}) | 由 易站智能 内容工厂生成
+> 来源: [{raw_source_url}]({raw_source_url}) | 由 VeroRun 内容工厂生成
 """
 
     return skill_content

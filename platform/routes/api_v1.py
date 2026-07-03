@@ -409,7 +409,7 @@ def chat_stream():
                 knowledge_context = "参考知识：\n" + "\n".join([f"- {item.get('content', '')}" for item in retrieved_knowledge])
             
             system_prompt = f"""
-你是易站智能的AI助手。请根据用户的问题，结合参考知识进行回答。
+你是VeroRun的AI助手。请根据用户的问题，结合参考知识进行回答。
 
 {knowledge_context}
 

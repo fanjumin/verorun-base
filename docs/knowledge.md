@@ -51,7 +51,7 @@ flowchart LR
 **种子数据**: 约 26 条，覆盖公司信息、产品功能、FAQ、白皮书，通过数据库迁移（`database.py`）在首次运行时自动插入。
 
 **定义位置**:  
-[file:///F:/Sites/EasyKaiSite/auth-center/models/database.py](file:///F:/Sites/EasyKaiSite/auth-center/models/database.py) (第 1540-1604 行)
+[file:///F:/Sites/VeroRunSystem/auth-center/models/database.py](file:///F:/Sites/VeroRunSystem/auth-center/models/database.py) (第 1540-1604 行)
 
 ### 2.2 `knowledge_queue` — 清洗任务队列
 
@@ -76,7 +76,7 @@ flowchart LR
 
 ### 3.1 核心文件
 
-[file:///F:/Sites/EasyKaiSite/auth-center/routes/cleaner_agent.py](file:///F:/Sites/EasyKaiSite/auth-center/routes/cleaner_agent.py) (296 行)
+[file:///F:/Sites/VeroRunSystem/auth-center/routes/cleaner_agent.py](file:///F:/Sites/VeroRunSystem/auth-center/routes/cleaner_agent.py) (296 行)
 
 ### 3.2 处理流水线（Pipeline）
 
@@ -165,7 +165,7 @@ POST /admin/content-factory/push-to-knowledge
 2. 拼装为 `"标题：...\n关键词：...\n正文：..."` 格式
 3. 调用 `process_clean_content()`
 
-**详见**: [file:///F:/Sites/EasyKaiSite/auth-center/routes/content_factory.py](file:///F:/Sites/EasyKaiSite/auth-center/routes/content_factory.py) (第 670-696 行)
+**详见**: [file:///F:/Sites/VeroRunSystem/auth-center/routes/content_factory.py](file:///F:/Sites/VeroRunSystem/auth-center/routes/content_factory.py) (第 670-696 行)
 
 ### 路径 3: 智能体矩阵意图路由（Agent Matrix）
 
@@ -175,7 +175,7 @@ POST /admin/agent-matrix/chat/tool  →  intent: "clean"
 
 当用户在 AI 聊天中发送需要清洗的原始内容（如文章、白皮书、行业背景），Master Agent 的意图分析器识别 `intent: "clean"`，自动调用 `process_clean_content()`。
 
-**详见**: [file:///F:/Sites/EasyKaiSite/agent_matrix/routes.py](file:///F:/Sites/EasyKaiSite/agent_matrix/routes.py) (第 471-489 行)
+**详见**: [file:///F:/Sites/VeroRunSystem/agent_matrix/routes.py](file:///F:/Sites/VeroRunSystem/agent_matrix/routes.py) (第 471-489 行)
 
 ---
 
@@ -185,7 +185,7 @@ POST /admin/agent-matrix/chat/tool  →  intent: "clean"
 
 知识库通过混合关键词检索（**非向量 RAG**）为 AI 对话提供上下文增强。检索函数 `_rag_search(query, top_k=5, category=None)` 实现于：
 
-[file:///F:/Sites/EasyKaiSite/platform/routes/api_v1.py](file:///F:/Sites/EasyKaiSite/platform/routes/api_v1.py) (第 44-95 行)
+[file:///F:/Sites/VeroRunSystem/platform/routes/api_v1.py](file:///F:/Sites/VeroRunSystem/platform/routes/api_v1.py) (第 44-95 行)
 
 **评分算法**（总分 1.0+）:
 
@@ -226,14 +226,14 @@ POST /admin/agent-matrix/chat/tool  →  intent: "clean"
 
 | 文件 | 说明 |
 |------|------|
-| [auth-center/routes/cleaner_agent.py](file:///F:/Sites/EasyKaiSite/auth-center/routes/cleaner_agent.py) | Cleaner Agent 核心逻辑 + API 端点 |
-| [auth-center/models/database.py](file:///F:/Sites/EasyKaiSite/auth-center/models/database.py) | `knowledge_blocks` + `knowledge_queue` 表定义（第 1540-1604 行） |
-| [auth-center/routes/content_factory.py](file:///F:/Sites/EasyKaiSite/auth-center/routes/content_factory.py) | Content Factory → 知识库推送（第 670 行） |
-| [agent_matrix/routes.py](file:///F:/Sites/EasyKaiSite/agent_matrix/routes.py) | Agent Matrix clean 意图路由（第 471 行） |
-| [platform/routes/api_v1.py](file:///F:/Sites/EasyKaiSite/platform/routes/api_v1.py) | RAG 检索 + AI 对话注入（第 44 行） |
-| [data/seed_knowledge_blocks.sql](file:///F:/Sites/EasyKaiSite/data/seed_knowledge_blocks.sql) | 种子数据 SQL 脚本 |
-| [docs/content-factory.md](file:///F:/Sites/EasyKaiSite/docs/content-factory.md) | 内容工厂文档 |
-| [docs/agent-matrix.md](file:///F:/Sites/EasyKaiSite/docs/agent-matrix.md) | 智能体矩阵文档（含 Clean intent 说明） |
+| [auth-center/routes/cleaner_agent.py](file:///F:/Sites/VeroRunSystem/auth-center/routes/cleaner_agent.py) | Cleaner Agent 核心逻辑 + API 端点 |
+| [auth-center/models/database.py](file:///F:/Sites/VeroRunSystem/auth-center/models/database.py) | `knowledge_blocks` + `knowledge_queue` 表定义（第 1540-1604 行） |
+| [auth-center/routes/content_factory.py](file:///F:/Sites/VeroRunSystem/auth-center/routes/content_factory.py) | Content Factory → 知识库推送（第 670 行） |
+| [agent_matrix/routes.py](file:///F:/Sites/VeroRunSystem/agent_matrix/routes.py) | Agent Matrix clean 意图路由（第 471 行） |
+| [platform/routes/api_v1.py](file:///F:/Sites/VeroRunSystem/platform/routes/api_v1.py) | RAG 检索 + AI 对话注入（第 44 行） |
+| [data/seed_knowledge_blocks.sql](file:///F:/Sites/VeroRunSystem/data/seed_knowledge_blocks.sql) | 种子数据 SQL 脚本 |
+| [docs/content-factory.md](file:///F:/Sites/VeroRunSystem/docs/content-factory.md) | 内容工厂文档 |
+| [docs/agent-matrix.md](file:///F:/Sites/VeroRunSystem/docs/agent-matrix.md) | 智能体矩阵文档（含 Clean intent 说明） |
 
 ---
 

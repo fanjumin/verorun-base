@@ -3,7 +3,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{{ brand.site_name_cn if brand and brand.site_name_cn else _('EasyKai AI') }} {{ _('Admin Panel') }}</title>
+<title>{{ brand.site_name_cn if brand and brand.site_name_cn else _('VeroRun') }} {{ _('Admin Panel') }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="icon" type="image/png" sizes="16x16" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-16x16.png' }}">
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
@@ -144,7 +144,7 @@ a:hover{text-decoration:underline}
     </div>
   </div>
   <nav id="nav"></nav>
-  <div class="ver" id="ver">{{ brand.software_name if brand else _('EasyKai AI') }} v{{ brand.version if brand and brand.version else '0.9.5' }}</div>
+  <div class="ver" id="ver">{{ brand.software_name if brand else _('VeroRun') }} v{{ brand.version if brand and brand.version else '0.9.5' }}</div>
 </div>
 <div class="main">
   <div class="top"><div class="pt" id="pt">{{ _('Dashboard') }}</div><div><span id="an">-</span> | <a href="/" style="color:var(--dim);font-size:11px">{{ _('Back') }}</a> | <a href="javascript:logout()" style="color:#f85149;font-size:11px">{{ _('Logout') }}</a></div></div>

@@ -160,15 +160,14 @@ your_username: your_username
   else '''''''' }} Approved'
 '{{ category.name }} — {{ brand.site_name_en if brand else '''' }} 文档': '''{{ category.name
   }} — {{ brand.site_name_en if brand else '''''''' }} Docs'
-'{{ item.name }} v{{ item.version }} — 下载 — EasyKai': '{{ item.name }} v{{ item.version
-  }} — Download — EasyKai'
-'{{ page.title }} — 易站AI': '{{ page.title }} — EasyKai AI'
-'{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''易站AI'' }}': '''{{ post.title
-  }} — Preview — {{ brand.site_name_cn if brand else ''''EasyKai AI'''' }}'
+'{{ item.name }} v{{ item.version }} — 下载 — VeroRun': '{{ item.name }} v{{ item.version }} — Download — VeroRun'
+'{{ page.title }} — VeroRun': '{{ page.title }} — VeroRun'
+'{{ post.title }} — 预览 — {{ brand.site_name_cn if brand else ''VeroRun'' }}': '''{{ post.title
+  }} — Preview — {{ brand.site_name_cn if brand else ''''VeroRun'''' }}'
 '{{ site.name }} - 定价方案': '{{ site.name }} - Pricing'
 '{{ site.name }} - 智能建站平台': '{{ site.name }} - Smart Site Builder'
 '{{ stats.years | default(0) }}年': '{{ stats.years | default(0) }}yr'
-© 2026 易站AI. All rights reserved.: © 2026 EasyKai AI. All rights reserved.
+© 2026 VeroRun. All rights reserved.: © 2026 VeroRun. All rights reserved.
 ← 旧: ← Old
 ← 翻新前: ← Before Renovation
 ← 返回: ← Back
@@ -265,8 +264,8 @@ your_username: your_username
 从YAML同步: Sync from YAML
 从内容生产到客户服务，从电商运营到社媒发布 — AI矩阵全链路自动化: From content production to customer service, from
   e-commerce to social media — full-chain AI automation.
-从建站到运营，从内容生产到智能客服，从电商到供应链，易站AI矩阵，让您的网站7×24小时自主运转。: From building to operations, from
-  content to customer service, from e-commerce to supply chain — EasyKai AI Matrix
+从建站到运营，从内容生产到智能客服，从电商到供应链，VeroRun矩阵，让您的网站7×24小时自主运转。: From building to operations, from
+  content to customer service, from e-commerce to supply chain — VeroRun Matrix
   keeps your website running 24/7.
 从注册到上线，最快3天完成: From registration to launch in as fast as 3 days
 仪表盘: Dashboard
@@ -667,16 +666,16 @@ your_username: your_username
 无限: Unlimited
 无需信用卡 · 30分钟快速上手 · 随时取消: No credit card · 30-min setup · Cancel anytime
 无需技术团队，无需高额预算。三分钟完成建站，AI即刻上岗。: No tech team, no big budget. Build in 3 mins, AI works.
-易站AI: EasyKai AI
-易站AI — AI智能建站平台 | 一站式智能运营: EasyKai AI — AI-Powered Website Platform | One-Stop Intelligent
+VeroRun: VeroRun
+VeroRun — AI智能建站平台 | 一站式智能运营: VeroRun — AI-Powered Website Platform | One-Stop Intelligent
   Operations
-易站AI 智能建站平台: EasyKai AI — Smart Website Platform
-易站AI提供AI智能建站、小程序建站、网站翻新、AI智能客服四大核心服务，一站式解决企业线上业务需求。: 'EasyKai AI: 4 core services
+VeroRun 智能建站平台: VeroRun — Smart Website Platform
+VeroRun提供AI智能建站、小程序建站、网站翻新、AI智能客服四大核心服务，一站式解决企业线上业务需求。: 'VeroRun: 4 core services
   — AI site builder, mini-program builder, site renovation, AI customer service.'
-易站AI智能建站平台，AI矩阵驱动网站全生命周期运营。AI建站、AI客服、AI内容、AI SEO、1688供应链、电商商城一站式解决方案。: EasyKai AI
+VeroRun智能建站平台，AI矩阵驱动网站全生命周期运营。AI建站、AI客服、AI内容、AI SEO、1688供应链、电商商城一站式解决方案。: VeroRun
   Platform. AI-powered website building, customer service, content generation, SEO,
   supply chain integration, and e-commerce — all in one.
-易站智能: EasyKai
+VeroRun: VeroRun
 是否提供发票？: Do you provide invoices?
 是否支持退款？: Do you support refunds?
 是的，您可以随时升级或降级方案。升级立即生效，降级将在下个计费周期生效。: Yes. Upgrade takes effect immediately, downgrade
@@ -709,7 +708,7 @@ your_username: your_username
 月付价格: Monthly Price
 有任何问题或建议，欢迎随时与我们联系: Questions or suggestions? Contact us anytime.
 服务: Services
-服务 — 易站AI · AI智能建站平台: Services — EasyKai AI · AI Website Platform
+服务 — VeroRun · AI智能建站平台: Services — VeroRun · AI Website Platform
 服务企业: Enterprises Served
 服务客户: Clients Served
 服务条款: Terms of Service
@@ -726,8 +725,8 @@ your_username: your_username
 本平台内容为 智能体 研究观点与社区交流，不构成投资建议。: Content is Agent research opinions and community discussion,
   not investment advice.
 本月统计: This Month
-本软件按原样（as-is）提供，EasyKai 不对使用本软件产生的任何交易决策、数据丢失或系统故障承担责任。下载前请确认你已阅读并同意: 'Software is
-  provided as-is. EasyKai is not liable for trading decisions, data loss, or system
+本软件按原样（as-is）提供，VeroRun 不对使用本软件产生的任何交易决策、数据丢失或系统故障承担责任。下载前请确认你已阅读并同意: 'Software is
+  provided as-is. VeroRun is not liable for trading decisions, data loss, or system
   failures. By downloading you agree:'
 条翻译: translations
 查看: View
@@ -824,8 +823,8 @@ your_username: your_username
 登录失败: Login failed
 登录成功，正在跳转...: Login successful, redirecting...
 省2个月: Save 2 Months
-'看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级': ''''See how they upgraded'
-  their online business with EasyKai'
+'看看他们如何用{{ brand.site_name_cn if brand else 'AI建站' }}实现线上业务升级': ''''See how they upgraded
+  their online business with VeroRun'
 真实客户: Real Clients
 知识库+RAG检索: Knowledge Base + RAG Search
 知识库RAG: Knowledge Base RAG
@@ -1135,8 +1134,7 @@ your_username: your_username
 📋 我的订单: 📋 My Orders
 '📝 最后更新：{{ post.updated_at[:10] }}': '📝 Last Updated：{{ post.updated_at[:10] }}'
 📝 该分类暂无文章，敬请期待。: 📝 No articles in this category yet.
-'📦 {{ brand.site_name_cn if brand else '易站智能' }}商城': ''''📦 {{ brand.site_name_cn if brand'
-  else ''''EasyKai Smart'''' }}Mall'
+'📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城': ''''📦 {{ brand.site_name_cn if brand else ''''VeroRun'''' }}Mall'
 📦 七牛云: 📦 Qiniu Cloud
 📦 优惠券: 📦 Coupons
 '📦 发货 - 订单 #': '📦 Ship - Order #'
@@ -1888,8 +1886,8 @@ your_username: your_username
 时通过: Pass When
 时间: Time
 时间标签: Time Tags
-易开网络: EasyKai Network
-易站: EasyKai
+易开网络: VeroRun Network
+VeroRun: VeroRun
 显示: Show
 显示为元: Show in Yuan
 显示完整结果: Show Full Results

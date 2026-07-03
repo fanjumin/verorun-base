@@ -41,7 +41,7 @@ SDK（Software Development Kit）是为开发者提供的代码库封装，用�
   │
   └── JavaScript SDK ─── REST API ─── 同上
           │
-          ├── EasyKaiClient（浏览器）
+          ├── VeroRunClient（浏览器）
           ├── fetch/axios 封装
           ├── SSE 流式聊天支持
           └── 滑块验证码组件
@@ -65,7 +65,7 @@ SDK（Software Development Kit）是为开发者提供的代码库封装，用�
 import requests
 import json
 
-class EasyKaiClient:
+class VeroRunClient:
     """易站 AI Python SDK 基础客户端"""
 
     def __init__(self, base_url="https://platform.easykai.cn", api_key=None, token=None):
@@ -96,10 +96,10 @@ class EasyKaiClient:
 
 **使用示例**:
 ```python
-client = EasyKaiClient()
+client = VeroRunClient()
 
 # 或者使用 API Key
-client = EasyKaiClient(api_key="tm-abc123...")
+client = VeroRunClient(api_key="tm-abc123...")
 ```
 
 ### 2.2 认证客户端
@@ -110,7 +110,7 @@ client = EasyKaiClient(api_key="tm-abc123...")
 class AuthClient:
     """认证 API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def login_by_password(self, phone, password, captcha_id=None):
@@ -153,7 +153,7 @@ class AuthClient:
 
 **使用示例**:
 ```python
-client = EasyKaiClient()
+client = VeroRunClient()
 auth = AuthClient(client)
 
 # 密码登录
@@ -171,7 +171,7 @@ result = auth.register("13800138000", "123456", "mypass", "myuser", "My Name")
 class UserClient:
     """用户 API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def get_profile(self):
@@ -245,7 +245,7 @@ print(f"新 Key: {key_result['data']['key']}")  # ⚠️ 只显示一次
 class ChatClient:
     """AI 对话 API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def chat_public(self, messages, source="api"):
@@ -301,7 +301,7 @@ for event in chat.chat_stream([
 class KnowledgeClient:
     """知识库/RAG API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def search(self, query, top_k=5, category=None):
@@ -347,7 +347,7 @@ for item in results["data"]:
 class AgentClient:
     """用户 Agent API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def list_agents(self):
@@ -401,7 +401,7 @@ print(f"Agent Key: {key_result['data']['key']}")
 class ShopClient:
     """商城 API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def list_products(self, page=1, page_size=20):
@@ -435,7 +435,7 @@ class ShopClient:
 class SubscriptionClient:
     """订阅与部署 API 封装"""
 
-    def __init__(self, client: EasyKaiClient):
+    def __init__(self, client: VeroRunClient):
         self.client = client
 
     def list_plans(self):
@@ -488,7 +488,7 @@ else:
  * 易站 AI JavaScript SDK
  * 浏览器环境使用
  */
-class EasyKaiClient {
+class VeroRunClient {
   constructor(baseURL = 'https://platform.easykai.cn') {
     this.baseURL = baseURL.replace(/\/+$/, '');
     this.token = null;
@@ -528,7 +528,7 @@ class EasyKaiClient {
 
 **使用**:
 ```javascript
-const client = new EasyKaiClient('https://platform.easykai.cn');
+const client = new VeroRunClient('https://platform.easykai.cn');
 
 // 登录
 const loginResult = await client.post('/user/password/login', {
@@ -725,7 +725,7 @@ class CaptchaService {
 ### 3.5 前端错误拦截器
 
 ```javascript
-class EasyKaiClientWithInterceptor extends EasyKaiClient {
+class VeroRunClientWithInterceptor extends VeroRunClient {
   constructor(baseURL) {
     super(baseURL);
     this.onError = null;
@@ -771,13 +771,13 @@ class EasyKaiClientWithInterceptor extends EasyKaiClient {
 
 ```python
 # 通过 API Key 认证
-client = EasyKaiClient(api_key="tm-abc123...")
+client = VeroRunClient(api_key="tm-abc123...")
 
 # 通过 JWT 认证
-client = EasyKaiClient(token="jwt-token...")
+client = VeroRunClient(token="jwt-token...")
 
 # Agent Key 认证（用于 Agent 级别的 API 调用）
-agent_client = EasyKaiClient(api_key="ek-abc123...")
+agent_client = VeroRunClient(api_key="ek-abc123...")
 ```
 
 ### 4.3 Key 安全建议
@@ -1008,7 +1008,7 @@ class EasyKaiSDK:
     """一键集成——封装所有客户端"""
 
     def __init__(self, base_url="https://platform.easykai.cn", api_key=None, token=None):
-        self._client = EasyKaiClient(base_url, api_key=api_key, token=token)
+        self._client = VeroRunClient(base_url, api_key=api_key, token=token)
         self.auth = AuthClient(self._client)
         self.user = UserClient(self._client)
         self.chat = ChatClient(self._client)

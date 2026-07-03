@@ -95,7 +95,7 @@ class TelegramBot:
         """
         cmd = text.strip().lower()
         if cmd == '/start':
-            return ('Hello! I am the EasyKai AI Assistant bot.\n\n'
+            return ('Hello! I am the VeroRun AI Assistant bot.\n\n'
                     'Commands:\n'
                     '/help — Show available commands\n'
                     '/status — Check your subscription status\n'

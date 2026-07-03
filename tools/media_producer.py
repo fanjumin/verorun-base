@@ -298,7 +298,7 @@ def main():
   python3 media_producer.py upload video.mp4
   python3 media_producer.py compress video.mp4 --width 1080 --bitrate 2M
   python3 media_producer.py slideshow img1.jpg img2.jpg --audio bgm.mp3
-  python3 media_producer.py watermark video.mp4 --text "EasyKai"
+  python3 media_producer.py watermark video.mp4 --text "VeroRun"
         """
     )
     sub = parser.add_subparsers(dest='cmd', help='命令')

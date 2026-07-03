@@ -558,7 +558,7 @@ def admin_send_code():
             from services.mail_service import send_mail
             send_mail(
                 to=target,
-                subject='EasyKai Admin Login Code',
+                subject='VeroRun Admin Login Code',
                 body=f'Your verification code is: {code}\n\nValid for 5 minutes.\n\nIf you did not request this, please ignore.'
             )
             print(f'[Admin] Email code sent to {target}')

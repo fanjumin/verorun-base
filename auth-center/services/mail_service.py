@@ -162,7 +162,7 @@ def send_contact_email(name, email, subject, message):
     body_html = (
         '<!DOCTYPE html><html><body style="font-family:sans-serif;'
         'color:#333;max-width:600px;margin:20px auto">'
-        '<h2 style="color:#00d4aa">📬 来自 易站智能 联系表单</h2>'
+        '<h2 style="color:#00d4aa">📬 来自 VeroRun 联系表单</h2>'
         '<table style="width:100%;border-collapse:collapse">'
         f'<tr><td style="padding:8px;color:#888">姓名</td><td style="padding:8px">{name}</td></tr>'
         f'<tr><td style="padding:8px;color:#888">邮箱</td><td style="padding:8px"><a href="mailto:{email}">{email}</a></td></tr>'
