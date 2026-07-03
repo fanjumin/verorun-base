@@ -154,7 +154,7 @@ class BaseHealthCheck(ABC):
     Class attributes (overridable):
         check_key: str              — Unique key (defaults to registry key)
         name: str                   — Display name
-        category: str               — Category (system/external/workflow/agent/cms/community/ssl/error)
+        category: str               — Category (system/external/workflow/agent/cms/ssl/error)
         severity: str               — Severity (info/warning/critical)
         description: str            — Description
         sort_order: int             — Sort weight
@@ -810,64 +810,125 @@ class ErrorLogHealthCheck(BaseHealthCheck):
 # so that administrators or auto-repair workflows can execute fixes.
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ─── Supported fix actions ────────────────────────────────────────────────
+
+FIX_ACTION_MARK_DELETED   = 'mark_deleted'     # Set status='deleted'
+FIX_ACTION_CLEAR_FIELD    = 'clear_field'       # Clear a text field to ''
+FIX_ACTION_DELETE_RECORD  = 'delete_record'     # DELETE FROM table WHERE id=?
+FIX_ACTION_UPDATE_URL     = 'update_url'        # Update a URL field to new value
+FIX_ACTION_MARK_DISABLED  = 'mark_disabled'     # Set is_enabled=0
+FIX_ACTION_RUN_SQL        = 'run_sql'           # Execute arbitrary SQL
+FIX_ACTION_NOTIFY_ADMIN   = 'notify_admin'      # Send a notification to admin
+
+ALL_FIX_ACTIONS = {
+    FIX_ACTION_MARK_DELETED, FIX_ACTION_CLEAR_FIELD, FIX_ACTION_DELETE_RECORD,
+    FIX_ACTION_UPDATE_URL, FIX_ACTION_MARK_DISABLED, FIX_ACTION_RUN_SQL,
+    FIX_ACTION_NOTIFY_ADMIN,
+}
+
+
 class FixSuggestion:
     """
     A single fix suggestion describing an executable repair operation.
 
-    record_type:  Type identifier (e.g. 'media_file', 'avatar', 'brand_logo')
-    table:        Database table name
-    record_id:    Record ID
-    field:        Field name (which field references the missing file)
-    missing_path: File path missing on disk
-    action:       Suggested action: 'mark_deleted' / 'delete_record' / 'clear_field'
-    reason:       Reason for the fix
+    Core fields:
+        action:    One of FIX_ACTION_* constants
+        reason:    Human-readable reason for the fix
+        params:    Dict of action-specific parameters (see below)
+
+    Action-specific params:
+        mark_deleted:   {'table': str, 'record_id': int}
+        clear_field:    {'table': str, 'record_id': int, 'field': str}
+        delete_record:  {'table': str, 'record_id': int}
+        update_url:     {'table': str, 'record_id': int, 'field': str, 'new_value': str}
+        mark_disabled:  {'table': str, 'record_id': int}
+        run_sql:        {'sql': str, 'params': list|None}
+        notify_admin:   {'message': str, 'level': str}
     """
-    def __init__(self, record_type: str, table: str, record_id: int,
-                 field: str, missing_path: str, action: str = 'mark_deleted',
-                 reason: str = ''):
-        self.record_type = record_type
-        self.table = table
-        self.record_id = record_id
-        self.field = field
-        self.missing_path = missing_path
+
+    def __init__(self, action: str, reason: str = '',
+                 params: dict = None, record_type: str = ''):
         self.action = action
         self.reason = reason
+        self.params = params or {}
+        self.record_type = record_type
 
     def to_dict(self) -> dict:
         return {
-            'record_type': self.record_type,
-            'table': self.table,
-            'record_id': self.record_id,
-            'field': self.field,
-            'missing_path': self.missing_path,
             'action': self.action,
             'reason': self.reason,
+            'params': self.params,
+            'record_type': self.record_type,
         }
 
     @staticmethod
     def apply_fix(conn, suggestion: 'FixSuggestion') -> bool:
-        """Apply a fix using an existing DB connection. Returns True on success."""
-        if suggestion.action == 'mark_deleted':
-            if hasattr(conn, 'execute'):
-                conn.execute(
-                    f"UPDATE {suggestion.table} SET status='deleted' WHERE id=?",
-                    (suggestion.record_id,)
-                )
-                return True
-        elif suggestion.action == 'clear_field':
-            if hasattr(conn, 'execute'):
-                conn.execute(
-                    f"UPDATE {suggestion.table} SET {suggestion.field}=? WHERE id=?",
-                    ('', suggestion.record_id)
-                )
-                return True
-        elif suggestion.action == 'delete_record':
-            if hasattr(conn, 'execute'):
-                conn.execute(
-                    f"DELETE FROM {suggestion.table} WHERE id=?",
-                    (suggestion.record_id,)
-                )
-                return True
+        """
+        Apply a fix using an existing DB connection. Returns True on success.
+
+        For run_sql/notify_admin actions, conn may be None — the caller
+        (api_fix) should handle these cases separately.
+        """
+        params = suggestion.params
+        try:
+            if suggestion.action == FIX_ACTION_MARK_DELETED:
+                if conn and 'table' in params and 'record_id' in params:
+                    conn.execute(
+                        f"UPDATE {params['table']} SET status='deleted' WHERE id=?",
+                        (params['record_id'],)
+                    )
+                    return True
+
+            elif suggestion.action == FIX_ACTION_CLEAR_FIELD:
+                if conn and 'table' in params and 'record_id' in params and 'field' in params:
+                    conn.execute(
+                        f"UPDATE {params['table']} SET {params['field']}=? WHERE id=?",
+                        ('', params['record_id'])
+                    )
+                    return True
+
+            elif suggestion.action == FIX_ACTION_DELETE_RECORD:
+                if conn and 'table' in params and 'record_id' in params:
+                    conn.execute(
+                        f"DELETE FROM {params['table']} WHERE id=?",
+                        (params['record_id'],)
+                    )
+                    return True
+
+            elif suggestion.action == FIX_ACTION_UPDATE_URL:
+                if conn and 'table' in params and 'record_id' in params \
+                        and 'field' in params and 'new_value' in params:
+                    conn.execute(
+                        f"UPDATE {params['table']} SET {params['field']}=? WHERE id=?",
+                        (params['new_value'], params['record_id'])
+                    )
+                    return True
+
+            elif suggestion.action == FIX_ACTION_MARK_DISABLED:
+                if conn and 'table' in params and 'record_id' in params:
+                    # Try is_enabled first, fall back to is_active
+                    try:
+                        conn.execute(
+                            f"UPDATE {params['table']} SET is_enabled=0 WHERE id=?",
+                            (params['record_id'],)
+                        )
+                    except Exception:
+                        conn.execute(
+                            f"UPDATE {params['table']} SET is_active=0 WHERE id=?",
+                            (params['record_id'],)
+                        )
+                    return True
+
+            elif suggestion.action == FIX_ACTION_RUN_SQL:
+                if conn and 'sql' in params:
+                    sql_params = params.get('params') or []
+                    conn.execute(params['sql'], sql_params)
+                    return True
+
+        except Exception as e:
+            # Log and re-raise so caller can catch
+            raise RuntimeError(f"Fix failed [{suggestion.action}]: {e}") from e
+
         return False
 
 
@@ -955,13 +1016,15 @@ class MediaIntegrityChecker(BaseHealthCheck):
             if item['table'] == 'media_files':
                 action = 'mark_deleted'
             suggestions.append(FixSuggestion(
-                record_type=item['record_type'],
-                table=item['table'],
-                record_id=rec['id'],
-                field=item.get('field', ''),
-                missing_path=item['fs_path'],
                 action=action,
                 reason=reason,
+                params={
+                    'table': item['table'],
+                    'record_id': rec['id'],
+                    'field': item.get('field', ''),
+                    'missing_path': item['fs_path'],
+                },
+                record_type=item['record_type'],
             ))
         return suggestions
 
@@ -1069,6 +1132,363 @@ class MediaIntegrityChecker(BaseHealthCheck):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Internal Link Checker
+# ═══════════════════════════════════════════════════════════════════════════
+# Scans all structured link records (navigation, footer, social, blocks, etc.)
+# and CMS article content for broken, redirected, or problematic URLs.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Link source definitions: (table, url_field, id_field, title_field, source_type)
+_LINK_SOURCES = [
+    # Structured navigation links
+    ('header_nav',       'url', 'id', 'title', 'header_nav'),
+    ('footer_nav',       'url', 'id', 'title', 'footer_nav'),
+    ('footer_links',     'url', 'id', 'title', 'footer_links'),
+    ('footer_articles',  'url', 'id', 'title', 'footer_articles'),
+    ('partner_links',    'url', 'id', 'name', 'partner_links'),
+    ('social_media_links', 'url', 'id', 'platform_name', 'social_media'),
+    # Block / content links
+    ('cms_blocks',       'link_url', 'id', 'title', 'cms_block'),
+    ('site_blocks',      'link_url', 'id', 'title', 'site_block'),
+    ('ad_placements',    'link_url', 'id', 'title', 'ad_placement'),
+    # Notification / download links
+    ('downloads',        'download_url', 'id', 'title', 'download'),
+    ('downloads',        'repo_url', 'id', 'title', 'download'),
+    ('downloads',        'docs_url', 'id', 'title', 'download'),
+]
+
+_LINK_CHECK_RESULT_STATUS = {
+    200: 'healthy', 301: 'redirect', 302: 'redirect',
+    303: 'redirect', 307: 'redirect', 308: 'redirect',
+    400: 'bad_request', 401: 'unauthorized', 403: 'forbidden',
+    404: 'broken', 410: 'broken', 500: 'server_error',
+    502: 'server_error', 503: 'server_error', 504: 'server_error',
+}
+
+
+def _resolve_redirect_chain(url: str, max_hops: int = 5, timeout: int = 5) -> dict:
+    """Follow redirect chain and return final status and final URL."""
+    import urllib.request
+    import urllib.error
+    import ssl
+
+    hops = []
+    current_url = url
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    for _ in range(max_hops + 1):
+        try:
+            req = urllib.request.Request(current_url, method='HEAD')
+            req.add_header('User-Agent', 'VeroRun-HealthCheck/1.0')
+            resp = urllib.request.urlopen(req, context=ctx, timeout=timeout)
+            hops.append({
+                'url': current_url,
+                'status': resp.getcode(),
+            })
+            final_url = resp.geturl()
+            return {
+                'final_status': resp.getcode(),
+                'final_url': final_url,
+                'hops': hops,
+                'redirect_count': len(hops) - 1,
+            }
+        except urllib.error.HTTPError as e:
+            status = e.getcode() or 0
+            hops.append({'url': current_url, 'status': status})
+            redir_url = e.headers.get('Location')
+            if redir_url and status in (301, 302, 303, 307, 308):
+                current_url = redir_url if redir_url.startswith('http') else \
+                    url.rstrip('/') + '/' + redir_url.lstrip('/')
+                continue
+            return {
+                'final_status': status,
+                'final_url': current_url,
+                'hops': hops,
+                'redirect_count': len(hops) - 1,
+            }
+        except (urllib.error.URLError, OSError, socket.timeout) as e:
+            return {
+                'final_status': 0,
+                'final_url': current_url,
+                'hops': hops,
+                'redirect_count': len(hops) - 1,
+                'error': str(e),
+            }
+    # Exceeded max hops
+    return {
+        'final_status': 0,
+        'final_url': current_url,
+        'hops': hops,
+        'redirect_count': max_hops,
+        'error': 'Max redirect hops exceeded',
+    }
+
+
+@register('internal_links')
+class InternalLinkChecker(BaseHealthCheck):
+    """
+    Scan all internal links (navigation, footer, blocks, CMS articles) for:
+      - Broken links (404/410)
+      - Redirect chains (301/302 → could be updated to final URL)
+      - Server errors
+      - Unreachable / timeout
+    """
+    check_key = 'internal_links'
+    name = 'Internal Link Check'
+    category = 'cms'
+    severity = 'warning'
+    description = 'Scan all internal links for broken, redirected, or problematic URLs'
+    sort_order = 40  # default
+
+    config_defaults = {
+        'max_urls': 50,
+        'timeout': 5,
+        'check_redirects': True,
+    }
+    config_schema = {
+        'type': 'object',
+        'properties': {
+            'max_urls': {'type': 'integer', 'default': 50, 'description': 'Max URLs to check per run'},
+            'timeout': {'type': 'integer', 'default': 5, 'description': 'Timeout per URL (seconds)'},
+            'check_redirects': {'type': 'boolean', 'default': True, 'description': 'Follow/check redirect chains'},
+        },
+    }
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    def _collect_urls(self, conn) -> list:
+        """Collect all URLs from database sources, return list of dicts."""
+        urls = []
+        seen_tables = set()
+
+        # Check which tables exist
+        existing = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+        for r in existing:
+            seen_tables.add(r['name'])
+
+        for table, field, id_field, title_field, source_type in _LINK_SOURCES:
+            if table not in seen_tables:
+                continue
+            try:
+                rows = conn.execute(
+                    f"SELECT {id_field} AS id, {title_field} AS title, "
+                    f"{field} AS url FROM {table} "
+                    f"WHERE {field} IS NOT NULL AND {field} != ''"
+                ).fetchall()
+                for r in rows:
+                    url = r['url'].strip()
+                    if url and url.startswith(('http://', 'https://', '/')):
+                        urls.append({
+                            'table': table,
+                            'field': field,
+                            'record_id': r['id'],
+                            'title': r['title'] or '',
+                            'url': url,
+                            'source_type': source_type,
+                        })
+            except Exception as e:
+                continue
+
+        # CMS article content — extract <a href> links
+        if 'cms_posts' in seen_tables:
+            try:
+                import re
+                posts = conn.execute(
+                    "SELECT id, title, content FROM cms_posts "
+                    "WHERE content IS NOT NULL AND content != ''"
+                ).fetchall()
+                for post in posts:
+                    hrefs = re.findall(
+                        r'<a\s+(?:[^>]*?\s+)?href="([^"]+)"',
+                        post['content'], re.IGNORECASE
+                    )
+                    for href in hrefs:
+                        h = href.strip()
+                        if h and h.startswith(('http://', 'https://', '/')):
+                            urls.append({
+                                'table': 'cms_posts',
+                                'field': 'content',
+                                'record_id': post['id'],
+                                'title': post['title'] or '',
+                                'url': h,
+                                'source_type': 'cms_article',
+                            })
+            except Exception:
+                pass
+
+        return urls
+
+    def _check_url(self, url_info: dict, timeout: int) -> dict:
+        """Check a single URL, return diagnostic result."""
+        url = url_info['url']
+        if url.startswith('/'):
+            # Relative URL — skip HTTP check, mark as internal reference
+            return {
+                **url_info,
+                'status': 'internal_path',
+                'http_status': None,
+                'message': 'Internal relative path (no HTTP check)',
+            }
+
+        result = _resolve_redirect_chain(url, max_hops=5, timeout=timeout)
+
+        final_status = result.get('final_status', 0)
+        status_label = _LINK_CHECK_RESULT_STATUS.get(final_status, 'unknown')
+        redirect_count = result.get('redirect_count', 0)
+        hops = result.get('hops', [])
+        error = result.get('error', '')
+
+        message_parts = []
+        if status_label == 'healthy':
+            message_parts.append('OK')
+        elif status_label == 'redirect':
+            message_parts.append(f'Redirects to: {result.get("final_url", "")}')
+        elif status_label == 'broken':
+            message_parts.append('Broken link (404/410)')
+        elif status_label == 'server_error':
+            message_parts.append(f'Server error ({final_status})')
+        else:
+            message_parts.append(error or f'HTTP {final_status}')
+
+        return {
+            **url_info,
+            'status': status_label,
+            'http_status': final_status,
+            'redirect_count': redirect_count,
+            'final_url': result.get('final_url') if redirect_count > 0 else None,
+            'hops': hops,
+            'message': ' — '.join(message_parts),
+        }
+
+    def _build_fix_suggestions(self, checked_urls: list) -> list:
+        """Generate fix suggestions from checked URLs."""
+        suggestions = []
+        processed_ids = set()
+
+        for item in checked_urls:
+            status = item.get('status', '')
+            table = item['table']
+            record_id = item['record_id']
+            field = item['field']
+
+            # Deduplicate by table+record_id+field
+            dedup_key = f'{table}:{record_id}:{field}'
+            if dedup_key in processed_ids:
+                continue
+            processed_ids.add(dedup_key)
+
+            if status == 'broken':
+                suggestions.append(FixSuggestion(
+                    action=FIX_ACTION_MARK_DISABLED,
+                    reason=f'Broken link returned 404/410: {item["url"]}',
+                    params={'table': table, 'record_id': record_id},
+                    record_type=item.get('source_type', ''),
+                ))
+            elif status == 'redirect' and item.get('final_url'):
+                suggestions.append(FixSuggestion(
+                    action=FIX_ACTION_UPDATE_URL,
+                    reason=f'Redirect chain: {item["url"]} → {item["final_url"]}',
+                    params={
+                        'table': table,
+                        'record_id': record_id,
+                        'field': field,
+                        'new_value': item['final_url'],
+                    },
+                    record_type=item.get('source_type', ''),
+                ))
+
+        return suggestions
+
+    # ── main check ────────────────────────────────────────────────────────
+
+    def check(self) -> CheckResult:
+        start = time.time()
+        max_urls = self.config.get('max_urls', 50)
+        timeout = self.config.get('timeout', 5)
+
+        try:
+            from models import get_db as main_db
+            conn = main_db()
+        except ImportError:
+            return CheckResult('warning', 0, 'Main DB not available, skip internal link check')
+
+        try:
+            # Collect URLs
+            all_urls = self._collect_urls(conn)
+            if not all_urls:
+                elapsed = int((time.time() - start) * 1000)
+                return CheckResult('passed', elapsed, 'No links to check', {'total_urls': 0})
+
+            # Check (limit to max_urls)
+            urls_to_check = all_urls[:max_urls]
+            checked = []
+            for u in urls_to_check:
+                try:
+                    result = self._check_url(u, timeout)
+                    checked.append(result)
+                except Exception as e:
+                    checked.append({**u, 'status': 'error', 'message': str(e)})
+
+            # Summary stats
+            total = len(checked)
+            healthy = sum(1 for c in checked if c['status'] == 'healthy')
+            broken = sum(1 for c in checked if c['status'] == 'broken')
+            redirects = sum(1 for c in checked if c['status'] == 'redirect')
+            internal_paths = sum(1 for c in checked if c['status'] == 'internal_path')
+            errors = sum(1 for c in checked if c['status'] in ('server_error', 'unknown', 'error'))
+
+            # Build fix suggestions
+            fix_suggestions = self._build_fix_suggestions(checked)
+
+            elapsed = int((time.time() - start) * 1000)
+            detail = {
+                'total_urls': len(all_urls),
+                'checked': total,
+                'healthy': healthy,
+                'broken': broken,
+                'redirects': redirects,
+                'internal_paths': internal_paths,
+                'errors': errors,
+                'items': [{
+                    'table': c.get('table', ''),
+                    'record_id': c.get('record_id', 0),
+                    'field': c.get('field', ''),
+                    'url': c.get('url', ''),
+                    'status': c.get('status', ''),
+                    'http_status': c.get('http_status'),
+                    'message': c.get('message', ''),
+                    'final_url': c.get('final_url'),
+                    'title': c.get('title', ''),
+                    'source_type': c.get('source_type', ''),
+                } for c in checked],
+                'fix_suggestions': [s.to_dict() for s in fix_suggestions],
+            }
+
+            if broken == 0 and errors == 0 and redirects == 0:
+                return CheckResult('passed', elapsed, f'All {total} links healthy', detail)
+
+            parts = []
+            if broken:
+                parts.append(f'{broken} broken')
+            if errors:
+                parts.append(f'{errors} errors')
+            if redirects:
+                parts.append(f'{redirects} redirects')
+            msg = ', '.join(parts) + f' of {total} links'
+            return CheckResult('warning', elapsed, msg, detail)
+
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Template for Adding New Checkers
 # ═══════════════════════════════════════════════════════════════════════════
 #
@@ -1085,7 +1505,7 @@ class MediaIntegrityChecker(BaseHealthCheck):
 # class YourCheck(BaseHealthCheck):
 #     check_key = 'your_check_key'
 #     name = 'Your Check Name'            # ← Display name in admin UI
-#     category = 'system'                 # ← Category: system/external/workflow/agent/cms/community/ssl/error
+#     category = 'system'                 # ← Category: system/external/workflow/agent/cms/ssl/error
 #     severity = 'warning'                # ← Severity: info/warning/critical
 #     description = 'Describe what this check does'
 #     sort_order = 55                     # ← Sort order (lower = higher priority)

@@ -15,8 +15,7 @@ easykai.cn（易站智能）是一个多服务微架构（非微服务）系统�
 |------|------|------|---------|
 | 管理后台 | agent.easykai.cn | 8084 | 全站管理、智能体矩阵、数据清洗、CMS |
 | 用户面板 | platform.easykai.cn | 8083 | 用户控制台、AI客服、RAG检索 |
-| 社区 | community.easykai.cn | 8082 | 纯AI Agent驱动的知识社区 + 聊天机器人 |
-| TradeMind | tm.easykai.cn | 8081 | A股智能分析系统 |
+
 | 官网门户 | (8083) | 8083 | CMS动态页面、产品展示 |
 
 **核心技术栈**：Python 3.12 + Flask（多服务独立进程）、SQLite (WAL模式)、Vanilla JS SPA + SSE流式
@@ -255,13 +254,6 @@ _stream()
   - 回退到 urllib 直接调用 DeepSeek API
 ```
 
-**知识来源（社区聊天机器人）**:
-1. **FAQ文件** (`community/easykai_faq.md`) — 硬编码的FAQ文档，约207行
-2. **FAQ-JSON** (`community/faq.json`) — 结构化FAQ，约5.8KB
-3. **白皮书** (`community/chatbot_whitepaper.md`) — 技术白皮书，约12KB
-4. **LLM自身知识** — 大模型训练数据中的通用知识
-5. **Agent Matrix 的 Kai Assistant 配置** — 从 `agent_matrix` 表读取 `system_prompt`
-
 **⚠️ 关键发现**: 社区聊天机器人**不查询 knowledge_blocks 表**。它的FAQ知识来自独立文件，与数据清洗模块的知识库是**两套独立的系统**。
 
 ### 4.6 抖音小程序AI客服
@@ -274,14 +266,7 @@ _stream()
 4. **不执行RAG检索**，不注入knowledge_blocks内容
 5. 消息直接透传到大模型，无知识增强
 
-### 4.7 cognition-service（独立的认知推理服务）
 
-这是一个**独立的服务**（PostgreSQL + pgvector），与主项目共享部分目录但使用独立数据库：
-
-- 主要用于 TradeMind 股票分析系统的 thesis（分析论点）的**语义向量存储与检索**
-- 使用 `sentence-transformers/all-MiniLM-L6-v2` 生成384维embedding
-- 通过 `pgvector` 实现余弦相似度搜索
-- **与主项目 data_cleaner → knowledge_blocks 体系完全隔离**
 
 ---
 
@@ -317,10 +302,7 @@ _stream()
 │  │ cleaned_id        │      │  - 仅关键词+字符检索                  │        │
 │  └──────────────────┘      └──────────┬───────────────────────────┘        │
 │                                       │                                    │
-│  ┌────────────────────────────────────┼──────┐                             │
-│  │  community/faq.json  ←─ 独立数据  │      │  ← 不互通                    │
-│  │  community/easykai_faq.md          │      │                             │
-│  └────────────────────────────────────┼──────┘                             │
+│                                       │                                    │
 └───────────────────────────────────────┼─────────────────────────────────────┘
                                         │
           ┌─────────────────────────────┼──────────────────────────┐
@@ -381,19 +363,12 @@ _stream()
 知识库A: knowledge_blocks (数据清洗产出，20+条种子+清洗条目)
   → 目前没有被任何聊天机器人消费
 
-知识库B: faq.json + easykai_faq.md (社区聊天机器人使用)
-  → 独立维护，与知识库A不同步
-
 知识库C: chatbot_whitepaper.md (社区聊天机器人使用)
   → 独立维护
 
 知识库D: prompts/master_prompt.md (Athena的AI知识)
   → 写死在Prompt中
 ```
-
-### 6.5 cognition-service 的割裂
-
-cognition-service 使用 PostgreSQL + pgvector，处理的是 TradeMind 证券分析的thesis语义检索，与主项目的知识库体系完全独立，不共享数据。
 
 ---
 

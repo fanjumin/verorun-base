@@ -37,7 +37,7 @@ class MyBusinessAPIHealthCheck(BaseHealthCheck):
     # ── Metadata (required) ──
     check_key = 'my_business_api'
     name = 'Business API Check'              # Name displayed in admin panel
-    category = 'external'              # Category: system/external/workflow/agent/cms/community/ssl/error
+    category = 'external'              # Category: system/external/workflow/agent/cms/ssl/error
     severity = 'warning'               # Severity: info/warning/critical
     description = 'Check availability and response time of a specific business API'
     sort_order = 55                    # Sort order (lower = higher priority)
@@ -169,39 +169,6 @@ CheckResult(
 ---
 
 ## Common Example Templates
-
-### Check a Specific Business API (e.g., Community Section Endpoints)
-
-```python
-@register('community_api')
-class CommunityAPIHealthCheck(BaseHealthCheck):
-    check_key = 'community_api'
-    name = 'Community API Check'
-    category = 'community'
-    severity = 'warning'
-    description = 'Check critical endpoints of the 7 community sections'
-    config_defaults = {'timeout': 10}
-
-    def check(self) -> CheckResult:
-        start = time.time()
-        sections = ['plaza', 'guilds', 'debates', 'alerts', 'ranking', 'arena', 'follows']
-        base = 'https://community.your-site.com'
-        results = {}
-        errors = 0
-
-        for section in sections:
-            url = f'{base}/{section}'
-            code, elapsed, _ = self._http_get(url, self.config.get('timeout', 5))
-            ok = code in (200, 302)
-            results[section] = {'code': code, 'ms': elapsed, 'ok': ok}
-            if not ok:
-                errors += 1
-
-        elapsed = int((time.time() - start) * 1000)
-        if errors == 0:
-            return CheckResult('passed', elapsed, f'All {len(sections)} sections OK')
-        return CheckResult('warning', elapsed, f'{errors}/{len(sections)} abnormal', {'sections': results})
-```
 
 ### Check Agent Matrix Master/Child Agents
 

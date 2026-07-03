@@ -338,7 +338,7 @@ function renderOverview(data) {
     h += '<div class="glass-card"><div class="ct">{{ _('Category Status') }}</div><div class="cat-grid">';
     var catNames = {
       'system':'🔧 {{ _('System') }}', 'external':'🌐 {{ _('External Dependencies') }}', 'workflow':'⚡ {{ _('Workflow') }}',
-      'agent':'🤖 Agent', 'cms':'📄 {{ _('Content') }}', 'community':'🌍 {{ _('Community') }}',
+      'agent':'🤖 Agent', 'cms':'📄 {{ _('Content') }}',
       'ssl':'🔒 SSL', 'error':'📝 {{ _('Log') }}'
     };
     for (var cat in data.categories) {
@@ -422,7 +422,7 @@ function renderDetailFilter(items) {
   var cats = {};
   items.forEach(function(i){cats[i.category]=true});
   var h = '<button class="filter-btn active" onclick="filterDetail(this,\'\')">{{ _('All (') }}'+items.length+')</button>';
-  var catNames = {'system':'{{ _('System') }}','external':'{{ _('External') }}','workflow':'{{ _('Workflow') }}','agent':'Agent','cms':'{{ _('Content') }}','community':'{{ _('Community') }}','ssl':'SSL','error':'{{ _('Log') }}'};
+  var catNames = {'system':'{{ _('System') }}','external':'{{ _('External') }}','workflow':'{{ _('Workflow') }}','agent':'Agent','cms':'{{ _('Content') }}','ssl':'SSL','error':'{{ _('Log') }}'};
   for (var cat in cats) {
     var cnt = items.filter(function(i){return i.category==cat}).length;
     h += '<button class="filter-btn" onclick="filterDetail(this,\''+cat+'\')">'+(catNames[cat]||cat)+' ('+cnt+')</button>';
@@ -694,7 +694,7 @@ function loadChecks() {
     h += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end">';
     h += '<div><label style="font-size:10px;color:var(--dim);display:block">Key</label><input id="newKey" placeholder="my_custom_check" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"></div>';
     h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Name') }}</label><input id="newName" placeholder="{{ _('Custom Check" style') }}="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"></div>';
-    h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Categories') }}</label><select id="newCat" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"><option>system</option><option>external</option><option>workflow</option><option>agent</option><option>cms</option><option>community</option><option>ssl</option><option>error</option></select></div>';
+    h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Categories') }}</label><select id="newCat" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"><option>system</option><option>external</option><option>workflow</option><option>agent</option><option>cms</option><option>ssl</option><option>error</option></select></div>';
     h += '<div><label style="font-size:10px;color:var(--dim);display:block">{{ _('Level') }}</label><select id="newSev" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px"><option>warning</option><option>critical</option><option>info</option></select></div>';
     h += '<div style="padding-top:14px"><button class="btn btn-primary btn-sm" onclick="addCustomCheck()">{{ _('Add') }}</button></div>';
     h += '</div></div>';

@@ -15,23 +15,10 @@
 
 ## 管辖范围
 - 易站智能（官网门户）
-- community.easykai.cn（智能体 社区）
-- tm.easykai.cn（TradeMind 股票分析）
 - platform.easykai.cn（用户控制面板）
 - agent.easykai.cn（管理后台）
 
 ## 产品知识
-### TradeMind
-- A股智能分析系统，支持实时行情、技术指标、AI选股
-- Standard 88元/月，Pro 198元/月，年付有优惠
-- 网址：https://tm.easykai.cn
-
-### 智能体 社区
-- 纯 智能体 驱动的知识社区（Agent 发帖/投票/评论，人类浏览）
-- 有等级体系、代币经济、任务系统
-- Free/Standard(88元/月)/Pro(198元/月)
-- 网址：https://community.easykai.cn
-
 ### Hermes Agent
 - 开源 智能体 CLI 框架
 - 多模型、多平台、技能系统

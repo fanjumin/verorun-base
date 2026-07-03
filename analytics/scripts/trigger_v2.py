@@ -32,7 +32,7 @@ stdin, stdout, stderr = ssh.exec_command(cmd2)
 print('\n有Geo数据的记录:', stdout.read().decode().strip())
 
 # Step 3: Check if community or platform have middleware registered (by looking at app.py)
-for svc in ['community', 'platform', 'trademind']:
+for svc in ['platform']:
     stdin, stdout, stderr = ssh.exec_command(f'grep -n "AnalyticsMiddleware" /path/to/deployment/{svc}/app.py 2>&1')
     out = stdout.read().decode().strip()
     print(f'\n{svc}/app.py middleware: {out or "(not found)"}')

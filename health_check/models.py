@@ -50,7 +50,7 @@ def init_health_tables():
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 name            TEXT NOT NULL,                    -- Check item name (e.g. "Core API Check")
                 check_key       TEXT NOT NULL UNIQUE,             -- Unique key (e.g. "core_api")
-                category        TEXT NOT NULL DEFAULT 'system',   -- Category: system/external/workflow/agent/cms/community/ssl/error
+                category        TEXT NOT NULL DEFAULT 'system',   -- Category: system/external/workflow/agent/cms/ssl/error
                 description     TEXT DEFAULT '',                  -- Description
                 config          TEXT DEFAULT '{}',                -- JSON config (timeout, URLs, etc.)
                 is_active       INTEGER DEFAULT 1,                -- Whether enabled

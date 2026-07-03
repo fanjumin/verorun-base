@@ -84,12 +84,6 @@ window.l_brand=function(){
       h+='</div>';
     });
     h+='</div>';
-    // {{ _('Sub-brand Management') }}（TradeMind）- {{ _('Expandable') }}
-    h+='<div class="cd" style="margin-bottom:16px;border-left:3px solid var(--accent)">';
-    h+='<div class="st" style="cursor:pointer;margin:0;padding:12px 16px;user-select:none" id="subbrand_hdr" onclick="toggleSubBrand()">▶ {{ _('Sub-brand Management') }}</div>';
-    h+='<div id="subbrand_body" style="display:none;padding:0 16px 12px">';
-    h+='<div id="subbrand_content" style="min-height:40px"></div>';
-    h+='</div></div>';
     h+='<div class="cd" style="margin-bottom:16px"><div class="st">Favicon（{{ _('Optional') }}）</div>';
     h+='<div style="display:flex;gap:12px;align-items:center;margin-top:8px">';
     if(b.favicon_url){h+='<img src="'+escAttr(b.favicon_url)+'" style="width:32px;height:32px;border-radius:4px">';}
@@ -185,89 +179,4 @@ function brandDeleteLogoIcon(){
     }).catch(function(){showToast("{{ _('Operation Failed') }}","error")});
 }
 
-// =============================================
-// {{ _('Sub-brand Management') }} — {{ _('Inlined in Brand Settings Page') }}
-// =============================================
-var subBrandLoaded=false;
-function toggleSubBrand(){
-  var body=document.getElementById("subbrand_body");
-  var hdr=document.getElementById("subbrand_hdr");
-  if(!subBrandLoaded){
-    hdr.textContent='{{ _('▼ Sub-brand Management') }}';
-    body.style.display="block";
-    loadTmBrand();
-    subBrandLoaded=true;
-  }else{
-    var vis=body.style.display==="none";
-    body.style.display=vis?"block":"none";
-    hdr.textContent=(vis?"▼":"▶")+" {{ _('Sub-brand Management') }}";
-  }
-}
 
-function loadTmBrand(){
-  var el=document.getElementById("subbrand_content");
-  el.innerHTML='<div class="lo" style="margin:12px 0"><div class="s"></div>{{ _('Loading...') }}...</div>';
-  fetch("/admin/tm-brand-settings",{headers:{"Authorization":"Bearer "+T}})
-    .then(function(r){return r.json()})
-    .then(function(d){
-      if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:loadTmBrand()">{{ _('Retry') }}</a></div>';return;}
-      renderTmBrandInline(d.data);
-    }).catch(function(){el.innerHTML='<div class="em">{{ _('Connection Failed') }} — <a href="javascript:loadTmBrand()">{{ _('Retry') }}</a></div>';});
-}
-
-function renderTmBrandInline(b){
-  var h='';
-  // Logo
-  h+='<div style="margin-top:8px"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">TradeMind Logo</div>';
-  h+='<div style="display:flex;gap:16px;align-items:center">';
-  h+='<div style="width:80px;height:40px;background:var(--card);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center">';
-  h+=b.logo_url?'<img src="'+escAttr(b.logo_url)+'" style="max-width:72px;max-height:36px;object-fit:contain">':'<span style="font-size:20px;font-weight:900;color:var(--dim)">TM</span>';
-  h+='</div>';
-  h+='<div><label class="btn btn-sm bp" style="cursor:pointer;margin-right:8px">{{ _('Upload') }} Logo<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" onchange="tmBrandUploadLogo(this)"></label>';
-  if(b.logo_url){h+='<button class="btn btn-sm" style="color:var(--rose);border-color:var(--rose)" onclick="tmBrandDeleteLogo()">{{ _('Reset to Default') }}</button>';}
-  h+='<div style="font-size:11px;color:var(--dim);margin-top:4px">{{ _('Suggestion') }} 200×50px PNG/SVG，{{ _('Max') }} 500KB</div>';
-  h+='</div></div></div>';
-
-  var tmFields=[
-    {k:'site_name_cn',label:'{{ _('Chinese Name') }}',ph:''},
-    {k:'site_name_en',label:'{{ _('English Name') }}',ph:''},
-    {k:'slogan',label:'Slogan / {{ _('Slogan') }}',ph:'AI{{ _('Driven') }}A{{ _('Stock Analysis Platform') }}'},
-    {k:'tagline',label:'Tagline / {{ _('Subtitle') }}',ph:''},
-    {k:'description',label:'{{ _('Product Description') }}',ph:'{{ _('For') }}A{{ _('Data Analysis for Retail & Professional Investors') }}API{{ _('Platform') }}。',ta:true},
-    {k:'copyright',label:'{{ _('Copyright') }}',ph:''},
-  ];
-  h+='<div style="margin-top:12px"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">{{ _('Brand Info') }}</div>';
-  tmFields.forEach(function(f){
-    h+='<div style="margin-bottom:10px">';
-    h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:3px">'+esc(f.label)+'</label>';
-    if(f.ta){
-      h+='<textarea class="in" id="tmb_'+f.k+'" style="width:100%;min-height:40px;resize:vertical">'+esc(b[f.k]||'')+'</textarea>';
-    }else{
-      h+='<input class="in" id="tmb_'+f.k+'" value="'+escAttr(b[f.k]||'')+'" placeholder="'+esc(f.ph)+'" style="width:100%">';
-    }
-    h+='</div>';
-  });
-  h+='</div>';
-
-  var tmSeo=[
-    {k:'seo_title',label:'SEO Title',ph:'TradeMind — AI{{ _('Driven') }}A{{ _('Stock Analysis Platform') }}'},
-    {k:'seo_desc',label:'SEO Description',ph:'{{ _('For') }}A{{ _('Data Analysis for Retail & Professional Investors') }}API{{ _('Platform') }}。'},
-  ];
-  h+='<div style="margin-top:12px"><div style="font-size:12px;color:var(--dim);margin-bottom:6px">SEO {{ _('Settings') }}</div>';
-  tmSeo.forEach(function(f){
-    h+='<div style="margin-bottom:10px">';
-    h+='<label style="display:block;font-size:12px;color:var(--text);margin-bottom:3px">'+esc(f.label)+'</label>';
-    h+='<textarea class="in" id="tmb_'+f.k+'" style="width:100%;min-height:36px;resize:vertical">'+esc(b[f.k]||'')+'</textarea>';
-    h+='</div>';
-  });
-  h+='</div>';
-  h+='<div style="text-align:center;margin-top:16px">';
-  h+='<button class="btn bp" style="padding:8px 32px;font-size:14px" onclick="tmBrandSave()">{{ _('Save Sub-brand Settings') }}</button>';
-  h+='</div>';
-  document.getElementById("subbrand_content").innerHTML=h;
-}
-
-// 原 TradeMind {{ _('Standalone Page Render') }}（{{ _('Kept for Backward Compatibility') }}，{{ _('But No Longer Called from Sidebar') }}）
-// =============================================
-// TradeMind {{ _('Sub Brand Settings') }}
-// =============================================

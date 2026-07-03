@@ -19,7 +19,7 @@ for name, cmd in [
     print('Recreated', name)
     time.sleep(4)
 
-for name, port in [('admin',8084),('platform',8083),('community',8082),('trademind',8081)]:
+for name, port in [('admin',8084),('platform',8083),('trademind',8081)]:
     stdin, stdout, stderr = ssh.exec_command('curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:' + str(port) + '/ 2>&1')
     code = stdout.read().decode().strip()
     print(f'{name}:{port} -> HTTP {code}')

@@ -35,15 +35,6 @@ stdin, stdout, stderr = ssh.exec_command(
 )
 print(stdout.read().decode().strip())
 
-# 4. Restart community (tmux community)
-print("\n=== 重启 community (tmux community) ===")
-stdin, stdout, stderr = ssh.exec_command(
-    'tmux send-keys -t community C-c; sleep 1; '
-    'tmux send-keys -t community "python3 -B app.py" Enter; sleep 2; '
-    'curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8082/'
-)
-print(stdout.read().decode().strip())
-
 # 5. Restart trademind (systemd)
 print("\n=== 重启 trademind (systemd trademind-api.service) ===")
 stdin, stdout, stderr = ssh.exec_command('sudo systemctl restart trademind-api.service 2>&1')

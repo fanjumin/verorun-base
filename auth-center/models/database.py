@@ -161,7 +161,7 @@ def init_db():
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id         INTEGER NOT NULL REFERENCES users(id),
                 agent_name      TEXT NOT NULL DEFAULT '',
-                agent_type      TEXT NOT NULL DEFAULT 'personal',  -- personal / community / trading
+                agent_type      TEXT NOT NULL DEFAULT 'personal',  -- personal / trading
                 avatar_url      TEXT DEFAULT '',
                 status          TEXT DEFAULT 'active',  -- active / inactive / suspended
                 default_scopes  TEXT DEFAULT '[]',      -- JSON: ["stock:read","market:alert"]
@@ -548,22 +548,6 @@ def init_db():
                 updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
             );
             INSERT OR IGNORE INTO brand_settings (id) VALUES (1);
-
-            CREATE TABLE IF NOT EXISTS tm_brand_settings (
-                id              INTEGER PRIMARY KEY CHECK (id = 1),
-                site_name_cn    TEXT NOT NULL DEFAULT '',
-                site_name_en    TEXT NOT NULL DEFAULT '',
-                slogan          TEXT NOT NULL DEFAULT '',
-                tagline         TEXT NOT NULL DEFAULT '',
-                description     TEXT NOT NULL DEFAULT '',
-                copyright       TEXT NOT NULL DEFAULT '',
-                seo_title       TEXT NOT NULL DEFAULT '',
-                seo_desc        TEXT NOT NULL DEFAULT '',
-                logo_url        TEXT NOT NULL DEFAULT '',
-                logo_icon_url   TEXT NOT NULL DEFAULT '',
-                updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-            INSERT OR IGNORE INTO tm_brand_settings (id) VALUES (1);
         """)
         # ── 迁移：为已有 user_tickets 表补字段 ──
         import logging
@@ -1783,7 +1767,6 @@ def init_db():
         BASE = os.environ.get('PROJECT_ROOT', os.path.expanduser('~/project'))
         DOMAIN = os.environ.get('DEPLOY_DOMAIN', '')
         seeds = [
-            ('trademind', 'Trading Module',  f'tm.{DOMAIN}',        8081, 'tmux',  'trademind',         f'{BASE}/trademind',  'python3 -B app.py 8081', 1),
             ('platform',  '用户面板',   f'platform.{DOMAIN}',  8083, 'tmux',  'platform',          f'{BASE}/platform',   'python3 -B app.py 8083', 3),
             ('admin',     '管理后台',   f'agent.{DOMAIN}',     8084, 'tmux',  'admin-8084',        f'{BASE}/admin',      'python3 -B app.py 8084', 4),
         ]

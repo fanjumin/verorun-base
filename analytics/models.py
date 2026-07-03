@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS analytics_logs (
     status_code INTEGER DEFAULT 200,     -- HTTP 状态码
     response_time INTEGER DEFAULT 0,     -- 响应耗时（毫秒）
     request_method TEXT DEFAULT 'GET',   -- 请求方法
-    service_name TEXT DEFAULT '',        -- 来源服务名（platform / admin / community）
+    service_name TEXT DEFAULT '',        -- 来源服务名（platform / admin）
     full_url TEXT,                       -- 完整 URL（脱敏后）
     content_type TEXT DEFAULT 'text/html' -- 内容类型
 );

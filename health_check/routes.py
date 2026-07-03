@@ -681,21 +681,18 @@ def api_fix():
         for s_data in to_apply:
             try:
                 sug = FixSuggestion(
-                    record_type=s_data.get('record_type', ''),
-                    table=s_data.get('table', ''),
-                    record_id=s_data.get('record_id', 0),
-                    field=s_data.get('field', ''),
-                    missing_path=s_data.get('missing_path', ''),
                     action=s_data.get('action', 'clear_field'),
                     reason=s_data.get('reason', ''),
+                    params=s_data.get('params', {}),
+                    record_type=s_data.get('record_type', ''),
                 )
                 ok = FixSuggestion.apply_fix(conn, sug)
                 if ok:
                     applied += 1
                 else:
-                    errors.append(f"ID={sug.record_id}: Execution failed")
+                    errors.append(f"Action={sug.action}: Execution failed")
             except Exception as e:
-                errors.append(f"ID={s_data.get('record_id')}: {e}")
+                errors.append(f"Action={s_data.get('action')}: {e}")
         conn.commit()
 
     return jsonify({
@@ -707,6 +704,215 @@ def api_fix():
             'run_id': run_id,
         },
         'message': _('Fixed {applied}/{total} records').format(applied=applied, total=len(to_apply))
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Internal Link Scan & Report
+# ═══════════════════════════════════════════════════════════════════════════
+
+@health_bp.route('/api/links/scan', methods=['POST'])
+def api_links_scan():
+    """
+    Trigger an internal link scan and return results immediately.
+    Request body (optional):
+    {
+        "max_urls": 50,
+        "timeout": 5
+    }
+    """
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    from .checkers import InternalLinkChecker
+
+    checker = InternalLinkChecker()
+    checker.config = {
+        'max_urls': data.get('max_urls', checker.config_defaults.get('max_urls', 50)),
+        'timeout': data.get('timeout', checker.config_defaults.get('timeout', 5)),
+    }
+
+    result = checker.check()
+
+    response_data = {
+        'status': result.status,
+        'elapsed_ms': result.elapsed_ms,
+        'message': result.message,
+        'detail': result.detail,
+        'success': True,
+    }
+    return jsonify(response_data)
+
+
+@health_bp.route('/api/links/report', methods=['GET'])
+def api_links_report():
+    """
+    Get the latest link check report from check_history.
+    Query params:
+        check_key (optional, default: internal_links)
+        limit (optional, default: 1 — most recent run)
+    """
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    check_key = request.args.get('check_key', 'internal_links')
+    limit = request.args.get('limit', 1, type=int)
+
+    with m.get_db() as conn:
+        rows = conn.execute(
+            'SELECT * FROM check_history WHERE check_key=? '
+            'ORDER BY run_id DESC LIMIT ?',
+            (check_key, limit)
+        ).fetchall()
+
+    if not rows:
+        return jsonify({
+            'success': True,
+            'data': None,
+            'message': _('No reports found for this check'),
+        })
+
+    reports = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d['detail'] = json.loads(d.get('detail', '{}'))
+        except (json.JSONDecodeError, TypeError):
+            d['detail'] = {}
+        reports.append(d)
+
+    return jsonify({'success': True, 'data': reports})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AI-Powered Analysis & Fix
+# ═══════════════════════════════════════════════════════════════════════════
+
+@health_bp.route('/api/ai-analyze', methods=['POST'])
+def api_ai_analyze():
+    """
+    Send health check results to LLM for analysis.
+    Returns root cause analysis + repair suggestions.
+
+    Request body:
+    {
+        "run_id": 123,
+        "check_key": "internal_links",
+        "detail": {}  // Optional — if provided, uses this instead of fetching from DB
+    }
+    """
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    run_id = data.get('run_id')
+    check_key = data.get('check_key', '')
+    detail_override = data.get('detail')
+
+    if not check_key and not detail_override:
+        return jsonify({'success': False, 'error': 'check_key or detail is required'}), 400
+
+    # Fetch detail from DB if not provided
+    if not detail_override and run_id:
+        with m.get_db() as conn:
+            row = conn.execute(
+                'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
+                (run_id, check_key)
+            ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Check result not found')}), 404
+        detail_override = json.loads(row.get('detail', '{}')) if isinstance(row.get('detail'), str) else row.get('detail', {})
+
+    # Build input for LLM
+    check_results = {
+        'check_key': check_key or 'manual',
+        'detail': detail_override or {},
+    }
+
+    from .ai_fixer import AIFixer
+    fixer = AIFixer()
+    plan = fixer.analyze(check_results)
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'summary': plan.get('summary', ''),
+            'items': plan.get('items', []),
+            'raw_plan': plan,
+        }
+    })
+
+
+@health_bp.route('/api/ai-fix', methods=['POST'])
+def api_ai_fix():
+    """
+    Execute AI-suggested fixes for a health check result.
+
+    Request body:
+    {
+        "run_id": 123,
+        "check_key": "internal_links",
+        "items": [          // Optional — fix items from a previous ai-analyze response
+            {"action": "update_url", "params": {...}, "reason": "..."}
+        ],
+        "confirm": true     // Must be true to execute
+    }
+    """
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    confirm = data.get('confirm', False)
+    run_id = data.get('run_id')
+    check_key = data.get('check_key', '')
+    items = data.get('items')
+
+    if not confirm:
+        return jsonify({'success': False, 'error': 'Please confirm execution (confirm: true)'}), 400
+
+    if not items:
+        return jsonify({'success': False, 'error': 'No fix items provided'}), 400
+
+    from .ai_fixer import AIFixer
+    from .checkers import FixSuggestion, ALL_FIX_ACTIONS
+
+    fixer = AIFixer()
+    suggestions = []
+    for item in items:
+        action = item.get('action', '')
+        if action not in ALL_FIX_ACTIONS:
+            continue
+        suggestions.append(FixSuggestion(
+            action=action,
+            reason=item.get('reason', ''),
+            params=item.get('params', {}),
+            record_type=check_key,
+        ))
+
+    if not suggestions:
+        return jsonify({'success': False, 'error': 'No valid fix actions found'}), 400
+
+    with m.get_db() as conn:
+        result = fixer.execute_fix(conn, suggestions)
+        conn.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'applied': result['applied'],
+            'total': result['total'],
+            'errors': result['errors'],
+            'run_id': run_id,
+            'check_key': check_key,
+        },
+        'message': _('Applied {applied}/{total} fixes').format(
+            applied=result['applied'], total=result['total']
+        )
     })
 
 

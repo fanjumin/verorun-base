@@ -29,7 +29,7 @@ def _require_auth():
 
 def _get_user_app(payload):
     user_id = payload['user_id']
-    app_name = payload.get('app_name', 'trademind')
+    app_name = payload.get('app_name', 'platform')
     with get_db() as conn:
         user = conn.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
         authz = conn.execute(
@@ -59,7 +59,7 @@ def profile():
         'douyin_nickname': user['douyin_nickname'],
         'created_at': user['created_at'],
         'last_login': user['last_login'],
-        'app': payload.get('app_name', 'trademind'),
+        'app': payload.get('app_name', 'platform'),
         'tier': authz['tier'] if authz else 'free',
         'tier_name': tier_info.get('name', 'Free'),
         'tier_desc': tier_info.get('desc', ''),
@@ -223,7 +223,7 @@ def list_keys():
     payload, err = _require_auth()
     if err:
         return err
-    app_name = payload.get('app_name', 'trademind')
+    app_name = payload.get('app_name', 'platform')
     with get_db() as conn:
         rows = conn.execute(
             'SELECT id, key_prefix, name, calls_today, calls_total, created_at, expire_at, last_used, active '
@@ -242,7 +242,7 @@ def generate_key():
         return err
     data = request.get_json() or {}
     name = data.get('name', '')
-    app_name = payload.get('app_name', 'trademind')
+    app_name = payload.get('app_name', 'platform')
     user_id = payload['user_id']
     # Determine max tier
     with get_db() as conn:
@@ -489,7 +489,7 @@ def password_login():
         conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (?,?,1)',
                      (login_field, request.remote_addr or 'unknown'))
         conn.commit()
-    token = create_token(user['id'], phone=user['phone'], app_name='trademind', is_admin=user['is_admin'])
+    token = create_token(user['id'], phone=user['phone'], app_name='platform', is_admin=user['is_admin'])
     # IAM v2: record session on successful login
     with get_db() as conn:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -521,7 +521,7 @@ def usage_history():
     payload, err = _require_auth()
     if err:
         return err
-    app_name = payload.get('app_name', 'trademind')
+    app_name = payload.get('app_name', 'platform')
     user_id = payload['user_id']
     # Simple approach: return the current snapshot
     with get_db() as conn:

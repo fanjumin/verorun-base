@@ -59,8 +59,6 @@ class DeployConfig:
             'email_postmaster': cls.email('postmaster'),
             'email_hi': cls.email('hi'),
             'server_name': cls.server_name(),
-            'server_name_tm': cls.server_name('tm'),
-            'server_name_community': cls.server_name('community'),
             'server_name_platform': cls.server_name('platform'),
             'server_name_agent': cls.server_name('agent'),
             'server_name_bot': cls.server_name('bot'),

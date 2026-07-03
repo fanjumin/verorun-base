@@ -304,14 +304,6 @@ DEFAULT_AGENTS = [
         "is_active": 1
     },
     {
-        "name": "Community Agent", "role_type": "sub",
-        "description": "社区运营专员 — 社区内容、社区板块、邮件、短信",
-        "domain": "community",
-        "managed_modules": '["posts","community","email","sms"]',
-        "system_prompt": "prompts/sub_community_prompt.md",
-        "is_active": 1
-    },
-    {
         "name": "Automation Agent", "role_type": "sub",
         "description": "自动化专家 — Cron任务、Workflow、DAG编排",
         "domain": "automation",

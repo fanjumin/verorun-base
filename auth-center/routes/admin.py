@@ -456,7 +456,7 @@ def user_list():
         r = '%' + region + '%'
         params.extend([r, r, r])
     wsql = 'WHERE ' + ' AND '.join(where) if where else ''
-    from_sql = ("FROM users u LEFT JOIN app_authorizations a ON u.id=a.user_id AND a.app_name='trademind' "
+    from_sql = ("FROM users u "
                 "LEFT JOIN user_profiles p ON u.id=p.user_id "
                 "LEFT JOIN user_addresses pa ON u.id=pa.user_id AND pa.is_default=1 AND pa.status=1")
     if industry or occupation or region:
@@ -465,7 +465,7 @@ def user_list():
     sql = ("SELECT u.id, u.phone, IFNULL(u.display_name, u.username) as nickname, u.email, u.wechat_nickname, "
            "COALESCE((SELECT COUNT(*) FROM user_agents WHERE user_id=u.id),0) as agent_count, "
            "'' as agent_nickname, u.is_admin, u.active, u.created_at, u.last_login, "
-           "a.tier, a.tier_expire_at, "
+           "'' as tier, '' as tier_expire_at, "
            "u.verified_by, u.verified_at, "
            "IFNULL(p.industry,'') as industry, IFNULL(p.occupation,'') as occupation "
            + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?')
@@ -2588,11 +2588,10 @@ def user_export():
         "IFNULL(p.industry,'') as industry, IFNULL(p.occupation,'') as occupation, "
         "IFNULL(pa.province_code,'') as province, IFNULL(pa.city_code,'') as city, "
         "IFNULL(pa.district_code,'') as district, "
-        "a.tier, u.created_at "
+        "'' as tier, u.created_at "
         "FROM users u "
         "LEFT JOIN user_profiles p ON u.id=p.user_id "
         "LEFT JOIN user_addresses pa ON u.id=pa.user_id AND pa.is_default=1 AND pa.status=1 "
-        "LEFT JOIN app_authorizations a ON u.id=a.user_id AND a.app_name='trademind' "
         + wsql + ' ORDER BY u.id'
     )
 
@@ -2691,7 +2690,7 @@ def _save_brand_image(subdir, file_key):
     with open(os.path.join(admin_dir, fname), 'wb') as f:
         f.write(data)
     # Sync to all other services that might serve brand images
-    for svc in ('platform', 'trademind'):
+    for svc in ('platform',):
         svc_dir = os.path.join(base, svc, 'static', 'brand')
         os.makedirs(svc_dir, exist_ok=True)
         with open(os.path.join(svc_dir, fname), 'wb') as f:
@@ -2748,65 +2747,6 @@ def delete_brand_favicon():
     _log(admin['user_id'], 'delete_brand_favicon')
     return jsonify({'success': True})
 
-
-# ═══════════════════════════════════════════
-#  TradeMind 子品牌设置
-# ═══════════════════════════════════════════
-
-@admin_bp.route('/tm-brand-settings', methods=['GET'])
-def get_tm_brand_settings():
-    admin, err = _require_admin()
-    if err: return err
-    with get_db() as conn:
-        row = conn.execute('SELECT * FROM tm_brand_settings WHERE id=1').fetchone()
-    if row:
-        return jsonify({'success': True, 'data': dict(row)})
-    return jsonify({'success': True, 'data': None})
-
-
-@admin_bp.route('/tm-brand-settings', methods=['PUT'])
-def update_tm_brand_settings():
-    admin, err = _require_admin()
-    if err: return err
-    data = request.get_json(silent=True) or {}
-    allowed = ['site_name_cn', 'site_name_en', 'slogan', 'tagline',
-               'description', 'copyright', 'seo_title', 'seo_desc',
-               'logo_url', 'logo_icon_url']
-    updates = {k: data[k] for k in allowed if k in data}
-    if not updates:
-        return jsonify({'success': False, 'error': '无有效更新字段'}), 400
-    sets = ', '.join(f'{k}=?' for k in updates)
-    vals = list(updates.values()) + [1]
-    with get_db() as conn:
-        conn.execute(f'UPDATE tm_brand_settings SET {sets}, updated_at=datetime(\'now\') WHERE id=?', vals)
-        conn.commit()
-    _log(admin['user_id'], 'update_tm_brand', detail=str(list(updates.keys())))
-    return jsonify({'success': True})
-
-
-@admin_bp.route('/tm-brand-settings/logo', methods=['POST'])
-def upload_tm_brand_logo():
-    admin, err = _require_admin()
-    if err: return err
-    url, error = _save_brand_image('tm_logo', 'tm_logo')
-    if error:
-        return jsonify({'success': False, 'error': error}), 400
-    with get_db() as conn:
-        conn.execute("UPDATE tm_brand_settings SET logo_url=?, updated_at=datetime('now') WHERE id=1", (url,))
-        conn.commit()
-    _log(admin['user_id'], 'upload_tm_brand_logo', detail=url)
-    return jsonify({'success': True, 'logo_url': url})
-
-
-@admin_bp.route('/tm-brand-settings/logo', methods=['DELETE'])
-def delete_tm_brand_logo():
-    admin, err = _require_admin()
-    if err: return err
-    with get_db() as conn:
-        conn.execute("UPDATE tm_brand_settings SET logo_url='', updated_at=datetime('now') WHERE id=1")
-        conn.commit()
-    _log(admin['user_id'], 'delete_tm_brand_logo')
-    return jsonify({'success': True})
 
 
 @admin_bp.route('/brand-settings/logo-icon', methods=['POST'])
@@ -4862,12 +4802,12 @@ def customer_list():
 
     wsql = 'WHERE ' + ' AND '.join(where) if where else ''
 
-    from_sql = ("FROM users u LEFT JOIN app_authorizations a ON u.id=a.user_id AND a.app_name='trademind'")
+    from_sql = ("FROM users u")
     sql = ("SELECT u.id, u.phone, IFNULL(u.display_name, u.username) as nickname, u.email, "
            "u.created_at, u.last_login, u.active, "
            "u.is_real_name_verified, u.real_name_verified_at, u.verified_by, "
            "u.enterprise_name, u.enterprise_tax_id, u.enterprise_verified, u.enterprise_verified_at, "
-           "COALESCE(a.tier, 'free') as plan_key, a.tier_expire_at as sub_expires "
+           "'' as plan_key, NULL as sub_expires "
            + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?')
     csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
 

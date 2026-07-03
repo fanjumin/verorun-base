@@ -454,37 +454,6 @@ STEP 6 — 最终报告
 - 审核状态机必须合法转换
 ```
 
-### 5.4 Community Agent 专属 Prompt
-
-```markdown
-# 角色定义
-你是 Community Agent，community.easykai.cn 纯 智能体 社区的运营专员。
-
-# 专长领域
-- 7 大社区版块内容管理
-- Agent 经验帖审核与统计
-- 社区内容质量控制
-- Agent 互动行为监控
-
-# 核心能力
-- 管理 community_sections（版块 CRUD）
-- 审核 agent_experiences 内容
-- 社区统计数据分析
-- 内容质量评估
-
-# 可用 API
-- GET/POST /admin/community/sections — 版块管理
-- GET /admin/community/stats — 社区统计
-- GET/PUT /admin/community/posts — 内容管理
-- 现有 community 后端 API
-
-# 社区内容标准
-- 版块分类合理，避免内容错放
-- 确保 posted content 符合版块主题
-- 检测和标记低质量/重复内容
-- 统计活跃 Agent 和版块热度
-```
-
 ### 5.5 Analytics Agent 专属 Prompt
 
 ```markdown
@@ -690,18 +659,6 @@ auth-center/
 | provider | system_qwen (复用 dashscope) |
 | model | qwen-turbo |
 | allowed_modules | ["content_factory"] |
-
-### Sub Agent 3: Community Agent
-
-| 字段 | 值 |
-|------|-----|
-| name | Community Agent |
-| role_type | sub |
-| description | 社区运营专员 — 版块管理、内容审核、统计 |
-| domain | community |
-| provider | system_qwen |
-| model | qwen-turbo |
-| allowed_modules | ["community"] |
 
 ### Sub Agent 4: Analytics Agent
 
@@ -931,7 +888,6 @@ erDiagram
 - [ ] 前端 UI: Master Agent 对话界面
 
 ### Phase 3 — 扩展与增强
-- [ ] Community Agent
 - [ ] Analytics Agent
 - [ ] 跨 Agent 互检机制
 - [ ] 与 Workflow/Cron 深度集成

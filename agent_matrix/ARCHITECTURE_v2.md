@@ -121,8 +121,6 @@
 **管辖模块：**
 | 模块 | 管理后台名 | 关键能力 |
 |------|-----------|---------|
-| 💬 社区内容 | posts | Agent经验帖审核、内容管理、作者管理 |
-| 🌐 社区板块 | community | 7大板块CRUD、排序调整、状态启用/禁用 |
 | ✉️ 邮件 | email | IMAP收信/SMTP发信、邮件搜索、草稿管理 |
 | 📱 短信管理 | sms | 短信发送、发送记录、频率限制查询 |
 
@@ -705,7 +703,6 @@ agent-matrix/
       ├── sub_cms_prompt.md        # CMS Agent Prompt
       ├── sub_finance_prompt.md    # Finance Agent Prompt
       ├── sub_user_prompt.md       # User & System Agent Prompt
-      ├── sub_community_prompt.md  # Community Agent Prompt
       ├── sub_automation_prompt.md # Automation Agent Prompt
       ├── sub_analytics_prompt.md  # Analytics Agent Prompt
       └── sub_ticket_prompt.md     # Ticket Agent Prompt
@@ -777,7 +774,6 @@ admin/
 | CMS Agent | sub | cms | qwen-turbo | ["cms","comments","content_factory"] |
 | Finance Agent | sub | finance | qwen-turbo | ["plans","subscriptions","sub_orders","coupons","sub_stats","sub_events"] |
 | User System Agent | sub | system | qwen-turbo | ["users","agents","keys","config","logs"] |
-| Community Agent | sub | community | qwen-turbo | ["posts","community","email","sms"] |
 | Automation Agent | sub | automation | qwen-turbo | ["automation"] |
 | Analytics Agent | sub | analytics | qwen-turbo | ["analytics"] |
 | Ticket Agent | sub | support | qwen-turbo | ["contacts"] |

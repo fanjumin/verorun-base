@@ -322,7 +322,7 @@ def admin_page():
     from flask import make_response
     token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
     if not token:
-        token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
+        token = request.cookies.get('sso_token')
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
         return redirect('/admin/login')
@@ -348,7 +348,7 @@ def admin_login_page():
     from services.jwt_service import validate_token
     token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
     if not token:
-        token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
+        token = request.cookies.get('sso_token')
     payload = validate_token(token) if token else None
     if payload and payload.get('is_admin'):
         return redirect('/admin')
@@ -488,7 +488,7 @@ def admin_login_action():
         return jsonify({'success': False, 'error': '密码错误'}), 400
 
     _admin_login_attempts.pop(attempt_key, None)
-    token = create_token(user['id'], phone=user['phone'], app_name='trademind', is_admin=True)
+    token = create_token(user['id'], phone=user['phone'], app_name='admin', is_admin=True)
     _log_admin_action(user['id'], 'login_success', ip, f'user={username} client={client_type}')
 
     return _make_login_response(token, client_type)

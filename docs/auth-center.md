@@ -330,11 +330,11 @@ deploy.server_name()    # 'easykai.cn'
 
 支持的子域名映射（`to_dict()` 注入模板用）：
 
-- `tm` → `tm.easykai.cn`
+
 - `platform` → `platform.easykai.cn`
 - `agent` → `agent.easykai.cn`
 - `bot` → `bot.easykai.cn`
-- `community` → `community.easykai.cn`
+
 
 邮箱别名：`support@`、`postmaster@`、`hi@`
 

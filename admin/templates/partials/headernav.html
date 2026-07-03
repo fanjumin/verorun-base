@@ -15,8 +15,6 @@ function renderHeaderNav(mc,site){
       // {{ _('Switch Site') }}
       h+='<div style="display:flex;gap:8px;margin-bottom:20px">';
       h+='<button class="btn '+(site==='platform'?'bp':'')+'" onclick="headerNavSwitch(\'platform\')">🌐 {{ _('Portal') }}</button>';
-      // 🏘 Community {{ _('Offline') }}
-      h+='<button class="btn '+(site==='trademind'?'bp':'')+'" onclick="headerNavSwitch(\'trademind\')">📈 TradeMind</button>';
       h+='</div>';
       // {{ _('Add Button') }}
       h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';

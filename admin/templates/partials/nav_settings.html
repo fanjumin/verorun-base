@@ -7,9 +7,7 @@ window.l_nav_settings=function(){
 function renderNavSettings(mc,tab){
   var tabs=[
     {key:'main',label:'{{ _('Main Nav') }}'},
-    {key:'platform',label:'{{ _('Sub-Site') }} · {{ _('Portal') }}'},
-    // {key:'community',label:'{{ _('Sub-Site') }} · Community'}, ({{ _('Offline') }})
-    {key:'trademind',label:'{{ _('Sub-Site') }} · TradeMind'}
+    {key:'platform',label:'{{ _('Sub-Site') }} · {{ _('Portal') }}'}
   ];
   var h='<div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">';
   tabs.forEach(function(t){

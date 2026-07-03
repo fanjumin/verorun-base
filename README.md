@@ -2,7 +2,7 @@
 
 **Multi-Agent AI Operating System** — 多智能体驱动的 AI 内容与商业枢纽
 
-VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、阿里巴巴供应链、自动化工作流、云服务开通等能力。
+VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、阿里巴巴供应链、自动化工作流、云服务开通等能力。
 
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
@@ -57,7 +57,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 
 位置：`agent_matrix/`
 
-这是本系统最核心的组件 — 一个 **1 + 12 的多智能体协作矩阵**。
+这是本系统最核心的组件 — 一个 **1 + 11 的多智能体协作矩阵**。
 
 #### 架构
 
@@ -73,15 +73,15 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
                         │
           Orchestrator  │  并行下发
                         │
-    ┌────────┬────────┬──┴──┬────────┬────────┐
-    ▼        ▼        ▼     ▼        ▼        ▼
+    ┌────────┬────────┬──┴──┬────────┬───────┐
+    ▼        ▼        ▼     ▼        ▼       ▼
  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────────┐
- │ Shop │ │ CMS  │ │Finance│ │User  │ │Community│ │Automation│
- │Agent │ │Agent │ │Agent │ │Agent │ │Agent   │ │Agent     │
- ├──────┤ ├──────┤ ├──────┤ ├──────┤ ├───────┤ ├──────────┤
- │Kai   │ │Image │ │Voice │ │Video │ │Ticket │ │Analytics │
- │Chat  │ │Agent │ │Agent │ │Agent │ │Agent  │ │Agent     │
- └──────┘ └──────┘ └──────┘ └──────┘ └───────┘ └──────────┘
+ │ Shop │ │ CMS  │ │Finance│ │User  │ │Ticket│ │Automation│
+ │Agent │ │Agent │ │Agent │ │Agent │ │Agent │ │Agent     │
+ ├──────┤ ├──────┤ ├──────┤ ├──────┤ ├──────┤ ├──────────┤
+ │Kai   │ │Image │ │Voice │ │Video │ │Analyt│ │          │
+ │Chat  │ │Agent │ │Agent │ │Agent │ │Agent │ │          │
+ └──────┘ └──────┘ └──────┘ └──────┘ └──────┘ └──────────┘
 ```
 
 #### AI 供应商
@@ -96,7 +96,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | **OpenRouter** | 备用供应商 | 多模型 |
 | **Ollama** | 本地推理 | 本地私有部署 |
 
-#### 13 个 Agent 职责
+#### 12 个 Agent 职责
 
 | Agent | 角色 | 模型 | 核心能力 |
 |-------|------|------|----------|
@@ -106,7 +106,6 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | **CMS Agent** | 内容管理 | deepseek-chat | 文章撰写、排版、配图生成、评论审核 |
 | **Finance Agent** | 财务管理 | deepseek-chat | 套餐、订阅、订单、收入统计 |
 | **User System Agent** | 系统管理 | deepseek-chat | 用户、API Key、系统配置 |
-| **Community Agent** | 社区运营 | deepseek-chat | 社区互动、邮件、短信推送 |
 | **Automation Agent** | 自动化 | deepseek-chat | Cron 任务配置、Workflow 编排 |
 | **Analytics Agent** | 数据分析 | deepseek-chat | 统计报告、趋势分析 |
 | **Ticket Agent** | 客服工单 | deepseek-chat | 工单管理、客户服务 |
@@ -535,11 +534,11 @@ VeroRunSystem/
 │   ├── agent_runner.py        # Agent 执行器
 │   ├── routes.py              # API 路由
 │   ├── models.py              # 数据模型 + 种子数据
-│   └── prompts/               # 13 个 Agent Prompt
+│   └── prompts/               # 12 个 Agent Prompt
 │       ├── master_prompt.md
 │       ├── sub_shop_prompt.md
 │       ├── sub_cms_prompt.md
-│       └── ... (13 个 .md 文件)
+│       └── ... (12 个 .md 文件)
 │
 ├── ali_api/                   # 阿里巴巴/1688 对接
 │   ├── config.py              # 配置

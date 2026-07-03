@@ -186,14 +186,12 @@ tr:hover td{background:rgba(99,102,241,.03)}
   if (serverToken && serverToken !== 'None' && serverToken.length > 20) {
     TOKEN = serverToken;
     localStorage.setItem('sso_token', TOKEN);
-    localStorage.setItem('tm_token', TOKEN);
     localStorage.setItem('token', TOKEN);
   }
   // 2) 使用 URL ?token= 参数
   else if (urlToken && urlToken.length > 20) {
     TOKEN = urlToken;
     localStorage.setItem('sso_token', TOKEN);
-    localStorage.setItem('tm_token', TOKEN);
     localStorage.setItem('token', TOKEN);
     window.history.replaceState({}, '', window.location.pathname);
   }
@@ -735,7 +733,7 @@ function showAddrForm(aid){
     h+='<select id="afCity" class="sl" onchange="loadRegions(\'district\')"><option value="">{{ _('City') }}</option></select>';
     h+='<select id="afDist" class="sl" onchange="loadRegions(\'street\')"><option value="">{{ _('District/County') }}</option></select>';
     h+='<select id="afStreet" class="sl" onchange="loadRegions(\'village\')"><option value="">{{ _('Town/Street') }}</option></select>';
-    h+='<select id="afVillage" class="sl"><option value="">{{ _('Village/Community') }}</option></select>';
+    h+='<select id="afVillage" class="sl"><option value="">{{ _('Village') }}</option></select>';
     h+='</div></div>';
     h+='<div class="field"><label>{{ _('Detailed Address') }}</label><input type="text" id="afAddr" class="in" style="flex:1" placeholder="街道/路/巷 + 门牌号" value="'+(addr?addr.street_address||'':'')+'"></div>';
     h+='<div class="field"><label>{{ _('Postal Code') }}</label><input type="text" id="afZip" class="in" style="width:120px" value="'+(addr?addr.postal_code||'':'')+'"></div>';
