@@ -478,8 +478,101 @@ function showDetail(itemId) {
 
   h += '</table>';
 
+  // AI Analyze & Fix buttons (only for non-passed checks)
+  if (item.status !== 'passed') {
+    var ck = esc(item.check_key).replace(/'/g,"\\'");
+    var ri = esc(String(item.run_id||'')).replace(/'/g,"\\'");
+    h += '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">';
+    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🤖 AI 分析</button>';
+    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')" style="background:var(--yellow);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🔧 一键修复</button>';
+    h += '</div>';
+    h += '<div id="aiResult_'+item.id+'" style="margin-top:8px;font-size:13px;color:var(--dim)"></div>';
+  }
+
   document.getElementById('modalBody').innerHTML = h;
   document.getElementById('detailModal').classList.add('show');
+}
+
+// ── AI Analyze ──
+function aiAnalyze(itemId) {
+  var items = _dataCache.status && _dataCache.status.latest_run ? _dataCache.status.latest_run.items : [];
+  var item = items.find(function(i){return i.id==itemId});
+  if (!item) return;
+  var el = document.getElementById('aiResult_'+itemId);
+  if (!el) return;
+  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div> AI 分析中...';
+
+  fetch('/admin/health/api/ai-analyze', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'},
+    body:JSON.stringify({check_key:item.check_key, run_id: item.run_id || null})
+  }).then(function(r){return r.json()})
+  .then(function(d){
+    if (d.success && d.data) {
+      var plan = d.data.raw_plan || d.data;
+      var itemsJson = JSON.stringify(plan.items || [], null, 2);
+      el.innerHTML = '<pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:12px;max-height:200px;overflow:auto">'+esc(itemsJson)+'</pre>';
+      // If there are fix items, show execute button
+      if (plan.items && plan.items.length > 0) {
+        el.innerHTML += '<div style="margin-top:8px"><button class="btn btn-sm" onclick="aiFix(\''+item.id+'\',\''+item.check_key+'\',\''+(item.run_id||'')+'\')" style="background:var(--yellow);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🔧 执行上述修复</button></div>';
+      }
+    } else {
+      el.innerHTML = '<span style="color:var(--red)">分析失败: '+esc(d.error||'')+'</span>';
+    }
+  }).catch(function(e){
+    el.innerHTML = '<span style="color:var(--red)">请求失败</span>';
+  });
+}
+
+// ── AI Fix (called after aiAnalyze) ──
+function aiFix(itemId, checkKey, runId) {
+  if (!confirm('确定执行 AI 修复？此操作不可自动撤销。')) return;
+  var items = _dataCache.status && _dataCache.status.latest_run ? _dataCache.status.latest_run.items : [];
+  var item = items.find(function(i){return i.id==itemId});
+  if (!item) return;
+  checkKey = checkKey || item.check_key;
+  runId = runId || item.run_id || null;
+  var el = document.getElementById('aiResult_'+itemId);
+  if (!el) return;
+  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div> 正在获取 AI 修复方案...';
+
+  // Step 1: analyze
+  fetch('/admin/health/api/ai-analyze', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'},
+    body:JSON.stringify({check_key:checkKey, run_id: runId})
+  }).then(function(r){return r.json()})
+  .then(function(ad){
+    if (!ad.success || !ad.data) {
+      el.innerHTML = '<span style="color:var(--red)">分析失败: '+(ad.error||'')+'</span>';
+      return;
+    }
+    var plan = ad.data.raw_plan || ad.data;
+    var fixItems = plan.items || [];
+    if (fixItems.length === 0) {
+      el.innerHTML = '<span style="color:var(--green)">✅ 无需修复</span>';
+      return;
+    }
+    el.innerHTML = '<div class="s" style="width:12px;height:12px"></div> 正在执行 ' + fixItems.length + ' 项修复...';
+
+    // Step 2: execute fix
+    return fetch('/admin/health/api/ai-fix', {
+      method:'POST',
+      headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'},
+      body:JSON.stringify({check_key:checkKey, run_id: runId, items: fixItems, confirm: true})
+    });
+  }).then(function(r){return r ? r.json() : null})
+  .then(function(d){
+    if (!d) return;
+    if (d.success) {
+      el.innerHTML = '<span style="color:var(--green)">✅ 修复完成: '+(d.message||'')+'</span>';
+      setTimeout(loadStatus, 2000);
+    } else {
+      el.innerHTML = '<span style="color:var(--red)">修复失败: '+esc(d.error||'')+'</span>';
+    }
+  }).catch(function(e){
+    el.innerHTML = '<span style="color:var(--red)">请求失败</span>';
+  });
 }
 
 // ── History ──
