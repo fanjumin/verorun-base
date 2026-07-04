@@ -20,6 +20,28 @@ _*.txt
 _*.html
 _test_output.txt
 
+# Temp scripts & artifacts
+tmp/
+VeroRun*
+do_git*
+git_output*.log
+verify*
+deploy_paramiko.py
+check_index.py
+t_git.py
+test_git.py
+out*.txt
+tmp_*.py
+tmp_*.ps1
+tmp_*.vbs
+tmp_*.bat
+ubprocess
+tmp_final.py
+tmp_run*
+tmp_simple.py
+sourcesappout*
+"tmp_doit.ps1"
+
 # Environment
 .env
 *.env.local
