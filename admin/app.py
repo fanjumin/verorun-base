@@ -38,6 +38,7 @@ from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
 from routes.deployment_api import deploy_bp, init_deployment_tables
 from routes.renewal import renew_bp
+from cloud_provisioner.routes import provisioner_bp
 import time as _time
 
 # ══ Simple in-memory rate limiter for captcha consume ══
@@ -169,6 +170,12 @@ seed_default_checks()
 app.register_blueprint(health_bp)
 print(f'[HealthCheck] ✅ 健康巡检已注册')
 print(f'[HealthCheck] 📋 API: /admin/health/*')
+# ===== 云服务开通 =====
+from cloud_provisioner.models import init_tables as init_cloud_tables
+init_cloud_tables()
+app.register_blueprint(provisioner_bp)
+print(f'[CloudProvisioner] ✅ 云服务开通已注册')
+print(f'[CloudProvisioner] 📋 API: /cloud/*')
 
 # 注册定时巡检任务
 try:
