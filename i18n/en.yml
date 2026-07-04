@@ -2612,6 +2612,16 @@ on_enable 返回 False: on_enable returned False
 外部 API 连通性检查: External API Connectivity Check
 你好，这是示例插件！: Hello, this is a demo plugin!
 每日报告生成中...: Generating daily report...
+AI分析: AI Analysis
+一键修复: One-Click Fix
+AI分析中...: AI Analyzing...
+确定执行AI修复？此操作不可自动撤销。: Confirm AI fix? This action cannot be undone automatically.
+正在获取AI修复方案...: Getting AI fix suggestions...
+无需修复: No Fix Needed
+正在执行: Executing
+项修复...: Item(s) Fix...
+修复完成: Fix Complete
+修复失败: Fix Failed
 
 '暂无中国城市数据': 'No China city data'
 '暂无页面数据': 'No page data'

@@ -483,8 +483,8 @@ function showDetail(itemId) {
     var ck = esc(item.check_key).replace(/'/g,"\\'");
     var ri = esc(String(item.run_id||'')).replace(/'/g,"\\'");
     h += '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">';
-    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🤖 AI 分析</button>';
-    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')" style="background:var(--yellow);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🔧 一键修复</button>';
+    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🤖 {{ _('AI分析') }}</button>';
+    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')" style="background:var(--yellow);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🔧 {{ _('一键修复') }}</button>';
     h += '</div>';
     h += '<div id="aiResult_'+item.id+'" style="margin-top:8px;font-size:13px;color:var(--dim)"></div>';
   }
@@ -500,7 +500,7 @@ function aiAnalyze(itemId) {
   if (!item) return;
   var el = document.getElementById('aiResult_'+itemId);
   if (!el) return;
-  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div> AI 分析中...';
+  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _('AI分析中...') }}';
 
   fetch('/admin/health/api/ai-analyze', {
     method:'POST',
@@ -526,7 +526,7 @@ function aiAnalyze(itemId) {
 
 // ── AI Fix (called after aiAnalyze) ──
 function aiFix(itemId, checkKey, runId) {
-  if (!confirm('确定执行 AI 修复？此操作不可自动撤销。')) return;
+  if (!confirm('{{ _('确定执行AI修复？此操作不可自动撤销。') }}')) return;
   var items = _dataCache.status && _dataCache.status.latest_run ? _dataCache.status.latest_run.items : [];
   var item = items.find(function(i){return i.id==itemId});
   if (!item) return;
@@ -534,7 +534,7 @@ function aiFix(itemId, checkKey, runId) {
   runId = runId || item.run_id || null;
   var el = document.getElementById('aiResult_'+itemId);
   if (!el) return;
-  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div> 正在获取 AI 修复方案...';
+  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _('正在获取AI修复方案...') }}';
 
   // Step 1: analyze
   fetch('/admin/health/api/ai-analyze', {
@@ -550,10 +550,10 @@ function aiFix(itemId, checkKey, runId) {
     var plan = ad.data.raw_plan || ad.data;
     var fixItems = plan.items || [];
     if (fixItems.length === 0) {
-      el.innerHTML = '<span style="color:var(--green)">✅ 无需修复</span>';
+      el.innerHTML = '<span style="color:var(--green)">{{ _('无需修复') }}</span>';
       return;
     }
-    el.innerHTML = '<div class="s" style="width:12px;height:12px"></div> 正在执行 ' + fixItems.length + ' 项修复...';
+    el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _('正在执行') }} ' + fixItems.length + ' {{ _('项修复...') }}';
 
     // Step 2: execute fix
     return fetch('/admin/health/api/ai-fix', {
@@ -565,13 +565,13 @@ function aiFix(itemId, checkKey, runId) {
   .then(function(d){
     if (!d) return;
     if (d.success) {
-      el.innerHTML = '<span style="color:var(--green)">✅ 修复完成: '+(d.message||'')+'</span>';
+      el.innerHTML = '<span style="color:var(--green)">{{ _('修复完成') }}: '+(d.message||'')+'</span>';
       setTimeout(loadStatus, 2000);
     } else {
-      el.innerHTML = '<span style="color:var(--red)">修复失败: '+esc(d.error||'')+'</span>';
+      el.innerHTML = '<span style="color:var(--red)">{{ _('修复失败') }}: '+esc(d.error||'')+'</span>';
     }
   }).catch(function(e){
-    el.innerHTML = '<span style="color:var(--red)">请求失败</span>';
+    el.innerHTML = '<span style="color:var(--red)">{{ _('请求失败') }}</span>';
   });
 }
 
