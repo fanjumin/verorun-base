@@ -1279,11 +1279,6 @@ def init_db():
             # 快递鸟物流（kdniao_service.py 读取）
             ('kdniao_eid',                    '',    '快递鸟商户ID (EBusinessID)'),
             ('kdniao_api_key',                '',    '快递鸟 API Key'),
-            # 阿里巴巴1688
-            ('alibaba_app_key',               '',    '1688 App Key'),
-            ('alibaba_app_secret',            '',    '1688 App Secret'),
-            ('alibaba_api_gateway',           'https://gw.open.1688.com/openapi', '1688 API 网关地址'),
-            ('alibaba_redirect_domains',      '',    '1688 OAuth 允许回调域名 (逗号分隔)'),
         ]
         for key, value, desc in payment_seeds:
             m.execute(

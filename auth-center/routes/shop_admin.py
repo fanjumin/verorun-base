@@ -768,34 +768,13 @@ def delete_category(cid):
         conn.execute('DELETE FROM categories WHERE id=?', (cid,))
         conn.commit()
 # =============================================
-# AI 智能优化（复用 ali_api 的 AI Processor）
+# AI 智能优化
 # =============================================
 def _get_ai_processor():
-    """获取AI处理器实例"""
-    try:
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-        from ali_api.services.ai_processor import get_ai_processor
-        return get_ai_processor()
-    except Exception as e:
-        return None
+    """获取AI处理器实例（原 ali_api AI Processor 已移除，AI优化服务不可用）"""
+    return None
 
 
-def _ai_optimize_title_raw(title, category='', features=''):
-    """底层: 调用AI优化标题，返回(title, options_list)"""
-    proc = _get_ai_processor()
-    if not proc or not proc.engine:
-        return None, None
-    from ali_api.services.ai_processor import AIProcessor
-    local = AIProcessor()
-    success, options = local.generate_title_options({
-        'title': title,
-        'category': category,
-        'features': features,
-        'description': features,
-    })
-    if success and options:
-        return options[0]['title'] if options else title, options
-    return None, None
 
 
 @shop_bp.route('/products/<int:pid>/ai-optimize', methods=['POST'])

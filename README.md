@@ -2,7 +2,7 @@
 
 **Multi-Agent AI Operating System** — 多智能体驱动的 AI 内容与商业枢纽
 
-VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、阿里巴巴供应链、自动化工作流、云服务开通等能力。
+VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、自动化工作流、云服务开通等能力。
 
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
@@ -18,7 +18,7 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 │   :8081     │    │   :8083     │    │   :8084     │    │   :8090     │
 │ 主站后端    │    │ 前台门户    │    │ 管理后台    │    │ 验证码服务  │
 │ OAuth/用户  │    │ 商城前端    │    │ Agent矩阵   │    │             │
-│             │    │ CMS展示     │    │ 1688管理    │    │             │
+│             │    │ CMS展示     │    │ 智能体     │    │             │
 │             │    │ 登录/定价   │    │ 订阅/支付   │    │             │
 │             │    │ 用户中心    │    │ 云服务/分析 │    │             │
 └──────┬──────┘    └──────┬──────┘    └──────┬──────┘    └──────┬──────┘
@@ -37,13 +37,13 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 |---|--------|------|------|
 | 1 | **Agent 矩阵** | `agent_matrix/` | 13 Agent 协作引擎 |
 | 2 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、订单、购物车、支付 |
-| 3 | **阿里巴巴对接** | `ali_api/` | 1688 商品采集、发布 |
-| 4 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类 |
-| 5 | **工作流引擎** | `orchestrator/` | DAG 自动化、Cron 调度 |
-| 6 | **云服务开通** | `cloud_provisioner/` | 云资源自动部署 |
-| 7 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth |
-| 8 | **支付订阅** | `auth-center/routes/payment.py` + `subscription/` | 支付宝/微信支付 |
-| 9 | **主题系统** | `themes/` | 5 个主题 + 模板覆盖 |
+| 3 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类 |
+| 4 | **工作流引擎** | `orchestrator/` | DAG 自动化、Cron 调度 |
+| 5 | **云服务开通** | `cloud_provisioner/` | 云资源自动部署 |
+| 6 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth |
+| 7 | **支付订阅** | `auth-center/routes/payment.py` + `subscription/` | 支付宝/微信支付 |
+| 8 | **主题系统** | `themes/` | 5 个主题 + 模板覆盖 |
+| 9 | **健康检查** | `health_check/` | 服务监控、异常诊断、告警 |
 | 10 | **验证码服务** | `captcha-service/` | 行为验证码 |
 | 11 | **分析系统** | `analytics/` | 访客追踪、聚合 |
 | 12 | **社交推送** | `auth-center/services/social_push/` | 多平台内容分发 |
@@ -101,8 +101,8 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | Agent | 角色 | 模型 | 核心能力 |
 |-------|------|------|----------|
 | **Athena (Master)** | 主控协调 | GPT-4o | 任务分解 → 指派子Agent → 汇总结果 → 自检质量 |
-| **Shop Agent** | 商城运营 | deepseek-chat | 商品管理、订单处理、SKU、AI 标题/描述优化 |
-| **Supply Chain Agent** | 供应链管理 | deepseek-chat | 1688 商品采集、AI 优化、本地商城发布 |
+| **Shop Agent** | 商城运营 | deepseek-chat | 商品管理、订单处理、SKU、AI 优化、供应链 |
+| **Health Check Agent** | 系统健康监控 | deepseek-chat | 服务监控、异常诊断、告警、修复建议 |
 | **CMS Agent** | 内容管理 | deepseek-chat | 文章撰写、排版、配图生成、评论审核 |
 | **Finance Agent** | 财务管理 | deepseek-chat | 套餐、订阅、订单、收入统计 |
 | **User System Agent** | 系统管理 | deepseek-chat | 用户、API Key、系统配置 |
@@ -173,41 +173,7 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 
 ---
 
-### 2.3 阿里巴巴/1688 对接模块
-
-位置：`ali_api/`
-
-完整的 1688 开放平台集成，从商品采集到本地商城发布的一条龙服务。
-
-#### 功能模块
-
-```
-┌──────────────────────────────────────────────────────┐
-│                  阿里 API 管理                         │
-├──────────────────────────────────────────────────────┤
-│  ① 商品采集         搜索 / 分类浏览 / 批量采集        │
-│  ② AI 标题优化      多版本生成 / 选择最佳 / 描述重写  │
-│  ③ 本地商城发布     同步到 products 表 + SKU          │
-│  ④ OAuth 授权管理   URL 生成 / 回调 / 刷新 / 解除     │
-│  ⑤ 风控系统         频率限制 / 并发控制 / 配额管理    │
-│  ⑥ 缓存服务         Redis + 内存二级缓存               │
-│  ⑦ 日志审计         API 调用日志 / 统计               │
-│  ⑧ 图片管理         上传 / 删除 / 排序                │
-└──────────────────────────────────────────────────────┘
-```
-
-#### 技术实现
-
-- **API 网关**：`alibaba.product.get`、`alibaba.product.search` 等标准接口
-- **签名**：HMAC-SHA1 + Base64
-- **重试**：指数退避（最大 3 次）
-- **OAuth**：1688 标准授权码模式，state 持久化防 CSRF + 防重放
-- **AI 处理器**：DeepSeek 生成营销文案、标题选项
-- **发布**：数据写入 `products` + `product_skus` 表，支持 `ali_source` 标记
-
----
-
-### 2.4 CMS 内容管理系统
+### 2.3 CMS 内容管理系统
 
 模型定义：`auth-center/models/cms.py`  
 管理路由：`auth-center/routes/cms_admin.py`
@@ -239,7 +205,7 @@ CMS 的核心是 **Block 页面构建器** — 每个页面由多个 Block 组�
 
 ---
 
-### 2.5 工作流引擎（Orchestrator）
+### 2.4 工作流引擎（Orchestrator）
 
 位置：`orchestrator/`
 
@@ -289,7 +255,7 @@ Cron Scheduler ──→ Workflow Engine ──→ Worker Pool
 
 ---
 
-### 2.6 云服务自动开通（Cloud Provisioner）
+### 2.7 云服务自动开通（Cloud Provisioner）
 
 位置：`cloud_provisioner/`
 
@@ -319,7 +285,7 @@ Provider (抽象基类)
 
 ---
 
-### 2.7 认证与支付系统
+### 2.6 认证与支付系统
 
 位置：`auth-center/`
 
@@ -348,7 +314,7 @@ Provider (抽象基类)
 
 ---
 
-### 2.8 主题系统
+### 2.9 主题系统（Theme System）
 
 位置：`themes/`
 
@@ -380,7 +346,35 @@ app.jinja_loader = ChoiceLoader([
 
 ---
 
-### 2.9 广告管理（Ad Placements）
+### 2.8 系统健康检查（Health Check）
+
+位置：`health_check/`
+
+独立的系统健康监控模块，负责各服务的状态探活、异常诊断、告警通知。
+
+#### 功能架构
+
+```
+┌─────────────────────────────────────────────┐
+│              Health Check                    │
+├─────────────────────────────────────────────┤
+│  ① Service Discovery    端口探活 / 路由发现  │
+│  ② Health Checkers      MySQL / HTTP / Ping  │
+│  ③ Alerter              邮件 / Webhook 告警  │
+│  ④ AI Fixer             自动诊断 + 修复建议  │
+│  ⑤ Scheduler            定时巡检              │
+└─────────────────────────────────────────────┘
+```
+
+#### 集成方式
+
+- 作为独立模块运行，由 Admin 后台自动加载
+- Agent 矩阵中的 **Health Check Agent** 可调用该模块执行诊断
+- 支持自定义 checker 注册
+
+---
+
+### 2.11 广告管理（Ad Placements）
 
 位置：`auth-center/routes/admin.py`（`# ── 广告管理 (Ad Placements) ──`）
 
@@ -442,7 +436,7 @@ app.jinja_loader = ChoiceLoader([
 | 技术 | 用途 |
 |------|------|
 | **Python 3** | 主要开发语言 |
-| **Flask** | Web 框架（3 个独立服务实例） |
+| **Flask** | Web 框架（4 个独立服务实例） |
 | **SQLite** | 数据库（单文件 `data/easykai.db`） |
 | **Jinja2** | 模板引擎 |
 | **JWT** | SSO 单点登录 |
@@ -464,7 +458,6 @@ app.jinja_loader = ChoiceLoader([
 
 | 服务 | 用途 |
 |------|------|
-| 1688 开放平台 | 商品数据采集 |
 | 支付宝 | 在线支付 |
 | 微信支付 | 在线支付 |
 | 快递鸟 | 物流查询 |
@@ -486,6 +479,11 @@ app.jinja_loader = ChoiceLoader([
 
 ```
 VeroRunSystem/
+├── site/                      # 主站后端 (Flask, 端口 8081)
+│   ├── app.py                 # 入口 → OAuth/用户/支付
+│   ├── routes/                # 站点路由
+│   └── templates/             # 站点模板
+│
 ├── admin/                     # 管理后台 (Flask, 端口 8084)
 │   ├── app.py                 # 入口 → 注册所有 admin 蓝图
 │   ├── routes/                # 管理后台路由
@@ -534,22 +532,12 @@ VeroRunSystem/
 │   ├── agent_runner.py        # Agent 执行器
 │   ├── routes.py              # API 路由
 │   ├── models.py              # 数据模型 + 种子数据
-│   └── prompts/               # 12 个 Agent Prompt
+│   └── prompts/               # 14 个 Agent Prompt
 │       ├── master_prompt.md
 │       ├── sub_shop_prompt.md
 │       ├── sub_cms_prompt.md
-│       └── ... (12 个 .md 文件)
-│
-├── ali_api/                   # 阿里巴巴/1688 对接
-│   ├── config.py              # 配置
-│   ├── models.py              # 数据模型
-│   ├── routes/admin.py        # 管理界面路由
-│   └── services/
-│       ├── alibaba_client.py  # API 客户端
-│       ├── alibaba_client_v2.py # 新版 API
-│       ├── ai_processor.py    # AI 处理器
-│       ├── rate_limiter.py    # 风控限流
-│       └── cache_service.py   # 缓存服务
+│       ├── sub_health_check_prompt.md
+│       └── ... (13 个 .md 文件)
 │
 ├── orchestrator/              # DAG 工作流引擎
 │   ├── workflow_engine.py     # 引擎核心
@@ -568,6 +556,12 @@ VeroRunSystem/
 │       └── template.py
 │
 ├── captcha-service/           # 验证码服务 (端口 8090)
+│
+├── health_check/              # 健康检查模块
+│   ├── checkers/              # 各类检查器
+│   ├── discovery.py           # 服务发现
+│   ├── alerter.py             # 告警
+│   └── routes.py              # API 路由
 │
 ├── analytics/                 # 分析系统
 │   ├── middleware.py          # 请求日志中间件
@@ -647,8 +641,8 @@ python app.py 8083 &
 
 1. 创建 Prompt 文件：`agent_matrix/prompts/sub_<name>_prompt.md`
 2. 在 `agent_matrix/models.py` 的 `seed_agents()` 中添加种子数据
-3. 在 `engine.py` 的 `AGENT_MODEL_MAP` 中注册模型
-4. （可选）注册 AI 供应商到 `SUPPLIER_REGISTRY`
+3. 在 `engine.py` 的 `AGENT_MODEL_MAP` 中注册模型（可选）
+4. 在 `_template_decompose()` 关键词路由中添加匹配规则（可选）
 
 ### 新增主题
 
@@ -713,6 +707,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.9.3 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.9.8 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有

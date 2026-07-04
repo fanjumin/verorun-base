@@ -596,11 +596,6 @@ CONFIG_SCHEMA = {
     'wechat_api_v3_key':       {'label': '微信支付 API v3 密钥','category': 'payment', 'sensitive': True,  'placeholder': 'API v3 Key'},
     'wechat_cert_serial':      {'label': '微信支付证书序列号',   'category': 'payment', 'sensitive': False, 'placeholder': '证书序列号'},
     'wechat_plan_id':          {'label': '微信支付扣费计划ID',   'category': 'payment', 'sensitive': False, 'placeholder': '签约计划ID'},
-    # ├─ 阿里巴巴1688 配置 ─
-    'alibaba_app_key':         {'label': '1688 App Key',       'category': 'alibaba', 'sensitive': False, 'placeholder': 'App Key'},
-    'alibaba_app_secret':      {'label': '1688 App Secret',    'category': 'alibaba', 'sensitive': True,  'placeholder': 'App Secret'},
-    'alibaba_api_gateway':     {'label': '1688 API 网关',      'category': 'alibaba', 'sensitive': False, 'placeholder': 'https://gw.open.1688.com/openapi'},
-    'alibaba_redirect_domains':{'label': '1688 OAuth 回调域名', 'category': 'alibaba', 'sensitive': False, 'placeholder': '逗号分隔'},
     # ├─ 支付宝登录（替换微信登录）─
     'alipay_oauth_app_id':     {'label': '支付宝登录 AppID',  'category': 'alipay_oauth', 'sensitive': False, 'placeholder': '支付宝开放平台 AppID'},
     'alipay_oauth_private_key':{'label': '支付宝登录私钥',    'category': 'alipay_oauth', 'sensitive': True,  'placeholder': '应用私钥 (PKCS8)'},
