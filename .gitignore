@@ -35,12 +35,9 @@ tmp_*.py
 tmp_*.ps1
 tmp_*.vbs
 tmp_*.bat
-ubprocess
-tmp_final.py
-tmp_run*
-tmp_simple.py
-sourcesappout*
-"tmp_doit.ps1"
+ubprocess*
+*ubprocess*
+*sourcesappout*
 
 # Environment
 .env
