@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Content Factory — 采集管理器主入口"""
+import importlib, json, logging
+from typing import Optional
+from models import get_db
+from .base_collector import BaseCollector
+
+logger = logging.getLogger(__name__)
+
+# ── 采集器注册表 (按 source_type 查找) ──
+COLLECTOR_MAP = {
+    'rss': 'collectors.rss_collector.RSSCollector',
+}
+
+
+def get_collector(source_type: str,
+                  source_id: int,
+                  config: dict = None) -> Optional[BaseCollector]:
+    """工厂 — 根据 source_type 返回采集器实例"""
+    path = COLLECTOR_MAP.get(source_type)
+    if not path:
+        return None
+    module_path, cls_name = path.rsplit('.', 1)
+    try:
+        mod = importlib.import_module(f'.{module_path}', __package__)
+        cls = getattr(mod, cls_name)
+        return cls(source_id, config or {})
+    except Exception as e:
+        logger.error(f"[CF] 加载采集器 {source_type} 失败: {e}")
+        return None
+
+
+def run_collection(source_id: int, source_type: str = None,
+                   config: dict = None, **kwargs) -> dict:
+    """执行一次采集，创建任务记录并写入 raw_contents"""
+    from models import get_db
+
+    # 从DB读取源配置
+    with get_db() as conn:
+        src = conn.execute(
+            'SELECT * FROM content_sources WHERE id=?', (source_id,)
+        ).fetchone()
+    if not src:
+        return {'success': False, 'error': '源不存在'}
+    if not src['is_active']:
+        return {'success': False, 'error': '源已禁用'}
+
+    source_type = source_type or src['source_type']
+    cfg = {}
+    try:
+        cfg = json.loads(src['config_json'] or '{}')
+    except:
+        pass
+    cfg.update(config or {})
+    # 把 url 字段传给采集器
+    if src['url'] and 'url' not in cfg:
+        cfg['url'] = src['url']
+
+    collector = get_collector(source_type, source_id, cfg)
+    if not collector:
+        return {'success': False, 'error': f'未知采集类型: {source_type}'}
+
+    # 创建任务记录
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO content_tasks (source_id, task_type, trigger_type, status, started_at, created_by)
+               VALUES (?, 'crawl', 'manual', 'running', datetime('now'), ?)""",
+            (source_id, kwargs.get('admin_id', 1))
+        )
+        conn.commit()
+        task_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+
+    try:
+        results = collector.collect(**kwargs)
+        inserted, skipped = collector.save_results(results, task_id=task_id)
+        status = 'completed'
+        log = f"共 {len(results)} 条 → 新增 {inserted}, 跳过 {skipped}"
+    except Exception as e:
+        logger.exception(f"[CF] 采集失败 source_id={source_id}")
+        status = 'failed'
+        inserted = 0
+        skipped = 0
+        log = str(e)
+
+    # 更新任务 + 源
+    with get_db() as conn:
+        conn.execute(
+            """UPDATE content_tasks SET status=?, finished_at=datetime('now'),
+               total_items=?, done_items=?, log_text=? WHERE id=?""",
+            (status, inserted + skipped, inserted, log, task_id)
+        )
+        if status == 'completed':
+            conn.execute(
+                "UPDATE content_sources SET last_crawled_at=datetime('now') WHERE id=?",
+                (source_id,)
+            )
+        conn.commit()
+
+    return {'success': status == 'completed', 'total': inserted + skipped,
+            'inserted': inserted, 'skipped': skipped, 'task_id': task_id,
+            'log': log, 'error': log if status == 'failed' else ''}
