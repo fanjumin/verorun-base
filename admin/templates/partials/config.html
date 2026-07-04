@@ -292,7 +292,7 @@ function ptRefresh(){ptCancelForm();var el=document.getElementById("pt-list");el
 function smRenderIcon(icon_type,icon_value){
   if(!icon_value)return '<span style="color:var(--dim)">?</span>';
   if(icon_type==='svg')return '<span style="width:22px;height:22px;display:inline-flex;vertical-align:middle;color:var(--accent)">'+icon_value+'</span>';
-  if(icon_type==='url')return '<img src="'+escAttr(icon_value)+'" style="width:22px;height:22px;border-radius:3px;object-fit:contain">';
+  if(icon_type==='url')return '<img src="'+(icon_value?escAttr(icon_value):'')+'" style="width:22px;height:22px;border-radius:3px;object-fit:contain">';
   return '<i class="'+escAttr(icon_value)+'" style="font-size:18px;color:var(--accent)"></i>';
 }
 function smRefresh(){
@@ -427,7 +427,7 @@ function loadSocLinks(){
       var iconHtml=pkg
         ?'<span style="width:20px;height:20px;display:inline-block;vertical-align:middle;color:var(--text)">'+pkg.svg+'</span>'
         :(s.icon_url
-          ?'<img src="'+escAttr(s.icon_url)+'" style="width:20px;height:20px;border-radius:3px" onerror="this.style.display=\'none\'">'
+          ?'<img src="'+(s.icon_url?escAttr(s.icon_url):'')+'" style="width:20px;height:20px;border-radius:3px" onerror="this.style.display=\'none\'">'
           :'<span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--dim);border-radius:3px;background:var(--bg-elevated)">?</span>');
       h+='<div class="socRow" style="display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:4px;border-radius:6px;border:1px solid var(--border)">';
       h+=iconHtml;

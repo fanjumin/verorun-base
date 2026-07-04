@@ -15,7 +15,7 @@ window.l_brand=function(){
     h+='<div class="cd" style="margin-bottom:16px"><div class="st">{{ _('Site') }} Logo</div>';
     h+='<div style="display:flex;gap:20px;align-items:center;margin-top:8px">';
     h+='<div style="width:100px;height:50px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center">';
-    h+=b.logo_url?'<img src="'+escAttr(b.logo_url)+'" style="max-width:90px;max-height:44px;object-fit:contain">':'<span style="font-size:24px;font-weight:900;color:var(--dim)">V</span>';
+    h+=b&&b.logo_url?'<img src="'+(b&&b.logo_url?escAttr(b.logo_url):'')+'" style="max-width:90px;max-height:44px;object-fit:contain">':'<span style="font-size:24px;font-weight:900;color:var(--dim)">V</span>';
     h+='</div>';
     h+='<div style="flex:1">';
     h+='<label class="btn btn-sm bp" style="cursor:pointer;margin-right:8px">{{ _('Upload') }} Logo<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" onchange="brandUploadLogo(this)"></label>';
@@ -26,7 +26,7 @@ window.l_brand=function(){
     h+='<div class="cd" style="margin-bottom:16px"><div class="st">{{ _('Icon Only') }} Logo（Favicon / {{ _('Sidebar') }}）</div>';
     h+='<div style="display:flex;gap:20px;align-items:center;margin-top:8px">';
     h+='<div style="width:56px;height:56px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center">';
-    h+=b.logo_icon_url?'<img src="'+escAttr(b.logo_icon_url)+'" style="max-width:48px;max-height:48px;object-fit:contain">':'<span style="font-size:20px;font-weight:900;color:var(--dim)">VR</span>';
+    h+=b&&b.logo_icon_url?'<img src="'+(b&&b.logo_icon_url?escAttr(b.logo_icon_url):'')+'" style="max-width:48px;max-height:48px;object-fit:contain">':'<span style="font-size:20px;font-weight:900;color:var(--dim)">VR</span>';
     h+='</div>';
     h+='<div style="flex:1">';
     h+='<label class="btn btn-sm bp" style="cursor:pointer;margin-right:8px">{{ _('Upload Icon') }}<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" onchange="brandUploadLogoIcon(this)"></label>';
@@ -86,7 +86,7 @@ window.l_brand=function(){
     h+='</div>';
     h+='<div class="cd" style="margin-bottom:16px"><div class="st">Favicon（{{ _('Optional') }}）</div>';
     h+='<div style="display:flex;gap:12px;align-items:center;margin-top:8px">';
-    if(b.favicon_url){h+='<img src="'+escAttr(b.favicon_url)+'" style="width:32px;height:32px;border-radius:4px">';}
+    if(b&&b.favicon_url){h+='<img src="'+(b&&b.favicon_url?escAttr(b.favicon_url):'')+'" style="width:32px;height:32px;border-radius:4px">';}
     h+='<label class="btn btn-sm bp" style="cursor:pointer">{{ _('Upload') }} Favicon<input type="file" accept="image/png,image/x-icon,.ico" style="display:none" onchange="brandUploadFavicon(this)"></label>';
     if(b.favicon_url){h+='<button class="btn btn-sm" style="color:var(--rose);border-color:var(--rose)" onclick="brandDeleteFavicon()">{{ _('Reset to Default') }}</button>';}
     h+='<span style="font-size:11px;color:var(--dim)">{{ _('Suggestion') }} 32×32px PNG/ICO</span>';

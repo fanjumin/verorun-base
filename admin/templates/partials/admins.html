@@ -70,7 +70,7 @@ function admRender() {
     // Avatar
     var avatarHtml = '';
     if(a.avatar_url) {
-      avatarHtml = '<img src="'+esc(a.avatar_url)+'" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;cursor:pointer" onclick="admUploadAvatar('+a.id+')" title="{{ _('Click to Change Avatar') }}">';
+      avatarHtml = '<img src="'+(a&&a.avatar_url?esc(a.avatar_url):'')+'" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;cursor:pointer" onclick="admUploadAvatar('+a.id+')" title="{{ _('Click to Change Avatar') }}">';
     } else {
       avatarHtml = '<div style="width:46px;height:46px;flex-shrink:0;cursor:pointer" onclick="admUploadAvatar('+a.id+')" title="{{ _('Click to Upload Avatar') }}">'+dicebearAvatar(a.real_name||a.nickname||a.phone||'A','initials',46)+'</div>';
     }

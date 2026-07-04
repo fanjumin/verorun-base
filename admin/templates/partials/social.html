@@ -117,7 +117,7 @@ function socAicover(){
   showToast("{{ _('AI Generating Image (~30s)...') }}","");
   fetch("/admin/content-factory/ai-cover",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({title:title,prompt:p||""})}).then(function(r){return r.json()}).then(function(d){
     if(d.success){
-      var img='<img src="'+d.image_url+'" style="max-width:100%;border-radius:8px">';
+      var img='<img src="'+(d.image_url||'')+'" style="max-width:100%;border-radius:8px">';
       document.getElementById("socBody").value+="\n\n[{{ _('Add Image') }}] "+d.image_url;
       showToast("{{ _('Image generated, URL inserted at bottom') }}","success")
     }else{showToast(d.error||"{{ _('Image Attach Failed') }}","error")}
@@ -168,7 +168,7 @@ function socialImageGen(){
   h+='</div>';
   h+='<div id="socImgResult" style="margin-top:12px"></div>';
   if(socCoverUrl){
-    h+='<div class="cd"><div class="st">{{ _('Current Cover') }}</div><img src="'+esc(socCoverUrl)+'" style="max-width:100%;max-height:300px;border-radius:8px">';
+    h+='<div class="cd"><div class="st">{{ _('Current Cover') }}</div><img src="'+(socCoverUrl?esc(socCoverUrl):'')+'" style="max-width:100%;max-height:300px;border-radius:8px">';
     h+='<div style="margin-top:8px"><button class="btn bo" onclick="socCoverUrl=\'\';showToast(\'{{ _('Cleared') }}\',\'success\')">{{ _('Clear Cover') }}</button></div></div>';
   }
   document.getElementById("socContent").innerHTML=h;
@@ -230,7 +230,7 @@ function socialPublish(){
     h+='<div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(socArticle.title||"（{{ _('No Title') }}）")+'</div>';
     h+='<div style="font-size:11px;color:var(--dim);margin-bottom:8px">'+esc(socArticle.summary||"")+'</div>';
     if(socCoverUrl){
-      h+='<img src="'+esc(socCoverUrl)+'" style="max-width:100%;max-height:200px;border-radius:8px;margin-bottom:8px">';
+      h+='<img src="'+(socCoverUrl?esc(socCoverUrl):'')+'" style="max-width:100%;max-height:200px;border-radius:8px;margin-bottom:8px">';
     }
     h+='<div style="font-size:12px;max-height:250px;overflow-y:auto;border:1px solid var(--border);padding:12px;border-radius:8px;background:var(--bg2)">'+(socArticle.body_html||"（{{ _('No Body') }}）")+'</div>';
     h+='</div>';
@@ -359,7 +359,7 @@ function pptGenerate(){
     if(!d.success){el.innerHTML='<div class="em">'+esc(d.error||"{{ _('Generation Failed') }}")+'</div>';return}
     el.innerHTML='<div class="cd" style="border-color:var(--accent)"><div class="st">✅ {{ _('Generated Successfully') }} — '+d.slides+' 页</div>'
       +'<div style="font-size:11px;color:var(--dim);margin:4px 0">'+esc(d.filename)+'</div>'
-      +'<a class="btn bp" href="'+d.url+'" download style="margin-top:8px;text-decoration:none">⬇ {{ _('Download') }} PPTX</a></div>';
+      +'<a class="btn bp" href="'+(d&&d.url||'')+'" download style="margin-top:8px;text-decoration:none">⬇ {{ _('Download') }} PPTX</a></div>';
   }).catch(function(e){
     btn.disabled=false;btn.textContent="{{ _('🤖 AI Generate PPT') }}";
     el.innerHTML='<div class="em">{{ _('Request Failed') }} — {{ _('Please Refresh & Retry') }}</div>';
@@ -382,7 +382,7 @@ function imgGenerate(){
     if(!d.success){el.innerHTML='<div class="em">'+esc(d.error||"{{ _('Generation Failed') }}")+'</div>';return}
     var h='';
     (d.images||[]).forEach(function(img){
-      h+='<div style="text-align:center"><img src="'+img.url+'" style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display=\'none\'"><br><a href="'+img.url+'" download class="btn bo bs" style="font-size:10px;margin-top:4px">⬇ {{ _('Download') }}</a></div>';
+      h+='<div style="text-align:center"><img src="'+(img&&img.url?esc(img.url):'')+'" style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display=\'none\'"><br><a href="'+(img&&img.url?esc(img.url):'')+'" download class="btn bo bs" style="font-size:10px;margin-top:4px">⬇ {{ _('Download') }}</a></div>';
     });
     if(!h)h='<div class="em">{{ _('No Results') }}</div>';
     el.innerHTML=h;
