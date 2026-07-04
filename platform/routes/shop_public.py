@@ -837,79 +837,44 @@ def api_pay_status(oid):
 
 
 # =============================================
-# API: 优惠券验证
+# API: 优惠券验证（已迁移至插件: plugins/coupons/）
 # =============================================
 @shop_public_bp.route('/api/coupon/validate', methods=['POST'])
 def api_validate_coupon():
-    payload, err = _require_user()
-    if err:
-        return err
-    uid = payload['user_id']
-    if not _check_rate_limit(uid, 'coupon', max_requests=30, window=60):
-        return jsonify({'success': False, 'error': '操作太频繁'}), 429
-    data = request.get_json() or {}
-    code = data.get('code', '').strip().upper()
-    amount = _safe_float(data.get('amount', 0))
-    quantity = int(data.get('quantity', 0))
-    product_id = data.get('product_id')
-    if not code:
-        return jsonify({'success': False, 'error': '请输入优惠码'}), 400
-    with get_db() as conn:
-        cpn = conn.execute(
-            'SELECT * FROM coupons WHERE code=? AND is_active=1', (code,)
-        ).fetchone()
-        if not cpn:
-            return jsonify({'success': False, 'error': '优惠券无效'}), 400
-        if cpn['usage_limit'] and cpn['used_count'] >= cpn['usage_limit']:
-            return jsonify({'success': False, 'error': '优惠券已用完'}), 400
-        if cpn['expire_at'] and cpn['expire_at'] < datetime.now().isoformat():
-            return jsonify({'success': False, 'error': '优惠券已过期'}), 400
-        if amount < cpn['min_amount']:
-            return jsonify({'success': False, 'error': f'未达到最低消费 ¥{cpn["min_amount"]}'}), 400
-        if cpn['min_quantity'] and quantity < cpn['min_quantity']:
-            return jsonify({'success': False, 'error': f'至少需要购买 {cpn["min_quantity"]} 件商品'}), 400
-        # 新人专享检查
-        if cpn.get('coupon_category') == 'new_user':
-            has_orders = conn.execute(
-                'SELECT id FROM order_items WHERE user_id=? LIMIT 1', (uid,)
-            ).fetchone()
-            if has_orders:
-                return jsonify({'success': False, 'error': '仅限新用户使用'}), 400
-        # 适用商品检查
-        if cpn.get('applicable_products') and product_id:
-            allowed = str(cpn['applicable_products']).split(',')
-            if str(product_id) not in allowed:
-                return jsonify({'success': False, 'error': '该商品不适用此优惠券'}), 400
-        # 每人限用检查
-        per_limit = cpn.get('per_user_limit', 1) or 1
-        user_used = conn.execute(
-            'SELECT COUNT(*) as c FROM coupon_redemptions WHERE coupon_id=? AND user_id=?',
-            (cpn['id'], uid)
-        ).fetchone()['c']
-        if user_used >= per_limit:
-            return jsonify({'success': False, 'error': '您已使用过此优惠券'}), 400
-        # 计算折扣
-        if cpn['coupon_type'] == 'fixed':
-            discount = min(cpn['value'], amount)
-        elif cpn['coupon_type'] == 'percent':
-            discount = round(amount * cpn['value'] / 100, 2)
-        elif cpn['coupon_type'] == 'free_shipping':
-            discount = _safe_float(data.get('shipping_fee', 0))
-        else:
-            discount = min(cpn['value'], amount)
-        # 满减类型：满 threshold 减 value
-        if cpn.get('coupon_category') == 'threshold' and cpn['coupon_type'] == 'fixed':
-            if amount < cpn['min_amount']:
-                return jsonify({'success': False, 'error': f'未达到最低消费 ¥{cpn["min_amount"]}'}), 400
-    return jsonify({
-        'success': True,
-        'data': {
-            'id': cpn['id'],
-            'code': cpn['code'],
-            'name': cpn.get('name', cpn['code']),
-            'coupon_type': cpn['coupon_type'],
-            'coupon_category': cpn.get('coupon_category', 'general'),
-            'value': cpn['value'],
-            'discount': round(discount, 2)
-        }
-    })
+    """桥接到插件引擎"""
+    try:
+        from plugins.coupons import get_engine
+        engine = get_engine()
+        if engine:
+            payload, err = _require_user()
+            if err:
+                return err
+            uid = payload['user_id']
+            if not _check_rate_limit(uid, 'coupon', max_requests=30, window=60):
+                return jsonify({'success': False, 'error': '操作太频繁'}), 429
+            data = request.get_json() or {}
+            result = engine.validate(
+                code=data.get('code', '').strip().upper(),
+                amount=_safe_float(data.get('amount', 0)),
+                user_id=uid,
+                quantity=_safe_int(data.get('quantity', 0)),
+                product_id=data.get('product_id'),
+            )
+            if not result['valid']:
+                return jsonify({'success': False, 'error': result['error']}), 400
+            cpn = result['coupon']
+            return jsonify({
+                'success': True,
+                'data': {
+                    'id': cpn['id'],
+                    'code': cpn['code'],
+                    'name': cpn.get('name', cpn['code']),
+                    'coupon_type': cpn['coupon_type'],
+                    'coupon_category': cpn.get('coupon_category', 'general'),
+                    'value': cpn['value'],
+                    'discount': result['discount']
+                }
+            })
+    except Exception:
+        pass
+    return jsonify({'success': False, 'error': '优惠券服务不可用'}), 503

@@ -825,7 +825,8 @@ def api_ai_analyze():
             ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': _('Check result not found')}), 404
-        detail_override = json.loads(row.get('detail', '{}')) if isinstance(row.get('detail'), str) else row.get('detail', {})
+        detail_raw = row['detail'] or '{}'
+        detail_override = json.loads(detail_raw) if isinstance(detail_raw, str) else (detail_raw or {})
 
     # Build input for LLM
     check_results = {

@@ -1797,58 +1797,23 @@ def apply_verification():
 
 
 # ================================================================
-# GET /user/coupons — 用户优惠券列表
+# GET /user/coupons — 用户优惠券列表（已迁移至插件: plugins/coupons/）
 # ================================================================
 @user_bp.route('/coupons', methods=['GET'])
 def get_user_coupons():
-    """获取用户的优惠券（可用的 + 已领取的）"""
-    payload, err = _require_auth()
-    if err:
-        return err
-    user_id = payload['user_id']
-
+    """跳转到插件路由"""
     try:
-        with get_db() as conn:
-            rows = conn.execute('''
-                SELECT c.id, c.code,
-                       COALESCE(c.name, '') as name,
-                       COALESCE(c.coupon_type, c.type, 'fixed') as coupon_type,
-                       c.value,
-                       COALESCE(c.description, '') as description,
-                       c.expires_at,
-                       c.max_uses, c.used_count,
-                       c.min_amount_fen,
-                       c.created_at,
-                       CASE WHEN cr.id IS NOT NULL THEN 1 ELSE 0 END as is_redeemed
-                FROM coupons c
-                LEFT JOIN coupon_redemptions cr ON cr.coupon_id = c.id AND cr.user_id = ?
-                WHERE c.is_active = 1
-                  AND (c.expires_at IS NULL OR c.expires_at > datetime('now','localtime'))
-                  AND (c.max_uses = 0 OR c.used_count < c.max_uses)
-                ORDER BY c.expires_at ASC, c.id DESC
-            ''', (user_id,)).fetchall()
+        from plugins.coupons import get_engine
+        engine = get_engine()
+        if engine:
+            payload, err = _require_auth()
+            if err:
+                return err
+            data = engine.get_user_coupons(payload['user_id'])
+            return jsonify({'success': True, 'data': data})
     except Exception:
-        return jsonify({'success': True, 'data': []})
-
-    data = []
-    for r in rows:
-        item = dict(r)
-        item['expire_at'] = r['expires_at']
-        item.pop('expires_at', None)
-        ctype = r['coupon_type']
-        val = r['value']
-        if ctype == 'fixed':
-            desc = f"¥{val} 优惠券"
-        elif ctype == 'percent':
-            desc = f"{int(val)}% 折扣"
-        else:
-            desc = f"优惠 {val}"
-        if r['min_amount_fen'] and r['min_amount_fen'] > 0:
-            desc += f"（满¥{r['min_amount_fen']}可用）"
-        item['description'] = desc
-        data.append(item)
-
-    return jsonify({'success': True, 'data': data})
+        pass
+    return jsonify({'success': True, 'data': []})
 
 
 # POST /user/verification/callback — 第三方认证回调（无需 JWT，通过 request_id 识别用户）
