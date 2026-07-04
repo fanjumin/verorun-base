@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "description": "订单通知 — 下单/支付成功/发货/退款时自动发送站内信和邮件通知",
+  "author": "VeroRun",
+  "enabled": true,
+  "depends_on": []
+}

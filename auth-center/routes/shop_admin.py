@@ -1686,6 +1686,13 @@ def ship_order(oid):
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'ship_order', 'order', oid,
                           f'company={company} tracking={tracking}')
+    # 触发事件：发货
+    try:
+        from plugins.hooks import get_event_bus, EventName
+        get_event_bus().emit(EventName.ORDER_SHIPPED, order_id=row.get('order_id', oid),
+                             user_id=row['user_id'], company=company, tracking_number=tracking)
+    except Exception:
+        pass
 
     return jsonify({'success': True, 'message': f'已标记发货 ({company}: {tracking})'})
 

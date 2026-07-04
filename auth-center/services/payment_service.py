@@ -108,4 +108,13 @@ def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 
                     (item['user_id'], item['product_id'], order_id, now)
                 )
         conn.commit()
+    
+    # 触发事件：订单支付成功
+    try:
+        from plugins.hooks import get_event_bus, EventName
+        get_event_bus().emit(EventName.ORDER_PAID, order_id=order_id, trade_no=trade_no,
+                             payment_method=payment_method)
+    except Exception:
+        pass
+    
     return True, '支付成功'

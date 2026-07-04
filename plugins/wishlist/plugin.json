@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "description": "收藏/心愿单 — 用户收藏商品、管理心愿清单",
+  "author": "VeroRun",
+  "enabled": true,
+  "depends_on": []
+}

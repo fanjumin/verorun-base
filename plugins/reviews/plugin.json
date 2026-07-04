@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "description": "商品评价系统 — 用户对已购商品打分、写评价、晒图",
+  "author": "VeroRun",
+  "enabled": true,
+  "depends_on": []
+}

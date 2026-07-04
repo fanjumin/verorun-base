@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 from flask import Blueprint, jsonify, request, render_template, make_response, redirect
 from models import get_db
 from services.jwt_service import validate_token
+from plugins.hooks import get_event_bus, EventName
 import secrets
 from datetime import datetime
 
@@ -462,6 +463,10 @@ def api_checkout():
             conn.execute('DELETE FROM carts WHERE user_id=?', (uid,))
         conn.commit()
 
+    # 触发事件：订单创建
+    get_event_bus().emit(EventName.ORDER_CREATED, order_id=order_id, user_id=uid,
+                         total=total, items=items)
+
     return jsonify({
         'success': True,
         'data': {
@@ -533,6 +538,7 @@ def api_cancel_order(oid):
             return jsonify({'success': False, 'error': '只能取消待支付订单'}), 400
         conn.execute("UPDATE order_items SET status='cancelled' WHERE order_id=?", (oid,))
         conn.commit()
+    get_event_bus().emit(EventName.ORDER_CANCELLED, order_id=oid, user_id=uid)
     return jsonify({'success': True, 'message': _('Cancelled')})
 
 
@@ -560,6 +566,7 @@ def api_confirm_receipt(oid):
             (now, oid)
         )
         conn.commit()
+    get_event_bus().emit('order.completed', order_id=oid, user_id=uid)
     return jsonify({'success': True, 'message': '已确认收货'})
 
 
@@ -591,6 +598,7 @@ def api_request_refund(oid):
             (reason, now, oid)
         )
         conn.commit()
+    get_event_bus().emit(EventName.ORDER_REFUNDED, order_id=oid, user_id=uid, reason=reason)
     return jsonify({'success': True, 'message': '退款申请已提交'})
 
 

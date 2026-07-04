@@ -25,6 +25,8 @@ class EventName:
     ORDER_PAID = 'order.paid'
     ORDER_REFUNDED = 'order.refunded'
     ORDER_CANCELLED = 'order.cancelled'
+    ORDER_SHIPPED = 'order.shipped'
+    ORDER_COMPLETED = 'order.completed'
     SUB_CREATED = 'sub.created'
     SUB_RENEWED = 'sub.renewed'
     SUB_EXPIRED = 'sub.expired'
