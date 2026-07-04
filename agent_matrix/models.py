@@ -370,6 +370,14 @@ DEFAULT_AGENTS = [
         "managed_modules": '["products","categories","skus","orders","coupons","cleaner"]',
         "system_prompt": "prompts/sub_shop_prompt.md",
         "is_active": 1
+    },
+    {
+        "name": "Health Check Agent", "role_type": "sub",
+        "description": "系统健康监控专家 — 服务监控、异常诊断、告警、修复建议",
+        "domain": "health_check",
+        "managed_modules": '["health_check","monitor","alerter"]',
+        "system_prompt": "prompts/sub_health_check_prompt.md",
+        "is_active": 1
     }
 ]
 

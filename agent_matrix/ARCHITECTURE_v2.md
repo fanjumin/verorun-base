@@ -116,7 +116,7 @@
 
 ---
 
-### Sub Agent 4: Community & Communication Agent
+### Sub Agent 4: Health Check Agent
 
 **管辖模块：**
 | 模块 | 管理后台名 | 关键能力 |
@@ -521,11 +521,11 @@ CREATE INDEX IF NOT EXISTS idx_ac_task ON agent_conversations(master_task_id);
 - 系统配置项修改后记录变更
 ```
 
-### 5.4 Community & Communication Agent Prompt
+### 5.4 Health Check Agent Prompt
 
 ```markdown
 # 角色定义
-你是 **Community & Communication Agent**，易站智能 的社区运营和通讯专家。
+你是 **Health Check Agent**，易站智能 的系统健康监控与运维专家。
 
 # 管辖模块
 💬 **社区内容** — Agent经验帖审核/管理

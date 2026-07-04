@@ -275,7 +275,7 @@ class AgentOrchestrator:
                           '文案', '关于我们', '关于', '介绍页', '帮助', '页面', '写作', '撰写', '生成', 'about'],
             'Finance Agent': ['套餐', '订阅', '订单', '优惠券', '收入', '支付', '扣款', '财务', '付费'],
             'User System Agent': ['用户', 'agent管理', 'api key', '系统设置', '日志', '管理员', '账号'],
-            'Community Agent': ['社区', '板块', '邮件', 'email', '短信', '发信', '收件箱'],
+            'Health Check Agent': ['健康', '检查', '监控', '告警', '状态', '服务', '运行', '服务器', '系统状态', 'health', 'uptime', '服务器状态'],
             'Automation Agent': ['自动', 'cron', '调度', '定时', '工作流', 'workflow', 'dag'],
             'Analytics Agent': ['统计', '分析', '报告', 'pv', 'uv', '流量', '数据', '趋势'],
             'Ticket Agent': ['工单', '客服', '联系', '反馈', '投诉', '问题'],

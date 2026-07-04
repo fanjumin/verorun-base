@@ -46,7 +46,7 @@
 | 写作/文章/文案/关于我们     | → CMS Agent          |
 | 财务/订阅/订单/支付         | → Finance Agent      |
 | 用户/账号/API Key/配置      | → User System Agent  |
-| 社区/帖子/邮件/短信         | → Community Agent    |
+| 健康监控/服务状态/告警     | → Health Check Agent |
 | 定时/自动化/工作流         | → Automation Agent   |
 | 统计/分析/报告/数据        | → Analytics Agent    |
 | 工单/客服/反馈             | → Ticket Agent       |

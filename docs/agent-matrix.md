@@ -47,7 +47,7 @@ Agent 矩阵（Agent Matrix）是易站 AI 平台的 AI矩阵编排系统，提�
 | 智能客服 | 用户提问 → Master 分解 → Sub Agent 查询 → 汇总回复 |
 | 内容创作 | 写文章 → CMS Agent + Image Agent 并行输出 → 一键发布 |
 | 数据清洗 | 脏数据 → Cleaner Agent 清洗 → 写入知识库 |
-| 供应链管理 | 库存查询 → Shop Agent + Supply Chain Agent 协同 |
+| 供应链管理 | 库存查询 → Shop Agent 协同 |
 | 自动化工作流 | 定时拉取 RSS → AI 加工 → CMS 发布（全自动） |
 | 多模态生成 | 生成 PPT / 数字人视频 / 语音克隆 |
 
@@ -126,7 +126,7 @@ agent_matrix/
     ├── sub_cms_prompt.md        # CMS Agent
     ├── sub_finance_prompt.md    # Finance Agent
     ├── sub_user_prompt.md       # User System Agent
-    ├── sub_community_prompt.md  # Community Agent
+    ├── sub_health_check_prompt.md  # Health Check Agent
     ├── sub_automation_prompt.md # Automation Agent
     ├── sub_analytics_prompt.md  # Analytics Agent
     ├── sub_ticket_prompt.md     # Ticket Agent
@@ -135,7 +135,7 @@ agent_matrix/
     ├── sub_video_prompt.md      # Video Agent
     ├── sub_image_prompt.md      # Image Agent
     ├── sub_shop_prompt.md       # Shop Agent
-    └── sub_supply_chain_prompt.md # Supply Chain Agent
+    └── sub_supply_chain_prompt.md # [用户模板] 自定义供应链 Agent
 
 orchestrator/
 ├── __init__.py              # 包标记
@@ -167,7 +167,7 @@ orchestrator/
 | CMS Agent | sub | cms | DashScope | qwen-turbo | 文章写作、内容管理、分类 |
 | Finance Agent | sub | finance | DashScope | qwen-turbo | 财务分析、报表、对账 |
 | User System Agent | sub | system | DashScope | qwen-turbo | 用户管理、权限、套餐 |
-| Community Agent | sub | community | DashScope | qwen-turbo | 社区内容、论坛管理 |
+| Health Check Agent | sub | health_check | DashScope | qwen-turbo | 系统健康监控、告警、诊断 |
 | Automation Agent | sub | automation | DashScope | qwen-turbo | 自动化流程、任务编排 |
 | Analytics Agent | sub | analytics | DashScope | qwen-turbo | 数据分析、趋势、看板 |
 | Ticket Agent | sub | support | DashScope | qwen-turbo | 工单、客服、故障排查 |
@@ -176,6 +176,7 @@ orchestrator/
 | Video Agent | sub | video | VolcEngine | volc-avatar-v3 | 数字人视频生成 |
 | Image Agent | sub | image | DashScope | wan2.7-image | 图像生成、编辑 |
 | Shop Agent | sub | shop | DashScope | qwen-turbo | 商品、订单、供应链 |
+| Health Check Agent | sub | health_check | DashScope | qwen-turbo | 系统健康监控、告警、诊断 |
 
 ### 3.3 Agent 配置字段
 
@@ -734,7 +735,7 @@ GET /admin/agent-matrix/dashboard
 | `sub_cms_prompt.md` | CMS Agent — 文章创作 |
 | `sub_finance_prompt.md` | Finance Agent — 财务分析 |
 | `sub_user_prompt.md` | User System Agent — 用户管理 |
-| `sub_community_prompt.md` | Community Agent — 社区运营 |
+| `sub_health_check_prompt.md` | Health Check Agent — 系统健康监控 |
 | `sub_automation_prompt.md` | Automation Agent — 流程自动化 |
 | `sub_analytics_prompt.md` | Analytics Agent — 数据分析 |
 | `sub_ticket_prompt.md` | Ticket Agent — 工单处理 |
@@ -743,7 +744,7 @@ GET /admin/agent-matrix/dashboard
 | `sub_video_prompt.md` | Video Agent — 视频生成 |
 | `sub_image_prompt.md` | Image Agent — 图像生成 |
 | `sub_shop_prompt.md` | Shop Agent — 商城运营 |
-| `sub_supply_chain_prompt.md` | Supply Chain Agent — 供应链 |
+| `sub_supply_chain_prompt.md` | [用户模板] 自定义供应链 Agent 参考 |
 
 ### 12.2 加载机制
 
