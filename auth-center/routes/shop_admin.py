@@ -771,7 +771,7 @@ def delete_category(cid):
 # AI 智能优化
 # =============================================
 def _get_ai_processor():
-    """获取AI处理器实例（原 ali_api AI Processor 已移除，AI优化服务不可用）"""
+    """获取AI处理器实例（AI优化已移至 ali_api 插件，安装插件后可用）"""
     return None
 
 

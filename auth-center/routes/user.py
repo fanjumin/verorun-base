@@ -616,7 +616,6 @@ CONFIG_CATEGORIES = [
     {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
     {'id': 'express', 'title': '物流配送（快递鸟）'},
     {'id': 'payment', 'title': '支付配置'},
-    {'id': 'alibaba', 'title': '阿里巴巴开放平台'},
     {'id': 'alipay_oauth', 'title': '支付宝登录'},
     {'id': 'verification', 'title': '支付宝实人认证'},
 ]
