@@ -200,6 +200,60 @@ def search_spu(category_id: int, page: int, size: int,
     )
 
 
+def get_product_reviews(product_id: str, access_token: str,
+                        page: int = 1, size: int = 20,
+                        app_key: str = None, app_secret: str = None) -> dict:
+    """获取 1688 商品评论/评价
+
+    API: alibaba.product.review.get-1
+    """
+    if not app_key:
+        from ..config import config
+        app_key = config['alibaba']['app_key']
+        app_secret = config['alibaba']['app_secret']
+    return call_api(
+        'com.alibaba.product:alibaba.product.review.get-1',
+        '1', app_key, app_secret, access_token,
+        {'productId': product_id, 'page': page, 'pageSize': size}
+    )
+
+
+def search_product_by_image(image_base64: str, access_token: str,
+                            page: int = 1, size: int = 20,
+                            app_key: str = None, app_secret: str = None) -> dict:
+    """按图搜索 1688 商品
+
+    API: alibaba.product.search.img-1
+    """
+    if not app_key:
+        from ..config import config
+        app_key = config['alibaba']['app_key']
+        app_secret = config['alibaba']['app_secret']
+    return call_api(
+        'com.alibaba.product:alibaba.product.search.img-1',
+        '1', app_key, app_secret, access_token,
+        {'imageBase64': image_base64, 'page': page, 'pageSize': size}
+    )
+
+
+def get_store_products(seller_member_id: str, access_token: str,
+                       page: int = 1, size: int = 20,
+                       app_key: str = None, app_secret: str = None) -> dict:
+    """获取店铺全量商品
+
+    API: alibaba.store.item.list.get-1
+    """
+    if not app_key:
+        from ..config import config
+        app_key = config['alibaba']['app_key']
+        app_secret = config['alibaba']['app_secret']
+    return call_api(
+        'com.alibaba.product:alibaba.store.item.list.get-1',
+        '1', app_key, app_secret, access_token,
+        {'sellerMemberId': seller_member_id, 'page': page, 'pageSize': size}
+    )
+
+
 # ===== 命令行测试 =====
 if __name__ == '__main__':
     import pprint

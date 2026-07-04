@@ -66,6 +66,15 @@ class AliApiItem:
                 specs               TEXT DEFAULT '{}',
                 product_sku         TEXT DEFAULT '[]',
                 description         TEXT DEFAULT '',
+                -- B2B 增强字段
+                moq                 INTEGER DEFAULT 0,              -- 最小起订量
+                wholesale_price     TEXT DEFAULT '[]',              -- 批发阶梯价 JSON
+                is_support_agent    INTEGER DEFAULT 0,              -- 是否支持一件代发
+                seller_credit       INTEGER DEFAULT 0,              -- 卖家诚信通等级
+                shop_level          INTEGER DEFAULT 0,              -- 店铺等级
+                seller_name         TEXT DEFAULT '',                -- 卖家名称
+                seller_id           TEXT DEFAULT '',                -- 卖家 ID
+                location            TEXT DEFAULT '',                -- 所在地
                 -- AI 处理结果
                 ai_title            TEXT DEFAULT '',
                 ai_title_options    TEXT DEFAULT '[]',
@@ -132,6 +141,15 @@ class AliApiItem:
         _user_id = item_data.get('user_id', 0)
         _error_msg = item_data.get('error_msg', '')
         _processed_at = item_data.get('processed_at')
+        # B2B 字段
+        _moq = item_data.get('moq', 0)
+        _wholesale_price = json.dumps(item_data.get('wholesale_price', []), ensure_ascii=False)
+        _is_support_agent = 1 if item_data.get('is_support_agent') else 0
+        _seller_credit = item_data.get('seller_credit', 0)
+        _shop_level = item_data.get('shop_level', 0)
+        _seller_name = item_data.get('seller_name', '')
+        _seller_id = item_data.get('seller_id', '')
+        _location = item_data.get('location', '')
         
         if existing:
             # 更新
@@ -142,6 +160,9 @@ class AliApiItem:
                     description = ?, ai_description = ?,
                     price = ?, original_price = ?, currency = ?,
                     category = ?, images = ?, specs = ?, product_sku = ?,
+                    moq = ?, wholesale_price = ?, is_support_agent = ?,
+                    seller_credit = ?, shop_level = ?,
+                    seller_name = ?, seller_id = ?, location = ?,
                     source_url = ?, api_response = ?, status = ?,
                     publish_status = ?, target_product_id = ?,
                     api_call_count = api_call_count + ?,
@@ -155,6 +176,9 @@ class AliApiItem:
                 _description, _ai_description,
                 _price, _original_price, _currency,
                 _category, _images, _specs, _product_sku,
+                _moq, _wholesale_price, _is_support_agent,
+                _seller_credit, _shop_level,
+                _seller_name, _seller_id, _location,
                 _source_url, _api_response, _status,
                 _publish_status, _target_product_id,
                 _api_call_count,
@@ -174,6 +198,9 @@ class AliApiItem:
                     description, ai_description,
                     price, original_price, currency,
                     category, images, specs, product_sku,
+                    moq, wholesale_price, is_support_agent,
+                    seller_credit, shop_level,
+                    seller_name, seller_id, location,
                     api_response, status,
                     publish_status, target_product_id,
                     api_call_count, error_msg,
@@ -181,7 +208,8 @@ class AliApiItem:
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?)
+                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                          ?, ?, ?, ?, ?)
             ''', (
                 _user_id, product_id, _source_url,
                 _title, _original_title,
@@ -189,6 +217,9 @@ class AliApiItem:
                 _description, _ai_description,
                 _price, _original_price, _currency,
                 _category, _images, _specs, _product_sku,
+                _moq, _wholesale_price, _is_support_agent,
+                _seller_credit, _shop_level,
+                _seller_name, _seller_id, _location,
                 _api_response, _status,
                 _publish_status, _target_product_id,
                 _api_call_count, _error_msg,
@@ -256,6 +287,131 @@ class AliApiItem:
         return conn.rowcount > 0
     
     @staticmethod
+    def migrate_b2b_fields(conn) -> bool:
+        """迁移旧数据，增加 B2B 字段（幂等）"""
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN moq INTEGER DEFAULT 0")
+        except Exception:
+            pass  # 已存在
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN wholesale_price TEXT DEFAULT '[]'")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN is_support_agent INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_credit INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN shop_level INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_name TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_id TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN location TEXT DEFAULT ''")
+        except Exception:
+            pass
+        conn.commit()
+        return True
+
+
+class AliApiReview:
+    """1688 商品评论"""
+
+    @staticmethod
+    def create_table(conn):
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS ali_api_reviews (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id      TEXT NOT NULL,
+                review_id       TEXT UNIQUE NOT NULL,
+                user_id         INTEGER DEFAULT 0,
+                buyer_name      TEXT DEFAULT '',
+                rating          INTEGER DEFAULT 5,
+                content         TEXT DEFAULT '',
+                review_time     TEXT DEFAULT '',
+                spec_info       TEXT DEFAULT '',
+                images          TEXT DEFAULT '[]',
+                is_anonymous    INTEGER DEFAULT 0,
+                reply_content   TEXT DEFAULT '',
+                reply_time      TEXT DEFAULT '',
+                raw_data        TEXT DEFAULT '{}',
+                created_at      TEXT DEFAULT (datetime('now','localtime'))
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_reviews_product ON ali_api_reviews(product_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_reviews_rating ON ali_api_reviews(rating)')
+
+    @staticmethod
+    def batch_insert(conn, product_id: str, reviews: list) -> int:
+        """批量插入评论，返回插入数量"""
+        count = 0
+        for r in reviews:
+            try:
+                conn.execute('''
+                    INSERT OR IGNORE INTO ali_api_reviews
+                        (product_id, review_id, buyer_name, rating, content,
+                         review_time, spec_info, images, is_anonymous,
+                         reply_content, reply_time, raw_data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    product_id,
+                    r.get('review_id', ''),
+                    r.get('buyer_name', ''),
+                    r.get('rating', 5),
+                    r.get('content', ''),
+                    r.get('review_time', ''),
+                    r.get('spec_info', ''),
+                    json.dumps(r.get('images', []), ensure_ascii=False),
+                    1 if r.get('is_anonymous') else 0,
+                    r.get('reply_content', ''),
+                    r.get('reply_time', ''),
+                    json.dumps(r.get('raw_data', {}), ensure_ascii=False),
+                ))
+                count += 1
+            except Exception:
+                continue
+        conn.commit()
+        return count
+
+    @staticmethod
+    def get_by_product(conn, product_id: str, limit: int = 20, offset: int = 0) -> list:
+        rows = conn.execute(
+            'SELECT * FROM ali_api_reviews WHERE product_id = ? ORDER BY review_time DESC LIMIT ? OFFSET ?',
+            (product_id, limit, offset)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    @staticmethod
+    def get_stats(conn, product_id: str) -> dict:
+        """获取评论统计"""
+        row = conn.execute('''
+            SELECT COUNT(*) as total,
+                   AVG(rating) as avg_rating,
+                   SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END) as positive,
+                   SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as neutral,
+                   SUM(CASE WHEN rating <= 2 THEN 1 ELSE 0 END) as negative
+            FROM ali_api_reviews WHERE product_id = ?
+        ''', (product_id,)).fetchone()
+        return dict(row) if row else {'total': 0, 'avg_rating': 0, 'positive': 0, 'neutral': 0, 'negative': 0}
+
+
+#
+# ── AliApiItem 方法延续 ──
+#
+class AliApiItem:
+
+    @staticmethod
     def update_ai_titles(conn, item_id: int, ai_title_options: list, selected_title: str = '') -> bool:
         """更新AI生成的标题选项"""
         now_iso = datetime.now().isoformat()
@@ -272,7 +428,7 @@ class AliApiItem:
             item_id
         ))
         return conn.rowcount > 0
-    
+
     @staticmethod
     def list_by_publish_status(conn, publish_status: str = 'draft', limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """按发布状态列出商品"""
@@ -676,13 +832,15 @@ def init_tables():
     """初始化所有表"""
     with get_db() as conn:
         AliApiItem.create_table(conn)
+        AliApiItem.migrate_b2b_fields(conn)  # 幂等迁移 B2B 字段
+        AliApiReview.create_table(conn)
         AliApiLog.create_table(conn)
         AliApiUserStats.create_table(conn)
         AliApiToken.create_table(conn)
         OAuthState.create_table(conn)
         AliApiConfig.create_table(conn)
         conn.commit()
-        print("[AliApi] 数据表初始化完成")
+        print("[AliApi] 数据表初始化完成（含 B2B 字段 + 评论表）")
 
 if __name__ == "__main__":
     # 测试数据库初始化

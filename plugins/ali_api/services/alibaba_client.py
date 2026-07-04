@@ -11,15 +11,37 @@ import hashlib
 import hmac
 import json
 import time
+import random
 import urllib.parse
 import urllib.request
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import logging
 
 from ..config import config
 
 logger = logging.getLogger(__name__)
+
+# User-Agent 池：随机化请求头，降低反爬识别
+_USER_AGENTS = [
+    # Chrome Windows
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    # Chrome macOS
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    # Edge
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
+    # Firefox
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
+    # Safari macOS
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+]
+
+
+def _random_ua() -> str:
+    """随机返回一个 User-Agent"""
+    return random.choice(_USER_AGENTS)
 
 class AlibabaClient:
     """阿里巴巴开放平台客户端"""
@@ -116,6 +138,9 @@ class AlibabaClient:
                 # 发送请求
                 req = urllib.request.Request(full_url)
                 req.add_header('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8')
+                req.add_header('User-Agent', _random_ua())
+                req.add_header('Accept', 'application/json')
+                req.add_header('Accept-Language', 'zh-CN,zh;q=0.9')
                 
                 with urllib.request.urlopen(req, timeout=10) as response:
                     response_data = response.read().decode('utf-8')
@@ -228,6 +253,34 @@ class AlibabaClient:
         result = response['result']
         product = result.get('product', {})
         
+        # 解析 B2B 属性：阶梯批发价
+        wholesale_prices = []
+        price_items = product.get('priceRanges', []) or product.get('priceRangeList', [])
+        if isinstance(price_items, list):
+            for pr in price_items:
+                wholesale_prices.append({
+                    'min_quantity': pr.get('startQuantity', pr.get('minOrderQuantity', 0)),
+                    'price': float(pr.get('price', 0)),
+                })
+        
+        # 解析卖家信用
+        seller_info = product.get('sellerInfo', {}) or {}
+        seller_credit_raw = seller_info.get('creditLevel', 0) or product.get('creditLevel', 0)
+        try:
+            seller_credit = int(seller_credit_raw)
+        except (ValueError, TypeError):
+            seller_credit = 0
+        shop_level_raw = seller_info.get('shopLevel', 0) or product.get('shopLevel', 0)
+        try:
+            shop_level = int(shop_level_raw)
+        except (ValueError, TypeError):
+            shop_level = 0
+        
+        # 是否支持一件代发
+        support_agent = product.get('supportAgent', 0) or product.get('isSupportAgent', 0)
+        if isinstance(support_agent, str):
+            support_agent = 1 if support_agent.lower() in ('true', 'yes', '1', 'y') else 0
+        
         # 提取商品信息
         parsed = {
             'product_id': product.get('productID', ''),
@@ -243,9 +296,14 @@ class AlibabaClient:
             'source_url': product.get('detailUrl', ''),
             'seller_id': product.get('sellerMemberId', ''),
             'seller_name': product.get('companyName', ''),
+            'seller_credit': seller_credit,
+            'shop_level': shop_level,
             'location': product.get('province', ''),
             'unit': product.get('unit', ''),
             'min_order_quantity': product.get('minOrderQuantity', 1),
+            'moq': product.get('minOrderQuantity', 1),
+            'wholesale_price': wholesale_prices,
+            'is_support_agent': support_agent,
             'package_size': product.get('packageSize', ''),
             'weight': product.get('weight', ''),
             'volume': product.get('volume', ''),
@@ -265,6 +323,18 @@ class AlibabaClient:
         
         parsed_products = []
         for product in products:
+            # 搜索列表里也有简明 B2B 字段
+            wholesale_prices = []
+            price_items = product.get('priceRanges', []) or []
+            if isinstance(price_items, list):
+                for pr in price_items:
+                    wholesale_prices.append({
+                        'min_quantity': pr.get('startQuantity', pr.get('minOrderQuantity', 0)),
+                        'price': float(pr.get('price', 0)),
+                    })
+            support_agent = product.get('supportAgent', 0) or product.get('isSupportAgent', 0)
+            if isinstance(support_agent, str):
+                support_agent = 1 if support_agent.lower() in ('true', 'yes', '1', 'y') else 0
             parsed = {
                 'product_id': product.get('productID', ''),
                 'title': product.get('subject', ''),
@@ -275,8 +345,12 @@ class AlibabaClient:
                 'image_url': product.get('imageUrl', ''),
                 'source_url': product.get('detailUrl', ''),
                 'seller_name': product.get('companyName', ''),
+                'seller_credit': product.get('creditLevel', 0),
                 'location': product.get('province', ''),
                 'min_order_quantity': product.get('minOrderQuantity', 1),
+                'moq': product.get('minOrderQuantity', 1),
+                'wholesale_price': wholesale_prices,
+                'is_support_agent': support_agent,
                 'status': product.get('productStatus', ''),
             }
             parsed_products.append(parsed)
@@ -288,6 +362,23 @@ class AlibabaClient:
             'page_size': result.get('pageSize', 20),
             'total_pages': result.get('totalPages', 1),
         }
+
+    # ===== 店铺全量商品 =====
+
+    def search_store_products(self, seller_id: str, page_no: int = 1, page_size: int = 20,
+                              order_by: str = None) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """
+        获取店铺全量商品
+        API: alibaba.store.item.list.get
+        """
+        params = {
+            'sellerMemberId': seller_id,
+            'pageNo': page_no,
+            'pageSize': page_size,
+        }
+        if order_by:
+            params['orderBy'] = order_by
+        return self._make_request('alibaba.store.item.list.get', params)
 
 # 单例客户端实例
 _client_instance = None
