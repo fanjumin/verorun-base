@@ -2,7 +2,7 @@
 
 **Multi-Agent AI Operating System** — 多智能体驱动的 AI 内容与商业枢纽
 
-VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、自动化工作流、云服务开通等能力。
+VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、内容管理、AI 客服、自动化工作流、云服务开通等能力。
 
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
@@ -57,7 +57,7 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 
 位置：`agent_matrix/`
 
-这是本系统最核心的组件 — 一个 **1 + 11 的多智能体协作矩阵**。
+这是本系统最核心的组件 — 一个 **1 + 12 的多智能体协作矩阵**。
 
 #### 架构
 
@@ -86,7 +86,7 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 
 #### AI 供应商
 
-支持 5 个 AI 供应商，按优先级配置：
+支持 6 个 AI 供应商，按优先级配置：
 
 | 供应商 | 用途 | 典型模型 |
 |--------|------|----------|
@@ -94,6 +94,7 @@ VeroRunSystem 是一个基于 **12 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | **OpenAI** | 主控 Agent | gpt-4o |
 | **DeepSeek** | 子 Agent 推理 | deepseek-chat |
 | **OpenRouter** | 备用供应商 | 多模型 |
+| **SiliconFlow** (硅基流动) | 备用推理 | deepseek-ai/DeepSeek-V3 |
 | **Ollama** | 本地推理 | 本地私有部署 |
 
 #### 12 个 Agent 职责
@@ -452,7 +453,7 @@ app.jinja_loader = ChoiceLoader([
 | 图像生成 | 通义万相 wan2.7-image |
 | 声音克隆 | 火山引擎 volc-voice-clone-v2 |
 | 数字人视频 | 火山引擎 volc-avatar-v3 |
-| 备用供应商 | OpenRouter, Ollama |
+| 备用供应商 | OpenRouter, SiliconFlow, Ollama |
 
 ### 第三方集成
 
@@ -562,6 +563,20 @@ VeroRunSystem/
 │   ├── discovery.py           # 服务发现
 │   ├── alerter.py             # 告警
 │   └── routes.py              # API 路由
+│
+├── plugins/                   # 插件系统
+│   ├── base.py                # 插件基类 (BasePlugin)
+│   ├── registry.py            # 插件注册表
+│   ├── hooks.py               # 事件总线
+│   ├── __init__.py            # 插件加载器
+│   └── ali_api/               # 1688 采集插件（可选安装）
+│       ├── i18n/              # 插件自有翻译文件
+│       ├── services/          # 业务逻辑
+│       ├── routes/            # API 路由
+│       ├── static/            # 静态资源
+│       ├── templates/         # 模板
+│       ├── README.zh-CN.md    # 插件中文文档
+│       └── README.en.md       # 插件英文文档
 │
 ├── analytics/                 # 分析系统
 │   ├── middleware.py          # 请求日志中间件
@@ -687,6 +702,7 @@ Nginx (反向代理 + SSL)  服务器: ***REMOVED***
 | `DASHSCOPE_API_KEY` | 阿里通义 API Key |
 | `OPENAI_API_KEY` | OpenAI API Key |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key |
+| `SILICONFLOW_API_KEY` | 硅基流动 API Key |
 
 ### rsync 同步
 
