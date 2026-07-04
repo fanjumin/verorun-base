@@ -129,6 +129,5 @@
 ├── agent_matrix/              # Agent 矩阵
 ├── orchestrator/              # 工作流引擎
 ├── ali_api/                   # 1688 对接
-├── cloud_provisioner/         # 云服务开通
 └── docs/                      # ✅ 本文档目录
 ```

@@ -312,7 +312,7 @@ CREATE TABLE user_purchases (
    创建 user_purchases 记录
         ↓
    ┌─ 如果 product_type == 'cloud_service'
-   │  → 异步触发 ProvisionerEngine.provision()
+   │  → 异步触发云服务开通流程
    │  → Provider 创建资源（Docker 容器等）
    │  → 更新 cloud_instances 状态
    │
@@ -376,7 +376,7 @@ CREATE TABLE user_purchases (
 
 ## 云服务商品 Cloud Service Product Type
 
-当 `products.product_type = 'cloud_service'` 时，订单支付后将自动触发 `ProvisionerEngine`。
+当 `products.product_type = 'cloud_service'` 时，订单支付后将自动触发云服务开通（已移除）。
 
 架构：
 
@@ -384,7 +384,7 @@ CREATE TABLE user_purchases (
 订单支付确认（confirm_order）
         │
         ▼
-ProvisionerEngine.provision(order_data)
+（已移除）
         │
    ┌────┼────┐
    │    │    │
@@ -397,7 +397,7 @@ ProvisionerEngine.provision(order_data)
    返回连接信息（IP/端口/密码）
 ```
 
-- **Provider 抽象**：`cloud_provisioner/providers/base.py` → `BaseProvider`
+- **Provider 抽象**：已移至独立插件（已移除）
 - **TemplateProvider**（当前默认）：在宿主机创建 Docker 容器
 - **预留**：阿里云 / 腾讯云 / 百度云 Provider 适配器
 - **数据表**：`cloud_instances` 存储实例状态（pending / provisioning / running / stopped / terminated / failed）
@@ -463,8 +463,7 @@ ProvisionerEngine.provision(order_data)
 | `auth-center/routes/shop_public.py` | 前端商品/购物车/订单/支付 API |
 | `auth-center/services/payment_service.py` | 支付宝支付创建 + 订单确认 |
 | `auth-center/models/database.py` | 所有表定义 + 数据迁移 |
-| `cloud_provisioner/engine.py` | 云服务自动开通引擎 |
-| `cloud_provisioner/providers/` | Provider 适配器（template / aliyun 预留） |
+| `analytics/processor.py` | 60 秒聚合处理器 |
 | `platform/templates/shop.html` | 商城列表页模板 |
 | `platform/templates/shop_detail.html` | 商品详情页模板 |
 | `platform/templates/cart.html` | 购物车页模板 |

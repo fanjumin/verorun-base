@@ -39,8 +39,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | 2 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、SKU、订单、购物车、优惠券、AI 优化、评价、收藏、订单通知 |
 | 3 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类、下载管理 |
 | 4 | **工作流引擎** | `orchestrator/` | DAG 工作流编排、Cron 调度、12 种节点 |
-| 5 | **云服务开通** | `cloud_provisioner/` | VPS/OSS/CDN/RDS 自动部署与销毁 |
-| 6 | **数据清洗** | `auth-center/routes/cleaner_agent.py` | 原始内容 → LLM 清洗 → 知识库 |
+| 5 | **数据清洗** | `auth-center/routes/cleaner_agent.py` | 原始内容 → LLM 清洗 → 知识库 |
 | 7 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth、企业认证 |
 | 8 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 订阅支付 |
 | 9 | **主题系统** | `themes/` | 5 个主题 + Jinja2 ChoiceLoader 模板覆盖 |
@@ -160,7 +159,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | **商品评价**（插件） | 回复/删除/审核 | 列表/统计 | `plugins/reviews/` 5 星评分 + 晒图 + 匿名 |
 | **收藏心愿单**（插件） | — | 收藏/取消/检查/数量 | `plugins/wishlist/` |
 | **订单通知**（插件） | — | 自动站内信 | `plugins/order_notify/` 6 种事件通知 |
-| **云服务开通** | 订单确认 → 自动创建云实例 | — | 对接 cloud_provisioner |
+| **支付** | — | 支付宝/微信/Stripe/PayPal | RSA2 签名 + 桩模式降级 + 三层备降 |
 
 #### 支付系统
 
@@ -174,8 +173,6 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
     异步通知 → verify_notify() RSA2 签名验证
                 ↓
     confirm_shop_order() 更新订单状态 + 创建购买记录
-                ↓
-    (若为云服务商品) → 异步调用 ProvisionerEngine.provision()
 ```
 
 - **安全**：RSA2 签名验证，通知域名从 DB 动态读取
@@ -307,49 +304,9 @@ Cron Scheduler ──→ Workflow Engine ──→ Worker Pool
   定时触发                             并发执行节点
 ```
 
----
+## 2.5 广告推广系统（Advertising）
 
-### 2.6 云服务自动开通（Cloud Provisioner）
-
-位置：`cloud_provisioner/`
-
-支持商品下单后自动创建云资源，当前支持 `vps` / `oss` / `cdn` / `rds` 四种服务类型。
-
-#### 工作流程
-
-```
-下单支付 → 自动触发开通请求
-                ↓
-    ProvisionerEngine.provision()
-                ↓
-    ① 验证配置 (validate_config)
-    ② 创建实例记录 (DB)
-    ③ 选择 Provider 适配器
-    ④ provider.provision() 创建资源
-    ⑤ 轮询状态 (get_status)
-    ⑥ 更新连接信息 (IP/端口/密钥)
-    ⑦ 返回实例详情
-```
-
-#### API 端点
-
-| 路由 | 方法 | 说明 |
-|------|------|------|
-| `/cloud/products` | GET | 云服务商品列表 |
-| `/cloud/instances` | GET | 我的云资源 |
-| `/cloud/instances/<iid>` | GET | 实例详情 |
-| `/cloud/instances/provision` | POST | 手动开通（管理员） |
-| `/cloud/instances/<iid>/terminate` | POST | 销毁实例 |
-
-#### Provider 抽象
-
-```
-Provider (抽象基类)
-  └── TemplateProvider    — 模板化输出（开发/测试）
-  └── AliyunProvider      — 阿里云 API 对接（预留）
-```
-
-初始化脚本：`init_ubuntu.sh` / `init_centos.sh`（安装 Nginx/Python/Node.js/Docker）。
+位置：`adplatform/`
 
 ---
 
@@ -715,17 +672,6 @@ VeroRunSystem/
 │   ├── safe_eval.py           # 安全沙箱
 │   ├── routes.py              # API 路由
 │   └── models.py              # 数据模型
-│
-├── cloud_provisioner/         # 云服务自动开通
-│   ├── engine.py              # ProvisionerEngine
-│   ├── routes.py              # /cloud/* API
-│   ├── models.py              # 实例/日志模型
-│   ├── providers/             # Provider 适配器
-│   │   ├── base.py
-│   │   └── template.py
-│   └── scripts/               # 初始化脚本
-│       ├── init_ubuntu.sh
-│       └── init_centos.sh
 │
 ├── health_check/              # 健康检查模块
 │   ├── routes.py              # 蓝图

@@ -1549,44 +1549,9 @@ def confirm_order(oid):
         _log_admin_action(conn, payload['user_id'], 'confirm_payment', 'order', oid,
                           f'product_id={row["product_id"]} user_id={row["user_id"]}')
 
-    # ── 自动开通：如果是云服务商品 ──
-    try:
-        prod_info = None
-        with get_db() as conn:
-            prod_info = conn.execute(
-                'SELECT * FROM products WHERE id=?', (row['product_id'],)).fetchone()
-        if prod_info and prod_info.get('product_type') == 'cloud_service':
-            import json, threading
-            product_config = prod_info.get('product_config', '{}')
-            if isinstance(product_config, str):
-                product_config = json.loads(product_config)
-            specs = product_config.get('specs', {})
+    # ── 云服务自动开通（已移除）──
 
-            from cloud_provisioner.engine import ProvisionerEngine
-            engine = ProvisionerEngine()
-            order_data = {
-                'order_id': row['order_id'],
-                'user_id': row['user_id'],
-                'product_id': row['product_id'],
-                'product_title': row['product_title'],
-                'product_config': product_config,
-                'service_type': product_config.get('service_type', 'vps'),
-                'provider': 'template',
-                'auto_renew': False,
-            }
-            # 异步开通（不阻塞响应）
-            def _provision_async():
-                try:
-                    result = engine.provision(order_data)
-                    print(f'[AutoProvision] order={row["order_id"]} result={result["status"]}')
-                except Exception as e:
-                    print(f'[AutoProvision] order={row["order_id"]} failed: {e}')
-            t = threading.Thread(target=_provision_async, daemon=True)
-            t.start()
-    except Exception as e:
-        print(f'[AutoProvision] Error setting up: {e}')
-
-    return jsonify({'success': True, 'message': '已确认支付，自动开通已触发'})
+    return jsonify({'success': True, 'message': '已确认支付'})
 
 
 @shop_bp.route('/orders/<int:oid>/refund', methods=['POST'])
