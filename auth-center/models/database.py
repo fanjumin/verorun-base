@@ -1288,6 +1288,20 @@ def init_db():
         m.commit()
         print('[Migration] Payment/third-party config seeds added')
 
+    # ── Shop AI 商城商品优化配置 ──
+    with get_db() as m:
+        shop_ai_seeds = [
+            ('shop_ai_provider',                'deepseek',     '商城AI商品优化 — 供应商 (deepseek/dashscope/openai/openrouter/siliconflow/ollama)'),
+            ('shop_ai_model',                   'deepseek-chat','商城AI商品优化 — 模型名 (如 deepseek-chat, qwen-max, gpt-4o-mini)'),
+        ]
+        for key, value, desc in shop_ai_seeds:
+            m.execute(
+                "INSERT OR IGNORE INTO system_config (key, value, description) VALUES (?,?,?)",
+                (key, value, desc)
+            )
+        m.commit()
+        print('[Migration] Shop AI config seeds added')
+
     # ── cluster_services: 站群服务管理 ──
     with get_db() as m2:
         m2.execute("""

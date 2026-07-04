@@ -768,11 +768,220 @@ def delete_category(cid):
         conn.execute('DELETE FROM categories WHERE id=?', (cid,))
         conn.commit()
 # =============================================
-# AI 智能优化
+# AI 智能优化 — 直接使用 AIEngine，支持 DeepSeek/阿里百炼/硅基流动/OpenAI等
 # =============================================
+class ShopAIProcessor:
+    """商城AI内容处理器，内置 Prompt 模板，无需外部依赖"""
+
+    SYSTEM_PROMPT = '你是一个专业的电商文案优化专家，擅长优化商品标题和描述，使其更具吸引力和营销力。'
+
+    def __init__(self):
+        self.engine = None
+        self.provider = None
+        self.model = None
+        self._init_engine()
+
+    def _read_config(self, key, default=''):
+        try:
+            with get_db() as conn:
+                row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
+                return row['value'] if row and row['value'] else default
+        except Exception:
+            return default
+
+    def _init_engine(self):
+        """使用 system_config 配置初始化 AIEngine"""
+        try:
+            self.provider = self._read_config('shop_ai_provider', 'deepseek')
+            self.model = self._read_config('shop_ai_model', 'deepseek-chat')
+
+            from agent_matrix.engine import AIEngine
+            agent_config = {
+                'provider': self.provider,
+                'model_name': self.model,
+                'api_key_ref': f'{self.provider}_api_key',
+                'system_prompt': self.SYSTEM_PROMPT,
+            }
+            self.engine = AIEngine(agent_config)
+            if not self.engine or not self.engine.client:
+                self.engine = None
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.engine = None
+
+    def _call_ai(self, prompt, max_tokens=2048, temperature=0.7):
+        """调用 LLM，返回 (成功, 内容)"""
+        if not self.engine or not self.engine.client:
+            return False, 'AI引擎未初始化，请检查 system_config 中的 shop_ai_provider/shop_ai_model 及对应 API Key'
+        try:
+            resp = self.engine.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {'role': 'system', 'content': self.SYSTEM_PROMPT},
+                    {'role': 'user', 'content': prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            if resp.choices and resp.choices[0].message.content:
+                return True, resp.choices[0].message.content.strip()
+            return False, 'AI 返回空内容'
+        except Exception as e:
+            return False, str(e)
+
+    def is_ready(self):
+        return self.engine is not None and self.engine.client is not None
+
+    # ── 标题优化（多版本） ──
+    def generate_title_options(self, product_info):
+        """生成 3 个风格不同的标题选项"""
+        original_title = product_info.get('title', '')
+        if not original_title:
+            return False, '原始标题不能为空'
+
+        prompt = f'''你是一个电商标题优化专家。请根据以下商品信息，生成 3 个优化后的商品标题。
+
+原始标题：{original_title}
+商品描述：{product_info.get('description', '无')[:200]}
+商品类目：{product_info.get('category', '无')}
+
+要求：
+1. 标题长度 20-40 字
+2. 包含核心卖点和关键词
+3. SEO 友好，适合电商平台搜索
+4. 3 个标题风格不同：①专业型  ②吸引力型  ③简洁型
+
+请以 JSON 格式返回，不要包含任何其他文本：
+[{{"id":1,"title":"标题1","style":"professional","reason":"选择理由"}},{{"id":2,"title":"标题2","style":"appealing","reason":"选择理由"}},{{"id":3,"title":"标题3","style":"concise","reason":"选择理由"}}]'''
+
+        success, response = self._call_ai(prompt, max_tokens=800, temperature=0.8)
+        if not success:
+            return False, response
+
+        import re
+        try:
+            options = json.loads(response)
+            if not isinstance(options, list):
+                m = re.search(r'\[[\s\S]*?\]', response)
+                if m:
+                    options = json.loads(m.group())
+                else:
+                    return False, 'AI 返回格式无效，未能解析 JSON'
+            result = []
+            for opt in options:
+                result.append({
+                    'id': opt.get('id', len(result) + 1),
+                    'title': opt.get('title', ''),
+                    'style': opt.get('style', 'normal'),
+                    'reason': opt.get('reason', ''),
+                })
+            return True, result
+        except (json.JSONDecodeError, Exception) as e:
+            return False, f'解析 AI 返回结果失败: {e}'
+
+    # ── 描述优化 ──
+    def optimize_description(self, original_description, product_features=None):
+        """重写商品描述，突出卖点"""
+        if not original_description or not original_description.strip():
+            return False, '原始描述不能为空'
+
+        prompt = f'''你是一个电商描述优化专家。请优化以下商品描述：
+
+原始描述：{original_description}
+
+要求：
+1. 保持核心信息完整
+2. 突出产品卖点和优势
+3. 语言生动有感染力，适合电商平台展示
+4. 使用段落结构，200-500 字
+5. 无需包含标题，直接输出描述正文'''
+
+        if product_features and product_features.get('specs'):
+            prompt += f'\n\n商品特征/规格：{product_features["specs"]}'
+
+        success, optimized = self._call_ai(prompt, max_tokens=1500, temperature=0.6)
+        if success and optimized:
+            optimized = optimized.strip().strip('"').strip("'")
+        return success, optimized
+
+    # ── 卖点生成 ──
+    def _generate_selling_points(self, product_info):
+        """生成 3-5 个核心卖点"""
+        specs = product_info.get('specs', [])
+        specs_text = ', '.join(str(s) for s in specs) if isinstance(specs, list) else str(specs)
+
+        prompt = f'''请为以下商品生成 3-5 个核心卖点：
+
+商品名称：{product_info.get('title', '')}
+商品描述：{product_info.get('description', '')[:300]}
+{('规格: ' + specs_text) if specs_text else ''}
+
+要求：
+1. 每个卖点一句话，简洁有力
+2. 突出差异化优势
+3. 从用户角度出发，强调利益而非功能
+4. 适合在商品详情页展示
+
+请以 JSON 数组格式返回，不要包含其他文本：
+["卖点1","卖点2","卖点3"]'''
+
+        success, response = self._call_ai(prompt, max_tokens=500, temperature=0.6)
+        if not success:
+            return False, []
+
+        import re
+        try:
+            points = json.loads(response)
+            if not isinstance(points, list):
+                m = re.search(r'\[[\s\S]*?\]', response)
+                if m:
+                    points = json.loads(m.group())
+                else:
+                    points = []
+            return True, [p.strip() for p in points if p.strip()][:5]
+        except (json.JSONDecodeError, Exception):
+            # Fallback: 按行解析
+            points = []
+            for line in response.split('\n'):
+                line = line.strip().lstrip('- •*·').strip()
+                if line and len(line) > 5:
+                    points.append(line)
+            return (True, points[:5]) if points else (False, [])
+
+    # ── 标签生成 ──
+    def _generate_tags(self, product_info):
+        """生成 5-8 个相关标签"""
+        desc = product_info.get('description', '') or ''
+        prompt = f'''请为以下商品生成 5-8 个相关标签：
+
+商品名称：{product_info.get('title', '')}
+商品类目：{product_info.get('category', '无')}
+描述：{desc[:100]}
+
+要求：标签需覆盖商品核心属性、功能、使用场景。
+
+请以 JSON 数组格式返回：
+["标签1","标签2","标签3"]'''
+
+        success, response = self._call_ai(prompt, max_tokens=200, temperature=0.5)
+        if not success:
+            return False, []
+
+        try:
+            tags = json.loads(response)
+            if isinstance(tags, list):
+                return True, [t.strip() for t in tags if t.strip()][:8]
+        except (json.JSONDecodeError, Exception):
+            tags = [t.strip().strip('"[]\'') for t in response.replace('"', '').split(',')]
+            return True, [t for t in tags if t][:8]
+        return False, []
+
+
 def _get_ai_processor():
-    """获取AI处理器实例（AI优化已移至 ali_api 插件，安装插件后可用）"""
-    return None
+    """获取商城AI处理器实例 — 使用 AIEngine，支持 DeepSeek/阿里百炼/硅基流动/OpenAI/OpenRouter/Ollama"""
+    proc = ShopAIProcessor()
+    return proc if proc.is_ready() else None
 
 
 
