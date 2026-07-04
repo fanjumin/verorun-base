@@ -1,9 +1,11 @@
 {
     "name": "ali_api",
-    "version": "1.0.0",
-    "description": "1688 / 阿里巴巴供应链对接插件",
-    "author": "EasyKai Team",
+    "version": "0.2.0",
+    "description": "1688 供应链采集插件 — 商品搜索、AI 优化、本地商城发布",
+    "author": "VeroRun",
     "depends_on": [],
     "enabled": true,
-    "config": {}
+    "config": {
+        "api_gateway": "https://gw.open.1688.com/openapi"
+    }
 }

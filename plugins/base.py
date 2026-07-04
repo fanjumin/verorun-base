@@ -1,232 +1,157 @@
 #!/usr/bin/env python3
 """
-plugins/base.py — 插件基类
-============================
-所有插件必须继承 BasePlugin 并实现对应方法。
+Plugin System — BasePlugin abstract class
+==========================================
+All plugins must inherit from BasePlugin.
 
-BasePlugin for the EasyKai Plugin System.
-Every plugin must subclass BasePlugin and implement the required lifecycle methods.
-
-Plugin lifecycle:
-  install → enable → (运行) → disable → uninstall
-
-i18n compliance: all user-facing strings use _() from i18n module.
+i18n: plugins use their own i18n/{locale}.yml files,
+      accessed via self.t() method — completely isolated
+      from system i18n _().
 """
 
 import os
-import sys
+import yaml
+from typing import List, Dict, Any, Optional, Callable
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, List, Any, TYPE_CHECKING
 
-# 添加项目根到路径，确保能导入 i18n
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:
-    sys.path.insert(0, _BASE_DIR)
-
-from i18n import _
-
-if TYPE_CHECKING:
-    from plugins.registry import PluginRegistry
+_YAML_CACHE: Dict[str, Dict[str, Dict[str, str]]] = {}
+"""Cache: {plugin_name: {locale: {source: translation}}}"""
 
 
-class PluginStatus:
-    """插件状态常量"""
-    UNINSTALLED = 'uninstalled'
-    INSTALLED = 'installed'
-    ENABLED = 'enabled'
-    DISABLED = 'disabled'
-    ERROR = 'error'
+def _load_plugin_yaml(plugin_name: str, i18n_dir: str) -> Dict[str, Dict[str, str]]:
+    """Load all yaml files from a plugin's i18n/ directory.
+
+    Returns {locale: {source: translation}}
+    """
+    if plugin_name in _YAML_CACHE:
+        return _YAML_CACHE[plugin_name]
+
+    result = {}
+    if not os.path.isdir(i18n_dir):
+        _YAML_CACHE[plugin_name] = result
+        return result
+
+    for fname in os.listdir(i18n_dir):
+        if not fname.endswith(('.yml', '.yaml')):
+            continue
+        locale = fname.rsplit('.', 1)[0]  # 'zh-CN.yml' → 'zh-CN'
+        fpath = os.path.join(i18n_dir, fname)
+        try:
+            with open(fpath, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+            result[locale] = data
+        except Exception:
+            result[locale] = {}
+
+    _YAML_CACHE[plugin_name] = result
+    return result
+
+
+def clear_plugin_yaml_cache(plugin_name: str = None):
+    """Clear yaml cache for a plugin (or all if None)."""
+    if plugin_name:
+        _YAML_CACHE.pop(plugin_name, None)
+    else:
+        _YAML_CACHE.clear()
 
 
 class BasePlugin(ABC):
-    """
-    插件基类 — 所有 EasyKai 插件必须继承此类。
+    """Abstract base class for all plugins."""
 
-    子类需要覆盖以下方法来实现功能：
-    - register_routes(): 返回 Flask Blueprint 列表
-    - register_jobs(): 返回 APScheduler job 配置字典列表
-    - register_dag_nodes(): 返回 DAG 节点处理器字典
-    - register_health_checks(): 返回健康检查项列表
-    - get_event_handlers(): 返回事件处理器字典 {'event_name': handler}
-    """
-
-    # ── 元数据（子类必须设置） ──
+    # ── 必须设置的元数据 ──
     name: str = ''
     version: str = '0.1.0'
     description: str = ''
     author: str = ''
-    depends_on: List[str] = []  # 依赖的其他插件 name 列表
-    config_schema: Dict[str, Any] = {}  # 配置项定义（JSON Schema 风格）
+    depends_on: List[str] = []
+    config_schema: Dict[str, Any] = {}
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        初始化插件实例。
-        子类可以覆盖 __init__，但必须调用 super().__init__(config)。
-        """
-        self.config = config or {}
-        self.status = PluginStatus.UNINSTALLED
-        self._error_message: str = ''
+    def __init__(self):
+        self._config = {}
+        self._i18n_data: Dict[str, Dict[str, str]] = {}
+        self._load_i18n()
 
-    # ═══════════════════════════════════════════════════════════
-    # 生命周期钩子（默认实现为空，子类按需覆盖）
-    # ═══════════════════════════════════════════════════════════
+    # ── i18n ──
 
-    def on_install(self, registry: 'PluginRegistry') -> bool:
+    def _get_i18n_dir(self) -> str:
+        """Return absolute path to this plugin's i18n/ directory."""
+        return os.path.join(os.path.dirname(
+            __import__(self.__class__.__module__).__file__), 'i18n')
+
+    def _load_i18n(self):
+        """Pre-load this plugin's translation files."""
+        self._i18n_data = _load_plugin_yaml(self.name, self._get_i18n_dir())
+
+    def t(self, text: str, locale: str = None) -> str:
+        """Plugin i18n: translate text using own i18n/{locale}.yml.
+
+        Falls back to original text if no translation found.
+        Locale defaults to system DEPLOY_LANG or 'zh-CN'.
         """
-        插件安装时调用。
-        可用于：创建数据库表、初始化配置文件等。
-        返回 True 表示安装成功，False 表示失败。
-        """
+        if locale is None:
+            try:
+                from i18n import get_lang
+                locale = get_lang()
+            except Exception:
+                locale = 'zh-CN'
+        translations = self._i18n_data.get(locale, {})
+        return translations.get(text, text)
+
+    # ── 生命周期 ──
+
+    def on_install(self, registry) -> bool:
+        """Called when plugin is first installed. Override to init DB tables etc."""
         return True
 
-    def on_uninstall(self, registry: 'PluginRegistry') -> bool:
-        """
-        插件卸载时调用。
-        可用于：清理数据、删除配置等。
-        返回 True 表示卸载成功。
-        """
+    def on_enable(self, registry) -> bool:
+        """Called when plugin is enabled. Override to set up resources."""
         return True
 
-    def on_enable(self, registry: 'PluginRegistry') -> bool:
-        """
-        插件启用时调用。
-        可用于：启动后台线程、注册信号等。
-        返回 True 表示启用成功。
-        """
+    def on_disable(self, registry) -> bool:
+        """Called when plugin is disabled. Override to clean up resources."""
         return True
 
-    def on_disable(self, registry: 'PluginRegistry') -> bool:
-        """
-        插件禁用时调用。
-        可用于：停止后台任务、释放资源等。
-        返回 True 表示禁用成功。
-        """
+    def on_uninstall(self, registry) -> bool:
+        """Called when plugin is uninstalled. Drop tables, clean config."""
         return True
 
-    # ═══════════════════════════════════════════════════════════
-    # 路由注册（实现此方法以添加 Flask 路由）
-    # ═══════════════════════════════════════════════════════════
+    # ── 功能注册（可选覆盖） ──
 
-    def register_routes(self) -> List[Any]:
-        """
-        返回此插件提供的 Flask Blueprint 列表。
-        返回空列表表示不注册任何路由。
-        示例:
-            return [my_bp]
-        """
+    def register_routes(self) -> List:
+        """Return a list of Flask Blueprints to register."""
         return []
-
-    # ═══════════════════════════════════════════════════════════
-    # 定时任务注册
-    # ═══════════════════════════════════════════════════════════
 
     def register_jobs(self) -> List[Dict[str, Any]]:
-        """
-        返回此插件提供的 APScheduler job 配置列表。
-        每条配置格式:
-        {
-            'job_id': 'unique_job_id',       # 必填
-            'func': callable,                # 必填，任务函数
-            'trigger': 'cron|interval|date',  # 必填
-            'kwargs': {                       # trigger 参数
-                'hour': 2,                   # cron
-                'minute': 0,
-                # 或 interval: {'seconds': 3600}
-                # 或 date: {'run_date': datetime(...)}
-            },
-            'priority': 'normal',            # critical/high/normal/low
-            'max_retries': 2,               # 失败重试次数
-        }
-        返回空列表表示不注册定时任务。
-        """
+        """Return a list of APScheduler job config dicts."""
         return []
-
-    # ═══════════════════════════════════════════════════════════
-    # DAG 工作流节点注册
-    # ═══════════════════════════════════════════════════════════
 
     def register_dag_nodes(self) -> Dict[str, Any]:
-        """
-        返回此插件提供的 DAG 节点处理器。
-        key 为节点类型名，value 为处理函数或类。
-        示例:
-            return {'my_node_type': my_handler_func}
-        返回空字典表示不注册 DAG 节点。
-        """
+        """Return {node_type: handler_function} for DAG workflow engine."""
         return {}
-
-    # ═══════════════════════════════════════════════════════════
-    # 健康检查注册
-    # ═══════════════════════════════════════════════════════════
 
     def register_health_checks(self) -> List[Dict[str, Any]]:
-        """
-        返回此插件提供的健康检查项列表。
-        每条格式:
-        {
-            'check_id': 'unique_check_id',   # 必填
-            'name': '检查项名称',              # 必填（使用中文源文本）
-            'category': 'database|api|custom',# 必填
-            'func': callable,                 # 必填，返回 {status: 'ok'|'warn'|'error', msg: str}
-            'severity': 'warning|critical',   # 默认 'warning'
-            'interval_seconds': 300,          # 检查间隔，默认 300
-        }
-        返回空列表表示不注册健康检查。
-        """
+        """Return a list of health check item dicts."""
         return []
 
-    # ═══════════════════════════════════════════════════════════
-    # 事件钩子注册
-    # ═══════════════════════════════════════════════════════════
-
-    def get_event_handlers(self) -> Dict[str, Any]:
-        """
-        返回此插件注册的事件处理器。
-        key 为事件名（见 hooks.py 中的 EventName 常量），
-        value 为处理函数。
-        示例:
-            return {
-                EventName.ORDER_PAID: self.on_order_paid,
-            }
-        返回空字典表示不注册事件钩子。
-        """
+    def get_event_handlers(self) -> Dict[str, Callable]:
+        """Return {event_name: handler_function} to subscribe to system events."""
         return {}
 
-    # ═══════════════════════════════════════════════════════════
-    # 工具方法
-    # ═══════════════════════════════════════════════════════════
+    # ── 工具方法 ──
 
-    def get_config_value(self, key: str, default=None):
-        """获取插件配置值"""
-        return self.config.get(key, default)
+    def get_config_value(self, key: str, default: Any = None) -> Any:
+        """Get a plugin config value from plugin.json 'config' section."""
+        return self._config.get(key, default)
 
     def log(self, message: str, level: str = 'info'):
-        """统一日志输出（后续可接入 logging 模块）"""
-        prefix = f'[Plugin:{self.name}]'
-        print(f'{prefix} [{level.upper()}] {message}')
+        """Log a message with plugin name prefix."""
+        print(f'[{self.name}/{level}] {message}')
 
-    def validate_config(self) -> Optional[str]:
-        """
-        根据 config_schema 校验插件配置。
-        返回 None 表示通过，返回字符串表示错误描述。
-        子类可覆盖以实现自定义校验逻辑。
-        """
-        if not self.config_schema:
-            return None
-
-        for key, spec in self.config_schema.items():
-            if spec.get('required', False) and key not in self.config:
-                return _(f'缺少必填配置项: {key}')
-            if key in self.config:
-                expected_type = spec.get('type')
-                if expected_type == 'int' and not isinstance(self.config[key], int):
-                    return _(f'配置项 {key} 应为整数')
-                if expected_type == 'bool' and not isinstance(self.config[key], bool):
-                    return _(f'配置项 {key} 应为布尔值')
-                if expected_type == 'str' and not isinstance(self.config[key], str):
-                    return _(f'配置项 {key} 应为字符串')
-
-        return None
-
-    def __repr__(self) -> str:
-        return f'<Plugin {self.name} v{self.version} [{self.status}]>'
+    def validate_config(self) -> List[str]:
+        """Validate _config against config_schema. Return list of errors."""
+        errors = []
+        for key, rules in self.config_schema.items():
+            required = rules.get('required', False)
+            if required and key not in self._config:
+                errors.append(f'{self.name}: missing required config "{key}"')
+        return errors

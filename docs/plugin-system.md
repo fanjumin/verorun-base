@@ -458,20 +458,42 @@ class MyPlugin(BasePlugin):
 
 ### 8.2 i18n 规范
 
-- **所有面向用户的字符串**必须使用 `_('...')` 包裹
-- **源文本使用中文**
-- **不需要翻译的**：日志 key、变量名、内部标识符
-- 新增翻译字符串时，同步更新 `i18n/zh-CN.yml` 和 `i18n/en.yml`
+插件使用 **自有翻译**，与系统 `_()` 完全隔离。
+
+#### 翻译文件
+
+放在插件目录的 `i18n/` 下，格式与系统 YAML 一致：
+
+```
+plugins/your_plugin/
+└── i18n/
+    ├── zh-CN.yml    # 中文翻译
+    └── en.yml       # 英文翻译
+```
+
+#### 使用 `self.t()` 方法
 
 ```python
-# 正确
-return jsonify({'error': _('插件未找到')})
+class MyPlugin(BasePlugin):
+    def my_handler(self):
+        # 使用 self.t() 翻译插件自己的文本
+        msg = self.t('插件未找到')
+        return jsonify({'error': msg})
+```
 
-# 正确（无需翻译）
-self.log('Plugin initialized', 'info')
+`self.t()` 自动跟随系统 `DEPLOY_LANG`，无需手动传 locale。
 
-# 错误 — 缺少 i18n
-return jsonify({'error': 'Plugin not found'})
+#### 目录结构规范
+
+```
+plugins/your_plugin/
+├── __init__.py       # BasePlugin 子类
+├── plugin.json       # 元数据
+├── i18n/             # 插件自有翻译（与系统 _() 隔离）
+│   ├── zh-CN.yml
+│   └── en.yml
+├── README.zh-CN.md   # 中文文档
+└── README.en.md      # 英文文档
 ```
 
 ### 8.3 安全规范
