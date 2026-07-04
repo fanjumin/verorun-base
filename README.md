@@ -36,7 +36,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | # | 子系统 | 位置 | 职责 |
 |---|--------|------|------|
 | 1 | **Agent 矩阵** | `agent_matrix/` | 13 Agent 协作引擎 — 任务分解/调度/执行/汇总 |
-| 2 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、SKU、订单、购物车、优惠券、AI 优化 |
+| 2 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、SKU、订单、购物车、优惠券、AI 优化、评价、收藏、订单通知 |
 | 3 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类、下载管理 |
 | 4 | **工作流引擎** | `orchestrator/` | DAG 工作流编排、Cron 调度、12 种节点 |
 | 5 | **云服务开通** | `cloud_provisioner/` | VPS/OSS/CDN/RDS 自动部署与销毁 |
@@ -49,7 +49,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | 12 | **分析系统** | `analytics/` | 访客追踪、IP 地理定位、UA 解析 |
 | 13 | **社交分发** | `auth-center/routes/social_push.py` | 微博/微信/头条/抖音 内容分发 |
 | 14 | **内容工厂** | `auth-center/services/content_factory/` | RSS 采集 → AI 加工 → Skill 推送 |
-| 15 | **插件系统** | `plugins/` | BasePlugin 框架 + 可选插件（1688 采集等） |
+| 15 | **插件系统** | `plugins/` | BasePlugin 框架 + 事件钩子 + 4 个内置插件（1688 采集/评价/收藏/订单通知） |
 
 ---
 
@@ -157,6 +157,9 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | **支付** | — | 支付宝 | RSA2 签名 + 桩模式降级 |
 | **物流** | — | 快递鸟查询 | kdniao_service.py |
 | **AI 优化** | 标题多版本/描述重写/卖点/标签/批量 | — | ShopAIProcessor → AIEngine |
+| **商品评价**（插件） | 回复/删除/审核 | 列表/统计 | `plugins/reviews/` 5 星评分 + 晒图 + 匿名 |
+| **收藏心愿单**（插件） | — | 收藏/取消/检查/数量 | `plugins/wishlist/` |
+| **订单通知**（插件） | — | 自动站内信 | `plugins/order_notify/` 6 种事件通知 |
 | **云服务开通** | 订单确认 → 自动创建云实例 | — | 对接 cloud_provisioner |
 
 #### 支付系统
@@ -417,7 +420,7 @@ app.jinja_loader = ChoiceLoader([
 
 位置：`health_check/`
 
-独立的系统健康监控模块，通过 Admin 后台自动加载，由 Agent 矩阵中的 **Health Check Agent** 调用。
+独立的系统健康监控模块，通过 Admin 后台自动加载，由 Agent 矩阵中的 **Health Check Agent** 调用。每条检查项支持 **AI 分析** 和 **一键修复**，调用 LLM 诊断根因并自动执行修复脚本。
 
 #### 功能架构
 
@@ -428,7 +431,7 @@ app.jinja_loader = ChoiceLoader([
 │  ① Service Discovery    端口探活 / 路由发现  │
 │  ② Health Checkers      MySQL / HTTP / Ping  │
 │  ③ Alerter              邮件 / Webhook 告警  │
-│  ④ AI Fixer             自动诊断 + 修复建议  │
+│  ④ AI Fixer             LLM 诊断 + 🔧 修复  │
 │  ⑤ Scheduler            定时巡检（APScheduler）│
 └─────────────────────────────────────────────┘
 ```
@@ -439,7 +442,20 @@ app.jinja_loader = ChoiceLoader([
 
 位置：`plugins/`
 
-标准化的插件框架，支持 i18n 隔离翻译、自动路由挂载、事件钩子。
+标准化的插件框架，支持 i18n 隔离翻译、自动路由挂载、事件钩子系统。
+
+#### 事件系统
+
+5 个核心业务事件，插件通过 `plugins/hooks.py` 订阅后自动触发：
+
+| 事件 | 触发时机 | 订阅插件 |
+|------|----------|----------|
+| `ORDER_CREATED` | 用户下单成功 | order_notify → 发送下单通知 |
+| `ORDER_PAID` | 支付确认成功 | order_notify → 发送支付成功通知 |
+| `ORDER_SHIPPED` | 管理员发货 | order_notify → 发送发货通知 |
+| `ORDER_REFUNDED` | 用户申请退款 | order_notify → 发送退款通知 |
+| `ORDER_CANCELLED` | 用户取消订单 | order_notify → 发送取消通知 |
+| `ORDER_COMPLETED` | 用户确认收货 | order_notify → 发送完成通知 + 提示评价 |
 
 #### 插件规范
 
@@ -460,7 +476,10 @@ class AliApiPlugin(BasePlugin):
 
 | 插件 | 位置 | 说明 |
 |------|------|------|
-| **1688 采集** | `plugins/ali_api/` | 阿里巴巴商品采集 + AI 优化（可选安装） |
+| **1688 供应链采集** | `plugins/ali_api/` | 阿里巴巴商品搜索、评论、按图搜索、店铺全量采集 + AI 优化发布 (v0.2.1) |
+| **商品评价** | `plugins/reviews/` | 5 星评分 + 晒图 + 匿名评价 + 管理回复 + 统计 |
+| **收藏心愿单** | `plugins/wishlist/` | 收藏/取消/检查/列表/数量统计 |
+| **订单通知** | `plugins/order_notify/` | 自动站内信：下单/支付/发货/退款/取消/完成 |
 
 #### 目录结构规范
 
@@ -732,12 +751,23 @@ VeroRunSystem/
 │   ├── registry.py            # 插件注册表
 │   ├── hooks.py               # 事件总线
 │   ├── __init__.py            # 插件加载器
-│   └── ali_api/               # 1688 采集插件（可选）
+│   ├── ali_api/               # 1688 供应链采集插件（可选）
 │       ├── i18n/{zh-CN,en}.yml
 │       ├── services/ (5)
 │       ├── routes/admin.py
 │       ├── static/ali_console.js
 │       └── templates/ali_admin/
+│   ├── reviews/                # 商品评价插件
+│   │   ├── i18n/{zh-CN,en}.yml
+│   │   ├── routes/ (4)
+│   │   └── README.{zh-CN,en}.md
+│   ├── wishlist/               # 收藏心愿单插件
+│   │   ├── i18n/{zh-CN,en}.yml
+│   │   ├── routes/ (1)
+│   │   └── README.{zh-CN,en}.md
+│   └── order_notify/           # 订单通知插件
+│       ├── i18n/{zh-CN,en}.yml
+│       └── plugin.json
 │
 ├── themes/                    # 5 个主题
 │   ├── default/               # 默认 / light/ / nature/ / ocean/ / warm/
@@ -828,6 +858,13 @@ python app.py 8084 &
 2. 创建 `plugins/<name>/plugin.json` 填写元数据
 3. 添加翻译：`plugins/<name>/i18n/{locale}.yml`
 4. 添加路由：`plugins/<name>/routes/`（自动挂载到 `/plugin/<name>/`）
+5. 可选：在 `on_register()` 中 `subscribe('ORDER_CREATED', self.handler)` 订阅事件
+
+### 添加事件钩子
+
+1. 在核心路由中调用 `emit('EVENT_NAME', key1=val1, key2=val2)`
+2. 插件通过 `subscribe('EVENT_NAME', handler_func)` 订阅
+3. 参见 `plugins/order_notify/__init__.py` 完整示例
 
 ### 新增主题
 
@@ -884,6 +921,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.9.8 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.9.9 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有
