@@ -38,6 +38,10 @@ tmp_*.bat
 ubprocess*
 *ubprocess*
 *sourcesappout*
+git_script.py
+"*s -File*"
+"*sourcesappout*"
+"*shellIntegration*"
 
 # Environment
 .env
