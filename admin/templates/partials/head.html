@@ -6,8 +6,8 @@
 <title>{{ brand.site_name_cn if brand and brand.site_name_cn else '' }} {{ _('Admin Panel') }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="icon" type="image/png" sizes="16x16" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-16x16.png' }}">
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.min.js"></script>
+<link href="/admin/static/lib/quill.snow.css" rel="stylesheet">
+<script src="/admin/static/lib/quill.min.js" defer></script>
 <!-- <script src="/static/lib/dicebear.js"></script> -->
 {% if theme_css_url %}<link rel="stylesheet" href="{{ theme_css_url }}">{% endif %}
 <style>
@@ -127,8 +127,8 @@ a:hover{text-decoration:underline}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media(max-width:768px){.sidebar{width:52px;min-width:52px}.sidebar .logo{padding:12px 10px;justify-content:center}.sidebar .logo .logo-text,.sidebar .logo .logo-sub,.ni span,.ns .ns-label{display:none}.ns{justify-content:center;padding:10px 0 4px}.ns .ns-arrow{display:none}.ni{justify-content:center;padding:8px 0;border-left:none}.ni svg{width:18px;height:18px}.ni.sel::after{display:none}.ni.sel{background:var(--glow-accent);border-left:none}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="/admin/static/lib/chart.min.js" defer></script>
+<script src="/admin/static/lib/echarts.min.js" defer></script>
 </head>
 <body>
 <div class="sidebar">
