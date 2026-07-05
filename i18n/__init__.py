@@ -23,6 +23,7 @@ Usage:
 """
 import os
 import hashlib
+import functools
 import yaml
 
 _market = os.environ.get('DEPLOY_MARKET', 'cn')
@@ -165,6 +166,7 @@ def delete_translation(translation_id: int) -> bool:
         return False
 
 
+@functools.lru_cache(maxsize=4)
 def get_all_translations(locale: str = None) -> dict:
     """
     返回完整翻译字典（用于前端注入）。

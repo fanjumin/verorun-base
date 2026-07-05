@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Brand settings service — shared across all 4 services for global brand config."""
 
-import sqlite3, os
+import sqlite3, os, functools
 
 # 项目版本号（从 VERSION 文件读取）
 _VERSION_CACHE = None
@@ -46,6 +46,7 @@ def _get_db_path():
     return _DB_PATH
 
 
+@functools.lru_cache(maxsize=1)
 def get_brand_settings():
     """Return brand settings dict, or None if table doesn't exist yet."""
     db_path = _get_db_path()

@@ -732,12 +732,22 @@ def pimg(filename):
 # ══ 主题系统: Jinja2 模板覆盖 + theme.css 注入 ══
 THEMES_ROOT_ADMIN = os.path.join(os.path.dirname(__file__), '..', 'themes')
 
+# 主题 slug 缓存（60秒 TTL）
+_theme_slug_cache = {'value': None, 'ts': 0}
+
 def _get_active_theme_slug_admin():
+    """获取当前激活的主题 slug（带 60 秒 TTL 缓存）"""
+    now = _time.perf_counter()
+    if now - _theme_slug_cache['ts'] < 60:
+        return _theme_slug_cache['value']
     try:
         from routes.theme_admin import get_active_theme_slug_for_site
-        return get_active_theme_slug_for_site('admin')
+        slug = get_active_theme_slug_for_site('admin')
     except Exception:
-        return None
+        slug = None
+    _theme_slug_cache['value'] = slug
+    _theme_slug_cache['ts'] = now
+    return slug
 
 # Jinja2 ChoiceLoader: 优先从激活主题的 templates/ 目录加载
 theme_tpl_dir = None
