@@ -25,6 +25,7 @@ class LicenseService:
             'DB_PATH',
             os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'x7k2m9a4.db')
         )
+        self._cache = {'result': None, 'timestamp': 0}
         self._ensure_config_table()
 
     def _get_conn(self):
@@ -149,11 +150,15 @@ class LicenseService:
         检查管理后台是否可访问
         返回 True = 允许访问，False = 需要跳转续费页
         """
+        # 60秒内存缓存，避免每次请求开数据库连接
+        now = time.time()
+        if now - self._cache['timestamp'] < 60:
+            return self._cache['result']
+
         status = self.get_status()
-        if status['status'] == 'unknown':
-            # 首次使用，从未验证过 — 允许访问
-            return True
-        return status['valid']
+        result = True if status['status'] == 'unknown' else status['valid']
+        self._cache = {'result': result, 'timestamp': now}
+        return result
 
     def check_ai_access(self):
         """
