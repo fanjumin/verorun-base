@@ -42,6 +42,11 @@ GEOIP_DB_CANDIDATES = [
 IPAPI_CACHE = {}
 IPAPI_CACHE_TTL = 3600  # 1 小时缓存
 
+# ip-api 熔断器：连续失败 3 次后停用 300 秒
+_IPAPI_CB = {'failures': 0, 'disabled_until': 0}
+_IPAPI_CB_THRESHOLD = 3
+_IPAPI_CB_COOLDOWN = 300  # 5 分钟
+
 _geoip_reader = None
 _ip2region_searcher = None
 
@@ -207,9 +212,14 @@ def geoip_lookup(ip: str) -> dict:
 
 
 def _ipapi_lookup(ip: str) -> dict:
-    """通过 ip-api.com 在线查询（带缓存）"""
+    """通过 ip-api.com 在线查询（带熔断器 + 缓存）"""
     now = time.time()
-    
+
+    # ── 熔断器检查 ──────────────────────────────────
+    global _IPAPI_CB
+    if _IPAPI_CB['disabled_until'] > now:
+        return {'country': '', 'city': ''}
+
     # 清理过期缓存
     global IPAPI_CACHE
     expired = [k for k, v in IPAPI_CACHE.items() if now - v['ts'] > IPAPI_CACHE_TTL]
@@ -230,8 +240,15 @@ def _ipapi_lookup(ip: str) -> dict:
                 'city': data.get('city', ''),
             }
             IPAPI_CACHE[ip] = {'ts': now, 'data': result}
+            # 成功后重置熔断器
+            _IPAPI_CB['failures'] = 0
             return result
     except Exception as e:
+        # 记录失败次数
+        _IPAPI_CB['failures'] += 1
+        if _IPAPI_CB['failures'] >= _IPAPI_CB_THRESHOLD:
+            _IPAPI_CB['disabled_until'] = now + _IPAPI_CB_COOLDOWN
+            print(f'[Analytics] ⛔ ip-api 熔断：连续 {_IPAPI_CB_THRESHOLD} 次失败，暂停 {_IPAPI_CB_COOLDOWN}s')
         pass
 
     return {'country': '', 'city': ''}
