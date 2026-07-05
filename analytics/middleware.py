@@ -25,8 +25,6 @@ import os
 import sys
 import sqlite3
 import fnmatch
-import queue
-import threading
 from datetime import datetime
 
 # ─── 本地导入 ──────────────────────────────────────────────────────────────────
@@ -57,12 +55,6 @@ SAMPLE_RATE = 1.0
 _DB_RETRIES = 3
 _DB_RETRY_DELAY = 0.1  # 100ms
 
-# ─── 异步写入队列 ──────────────────────────────────────────────────────────
-# after_request 只将数据推入队列，后台线程负责实际 SQLite 写入
-_AQ = queue.Queue(maxsize=1000)
-_AQ_WORKER = None
-_AQ_STOP = threading.Event()
-
 
 def _db_write(func):
     """装饰器：遇到 database is locked 时自动重试"""
@@ -78,80 +70,6 @@ def _db_write(func):
                     continue
                 raise
     return wrapper
-
-
-def _aq_worker():
-    """后台消费线程：从队列取数据 → 写入 SQLite"""
-    while not _AQ_STOP.is_set():
-        try:
-            # 批量消费：一次取出最多 10 条，减少连接次数
-            batch = []
-            item = _AQ.get(timeout=2)
-            batch.append(item)
-            # 尝试攒一批
-            while len(batch) < 10:
-                try:
-                    batch.append(_AQ.get_nowait())
-                except queue.Empty:
-                    break
-
-            # 批量写入
-            conn = am.get_db()
-            try:
-                for data in batch:
-                    _write_log_entry(conn, data)
-                conn.commit()
-            except Exception as e:
-                conn.rollback()
-                print(f'[Analytics] ⚠️ 批量写入异常: {e}')
-            finally:
-                conn.close()
-
-            # 标记队列任务完成
-            for _ in batch:
-                _AQ.task_done()
-        except queue.Empty:
-            continue
-        except Exception as e:
-            print(f'[Analytics] ⚠️ 后台写入异常: {e}')
-            time.sleep(1)
-
-
-def _write_log_entry(conn, data):
-    """写入单条日志 + 会话管理（不带 commit，由调用方控制）"""
-    am.insert_log(conn, data['log'])
-    if not data.get('is_bot'):
-        existing_session = conn.execute(
-            "SELECT id, page_views FROM analytics_visitor_sessions WHERE session_hash=?",
-            (data['session_hash'],)
-        ).fetchone()
-        if existing_session:
-            am.update_session(
-                conn, data['session_hash'],
-                exit_path=data['path'],
-                page_views=existing_session['page_views'] + 1,
-                duration=data.get('duration', 0)
-            )
-        else:
-            existing_visitor = conn.execute(
-                "SELECT id FROM analytics_visitor_sessions WHERE visitor_hash=? AND date=?",
-                (data['visitor_hash'], data['today_str'])
-            ).fetchone()
-            is_new = 1 if existing_visitor is None else 0
-            am.track_session(
-                conn, data['session_hash'], data['visitor_hash'],
-                data['today_str'],
-                start_time=data.get('start_time'),
-                entry_path=data['path'],
-                referer=data.get('ref_domain', ''),
-                browser=data.get('browser', ''),
-                os_name=data.get('os_name', ''),
-                device_type=data.get('device_type', 'desktop'),
-                country=data.get('country', ''),
-                city=data.get('city', ''),
-                is_bot=0,
-                is_new=is_new,
-            )
 
 
 def _init_exclude_patterns():
@@ -224,15 +142,7 @@ class AnalyticsMiddleware:
         app.before_request(self.before_request)
         app.after_request(self.after_request)
 
-        # 启动后台异步写入线程
-        global _AQ_WORKER
-        if _AQ_WORKER is None or not _AQ_WORKER.is_alive():
-            _AQ_STOP.clear()
-            _AQ_WORKER = threading.Thread(target=_aq_worker, daemon=True, name='analytics-writer')
-            _AQ_WORKER.start()
-
         print(f'[Analytics] ✅ 中间件已注册 [{service_name}] 采样率={sample_rate}')
-        print(f'[Analytics]   ⚡ 写入模式: 异步队列 (批量≤10条/次)')
 
     def _load_privacy_config(self):
         """从数据库加载隐私配置"""
@@ -380,55 +290,78 @@ class AnalyticsMiddleware:
                 utm_medium = qs_parsed.get('utm_medium', [''])[0]
                 utm_campaign = qs_parsed.get('utm_campaign', [''])[0]
 
-            # 10. 推入异步写入队列（主请求不再等待 SQLite）
-            queue_data = {
-                'log': {
-                    'timestamp': now,
-                    'visitor_hash': visitor_hash,
-                    'session_hash': session_hash,
-                    'ip_prefix': ip_prefix,
-                    'country': country,
-                    'city': city,
-                    'user_agent': user_agent[:512],
-                    'browser': browser,
-                    'browser_version': browser_version,
-                    'os_name': os_name,
-                    'device_type': device_type,
-                    'is_bot': is_bot,
-                    'path': path,
-                    'query_string': query_string[:512],
-                    'referer': referer[:1024],
-                    'referer_domain': ref_domain,
-                    'utm_source': utm_source,
-                    'utm_medium': utm_medium,
-                    'utm_campaign': utm_campaign,
-                    'language': language,
-                    'status_code': status,
-                    'response_time': response_time,
-                    'request_method': method,
-                    'service_name': SERVICE_NAME,
-                    'full_url': full_url[:2048],
-                    'content_type': content_type,
-                },
-                'session_hash': session_hash,
-                'visitor_hash': visitor_hash,
-                'today_str': today_str,
-                'path': path,
-                'is_bot': is_bot,
-                'ref_domain': ref_domain or '',
-                'browser': browser,
-                'os_name': os_name,
-                'device_type': device_type,
-                'country': country,
-                'city': city,
-                'duration': int(time.time()) - (start_time or now),
-                'start_time': now,
-            }
-            try:
-                _AQ.put_nowait(queue_data)
-            except queue.Full:
-                # 队列满时降级：丢弃本次数据，不影响主请求
-                print(f'[Analytics] ⚠️ 写入队列满，丢弃 1 条日志')
+            # 10. 写入原始日志（带重试）
+            @_db_write
+            def _do_write():
+                conn = am.get_db()
+                try:
+                    am.insert_log(conn, {
+                        'timestamp': now,
+                        'visitor_hash': visitor_hash,
+                        'session_hash': session_hash,
+                        'ip_prefix': ip_prefix,
+                        'country': country,
+                        'city': city,
+                        'user_agent': user_agent[:512],
+                        'browser': browser,
+                        'browser_version': browser_version,
+                        'os_name': os_name,
+                        'device_type': device_type,
+                        'is_bot': is_bot,
+                        'path': path,
+                        'query_string': query_string[:512],
+                        'referer': referer[:1024],
+                        'referer_domain': ref_domain,
+                        'utm_source': utm_source,
+                        'utm_medium': utm_medium,
+                        'utm_campaign': utm_campaign,
+                        'language': language,
+                        'status_code': status,
+                        'response_time': response_time,
+                        'request_method': method,
+                        'service_name': SERVICE_NAME,
+                        'full_url': full_url[:2048],
+                        'content_type': content_type,
+                    })
+
+                    # 11. 管理会话（非爬虫）
+                    if not is_bot:
+                        existing_session = conn.execute(
+                            "SELECT id, page_views FROM analytics_visitor_sessions WHERE session_hash=?",
+                            (session_hash,)
+                        ).fetchone()
+
+                        if existing_session:
+                            am.update_session(
+                                conn, session_hash,
+                                exit_path=path,
+                                page_views=existing_session['page_views'] + 1,
+                                duration=int(time.time()) - start_time
+                            )
+                        else:
+                            existing_visitor = conn.execute(
+                                "SELECT id FROM analytics_visitor_sessions WHERE visitor_hash=? AND date=?",
+                                (visitor_hash, today_str)
+                            ).fetchone()
+                            is_new = 1 if existing_visitor is None else 0
+
+                            am.track_session(
+                                conn, session_hash, visitor_hash, today_str,
+                                start_time=now,
+                                entry_path=path,
+                                referer=ref_domain or '',
+                                browser=browser,
+                                os_name=os_name,
+                                device_type=device_type,
+                                country=country,
+                                city=city,
+                                is_bot=0,
+                                is_new=is_new,
+                            )
+                finally:
+                    conn.close()
+
+            _do_write()
         except Exception as e:
             # 中间件绝不能影响主请求
             import traceback
