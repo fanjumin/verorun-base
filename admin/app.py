@@ -100,7 +100,7 @@ app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..'))
 ])
 
-AnalyticsMiddleware(app, service_name="admin")
+AnalyticsMiddleware(app, service_name="admin", sample_rate=0.2)
 
 # 启动分析聚合处理器（后台线程，每60秒聚合一次原始日志）
 import threading as _thr
