@@ -32,8 +32,10 @@ function renderMediaGrid(grid,items){
   items.forEach(function(f){
     var isV=f.mime_type&&f.mime_type.startsWith('video/'),isA=f.mime_type&&f.mime_type.startsWith('audio/'),isI=f.mime_type&&f.mime_type.startsWith('image/');
     var icon=isV?'🎬':isA?'🎵':isI?'🖼️':'📄',thumb='';
-    if(isI)thumb='<img src="/static/'+esc(f.file_path)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
-    else if(f.thumb_path)thumb='<img src="/static/'+esc(f.thumb_path)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
+    var filePath=f.file_path.startsWith('static/')?f.file_path:'static/'+f.file_path;
+    var thumbPath=f.thumb_path?(f.thumb_path.startsWith('static/')?f.thumb_path:'static/'+f.thumb_path):'';
+    if(isI)thumb='<img src="/'+esc(filePath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
+    else if(thumbPath)thumb='<img src="/'+esc(thumbPath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else thumb='<div style="width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg);border-radius:6px 6px 0 0">'+icon+'</div>';
     h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">'+thumb;
     h+='<div style="padding:8px">';

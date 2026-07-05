@@ -28,6 +28,7 @@ function navSettingsSwitch(tab){
 }
 function loadMainNavInto(targetId){
   var el=document.getElementById(targetId);
+  if(!el)return;
   fetch("/admin/footer-nav",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var h='<div class="cd"><div class="st" style="display:flex;justify-content:space-between;align-items:center">{{ _('Main Nav Management') }}';
@@ -48,6 +49,7 @@ function loadMainNavInto(targetId){
 }
 function loadFooterLinksConfigInto(targetId){
   var el=document.getElementById(targetId);
+  if(!el)return;
   var ld=document.createElement('div');ld.id='fl-loader';ld.style.cssText='text-align:center;padding:12px;color:var(--dim)';ld.innerHTML='<div class="s" style="display:inline-block"></div>{{ _('Footer Loading') }}...';el.appendChild(ld);
   fetch("/admin/footer-links",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     var loader=document.getElementById('fl-loader');if(loader)loader.remove();
@@ -63,6 +65,7 @@ function loadFooterLinksConfigInto(targetId){
 }
 function loadSocialMediaConfigInto(targetId){
   var el=document.getElementById(targetId);
+  if(!el)return;
   var ld=document.createElement('div');ld.id='sm-loader';ld.style.cssText='text-align:center;padding:12px;color:var(--dim)';ld.innerHTML='<div class="s" style="display:inline-block"></div>{{ _('Social Media Loading') }}...';el.appendChild(ld);
   fetch("/admin/social-media",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     var loader=document.getElementById('sm-loader');if(loader)loader.remove();
@@ -92,6 +95,7 @@ function loadSocialMediaConfigInto(targetId){
 }
 function loadPartnersConfigInto(targetId){
   var el=document.getElementById(targetId);
+  if(!el)return;
   var ld=document.createElement('div');ld.id='pt-loader';ld.style.cssText='text-align:center;padding:12px;color:var(--dim)';ld.innerHTML='<div class="s" style="display:inline-block"></div>{{ _('Partner Loading') }}...';el.appendChild(ld);
   fetch("/admin/partners",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     var loader=document.getElementById('pt-loader');if(loader)loader.remove();
