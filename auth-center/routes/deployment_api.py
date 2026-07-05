@@ -41,7 +41,7 @@ def _get_db():
 
 
 def _require_admin():
-    """验证管理员 JWT"""
+    """验证管理员 JWT — 使用 JWT payload 中的 is_admin，避免额外 DB 查询"""
     from services.jwt_service import validate_token
     auth = request.headers.get('Authorization', '')
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else ''
@@ -50,10 +50,7 @@ def _require_admin():
     payload = validate_token(token) if token else None
     if not payload:
         return None, (jsonify({'success': False, 'error': '请先登录'}), 401)
-    conn = _get_db()
-    user = conn.execute('SELECT is_admin FROM users WHERE id=?', (payload['user_id'],)).fetchone()
-    conn.close()
-    if not user or not user['is_admin']:
+    if not payload.get('is_admin'):
         return None, (jsonify({'success': False, 'error': '需要管理员权限'}), 403)
     return payload, None
 

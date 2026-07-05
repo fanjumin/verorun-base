@@ -587,17 +587,20 @@ _admin_login_attempts = {}
 
 
 def _log_admin_action(admin_id, action, ip, detail=''):
-    """记录管理员操作日志"""
-    from models import get_db as _gdb
-    try:
-        with _gdb() as conn:
-            conn.execute(
-                'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (?,?,?,?,?,?)',
-                (admin_id or 0, action, 'admin', 'login', detail, ip)
-            )
-            conn.commit()
-    except Exception:
-        pass
+    """记录管理员操作日志 — 异步写入，不阻塞响应"""
+    import threading
+    def _write():
+        from models import get_db as _gdb
+        try:
+            with _gdb() as conn:
+                conn.execute(
+                    'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (?,?,?,?,?,?)',
+                    (admin_id or 0, action, 'admin', 'login', detail, ip)
+                )
+                conn.commit()
+        except Exception:
+            pass
+    threading.Thread(target=_write, daemon=True).start()
 
 
 @app.route('/reset-password')

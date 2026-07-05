@@ -59,9 +59,7 @@ def _require_admin():
     payload = validate_token(token) if token else None
     if not payload:
         return None, api_err(_('Please log in first'), 401)
-    with get_db() as conn:
-        user = conn.execute('SELECT is_admin FROM users WHERE id=?', (payload['user_id'],)).fetchone()
-    if not user or not user['is_admin']:
+    if not payload.get('is_admin'):
         return None, api_err(_('Admin Only'), 403)
     return payload, None
 
