@@ -718,68 +718,108 @@ function renderScoreChart(trend) {
   document.getElementById('scoreChart').innerHTML = h;
 }
 
+// ── Safe Fetch Helper: independent error handling per API call ──
+function safeFetch(url) {
+  return fetch(url, {headers:{'Authorization':'Bearer '+_token}})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status+' '+r.statusText);
+      return r.json();
+    })
+    .catch(function(e){
+      console.error('[Health] Fetch failed:', url, e.message);
+      return {success: false, error: e.message, _source: url};
+    });
+}
+
 // ── Manage Checks (Enhanced: Registry + Sorting + Config Editor + One-click Add) ──
 function loadChecks() {
   var container = document.getElementById('checksList');
   container.innerHTML = '<div class="lo"><div class="s"></div>{{ _('Loading checks...') }}</div>';
 
-  // Load DB list + registry in parallel
-  Promise.all([
-    fetch(API+'/checks', {headers:{'Authorization':'Bearer '+_token}}).then(function(r){return r.json()}),
-    fetch(API+'/checkers/registry', {headers:{'Authorization':'Bearer '+_token}}).then(function(r){return r.json()})
-  ]).then(function(results){
-    var dbData = results[0];
-    var regData = results[1];
-    var checks = (dbData.success && dbData.data) ? dbData.data.checks : [];
-    var registered = (regData.success && regData.data) ? regData.data.registered : [];
+  // Load DB list first, then registry (independent error handling per call)
+  var dbData, regData;
+
+  safeFetch(API+'/checks').then(function(d){
+    dbData = d;
+    return safeFetch(API+'/checkers/registry');
+  }).then(function(r){
+    regData = r;
+
+    // ── Determine data state ──
+    var checksLoaded = dbData.success;
+    var registryLoaded = regData.success;
+    var checks = (checksLoaded && dbData.data) ? dbData.data.checks : [];
+    var registered = (registryLoaded && regData.data) ? regData.data.registered : [];
+
+    // If both failed, show error with diagnostic info
+    if (!checksLoaded && !registryLoaded) {
+      container.innerHTML = '<div class="lo" style="color:var(--red)">{{ _('Loading Failed') }}<br><span style="font-size:11px;color:var(--dim)">' +
+        esc('Checks: ' + (dbData.error||'unknown') + ' | Registry: ' + (regData.error||'unknown')) + '</span></div>';
+      return;
+    }
+
     var h = '';
 
+    // ── Warning banner if registry failed ──
+    if (!registryLoaded) {
+      h += '<div class="glass-card" style="border-color:var(--yellow)">';
+      h += '<div style="color:var(--yellow);font-size:12px;display:flex;align-items:center;gap:6px">⚠️ {{ _('Checker registry unavailable') }}: ' + esc(regData.error||'unknown') + '</div>';
+      h += '</div>';
+    }
+
     // ── Available Checkers Registry (One-click Add) ──
-    var unregistered = registered.filter(function(r){ return !r.in_db; });
-    if (unregistered.length > 0) {
-      h += '<div class="glass-card">';
-      h += '<div class="ct">📦 {{ _('Available Checkers') }} <span style="color:var(--accent);font-weight:400">('+unregistered.length+' {{ _('available)') }}</span></div>';
-      h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
-      unregistered.forEach(function(r){
-        var severityColors = {warning:'rgba(251,191,36,0.15);color:var(--yellow)', critical:'rgba(248,81,73,0.15);color:var(--red)', info:'rgba(96,165,250,0.15);color:var(--blue)'};
-        h += '<div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px">';
-        h += '<div><div style="font-size:12px;font-weight:600">'+esc(r.name)+'</div>';
-        h += '<div style="font-size:10px;color:var(--dim)">'+esc(r.check_key)+' · <span style="background:'+(severityColors[r.severity]||severityColors.warning)+';padding:1px 5px;border-radius:4px;font-size:9px">'+r.severity+'</span></div></div>';
-        h += '<button class="btn btn-sm" onclick="addFromRegistry(\''+r.check_key+'\')" style="margin-left:auto">＋{{ _('Add') }}</button>';
-        h += '</div>';
-      });
-      h += '</div></div>';
+    if (registryLoaded) {
+      var unregistered = registered.filter(function(r){ return !r.in_db; });
+      if (unregistered.length > 0) {
+        h += '<div class="glass-card">';
+        h += '<div class="ct">📦 {{ _('Available Checkers') }} <span style="color:var(--accent);font-weight:400">('+unregistered.length+' {{ _('available)') }}</span></div>';
+        h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+        unregistered.forEach(function(r){
+          var severityColors = {warning:'rgba(251,191,36,0.15);color:var(--yellow)', critical:'rgba(248,81,73,0.15);color:var(--red)', info:'rgba(96,165,250,0.15);color:var(--blue)'};
+          h += '<div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px">';
+          h += '<div><div style="font-size:12px;font-weight:600">'+esc(r.name)+'</div>';
+          h += '<div style="font-size:10px;color:var(--dim)">'+esc(r.check_key)+' · <span style="background:'+(severityColors[r.severity]||severityColors.warning)+';padding:1px 5px;border-radius:4px;font-size:9px">'+r.severity+'</span></div></div>';
+          h += '<button class="btn btn-sm" onclick="addFromRegistry(\''+r.check_key+'\')" style="margin-left:auto">＋{{ _('Add') }}</button>';
+          h += '</div>';
+        });
+        h += '</div></div>';
+      }
     }
 
     // ── Currently Configured Checks ──
     h += '<div class="glass-card">';
     h += '<div class="ct">⚙️ {{ _('Configured Checks') }} <span style="color:var(--dim);font-weight:400">('+checks.length+' {{ _(' items)') }}</span></div>';
-    h += '<table><tr><th style="width:40px">{{ _('Enabled') }}</th><th>{{ _('Name / Key') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Level') }}</th><th style="width:60px">{{ _('Sort') }}</th><th>{{ _('Config') }}</th><th style="width:60px">{{ _('Actions') }}</th></tr>';
+    if (checks.length > 0) {
+      h += '<table><tr><th style="width:40px">{{ _('Enabled') }}</th><th>{{ _('Name / Key') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Level') }}</th><th style="width:60px">{{ _('Sort') }}</th><th>{{ _('Config') }}</th><th style="width:60px">{{ _('Actions') }}</th></tr>';
 
-    checks.forEach(function(c){
-      var isChecked = c.is_active ? 'checked' : '';
-      var sevBg = c.severity=='critical' ? 'rgba(248,81,73,0.15);color:var(--red)' : (c.severity=='warning' ? 'rgba(251,191,36,0.15);color:var(--yellow)' : 'rgba(96,165,250,0.15);color:var(--blue)');
-      var hasChecker = registered.some(function(r){ return r.check_key == c.check_key && r.in_db; });
+      checks.forEach(function(c){
+        var isChecked = c.is_active ? 'checked' : '';
+        var sevBg = c.severity=='critical' ? 'rgba(248,81,73,0.15);color:var(--red)' : (c.severity=='warning' ? 'rgba(251,191,36,0.15);color:var(--yellow)' : 'rgba(96,165,250,0.15);color:var(--blue)');
+        var hasChecker = registered.some(function(r){ return r.check_key == c.check_key && r.in_db; });
 
-      h += '<tr>';
-      h += '<td><input type="checkbox" '+isChecked+' onchange="toggleCheck('+c.id+',this.checked)"></td>';
-      h += '<td><div style="font-size:12px">'+esc(c.name)+'</div><div style="font-size:10px;color:var(--dim)">'+esc(c.check_key)+'</div></td>';
-      h += '<td><span style="font-size:10px;color:var(--dim)">'+esc(c.category)+'</span></td>';
-      h += '<td><span class="badge" style="background:'+sevBg+'">'+esc(c.severity)+'</span></td>';
-      h += '<td><input type="number" value="'+c.sort_order+'" style="width:50px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--text);font-size:11px" onchange="updateSort('+c.id+',this.value)"></td>';
-      h += '<td><span class="config-toggle" onclick="toggleConfigEditor('+c.id+')">⚙️ {{ _('Config') }}</span></td>';
-      h += '<td><button class="btn btn-sm" onclick="deleteCheck('+c.id+',\''+esc(c.name)+'\')" style="color:var(--red)">🗑</button></td>';
-      h += '</tr>';
+        h += '<tr>';
+        h += '<td><input type="checkbox" '+isChecked+' onchange="toggleCheck('+c.id+',this.checked)"></td>';
+        h += '<td><div style="font-size:12px">'+esc(c.name)+'</div><div style="font-size:10px;color:var(--dim)">'+esc(c.check_key)+'</div></td>';
+        h += '<td><span style="font-size:10px;color:var(--dim)">'+esc(c.category)+'</span></td>';
+        h += '<td><span class="badge" style="background:'+sevBg+'">'+esc(c.severity)+'</span></td>';
+        h += '<td><input type="number" value="'+c.sort_order+'" style="width:50px;background:var(--card2);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--text);font-size:11px" onchange="updateSort('+c.id+',this.value)"></td>';
+        h += '<td><span class="config-toggle" onclick="toggleConfigEditor('+c.id+')">⚙️ {{ _('Config') }}</span></td>';
+        h += '<td><button class="btn btn-sm" onclick="deleteCheck('+c.id+',\''+esc(c.name)+'\')" style="color:var(--red)">🗑</button></td>';
+        h += '</tr>';
 
-      // Hidden config editor row
-      h += '<tr id="config-row-'+c.id+'" style="display:none"><td colspan="7" style="padding:0">';
-      h += '<div style="background:var(--card2);padding:8px 12px;margin:4px 0;border-radius:6px">';
-      var configStr = esc(JSON.stringify(JSON.parse(c.config||'{}'), null, 2));
-      h += '<textarea id="config-editor-'+c.id+'" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:6px;font-family:monospace">'+configStr+'</textarea>';
-      h += '<div style="margin-top:4px;display:flex;gap:4px"><button class="btn btn-sm" onclick="saveConfig('+c.id+')">💾 {{ _('Save') }}</button><button class="btn btn-sm" onclick="toggleConfigEditor('+c.id+')">✕ {{ _('Close') }}</button></div>';
-      h += '</div></td></tr>';
-    });
-    h += '</table></div>';
+        // Hidden config editor row
+        h += '<tr id="config-row-'+c.id+'" style="display:none"><td colspan="7" style="padding:0">';
+        h += '<div style="background:var(--card2);padding:8px 12px;margin:4px 0;border-radius:6px">';
+        var configObj;try{configObj=typeof c.config==='string'?JSON.parse(c.config):(c.config||{})}catch(e){configObj={}};var configStr=esc(JSON.stringify(configObj,null,2));
+        h += '<textarea id="config-editor-'+c.id+'" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:6px;font-family:monospace">'+configStr+'</textarea>';
+        h += '<div style="margin-top:4px;display:flex;gap:4px"><button class="btn btn-sm" onclick="saveConfig('+c.id+')">💾 {{ _('Save') }}</button><button class="btn btn-sm" onclick="toggleConfigEditor('+c.id+')">✕ {{ _('Close') }}</button></div>';
+        h += '</div></td></tr>';
+      });
+      h += '</table>';
+    } else {
+      h += '<div style="color:var(--dim);font-size:12px;padding:12px">{{ _('No checks configured. Use "Available Checkers" or "Manual Add" below.') }}</div>';
+    }
+    h += '</div>';
 
     // ── Manually Add New Check ──
     h += '<div class="glass-card">';
@@ -819,8 +859,9 @@ function loadChecks() {
     h += '</pre></div></div>';
 
     container.innerHTML = h;
-  }).catch(function(){
-    container.innerHTML = '<div class="lo" style="color:var(--red)">{{ _('Load failed') }}</div>';
+  }).catch(function(e){
+    console.error('[Health] loadChecks unrecoverable:', e);
+    container.innerHTML = '<div class="lo" style="color:var(--red)">{{ _('Load failed') }}<br><span style="font-size:11px;color:var(--dim)">'+esc(e.message)+'</span></div>';
   });
 }
 
