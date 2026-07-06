@@ -114,6 +114,9 @@ def init_health_tables():
                 consecutive     INTEGER DEFAULT 1,                -- Alert after N consecutive failures
                 notify_method   TEXT DEFAULT 'email',             -- email/internal message/webhook/all
                 webhook_url     TEXT DEFAULT '',                  -- Webhook URL
+                alert_level     TEXT DEFAULT 'P3',                -- P0(critical)/P1(major)/P2(minor)/P3(info)
+                aggregation_window INTEGER DEFAULT 300,          -- Aggregation window in seconds (0=instant)
+                cooldown_minutes   INTEGER DEFAULT 60,           -- Min minutes between same-check alerts
                 is_active       INTEGER DEFAULT 1,
                 created_at      TEXT DEFAULT (datetime('now')),
                 updated_at      TEXT DEFAULT (datetime('now'))
@@ -129,9 +132,23 @@ def init_health_tables():
                 check_name      TEXT NOT NULL,
                 run_id          INTEGER DEFAULT 0,
                 status          TEXT NOT NULL,                    -- Status at trigger time
+                alert_level     TEXT DEFAULT 'P3',                -- P0(critical)/P1(major)/P2(minor)/P3(info)
                 message         TEXT DEFAULT '',
                 notify_method   TEXT DEFAULT '',
                 is_read         INTEGER DEFAULT 0,
+                created_at      TEXT DEFAULT (datetime('now'))
+            );
+
+            -- =============================================
+            -- 6a. Alert silences table
+            -- =============================================
+            CREATE TABLE IF NOT EXISTS alert_silences (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                check_key       TEXT DEFAULT '*',                 -- '*' means all checks
+                starts_at       TEXT NOT NULL,                    -- Silence start time (ISO format)
+                ends_at         TEXT NOT NULL,                    -- Silence end time (ISO format)
+                reason          TEXT DEFAULT '',                  -- Reason for silence
+                created_by      TEXT DEFAULT 'system',            -- Who created the silence
                 created_at      TEXT DEFAULT (datetime('now'))
             );
 
@@ -153,6 +170,24 @@ def init_health_tables():
                 ON health_trend(date);
         """)
         print(f'[HealthCheck] ✅ Database tables initialized')
+
+
+def migrate_alert_schema():
+    """Idempotent migration: add new alert columns to existing tables if missing."""
+    migrations = [
+        ("alert_config", "alert_level", "TEXT DEFAULT 'P3'"),
+        ("alert_config", "aggregation_window", "INTEGER DEFAULT 300"),
+        ("alert_config", "cooldown_minutes", "INTEGER DEFAULT 60"),
+        ("alert_history", "alert_level", "TEXT DEFAULT 'P3'"),
+    ]
+    with get_db() as conn:
+        for table, column, col_def in migrations:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+                print(f'[HealthCheck] ✅ Migrated: {table}.{column}')
+            except Exception:
+                pass  # Column already exists
+        conn.commit()
 
 
 # ─── Seed data: register default check items ───────────────────────────────────────────────

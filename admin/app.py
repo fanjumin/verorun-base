@@ -31,7 +31,7 @@ from analytics.dashboard import analytics_bp
 from analytics.processor import AnalyticsProcessor
 from models.cms import init_cms_tables
 from health_check import health_bp
-from health_check.models import init_health_tables, seed_default_checks
+from health_check.models import init_health_tables, seed_default_checks, migrate_alert_schema
 from routes.douyin_miniprogram import douyin_mp_bp
 from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp
@@ -165,6 +165,7 @@ init_cms_tables()
 
 # ===== 健康巡检中心 =====
 init_health_tables()
+migrate_alert_schema()
 seed_default_checks()
 app.register_blueprint(health_bp)
 print(f'[HealthCheck] ✅ 健康巡检已注册')
