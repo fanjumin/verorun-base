@@ -178,7 +178,8 @@ tr:hover td{background:rgba(108,108,240,0.04)}
       <button class="btn btn-danger" id="alertBtn" onclick="showAlerts()" style="display:none">
         🔔 Alerts <span id="alertCount">0</span>
       </button>
-      <span class="refresh-info" id="refreshInfo">{{ _('Last Updated') }}: -</span>
+      <button class="btn btn-sm" id="autoRefreshBtn" onclick="toggleAutoRefresh()" style="border-color:var(--accent);color:var(--accent)">⏸ {{ _('Stop Refresh') }}</button>
+      <span class="refresh-info" id="refreshInfo">🔄 -</span>
     </div>
   </div>
 
@@ -335,17 +336,23 @@ function renderOverview(data) {
 
   // Category Breakdown
   if (data.categories) {
-    h += '<div class="glass-card"><div class="ct">{{ _('Category Status') }}</div><div class="cat-grid">';
+    h += '<div class="glass-card"><div class="ct">{{ _('Category Status') }}<div class="filter-bar" style="margin-bottom:0">' +
+      '<button class="filter-btn active" onclick="filterOverviewCat(this,\'\')">{{ _('All') }}</button>';
+    var catsSorted = Object.keys(data.categories).sort();
     var catNames = {
-      'system':'🔧 {{ _('System') }}', 'external':'🌐 {{ _('External Dependencies') }}', 'workflow':'⚡ {{ _('Workflow') }}',
+      'system':'🔧 {{ _('System') }}', 'external':'🌐 {{ _('External') }}', 'workflow':'⚡ {{ _('Workflow') }}',
       'agent':'🤖 Agent', 'cms':'📄 {{ _('Content') }}',
       'ssl':'🔒 SSL', 'error':'📝 {{ _('Log') }}'
     };
+    catsSorted.forEach(function(cat){
+      h += '<button class="filter-btn" onclick="filterOverviewCat(this,\''+cat+'\')">'+(catNames[cat]||cat)+'</button>';
+    });
+    h += '</div></div><div class="cat-grid" id="overviewCatGrid">';
     for (var cat in data.categories) {
       var c = data.categories[cat];
       var pct = c.total>0 ? Math.round(c.passed*100/c.total) : 0;
       var cls = c.error>0?'red':c.warning>0?'yellow':'green';
-      h += '<div class="cat-card"><div class="cat-h">';
+      h += '<div class="cat-card" data-cat="'+cat+'"><div class="cat-h">';
       h += '<span class="cat-name">'+(catNames[cat]||cat)+'</span>';
       h += '<span class="cat-count" style="color:var(--'+cls+')">'+pct+'% · '+c.passed+'/'+c.total+'</span>';
       h += '</div>';
@@ -373,6 +380,18 @@ function renderOverview(data) {
   }
 
   document.getElementById('tab-overview').innerHTML = h;
+}
+
+function filterOverviewCat(btn, cat) {
+  document.querySelectorAll('#overviewCatGrid .cat-card').forEach(function(card){
+    if (!cat || card.dataset.cat === cat) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+  document.querySelectorAll('.glass-card .ct .filter-btn').forEach(function(b){b.classList.remove('active')});
+  btn.classList.add('active');
 }
 
 // ── Run Check ──
@@ -576,11 +595,15 @@ function aiFix(itemId, checkKey, runId) {
 }
 
 // ── History ──
-function loadHistory() {
+var _histSince = '';
+function loadHistory(since) {
+  _histSince = since || '';
   var container = document.getElementById('histList');
   container.innerHTML = '<div class="lo"><div class="s"></div></div>';
 
-  fetch(API+'/history', {headers:{'Authorization':'Bearer '+_token}})
+  var url = API+'/history';
+  if (since) url += '?since=' + encodeURIComponent(since);
+  fetch(url, {headers:{'Authorization':'Bearer '+_token}})
     .then(function(r){return r.json()})
     .then(function(d){
       if (!d.success || !d.data) { container.innerHTML = '<div class="lo" style="color:var(--dim)">{{ _('No data') }}</div>'; return; }
@@ -592,7 +615,12 @@ function loadHistory() {
 }
 
 function renderHistFilter() {
-  var h = '<button class="filter-btn" onclick="loadHistory()">🔄 {{ _('Refresh') }}</button>';
+  var h = '<button onclick="loadHistory(\'\')" class="filter-btn' + (!_histSince?' active':'') + '">{{ _('All') }}</button>';
+  h += '<button onclick="loadHistory(\'-1 hour\')" class="filter-btn' + (_histSince=='-1 hour'?' active':'') + '">{{ _('1h') }}</button>';
+  h += '<button onclick="loadHistory(\'-6 hours\')" class="filter-btn' + (_histSince=='-6 hours'?' active':'') + '">{{ _('6h') }}</button>';
+  h += '<button onclick="loadHistory(\'-24 hours\')" class="filter-btn' + (_histSince=='-24 hours'?' active':'') + '">{{ _('24h') }}</button>';
+  h += '<button onclick="loadHistory(\'-7 days\')" class="filter-btn' + (_histSince=='-7 days'?' active':'') + '">{{ _('7d') }}</button>';
+  h += '<button onclick="loadHistory(\'\')" class="btn btn-sm">🔄 {{ _('Refresh') }}</button>';
   document.getElementById('histFilter').innerHTML = h;
 }
 
@@ -1141,20 +1169,56 @@ function closeModal(e){
   }
 }
 
-// Auto-refresh every 60s
-setInterval(function(){
-  if (document.querySelector('.tab.active') && document.querySelector('.tab.active').dataset.tab === 'overview') {
-    fetch(API+'/status', {headers:{'Authorization':'Bearer '+_token}})
-      .then(function(r){return r.json()})
-      .then(function(d){
-        if (d.success && d.data) {
-          renderOverview(d.data);
-          _dataCache.status = d.data;
-          document.getElementById('refreshInfo').textContent = '{{ _('Last Updated') }}: ' + new Date().toLocaleTimeString();
-        }
-      }).catch(function(){});
+// Auto-refresh toggle
+var _autoRefresh = {interval: 60, timer: null, countdown: 60, active: true};
+
+function toggleAutoRefresh() {
+  _autoRefresh.active = !_autoRefresh.active;
+  var btn = document.getElementById('autoRefreshBtn');
+  var info = document.getElementById('refreshInfo');
+  if (_autoRefresh.active) {
+    btn.textContent = '⏸ {{ _('Stop Refresh') }}';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+    startAutoRefresh();
+  } else {
+    btn.textContent = '▶ {{ _('Start Refresh') }}';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--dim)';
+    if (_autoRefresh.timer) clearInterval(_autoRefresh.timer);
+    _autoRefresh.timer = null;
+    info.textContent = '⏸ {{ _('Paused') }}';
   }
-}, 60000);
+}
+
+function startAutoRefresh() {
+  if (_autoRefresh.timer) clearInterval(_autoRefresh.timer);
+  _autoRefresh.countdown = _autoRefresh.interval;
+  updateCountdown();
+  _autoRefresh.timer = setInterval(function() {
+    _autoRefresh.countdown--;
+    updateCountdown();
+    if (_autoRefresh.countdown <= 0) {
+      _autoRefresh.countdown = _autoRefresh.interval;
+      if (_autoRefresh.active && document.querySelector('.tab.active') &&
+          document.querySelector('.tab.active').dataset.tab === 'overview') {
+        fetch(API+'/status', {headers:{'Authorization':'Bearer '+_token}})
+          .then(function(r){return r.json()})
+          .then(function(d){
+            if (d.success && d.data) {
+              renderOverview(d.data);
+              _dataCache.status = d.data;
+            }
+          }).catch(function(){});
+      }
+    }
+  }, 1000);
+}
+
+function updateCountdown() {
+  document.getElementById('refreshInfo').textContent =
+    (_autoRefresh.active ? '🔄 ' : '⏸ ') + (_autoRefresh.active ? _autoRefresh.countdown + 's' : '{{ _('Paused') }}');
+}
 </script>
 </body>
 </html>

@@ -39,6 +39,7 @@ from . import models as m
 from .checkers import CheckerRegistry
 from .alerter import evaluate_and_alert
 from .discovery import DiscoveryReporter  # noqa: F401 — ensures @register decorators fire
+from .metrics import generate_metrics
 
 health_bp = Blueprint('health', __name__,
                       url_prefix='/admin/health',
@@ -306,6 +307,7 @@ def api_history():
     limit = min(request.args.get('limit', 20, type=int), 100)
     offset = (page - 1) * limit
     trigger_filter = request.args.get('trigger', '')
+    since = request.args.get('since', '')  # e.g. '-1 hour', '-24 hours'
 
     with m.get_db() as conn:
         where = ''
@@ -313,6 +315,10 @@ def api_history():
         if trigger_filter:
             where = 'WHERE trigger_type=?'
             params.append(trigger_filter)
+        if since:
+            cond = 'WHERE' if not where else 'AND'
+            where += f" {cond} created_at >= datetime('now', ?)"
+            params.append(since)
 
         total = conn.execute(
             f'SELECT COUNT(*) as c FROM check_runs {where}', params
@@ -538,6 +544,15 @@ def api_register_check():
         'message': _('Check item {name} added').format(name=name),
         'data': {'id': new_id, 'check_key': check_key, 'has_checker': checker_class is not None}
     })
+
+
+# ─── Prometheus Metrics Endpoint ─────────────────────────────────────────────
+
+@health_bp.route('/api/metrics')
+def api_metrics():
+    """Prometheus-compatible metrics endpoint (no auth, for scraper access)."""
+    from flask import Response
+    return Response(generate_metrics(), mimetype='text/plain; charset=utf-8')
 
 
 @health_bp.route('/api/alerts')
