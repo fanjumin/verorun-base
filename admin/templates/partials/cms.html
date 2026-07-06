@@ -476,7 +476,7 @@ function cmsAicover(){
   showToast("{{ _('AI Generating Image (~30s)...') }}","");
   fetch("/admin/content-factory/ai-cover",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({title:title,prompt:p||""})}).then(function(r){return r.json()}).then(function(d){
     if(d.success){
-      var img='<p><img src="'+(d.image_url||'')+'" alt="{{ _('Add Image') }}" style="max-width:100%;border-radius:8px"></p>';
+      var img='<p><img src="'+(d.image_url?esc(d.image_url):'')+'" alt="{{ _('Add Image') }}" style="max-width:100%;border-radius:8px"></p>';
       cmsQuill.clipboard.dangerouslyPasteHTML(cmsQuill.getLength(),img);
       showToast("{{ _('Image inserted') }}","success")
     }else{showToast(d.error||"{{ _('Image Attach Failed') }}","error")}

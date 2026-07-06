@@ -34,7 +34,7 @@ function renderMediaGrid(grid,items){
     var icon=isV?'🎬':isA?'🎵':isI?'🖼️':'📄',thumb='';
     var filePath=f.file_path.startsWith('static/')?f.file_path:'static/'+f.file_path;
     var thumbPath=f.thumb_path?(f.thumb_path.startsWith('static/')?f.thumb_path:'static/'+f.thumb_path):'';
-    if(isI)thumb='<img src="/'+esc(filePath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
+    if(isI&&filePath)thumb='<img src="/'+esc(filePath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else if(thumbPath)thumb='<img src="/'+esc(thumbPath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else thumb='<div style="width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg);border-radius:6px 6px 0 0">'+icon+'</div>';
     h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">'+thumb;
@@ -96,6 +96,7 @@ function mlDoUpload(file){
   setTimeout(function(){st.innerHTML=''},5000);
 }
 function mlPreview(id){mlGetItem(id,function(f){
+  if(!f)return;
   var u="/admin/media-library/"+id+"/download",h='<div style="max-width:800px;margin:0 auto">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div class="st" style="margin:0">'+esc(f.original_name)+'</div><button class="btn bo" onclick="loadMediaLibrary()">✕</button></div>';
   if(f.mime_type&&f.mime_type.startsWith('video/'))h+='<video src="'+u+'" controls style="width:100%;max-height:500px;border-radius:var(--radius);background:#000" autoplay></video>';

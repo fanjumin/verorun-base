@@ -577,7 +577,7 @@ function doAIImageGen(){
     if(d.success){
       var imgUrl = d.data.image_url;
       result.innerHTML = '<div style="text-align:center">';
-      result.innerHTML += '<img src="'+(imgUrl?esc(imgUrl):'')+'" style="max-width:100%;max-height:300px;border-radius:8px;margin-bottom:10px;border:1px solid var(--border)">';
+      if(imgUrl)result.innerHTML += '<img src="'+esc(imgUrl)+'" style="max-width:100%;max-height:300px;border-radius:8px;margin-bottom:10px;border:1px solid var(--border)">';
       result.innerHTML += '<div style="display:flex;gap:8px;justify-content:center">';
       result.innerHTML += '<button class="btn bp" onclick="useAIGenImage(\''+esc(imgUrl)+'\')">✅ {{ _('Use This Image') }}</button>';
       result.innerHTML += '<button class="btn bo" onclick="doAIImageGen()">🔄 {{ _('Regenerate') }}</button>';

@@ -205,9 +205,10 @@ function aiUpload(input){
     if(!d.success){el.innerHTML='{{ _('❌ 上传失败: ') }}'+esc(d.error||"{{ _('Unknown Error') }}");return}
     var u=d.data;
     aiUploadedFiles.push(u);
-    el.innerHTML='📎 <a href="'+(u&&u.url||'')+'" download target="_blank" style="color:var(--accent)">'+esc(u.original_name)+'</a> ('+u.size_display+')';
-    if(file.type&&file.type.startsWith("image/")){
-      el.innerHTML+='<br><img src="'+(u&&u.url||'')+'" style="max-width:200px;max-height:120px;border-radius:4px;margin-top:4px;cursor:pointer" onclick="window.open(this.src)" alt="'+esc(u.original_name)+'">';
+    var uUrl=u&&u.url;
+    el.innerHTML='📎 <a href="'+(uUrl||'')+'" download target="_blank" style="color:var(--accent)">'+esc(u.original_name)+'</a> ('+u.size_display+')';
+    if(file.type&&file.type.startsWith("image/")&&uUrl){
+      el.innerHTML+='<br><img src="'+uUrl+'" style="max-width:200px;max-height:120px;border-radius:4px;margin-top:4px;cursor:pointer" onclick="window.open(this.src)" alt="'+esc(u.original_name)+'">';
     }
   }).catch(function(){
     var el=document.getElementById(uploadMsgId);
@@ -269,14 +270,15 @@ function aiSend(){
     if(actions.length){
       block+='<div style="margin-top:8px">';
       actions.forEach(function(a){
-        if(a.type==="ppt_download"){
-          block+='<a href="'+(a&&a.url||'')+'" download class="btn bp" style="display:inline-block;margin:3px;font-size:11px;text-decoration:none">⬇ {{ _('Download') }} PPT</a>';
-        }else if(a.type==="image"){
-          block+='<div style="margin:6px 0;text-align:center"><img src="'+(a&&a.url||'')+'" style="max-width:100%;max-height:400px;border-radius:8px;border:1px solid rgba(255,255,255,.1)" onerror="this.style.display=\'none\'"><br><a href="'+(a&&a.url||'')+'" download class="btn bo bs" style="font-size:10px;margin-top:4px">⬇ {{ _('Download Image') }}</a></div>';
-        }else if(a.type==="audio"){
-          block+='<div style="margin:6px 0"><audio controls src="'+(a&&a.url||'')+'" style="width:100%;max-width:400px"></audio><br><a href="'+(a&&a.url||'')+'" download class="btn bo bs" style="font-size:10px">⬇ {{ _('Download Audio') }}</a></div>';
-        }else if(a.type==="video"){
-          block+='<div style="margin:6px 0"><video controls src="'+(a&&a.url||'')+'" style="max-width:100%;max-height:300px;border-radius:6px"></video><br><a href="'+(a&&a.url||'')+'" download class="btn bo bs" style="font-size:10px">⬇ {{ _('Download Video') }}</a></div>';
+        var aUrl=a&&a.url;
+        if(a.type==="ppt_download"&&aUrl){
+          block+='<a href="'+aUrl+'" download class="btn bp" style="display:inline-block;margin:3px;font-size:11px;text-decoration:none">⬇ {{ _('Download') }} PPT</a>';
+        }else if(a.type==="image"&&aUrl){
+          block+='<div style="margin:6px 0;text-align:center"><img src="'+aUrl+'" style="max-width:100%;max-height:400px;border-radius:8px;border:1px solid rgba(255,255,255,.1)" onerror="this.style.display=\'none\'"><br><a href="'+aUrl+'" download class="btn bo bs" style="font-size:10px;margin-top:4px">⬇ {{ _('Download Image') }}</a></div>';
+        }else if(a.type==="audio"&&aUrl){
+          block+='<div style="margin:6px 0"><audio controls src="'+aUrl+'" style="width:100%;max-width:400px"></audio><br><a href="'+aUrl+'" download class="btn bo bs" style="font-size:10px">⬇ {{ _('Download Audio') }}</a></div>';
+        }else if(a.type==="video"&&aUrl){
+          block+='<div style="margin:6px 0"><video controls src="'+aUrl+'" style="max-width:100%;max-height:300px;border-radius:6px"></video><br><a href="'+aUrl+'" download class="btn bo bs" style="font-size:10px">⬇ {{ _('Download Video') }}</a></div>';
         }
       });
       block+='</div>';
@@ -398,11 +400,12 @@ function matUpload(input){
       return;
     }
     var u=d.data;
-    el.innerHTML='📎 <a href="'+(u&&u.url||'')+'" download target="_blank" style="color:var(--accent)">'+esc(u.original_name)+'</a> ('+u.size_display+')';
+    var uUrl=u&&u.url;
+    el.innerHTML='📎 <a href="'+(uUrl||'')+'" download target="_blank" style="color:var(--accent)">'+esc(u.original_name)+'</a> ('+u.size_display+')';
     matUploadedFiles.push(u);
     // {{ _('If It Is an Image') }}，{{ _('Show Thumbnail') }}
-    if(file.type&&file.type.startsWith("image/")){
-      el.innerHTML+='<br><img src="'+(u&&u.url||'')+'" style="max-width:200px;max-height:120px;border-radius:4px;margin-top:4px;cursor:pointer" onclick="window.open(this.src)" alt="'+esc(u.original_name)+'">';
+    if(file.type&&file.type.startsWith("image/")&&uUrl){
+      el.innerHTML+='<br><img src="'+uUrl+'" style="max-width:200px;max-height:120px;border-radius:4px;margin-top:4px;cursor:pointer" onclick="window.open(this.src)" alt="'+esc(u.original_name)+'">';
     }
   }).catch(function(){
     var el=document.getElementById(uploadMsgId);

@@ -90,8 +90,9 @@ function renderThemeGrid(mc,themes,sites){
     for(var k in siteMap){if(siteMap[k].theme_id===t.id)activeSites.push(siteMap[k].label)}
     var isDefault=t.slug==="default";
     h+='<div class="glass-card" style="padding:16px;display:flex;flex-direction:column;gap:12px">';
-    h+='<div style="background:var(--bg-card);border-radius:8px;height:140px;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="themePreview(\''+escAttr(t.thumbnail||'')+'\')">';
-    h+='<img src="'+escAttr(t.thumbnail||'')+'" alt="'+escAttr(t.name)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<div style=color:var(--text-muted);font-size:13px>{{ _('No Preview') }}</div>\'">';
+    var thumbUrl=t.thumbnail||'';
+    h+='<div style="background:var(--bg-card);border-radius:8px;height:140px;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="themePreview(\''+escAttr(thumbUrl)+'\')">';
+    h+=(thumbUrl?'<img src="'+escAttr(thumbUrl)+'" alt="'+escAttr(t.name)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<div style=color:var(--text-muted);font-size:13px>{{ _('No Preview') }}</div>\'">':'<div style="color:var(--text-muted);font-size:13px">{{ _('No Preview') }}</div>');
     h+='</div>';
     h+='<div>'
     h+='<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(t.name)+'</div>';
@@ -112,7 +113,7 @@ function renderThemeGrid(mc,themes,sites){
       });
       h+='</select>';
     }
-    h+='<button class="btn" style="padding:6px 10px;font-size:11px" onclick="themePreview(\''+escAttr(t.thumbnail||'')+'\')">{{ _('Preview') }}</button>';
+    h+='<button class="btn" style="padding:6px 10px;font-size:11px" onclick="themePreview(\''+escAttr(thumbUrl)+'\')">{{ _('Preview') }}</button>';
     if(!isDefault)h+='<button class="btn" style="padding:6px 10px;font-size:11px;color:var(--rose)" onclick="themeDelete('+t.id+',\''+escAttr(t.name)+'\',\''+escAttr(t.slug)+'\')">{{ _('Delete') }}</button>';
     h+='</div></div>';
   });
