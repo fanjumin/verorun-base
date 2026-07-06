@@ -2316,12 +2316,14 @@ def delete_brand_logo_icon():
 # ══════════════════════════════════════════════
 
 _PLAN_DOMAIN_LIMITS = {
-    'deploy_basic': 3,
-    'deploy_pro': 10,
+    'deploy_basic': 20,
+    'deploy_pro': 20,
     'deploy_enterprise': 20,
 }
 
-_NGINX_CONF_DIR = os.path.join(
+_NGINX_CONF_DIR = os.environ.get(
+    'NGINX_SNIPPETS_DIR'
+) or os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     'nginx-domains', 'sites-enabled'
 )
@@ -2367,6 +2369,18 @@ def _remove_domain_nginx_config(full_domain):
     return False
 
 
+def _reload_nginx():
+    """生产环境：reload Nginx 使配置生效"""
+    if 'NGINX_SNIPPETS_DIR' not in os.environ:
+        return  # 本地开发不执行
+    import subprocess
+    try:
+        subprocess.run(['sudo', '/usr/sbin/nginx', '-s', 'reload'], check=True,
+                       capture_output=True, timeout=10)
+    except Exception as e:
+        print(f'[Nginx Reload Warning] {e}', flush=True)
+
+
 def _check_domain_quota(user_id):
     """检查用户是否还能添加子域名"""
     with get_db() as conn:
@@ -2375,8 +2389,9 @@ def _check_domain_quota(user_id):
             (user_id,)
         ).fetchone()
         if not sub:
-            return {'allowed': 0, 'used': 0, 'limit': 0, 'can_add': False}
-        limit = _PLAN_DOMAIN_LIMITS.get(sub['plan_key'], 0)
+            limit = 20  # 无订阅时给默认限额
+        else:
+            limit = _PLAN_DOMAIN_LIMITS.get(sub['plan_key'], 20)
         used = conn.execute(
             "SELECT COUNT(*) as c FROM site_domains"
         ).fetchone()['c']
@@ -2461,6 +2476,7 @@ def admin_create_domain():
 
     # 独立服务 → 生成 Nginx 配置
     nginx_path = _generate_domain_nginx_config(subdomain, full_domain, service_port)
+    _reload_nginx()
 
     _log(admin['user_id'], 'create_domain', detail=f'{full_domain} ({display_name}) port={service_port or "content"}')
     msg = f'子域名 {full_domain} 已创建'
@@ -2502,6 +2518,7 @@ def admin_update_domain(did):
             _generate_domain_nginx_config(subdomain, old_domain, new_port)
         else:
             _remove_domain_nginx_config(old_domain)
+        _reload_nginx()
 
     _log(admin['user_id'], 'update_domain', detail=f'domain_id={did}')
     return jsonify({'success': True, 'message': '已更新'})
@@ -2523,6 +2540,7 @@ def admin_delete_domain(did):
         conn.commit()
     # 删除 Nginx 配置文件
     _remove_domain_nginx_config(full_domain)
+    _reload_nginx()
     _log(admin['user_id'], 'delete_domain', detail=full_domain)
     return jsonify({'success': True, 'message': f'{full_domain} 已删除'})
 

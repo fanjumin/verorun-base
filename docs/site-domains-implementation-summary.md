@@ -12,7 +12,7 @@
 - **操作**：创建/编辑/删除子域名
 - **新增"类型"选项**：
   - **内容站点**（`service_port=NULL`）→ 走 site app(8081)，无需 Nginx 配置
-  - **独立服务**（`service_port=整型`）→ 生成 Nginx 配置，需要手动同步到服务器
+  - **独立服务**（`service_port=整型`）→ 生成 Nginx 配置并自动 reload Nginx
 - **配额指示器**：当前用量/上限
 - **Config 按钮**：独立服务可查看 Nginx 配置文本并复制
 
@@ -26,9 +26,12 @@
   - `service_type`: `'independent'` 或 `'content'`
   - `service_port`: 端口号或 `None`
 
-### 4. Nginx 配置生成（本地）
-- 文件路径：`F:\Sites\VeroRun\nginx-domains\sites-enabled/{full_domain}.conf`
-- 创建/更新/删除子域名时自动生成或删除
+### 4. Nginx 配置生成
+- **`_NGINX_CONF_DIR`** 支持 `NGINX_SNIPPETS_DIR` 环境变量覆盖
+  - 生产环境（设了环境变量）→ 直接写入 Nginx include 目录
+  - 本地开发（未设环境变量）→ 写入 `nginx-domains/sites-enabled/`
+- 创建/更新/删除子域名时自动生成或删除配置
+- 生产环境自动执行 `sudo nginx -s reload` 使配置即时生效
 - API 端点 `GET /admin/api/domains/<id>/nginx-config` 返回配置文本
 
 ### 5. 服务端 Nginx 配置
@@ -44,32 +47,23 @@
 |------|---------|
 | `auth-center/models/database.py` | `site_domains` 表加 `service_port` 列 + migration |
 | `auth-center/middleware/site_domain_middleware.py` | 注入 `service_type` / `service_port` |
-| `auth-center/routes/admin.py` | Nginx 配置生成函数 + CRUD 更新（3 个端点）+ GET nginx-config |
+| `auth-center/routes/admin.py` | Nginx 配置生成函数 + CRUD 端点 + 环境变量路径 + 自动 reload |
 | `admin/templates/partials/site_domains.html` | 类型选择器 + 端口列 + Config 按钮 + 配置查看弹窗 |
 | `admin/templates/admin.html` | 移除 cluster_services 的 include |
 | `admin/templates/partials/icons.html` | 移除 cluster_services 导航项 |
 | `admin/templates/partials/cluster_services.html` | **已删除** |
+| `docs/site-domains-implementation-summary.md` | 本文件 |
 
 ---
 
 ## 三、未完成/待解决的问题
 
-### 3.1 Nginx 配置自动同步（最高优先级）
-当前问题：`nginx-domains/sites-enabled/` 的文件生成在**本地电脑**，但需要手动 `rsync` 到服务器。
-
-**建议方案**：在 `admin.py` 中的 CRUD 端点里增加 Paramiko SSH 调用，创建/更新/删除子域名时直接：
-1. 生成文件到本地
-2. SCP 上传到 `/etc/nginx/snippets/easykai-domains/`
-3. SSH 执行 `sudo nginx -s reload`
-
-**下一步会话应该做这个。**
-
-### 3.2 Site App 多站点渲染
+### 3.1 Site App 多站点渲染
 当前子域名中间件能识别 `g.current_site`，但 `site/app.py` 的所有路由**不根据子域名切换内容**。`job.easykai.cn` 和 `www.easykai.cn` 渲染完全相同。
 
 **建议方案**：改造 `site/app.py` 的路由，根据 `g.current_site['template']` 选择不同模板。
 
-### 3.3 Wildcard SSL 证书
+### 3.2 Wildcard SSL 证书
 当前没有 `*.easykai.cn` 通配符证书，新子域名无法 HTTPS 访问。如果不需要 HTTPS 可以跳过。
 
 ---
@@ -87,8 +81,9 @@
 | `/admin/api/domains/<id>/nginx-config` | GET | 返回 Nginx 配置文本 |
 
 ### Nginx 配置模板路径
-- **本地生成**：`F:\Sites\VeroRun\nginx-domains\sites-enabled/{full_domain}.conf`
-- **服务器目标**：`/etc/nginx/snippets/easykai-domains/{full_domain}.conf`
+- **默认（本地开发）**：`nginx-domains/sites-enabled/{full_domain}.conf`（相对于项目根目录）
+- **生产环境**：由 `NGINX_SNIPPETS_DIR` 环境变量指定（服务器上设为 `/etc/nginx/snippets/easykai-domains/`）
+- 生产环境写入后自动执行 `nginx -s reload`
 
 ### 服务器信息
 - IP：`***REMOVED***`

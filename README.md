@@ -40,6 +40,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | 3 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类、下载管理 |
 | 4 | **工作流引擎** | `orchestrator/` | DAG 工作流编排、Cron 调度、12 种节点 |
 | 5 | **数据清洗** | `auth-center/routes/cleaner_agent.py` | 原始内容 → LLM 清洗 → 知识库 |
+| 6 | **Site Domains** | `auth-center/routes/admin.py` + `auth-center/middleware/site_domain_middleware.py` | 子域名管理、独立服务 Nginx 配置自动生成与 reload |
 | 7 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth、企业认证 |
 | 8 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 订阅支付 |
 | 9 | **主题系统** | `themes/` | 5 个主题 + Jinja2 ChoiceLoader 模板覆盖 |
@@ -840,7 +841,10 @@ Nginx (反向代理 + SSL)  服务器: ***REMOVED***
     ├── easykai.cn /admin/           ──→ Admin:8084
     ├── easykai.cn /auth/ /subscribe ──→ Site:8081
     ├── platform.easykai.cn          ──→ Platform:8083
-    └── agent.easykai.cn             ──→ Admin:8084
+    ├── agent.easykai.cn             ──→ Admin:8084
+    └── 子域名 *                     ──→ 端口自定（via Site Domains）
+    
+Nginx snippets: /etc/nginx/snippets/easykai-domains/*.conf (自动生成)
 ```
 
 ### 关键环境变量
@@ -857,8 +861,18 @@ Nginx (反向代理 + SSL)  服务器: ***REMOVED***
 | `DEEPSEEK_API_KEY` | DeepSeek API Key |
 | `OPENAI_API_KEY` | OpenAI API Key |
 | `SILICONFLOW_API_KEY` | 硅基流动 API Key |
+| `NGINX_SNIPPETS_DIR` | 独立服务子域名 Nginx 配置写入目录，生产环境设为 `/etc/nginx/snippets/easykai-domains` |
 
-### rsync 同步
+### Site Domains 子域名管理
+
+管理后台 `agent.easykai.cn/admin` → **System → Site Domains** 操作：
+
+- **类型**：内容站点（走 site app 8081）或 独立服务（自定义端口，自动生成 Nginx 配置）
+- **配额**：按套餐限制（deploy_basic=20 / pro=20 / enterprise=20）
+- **Nginx 部署**：创建独立服务 → 自动写入 Nginx snippets 目录 → 自动 `nginx -s reload`
+- **中间件**：`g.current_site` 注入 `service_type` / `service_port`，支持按子域名路由分发
+
+### 部署同步
 
 ```bash
 rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
@@ -867,6 +881,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.9.9 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.10.1 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有
