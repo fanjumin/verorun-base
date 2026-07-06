@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily Health Guardian Snapshot
+
+[Service]
+Type=oneshot
+User=easykai
+WorkingDirectory=/home/easykai/easykai-workspace/easykai.cn
+ExecStart=/usr/bin/python3 /home/easykai/easykai-workspace/easykai.cn/health_guardian.py --snapshot
