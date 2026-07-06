@@ -195,6 +195,7 @@ tr:hover td{background:rgba(108,108,240,0.04)}
     <div class="tab" data-tab="trend" onclick="switchTab('trend')">📈 {{ _('Trend') }}</div>
     <div class="tab" data-tab="checks" onclick="switchTab('checks')">⚙️ {{ _('Check Config') }}</div>
     <div class="tab" data-tab="inventory" onclick="switchTab('inventory')">📦 {{ _('Inventory') }}</div>
+    <div class="tab" data-tab="guardian" onclick="switchTab('guardian')">🛡️ Guardian</div>
   </div>
 
   <!-- Tab: Overview -->
@@ -238,6 +239,20 @@ tr:hover td{background:rgba(108,108,240,0.04)}
   <div id="tab-inventory" class="tab-content" style="display:none">
     <div id="invSummary" style="margin-bottom:12px"></div>
     <div id="invContent"><div class="lo"><div class="s"></div></div></div>
+  </div>
+
+  <!-- Tab: Guardian Log -->
+  <div id="tab-guardian" class="tab-content" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+      <button class="btn btn-sm" onclick="loadGuardianLog(50)">🔄 {{ _('Refresh') }}</button>
+      <select id="guardianLineSelect" class="btn btn-sm" onchange="loadGuardianLog(parseInt(this.value))" style="background:var(--card2);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:6px;font-size:11px">
+        <option value="50">50 {{ _('lines') }}</option>
+        <option value="100">100 {{ _('lines') }}</option>
+        <option value="200">200 {{ _('lines') }}</option>
+      </select>
+      <span id="guardianLogInfo" class="refresh-info"></span>
+    </div>
+    <div id="guardianLogContent"><div class="lo"><div class="s"></div></div></div>
   </div>
 
   <!-- Detail Modal -->
@@ -302,6 +317,7 @@ function switchTab(tab) {
   else if (tab === 'trend') loadTrend(7);
   else if (tab === 'checks') loadChecks();
   else if (tab === 'inventory') loadInventory();
+  else if (tab === 'guardian') loadGuardianLog(50);
 }
 
 // ── Load Status ──
@@ -1327,6 +1343,48 @@ function startAutoRefresh() {
 function updateCountdown() {
   document.getElementById('refreshInfo').textContent =
     (_autoRefresh.active ? '🔄 ' : '⏸ ') + (_autoRefresh.active ? _autoRefresh.countdown + 's' : '{{ _('Paused') }}');
+}
+
+// ── Guardian Log ──────────────────────────────────────────────────
+
+function loadGuardianLog(lines) {
+  var container = document.getElementById('guardianLogContent');
+  container.innerHTML = '<div class="lo"><div class="s"></div></div>';
+  fetch(API+'/guardian-log?lines='+(lines||50), {headers:{'Authorization':'Bearer '+_token}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if (!d.success) {
+        container.innerHTML = '<div style="padding:20px;color:var(--red)">Error: '+esc(d.error||'unknown')+'</div>';
+        return;
+      }
+      document.getElementById('guardianLogInfo').textContent = d.data.length+' / '+d.total+' lines';
+      renderGuardianLog(d.data);
+    })
+    .catch(function(e){
+      container.innerHTML = '<div style="padding:20px;color:var(--red)">Failed to load: '+esc(e.message)+'</div>';
+    });
+}
+
+function renderGuardianLog(lines) {
+  var container = document.getElementById('guardianLogContent');
+  if (!lines || lines.length === 0) {
+    container.innerHTML = '<div style="padding:20px;color:var(--dim)">{{ _('No log entries') }}</div>';
+    return;
+  }
+  var h = '<div class="glass-card" style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.6">';
+  h += '<div class="ct">🛡️ {{ _('Guardian Log') }}</div>';
+  for (var i = lines.length - 1; i >= 0; i--) {
+    var line = esc(lines[i]);
+    var cls = '';
+    if (line.indexOf('ERROR') > -1 || line.indexOf('CRITICAL') > -1) cls = 'color:var(--red)';
+    else if (line.indexOf('WARNING') > -1 || line.indexOf('WARN') > -1) cls = 'color:var(--yellow)';
+    else if (line.indexOf('INFO') > -1) cls = 'color:var(--green)';
+    else if (line.indexOf('Rollback') > -1 || line.indexOf('rollback') > -1) cls = 'color:var(--red);font-weight:bold';
+    else if (line.indexOf('Restart') > -1 || line.indexOf('restart') > -1) cls = 'color:var(--yellow)';
+    h += '<div style="padding:2px 8px;'+cls+'">'+line+'</div>';
+  }
+  h += '</div>';
+  container.innerHTML = h;
 }
 </script>
 </body>

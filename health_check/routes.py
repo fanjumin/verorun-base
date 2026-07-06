@@ -1191,3 +1191,38 @@ def api_internal_run():
         'success': True,
         'data': {'run_id': run_id, 'message': _('Health check completed (ID: {id})').format(id=run_id)}
     })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Health Guardian Log API
+# ═══════════════════════════════════════════════════════════════════════════
+
+@health_bp.route('/api/guardian-log')
+def api_guardian_log():
+    """
+    Read Health Guardian log file.
+    Guardian 是一个独立看门狗进程，定时检查各服务端口健康状态，
+    并在累积失败达到阈值后执行阶梯恢复（restart → rollback）。
+    本端点仅读取其日志文件用于前端展示。
+    """
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': _('Unauthorized')}), 401
+
+    log_file = os.environ.get('GUARDIAN_LOG_FILE', '/var/log/health-guardian.log')
+    lines = min(request.args.get('lines', 50, type=int), 200)
+
+    if not os.path.exists(log_file):
+        return jsonify({'success': True, 'data': [], 'total': 0,
+                        'message': _('Guardian log file not found')})
+
+    try:
+        with open(log_file, 'r') as f:
+            content = f.read()
+        all_lines = content.splitlines()
+        total = len(all_lines)
+        tail = all_lines[-lines:] if total > lines else all_lines
+
+        return jsonify({'success': True, 'data': tail, 'total': total})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -1771,23 +1771,11 @@ def init_db():
 
 
 
-    # ── Migration: seed 4 cluster_services ──
+    # ── Migration: drop cluster_services (2026-07-06) 合并到 site_domains ──
     with get_db() as m:
-        BASE = os.environ.get('PROJECT_ROOT', os.path.expanduser('~/project'))
-        DOMAIN = os.environ.get('DEPLOY_DOMAIN', '')
-        seeds = [
-            ('platform',  '用户面板',   f'platform.{DOMAIN}',  8083, 'tmux',  'platform',          f'{BASE}/platform',   'python3 -B app.py 8083', 3),
-            ('admin',     '管理后台',   f'agent.{DOMAIN}',     8084, 'tmux',  'admin-8084',        f'{BASE}/admin',      'python3 -B app.py 8084', 4),
-        ]
-        for sn, dn, dom, port, mt, mn, wd, cmd, so in seeds:
-            ex = m.execute("SELECT id FROM cluster_services WHERE service_name=?", (sn,)).fetchone()
-            if not ex:
-                m.execute(
-                    "INSERT INTO cluster_services (service_name,display_name,domain,port,manager_type,manager_name,workdir,start_cmd,sort_order) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (sn, dn, dom, port, mt, mn, wd, cmd, so)
-                )
+        m.execute("DROP TABLE IF EXISTS cluster_services")
         m.commit()
-        print('[Migration] cluster_services seed complete')
+        print('[Migration] ✅ cluster_services table dropped (merged into site_domains)')
 
     # ── Migration: 合并 service_plans → subscription_plans（订阅SaaS归类 — 2026-06-10）──
     with get_db() as m:
@@ -2404,6 +2392,62 @@ def _get_default_interests():
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_i18n_locale ON i18n_strings(locale)')
         print('[i18n] ✅ i18n_strings table created')
+
+    # ── Migration: site_domains 子域名管理表 (2026-07-06) ──
+    with get_db() as m:
+        m.execute('''CREATE TABLE IF NOT EXISTS site_domains (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_config_id  INTEGER NOT NULL DEFAULT 1,
+            subdomain       TEXT NOT NULL,
+            full_domain     TEXT NOT NULL UNIQUE,
+            display_name    TEXT NOT NULL DEFAULT '',
+            template        TEXT DEFAULT 'default',
+            is_published    INTEGER DEFAULT 1,
+            page_keys_json  TEXT DEFAULT '["home"]',
+            sort_order      INTEGER DEFAULT 0,
+            service_port    INTEGER DEFAULT NULL,
+            created_at      TEXT DEFAULT (datetime('now')),
+            updated_at      TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (site_config_id) REFERENCES site_configs(id)
+        )''')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_sd_config ON site_domains(site_config_id)')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_sd_domain ON site_domains(full_domain)')
+        m.commit()
+        print('[Migration] ✅ site_domains 子域名管理表')
+
+    # ── Migration: site_domains 新增 service_port 列 (2026-07-06) ──
+    try:
+        with get_db() as m:
+            m.execute("ALTER TABLE site_domains ADD COLUMN service_port INTEGER DEFAULT NULL")
+            m.commit()
+            print('[Migration] ✅ site_domains 新增 service_port 列')
+    except Exception:
+        pass  # 列已存在
+
+    # 默认主页站点在 site_configs 中创建（如不存在）
+    _default_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
+    _default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
+    with get_db() as m:
+        m.execute(
+            "INSERT OR IGNORE INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, ?, ?, 'ai', 'self_hosted', '[\"main\"]')",
+            (_default_domain, _default_brand)
+        )
+        m.commit()
+
+    # site_domains 默认种子（3 个标准子域名）
+    with get_db() as m:
+        _defaults = [
+            ('www',      f'www.{_default_domain}',      f'{_default_brand} 官网',       'default', 1, 1),
+            ('agent',    f'agent.{_default_domain}',    f'{_default_brand} 管理后台',   'default', 1, 2),
+            ('platform', f'platform.{_default_domain}', f'{_default_brand} 用户中心',   'default', 1, 3),
+        ]
+        for sub, full, name, template, pub, so in _defaults:
+            m.execute(
+                "INSERT OR IGNORE INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, ?, ?, ?, ?, ?, ?)",
+                (sub, full, name, template, pub, so)
+            )
+        m.commit()
+        print('[Migration] ✅ site_domains 默认种子 (www/agent/platform)')
 
 
 def now_iso():

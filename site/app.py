@@ -51,10 +51,23 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
+# ══ 子域名识别中间件 ══
+from middleware.site_domain_middleware import resolve_current_site
+app.before_request(resolve_current_site)
+
 
 @app.context_processor
 def inject_deploy():
     return dict(deploy=deploy)
+
+
+@app.context_processor
+def inject_site_context():
+    """注入 current_site / current_domain 到所有模板"""
+    return {
+        'current_site': getattr(g, 'current_site', None),
+        'current_domain': getattr(g, 'current_domain', None),
+    }
 
 
 # ══ i18n ══

@@ -39,7 +39,6 @@ var I={
    contacts:S('<path d="M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0 2-2H5a2 2 0 0 0-2-2v10a2 2 0 0 0-2 2z"/>'),
    ai_chat:S('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="12" cy="10" r="2"/><path d="M9 15a3 3 0 0 1 6 0"/><circle cx="9" cy="8" r="1" fill="currentColor"/><circle cx="15" cy="8" r="1" fill="currentColor"/>'),
   social_media:S('<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2v20"/><circle cx="12" cy="12" r="3"/>'),
-  cluster_services:S('<rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="8" height="8" rx="1"/><line x1="6" y1="6" x2="18" y2="6"/><line x1="6" y1="18" x2="18" y2="18"/>'),
   themes:S('<circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><circle cx="12" cy="12" r="3"/>'),
   headernav:S('<path d="M3 12h18M3 6h18M3 18h18"/><circle cx="8" cy="6" r="1"/><circle cx="16" cy="12" r="1"/><circle cx="10" cy="18" r="1"/>'),
   brand:S('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/><circle cx="12" cy="12" r="3" fill="none"/>'),
@@ -56,12 +55,13 @@ var I={
   shop:S('<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'),
   shop_cat:S('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
   cleaner:S('<path d="M12 2l2.4 7.2L21 12l-6.6 2.8L12 22l-2.4-7.2L3 12l6.6-2.8z"/>'),
-  deploy:S('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>')
+  deploy:S('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>'),
+  site_domains:S('<circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/><path d="M2 12h4"/><path d="M18 12h4"/>')
 };
 var GROUPS=[
   ["{{ _('Dashboard') }}",false,[["dashboard",I.dashboard,"{{ _('Dashboard') }}"]]],
   ["{{ _('AI Chat') }}",false,[["ai_chat",I.ai_chat,"{{ _('Command Console') }}"]]],
-  ["{{ _('System') }}",true,[["config",I.config,"{{ _('Basic Settings') }}"],["oauth",I.social_media,"{{ _('OAuth Login') }}"],["nav_settings",I.nav_settings,"{{ _('Navigation Settings') }}"],["model_providers",I.model_providers,"{{ _('Model Management') }}"],["admins",I.admins,"{{ _('Admins') }}"],["brand",I.brand,"{{ _('Brand Settings') }}"],["cluster_services",I.cluster_services,"{{ _('Site Group Management') }}"],["themes",I.themes,"{{ _('Template Management') }}"]]],
+  ["{{ _('System') }}",true,[["config",I.config,"{{ _('Basic Settings') }}"],["oauth",I.social_media,"{{ _('OAuth Login') }}"],["nav_settings",I.nav_settings,"{{ _('Navigation Settings') }}"],["model_providers",I.model_providers,"{{ _('Model Management') }}"],["admins",I.admins,"{{ _('Admins') }}"],["brand",I.brand,"{{ _('Brand Settings') }}"],["themes",I.themes,"{{ _('Template Management') }}"],["site_domains",I.site_domains,"{{ _('Site Domains') }}"]]],
   ["{{ _('Content') }}",true,[["contentfactory",I.contentfactory,"{{ _('Capture') }}"],["cms",I.cms,"{{ _('Omni-Media Creation') }}"],["downloads",I.downloads,"{{ _('Download Management') }}"],["media_library",I.media_library,"{{ _('Media Library') }}"]]],
   ["{{ _('AI Create') }}",true,[["ppt",I.ppt_gen,"{{ _('PPT Generation') }}"],["image",I.media_video,"{{ _('Image Gen') }}"],["media_tools",I.media_video,"{{ _('Multimedia') }}"]]],
   ["{{ _('Strategy') }}",true,[["matrix",I.matrix,"{{ _('Matrix') }}"],["cleaner",I.cleaner,"{{ _('Cleaner') }}"],["automation",I.automation,"{{ _('Auto Schedule') }}"],["channels",I.channels,"{{ _('IM Gateway') }}"]]],

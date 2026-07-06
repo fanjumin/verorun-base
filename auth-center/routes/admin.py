@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Admin Routes -- site management panel"""
 import sys, os, json, socket
+from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify
 from i18n import _
@@ -2093,471 +2094,6 @@ def _get_env_fallback(channel: str) -> dict:
     return {}
 
 # =============================================
-# 站群服务管理 — Cluster Services (2026-05-15)
-# =============================================
-
-import subprocess, time as _time
-
-
-def _svc_status(svc):
-    """获取单个服务的实时状态 → {running, pid, uptime, cpu, mem}"""
-    mt = svc['manager_type']
-    mn = svc['manager_name']
-    port = svc['port']
-    running = False
-    pid = None
-
-    if mt == 'systemd':
-        try:
-            r = subprocess.run(['systemctl', 'is-active', mn],
-                               capture_output=True, text=True, timeout=5)
-            running = (r.stdout.strip() == 'active')
-        except Exception:
-            pass
-    else:  # tmux
-        try:
-            r = subprocess.run(['tmux', 'has-session', '-t', mn],
-                               capture_output=True, timeout=5)
-            running = (r.returncode == 0)
-        except Exception:
-            pass
-
-    # PID from port
-    try:
-        r = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True, timeout=5)
-        for line in r.stdout.split('\n'):
-            if f':{port} ' in line:
-                import re as _re
-                m = _re.search(r'pid=(\d+)', line)
-                if m:
-                    pid = int(m.group(1))
-                break
-    except Exception:
-        pass
-
-    # uptime / cpu / mem (quick, only if pid found)
-    uptime = ''
-    cpu = ''
-    mem = ''
-    if pid:
-        try:
-            r = subprocess.run(['ps', '-o', 'lstart=,%cpu=,%mem=', '-p', str(pid)],
-                               capture_output=True, text=True, timeout=3)
-            parts = r.stdout.strip().split()
-            if len(parts) >= 3:
-                uptime = ' '.join(parts[:-2])
-                cpu = parts[-2]
-                mem = parts[-1]
-        except Exception:
-            pass
-
-    return {'running': running, 'pid': pid, 'uptime': uptime, 'cpu': cpu, 'mem': mem}
-
-
-@admin_bp.route('/cluster/services', methods=['GET'])
-def cluster_services_list():
-    """列出所有站群服务 + 实时状态"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT * FROM cluster_services WHERE is_enabled=1 ORDER BY sort_order'
-        ).fetchall()
-    services = []
-    for r in rows:
-        d = dict(r)
-        st = _svc_status(d)
-        d['status'] = st
-        services.append(d)
-    return jsonify({'success': True, 'data': services})
-
-
-@admin_bp.route('/cluster/services/<int:sid>/start', methods=['POST'])
-def cluster_service_start(sid):
-    """启动服务"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-
-    _log(admin['user_id'], 'cluster_start', 'cluster_service', str(sid),
-         f'{svc["service_name"]}:{svc["port"]}')
-
-    mt = svc['manager_type']
-    mn = svc['manager_name']
-    port = svc['port']
-
-    # pre-check: port already occupied?
-    try:
-        r = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True, timeout=5)
-        if f':{port} ' in r.stdout:
-            return jsonify({'success': False,
-                            'error': f'端口 {port} 已被占用，请先停止旧进程'}), 409
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'端口检测失败: {str(e)}'}), 500
-
-    if mt == 'systemd':
-        try:
-            subprocess.run(['systemctl', 'start', mn], capture_output=True, text=True, timeout=15)
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'systemctl start 失败: {str(e)}'}), 500
-    else:  # tmux
-        # kill any lingering session first
-        try:
-            subprocess.run(['tmux', 'kill-session', '-t', mn],
-                           capture_output=True, timeout=5)
-        except Exception:
-            pass
-        _time.sleep(1)
-        # build start command
-        jwt = os.environ.get('JWT_SECRET', os.urandom(16).hex())
-        workdir = svc['workdir'] or os.environ.get('PROJECT_ROOT', os.path.expanduser('~/project'))
-        cmd = svc['start_cmd'] or f'python3 -B app.py {port}'
-        shell_cmd = f'cd {workdir} && JWT_SECRET={jwt} {cmd}'
-        try:
-            subprocess.run(
-                ['tmux', 'new-session', '-d', '-s', mn, shell_cmd],
-                capture_output=True, text=True, timeout=10
-            )
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'tmux 启动失败: {str(e)}'}), 500
-
-    _time.sleep(2)
-    # verify
-    st = _svc_status(dict(svc))
-    return jsonify({'success': True, 'status': st,
-                    'message': '启动成功' if st['running'] else '已发送启动命令，请稍后确认状态'})
-
-
-@admin_bp.route('/cluster/services/<int:sid>/stop', methods=['POST'])
-def cluster_service_stop(sid):
-    """停止服务"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-
-    _log(admin['user_id'], 'cluster_stop', 'cluster_service', str(sid),
-         f'{svc["service_name"]}:{svc["port"]}')
-
-    mt = svc['manager_type']
-    mn = svc['manager_name']
-
-    if mt == 'systemd':
-        try:
-            subprocess.run(['systemctl', 'stop', mn], capture_output=True, text=True, timeout=15)
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'systemctl stop 失败: {str(e)}'}), 500
-    else:  # tmux
-        try:
-            # gentle stop: send Ctrl+C
-            subprocess.run(['tmux', 'send-keys', '-t', mn, 'C-c'],
-                           capture_output=True, timeout=5)
-            _time.sleep(3)
-            subprocess.run(['tmux', 'kill-session', '-t', mn],
-                           capture_output=True, timeout=5)
-        except Exception:
-            pass
-        # fallback: kill by port
-        try:
-            subprocess.run(
-                f'ss -tlnp | grep \':{svc["port"]} \' | sed -n \'s/.*pid=\\([0-9]*\\).*/\\1/p\' | xargs -r kill -9',
-                shell=True, capture_output=True, text=True, timeout=10
-            )
-        except Exception:
-            pass
-
-    _time.sleep(2)
-    st = _svc_status(dict(svc))
-    return jsonify({'success': True, 'status': st,
-                    'message': '已停止' if not st['running'] else '停止命令已发送，请稍后确认'})
-
-
-@admin_bp.route('/cluster/services/<int:sid>/restart', methods=['POST'])
-def cluster_service_restart(sid):
-    """重启服务：先停后启"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-
-    _log(admin['user_id'], 'cluster_restart', 'cluster_service', str(sid),
-         f'{svc["service_name"]}:{svc["port"]}')
-
-    # stop
-    mt = svc['manager_type']
-    mn = svc['manager_name']
-    if mt == 'systemd':
-        try:
-            subprocess.run(['systemctl', 'stop', mn], capture_output=True, text=True, timeout=15)
-        except Exception:
-            pass
-    else:
-        try:
-            subprocess.run(['tmux', 'send-keys', '-t', mn, 'C-c'], capture_output=True, timeout=5)
-            _time.sleep(3)
-            subprocess.run(['tmux', 'kill-session', '-t', mn], capture_output=True, timeout=5)
-        except Exception:
-            pass
-        try:
-            subprocess.run(
-                f'ss -tlnp | grep \':{svc["port"]} \' | sed -n \'s/.*pid=\\([0-9]*\\).*/\\1/p\' | xargs -r kill -9',
-                shell=True, capture_output=True, text=True, timeout=10
-            )
-        except Exception:
-            pass
-
-    _time.sleep(2)
-
-    # start
-    port = svc['port']
-    if mt == 'systemd':
-        try:
-            subprocess.run(['systemctl', 'start', mn], capture_output=True, text=True, timeout=15)
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'systemctl start 失败: {str(e)}'}), 500
-    else:
-        jwt = os.environ.get('JWT_SECRET', os.urandom(16).hex())
-        workdir = svc['workdir'] or os.environ.get('PROJECT_ROOT', os.path.expanduser('~/project'))
-        cmd = svc['start_cmd'] or f'python3 -B app.py {port}'
-        shell_cmd = f'cd {workdir} && JWT_SECRET={jwt} {cmd}'
-        try:
-            subprocess.run(
-                ['tmux', 'new-session', '-d', '-s', mn, shell_cmd],
-                capture_output=True, text=True, timeout=10
-            )
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'tmux 启动失败: {str(e)}'}), 500
-
-    _time.sleep(2)
-    st = _svc_status(dict(svc))
-    return jsonify({'success': True, 'status': st,
-                    'message': '重启成功' if st['running'] else '重启命令已发送，请稍后确认'})
-
-
-@admin_bp.route('/cluster/services/<int:sid>/logs', methods=['GET'])
-def cluster_service_logs(sid):
-    """查看服务日志（最近N行，默认200）"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-
-    lines = request.args.get('lines', 200, type=int)
-    if lines < 1 or lines > 1000:
-        lines = 200
-
-    mt = svc['manager_type']
-    mn = svc['manager_name']
-    log_text = ''
-    source = ''
-
-    if mt == 'systemd':
-        try:
-            r = subprocess.run(
-                ['journalctl', '-u', mn, '--no-pager', '-n', str(lines)],
-                capture_output=True, text=True, timeout=10
-            )
-            if r.returncode == 0:
-                log_text = r.stdout
-                source = f'journalctl -u {mn}'
-            else:
-                log_text = r.stderr or '(无日志输出)'
-                source = f'journalctl -u {mn} (err)'
-        except Exception as e:
-            log_text = f'读取日志失败: {str(e)}'
-    else:  # tmux
-        try:
-            r = subprocess.run(
-                ['tmux', 'capture-pane', '-t', mn, '-p', '-S', f'-{lines}'],
-                capture_output=True, text=True, timeout=10
-            )
-            if r.returncode == 0:
-                log_text = r.stdout or '(当前无输出)'
-                source = f'tmux capture-pane -t {mn}'
-            else:
-                # fallback: try to read nohup.out or last log
-                workdir = svc['workdir']
-                if workdir:
-                    try:
-                        r2 = subprocess.run(
-                            ['tail', '-n', str(lines), f'{workdir}/nohup.out'],
-                            capture_output=True, text=True, timeout=10
-                        )
-                        log_text = r2.stdout or '(无 nohup.out)'
-                        source = f'tail {workdir}/nohup.out'
-                    except Exception:
-                        log_text = '(服务未运行，tmux 日志不可用)'
-                else:
-                    log_text = '(服务未运行，tmux 日志不可用)'
-        except Exception as e:
-            log_text = f'读取日志失败: {str(e)}'
-
-    return jsonify({
-        'success': True,
-        'service_name': svc['service_name'],
-        'display_name': svc['display_name'],
-        'source': source,
-        'lines_requested': lines,
-        'log': log_text
-    })
-
-
-@admin_bp.route('/cluster/services/<int:sid>/health', methods=['GET'])
-def cluster_service_health(sid):
-    """手动健康检查：curl 服务的 /health 端点"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-
-    health_url = svc['health_url'] or '/health'
-    port = svc['port']
-    url = f'http://127.0.0.1:{port}{health_url}'
-
-    try:
-        r = subprocess.run(
-            ['curl', '-s', '--max-time', '5', '-o', '-', '-w', '\n%{http_code}', url],
-            capture_output=True, text=True, timeout=10
-        )
-        output = r.stdout
-        lines = output.rsplit('\n', 1)
-        body = lines[0] if len(lines) > 1 else ''
-        code = lines[-1].strip() if len(lines) > 1 else ''
-
-        try:
-            import json as _json
-            parsed = _json.loads(body)
-        except Exception:
-            parsed = None
-
-        return jsonify({
-            'success': True,
-            'service_name': svc['service_name'],
-            'url': url,
-            'http_code': int(code) if code.isdigit() else 0,
-            'body': body[:2000],
-            'parsed': parsed,
-            'healthy': code == '200'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': True,
-            'service_name': svc['service_name'],
-            'url': url,
-            'healthy': False,
-            'error': str(e)
-        })
-
-# ── CRUD: 创建服务 ──
-@admin_bp.route('/cluster/services', methods=['POST'])
-def cluster_service_create():
-    """创建新服务"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    data = request.get_json(force=True) or {}
-    sn = (data.get('service_name') or '').strip()
-    dn = (data.get('display_name') or '').strip()
-    dom = (data.get('domain') or '').strip()
-    port = data.get('port', 0)
-    mt = (data.get('manager_type') or 'tmux').strip()
-    mn = (data.get('manager_name') or '').strip()
-
-    if not sn or not dn or not dom or not port:
-        return jsonify({'success': False, 'error': 'service_name/display_name/domain/port 为必填'}), 400
-    if mt not in ('tmux', 'systemd'):
-        return jsonify({'success': False, 'error': 'manager_type 只能为 tmux 或 systemd'}), 400
-
-    with get_db() as conn:
-        ex = conn.execute('SELECT id FROM cluster_services WHERE service_name=?', (sn,)).fetchone()
-        if ex:
-            return jsonify({'success': False, 'error': f'服务名 {sn} 已存在'}), 409
-        conn.execute('''INSERT INTO cluster_services
-            (service_name, display_name, domain, port, health_url, manager_type, manager_name, workdir, start_cmd, sort_order)
-            VALUES (?,?,?,?,?,?,?,?,?,?)''',
-            (sn, dn, dom, port,
-             (data.get('health_url') or '/health').strip(),
-             mt, mn,
-             (data.get('workdir') or '').strip(),
-             (data.get('start_cmd') or '').strip(),
-             data.get('sort_order', 0)))
-        conn.commit()
-        sid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-    _log(admin['user_id'], 'cluster_create', 'cluster_service', str(sid), f'{sn}:{port}')
-    return jsonify({'success': True, 'id': sid, 'message': f'服务 {dn} 创建成功'})
-
-# ── CRUD: 修改服务 ──
-@admin_bp.route('/cluster/services/<int:sid>', methods=['PUT'])
-def cluster_service_update(sid):
-    """修改服务配置"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-
-    data = request.get_json(force=True) or {}
-    updates = {}
-    for k in ['service_name', 'display_name', 'domain', 'port', 'health_url',
-              'manager_type', 'manager_name', 'workdir', 'start_cmd', 'sort_order', 'is_enabled']:
-        if k in data:
-            v = data[k]
-            if k in ('port', 'sort_order', 'is_enabled'):
-                updates[k] = int(v) if v != '' else 0
-            else:
-                updates[k] = str(v).strip() if v else ''
-
-    if 'manager_type' in updates and updates['manager_type'] not in ('tmux', 'systemd'):
-        return jsonify({'success': False, 'error': 'manager_type 只能为 tmux 或 systemd'}), 400
-
-    if updates:
-        sets = ', '.join(f'{k}=?' for k in updates)
-        vals = list(updates.values())
-        vals.append(sid)
-        with get_db() as conn:
-            conn.execute(f'UPDATE cluster_services SET {sets}, updated_at=datetime(\'now\') WHERE id=?', vals)
-            conn.commit()
-    _log(admin['user_id'], 'cluster_update', 'cluster_service', str(sid), str(list(updates.keys())))
-    return jsonify({'success': True, 'message': f'服务 {svc["display_name"]} 更新成功'})
-
-# ── CRUD: 删除服务 ──
-@admin_bp.route('/cluster/services/<int:sid>', methods=['DELETE'])
-def cluster_service_delete(sid):
-    """删除服务"""
-    admin, err = _require_super_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        svc = conn.execute('SELECT * FROM cluster_services WHERE id=?', (sid,)).fetchone()
-    if not svc:
-        return jsonify({'success': False, 'error': '服务不存在'}), 404
-    with get_db() as conn:
-        conn.execute('DELETE FROM cluster_services WHERE id=?', (sid,))
-        conn.commit()
-    _log(admin['user_id'], 'cluster_delete', 'cluster_service', str(sid), f'{svc["service_name"]}:{svc["port"]}')
-    return jsonify({'success': True, 'message': f'服务 {svc["display_name"]} 已删除'})
-
-
-# =============================================
 # GET /admin/users/export — 脱敏导出用户列表
 # =============================================
 @admin_bp.route('/users/export', methods=['GET'])
@@ -2773,6 +2309,267 @@ def delete_brand_logo_icon():
         conn.commit()
     _log(admin['user_id'], 'delete_brand_logo_icon')
     return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════════
+# 子域名管理 API
+# ══════════════════════════════════════════════
+
+_PLAN_DOMAIN_LIMITS = {
+    'deploy_basic': 3,
+    'deploy_pro': 10,
+    'deploy_enterprise': 20,
+}
+
+_NGINX_CONF_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    'nginx-domains', 'sites-enabled'
+)
+_SSL_CERT_DIR = '/etc/letsencrypt/live/easykai.cn-0001'
+
+
+def _generate_domain_nginx_config(subdomain, full_domain, port):
+    """生成本地 Nginx server block 配置文件"""
+    if not port:
+        return None
+    os.makedirs(_NGINX_CONF_DIR, exist_ok=True)
+    conf = f"""# Auto-generated by easykai site_domains — {datetime.now().strftime('%Y-%m-%d %H:%M')}
+# subdomain={subdomain}  port={port}
+
+server {{
+    listen 443 ssl http2;
+    server_name {full_domain};
+
+    ssl_certificate     {_SSL_CERT_DIR}/fullchain.pem;
+    ssl_certificate_key {_SSL_CERT_DIR}/privkey.pem;
+
+    location / {{
+        proxy_pass http://127.0.0.1:{port};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }}
+}}
+"""
+    filepath = os.path.join(_NGINX_CONF_DIR, f'{full_domain}.conf')
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(conf)
+    return filepath
+
+
+def _remove_domain_nginx_config(full_domain):
+    """删除本地 Nginx 配置文件"""
+    filepath = os.path.join(_NGINX_CONF_DIR, f'{full_domain}.conf')
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return True
+    return False
+
+
+def _check_domain_quota(user_id):
+    """检查用户是否还能添加子域名"""
+    with get_db() as conn:
+        sub = conn.execute(
+            "SELECT plan_key FROM subscriptions WHERE user_id=? AND status='active'",
+            (user_id,)
+        ).fetchone()
+        if not sub:
+            return {'allowed': 0, 'used': 0, 'limit': 0, 'can_add': False}
+        limit = _PLAN_DOMAIN_LIMITS.get(sub['plan_key'], 0)
+        used = conn.execute(
+            "SELECT COUNT(*) as c FROM site_domains"
+        ).fetchone()['c']
+        allowed = max(limit - used, 0)
+        return {
+            'allowed': allowed,
+            'used': used,
+            'limit': limit,
+            'can_add': allowed > 0,
+        }
+
+
+@admin_bp.route('/domains', methods=['GET'])
+def admin_domains_page():
+    admin, err = _require_admin()
+    if err:
+        return err
+    return jsonify({'success': True, 'page': 'domains'})
+
+
+@admin_bp.route('/api/domains', methods=['GET'])
+def admin_list_domains():
+    admin, err = _require_admin()
+    if err:
+        return err
+    quota = _check_domain_quota(admin['user_id'])
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT sd.*, sc.name as site_name, sc.theme_color, sc.accent_color "
+            "FROM site_domains sd "
+            "JOIN site_configs sc ON sc.id = sd.site_config_id "
+            "ORDER BY sd.sort_order, sd.id"
+        ).fetchall()
+    return jsonify({
+        'success': True,
+        'data': [dict(r) for r in rows],
+        'quota': quota,
+    })
+
+
+@admin_bp.route('/api/domains', methods=['POST'])
+def admin_create_domain():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    subdomain = data.get('subdomain', '').strip().lower()
+    display_name = data.get('display_name', '').strip()
+    template = data.get('template', 'default')
+    service_port = data.get('service_port')
+
+    if not subdomain or not display_name:
+        return jsonify({'success': False, 'error': '子域名和显示名不能为空'}), 400
+
+    # 校验子域名格式（只允许字母数字连字符）
+    import re
+    if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', subdomain):
+        return jsonify({'success': False, 'error': '子域名格式无效：仅允许字母、数字和连字符'}), 400
+
+    # 校验配额
+    quota = _check_domain_quota(admin['user_id'])
+    if not quota['can_add']:
+        return jsonify({'success': False, 'error': f'配额已用完（{quota["used"]}/{quota["limit"]}）'}), 400
+
+    deploy_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
+    full_domain = f'{subdomain}.{deploy_domain}'
+
+    with get_db() as conn:
+        # 检查是否已存在
+        exists = conn.execute(
+            "SELECT id FROM site_domains WHERE full_domain=?", (full_domain,)
+        ).fetchone()
+        if exists:
+            return jsonify({'success': False, 'error': f'子域名 {full_domain} 已存在'}), 400
+
+        conn.execute(
+            "INSERT INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, service_port) "
+            "VALUES (1, ?, ?, ?, ?, ?)",
+            (subdomain, full_domain, display_name, template, service_port)
+        )
+        conn.commit()
+
+    # 独立服务 → 生成 Nginx 配置
+    nginx_path = _generate_domain_nginx_config(subdomain, full_domain, service_port)
+
+    _log(admin['user_id'], 'create_domain', detail=f'{full_domain} ({display_name}) port={service_port or "content"}')
+    msg = f'子域名 {full_domain} 已创建'
+    if nginx_path:
+        msg += f'，Nginx 配置已生成'
+    return jsonify({'success': True, 'message': msg, 'nginx_config_path': nginx_path})
+
+
+@admin_bp.route('/api/domains/<int:did>', methods=['PUT'])
+def admin_update_domain(did):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    allowed = ['display_name', 'template', 'is_published', 'page_keys_json', 'sort_order', 'service_port']
+    updates = {k: data[k] for k in allowed if k in data}
+    if not updates:
+        return jsonify({'success': False, 'error': '无有效更新字段'}), 400
+
+    # 先读取旧 full_domain
+    with get_db() as conn:
+        old_row = conn.execute("SELECT full_domain, subdomain FROM site_domains WHERE id=?", (did,)).fetchone()
+
+    sets = ', '.join(f'{k}=?' for k in updates)
+    vals = list(updates.values()) + [did]
+    with get_db() as conn:
+        conn.execute(
+            f'UPDATE site_domains SET {sets}, updated_at=datetime(\'now\') WHERE id=?',
+            vals
+        )
+        conn.commit()
+
+    # 更新 Nginx 配置
+    if old_row:
+        old_domain = old_row['full_domain']
+        subdomain = old_row['subdomain']
+        new_port = data.get('service_port')
+        if new_port is not None:
+            _generate_domain_nginx_config(subdomain, old_domain, new_port)
+        else:
+            _remove_domain_nginx_config(old_domain)
+
+    _log(admin['user_id'], 'update_domain', detail=f'domain_id={did}')
+    return jsonify({'success': True, 'message': '已更新'})
+
+
+@admin_bp.route('/api/domains/<int:did>', methods=['DELETE'])
+def admin_delete_domain(did):
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT full_domain, service_port FROM site_domains WHERE id=?", (did,)
+        ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': '子域名不存在'}), 404
+        full_domain = row['full_domain']
+        conn.execute("DELETE FROM site_domains WHERE id=?", (did,))
+        conn.commit()
+    # 删除 Nginx 配置文件
+    _remove_domain_nginx_config(full_domain)
+    _log(admin['user_id'], 'delete_domain', detail=full_domain)
+    return jsonify({'success': True, 'message': f'{full_domain} 已删除'})
+
+
+@admin_bp.route('/api/domains/quota', methods=['GET'])
+def admin_domain_quota():
+    admin, err = _require_admin()
+    if err:
+        return err
+    return jsonify({'success': True, 'data': _check_domain_quota(admin['user_id'])})
+
+
+@admin_bp.route('/api/domains/<int:did>/nginx-config', methods=['GET'])
+def admin_domain_nginx_config(did):
+    """返回子域名对应的 Nginx 配置文本"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT full_domain, subdomain, service_port FROM site_domains WHERE id=?", (did,)
+        ).fetchone()
+    if not row:
+        return jsonify({'success': False, 'error': '子域名不存在'}), 404
+    if not row['service_port']:
+        return jsonify({'success': False, 'error': '内容站点无需 Nginx 配置'}), 400
+    config_path = os.path.join(_NGINX_CONF_DIR, f'{row["full_domain"]}.conf')
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_text = f.read()
+    else:
+        # 动态生成（文件不存在时）
+        config_text = _generate_domain_nginx_config(
+            row['subdomain'], row['full_domain'], row['service_port']
+        )
+        if config_text:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_text = f.read()
+    return jsonify({
+        'success': True,
+        'data': {
+            'full_domain': row['full_domain'],
+            'service_port': row['service_port'],
+            'config_text': config_text,
+            'server_path': f'/etc/nginx/snippets/easykai-domains/{row["full_domain"]}.conf',
+        }
+    })
 
 
 # ══════════════════════════════════════════════
