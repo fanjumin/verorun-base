@@ -568,13 +568,103 @@ def api_alerts_read():
     alert_id = data.get('alert_id')
 
     with m.get_db() as conn:
+        # ── Auto-upgrade: check BEFORE marking as read ──
+        _auto_upgrade_stale_alerts(conn)
+
         if alert_id:
             conn.execute('UPDATE alert_history SET is_read=1 WHERE id=?', (alert_id,))
         else:
             conn.execute('UPDATE alert_history SET is_read=1')
+
         conn.commit()
 
     return jsonify({'success': True})
+
+
+# ─── Silences API ─────────────────────────────────────────────────────────────
+
+@health_bp.route('/api/alerts/silences')
+def api_silences_list():
+    """List all silence windows"""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    with m.get_db() as conn:
+        silences = conn.execute(
+            'SELECT * FROM alert_silences ORDER BY created_at DESC LIMIT 50'
+        ).fetchall()
+    return jsonify({
+        'success': True,
+        'data': {
+            'silences': [dict(s) for s in silences]
+        }
+    })
+
+
+@health_bp.route('/api/alerts/silences', methods=['POST'])
+def api_silences_create():
+    """Create a new silence window"""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    check_key = data.get('check_key', '*')
+    starts_at = data.get('starts_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    ends_at = data.get('ends_at')
+    reason = data.get('reason', '')
+    created_by = admin.get('username', admin.get('display_name', 'admin'))
+
+    if not ends_at:
+        return jsonify({'success': False, 'error': 'ends_at is required'}), 400
+
+    with m.get_db() as conn:
+        conn.execute(
+            'INSERT INTO alert_silences (check_key, starts_at, ends_at, reason, created_by) '
+            'VALUES (?,?,?,?,?)',
+            (check_key, starts_at, ends_at, reason, created_by)
+        )
+        conn.commit()
+
+    return jsonify({'success': True, 'message': 'Silence window created'})
+
+
+@health_bp.route('/api/alerts/silences/<int:silence_id>', methods=['DELETE'])
+def api_silences_delete(silence_id):
+    """Delete a silence window"""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    with m.get_db() as conn:
+        conn.execute('DELETE FROM alert_silences WHERE id=?', (silence_id,))
+        conn.commit()
+
+    return jsonify({'success': True, 'message': 'Silence window removed'})
+
+
+# ─── Auto-upgrade helper ─────────────────────────────────────────────────────
+
+def _auto_upgrade_stale_alerts(conn):
+    """Upgrade P3 alerts that have been unread for > 30 minutes to P1.
+    
+    This is called when admin marks alerts as read — checks for any
+    P3 alerts that have been sitting unread and escalates them.
+    """
+    threshold = (datetime.now() - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+    stale = conn.execute(
+        "SELECT id, check_key, check_name FROM alert_history "
+        "WHERE alert_level='P3' AND is_read=0 AND created_at <= ?",
+        (threshold,)
+    ).fetchall()
+
+    for row in stale:
+        conn.execute(
+            "UPDATE alert_history SET alert_level='P1' WHERE id=?",
+            (row['id'],)
+        )
+        print(f'[HealthAlert] ⬆️ Auto-upgraded P3→P1: {row["check_key"]} ({row["check_name"]})')
 
 
 @health_bp.route('/api/export')
