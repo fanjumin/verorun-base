@@ -1022,6 +1022,150 @@ def api_ai_fix():
     })
 
 
+# ─── Fix Audit & Rollback API ──────────────────────────────────────────────
+
+@health_bp.route('/api/fix/audit')
+def api_fix_audit():
+    """Query fix audit log with optional filters."""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    limit = min(request.args.get('limit', 50, type=int), 200)
+    check_key = request.args.get('check_key', '')
+    action = request.args.get('action', '')
+    status = request.args.get('status', '')
+
+    with m.get_db() as conn:
+        where = ''
+        params = []
+        if check_key:
+            where += ' AND check_key=?' if where else 'WHERE check_key=?'
+            params.append(check_key)
+        if action:
+            where += ' AND action=?' if where else 'WHERE action=?'
+            params.append(action)
+        if status:
+            where += ' AND status=?' if where else 'WHERE status=?'
+            params.append(status)
+
+        total = conn.execute(
+            f'SELECT COUNT(*) as c FROM fix_audit_log {where}', params
+        ).fetchone()['c']
+
+        rows = conn.execute(
+            f'SELECT * FROM fix_audit_log {where} ORDER BY created_at DESC LIMIT ?',
+            params + [limit]
+        ).fetchall()
+
+        import json as _json
+        results = []
+        for r in rows:
+            d = dict(r)
+            for col in ('params_json', 'undo_params_json'):
+                try:
+                    d[col] = _json.loads(d.get(col, '{}'))
+                except (_json.JSONDecodeError, TypeError):
+                    d[col] = {}
+            results.append(d)
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'total': total,
+            'audit_logs': results,
+        }
+    })
+
+
+@health_bp.route('/api/fix/rollback/<int:audit_id>', methods=['POST'])
+def api_fix_rollback(audit_id):
+    """Rollback a previously applied fix."""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    with m.get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM fix_audit_log WHERE id=? AND status=?',
+            (audit_id, 'applied')
+        ).fetchone()
+
+        if not row:
+            return jsonify({'success': False, 'error': 'Audit record not found or already rolled back'}), 404
+
+        row = dict(row)
+        import json as _json
+        try:
+            undo = _json.loads(row['undo_params_json'])
+        except (_json.JSONDecodeError, TypeError):
+            undo = {}
+
+        action = row['action']
+        success = False
+
+        try:
+            if action == 'set_log_level' and undo.get('old_level'):
+                conn.execute(
+                    "INSERT OR REPLACE INTO system_config (key, value) VALUES ('log_level', ?)",
+                    (undo['old_level'],)
+                )
+                success = True
+
+            elif action == 'update_url' and undo.get('table') and undo.get('old_value'):
+                conn.execute(
+                    f"UPDATE {undo['table']} SET {undo['field']}=? WHERE id=?",
+                    (undo['old_value'], undo['record_id'])
+                )
+                success = True
+
+            elif action == 'mark_disabled' and undo.get('table') and undo.get('record_id'):
+                if 'old_is_enabled' in undo:
+                    conn.execute(
+                        f"UPDATE {undo['table']} SET is_enabled=? WHERE id=?",
+                        (undo['old_is_enabled'], undo['record_id'])
+                    )
+                if 'old_is_active' in undo:
+                    conn.execute(
+                        f"UPDATE {undo['table']} SET is_active=? WHERE id=?",
+                        (undo['old_is_active'], undo['record_id'])
+                    )
+                success = True
+
+            elif action == 'mark_deleted' and undo.get('old_status'):
+                conn.execute(
+                    f"UPDATE {undo['table']} SET status=? WHERE id=?",
+                    (undo['old_status'], undo['record_id'])
+                )
+                success = True
+
+            elif action == 'clear_field' and undo.get('old_value'):
+                conn.execute(
+                    f"UPDATE {undo['table']} SET {undo['field']}=? WHERE id=?",
+                    (undo['old_value'], undo['record_id'])
+                )
+                success = True
+
+            elif action in ('clean_temp', 'restart_worker', 'flush_cdn'):
+                return jsonify({
+                    'success': False,
+                    'error': f'Rollback not supported for {action}: {undo.get("note", "No undo data")}'
+                }), 400
+
+            if success:
+                conn.execute(
+                    'UPDATE fix_audit_log SET status=? WHERE id=?',
+                    ('rolled_back', audit_id)
+                )
+                conn.commit()
+                return jsonify({'success': True, 'message': f'Fix #{audit_id} rolled back'})
+
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Rollback failed: {e}'}), 500
+
+    return jsonify({'success': False, 'error': 'No reversible data found'}), 400
+
+
 # ─── Internal API: Called by Workflow Engine ─────────────────────────────────
 
 @health_bp.route('/api/internal/run', methods=['POST'])

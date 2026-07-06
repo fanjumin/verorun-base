@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 from .checkers import (
     FixSuggestion,
     FIX_ACTION_NOTIFY_ADMIN,
+    WHITELIST_FIX_ACTIONS,
     ALL_FIX_ACTIONS,
 )
 
@@ -220,15 +221,32 @@ class AIFixer:
             ))
         return suggestions
 
-    def execute_fix(self, conn, suggestions: list) -> dict:
+    def execute_fix(self, conn, suggestions: list, auto_exec: bool = False,
+                    admin_user: str = 'system', run_id: int = 0,
+                    check_key: str = '') -> dict:
         """
         Execute a list of FixSuggestion objects.
+
+        If auto_exec=True, only whitelist actions are executed automatically;
+        all other actions are skipped.
+
+        Each applied fix is recorded in fix_audit_log for rollback support.
+
         Returns stats dict: {applied: int, errors: list}
         """
+        import json as _json
         applied = 0
         errors = []
 
         for sug in suggestions:
+            # Auto-exec mode: only whitelist actions
+            if auto_exec and sug.action not in WHITELIST_FIX_ACTIONS:
+                print(f'[AIFixer] ⏭ Skipped (not in whitelist): {sug.action}')
+                continue
+
+            # Build undo_params for rollback
+            undo_params = self._build_undo_params(conn, sug)
+
             try:
                 if sug.action == FIX_ACTION_NOTIFY_ADMIN:
                     if conn:
@@ -246,6 +264,20 @@ class AIFixer:
                         applied += 1
                     else:
                         errors.append(f"{sug.action}: could not be applied")
+                        continue
+
+                # Record audit log
+                if conn:
+                    conn.execute(
+                        'INSERT INTO fix_audit_log '
+                        '(run_id, check_key, action, params_json, undo_params_json, status, admin_user) '
+                        'VALUES (?,?,?,?,?,?,?)',
+                        (run_id, check_key, sug.action,
+                         _json.dumps(sug.params, ensure_ascii=False),
+                         _json.dumps(undo_params, ensure_ascii=False),
+                         'applied', admin_user)
+                    )
+
             except Exception as e:
                 errors.append(f"{sug.action}: {e}")
 
@@ -254,6 +286,76 @@ class AIFixer:
             'total': len(suggestions),
             'errors': errors,
         }
+
+    def _build_undo_params(self, conn, sug: FixSuggestion) -> dict:
+        """Build the undo_params for a given FixSuggestion.
+        
+        This captures the current state before the fix is applied,
+        so it can be reversed later.
+        """
+        params = sug.params
+        undo = {}
+
+        if sug.action == 'set_log_level' and conn:
+            old = conn.execute(
+                "SELECT value FROM system_config WHERE key='log_level'"
+            ).fetchone()
+            undo['old_level'] = old['value'] if old else 'info'
+
+        elif sug.action == 'clean_temp':
+            undo['note'] = 'Files deleted from disk; rollback is best-effort (restore from backup)'
+
+        elif sug.action == 'restart_worker':
+            undo['worker_name'] = params.get('worker_name', '')
+            undo['note'] = 'Worker already restarted; no undo for process signals'
+
+        elif sug.action == 'flush_cdn':
+            undo['note'] = 'CDN cache already flushed; no undo'
+
+        elif sug.action == 'update_url' and conn and 'table' in params and 'record_id' in params and 'field' in params:
+            old_val = conn.execute(
+                f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
+                (params['record_id'],)
+            ).fetchone()
+            if old_val:
+                undo['old_value'] = old_val[0]
+                undo['table'] = params['table']
+                undo['record_id'] = params['record_id']
+                undo['field'] = params['field']
+
+        elif sug.action == 'mark_disabled' and conn and 'table' in params and 'record_id' in params:
+            old_val = conn.execute(
+                f"SELECT is_enabled, is_active FROM {params['table']} WHERE id=?",
+                (params['record_id'],)
+            ).fetchone()
+            if old_val:
+                undo['old_is_enabled'] = old_val[0]
+                undo['old_is_active'] = old_val[1]
+                undo['table'] = params['table']
+                undo['record_id'] = params['record_id']
+
+        elif sug.action == 'mark_deleted' and conn and 'table' in params and 'record_id' in params:
+            old_val = conn.execute(
+                f"SELECT status FROM {params['table']} WHERE id=?",
+                (params['record_id'],)
+            ).fetchone()
+            if old_val:
+                undo['old_status'] = old_val[0]
+                undo['table'] = params['table']
+                undo['record_id'] = params['record_id']
+
+        elif sug.action == 'clear_field' and conn and 'table' in params and 'record_id' in params and 'field' in params:
+            old_val = conn.execute(
+                f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
+                (params['record_id'],)
+            ).fetchone()
+            if old_val:
+                undo['old_value'] = old_val[0]
+                undo['table'] = params['table']
+                undo['record_id'] = params['record_id']
+                undo['field'] = params['field']
+
+        return undo
 
 
 # ─── Convenience function ────────────────────────────────────────────────

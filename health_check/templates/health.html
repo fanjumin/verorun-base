@@ -178,6 +178,7 @@ tr:hover td{background:rgba(108,108,240,0.04)}
       <button class="btn btn-danger" id="alertBtn" onclick="showAlerts()" style="display:none">
         🔔 Alerts <span id="alertCount">0</span>
       </button>
+      <button class="btn btn-sm" onclick="showFixAudit()">🔧 {{ _('Fix Records') }}</button>
       <button class="btn btn-sm" id="autoRefreshBtn" onclick="toggleAutoRefresh()" style="border-color:var(--accent);color:var(--accent)">⏸ {{ _('Stop Refresh') }}</button>
       <span class="refresh-info" id="refreshInfo">🔄 -</span>
     </div>
@@ -252,6 +253,26 @@ tr:hover td{background:rgba(108,108,240,0.04)}
     <div class="modal-box" onclick="event.stopPropagation()" style="max-width:600px">
       <h3>🔔 {{ _('Alert List') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
       <div id="alertBody"></div>
+    </div>
+  </div>
+
+  <!-- Fix Audit Modal -->
+  <div class="modal-overlay" id="fixAuditModal" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:600px">
+      <h3>🔧 {{ _('Fix Records') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
+      <div id="fixAuditBody"></div>
+    </div>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:420px">
+      <h3>{{ _('Confirm') }}<button class="btn btn-sm" style="margin-left:auto" onclick="closeModal()">✕</button></h3>
+      <div id="confirmBody" style="padding:16px 0;font-size:14px;color:var(--text);line-height:1.6"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:12px">
+        <button class="btn btn-sm" onclick="_confirmCancel()">{{ _('Cancel') }}</button>
+        <button class="btn btn-sm" onclick="_confirmOk()">{{ _('OK') }}</button>
+      </div>
     </div>
   </div>
 </div>
@@ -502,8 +523,8 @@ function showDetail(itemId) {
     var ck = esc(item.check_key).replace(/'/g,"\\'");
     var ri = esc(String(item.run_id||'')).replace(/'/g,"\\'");
     h += '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">';
-    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🤖 {{ _('AI分析') }}</button>';
-    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')" style="background:var(--yellow);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🔧 {{ _('一键修复') }}</button>';
+    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')">🤖 {{ _('AI分析') }}</button>';
+    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')">🔧 {{ _('一键修复') }}</button>';
     h += '</div>';
     h += '<div id="aiResult_'+item.id+'" style="margin-top:8px;font-size:13px;color:var(--dim)"></div>';
   }
@@ -533,7 +554,7 @@ function aiAnalyze(itemId) {
       el.innerHTML = '<pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:12px;max-height:200px;overflow:auto">'+esc(itemsJson)+'</pre>';
       // If there are fix items, show execute button
       if (plan.items && plan.items.length > 0) {
-        el.innerHTML += '<div style="margin-top:8px"><button class="btn btn-sm" onclick="aiFix(\''+item.id+'\',\''+item.check_key+'\',\''+(item.run_id||'')+'\')" style="background:var(--yellow);color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer">🔧 执行上述修复</button></div>';
+        el.innerHTML += '<div style="margin-top:8px"><button class="btn btn-sm" onclick="aiFix(\''+item.id+'\',\''+item.check_key+'\',\''+(item.run_id||'')+'\')">🔧 执行上述修复</button></div>';
       }
     } else {
       el.innerHTML = '<span style="color:var(--red)">分析失败: '+esc(d.error||'')+'</span>';
@@ -545,7 +566,7 @@ function aiAnalyze(itemId) {
 
 // ── AI Fix (called after aiAnalyze) ──
 function aiFix(itemId, checkKey, runId) {
-  if (!confirm('{{ _('确定执行AI修复？此操作不可自动撤销。') }}')) return;
+  showConfirmModal('{{ _('确定执行AI修复？可在修复记录中回滚。') }}', function(){
   var items = _dataCache.status && _dataCache.status.latest_run ? _dataCache.status.latest_run.items : [];
   var item = items.find(function(i){return i.id==itemId});
   if (!item) return;
@@ -591,6 +612,7 @@ function aiFix(itemId, checkKey, runId) {
     }
   }).catch(function(e){
     el.innerHTML = '<span style="color:var(--red)">{{ _('请求失败') }}</span>';
+  });
   });
 }
 
@@ -958,13 +980,14 @@ function saveConfig(id) {
 
 // ── Delete Check ──
 function deleteCheck(id, name) {
-  if (!confirm('{{ _('Are you sure you want to delete check') }}「'+name+'」{{ _('?') }}')) return;
+  showConfirmModal('{{ _('确定删除检查项') }}「'+name+'」？', function(){
   fetch(API+'/checks/'+id, {
     method:'DELETE',
     headers:{'Authorization':'Bearer '+_token}
   }).then(function(r){return r.json()}).then(function(d){
     if (d.success) { showToast('✅ {{ _('Deleted') }}'); loadChecks(); }
     else showToast('❌ '+d.error);
+  });
   });
 }
 
@@ -1032,6 +1055,72 @@ function markAlertsRead() {
       showToast('✅ {{ _('All marked as read') }}');
       closeModal();
     }
+  });
+}
+
+// ── Fix Audit ──
+function showFixAudit() {
+  fetch(API+'/fix/audit?limit=100', {headers:{'Authorization':'Bearer '+_token}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if (!d.success) { showToast('❌ '+d.error); return; }
+      var logs = d.data.audit_logs || [];
+      var h = '';
+      if (logs.length === 0) {
+        h = '<div style="text-align:center;padding:20px;color:var(--dim)">{{ _('No fix records') }}</div>';
+      } else {
+        h = '<table><tr><th>{{ _('Time') }}</th><th>{{ _('Check') }}</th><th>{{ _('Action') }}</th><th>{{ _('Status') }}</th><th>{{ _('Operation') }}</th></tr>';
+        var actionLabels = {
+          'clean_temp': '{{ _('Clean temp/cache') }}',
+          'restart_worker': '{{ _('Restart worker') }}',
+          'set_log_level': '{{ _('Adjust log level') }}',
+          'flush_cdn': '{{ _('Flush CDN') }}',
+          'update_url': '{{ _('Update URL') }}',
+          'mark_disabled': '{{ _('Disable item') }}',
+          'mark_deleted': '{{ _('Mark deleted') }}',
+          'clear_field': '{{ _('Clear field') }}'
+        };
+        logs.forEach(function(r){
+          var label = actionLabels[r.action] || r.action;
+          var isApplied = r.status === 'applied';
+          var statusHtml = isApplied
+            ? '<span style="color:var(--green)">● {{ _('Applied') }}</span>'
+            : '<span style="color:var(--dim)">● {{ _('Rolled back') }}</span>';
+          var opHtml = isApplied
+            ? '<button class="btn btn-sm" onclick="rollbackFix('+r.id+')" style="background:var(--orange,#f59e0b);color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">↩ {{ _('Rollback') }}</button>'
+            : '<span style="color:var(--dim);font-size:11px">-</span>';
+          h += '<tr>';
+          h += '<td style="font-size:10px;color:var(--dim);white-space:nowrap">'+esc(r.created_at||'')+'</td>';
+          h += '<td>'+esc(r.check_key)+'</td>';
+          h += '<td>'+esc(label)+'</td>';
+          h += '<td>'+statusHtml+'</td>';
+          h += '<td>'+opHtml+'</td>';
+          h += '</tr>';
+        });
+        h += '</table>';
+      }
+      document.getElementById('fixAuditBody').innerHTML = h;
+      document.getElementById('fixAuditModal').classList.add('show');
+    }).catch(function(){
+      showToast('❌ {{ _('Load failed') }}');
+    });
+}
+
+function rollbackFix(auditId) {
+  showConfirmModal('{{ _('确认回滚此修复操作？') }}', function(){
+  fetch(API+'/fix/rollback/'+auditId, {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'}
+  }).then(function(r){return r.json()}).then(function(d){
+    if (d.success) {
+      showToast('✅ '+d.message);
+      showFixAudit(); // Refresh the list
+    } else {
+      showToast('❌ '+d.error);
+    }
+  }).catch(function(){
+    showToast('❌ {{ _('Request failed') }}');
+  });
   });
 }
 
@@ -1167,6 +1256,26 @@ function closeModal(e){
   if(!e || e.target.classList.contains('modal-overlay')){
     document.querySelectorAll('.modal-overlay').forEach(function(m){m.classList.remove('show')});
   }
+}
+
+// ── Confirm Modal (replaces native confirm()) ──
+var _confirmCallback = null;
+
+function showConfirmModal(msg, onConfirm) {
+  document.getElementById('confirmBody').textContent = msg;
+  document.getElementById('confirmModal').classList.add('show');
+  _confirmCallback = onConfirm;
+}
+
+function _confirmOk() {
+  closeModal();
+  if (_confirmCallback) _confirmCallback();
+  _confirmCallback = null;
+}
+
+function _confirmCancel() {
+  closeModal();
+  _confirmCallback = null;
 }
 
 // Auto-refresh toggle

@@ -820,10 +820,23 @@ FIX_ACTION_MARK_DISABLED  = 'mark_disabled'     # Set is_enabled=0
 FIX_ACTION_RUN_SQL        = 'run_sql'           # Execute arbitrary SQL
 FIX_ACTION_NOTIFY_ADMIN   = 'notify_admin'      # Send a notification to admin
 
+# ── Auto-exec whitelist (safe, reversible actions) ──
+FIX_ACTION_CLEAN_TEMP     = 'clean_temp'         # Delete temp files / cache
+FIX_ACTION_RESTART_WORKER = 'restart_worker'     # HUP a non-gunicorn worker
+FIX_ACTION_SET_LOG_LEVEL  = 'set_log_level'      # Change log level in system_config
+FIX_ACTION_FLUSH_CDN      = 'flush_cdn'          # Trigger CDN cache refresh
+
+WHITELIST_FIX_ACTIONS = {
+    FIX_ACTION_CLEAN_TEMP, FIX_ACTION_RESTART_WORKER,
+    FIX_ACTION_SET_LOG_LEVEL, FIX_ACTION_FLUSH_CDN,
+}
+
 ALL_FIX_ACTIONS = {
     FIX_ACTION_MARK_DELETED, FIX_ACTION_CLEAR_FIELD, FIX_ACTION_DELETE_RECORD,
     FIX_ACTION_UPDATE_URL, FIX_ACTION_MARK_DISABLED, FIX_ACTION_RUN_SQL,
     FIX_ACTION_NOTIFY_ADMIN,
+    FIX_ACTION_CLEAN_TEMP, FIX_ACTION_RESTART_WORKER,
+    FIX_ACTION_SET_LOG_LEVEL, FIX_ACTION_FLUSH_CDN,
 }
 
 
@@ -924,6 +937,50 @@ class FixSuggestion:
                     sql_params = params.get('params') or []
                     conn.execute(params['sql'], sql_params)
                     return True
+
+            elif suggestion.action == FIX_ACTION_CLEAN_TEMP:
+                # Delete temp files and cache dirs
+                import glob, shutil
+                temp_patterns = params.get('patterns', ['logs/*.temp', 'data/cache/*'])
+                for pattern in temp_patterns:
+                    for fp in glob.glob(os.path.join(PROJECT_ROOT, pattern)):
+                        try:
+                            if os.path.isdir(fp):
+                                shutil.rmtree(fp, ignore_errors=True)
+                            else:
+                                os.remove(fp)
+                        except Exception:
+                            pass
+                return True
+
+            elif suggestion.action == FIX_ACTION_RESTART_WORKER:
+                # HUP a non-gunicorn worker process
+                worker_name = params.get('worker_name', '')
+                if worker_name:
+                    import subprocess
+                    subprocess.run(['pkill', '-HUP', '-f', worker_name],
+                                   capture_output=True, timeout=5)
+                return True
+
+            elif suggestion.action == FIX_ACTION_SET_LOG_LEVEL:
+                # Change log_level in system_config
+                if conn and 'level' in params:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO system_config (key, value) VALUES ('log_level', ?)",
+                        (params['level'],)
+                    )
+                    return True
+
+            elif suggestion.action == FIX_ACTION_FLUSH_CDN:
+                # POST to CDN refresh URL
+                cdn_url = os.environ.get('CDN_REFRESH_URL', params.get('url', ''))
+                if cdn_url:
+                    import urllib.request
+                    try:
+                        urllib.request.urlopen(cdn_url, timeout=10)
+                    except Exception:
+                        pass
+                return True
 
         except Exception as e:
             # Log and re-raise so caller can catch

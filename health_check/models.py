@@ -168,6 +168,22 @@ def init_health_tables():
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_health_trend_date
                 ON health_trend(date);
+
+            -- =============================================
+            -- 7. Fix audit log table (for rollback)
+            -- =============================================
+            CREATE TABLE IF NOT EXISTS fix_audit_log (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id          INTEGER DEFAULT 0,
+                check_key       TEXT NOT NULL,
+                action          TEXT NOT NULL,                    -- FIX_ACTION_* constant
+                params_json     TEXT DEFAULT '{}',               -- Parameters used
+                undo_params_json TEXT DEFAULT '{}',              -- Parameters needed to undo
+                status          TEXT DEFAULT 'applied'           -- applied / rolled_back
+                    CHECK(status IN ('applied','rolled_back')),
+                admin_user      TEXT DEFAULT '',
+                created_at      TEXT DEFAULT (datetime('now'))
+            );
         """)
         print(f'[HealthCheck] ✅ Database tables initialized')
 
