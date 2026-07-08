@@ -320,6 +320,43 @@ function socialDeleteHistory(id){
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
 }
 
+// ── {{ _('Publish History') }} (standalone page) ──
+window.l_publish_history=function(){
+  document.getElementById("pt").textContent="{{ _('Publish History') }}";
+  var h='<div class="cd"><div style="display:flex;align-items:center;margin-bottom:12px">';
+  h+='<div class="st">📤 {{ _('Publish History') }}</div><span style="flex:1"></span>';
+  h+='<button class="btn bo bs" onclick="loadPublishHistory()">{{ _('Refresh') }}</button></div>';
+  h+='<div id="pubHistory"><div class="em">{{ _('Loading') }}...</div></div></div>';
+  document.getElementById("mc").innerHTML=h;
+  loadPublishHistory();
+};
+
+function loadPublishHistory(){
+  var el=document.getElementById("pubHistory");
+  if(!el)return;
+  fetch("/admin/social/history?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var items=d.data.items;
+    if(!items||!items.length){el.innerHTML='<div class="em">{{ _('No Push Records') }}</div>';return}
+    var h='{{ _('<table><tr><th>Platform</th><th>Title</th><th>Status</th><th>ID</th><th>Time</th><th>Action</th></tr>') }}';
+    var statusMap={draft:"{{ _('Draft') }}",publishing:"{{ _('Publishing') }}",published:"{{ _('Published') }}",failed:"{{ _('Failed') }}"};
+    var platformIcon={wechat:"💬",weibo:"📢",toutiao:"📰"};
+    items.forEach(function(r){
+      var st=statusMap[r.status]||r.status;
+      var stCls=r.status==="published"?"on":(r.status==="failed"?"off":"pd");
+      var icon=platformIcon[r.platform]||"📤";
+      h+='<tr><td>'+icon+'</td>';
+      h+='<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(r.title)+'</td>';
+      h+='<td><span class="bdg '+stCls+'">'+st+'</span></td>';
+      h+='<td style="font-size:10px;font-family:monospace">'+(r.publish_id||r.media_id?"#"+esc(r.publish_id||r.media_id):"-")+'</td>';
+      h+='<td style="font-size:11px;color:var(--dim)">'+(r.created_at||"")+'</td>';
+      h+='<td><button class="btn bo bs" onclick="socialDeleteHistory('+r.id+')">{{ _('Delete') }}</button></td></tr>';
+    });
+    h+='</table><div style="font-size:10px;color:var(--dim);margin-top:8px">{{ _('Total: ') }}'+d.data.total+'{{ _(' entries') }}</div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
+}
+
 
 // ============================
 // 🏭 {{ _('Content Factory') }}

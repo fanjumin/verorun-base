@@ -1,6 +1,6 @@
 # CMS 模块重构方案与执行计划
 
-> 版本：v1.2 | 日期：2026-07-08 | 状态：已执行完成（Phase 1/2/3）| 验证：静态检测全部通过
+> 版本：v1.3 | 日期：2026-07-08 | 状态：Phase 1/2 完成；Phase 3 部分完成（3.1~3.3、3.8 已落地，3.4~3.7 待办）| 验证：静态检测通过
 
 ---
 
@@ -365,16 +365,16 @@ if source.auto_crawl:
 
 **目标**：将 Social Push 迁入 Automation，预置工作流模板，实现发布即触发
 
-| 步骤 | 任务 | 涉及文件 | 交付物 |
-|------|------|---------|--------|
-| 3.1 | 在菜单中加入 Automation > Social Push 和 Publish History | `icons.html` | 入口就绪 |
-| 3.2 | 新增 `l_social_push()` 函数（复用 social_push.py 现有 API） | `social.html`（新建或集成） | Social Push 管理页 |
-| 3.3 | 新增 `l_publish_history()` 函数 | `publish_history.html`（新建） | 发布历史统一视图 |
-| 3.4 | 预置 4 个内容工作流模板 | `routes.py` 或种子数据 | 开箱即用的模板 |
-| 3.5 | 改造 `publish_post()` 增加 Hook 事件 | `cms_admin.py` | 发布可触发工作流 |
-| 3.6 | 新建 `workflow_triggers` 表 | `database.py` | 事件驱动基础 |
-| 3.7 | 删除 `Risk & Audit` 菜单分组 | `icons.html` | 菜单精简 |
-| 3.8 | 删除 AI Create 分组，替换为 AI Tools | `icons.html` | 菜单精简 |
+| 步骤 | 任务 | 涉及文件 | 交付物 | 状态 |
+|------|------|---------|--------|------|
+| 3.1 | 在菜单中加入 Automation > Social Push 和 Publish History | `icons.html` | 入口就绪 | ✅ 完成 |
+| 3.2 | Social Push 页面接入菜单（复用现有 `l_social` + social_push.py API） | `icons.html`, `social.html` | Social Push 管理页 | ✅ 完成（`l_social` 原为孤立页，已接入 `social` 菜单键） |
+| 3.3 | 新增 `l_publish_history()` 独立发布历史页 | `social.html` | 发布历史统一视图 | ✅ 完成（复用 `/admin/social/history` API） |
+| 3.4 | 预置 4 个内容工作流模板 | `routes.py` 或种子数据 | 开箱即用的模板 | ⬜ 待办 |
+| 3.5 | 改造 `publish_post()` 增加 Hook 事件 | `cms_admin.py` | 发布可触发工作流 | ⬜ 待办 |
+| 3.6 | 新建 `workflow_triggers` 表 | `database.py` | 事件驱动基础 | ⬜ 待办 |
+| 3.7 | 删除 `Risk & Audit` 菜单分组 | `icons.html` | 菜单精简 | ⬜ 待办（破坏性操作，需单独确认） |
+| 3.8 | 删除 AI Create 分组，替换为 AI Tools | `icons.html` | 菜单精简 | ✅ 完成（Phase 1 已落地） |
 
 **验证**：工作流模板可加载、Social Push 页面正常、发布触发工作流正常
 
