@@ -1,0 +1,151 @@
+window.l_plugins=function(){
+  document.getElementById("pt").textContent="{{ _('Plugin Management') }}";
+  renderPluginList();
+};
+function renderPluginList(){
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/plugins",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var plugins=d.data||[];
+    var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+    h+='<span style="font-size:13px;color:var(--text-muted)">{{ _('Total') }}: '+plugins.length+'</span>';
+    h+='<button class="btn bp" onclick="scanPlugins()">🔍 {{ _('Discover') }}</button>';
+    h+='</div>';
+    if(plugins.length===0){
+      h+='<div class="empty-state"><div style="margin-bottom:12px;font-size:40px">🧩</div><div style="color:var(--dim)">{{ _('No plugins registered yet') }}</div><br><button class="btn bp" onclick="scanPlugins()">{{ _('Scan Now') }}</button></div>';
+    }
+    h+='<table style="width:100%;font-size:13px">';
+    h+='<tr><th style="text-align:left;padding:8px 12px">{{ _('Name') }}</th><th style="text-align:left;padding:8px 12px">{{ _('Version') }}</th><th style="text-align:left;padding:8px 12px">{{ _('Author') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Status') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Actions') }}</th></tr>';
+    var statusMap={
+      'unknown':'<span class="bdg off">{{ _('Unknown') }}</span>',
+      'installed':'<span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff">{{ _('Installed') }}</span>',
+      'enabled':'<span class="bdg" style="background:rgba(240,192,64,.12);color:#f0c040">{{ _('Enabled') }}</span>',
+      'active':'<span class="bdg on">{{ _('Active') }}</span>',
+      'disabled':'<span class="bdg off">{{ _('Disabled') }}</span>',
+      'uninstalled':'<span class="bdg" style="background:rgba(139,139,139,.12);color:#8b8b8b">{{ _('Uninstalled') }}</span>',
+      'error':'<span class="bdg" style="background:rgba(248,81,73,.12);color:#f85149">{{ _('Error') }}</span>'
+    };
+    plugins.forEach(function(p){
+      var st=statusMap[p.status]||esc(p.status);
+      var s=p.status;
+      h+='<tr>';
+      h+='<td style="padding:10px 12px;font-weight:600">'+esc(p.name||p.identifier)+'</td>';
+      h+='<td style="padding:10px 12px;color:var(--dim)">v'+esc(p.version)+'</td>';
+      h+='<td style="padding:10px 12px;color:var(--dim)">'+esc(p.author||'-')+'</td>';
+      h+='<td style="padding:10px 12px;text-align:center">'+st+'</td>';
+      h+='<td style="padding:10px 12px;text-align:center;display:flex;gap:4px;flex-wrap:wrap;justify-content:center">';
+      // Install button
+      if(s==='unknown') h+='<button class="btn bp bs" onclick="pluginInstall(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
+      // Enable
+      if(s==='installed'||s==='disabled'||s==='error') h+='<button class="btn bp bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'enable\')">{{ _('Enable') }}</button>';
+      // Activate
+      if(s==='enabled') h+='<button class="btn bp bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'activate\')">{{ _('Activate') }}</button>';
+      // Disable
+      if(s==='active'||s==='enabled') h+='<button class="btn bo bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'disable\')">{{ _('Disable') }}</button>';
+      // Uninstall
+      if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" style="color:#f85149" onclick="pluginUninstall(\''+escAttr(p.identifier)+'\')">{{ _('Uninstall') }}</button>';
+      // Config
+      if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" onclick="pluginShowConfig(\''+escAttr(p.identifier)+'\')">⚙ {{ _('Config') }}</button>';
+      h+='</td></tr>';
+    });
+    h+='</table>';
+    h+='<div id="pluginActionForm" style="margin-top:16px"></div>';
+    h+='<div id="pluginConfigBox" style="margin-top:16px"></div>';
+    mc.innerHTML=h;
+  }).catch(function(){mc.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function scanPlugins(){
+  var act=document.getElementById("pluginActionForm");
+  act.innerHTML='<div class="lo"><div class="s"></div>{{ _('Scanning') }}...</div>';
+  fetch("/admin/plugins/discover",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){act.innerHTML='<div class="em">'+esc(d.error||'{{ _('Scan failed') }}')+'</div>';return}
+    var ps=d.data.plugins||[];
+    if(ps.length===0){
+      showToast("{{ _('No new plugins found') }}","success");
+      act.innerHTML='<div class="cd"><div class="em">{{ _('No new plugins found') }}</div></div>';
+    }else{
+      var h='<div class="cd"><div class="st">{{ _('New Plugins') }} ('+ps.length+')</div>';
+      ps.forEach(function(p){
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">';
+        h+='<span>'+esc(p.name||p.identifier)+' <span style="color:var(--dim)">v'+esc(p.version)+'</span></span>';
+        h+='<button class="btn bp bs" onclick="pluginInstall(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button></div>';
+      });
+      h+='</div>';
+      act.innerHTML=h;
+    }
+  }).catch(function(){act.innerHTML='<div class="em">{{ _('Request failed') }}</div>'});
+}
+function pluginInstall(id){
+  var act=document.getElementById("pluginActionForm");
+  act.innerHTML='<div class="lo"><div class="s"></div>{{ _('Installing') }}...</div>';
+  fetch("/admin/plugins/"+encodeURIComponent(id)+"/install",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Installed') }} "+esc(id),"success");document.getElementById("pluginActionForm").innerHTML='';renderPluginList()}
+    else{act.innerHTML='<div class="em">'+esc(d.error||'{{ _('Install failed') }}')+'</div>'}
+  }).catch(function(){act.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function pluginAction(id,action){
+  var act=document.getElementById("pluginActionForm");
+  act.innerHTML='<div class="lo"><div class="s"></div>'+action+'...</div>';
+  fetch("/admin/plugins/"+encodeURIComponent(id)+"/"+action,{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast(action+" "+esc(id)+" {{ _('Success') }}","success");document.getElementById("pluginActionForm").innerHTML='';renderPluginList()}
+    else{act.innerHTML='<div class="em">'+esc(d.error||action+' {{ _('Failed') }}')+'</div>'}
+  }).catch(function(){act.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function pluginUninstall(id){
+  if(!confirm("{{ _('Are you sure you want to uninstall?') }} "+esc(id)+" ?"))return;
+  var act=document.getElementById("pluginActionForm");
+  act.innerHTML='<div class="lo"><div class="s"></div>{{ _('Uninstalling') }}...</div>';
+  fetch("/admin/plugins/"+encodeURIComponent(id)+"/uninstall",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({confirm:true})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Uninstalled') }} "+esc(id),"success");document.getElementById("pluginActionForm").innerHTML='';renderPluginList()}
+    else{act.innerHTML='<div class="em">'+esc(d.error||'{{ _('Uninstall failed') }}')+'</div>'}
+  }).catch(function(){act.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function pluginShowConfig(id){
+  var box=document.getElementById("pluginConfigBox");
+  box.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/plugins/"+encodeURIComponent(id)+"/config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){box.innerHTML='<div class="em">'+esc(d.error||'')+'</div>';return}
+    var cfg=d.data.config||{};
+    var schema=d.data.settings_schema||{};
+    var props=schema.properties||{};
+    var h='<div class="cd"><div class="st">⚙ {{ _('Plugin Config') }} — '+esc(id)+'</div>';
+    var keys=Object.keys(props).length?Object.keys(props):Object.keys(cfg);
+    if(keys.length===0){
+      h+='<div class="em">{{ _('No configurable items') }}</div>';
+    }else{
+      keys.forEach(function(k){
+        var prop=props[k]||{};
+        var label=prop.title||k;
+        var val=cfg[k]!==undefined?cfg[k]:prop.default||'';
+        var inputType=prop.type==='number'||prop.type==='integer'?'number':'text';
+        var ph=prop.description||'';
+        h+='<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">';
+        h+='<div style="flex:1;min-width:0">';
+        h+='<div style="font-size:12px;font-weight:600">'+esc(label)+'</div>';
+        if(ph)h+='<div style="font-size:10px;color:var(--dim)">'+esc(ph)+'</div>';
+        h+='</div>';
+        h+='<input class="in" id="pcfg-'+k+'" type="'+inputType+'" value="'+esc(String(val))+'" style="width:160px">';
+        h+='</div>';
+      });
+      h+='<div style="margin-top:12px"><button class="btn bp" onclick="pluginSaveConfig(\''+escAttr(id)+'\')">{{ _('Save Config') }}</button></div>';
+    }
+    h+='</div>';
+    box.innerHTML=h;
+  }).catch(function(){box.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
+}
+function pluginSaveConfig(id){
+  var cfg={};
+  var keys=document.querySelectorAll('[id^="pcfg-"]');
+  keys.forEach(function(el){
+    var key=el.id.replace('pcfg-','');
+    cfg[key]=el.value;
+  });
+  var btn=document.querySelector('#pluginConfigBox button');
+  if(btn){btn.textContent="{{ _('Saving') }}...";btn.disabled=true}
+  fetch("/admin/plugins/"+encodeURIComponent(id)+"/config",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(cfg)}).then(function(r){return r.json()}).then(function(d){
+    if(btn){btn.textContent="{{ _('Save Config') }}";btn.disabled=false}
+    if(d.success){showToast("{{ _('Config saved') }}","success")}
+    else{showToast(d.error||"{{ _('Save failed') }}","error")}
+  }).catch(function(){if(btn){btn.textContent="{{ _('Save Config') }}";btn.disabled=false}showToast("{{ _('Network error') }}","error")});
+}
