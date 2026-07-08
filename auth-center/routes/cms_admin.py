@@ -204,6 +204,18 @@ def publish_post(post_id):
     except Exception:
         pass
 
+    # ── 触发匹配的工作流（事件驱动，失败静默不影响发布） ──
+    try:
+        from orchestrator.trigger_dispatch import dispatch_event
+        dispatch_event('cms.published', {
+            'post_id': post_id,
+            'category': post.get('category'),
+            'source': post.get('source', 'manual'),
+            'channels': channels,
+        })
+    except Exception:
+        pass
+
     return _ok({'channels': channels, 'results': results})
 
 
