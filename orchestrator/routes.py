@@ -280,6 +280,17 @@ def list_workflows():
     return _success(result)
 
 
+@automation_bp.route('/workflow-templates', methods=['GET'])
+def list_workflow_templates():
+    """返回预置工作流模板（只读蓝图，不写库）"""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+    from .workflow_templates import WORKFLOW_TEMPLATES
+    return _success(WORKFLOW_TEMPLATES)
+
+
 @automation_bp.route('/workflows', methods=['POST'])
 def create_workflow():
     """创建工作流定义"""
