@@ -40,8 +40,7 @@ from routes.deployment_api import deploy_bp, init_deployment_tables
 from routes.renewal import renew_bp
 import time as _time
 
-# ── Captcha Blueprint (embedded, no proxy) ──
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'captcha-service'))
+# ── Captcha Blueprint (embedded) ──
 from captcha_bp import captcha_bp, register_admin_stats
 
 # ── PluginManager ──

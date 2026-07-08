@@ -1,4 +1,4 @@
-"""Captcha Flask Blueprint — 替代原 FastAPI 路由，直接嵌入 admin 进程。
+"""Captcha Flask Blueprint — 嵌入 admin 进程，从 captcha-service/ 加载核心逻辑。
 
 端点：
   GET  /api/captcha/generate   → 生成拼图挑战
@@ -8,7 +8,10 @@
 """
 import sys, os
 
-sys.path.insert(0, os.path.dirname(__file__))
+# Ensure captcha-service/ is importable from admin's cwd
+CAPTCHA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'captcha-service')
+if CAPTCHA_DIR not in sys.path:
+    sys.path.insert(0, CAPTCHA_DIR)
 
 from flask import Blueprint, request, jsonify
 
@@ -108,7 +111,6 @@ def captcha_verify():
     # 行为分析（将 dict 列表转为 TracePoint 兼容对象）
     behavior = {'human_score': 0.5, 'risk_level': 'medium'}
     if drag_trace_raw and len(drag_trace_raw) >= 3:
-        # 用简易 namedtuple 兼容 behavior.py 的 TracePoint
         from collections import namedtuple
         TracePt = namedtuple('TracePt', ['t', 'x', 'y'])
         trace_pts = [TracePt(p['t'], p['x'], p['y']) for p in drag_trace_raw]
@@ -144,7 +146,7 @@ def captcha_consume():
     return jsonify({'valid': True})
 
 
-# ── Admin stats (挂载在 admin Blueprint 上，不走 /api/captcha) ──
+# ── Admin stats ──
 
 def register_admin_stats(admin_app):
     """在 admin Flask app 上注册 /api/admin/captcha/stats 端点。"""
