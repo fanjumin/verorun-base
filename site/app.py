@@ -140,14 +140,14 @@ init_cms_tables()
 init_site_seeds()
 
 
-# ══ Captcha proxy → captcha-service:8090 ══
+# ══ Captcha proxy → admin:8084 (captcha embedded) ══
 import urllib.request as _ur
 
 def _proxy_captcha(path, data=None, method='GET'):
     ALLOWED_PATHS = ['/api/captcha/generate', '/api/captcha/verify', '/api/captcha/consume']
     if path not in ALLOWED_PATHS:
         raise ValueError(f'Disallowed captcha proxy path: {path}')
-    url = 'http://127.0.0.1:8090' + path
+    url = 'http://127.0.0.1:8084' + path
     req = _ur.Request(url, data=data, method=method)
     if data:
         req.add_header('Content-Type', 'application/json')
@@ -186,7 +186,7 @@ def captcha_proxy_consume():
 @app.route('/puzzle-captcha.js')
 def site_puzzle_js():
     try:
-        req = _ur.Request('http://127.0.0.1:8090/puzzle-captcha.js')
+        req = _ur.Request('http://127.0.0.1:8084/puzzle-captcha.js')
         resp = _ur.urlopen(req, timeout=5)
         return resp.read(), resp.status, {'Content-Type': 'application/javascript'}
     except:
@@ -196,7 +196,7 @@ def site_puzzle_js():
 @app.route('/puzzle-captcha.css')
 def site_puzzle_css():
     try:
-        req = _ur.Request('http://127.0.0.1:8090/puzzle-captcha.css')
+        req = _ur.Request('http://127.0.0.1:8084/puzzle-captcha.css')
         resp = _ur.urlopen(req, timeout=5)
         return resp.read(), resp.status, {'Content-Type': 'text/css'}
     except:

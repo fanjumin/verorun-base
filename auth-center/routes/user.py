@@ -445,7 +445,7 @@ def password_login():
     if captcha_id:
         try:
             import urllib.request, json as _json
-            req = urllib.request.Request('http://127.0.0.1:8090/api/captcha/consume',
+            req = urllib.request.Request('http://127.0.0.1:8084/api/captcha/consume',
                 data=_json.dumps({'token': captcha_id, 'drag_distance': 0, 'drag_trace': []}).encode(),
                 headers={'Content-Type': 'application/json'})
             resp = urllib.request.urlopen(req, timeout=3)

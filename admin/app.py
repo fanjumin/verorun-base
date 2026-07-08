@@ -40,6 +40,10 @@ from routes.deployment_api import deploy_bp, init_deployment_tables
 from routes.renewal import renew_bp
 import time as _time
 
+# ── Captcha Blueprint (embedded, no proxy) ──
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'captcha-service'))
+from captcha_bp import captcha_bp, register_admin_stats
+
 # ── PluginManager ──
 from plugin_manager.manager import PluginManager
 from plugin_manager.routes import bp as plugin_bp
@@ -152,6 +156,8 @@ app.register_blueprint(shop_bp)        # 商城管理
 app.register_blueprint(sub_bp)
 app.register_blueprint(cleaner_bp)     # 数据清洗智能体
 app.register_blueprint(renew_bp)     # 订阅续费页面
+app.register_blueprint(captcha_bp)   # 验证码服务 (嵌入式)
+register_admin_stats(app)            # Captcha admin stats endpoint
 # 独立部署订阅管理API — 仅在主服务器模式注册
 _EASYKAI_MODE = os.environ.get('EASYKAI_MODE', 'main')
 if _EASYKAI_MODE == 'main':
@@ -256,68 +262,6 @@ if os.environ.get('EASYKAI_MODE', 'main') == 'client':
         print(f'[License] ⚠️ 订阅检查未启用: {e}')
 else:
     print('[License] 主服务器模式，跳过订阅过期检查')
-
-# Captcha API proxy — forward /api/captcha/* to captcha service (8090)
-import urllib.request as _ur
-
-def _admin_proxy_captcha(path, data=None):
-    """Internal captcha proxy with safety filtering on response headers."""
-    # SAFETY: only allow known captcha paths
-    ALLOWED_PATHS = ['/api/captcha/generate', '/api/captcha/verify', '/api/captcha/consume']
-    if path not in ALLOWED_PATHS:
-        raise ValueError(f'Disallowed captcha proxy path: {path}')
-    url = 'http://127.0.0.1:8090' + path
-    req = _ur.Request(url, data=data)
-    if data:
-        req.add_header('Content-Type', 'application/json')
-    resp = _ur.urlopen(req, timeout=5)
-    body = resp.read()
-    safe_headers = {
-        'Content-Type': resp.headers.get('Content-Type', 'application/json'),
-    }
-    return body, resp.status, safe_headers
-
-@app.route('/api/captcha/generate', methods=['GET'])
-def admin_captcha_proxy_generate():
-    try:
-        return _admin_proxy_captcha('/api/captcha/generate')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-@app.route('/api/captcha/verify', methods=['POST'])
-def admin_captcha_proxy_verify():
-    try:
-        return _admin_proxy_captcha('/api/captcha/verify', request.get_data())
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-@app.route('/api/captcha/consume', methods=['POST'])
-def admin_captcha_proxy_consume():
-    try:
-        return _admin_proxy_captcha('/api/captcha/consume', request.get_data())
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-
-# Captcha static files — proxy from captcha service (8090)
-@app.route('/puzzle-captcha.js')
-def admin_puzzle_js():
-    try:
-        req = _ur.Request('http://127.0.0.1:8090/puzzle-captcha.js')
-        resp = _ur.urlopen(req, timeout=5)
-        return resp.read(), resp.status, {'Content-Type': 'application/javascript'}
-    except Exception as e:
-        return '', 404
-
-@app.route('/puzzle-captcha.css')
-def admin_puzzle_css():
-    try:
-        req = _ur.Request('http://127.0.0.1:8090/puzzle-captcha.css')
-        resp = _ur.urlopen(req, timeout=5)
-        return resp.read(), resp.status, {'Content-Type': 'text/css'}
-    except Exception as e:
-        return '', 404
-
 
 @app.route('/')
 def index():
