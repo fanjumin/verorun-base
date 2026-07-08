@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
 """
-Deployment script: sync local files to remote server via SFTP (paramiko).
+Deployment script: sync changed files to remote server via SFTP (paramiko).
 
 Source : F:\Sites\VeroRun
 Target : easykai@***REMOVED***:/home/easykai/easykai-workspace/easykai.cn/
 
 Usage:
-    python scripts/deploy_sftp.py              # full sync + restart
-    python scripts/deploy_sftp.py --dry-run     # preview only, no upload
-    python scripts/deploy_sftp.py --no-restart  # upload only, skip restart
-
-NOTE on "module 'platform' has no attribute 'architecture'":
-    If you see this error, it's because the local file
-    F:\Sites\VeroRun\platform\__init__.py (empty) shadows the stdlib
-    `platform` module. Delete that empty file, or ensure your working
-    directory does not include the project root when running scripts
-    that need stdlib platform.
+    python scripts/deploy_sftp.py                 # incremental — only files changed since last deploy
+    python scripts/deploy_sftp.py --full          # full deploy — all git-tracked files
+    python scripts/deploy_sftp.py --dry-run       # preview only, no upload
+    python scripts/deploy_sftp.py --no-restart    # upload only, skip restart
 """
 
 import os
 import sys
+import subprocess
 from datetime import datetime
 
 import paramiko
@@ -34,49 +29,90 @@ PASS = '***REMOVED***'
 
 LOCAL_ROOT = r'F:\Sites\VeroRun'
 REMOTE_ROOT = '/home/easykai/easykai-workspace/easykai.cn/'
+DEPLOY_HASH_FILE = os.path.join(LOCAL_ROOT, '.trae', '.deploy-hash')
 
-# Directories to skip entirely (relative names, not paths)
+# Directories that should never be deployed to the server
 EXCLUDE_DIRS = {
+    'scripts',         # local deployment/dev tools only
     '.git', '__pycache__', 'tmp', 'node_modules', '.env',
-    'VeroRun', '__MACOSX', '.idea', '.vscode', 'venv',
-    'data',           # database files — never overwrite remote DB
-    '.trae',          # Trae IDE artifacts / temporary scripts
-    'backups',         # local backup copies of remote DB
-    '.kilo',           # git worktree artifacts
+    '.trae', 'backups', '.kilo', 'venv',
+    '__MACOSX', '.idea', '.vscode',
+    'nginx-domains',
 }
 
-# File patterns to skip (exact filenames or extension checks)
-EXCLUDE_FILES = {
-    '.DS_Store', 'Thumbs.db',
-}
+# Extensions that should never be deployed
+EXCLUDE_EXTENSIONS = {'.pyc', '.pyo', '.db', '.wal', '.shm', '.log'}
 
-EXCLUDE_EXTENSIONS = {'.pyc', '.pyo', '.db', '.wal', '.shm'}
+# Services that run on the server
+ALL_SERVICES = {'admin', 'auth-center', 'platform', 'health', 'health-guardian'}
 
-# Remote command to restart services (systemd on this server)
-RESTART_CMD = 'sudo systemctl restart admin auth-center captcha platform health health-guardian'
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+def run_git(*args) -> str:
+    return subprocess.check_output(['git'] + list(args), cwd=LOCAL_ROOT, text=True).strip()
+
+
+def get_changed_files() -> list[tuple[str, str]]:
+    """Get list of (status, rel_path) for files changed since last deploy."""
+    if os.path.exists(DEPLOY_HASH_FILE):
+        with open(DEPLOY_HASH_FILE) as f:
+            last_sha = f.read().strip()
+    else:
+        last_sha = run_git('rev-parse', 'HEAD~1')
+
+    current = run_git('rev-parse', 'HEAD')
+    if last_sha == current:
+        return []
+
+    output = run_git('diff', '--name-status', '--no-renames', last_sha, 'HEAD')
+    if not output:
+        return []
+
+    results = []
+    for line in output.split('\n'):
+        if not line:
+            continue
+        parts = line.split('\t')
+        if len(parts) < 2:
+            continue
+        status, path = parts[0], parts[1]
+        path = path.strip('"')
+        if status in ('A', 'M', 'D'):
+            results.append((status, path.replace('\\', '/')))
+    return results
+
+
+def get_all_tracked() -> list[str]:
+    """Get all git-tracked file paths (for --full mode)."""
+    output = run_git('ls-tree', '-r', 'HEAD', '--name-only')
+    return [p.replace('\\', '/') for p in output.split('\n') if p]
+
+
+def save_deploy_hash():
+    current = run_git('rev-parse', 'HEAD')
+    os.makedirs(os.path.dirname(DEPLOY_HASH_FILE), exist_ok=True)
+    with open(DEPLOY_HASH_FILE, 'w') as f:
+        f.write(current)
+
+
 def should_skip(rel_path: str) -> bool:
-    """Check whether a relative path should be excluded."""
+    """Check if a file should be excluded from deployment."""
     parts = rel_path.replace(os.sep, '/').split('/')
-    # Skip if any path component is an excluded directory
-    if any(p in EXCLUDE_DIRS for p in parts):
-        return True
-    # File-level exclusions
-    fname = parts[-1]
-    if fname in EXCLUDE_FILES:
-        return True
-    ext = os.path.splitext(fname)[1].lower()
+    # Skip if any path component is in EXCLUDE_DIRS
+    for p in parts:
+        if p in EXCLUDE_DIRS:
+            return True
+    # Skip excluded extensions
+    ext = os.path.splitext(parts[-1])[1].lower()
     if ext in EXCLUDE_EXTENSIONS:
         return True
     return False
 
 
 def ensure_remote_dir(sftp, remote_dir: str):
-    """Recursively create remote directories if they don't exist."""
     dirs = remote_dir.rstrip('/').split('/')
     cur = ''
     for d in dirs:
@@ -88,7 +124,6 @@ def ensure_remote_dir(sftp, remote_dir: str):
 
 
 def format_size(n: int) -> str:
-    """Human-readable file size."""
     for unit in ('B', 'KB', 'MB', 'GB'):
         if n < 1024:
             return f'{n:.1f} {unit}'
@@ -97,83 +132,103 @@ def format_size(n: int) -> str:
 
 
 def colored(text: str, code: int) -> str:
-    """Simple terminal colour helper."""
     return f'\033[{code}m{text}\033[0m'
+
+
+def affected_services(changed_files: list) -> set:
+    """Determine which services need restart based on changed file paths."""
+    needs = set()
+    for _, path in changed_files:
+        if path.startswith('auth-center/'):
+            needs.add('auth-center')
+        if path.startswith('admin/') or path.startswith('admin_plugins/'):
+            needs.add('admin')
+        if path.startswith('platform/'):
+            needs.add('platform')
+        if path.startswith('site/'):
+            needs.add('platform')
+        if path.startswith('health_check/') or path.startswith('health_service/'):
+            needs.add('health')
+            needs.add('health-guardian')
+        if path.startswith('captcha-service/') or path.startswith('captcha/'):
+            needs.add('admin')
+        if path.startswith('plugins/') or path.startswith('plugin_manager/'):
+            needs.add('admin')
+        if path.startswith('agent_matrix/') or path.startswith('orchestrator/'):
+            needs.add('admin')
+        if path.startswith('analytics/'):
+            needs.add('admin')
+        if path.startswith('i18n/'):
+            needs.update({'admin', 'platform', 'auth-center'})
+    return needs or ALL_SERVICES
 
 
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
 
-def collect_files(dry_run: bool = False):
-    """Walk local root and return list of (local_path, relative_path)."""
-    files = []
-    for dirpath, dirnames, filenames in os.walk(LOCAL_ROOT):
-        # Prune excluded directories in-place so os.walk skips them
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+def do_sync(sftp, files, dry_run: bool = False, header: str = ''):
+    """Upload changed files, delete removed files."""
+    # Filter out excluded files
+    effective = [(s, p) for s, p in files if s == 'D' or not should_skip(p)]
+    skipped = len(files) - len(effective)
+    n_upload = len([f for f in effective if f[0] in ('A', 'M')])
+    n_delete = len([f for f in effective if f[0] == 'D'])
 
-        for fname in filenames:
-            local_path = os.path.join(dirpath, fname)
-            rel_path = os.path.relpath(local_path, LOCAL_ROOT)
-            if should_skip(rel_path):
-                continue
-            files.append((local_path, rel_path.replace(os.sep, '/')))
+    print(f'\n{"─" * 60}')
+    print(f'  {header}: {n_upload} changed + {n_delete} deleted')
+    if skipped:
+        print(f'  ({skipped} local-only files skipped)')
+    print(f'{"─" * 60}\n')
 
-    return files
-
-
-def do_sync(sftp, files, dry_run: bool = False):
-    """Upload all files via SFTP, creating remote directories as needed."""
-    total = len(files)
     ok = 0
     errors = []
     total_bytes = 0
+    total = len(effective)
 
-    print(f'\n{"─" * 60}')
-    print(f'  Files to sync: {total}')
-    print(f'{"─" * 60}\n')
+    for idx, (status, rel_path) in enumerate(effective, 1):
+        prefix = f'[{idx:>{len(str(total))}}/{total}]'
 
-    for idx, (local_path, rel_path) in enumerate(files, 1):
+        # ── Deleted file → remove from remote ──
+        if status == 'D':
+            remote_path = os.path.join(REMOTE_ROOT, rel_path).replace(os.sep, '/')
+            try:
+                sftp.remove(remote_path)
+                print(f'  {prefix} {"DEL":>9}  {rel_path}')
+                ok += 1
+            except FileNotFoundError:
+                ok += 1
+            except Exception as e:
+                errors.append((rel_path, str(e)))
+                print(colored(f'  {prefix} {"ERR":>9}  {rel_path}  → {e}', 31))
+            continue
+
+        # ── Added/Modified file → upload ──
+        local_path = os.path.join(LOCAL_ROOT, rel_path)
+        if not os.path.isfile(local_path):
+            continue
+
         local_size = os.path.getsize(local_path)
         remote_path = os.path.join(REMOTE_ROOT, rel_path).replace(os.sep, '/')
-        remote_dir = os.path.dirname(remote_path)
-
-        prefix = f'[{idx:>{len(str(total))}}/{total}]'
         size_str = format_size(local_size).rjust(9)
-        line = f'  {prefix} {size_str}  {rel_path}'
+        tag = ' [new]' if status == 'A' else ''
 
         if dry_run:
-            print(line)
+            print(f'  {prefix} {size_str}  {rel_path}{tag}')
             total_bytes += local_size
             ok += 1
             continue
 
-        # Upload
         try:
-            ensure_remote_dir(sftp, remote_dir)
-
-            # Check remote mtime for a cheap skip
-            try:
-                attrs = sftp.stat(remote_path)
-                if attrs.st_size == local_size:
-                    local_mtime = os.path.getmtime(local_path)
-                    # SFTP has second granularity, so floor to int
-                    if int(local_mtime) <= attrs.st_mtime:
-                        print(f'  {prefix} {"─":>9}  {rel_path}  (unchanged, skip)')
-                        ok += 1
-                        continue
-            except FileNotFoundError:
-                pass
-
+            ensure_remote_dir(sftp, os.path.dirname(remote_path))
             sftp.put(local_path, remote_path)
             total_bytes += local_size
             ok += 1
-            print(colored(line, 32))  # green
+            print(colored(f'  {prefix} {size_str}  {rel_path}{tag}', 32))
         except Exception as e:
             errors.append((rel_path, str(e)))
-            print(colored(f'  {prefix} {"ERR":>9}  {rel_path}  → {e}', 31))  # red
+            print(colored(f'  {prefix} {"ERR":>9}  {rel_path}  → {e}', 31))
 
-    # Summary
     print(f'\n{"─" * 60}')
     print(f'  Synced: {ok} / {total} files, {format_size(total_bytes)}')
     if errors:
@@ -184,26 +239,27 @@ def do_sync(sftp, files, dry_run: bool = False):
     return ok == total
 
 
-def do_restart(ssh):
-    """SSH in to restart services."""
-    print('  Restarting services via systemd...')
-    # sudo requires -S for non-interactive SSH
-    stdin, stdout, stderr = ssh.exec_command(f'echo {PASS} | sudo -S {RESTART_CMD}')
+def do_restart(ssh, services: set):
+    """SSH in to restart specified services."""
+    svc_list = ' '.join(sorted(services))
+    print(f'  Restarting: {svc_list}')
+    stdin, stdout, stderr = ssh.exec_command(
+        f'echo {PASS} | sudo -S systemctl restart {svc_list} 2>&1'
+    )
     exit_code = stdout.channel.recv_exit_status()
-    out = stdout.read().decode().strip()
     err = stderr.read().decode().strip()
 
-    if out:
-        for line in out.split('\n'):
-            print(f'    {line}')
     if err:
+        # Only show real errors (ignore password prompt echo)
         for line in err.split('\n'):
-            print(f'    {colored(line, 33)}')  # yellow
+            if 'password' not in line.lower():
+                print(f'    {colored(line, 33)}')
 
     if exit_code == 0:
         print(colored('  ✓ Services restarted successfully.', 32))
     else:
-        print(colored(f'  ✗ supervisorctl exited with code {exit_code}', 31))
+        print(colored(f'  ✗ Restart exited with code {exit_code}', 31))
+        print(colored(f'    {err}', 33))
     return exit_code == 0
 
 
@@ -214,21 +270,31 @@ def do_restart(ssh):
 def main():
     dry_run = '--dry-run' in sys.argv
     skip_restart = '--no-restart' in sys.argv
-
-    if dry_run:
-        print(colored('  *** DRY RUN MODE — no files will be uploaded ***\n', 33))
+    full_mode = '--full' in sys.argv
 
     start = datetime.now()
 
     # 1. Collect files
-    print('  Scanning local files...')
-    files = collect_files(dry_run)
-    if not files:
-        print('  No files to sync.')
-        return
+    if full_mode:
+        tracked = get_all_tracked()
+        files = [(p, p) for p in tracked if not should_skip(p)]
+        effective = [('M', p) for p in tracked if not should_skip(p)]
+        n = len(effective)
+        header = f'Full deploy — {n} tracked files'
+    else:
+        raw_files = get_changed_files()
+        if not raw_files:
+            print('  ✓ No changed files — nothing to deploy.')
+            return
+        effective = [(s, p) for s, p in raw_files if s == 'D' or not should_skip(p)]
+        n_upload = len([f for f in effective if f[0] in ('A', 'M')])
+        n_delete = len([f for f in effective if f[0] == 'D'])
+        header = f'Incremental deploy — {n_upload} changed + {n_delete} deleted'
+        files = raw_files
 
     if dry_run:
-        do_sync(None, files, dry_run=True)
+        print(colored('  *** DRY RUN MODE — no files will be uploaded ***\n', 33))
+        do_sync(None, files, dry_run=True, header=header)
         return
 
     # 2. Connect
@@ -248,24 +314,28 @@ def main():
     # 3. Sync
     success = False
     try:
-        success = do_sync(sftp, files)
+        success = do_sync(sftp, files, header=header)
     finally:
         sftp.close()
 
-    # 4. Restart
+    # 4. Restart — only affected services
     if success and not skip_restart:
-        if not do_restart(ssh):
-            print(colored('  ⚠  Sync succeeded but restart had issues.', 33))
+        affected = affected_services(files)
+        do_restart(ssh, affected)
     elif success and skip_restart:
-        print(colored('  ⚠  --no-restart: services were NOT restarted.', 33))
+        print(colored('  ⚠ --no-restart: services were NOT restarted.', 33))
     elif not success:
         print(colored('  ✗ Sync had errors — not restarting services.', 31))
 
     ssh.close()
 
+    # 5. Save deploy hash for next incremental run
+    if success:
+        save_deploy_hash()
+        print('  ✓ Deploy hash updated.')
+
     elapsed = datetime.now() - start
-    total_sec = int(elapsed.total_seconds())
-    print(f'\n  Done in {total_sec}s.')
+    print(f'\n  Done in {int(elapsed.total_seconds())}s.')
 
     if not success:
         sys.exit(1)
