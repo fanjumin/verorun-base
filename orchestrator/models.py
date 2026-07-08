@@ -338,6 +338,23 @@ def init_orchestrator_tables():
                 started_at      TEXT DEFAULT (datetime('now'))
             );
 
+            -- =====================================================
+            -- 10. 工作流触发器表（事件驱动：发布即触发工作流）
+            -- =====================================================
+            CREATE TABLE IF NOT EXISTS workflow_triggers (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                name            TEXT NOT NULL,
+                trigger_event   TEXT NOT NULL,             -- 事件名, 如 'cms.published'/'content_factory.approved'
+                workflow_id     INTEGER NOT NULL,          -- 要执行的 workflow_definitions.id
+                match_condition TEXT DEFAULT '{}',         -- JSON 匹配条件, 空=无条件. 如 {"category":"news","source":"factory"}
+                is_active       INTEGER DEFAULT 1,
+                created_at      TEXT DEFAULT (datetime('now')),
+                updated_at      TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wt_event
+                ON workflow_triggers(trigger_event, is_active);
+
             -- 预置默认系统 Agent（仅当没有数据时插入）
             INSERT OR IGNORE INTO system_agents (name, description, provider, model, api_key_ref, system_prompt, capabilities)
             VALUES ('default-system-agent', '平台默认自动调度 Agent，执行内容工厂、市场监控等自动化任务',
