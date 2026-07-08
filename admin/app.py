@@ -1,183 +1,126 @@
-#!/usr/bin/env python3
-# VeroRon 维洛智能 (verorun.com / verorun.cn)
-# 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
+"""Admin 启动入口"""
 
-"""Admin Panel — 管理后台 (独立端口 8084)"""
-"""VeroRon v0.10.1 — Multi-agent AI Content & Commerce Hub"""
-
-import sys, os, secrets
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
-from models import init_db
-from services.deployment_config import DeployConfig, deploy
-from routes.auth import auth_bp
-from routes.admin import admin_bp
-from routes.cms_admin import cms_admin_bp
-from routes.user import user_bp
-from routes.social_push import social_bp
-from routes.social_media import social_media_bp
-from routes.footer_admin import footer_bp
-from routes.header_admin import header_bp
-from routes.comments import comments_bp
-from routes.content_factory import cf_bp
-from routes.theme_admin import theme_bp
-from routes.shop_admin import shop_bp
-from routes.subscription import sub_bp
-from routes.cleaner_agent import cleaner_bp
-from analytics.middleware import AnalyticsMiddleware
-from analytics.dashboard import analytics_bp
-from analytics.processor import AnalyticsProcessor
-from models.cms import init_cms_tables
-from health_check import health_bp
-from health_check.models import init_health_tables, seed_default_checks, migrate_alert_schema
-from routes.douyin_miniprogram import douyin_mp_bp
-from routes.shop_admin import shop_bp
-from routes.subscription import sub_bp
-from routes.cleaner_agent import cleaner_bp
-from routes.deployment_api import deploy_bp, init_deployment_tables
-from routes.renewal import renew_bp
-import time as _time
-
-# ── PluginManager ──
-from plugin_manager.manager import PluginManager
-from plugin_manager.routes import bp as plugin_bp
-
-# ══ Simple in-memory rate limiter for captcha consume ══
-_captcha_rate_limit = {}
-
-def _check_rate_limit(key, max_per_minute=10):
-    """Sliding window rate limit. Returns True if allowed."""
-    now = _time.time()
-    window = 60.0
-    if key not in _captcha_rate_limit:
-        _captcha_rate_limit[key] = []
-    _captcha_rate_limit[key] = [t for t in _captcha_rate_limit[key] if now - t < window]
-    if len(_captcha_rate_limit[key]) >= max_per_minute:
-        return False
-    _captcha_rate_limit[key].append(now)
-    return True
-
-app = Flask(__name__, template_folder='templates')
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32)))
-
-@app.context_processor
-def inject_deploy():
-    return dict(deploy=deploy)
-
-
-# ══ i18n 国际化注入 ══
-from i18n import _, get_lang, get_all_translations
 import os as _os
+import sys
+import json
 
-@app.context_processor
-def inject_i18n():
-    return {'_': _, 'LANG': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
+# ── 在一切之前先初始化环境 ──
+# 确保根目录在路径中
+_project_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+_os.chdir(_project_root)
 
-app.jinja_env.globals['_'] = _
-
-
-# ══ Content Security Policy (CSP) ══
-@app.after_request
-def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "img-src 'self' data: blob: https:; "
-        "font-src 'self' data: https://cdn.jsdelivr.net; "
-        "connect-src 'self' ws: wss: https://cdn.jsdelivr.net; "
-        "frame-ancestors 'none';"
-    )
-    return response
-
-# 添加项目根目录到模板搜索路径（统一页脚 _footer.html）
-import jinja2
-app.jinja_loader = jinja2.ChoiceLoader([
-    app.jinja_loader,
-    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'platform', 'templates')),
-    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..'))
-])
-
-AnalyticsMiddleware(app, service_name="admin", sample_rate=0.2)
-
-# 启动分析聚合处理器（后台线程，每60秒聚合一次原始日志）
-import threading as _thr
-import time as _t
-_analytics_proc = AnalyticsProcessor()
-def _analytics_loop():
-    while True:
-        try:
-            _analytics_proc.process()
-        except Exception as e:
-            print(f'[Analytics Processor] Error: {e}')
-        _t.sleep(60)
-_thr.Thread(target=_analytics_loop, daemon=True, name='analytics-processor').start()
-print('[Analytics] ✅ 聚合处理器已启动 (60s 间隔)')
-
-app.config['TEMPLATES_AUTO_RELOAD'] = True
-
+# ── 加载 i18n（必须在所有业务模块之前） ──
 try:
-    init_db()
-except Exception as e:
-    print(f'[DB] init_db warning: {e}')
+    from i18n import init_i18n
+    init_i18n()
+    print(f'[i18n] ✅ 多语言初始化完成')
+except Exception:
+    print(f'[i18n] ⚠️ 多语言初始化失败，使用默认语言')
+    import builtins
+    builtins.__dict__['_'] = lambda s: s
 
-# ── i18n: 启动时从 YAML 播种到 DB ──
-try:
-    from i18n import seed_from_yaml
-    seed_from_yaml('zh-CN')
-    seed_from_yaml('en')
-except Exception as e:
-    print(f'[i18n] seed warning: {e}')
-# 注册管理后台需要的 blueprint — 包含 user_bp（管理员基本设置 /user/config）
-app.register_blueprint(user_bp)
-app.register_blueprint(auth_bp)
-app.register_blueprint(admin_bp)
-app.register_blueprint(cms_admin_bp)
-app.register_blueprint(social_bp)
-app.register_blueprint(social_media_bp)
-app.register_blueprint(footer_bp)
-app.register_blueprint(header_bp)
-app.register_blueprint(comments_bp)
-app.register_blueprint(cf_bp)
-app.register_blueprint(theme_bp)
-app.register_blueprint(analytics_bp)
-app.register_blueprint(douyin_mp_bp)  # Douyin Mini-Program API
-app.register_blueprint(shop_bp)        # 商城管理
-app.register_blueprint(sub_bp)
-app.register_blueprint(cleaner_bp)     # 数据清洗智能体
-app.register_blueprint(renew_bp)     # 订阅续费页面
-# 独立部署订阅管理API — 仅在主服务器模式注册
-_EASYKAI_MODE = os.environ.get('EASYKAI_MODE', 'main')
-if _EASYKAI_MODE == 'main':
-    app.register_blueprint(deploy_bp)
-    init_deployment_tables()
-else:
-    print('[Deploy] 客户端模式，跳过部署API注册')
-# 自动注册 Cleaner 为矩阵子 Agent
-try:
-    from routes.cleaner_agent import auto_register_sub_agent
-    auto_register_sub_agent()
-except Exception as e:
-    print(f'[CleanerAgent] ⚠️ 自动注册失败: {e}')
-init_cms_tables()
+# ── 现在导入 Flask 和全局模块 ──
+from flask import Flask, send_from_directory
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
-# ===== 健康巡检中心 =====
-init_health_tables()
-migrate_alert_schema()
-seed_default_checks()
-app.register_blueprint(health_bp)
-print(f'[HealthCheck] ✅ 健康巡检已注册')
-print(f'[HealthCheck] 📋 API: /admin/health/*')
+# ── 导入应用模块 ──
+from models import db as _db, init_db as _init_db, User, Product
+from admin.routes import admin_bp
+from admin.models import init_admin_db
+from admin.routes.plugin import plugin_bp
+from plugin_manager import PluginManager
+
+# ===== 创建 Flask 应用 =====
+app = Flask(__name__,
+            template_folder=_os.path.join(_project_root, 'admin', 'templates'),
+            static_folder=_os.path.join(_project_root, 'admin', 'static'))
+
+# ===== 密钥配置 =====
+app.secret_key = 'super-secret-key-12345'
+app.config['SECRET_KEY'] = 'super-secret-key-12345'
+app.config['SESSION_COOKIE_NAME'] = 'admin_session'
+app.config['SESSION_COOKIE_PATH'] = '/admin'
+app.config['JSON_AS_ASCII'] = False
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+
+# ===== CORS =====
+CORS(app, supports_credentials=True, resources={
+    r'/admin/*': {
+        'origins': ['https://easykai.cn', 'https://www.easykai.cn',
+                    'https://platform.easykai.cn', 'https://agent.easykai.cn',
+                    'http://localhost:8084', 'http://127.0.0.1:8084',
+                    'http://localhost:3000', 'http://127.0.0.1:3000'],
+        'supports_credentials': True
+    }
+})
+
+# ===== 限流器 =====
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+
+# ===== 数据库 =====
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_project_root}/instance/verorun.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ECHO'] = False
+
+_db.init_app(app)
+
+# ===== 注册蓝图 =====
+app.register_blueprint(admin_bp, url_prefix='/admin')
+
+# ===== 静态文件 =====
+@app.route('/admin/assets/<path:filename>')
+def admin_assets(filename):
+    return send_from_directory(
+        _os.path.join(app.root_path, 'static', 'assets'), filename)
+
+# ===== 入口页 =====
+@app.route('/')
+def index():
+    return """
+    <html><body style="background:#0f0f1a;color:#fff;font-family:sans-serif;
+    display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+    <div style="text-align:center">
+    <h1 style="font-size:2.5rem;margin-bottom:0.5rem;background:linear-gradient(135deg,#667eea,#764ba2);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;">VeroRun Admin</h1>
+    <p style="color:#888;font-size:1.1rem;">管理后台 · 版本 0.10.1</p>
+    <a href="/admin" style="display:inline-block;margin-top:1.5rem;padding:0.75rem 2rem;
+    background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;
+    border-radius:8px;font-weight:600;">进入管理后台</a>
+    </div></body></html>
+    """
+
+# ===== 健康检查 =====
+@app.route('/health')
+def health():
+    return {'status': 'ok', 'service': 'admin', 'version': '0.10.1'}
+
+# ===== 创建表 =====
+with app.app_context():
+    _init_db()
+    init_admin_db()
+
+# ===== 健康巡检 API =====
+try:
+    from health_check.routes import health_bp
+    app.register_blueprint(health_bp, url_prefix='/admin')
+    print(f'[HealthCheck] ✅ 健康巡检已注册')
+    print(f'[HealthCheck] 📋 API: /admin/health/*')
+except Exception as e:
+    print(f'[HealthCheck] ⚠️ 健康巡检注册失败: {e}')
 
 # ===== PluginManager（新插件系统）=====
 try:
     app.version = '0.10.1'
+    app.plugins_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
     print(f'[PluginManager] ✅ 管理 API 蓝图已注册 (/admin/plugins/*)')
@@ -186,796 +129,16 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# ===== 加载插件系统 (Coupon / Wishlist / Reviews 等) =====
-try:
-    from plugins import load_plugins
-    load_plugins(app)
-except Exception as e:
-    print(f'[Plugin] load_plugins error: {e}')
-
-# 注册定时巡检任务
-try:
-    from health_check.scheduler_setup import seed_health_schedules
-    seed_health_schedules()
-    print(f'[HealthCheck/Scheduler] ✅ 定时巡检注册完成')
-except Exception as e:
-    print(f'[HealthCheck/Scheduler] ⚠️ 定时巡检注册失败: {e}')
-
 # ===== 自动化调度系统 (Cron + Workflow) =====
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'orchestrator'))
+sys.path.append(_os.path.join(_os.path.dirname(__file__), '..', 'orchestrator'))
 try:
     from orchestrator.routes import init_automation
     sched, worker = init_automation(app)
     app.config['AUTOMATION_SCHEDULER'] = sched
-    app.config['AUTOMATION_WORKER'] = worker
-    print(f'[Automation] ✅ 调度器 + Worker 池已初始化')
-    print(f'[Automation] 📋 API: /admin/automation/*')
-except ImportError as e:
-    print(f'[Automation] ⚠️ 未安装 APScheduler: pip install apscheduler sqlalchemy')
-    print(f'[Automation]    import error: {e}')
+    print(f'[Automation] ✅ 调度系统已初始化')
 except Exception as e:
-    print(f'[Automation] ❌ 初始化失败: {e}')
-    import traceback
-    traceback.print_exc()
+    print(f'[Automation] ⚠️ 调度初始化失败: {e}')
 
-# ===== Agent 矩阵系统 =====
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-try:
-    from agent_matrix.routes import init_agent_matrix
-    init_agent_matrix(app)
-    print(f'[Agent Matrix] ✅ 已初始化')
-    print(f'[Agent Matrix] 📋 API: /admin/agent-matrix/*')
-except Exception as e:
-    print(f'[Agent Matrix] ❌ 初始化失败: {e}')
-    import traceback
-    traceback.print_exc()
-
-PLATFORM_STATIC = os.path.join(os.path.dirname(__file__), '..', 'platform', 'static')
-ADMIN_STATIC = os.path.join(os.path.dirname(__file__), 'static')
-
-# ══ 独立部署：订阅过期锁定（客户端模式，仅锁定后台管理页面） ══
-if os.environ.get('EASYKAI_MODE', 'main') == 'client':
-    try:
-        from services.license_service import LicenseService as _LicenseService
-        _ls = _LicenseService()
-
-        @app.before_request
-        def _check_subscription():
-            """订阅过期时，管理后台页面跳转到续费页"""
-            # 只锁定 /admin 开头的页面请求，不锁定 API
-            path = request.path
-            if not path.startswith('/admin'):
-                return None
-            # 静态文件不锁定
-            if path.startswith('/admin/static/'):
-                return None
-            # 续费页不锁定
-            if path == '/admin/renew' or path.startswith('/api/subscription'):
-                return None
-            # 仅检查页面路由（HTML展示），API调用不锁定
-            if path.startswith('/admin/') and not path.startswith('/admin/api'):
-                if not _ls.check_admin_access():
-                    return redirect('/admin/renew')
-            return None
-        print('[License] ✅ 订阅过期检查已启用（客户端模式）')
-    except Exception as e:
-        print(f'[License] ⚠️ 订阅检查未启用: {e}')
-else:
-    print('[License] 主服务器模式，跳过订阅过期检查')
-
-# Captcha API proxy — forward /api/captcha/* to captcha service (8090)
-import urllib.request as _ur
-
-def _admin_proxy_captcha(path, data=None):
-    """Internal captcha proxy with safety filtering on response headers."""
-    # SAFETY: only allow known captcha paths
-    ALLOWED_PATHS = ['/api/captcha/generate', '/api/captcha/verify', '/api/captcha/consume']
-    if path not in ALLOWED_PATHS:
-        raise ValueError(f'Disallowed captcha proxy path: {path}')
-    url = 'http://127.0.0.1:8090' + path
-    req = _ur.Request(url, data=data)
-    if data:
-        req.add_header('Content-Type', 'application/json')
-    resp = _ur.urlopen(req, timeout=5)
-    body = resp.read()
-    safe_headers = {
-        'Content-Type': resp.headers.get('Content-Type', 'application/json'),
-    }
-    return body, resp.status, safe_headers
-
-@app.route('/api/captcha/generate', methods=['GET'])
-def admin_captcha_proxy_generate():
-    try:
-        return _admin_proxy_captcha('/api/captcha/generate')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-@app.route('/api/captcha/verify', methods=['POST'])
-def admin_captcha_proxy_verify():
-    try:
-        return _admin_proxy_captcha('/api/captcha/verify', request.get_data())
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-@app.route('/api/captcha/consume', methods=['POST'])
-def admin_captcha_proxy_consume():
-    try:
-        return _admin_proxy_captcha('/api/captcha/consume', request.get_data())
-    except Exception as e:
-        return jsonify({'error': str(e)}), 502
-
-
-# Captcha static files — proxy from captcha service (8090)
-@app.route('/puzzle-captcha.js')
-def admin_puzzle_js():
-    try:
-        req = _ur.Request('http://127.0.0.1:8090/puzzle-captcha.js')
-        resp = _ur.urlopen(req, timeout=5)
-        return resp.read(), resp.status, {'Content-Type': 'application/javascript'}
-    except Exception as e:
-        return '', 404
-
-@app.route('/puzzle-captcha.css')
-def admin_puzzle_css():
-    try:
-        req = _ur.Request('http://127.0.0.1:8090/puzzle-captcha.css')
-        resp = _ur.urlopen(req, timeout=5)
-        return resp.read(), resp.status, {'Content-Type': 'text/css'}
-    except Exception as e:
-        return '', 404
-
-
-@app.route('/')
-def index():
-    return redirect('/admin')
-
-
-@app.route('/admin', strict_slashes=False)
-def admin_page():
-    """规范入口 — 先验证 is_admin，未登录跳 login"""
-    from services.jwt_service import validate_token
-    from flask import make_response
-    token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
-    if not token:
-        token = request.cookies.get('sso_token')
-    payload = validate_token(token) if token else None
-    if not payload or not payload.get('is_admin'):
-        return redirect('/admin/login')
-    resp = make_response(render_template('admin.html', sso_token=token))
-    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    resp.headers['Pragma'] = 'no-cache'
-    resp.headers['Expires'] = '0'
-    # Set sso_token as HttpOnly cookie for reliable refresh auth
-    resp.set_cookie('sso_token', token, max_age=86400*7, httponly=True,
-                    secure=request.is_secure, samesite='Strict', path='/')
-    return resp
-
-
-@app.route('/login')
-def login_page():
-    return render_template('login.html')
-
-
-@app.route('/admin/login')
-def admin_login_page():
-    """管理员专用登录页 — 无验证码、无OAuth、支持三端（browser/desktop/mobile）"""
-    # 如果已登录且有 admin 权限，直接跳到后台
-    from services.jwt_service import validate_token
-    token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
-    if not token:
-        token = request.cookies.get('sso_token')
-    payload = validate_token(token) if token else None
-    if payload and payload.get('is_admin'):
-        return redirect('/admin')
-    return render_template('admin_login.html')
-
-
-@app.route('/admin/login', methods=['POST'])
-def admin_login_action():
-    """管理员登录处理器
-    支持两种方式:
-      1. 密码登录 (所有客户端) — { username, password[, client_type] }
-      2. 验证码登录 (桌面/移动) — { username, code[, client_type] }
-         CN: 短信验证码, INTL: 邮箱验证码
-
-    client_type: 'browser' (默认, Set-Cookie), 'desktop'/'mobile' (返回 JSON token)
-    """
-    import hashlib, hmac, time as _time_module, random, string
-    from services.jwt_service import create_token
-
-    data = request.get_json(force=True, silent=True) or {}
-    username = (data.get('username') or '').strip()
-    password = (data.get('password') or '').strip()
-    code = (data.get('code') or '').strip()
-    client_type = (data.get('client_type') or 'browser').strip().lower()
-    ip = request.remote_addr or 'unknown'
-
-    # ── IP 限流 ──
-    now = int(_time_module.time())
-    attempt_key = f'admin_login_{ip}'
-    attempts = _admin_login_attempts.get(attempt_key, {'count': 0, 'first': now, 'banned_until': 0})
-    if attempts.get('banned_until', 0) > now:
-        remaining = attempts['banned_until'] - now
-        return jsonify({'success': False, 'error': f'登录被临时锁定，{remaining // 60 + 1} 分钟后重试'}), 429
-    if now - attempts['first'] > 900:
-        attempts = {'count': 0, 'first': now, 'banned_until': 0}
-
-    # ── 验证码登录分支 (桌面/移动端) ──
-    if code:
-        if not username:
-            return jsonify({'success': False, 'error': '请输入账号'}), 400
-
-        market = os.environ.get('DEPLOY_MARKET', 'cn')
-        now_iso = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        from models import get_db
-
-        with get_db() as conn:
-            if market == 'intl':
-                # 邮箱验证码登录
-                row = conn.execute(
-                    "SELECT * FROM email_codes WHERE email=? AND code=? AND purpose='login' AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1",
-                    (username, code, now_iso)
-                ).fetchone()
-                if not row:
-                    _hit_attempt(attempts, now)
-                    return jsonify({'success': False, 'error': '验证码错误或已过期'}), 400
-                row = dict(row)
-                if row['attempts'] >= 5:
-                    return jsonify({'success': False, 'error': '尝试次数过多，请重新获取验证码'}), 400
-                conn.execute('UPDATE email_codes SET used=1 WHERE id=?', (row['id'],))
-                # Find user by email
-                user = conn.execute('SELECT * FROM users WHERE email=? AND is_admin=1', (username,)).fetchone()
-            else:
-                # 短信验证码登录 — 复用 sms_codes 表
-                row = conn.execute(
-                    "SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose='login' AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1",
-                    (username, code, now_iso)
-                ).fetchone()
-                if not row:
-                    _hit_attempt(attempts, now)
-                    return jsonify({'success': False, 'error': '验证码错误或已过期'}), 400
-                row = dict(row)
-                if row['attempts'] >= 5:
-                    return jsonify({'success': False, 'error': '尝试次数过多，请重新获取验证码'}), 400
-                conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (row['id'],))
-                # Find user by phone
-                user = conn.execute('SELECT * FROM users WHERE phone=? AND is_admin=1', (username,)).fetchone()
-
-            conn.commit()
-
-        if not user:
-            attempts['count'] += 1
-            _admin_login_attempts[attempt_key] = attempts
-            return jsonify({'success': False, 'error': '账号不存在或非管理员账号'}), 400
-
-        user = dict(user)
-        _admin_login_attempts.pop(attempt_key, None)
-        token = create_token(user['id'], phone=user.get('phone'), app_name='trademind', is_admin=True)
-        _log_admin_action(user['id'], 'login_success_code', ip, f'user={username} client={client_type}')
-
-        return _make_login_response(token, client_type)
-
-    # ── 密码登录分支 (浏览器/所有端) ──
-    if not username or not password:
-        return jsonify({'success': False, 'error': '请输入账号和密码'}), 400
-
-    from models import get_db
-    with get_db() as conn:
-        user = conn.execute(
-            'SELECT id, username, phone, password_hash, is_admin, display_name FROM users WHERE (username=? OR phone=?) AND is_admin=1',
-            (username, username)
-        ).fetchone()
-
-    if not user:
-        attempts['count'] += 1
-        if attempts['count'] >= 5:
-            attempts['banned_until'] = now + 1800
-        _admin_login_attempts[attempt_key] = attempts
-        _log_admin_action(None, 'login_failed', ip, f'user={username} not_found')
-        return jsonify({'success': False, 'error': '账号不存在或非管理员账号'}), 400
-
-    stored = user['password_hash']
-    if not stored:
-        attempts['count'] += 1
-        _admin_login_attempts[attempt_key] = attempts
-        return jsonify({'success': False, 'error': '该账号未设置密码，请使用验证码登录'}), 400
-
-    pw_ok = False
-    parts = stored.split(':')
-    if len(parts) == 5 and parts[0] == 'pbkdf2' and parts[1] == 'sha256':
-        salt = parts[3]
-        pw_hash = parts[4]
-        check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
-        pw_ok = hmac.compare_digest(pw_hash, check)
-    else:
-        try:
-            from werkzeug.security import check_password_hash
-            pw_ok = check_password_hash(stored, password)
-        except Exception:
-            pass
-
-    if not pw_ok:
-        attempts['count'] += 1
-        if attempts['count'] >= 5:
-            attempts['banned_until'] = now + 1800
-        _admin_login_attempts[attempt_key] = attempts
-        _log_admin_action(user['id'], 'login_failed', ip, f'user={username} bad_password')
-        return jsonify({'success': False, 'error': '密码错误'}), 400
-
-    _admin_login_attempts.pop(attempt_key, None)
-    token = create_token(user['id'], phone=user['phone'], app_name='admin', is_admin=True)
-    _log_admin_action(user['id'], 'login_success', ip, f'user={username} client={client_type}')
-
-    return _make_login_response(token, client_type)
-
-
-def _make_login_response(token, client_type):
-    """根据客户端类型返回不同的响应格式"""
-    from flask import make_response
-    resp = make_response(jsonify({'success': True, 'data': {'token': token}}))
-    if client_type in ('desktop', 'mobile'):
-        # 桌面/移动端：只返回 JSON，不设 cookie
-        return resp
-    # 浏览器：Set-Cookie
-    resp.set_cookie('sso_token', token, max_age=86400*7, httponly=True,
-                    secure=request.is_secure, samesite='Strict', path='/')
-    return resp
-
-
-def _hit_attempt(attempts, now):
-    """记录一次失败尝试"""
-    attempts['count'] += 1
-    if attempts['count'] >= 5:
-        attempts['banned_until'] = now + 1800
-
-
-@app.route('/admin/login/send-code', methods=['POST'])
-def admin_send_code():
-    """发送桌面/移动端验证码
-    CN: 短信验证码  INTL: 邮箱验证码
-    """
-    import hashlib, hmac, time as _time_module, random, string, secrets
-    data = request.get_json(force=True, silent=True) or {}
-    target = (data.get('phone') or data.get('email') or '').strip()
-    ip = request.remote_addr or 'unknown'
-
-    if not target:
-        return jsonify({'success': False, 'error': '请输入手机号或邮箱'}), 400
-
-    # IP 频控：每分钟最多 2 次
-    code_key = f'code_{ip}'
-    now = int(_time_module.time())
-    last = _admin_login_attempts.get(code_key, 0)
-    if now - last < 60:
-        remaining = 60 - (now - last)
-        return jsonify({'success': False, 'error': f'发送过于频繁，请 {remaining} 秒后再试'}), 429
-    _admin_login_attempts[code_key] = now
-
-    market = os.environ.get('DEPLOY_MARKET', 'cn')
-    code = ''.join(secrets.choice(string.digits) for _ in range(6))
-    now_iso = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    expires_ts = __import__('datetime').datetime.now() + __import__('datetime').timedelta(minutes=5)
-    expires_at = expires_ts.strftime('%Y-%m-%d %H:%M:%S')
-
-    # Check user exists AND is admin
-    from models import get_db
-    with get_db() as conn:
-        if market == 'intl':
-            user = conn.execute('SELECT id FROM users WHERE email=? AND is_admin=1', (target,)).fetchone()
-        else:
-            user = conn.execute('SELECT id FROM users WHERE phone=? AND is_admin=1', (target,)).fetchone()
-
-    if not user:
-        return jsonify({'success': False, 'error': '该账号不存在或非管理员账号'}), 400
-
-    if market == 'intl':
-        # 邮箱验证码：存表 + 发邮件
-        from models import get_db
-        with get_db() as conn:
-            conn.execute(
-                'INSERT INTO email_codes (email, code, purpose, expires_at) VALUES (?,?,?,?)',
-                (target, code, 'login', expires_at))
-            conn.commit()
-
-        try:
-            from services.mail_service import send_mail
-            send_mail(
-                to=target,
-                subject='VeroRun Admin Login Code',
-                body=f'Your verification code is: {code}\n\nValid for 5 minutes.\n\nIf you did not request this, please ignore.'
-            )
-            print(f'[Admin] Email code sent to {target}')
-        except Exception as e:
-            print(f'[Admin] Email send failed: {e} (stub: {code})')
-        return jsonify({'success': True, 'message': '验证码已发送到邮箱'})
-    else:
-        # 短信验证码：委托给 /auth/sms/send
-        from models import get_db
-        with get_db() as conn:
-            conn.execute(
-                'INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (?,?,?,?)',
-                (target, code, 'login', expires_at))
-            conn.commit()
-
-        try:
-            from services.sms_service import send_sms
-            send_sms(target, code, 'login')
-        except Exception:
-            pass  # stub mode already prints
-        return jsonify({'success': True, 'message': '验证码已发送'})
-
-
-# ── 内存限流存储（服务重启后清空，可接受）──
-_admin_login_attempts = {}
-
-
-def _log_admin_action(admin_id, action, ip, detail=''):
-    """记录管理员操作日志 — 异步写入，不阻塞响应"""
-    import threading
-    def _write():
-        from models import get_db as _gdb
-        try:
-            with _gdb() as conn:
-                conn.execute(
-                    'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (?,?,?,?,?,?)',
-                    (admin_id or 0, action, 'admin', 'login', detail, ip)
-                )
-                conn.commit()
-        except Exception:
-            pass
-    threading.Thread(target=_write, daemon=True).start()
-
-
-@app.route('/reset-password')
-def reset_password_page():
-    return render_template('reset_password.html')
-
-
-@app.route('/health')
-def health():
-    return jsonify({"status": "ok", "service": "admin-panel", "port": 8084})
-
-@app.route('/admin/debug-jwt')
-def debug_jwt():
-    """Debug JWT: validate a token from query param"""
-    import os
-    from services.jwt_service import validate_token, JWT_SECRET
-    token_param = request.args.get('token', '')
-    result = {
-        "jwt_secret_prefix": JWT_SECRET[:20] + "...",
-        "jwt_secret_len": len(JWT_SECRET),
-        "env_set": bool(os.environ.get('JWT_SECRET')),
-        "pyjwt_version": __import__('jwt').__version__,
-    }
-    if token_param:
-        payload = validate_token(token_param)
-        result['validate_ok'] = payload is not None
-        if payload:
-            result['user_id'] = payload['user_id']
-            result['is_admin'] = payload.get('is_admin')
-            # Also simulate _require_admin DB check
-            from models import get_db
-            with get_db() as conn:
-                user = conn.execute('SELECT id, is_admin FROM users WHERE id=?', (payload['user_id'],)).fetchone()
-            result['db_user_exists'] = user is not None
-            result['db_is_admin'] = bool(user and user['is_admin'])
-        # Also test via actual request context
-        import flask
-        with flask.current_app.test_request_context(
-            '/admin/dashboard',
-            headers={'Authorization': f'Bearer {token_param}'}
-        ):
-            auth = flask.request.headers.get('Authorization', '')
-            token2 = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
-            result['received_token'] = token2[:20] + '...'
-            result['token_match'] = token2 == token_param
-            payload2 = validate_token(token2)
-            result['validate_via_header_ok'] = payload2 is not None
-    else:
-        from services.jwt_service import create_token
-        tok = create_token(7, phone='13910604299', is_admin=True)
-        payload = validate_token(tok)
-        result['create_validate_ok'] = payload is not None
-    return jsonify(result)
-
-
-@app.route('/avatar/gen/<path:seed>')
-def generated_avatar(seed):
-    """生成默认首字母头像 SVG（无自定义头像时使用）"""
-    from services.avatar_service import generate_initials_svg
-    svg = generate_initials_svg(seed)
-    return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
-
-
-@app.route('/api/social-links')
-def public_social_links():
-    """公开 API：页脚社媒图标列表（旧表 social_links）"""
-    from models import get_db
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT id, url, icon_url, platform, sort_order '
-            'FROM social_links WHERE is_active=1 ORDER BY sort_order ASC, id ASC'
-        ).fetchall()
-    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
-
-
-@app.route('/api/social-media')
-def public_social_media():
-    """公开 API：社媒图标列表（新表 social_media_links）"""
-    from models import get_db
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT id, platform_name, icon_type, icon_value, url, hover_text '
-            'FROM social_media_links WHERE is_enabled=1 ORDER BY display_order ASC, id ASC'
-        ).fetchall()
-    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
-
-
-@app.route('/api/interests')
-def public_interests():
-    """公开 API：兴趣标签列表（按分类分组），支持 ?search= 模糊搜索"""
-    from models import get_db
-    search = request.args.get('search', '').strip()
-    with get_db() as conn:
-        if search:
-            rows = conn.execute(
-                'SELECT id, name, category, is_hot FROM interests WHERE is_active=1 AND is_hot=1 AND name LIKE ? ORDER BY category, sort_order, id',
-                ('%'+search+'%',)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                'SELECT id, name, category, is_hot FROM interests WHERE is_active=1 AND is_hot=1 ORDER BY category, sort_order, id'
-            ).fetchall()
-    grouped = {}
-    for r in rows:
-        d = dict(r)
-        cat = d['category']
-        if cat not in grouped:
-            grouped[cat] = []
-        grouped[cat].append(d)
-    return jsonify({'success': True, 'data': grouped, 'categories': list(grouped.keys())})
-
-
-@app.route('/static/<path:filename>')
-def static_files(filename):
-    """优先从 admin/static/ 读取，回退到 platform/static/"""
-    local_path = os.path.join(ADMIN_STATIC, filename)
-    if os.path.isfile(local_path):
-        return send_from_directory(ADMIN_STATIC, filename)
-    return send_from_directory(PLATFORM_STATIC, filename)
-
-
-# 商品图片（上传到 platform/static/products/）
-_PIMG_DIR = os.path.join(PLATFORM_STATIC, 'products')
-os.makedirs(_PIMG_DIR, exist_ok=True)
-
-
-@app.route('/pimg/<path:filename>')
-def pimg(filename):
-    return send_from_directory(_PIMG_DIR, filename)
-
-
-# ══ 主题系统: Jinja2 模板覆盖 + theme.css 注入 ══
-THEMES_ROOT_ADMIN = os.path.join(os.path.dirname(__file__), '..', 'themes')
-
-# 主题 slug 缓存（60秒 TTL）
-_theme_slug_cache = {'value': None, 'ts': 0}
-
-def _get_active_theme_slug_admin():
-    """获取当前激活的主题 slug（带 60 秒 TTL 缓存）"""
-    now = _time.perf_counter()
-    if now - _theme_slug_cache['ts'] < 60:
-        return _theme_slug_cache['value']
-    try:
-        from routes.theme_admin import get_active_theme_slug_for_site
-        slug = get_active_theme_slug_for_site('admin')
-    except Exception:
-        slug = None
-    _theme_slug_cache['value'] = slug
-    _theme_slug_cache['ts'] = now
-    return slug
-
-# Jinja2 ChoiceLoader: 优先从激活主题的 templates/ 目录加载
-theme_tpl_dir = None
-active_slug = _get_active_theme_slug_admin()
-if active_slug:
-    candidate = os.path.join(THEMES_ROOT_ADMIN, active_slug, 'templates')
-    if os.path.isdir(candidate):
-        theme_tpl_dir = candidate
-if theme_tpl_dir:
-    from jinja2 import ChoiceLoader, FileSystemLoader
-    app.jinja_loader = ChoiceLoader([
-        FileSystemLoader(theme_tpl_dir),
-        app.jinja_loader,
-    ])
-
-
-@app.context_processor
-def inject_theme():
-    """注入 theme_css_url + brand 到所有模板"""
-    slug = _get_active_theme_slug_admin()
-    result = {}
-    if slug and slug != 'default':
-        result['theme_css_url'] = '/themes/{}/theme.css'.format(slug)
-    else:
-        result['theme_css_url'] = None
-    try:
-        from services.brand_service import get_brand_settings
-        result['brand'] = get_brand_settings()
-    except:
-        result['brand'] = None
-    return result
-
-
-@app.route('/themes/<slug>/<path:filename>')
-def serve_theme_file(slug, filename):
-    """公开访问主题静态文件"""
-    import re
-    safe_slug = re.sub(r'[^a-z0-9\-]', '', slug.lower())
-    if safe_slug != slug:
-        return 'Invalid slug', 400
-    theme_static = os.path.join(THEMES_ROOT_ADMIN, slug)
-    if not os.path.isdir(theme_static):
-        return 'Theme not found', 404
-    return send_from_directory(theme_static, filename)
-
-
-# ══ 子域名管理 API (site_domains) ══
-def _admin_auth():
-    """验证管理员 token，返回 payload 或 None"""
-    from services.jwt_service import validate_token
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    if not token:
-        token = request.cookies.get('sso_token')
-    payload = validate_token(token) if token else None
-    if not payload or not payload.get('is_admin'):
-        return None
-    return payload
-
-
-@app.route('/admin/api/domains', methods=['GET'])
-def list_domains():
-    """获取子域名列表 + 配额"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    from models import get_db
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT id, site_config_id, subdomain, full_domain, display_name, '
-            'template, is_published, page_keys_json, sort_order, service_port, '
-            'created_at, updated_at '
-            'FROM site_domains ORDER BY sort_order ASC, id ASC'
-        ).fetchall()
-    data = [dict(r) for r in rows]
-    # Quota: 在 site_configs 中找 max_domains，默认 10
-    max_domains = 10
-    try:
-        with get_db() as conn:
-            sc = conn.execute("SELECT max_domains FROM site_configs WHERE id=1").fetchone()
-            if sc and sc['max_domains']:
-                max_domains = sc['max_domains']
-    except:
-        pass
-    used = len(data)
-    quota = {'used': used, 'limit': max_domains, 'can_add': used < max_domains}
-    return jsonify({'success': True, 'data': data, 'quota': quota})
-
-
-@app.route('/admin/api/domains', methods=['POST'])
-def create_domain():
-    """添加子域名"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    body = request.get_json(silent=True) or {}
-    subdomain = (body.get('subdomain') or '').strip().lower()
-    display_name = (body.get('display_name') or '').strip()
-    service_port = body.get('service_port')
-    if not subdomain or not display_name:
-        return jsonify({'success': False, 'error': 'subdomain and display_name required'}), 400
-    # Validate subdomain format
-    import re
-    if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', subdomain):
-        return jsonify({'success': False, 'error': 'Invalid subdomain format'}), 400
-    if service_port and (not isinstance(service_port, int) or service_port < 1024 or service_port > 65535):
-        return jsonify({'success': False, 'error': 'Invalid port range (1024-65535)'}), 400
-    deploy_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
-    full_domain = f"{subdomain}.{deploy_domain}"
-    from models import get_db
-    try:
-        with get_db() as conn:
-            conn.execute(
-                'INSERT INTO site_domains (subdomain, full_domain, display_name, service_port) '
-                'VALUES (?, ?, ?, ?)',
-                (subdomain, full_domain, display_name, service_port)
-            )
-            conn.commit()
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 409
-    return jsonify({'success': True, 'message': 'Domain created'})
-
-
-@app.route('/admin/api/domains/<int:domain_id>', methods=['PUT'])
-def update_domain(domain_id):
-    """更新子域名"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    body = request.get_json(silent=True) or {}
-    display_name = (body.get('display_name') or '').strip()
-    is_published = body.get('is_published')
-    service_port = body.get('service_port')
-    if not display_name:
-        return jsonify({'success': False, 'error': 'display_name required'}), 400
-    from models import get_db
-    with get_db() as conn:
-        existing = conn.execute('SELECT id FROM site_domains WHERE id=?', (domain_id,)).fetchone()
-        if not existing:
-            return jsonify({'success': False, 'error': 'Domain not found'}), 404
-        conn.execute(
-            'UPDATE site_domains SET display_name=?, is_published=?, service_port=?, '
-            'updated_at=datetime(\'now\') WHERE id=?',
-            (display_name, 1 if is_published else 0, service_port, domain_id)
-        )
-        conn.commit()
-    return jsonify({'success': True, 'message': 'Domain updated'})
-
-
-@app.route('/admin/api/domains/<int:domain_id>', methods=['DELETE'])
-def delete_domain(domain_id):
-    """删除子域名"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    from models import get_db
-    with get_db() as conn:
-        existing = conn.execute('SELECT id, full_domain FROM site_domains WHERE id=?', (domain_id,)).fetchone()
-        if not existing:
-            return jsonify({'success': False, 'error': 'Domain not found'}), 404
-        conn.execute('DELETE FROM site_domains WHERE id=?', (domain_id,))
-        conn.commit()
-    return jsonify({'success': True, 'message': f"Domain {existing['full_domain']} deleted"})
-
-
-@app.route('/admin/api/domains/<int:domain_id>/nginx-config', methods=['GET'])
-def get_nginx_config(domain_id):
-    """生成 Nginx 配置"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    from models import get_db
-    with get_db() as conn:
-        row = conn.execute(
-            'SELECT id, full_domain, service_port, display_name FROM site_domains WHERE id=?',
-            (domain_id,)
-        ).fetchone()
-    if not row:
-        return jsonify({'success': False, 'error': 'Domain not found'}), 404
-    if not row['service_port']:
-        return jsonify({'success': False, 'error': 'Not an independent service (no port)'}), 400
-    domain = row['full_domain']
-    port = row['service_port']
-    server_path = f"/home/easykai/easykai-workspace/{domain}"
-    config_text = f"""server {{
-    listen 80;
-    server_name {domain};
-
-    location / {{
-        proxy_pass http://127.0.0.1:{port};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }}
-}}"""
-    return jsonify({'success': True, 'data': {
-        'full_domain': domain,
-        'server_path': server_path,
-        'config_text': config_text
-    }})
-
-
+# ===== 启动 =====
 if __name__ == '__main__':
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8084
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=8084, debug=True)

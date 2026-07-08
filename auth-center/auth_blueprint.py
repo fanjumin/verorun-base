@@ -50,10 +50,5 @@ def register_auth(app, exclude_blueprints=None):
     for name, bp in all_bps:
         if name not in exclude:
             app.register_blueprint(bp)
-    # ─── 加载插件系统 ───
-    try:
-        from plugins import load_plugins
-        load_plugins(app)
-    except Exception as e:
-        print(f'[Plugin] load_plugins warning: {e}')
+    # ─── 插件系统由 PluginManager 统一管理 ───
     return app

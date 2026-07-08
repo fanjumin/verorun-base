@@ -8,7 +8,7 @@ i18n: Uses self.t() for all user-facing strings.
       Translations in:  plugins/ali_api/i18n/{locale}.yml
 """
 
-from plugins.base import BasePlugin
+from plugin_manager.base import BasePlugin
 from .plugin_i18n import set_plugin
 
 

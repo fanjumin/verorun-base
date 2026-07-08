@@ -3,7 +3,7 @@ import json
 import logging
 from typing import List
 
-from plugins.base import BasePlugin
+from plugin_manager.base import BasePlugin
 from .models import get_db, get_main_db, init_db
 
 logger = logging.getLogger(__name__)

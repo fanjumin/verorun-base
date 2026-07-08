@@ -1433,7 +1433,7 @@ def ship_order(oid):
                           f'company={company} tracking={tracking}')
     # 触发事件：发货
     try:
-        from plugins.hooks import get_event_bus, EventName
+        from plugin_manager.event_bus import get_event_bus, EventName
         get_event_bus().emit(EventName.ORDER_SHIPPED, order_id=row.get('order_id', oid),
                              user_id=row['user_id'], company=company, tracking_number=tracking)
     except Exception:

@@ -284,41 +284,22 @@ def scan_plugins() -> List[dict]:
       }
     """
     try:
-        from plugins.registry import PluginRegistry
+        from plugin_manager.discovery import PluginDiscovery
 
-        registry = PluginRegistry(plugins_dir=os.path.join(PROJECT_ROOT, 'plugins'))
-        discovered = registry.discover()
+        discovery = PluginDiscovery(plugins_dir=os.path.join(PROJECT_ROOT, 'plugins'))
+        discovered = discovery.discover()
 
         results = []
-        for plugin_name in discovered:
-            meta = {}
-            meta_path = os.path.join(PROJECT_ROOT, 'plugins', plugin_name, 'plugin.json')
-            if os.path.isfile(meta_path):
-                try:
-                    with open(meta_path, 'r', encoding='utf-8') as f:
-                        meta = json.load(f)
-                except (json.JSONDecodeError, IOError):
-                    meta = {}
-
-            # Try to load to get status
-            status = 'not_loaded'
-            health_check_count = 0
-            try:
-                instance = registry.load(plugin_name)
-                status = instance.status
-                health_checks = instance.register_health_checks()
-                health_check_count = len(health_checks) if health_checks else 0
-            except Exception:
-                status = 'load_error'
-
+        for plugin_info in discovered:
+            meta = plugin_info.descriptor or {}
             results.append({
-                'name': plugin_name,
+                'name': plugin_info.identifier,
                 'version': meta.get('version', '0.1.0'),
                 'description': meta.get('description', ''),
                 'author': meta.get('author', ''),
-                'status': status,
-                'has_health_checks': health_check_count > 0,
-                'health_check_count': health_check_count,
+                'status': 'discovered',
+                'has_health_checks': False,
+                'health_check_count': 0,
                 'depends_on': meta.get('depends_on', []),
                 'enabled': meta.get('enabled', True),
             })

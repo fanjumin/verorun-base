@@ -31,7 +31,7 @@ from .exceptions import (
     PluginVersionError,
 )
 from .hooks import HookRegistry, get_hook_registry
-from plugins.hooks import EventBus, get_event_bus, EventName
+from .event_bus import EventBus, get_event_bus, EventName
 from . import deps as deps_module
 from .config_validator import validate_config as _validate_config, coerce_config
 from .logger import get_plugin_logger, init_plugin_logging
@@ -611,7 +611,7 @@ class PluginManager:
             # 兼容现有 plugins 系统: 插件有 __init__.py 且包含 BasePlugin 子类
             mod = importlib.import_module(identifier)
 
-            from plugins.base import BasePlugin
+            from plugin_manager.base import BasePlugin
 
             instance = None
             for attr_name in dir(mod):

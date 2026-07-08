@@ -2,8 +2,8 @@
 import logging
 from typing import Dict, Any, List
 
-from plugins.base import BasePlugin
-from plugins.hooks import EventName, get_event_bus
+from plugin_manager.base import BasePlugin
+from plugin_manager.event_bus import EventName, get_event_bus
 
 logger = logging.getLogger(__name__)
 

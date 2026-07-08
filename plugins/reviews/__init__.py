@@ -4,8 +4,8 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime
 
-from plugins.base import BasePlugin
-from plugins.hooks import EventName, get_event_bus
+from plugin_manager.base import BasePlugin
+from plugin_manager.event_bus import EventName, get_event_bus
 from .models import get_db, get_main_db, init_db
 
 logger = logging.getLogger(__name__)

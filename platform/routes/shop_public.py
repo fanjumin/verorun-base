@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 from flask import Blueprint, jsonify, request, render_template, make_response, redirect
 from models import get_db
 from services.jwt_service import validate_token
-from plugins.hooks import get_event_bus, EventName
+from plugin_manager.event_bus import get_event_bus, EventName
 import secrets
 from datetime import datetime
 

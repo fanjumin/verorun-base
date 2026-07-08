@@ -6,7 +6,7 @@ Coupon Plugin — 智能优惠券引擎
 使用独立 coupons.db 存储券表，主库只读查询。
 """
 
-from plugins.base import BasePlugin
+from plugin_manager.base import BasePlugin
 
 from .engine import CouponEngine
 from .ai_recommender import AICouponRecommender

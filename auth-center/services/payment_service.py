@@ -111,7 +111,7 @@ def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 
     
     # 触发事件：订单支付成功
     try:
-        from plugins.hooks import get_event_bus, EventName
+        from plugin_manager.event_bus import get_event_bus, EventName
         get_event_bus().emit(EventName.ORDER_PAID, order_id=order_id, trade_no=trade_no,
                              payment_method=payment_method)
     except Exception:
