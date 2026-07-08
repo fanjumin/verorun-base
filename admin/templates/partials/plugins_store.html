@@ -1,0 +1,251 @@
+window.l_plugins_store=function(){
+  document.getElementById("pt").textContent="{{ _('Plugin Store') }}";
+  renderStoreList();
+};
+function renderStoreList(){
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/plugins/store/browse",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var plugins=d.data.plugins||[];
+    var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+    h+='<div style="display:flex;gap:8px;align-items:center">';
+    h+='<input class="in" id="storeSearch" placeholder="{{ _('Search') }}..." style="width:200px" onkeydown="if(event.key===\'Enter\')renderStoreList()">';
+    h+='<select class="in" id="storeCategory" onchange="renderStoreList()"><option value="">{{ _('All Categories') }}</option><option value="marketing">{{ _('Marketing') }}</option><option value="supply-chain">{{ _('Supply Chain') }}</option><option value="content">{{ _('Content') }}</option><option value="tool">{{ _('Tools') }}</option></select>';
+    h+='<select class="in" id="storePrice" onchange="renderStoreList()"><option value="">{{ _('All') }}</option><option value="free">{{ _('Free') }}</option><option value="onetime">{{ _('Paid (One-time)') }}</option><option value="sub">{{ _('Subscription') }}</option></select>';
+    h+='</div>';
+    h+='<span style="font-size:13px;color:var(--text-muted)">{{ _('Total') }}: '+plugins.length+'</span>';
+    h+='</div>';
+    if(plugins.length===0){
+      h+='<div class="empty-state"><div style="margin-bottom:12px;font-size:40px">🧩</div><div style="color:var(--dim)">{{ _('No plugins in store') }}</div></div>';
+      mc.innerHTML=h;return
+    }
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">';
+    plugins.forEach(function(p){
+      var priceLabel=p.price_type==='free'?'{{ _('Free') }}':'¥'+(p.price_amount/100).toFixed(2)+(p.price_interval==='year'?'/yr':p.price_interval==='month'?'/mo':'');
+      var priceClass=p.price_type==='free'?'on':'';
+      h+='<div class="cd" style="display:flex;flex-direction:column">';
+      h+='<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(p.name)+' <span style="font-size:11px;color:var(--dim)">v'+esc(p.version)+'</span></div>';
+      h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:1">'+esc(p.description||'')+'</div>';
+      h+='<div style="display:flex;align-items:center;justify-content:space-between">';
+      h+='<span class="bdg '+priceClass+'">'+priceLabel+'</span>';
+      if(p.price_type==='free'){
+        h+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
+      }else{
+        h+='<button class="btn bp bs" data-pid="'+escAttr(p.identifier)+'" data-name="'+escAttr(p.name)+'" data-amount="'+(p.price_amount||0)+'" data-ptype="'+escAttr(p.price_type)+'" data-pinterval="'+escAttr(p.price_interval||'onetime')+'" onclick="showPurchaseDialog(this)">{{ _('Purchase') }}</button>';
+      }
+      h+='</div></div>';
+    });
+    h+='</div>';
+    mc.innerHTML=h;
+  }).catch(function(){mc.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function storeInstallPlugin(id){
+  if(!confirm("{{ _('Install plugin?') }} "+esc(id)+" ?"))return;
+  fetch("/admin/plugins/store/"+encodeURIComponent(id)+"/install",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast(esc(id)+" {{ _('Installed') }}","success")}
+    else{showToast(d.error||"{{ _('Install failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+
+/* ── License Management ── */
+window.l_plugins_licenses=function(){
+  document.getElementById("pt").textContent="{{ _('License Management') }}";
+  renderLicenseList();
+};
+function renderLicenseList(){
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/plugins/licenses",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var licences=d.data.licenses||[];
+    var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+    h+='<span style="font-size:13px;color:var(--text-muted)">{{ _('Total') }}: '+licences.length+'</span>';
+    h+='<button class="btn bp" onclick="showActivateForm()">🔑 {{ _('Activate License') }}</button>';
+    h+='</div>';
+    if(licences.length===0){
+      h+='<div class="empty-state"><div style="margin-bottom:12px;font-size:40px">🔑</div><div style="color:var(--dim)">{{ _('No licenses activated yet') }}</div><br><button class="btn bp" onclick="showActivateForm()">{{ _('Activate Now') }}</button></div>';
+    }else{
+      h+='<table style="width:100%;font-size:13px">';
+      h+='<tr><th style="text-align:left;padding:8px 12px">{{ _('Plugin') }}</th><th style="text-align:left;padding:8px 12px">{{ _('License Key') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Type') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Status') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Expires') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Actions') }}</th></tr>';
+      var statusMap={
+        'active':'<span class="bdg on">{{ _('Active') }}</span>',
+        'inactive':'<span class="bdg off">{{ _('Inactive') }}</span>',
+        'expired':'<span class="bdg" style="background:rgba(248,81,73,.12);color:#f85149">{{ _('Expired') }}</span>',
+        'revoked':'<span class="bdg" style="background:rgba(248,81,73,.12);color:#f85149">{{ _('Revoked') }}</span>',
+        'pending':'<span class="bdg off">{{ _('Pending') }}</span>',
+        'grace':'<span class="bdg" style="background:rgba(240,192,64,.12);color:#f0c040">{{ _('Grace') }}</span>',
+      };
+      licences.forEach(function(l){
+        var st=statusMap[l.license_status]||esc(l.license_status);
+        h+='<tr>';
+        h+='<td style="padding:10px 12px;font-weight:600">'+esc(l.plugin_id)+'</td>';
+        h+='<td style="padding:10px 12px;font-family:monospace;font-size:12px;color:var(--dim)">'+esc(l.license_key.slice(0,16)+'...')+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">'+esc(l.license_type)+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">'+st+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center;font-size:12px;color:var(--dim)">'+(l.expires_at?esc(l.expires_at.slice(0,10)):'-')+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">';
+        if(l.license_status==='active'||l.license_status==='grace'){
+          h+='<button class="btn bo bs" onclick="deactivateLicense(\''+escAttr(l.plugin_id)+'\')">{{ _('Deactivate') }}</button>';
+        }
+        h+='</td></tr>';
+      });
+      h+='</table>';
+    }
+    h+='<div id="licenseActionBox" style="margin-top:16px"></div>';
+    mc.innerHTML=h;
+  }).catch(function(){mc.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function showActivateForm(){
+  var box=document.getElementById("licenseActionBox");
+  box.innerHTML='<div class="cd"><div class="st">🔑 {{ _('Activate License') }}</div>'+
+    '<div style="margin:12px 0"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Plugin ID') }}</label><input class="in" id="licPluginId" placeholder="e.g. coupons" style="width:100%"></div>'+
+    '<div style="margin:12px 0"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('License Key') }}</label><input class="in" id="licKey" placeholder="XXXXX-XXXXX-XXXXX" style="width:100%"></div>'+
+    '<div style="margin:12px 0"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Email (optional)') }}</label><input class="in" id="licEmail" placeholder="customer@example.com" style="width:100%"></div>'+
+    '<button class="btn bp" onclick="submitActivateLicense()">{{ _('Activate') }}</button>'+
+    '<button class="btn bo" style="margin-left:8px" onclick="document.getElementById(\'licenseActionBox\').innerHTML=\'\'">{{ _('Cancel') }}</button></div>';
+}
+function submitActivateLicense(){
+  var pid=document.getElementById("licPluginId").value.trim();
+  var key=document.getElementById("licKey").value.trim();
+  var email=document.getElementById("licEmail").value.trim();
+  if(!pid||!key){showToast("{{ _('Plugin ID and License Key required') }}","error");return}
+  var btn=document.querySelector('#licenseActionBox .bp');
+  if(btn){btn.textContent="{{ _('Activating') }}...";btn.disabled=true}
+  fetch("/admin/plugins/license/activate",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({plugin_id:pid,license_key:key,customer_email:email})}).then(function(r){return r.json()}).then(function(d){
+    if(btn){btn.textContent="{{ _('Activate') }}";btn.disabled=false}
+    if(d.success){showToast("{{ _('License activated') }}","success");document.getElementById("licenseActionBox").innerHTML='';renderLicenseList()}
+    else{showToast(d.error||"{{ _('Activation failed') }}","error")}
+  }).catch(function(){if(btn){btn.textContent="{{ _('Activate') }}";btn.disabled=false}showToast("{{ _('Network error') }}","error")});
+}
+function deactivateLicense(pid){
+  if(!confirm("{{ _('Deactivate license for') }} "+esc(pid)+" ?"))return;
+  fetch("/admin/plugins/license/"+encodeURIComponent(pid)+"/deactivate",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('License deactivated') }}","success");renderLicenseList()}
+    else{showToast(d.error||"{{ _('Deactivation failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+
+/* ── Purchase Dialog ── */
+var purchasePollTimer=null;
+function showPurchaseDialog(btn){
+  var pid=btn.getAttribute("data-pid");
+  var name=btn.getAttribute("data-name");
+  var amount=parseInt(btn.getAttribute("data-amount"))||0;
+  var ptype=btn.getAttribute("data-ptype");
+  var pinterval=btn.getAttribute("data-pinterval");
+  var mc=document.getElementById("mc");
+  var priceStr='¥'+(amount/100).toFixed(2)+(pinterval==='year'?'/yr':pinterval==='month'?'/mo':'');
+  mc.innerHTML='<div class="cd"><div class="st">🛒 {{ _('Purchase') }}: '+esc(name)+'</div>'+
+    '<div style="margin:16px 0"><table style="width:100%;font-size:13px">'+
+    '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Plugin') }}</td><td style="padding:8px 12px;font-weight:600">'+esc(name)+'</td></tr>'+
+    '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Price') }}</td><td style="padding:8px 12px;font-weight:600">'+priceStr+'</td></tr>'+
+    '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Type') }}</td><td style="padding:8px 12px">'+(ptype==='sub'?'{{ _('Subscription') }}':'{{ _('One-time') }}')+'</td></tr>'+
+    '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Email') }}</td><td style="padding:8px 12px"><input class="in" id="purchaseEmail" placeholder="customer@example.com" style="width:250px"></td></tr>'+
+    '</table></div>'+
+    '<div style="display:flex;gap:12px">'+
+    '<button class="btn bp" onclick="submitPurchase(\''+escAttr(pid)+'\')">💳 {{ _('Pay Now') }}</button>'+
+    '<button class="btn bo" onclick="renderStoreList()">{{ _('Cancel') }}</button>'+
+    '</div><div id="purchaseResult" style="margin-top:16px"></div></div>';
+}
+function submitPurchase(pid){
+  var email=document.getElementById("purchaseEmail").value.trim();
+  var resultBox=document.getElementById("purchaseResult");
+  resultBox.innerHTML='<div class="lo"><div class="s"></div>{{ _('Creating order') }}...</div>';
+  var btn=resultBox.parentElement.querySelector(".bp");
+  if(btn){btn.disabled=true;btn.textContent="{{ _('Processing') }}...";}
+  fetch("/admin/plugins/store/"+encodeURIComponent(pid)+"/purchase",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({channel:"alipay",customer_email:email})}).then(function(r){return r.json()}).then(function(d){
+    if(btn){btn.disabled=false;btn.textContent="💳 {{ _('Pay Now') }}";}
+    if(!d.success){
+      if(d.error==='Plugin already licensed'){
+        resultBox.innerHTML='<div class="on" style="padding:12px">{{ _('Plugin already licensed') }}. <button class="btn bo bs" onclick="renderStoreList()">{{ _('Back') }}</button></div>';
+      }else{
+        resultBox.innerHTML='<div class="em">{{ _('Purchase failed') }}: '+esc(d.error||'')+'</div>';
+      }
+      return
+    }
+    var data=d.data;
+    resultBox.innerHTML='<div style="margin-top:12px"><div class="st" style="margin-bottom:12px">{{ _('Scan to pay') }}</div>'+
+      '<div style="text-align:center;padding:16px;background:var(--bg-secondary);border-radius:8px;margin-bottom:12px">'+
+      '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">{{ _('Alipay') }}</div>'+
+      '<div style="font-family:monospace;font-size:12px;word-break:break-all;padding:12px;background:#fff;border-radius:6px;color:#333">'+
+      (data.qr_code||'{{ _('QR code received') }}')+'</div></div>'+
+      '<div style="font-size:12px;color:var(--dim)">{{ _('Order No') }}: '+esc(data.order_no)+'</div>'+
+      '<div style="font-size:12px;color:var(--dim)">{{ _('Amount') }}: ¥'+(data.amount_fen/100).toFixed(2)+'</div>'+
+      '<button class="btn bp bs" style="margin-top:12px" onclick="pollPaymentStatus(\''+escAttr(data.order_no)+'\')">{{ _('Check Payment Status') }}</button>'+
+      '<div id="paymentPollResult" style="margin-top:8px"></div></div>';
+  }).catch(function(){if(btn){btn.disabled=false;btn.textContent="💳 {{ _('Pay Now') }}";}resultBox.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function pollPaymentStatus(orderNo){
+  var pr=document.getElementById("paymentPollResult");
+  pr.innerHTML='<div class="lo"><div class="s"></div>{{ _('Checking') }}...</div>';
+  fetch("/admin/plugins/payment/"+encodeURIComponent(orderNo)+"/status",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){pr.innerHTML='<div class="em">{{ _('Error') }}: '+(d.error||'')+'</div>';return}
+    var status=d.data.status;
+    if(status==='paid'){
+      pr.innerHTML='<div class="on" style="padding:12px">✅ {{ _('Payment successful! License activated.') }}<br><button class="btn bo bs" style="margin-top:8px" onclick="renderStoreList()">{{ _('Back to Store') }}</button></div>';
+    }else if(status==='failed'){
+      pr.innerHTML='<div class="em">{{ _('Payment failed') }}</div>';
+    }else{
+      pr.innerHTML='<div style="color:var(--dim)">{{ _('Pending payment') }}... <button class="btn bo bs" style="margin-left:8px" onclick="pollPaymentStatus(\''+escAttr(orderNo)+'\')">{{ _('Retry') }}</button></div>';
+    }
+  }).catch(function(){pr.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+
+/* ── Subscriptions Management ── */
+window.l_plugins_subscriptions=function(){
+  document.getElementById("pt").textContent="{{ _('Subscriptions') }}";
+  renderSubscriptionList();
+};
+function renderSubscriptionList(){
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/plugins/subscriptions",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var subs=d.data.subscriptions||[];
+    var h='<div style="margin-bottom:16px"><span style="font-size:13px;color:var(--text-muted)">{{ _('Total') }}: '+subs.length+'</span></div>';
+    if(subs.length===0){
+      h+='<div class="empty-state"><div style="margin-bottom:12px;font-size:40px">📋</div><div style="color:var(--dim)">{{ _('No subscriptions') }}</div></div>';
+    }else{
+      h+='<table style="width:100%;font-size:13px">';
+      h+='<tr><th style="text-align:left;padding:8px 12px">{{ _('Plugin') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Interval') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Amount') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Status') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Period End') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Auto') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Actions') }}</th></tr>';
+      var statusMap={
+        'active':'<span class="bdg on">{{ _('Active') }}</span>',
+        'canceled':'<span class="bdg off">{{ _('Canceled') }}</span>',
+        'expired':'<span class="bdg" style="background:rgba(248,81,73,.12);color:#f85149">{{ _('Expired') }}</span>',
+        'suspended':'<span class="bdg" style="background:rgba(240,192,64,.12);color:#f0c040">{{ _('Suspended') }}</span>',
+      };
+      subs.forEach(function(s){
+        var st=statusMap[s.status]||esc(s.status);
+        h+='<tr>';
+        h+='<td style="padding:10px 12px;font-weight:600">'+esc(s.plugin_id)+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">'+(s.interval_type==='month'?'{{ _('Monthly') }}':'{{ _('Yearly') }}')+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">¥'+(s.amount_fen/100).toFixed(2)+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">'+st+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center;font-size:12px;color:var(--dim)">'+(s.current_period_end?esc(s.current_period_end.slice(0,10)):'-')+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">'+(s.auto_renew?'✅':'❌')+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">';
+        if(s.status==='active'){
+          h+='<button class="btn bo bs" onclick="cancelSubscription(\''+escAttr(s.plugin_id)+'\')" style="margin-right:4px">{{ _('Cancel') }}</button>';
+          h+='<button class="btn bo bs" onclick="renewSubscription(\''+escAttr(s.plugin_id)+'\')">{{ _('Renew') }}</button>';
+        }
+        h+='</td></tr>';
+      });
+      h+='</table>';
+    }
+    mc.innerHTML=h;
+  }).catch(function(){mc.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function cancelSubscription(pid){
+  if(!confirm("{{ _('Cancel subscription for') }} "+esc(pid)+" ?"))return;
+  fetch("/admin/plugins/subscriptions/"+encodeURIComponent(pid)+"/cancel",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Subscription canceled') }}","success");renderSubscriptionList()}
+    else{showToast(d.error||"{{ _('Cancel failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+function renewSubscription(pid){
+  fetch("/admin/plugins/subscriptions/"+encodeURIComponent(pid)+"/renew",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Subscription renewed') }}","success");renderSubscriptionList()}
+    else{showToast(d.error||"{{ _('Renew failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
