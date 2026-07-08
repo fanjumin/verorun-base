@@ -1022,7 +1022,7 @@ def list_ai_services():
         "endpoints": [
             "位于 trademind/chatbot.py — 独立服务，暂未纳入矩阵",
         ],
-        "note": "此服务为 TradeMind (8081) 独立运行，建议后续迁移到 Ticket Agent 统一管理"
+        "note": "此服务为 TradeMind (8081) 独立运行，建议后续迁移到 Kai Assistant 统一管理"
     })
 
     return _success(services)
@@ -1036,7 +1036,7 @@ def list_ai_services():
 def chat_stream_sse():
     """
     SSE 流式聊天接口（管理员测试用）
-    请求: { message, history, agent_id (可选, 默认用 Ticket Agent) }
+    请求: { message, history, agent_id (可选, 默认用 Kai Assistant) }
     返回: text/event-stream
     """
     admin, err = _require_admin()
@@ -1057,10 +1057,10 @@ def chat_stream_sse():
     if agent_id:
         agent_config = _m().get_agent(agent_id)
     else:
-        # 默认用 Ticket Agent 或第一个 sub agent
+        # 默认用 Kai Assistant（chatbot 域）或第一个 sub agent
         agents = _m().list_agents(role_type='sub', active_only=True)
-        ticket = [a for a in agents if a.get('domain') == 'support']
-        agent_config = ticket[0] if ticket else (agents[0] if agents else None)
+        chatbot = [a for a in agents if a.get('domain') == 'chatbot']
+        agent_config = chatbot[0] if chatbot else (agents[0] if agents else None)
 
     if not agent_config:
         return jsonify({'error': '没有可用的 Agent'}), 500

@@ -1,6 +1,6 @@
 # Agent 矩阵 — AI矩阵编排系统
 
-> 易站 AI 平台的核心智能引擎：1 个 Master Agent (Athena) + 12 个 Sub Agent  
+> 易站 AI 平台的核心智能引擎：1 个 Master Agent (Athena) + 8 个 Sub Agent  
 > 5 家 AI 供应商集成 · 6 张核心表 · 9 张调度表 · ~82 个 API 端点  
 > 支持 DAG 工作流 · Cron 调度 · 自动任务分解 · 自检重试 · 多模态生成
 
@@ -45,7 +45,7 @@ Agent 矩阵（Agent Matrix）是易站 AI 平台的 AI矩阵编排系统，提�
 | 场景 | 说明 |
 |------|------|
 | 智能客服 | 用户提问 → Master 分解 → Sub Agent 查询 → 汇总回复 |
-| 内容创作 | 写文章 → CMS Agent + Image Agent 并行输出 → 一键发布 |
+| 内容创作 | 写文章 → CMS Agent（含图像生成）→ 一键发布 |
 | 数据清洗 | 脏数据 → Cleaner Agent 清洗 → 写入知识库 |
 | 供应链管理 | 库存查询 → Shop Agent 协同 |
 | 自动化工作流 | 定时拉取 RSS → AI 加工 → CMS 发布（全自动） |
@@ -129,11 +129,7 @@ agent_matrix/
     ├── sub_health_check_prompt.md  # Health Check Agent
     ├── sub_automation_prompt.md # Automation Agent
     ├── sub_analytics_prompt.md  # Analytics Agent
-    ├── sub_ticket_prompt.md     # Ticket Agent
     ├── sub_chatbot_prompt.md    # Kai Assistant (聊天机器人)
-    ├── sub_voice_prompt.md      # Voice Agent
-    ├── sub_video_prompt.md      # Video Agent
-    ├── sub_image_prompt.md      # Image Agent
     ├── sub_shop_prompt.md       # Shop Agent
     ├── sub_health_check_prompt.md # Health Check Agent
     └── sub_supply_chain_prompt.md # [用户模板] 自定义供应链 Agent
@@ -158,24 +154,20 @@ orchestrator/
 | 类型 | 数量 | 职责 |
 |------|------|------|
 | Master Agent | 1 | 接收用户指令、任务分解、协调分发、汇总报告 |
-| Sub Agent | 12 | 领域专家，并行执行具体子任务 |
+| Sub Agent | 8 | 领域专家，并行执行具体子任务 |
 
-### 3.2 13 个默认 Agent
+### 3.2 9 个默认 Agent
 
 | Agent | 角色 | 领域 | 供应商 | 模型 | 职责描述 |
 |-------|------|------|--------|------|---------|
 | **Athena** | master | orchestration | OpenAI | gpt-4o | 任务分解、协调、汇总、质量把控 |
-| CMS Agent | sub | cms | DashScope | qwen-turbo | 文章写作、内容管理、分类 |
+| CMS Agent | sub | cms | DashScope | qwen-turbo | 文章写作、内容管理、图像生成、分类 |
 | Finance Agent | sub | finance | DashScope | qwen-turbo | 财务分析、报表、对账 |
 | User System Agent | sub | system | DashScope | qwen-turbo | 用户管理、权限、套餐 |
 | Health Check Agent | sub | health_check | DashScope | qwen-turbo | 系统健康监控、告警、诊断 |
 | Automation Agent | sub | automation | DashScope | qwen-turbo | 自动化流程、任务编排 |
 | Analytics Agent | sub | analytics | DashScope | qwen-turbo | 数据分析、趋势、看板 |
-| Ticket Agent | sub | support | DashScope | qwen-turbo | 工单、客服、故障排查 |
-| Kai Assistant | sub | chatbot | DeepSeek | deepseek-chat | 对话式 AI 助手 |
-| Voice Agent | sub | voice | VolcEngine | volc-voice-clone-v2 | 语音克隆、TTS |
-| Video Agent | sub | video | VolcEngine | volc-avatar-v3 | 数字人视频生成 |
-| Image Agent | sub | image | DashScope | wan2.7-image | 图像生成、编辑 |
+| Kai Assistant | sub | chatbot | DeepSeek | deepseek-chat | 对话式 AI 助手（FAQ、工单、反馈） |
 | Shop Agent | sub | shop | DashScope | qwen-turbo | 商品、订单、供应链 |
 
 ### 3.3 Agent 配置字段
@@ -732,17 +724,13 @@ GET /admin/agent-matrix/dashboard
 | 文件 | 用途 |
 |------|------|
 | `master_prompt.md` | Athena 系统提示词 — 任务分解 + 协调 + 报告 |
-| `sub_cms_prompt.md` | CMS Agent — 文章创作 |
+| `sub_cms_prompt.md` | CMS Agent — 文章创作 + 图像生成 |
 | `sub_finance_prompt.md` | Finance Agent — 财务分析 |
 | `sub_user_prompt.md` | User System Agent — 用户管理 |
 | `sub_health_check_prompt.md` | Health Check Agent — 系统健康监控 |
 | `sub_automation_prompt.md` | Automation Agent — 流程自动化 |
 | `sub_analytics_prompt.md` | Analytics Agent — 数据分析 |
-| `sub_ticket_prompt.md` | Ticket Agent — 工单处理 |
 | `sub_chatbot_prompt.md` | Kai Assistant — 聊天对话 |
-| `sub_voice_prompt.md` | Voice Agent — 语音处理 |
-| `sub_video_prompt.md` | Video Agent — 视频生成 |
-| `sub_image_prompt.md` | Image Agent — 图像生成 |
 | `sub_shop_prompt.md` | Shop Agent — 商城运营 |
 | `sub_supply_chain_prompt.md` | [用户模板] 自定义供应链 Agent 参考 |
 
@@ -807,7 +795,7 @@ API `GET /admin/agent-matrix/prompts/load` 支持：
 
 系统启动时自动执行：
 1. `init_agent_matrix_tables()` — 创建 6 张表
-2. `seed_default_agents()` — 插入 13 个默认 Agent
+2. `seed_default_agents()` — 插入 9 个默认 Agent
 3. 注册 Blueprint 到 Admin 服务
 
 ---

@@ -1,7 +1,27 @@
 {
-  "version": "1.0.0",
-  "description": "商品评价系统 — 用户对已购商品打分、写评价、晒图",
-  "author": "VeroRun",
-  "enabled": true,
-  "depends_on": []
+    "name": "商品评价系统",
+    "identifier": "reviews",
+    "version": "1.0.0",
+    "description": "商品评价系统 — 用户对已购商品打分、写评价、晒图",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "shop.product.read",
+        "user.read"
+    ],
+    "hooks": {
+        "provides": [
+            "review/validate"
+        ],
+        "listens": [
+            "order/completed"
+        ]
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
 }

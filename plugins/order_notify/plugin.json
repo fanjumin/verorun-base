@@ -1,7 +1,28 @@
 {
-  "version": "1.0.0",
-  "description": "订单通知 — 下单/支付成功/发货/退款时自动发送站内信和邮件通知",
-  "author": "VeroRun",
-  "enabled": true,
-  "depends_on": []
+    "name": "订单通知",
+    "identifier": "order_notify",
+    "version": "1.0.0",
+    "description": "订单通知 — 下单/支付成功/发货/退款时自动发送站内信和邮件通知",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "notification.send",
+        "email.send"
+    ],
+    "hooks": {
+        "provides": [],
+        "listens": [
+            "order/created",
+            "order/paid",
+            "order/shipped",
+            "order/refunded"
+        ]
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
 }

@@ -2,7 +2,7 @@
 
 **Multi-Agent AI Operating System** — 多智能体驱动的 AI 内容与商业枢纽
 
-VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、CMS 内容管理、AI 客服、自动化工作流、云服务开通、分析统计、系统健康巡检等能力。
+VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵** 的全栈 SaaS 建站与商业管理平台，集成了智能建站、商城运营、CMS 内容管理、AI 客服、自动化工作流、云服务开通、分析统计、系统健康巡检等能力。
 
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
@@ -59,7 +59,7 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 
 位置：`agent_matrix/`
 
-这是本系统最核心的组件 — 一个 **1 个 Master Agent + 12 个 Sub Agent 的多智能体协作矩阵**，支持多供应商 AI、并行调度、自检重试、Token 审计。
+这是本系统最核心的组件 — 一个 **1 个 Master Agent + 8 个 Sub Agent 的多智能体协作矩阵**，支持多供应商 AI、并行调度、自检重试、Token 审计。
 
 #### 架构
 
@@ -101,22 +101,18 @@ VeroRunSystem 是一个基于 **13 个 AI Agent 协作矩阵** 的全栈 SaaS �
 | **OpenRouter** | 备用供应商 | 多模型 |
 | **Ollama** | 本地推理 | llama3 等 |
 
-#### 13 个 Agent 职责
+#### 9 个 Agent 职责
 
 | Agent | 类型 | 默认模型 | domain | 核心能力 |
 |-------|------|----------|--------|----------|
 | **Athena** (Master) | master | GPT-4o | orchestration | 任务分解 → 指派子 Agent → 汇总报告 → 自检质量 |
 | **Shop Agent** | sub | qwen-turbo | shop | 商品 CRUD、SKU/规格、订单、优惠券、AI 优化、云服务开通、数据清洗 |
-| **CMS Agent** | sub | qwen-turbo | cms | 文章撰写/排版、评论审核、内容工厂对接 |
+| **CMS Agent** | sub | qwen-turbo | cms | 文章撰写/排版、图像生成、评论审核、内容工厂对接 |
 | **Finance Agent** | sub | qwen-turbo | finance | 套餐、订阅、订单、收入统计、扣款 |
 | **User System Agent** | sub | qwen-turbo | system | 用户管理、API Key、系统配置、日志 |
 | **Automation Agent** | sub | qwen-turbo | automation | Cron 任务、Workflow 编排、DAG 管理 |
 | **Analytics Agent** | sub | qwen-turbo | analytics | 统计分析、数据解读、趋势报告 |
-| **Ticket Agent** | sub | qwen-turbo | support | 工单管理、客户服务、AI 客服 |
-| **Kai Assistant** | sub | deepseek-chat | chatbot | 全站 FAQ、多轮对话、飞书通知 |
-| **Image Agent** | sub | wan2.7-image | image | 文生图、商品配图、社媒素材 |
-| **Voice Agent** | sub | volc-voice-clone-v2 | voice | 声音克隆、文本转语音 |
-| **Video Agent** | sub | volc-avatar-v3 | video | 照片驱动口播视频、抖音发布 |
+| **Kai Assistant** | sub | deepseek-chat | chatbot | 全站 FAQ、多轮对话、工单反馈、飞书通知 |
 | **Health Check Agent** | sub | qwen-turbo | health_check | 服务监控、异常诊断、告警、修复建议 |
 
 #### 工作流程
@@ -657,8 +653,8 @@ VeroRunSystem/
 │   ├── orchestrator.py        # 任务编排 + 关键词路由
 │   ├── agent_runner.py        # Agent 执行器 + 自检重试
 │   ├── routes.py              # API 路由 (chat/execute/history)
-│   ├── models.py              # 数据模型 + 13 Agent 种子数据
-│   └── prompts/               # 14 个 Agent Prompt 文件
+│   ├── models.py              # 数据模型 + 9 Agent 种子数据
+│   └── prompts/               # 11 个 Agent Prompt 文件
 │       ├── master_prompt.md
 │       ├── sub_shop_prompt.md
 │       ├── sub_cms_prompt.md

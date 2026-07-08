@@ -6,7 +6,7 @@ from datetime import datetime
 
 from plugins.base import BasePlugin
 from plugins.hooks import EventName, get_event_bus
-from models import get_db
+from .models import get_db, get_main_db, init_db
 
 logger = logging.getLogger(__name__)
 
@@ -17,31 +17,8 @@ class ReviewsPlugin(BasePlugin):
     description = '商品评价系统 — 用户对已购商品打分、写评价、晒图'
 
     def on_install(self, registry) -> bool:
-        """安装时创建表"""
-        with get_db() as conn:
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS product_reviews (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id         INTEGER NOT NULL,
-                    product_id      INTEGER NOT NULL,
-                    order_id        TEXT DEFAULT '',
-                    rating          INTEGER NOT NULL DEFAULT 5 CHECK(rating >= 1 AND rating <= 5),
-                    content         TEXT DEFAULT '',
-                    images          TEXT DEFAULT '[]',
-                    spec_info       TEXT DEFAULT '',
-                    is_anonymous    INTEGER DEFAULT 0,
-                    is_verified     INTEGER DEFAULT 0,
-                    reply_content   TEXT DEFAULT '',
-                    reply_at        TEXT,
-                    is_active       INTEGER DEFAULT 1,
-                    created_at      TEXT DEFAULT (datetime('now','localtime')),
-                    updated_at      TEXT DEFAULT (datetime('now','localtime')),
-                    UNIQUE(user_id, product_id, order_id)
-                )
-            ''')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_reviews_product ON product_reviews(product_id, is_active)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_reviews_user ON product_reviews(user_id)')
-            conn.commit()
+        """安装时创建插件表"""
+        init_db()
         return True
 
     def on_enable(self, registry) -> bool:
@@ -87,9 +64,7 @@ class ReviewsPlugin(BasePlugin):
                 ).fetchone()[0]
 
                 rows = conn.execute(
-                    f'''SELECT r.*, u.username, u.avatar
-                        FROM product_reviews r
-                        LEFT JOIN users u ON r.user_id=u.id
+                    f'''SELECT * FROM product_reviews r
                         WHERE {" AND ".join(where)}
                         ORDER BY r.created_at DESC LIMIT ? OFFSET ?''',
                     params + [size, offset]
@@ -106,6 +81,18 @@ class ReviewsPlugin(BasePlugin):
                     FROM product_reviews WHERE product_id=? AND is_active=1
                 ''', (product_id,)).fetchone()
 
+            # 跨库查用户信息
+            user_ids = [r['user_id'] for r in rows if r['user_id']]
+            user_map = {}
+            if user_ids:
+                with get_main_db() as main:
+                    for uid in set(user_ids):
+                        u = main.execute(
+                            'SELECT id, username, avatar FROM users WHERE id=?', (uid,)
+                        ).fetchone()
+                        if u:
+                            user_map[uid] = dict(u)
+
             reviews = []
             for r in rows:
                 d = dict(r)
@@ -114,6 +101,10 @@ class ReviewsPlugin(BasePlugin):
                         d['images'] = json.loads(d['images'])
                     except:
                         d['images'] = []
+                # 填充用户信息
+                uinfo = user_map.get(d['user_id'], {})
+                d['username'] = uinfo.get('username', '')
+                d['avatar'] = uinfo.get('avatar', '')
                 d['is_anonymous'] = bool(d['is_anonymous'])
                 if d['is_anonymous']:
                     d['username'] = '匿***'
@@ -153,6 +144,16 @@ class ReviewsPlugin(BasePlugin):
             if not content:
                 return jsonify({'success': False, 'error': '请填写评价内容'}), 400
 
+            # 跨库检查是否购买过
+            if order_id:
+                with get_main_db() as main:
+                    purchase = main.execute(
+                        'SELECT id FROM order_items WHERE user_id=? AND product_id=? AND order_id=? AND status="paid"',
+                        (uid, product_id, order_id)
+                    ).fetchone()
+                if not purchase:
+                    return jsonify({'success': False, 'error': self.t('请先购买商品再评价')}), 400
+
             with get_db() as conn:
                 # 检查是否已评价
                 existing = conn.execute(
@@ -161,15 +162,6 @@ class ReviewsPlugin(BasePlugin):
                 ).fetchone()
                 if existing:
                     return jsonify({'success': False, 'error': self.t('您已评价过该商品')}), 400
-
-                # 检查是否购买过（允许仅购买未评价的情况）
-                if order_id:
-                    purchase = conn.execute(
-                        'SELECT id FROM order_items WHERE user_id=? AND product_id=? AND order_id=? AND status="paid"',
-                        (uid, product_id, order_id)
-                    ).fetchone()
-                    if not purchase:
-                        return jsonify({'success': False, 'error': self.t('请先购买商品再评价')}), 400
 
                 conn.execute(
                     '''INSERT INTO product_reviews (user_id, product_id, order_id, rating, content,
@@ -221,17 +213,36 @@ class ReviewsPlugin(BasePlugin):
                     (uid,)
                 ).fetchone()[0]
                 rows = conn.execute(
-                    '''SELECT r.*, p.title as product_title, p.thumbnail
-                        FROM product_reviews r
-                        LEFT JOIN products p ON r.product_id=p.id
+                    '''SELECT * FROM product_reviews r
                         WHERE r.user_id=? AND r.is_active=1
                         ORDER BY r.created_at DESC LIMIT ? OFFSET ?''',
                     (uid, size, offset)
                 ).fetchall()
+
+            # 跨库查商品信息
+            product_ids = [r['product_id'] for r in rows if r['product_id']]
+            product_map = {}
+            if product_ids:
+                with get_main_db() as main:
+                    for pid in set(product_ids):
+                        p = main.execute(
+                            'SELECT id, title, thumbnail FROM products WHERE id=?', (pid,)
+                        ).fetchone()
+                        if p:
+                            product_map[pid] = dict(p)
+
+            reviews = []
+            for r in rows:
+                d = dict(r)
+                p = product_map.get(d['product_id'], {})
+                d['product_title'] = p.get('title', '')
+                d['thumbnail'] = p.get('thumbnail', '')
+                reviews.append(d)
+
             return jsonify({
                 'success': True,
                 'data': {
-                    'reviews': [dict(r) for r in rows],
+                    'reviews': reviews,
                     'total': total,
                     'page': page,
                     'size': size,
@@ -250,19 +261,40 @@ class ReviewsPlugin(BasePlugin):
             page = request.args.get('page', 1, type=int)
             size = request.args.get('size', 20, type=int)
             offset = (page - 1) * size
+
             with get_db() as conn:
                 total = conn.execute('SELECT COUNT(*) FROM product_reviews').fetchone()[0]
                 rows = conn.execute(
-                    '''SELECT r.*, u.username, p.title as product_title
-                        FROM product_reviews r
-                        LEFT JOIN users u ON r.user_id=u.id
-                        LEFT JOIN products p ON r.product_id=p.id
+                    '''SELECT * FROM product_reviews r
                         ORDER BY r.created_at DESC LIMIT ? OFFSET ?''',
                     (size, offset)
                 ).fetchall()
+
+            # 跨库查用户+商品信息
+            user_ids = [r['user_id'] for r in rows if r['user_id']]
+            product_ids = [r['product_id'] for r in rows if r['product_id']]
+            user_map = {}
+            product_map = {}
+            with get_main_db() as main:
+                for uid in set(user_ids):
+                    u = main.execute('SELECT id, username FROM users WHERE id=?', (uid,)).fetchone()
+                    if u:
+                        user_map[uid] = dict(u)
+                for pid in set(product_ids):
+                    p = main.execute('SELECT id, title FROM products WHERE id=?', (pid,)).fetchone()
+                    if p:
+                        product_map[pid] = dict(p)
+
+            data = []
+            for r in rows:
+                d = dict(r)
+                d['username'] = user_map.get(d['user_id'], {}).get('username', '')
+                d['product_title'] = product_map.get(d['product_id'], {}).get('title', '')
+                data.append(d)
+
             return jsonify({
                 'success': True,
-                'data': {'reviews': [dict(r) for r in rows], 'total': total}
+                'data': {'reviews': data, 'total': total}
             })
 
         @bp.route('/admin/reviews/<int:rid>/reply', methods=['POST'])

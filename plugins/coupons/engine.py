@@ -12,10 +12,11 @@ from plugins.coupons.scene import SceneName
 
 
 class CouponEngine:
-    """优惠券引擎，操作用户共享 coupons 表。"""
+    """优惠券引擎，使用独立 coupons.db 存储券表，主库只读查询。"""
 
-    def __init__(self, get_db):
+    def __init__(self, get_db, get_main_db):
         self._get_db = get_db
+        self._get_main_db = get_main_db
 
     # ── 查询 ──
 
@@ -142,9 +143,9 @@ class CouponEngine:
                     user_used = row['c'] if row else 0
             if user_used >= per_limit:
                 continue
-            # 新人专享检查
+            # 新人专享检查（读主库 order_items）
             if d.get('coupon_category') == 'new_user':
-                with self._get_db() as conn:
+                with self._get_main_db() as conn:
                     has = conn.execute(
                         'SELECT id FROM order_items WHERE user_id=? LIMIT 1', (user_id,)
                     ).fetchone()
@@ -192,9 +193,9 @@ class CouponEngine:
         if scene and cpn.get('scene') and cpn['scene'] != scene:
             return {'valid': False, 'error': '该优惠券不适用于当前场景'}
 
-        # 新人专享
+        # 新人专享（读主库）
         if cpn.get('coupon_category') == 'new_user' and user_id:
-            with self._get_db() as conn:
+            with self._get_main_db() as conn:
                 has = conn.execute(
                     'SELECT id FROM order_items WHERE user_id=? LIMIT 1', (user_id,)
                 ).fetchone()
@@ -293,9 +294,6 @@ class CouponEngine:
             disc_fen = conn.execute(
                 'SELECT COALESCE(SUM(discount_fen),0) as c FROM coupon_redemptions'
             ).fetchone()['c']
-            shop_disc = conn.execute(
-                'SELECT COALESCE(SUM(discount),0) as c FROM order_items WHERE coupon_id IS NOT NULL'
-            ).fetchone()['c']
             by_cat = conn.execute(
                 "SELECT coupon_category, COUNT(*) as c FROM coupons GROUP BY coupon_category"
             ).fetchall()
@@ -305,6 +303,13 @@ class CouponEngine:
             top = conn.execute(
                 "SELECT code, name, used_count FROM coupons ORDER BY used_count DESC LIMIT 10"
             ).fetchall()
+
+        # 读主库 order_items 折扣统计
+        with self._get_main_db() as conn:
+            shop_disc = conn.execute(
+                'SELECT COALESCE(SUM(discount),0) as c FROM order_items WHERE coupon_id IS NOT NULL'
+            ).fetchone()['c']
+
         return {
             'total_coupons': total,
             'active_coupons': active,
@@ -323,15 +328,35 @@ class CouponEngine:
                 (coupon_id,)
             ).fetchone()['c']
             rows = conn.execute(
-                '''SELECT r.*, u.nickname, u.phone FROM coupon_redemptions r
-                   LEFT JOIN users u ON u.id=r.user_id
+                '''SELECT r.* FROM coupon_redemptions r
                    WHERE r.coupon_id=? ORDER BY r.created_at DESC LIMIT ? OFFSET ?''',
                 (coupon_id, limit, offset)
             ).fetchall()
+
+        # 跨库查用户信息
+        user_ids = [r['user_id'] for r in rows if r['user_id']]
+        user_map = {}
+        if user_ids:
+            with self._get_main_db() as conn:
+                for uid in set(user_ids):
+                    u = conn.execute(
+                        'SELECT id, nickname, phone FROM users WHERE id=?', (uid,)
+                    ).fetchone()
+                    if u:
+                        user_map[uid] = dict(u)
+
+        redemptions = []
+        for r in rows:
+            d = dict(r)
+            u = user_map.get(d['user_id'], {})
+            d['nickname'] = u.get('nickname', '')
+            d['phone'] = u.get('phone', '')
+            redemptions.append(d)
+
         return {
             'total': total,
             'page': page,
-            'redemptions': [dict(r) for r in rows],
+            'redemptions': redemptions,
         }
 
     def get_user_coupons(self, user_id: int) -> List[dict]:

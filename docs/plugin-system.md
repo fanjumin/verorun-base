@@ -1,7 +1,7 @@
 # 插件系统开发指南（Plugin System API Reference）
 
-> 易站智能建站系统（easykai.cn）通用插件框架  
-> 版本：v1.0 | 更新日期：2026-06-30
+> VeroRun 维洛智能建站系统通用插件框架  
+> 版本：v1.0 | 更新日期：2026-07-07
 
 ---
 
@@ -176,6 +176,7 @@ Platform/Admin 启动
 | `get_config_value(key, default)` | 获取插件配置值 |
 | `log(message, level)` | 统一日志输出 |
 | `validate_config()` | 校验插件配置 |
+| `t(text, locale=None)` | 插件独立 i18n 翻译（与系统 `_()` 隔离） |
 
 ---
 
@@ -235,6 +236,8 @@ Platform/Admin 启动
 | `ORDER_PAID` | 订单支付完成 |
 | `ORDER_REFUNDED` | 订单退款完成 |
 | `ORDER_CANCELLED` | 订单取消 |
+| `ORDER_SHIPPED` | 订单发货 |
+| `ORDER_COMPLETED` | 订单完成 |
 | `SUB_CREATED` | 订阅创建 |
 | `SUB_RENEWED` | 订阅续费 |
 | `SUB_EXPIRED` | 订阅过期 |
@@ -299,21 +302,26 @@ registry.is_enabled('plugin_name')    # 检查是否启用
 registry.count()                       # 已加载数量
 registry.count_enabled()               # 已启用数量
 registry.list_all()                    # 列出所有插件信息
+registry.get_info('plugin_name')      # 获取插件详细信息
 
 # 管理
 registry.load('plugin_name')           # 加载插件
 registry.enable('plugin_name')         # 启用插件
 registry.disable('plugin_name')        # 禁用插件
+registry.install('plugin_name')        # 安装插件
+registry.uninstall('plugin_name')      # 卸载插件
+
+# 发现与挂载
+registry.discover()                    # 扫描插件目录，发现可用插件
+registry.mount_all(app)                # 挂载所有启用插件的 Blueprint 到 Flask app
 ```
 
 ### 5.2 统一入口函数
 
 ```python
 from plugins import (
-    load_plugins,                # 加载并挂载到 Flask app
-    load_plugin_scheduler_jobs,  # 注册定时任务到 Scheduler
-    load_plugin_health_checks,   # 注册健康检查
-    load_plugin_dag_nodes,       # 注册 DAG 节点
+    load_plugins,          # 加载并挂载到 Flask app
+    get_plugin_registry,   # 获取全局 PluginRegistry 单例
 )
 ```
 

@@ -1,7 +1,7 @@
 # VeroRon 维洛智能 — SDK 使用参考文档
 
 > 版本: v1.0  
-> 最后更新: 2026-07-01  
+> 最后更新: 2026-07-07  
 > 适用平台: Python 3.10+, JavaScript (浏览器/Node.js)
 
 ---
@@ -37,6 +37,8 @@ SDK（Software Development Kit）是为开发者提供的代码库封装，用�
   │       ├── AgentClient           ├── AI 矩阵
   │       ├── ChatClient            ├── 对话
   │       ├── ShopClient            ├── 商城
+  │       ├── AgentMatrixClient     ├── Agent Matrix 管理
+  │       ├── CouponClient          ├── 优惠券
   │       └── SubscriptionClient    └── 订阅
   │
   └── JavaScript SDK ─── REST API ─── 同上
@@ -429,7 +431,124 @@ class ShopClient:
             f"/shop/api/orders?page={page}&pageSize={page_size}")
 ```
 
-### 2.8 订阅客户端
+### 2.8 Agent Matrix 管理客户端
+
+```python
+class AgentMatrixClient:
+    """Agent Matrix 管理 API 封装（需管理员 JWT）"""
+
+    def __init__(self, client: VeroRunClient):
+        self.client = client
+
+    def list_agents(self, role=None, domain=None, active_only=True):
+        """Agent 列表"""
+        params = []
+        if role: params.append(f"role={role}")
+        if domain: params.append(f"domain={domain}")
+        if active_only: params.append("active_only=1")
+        qs = "&" + "&".join(params) if params else ""
+        return self.client._request("GET", f"/admin/agent-matrix/agents?{qs}")
+
+    def create_agent(self, data):
+        """创建 Agent"""
+        return self.client._request("POST", "/admin/agent-matrix/agents", json=data)
+
+    def get_agent(self, agent_id):
+        """Agent 详情"""
+        return self.client._request("GET", f"/admin/agent-matrix/agents/{agent_id}")
+
+    def update_agent(self, agent_id, data):
+        """更新 Agent"""
+        return self.client._request("PUT", f"/admin/agent-matrix/agents/{agent_id}", json=data)
+
+    def delete_agent(self, agent_id):
+        """删除 Agent"""
+        return self.client._request("DELETE", f"/admin/agent-matrix/agents/{agent_id}")
+
+    def toggle_agent(self, agent_id):
+        """启用/禁用 Agent"""
+        return self.client._request("POST", f"/admin/agent-matrix/agents/{agent_id}/toggle")
+
+    def test_agent(self, agent_id, message):
+        """测试 Agent"""
+        return self.client._request("POST", f"/admin/agent-matrix/agents/{agent_id}/test",
+                                     json={"message": message})
+
+    def chat(self, messages, session_id=None):
+        """向 Master Agent 发送指令"""
+        data = {"messages": messages}
+        if session_id: data["session_id"] = session_id
+        return self.client._request("POST", "/admin/agent-matrix/chat", json=data)
+
+    def chat_stream(self, messages, session_id=None):
+        """SSE 流式聊天"""
+        import json as _json
+        data = {"messages": messages}
+        if session_id: data["session_id"] = session_id
+        resp = self.client.session.post(
+            f"{self.client.base_url}/admin/agent-matrix/chat/stream",
+            json=data, stream=True
+        )
+        for line in resp.iter_lines():
+            if line:
+                line = line.decode("utf-8")
+                if line.startswith("data: "):
+                    yield _json.loads(line[6:])
+
+    def dispatch_task(self, agent_id, task_type, params):
+        """直接下发任务给 Sub Agent"""
+        return self.client._request("POST", "/admin/agent-matrix/dispatch", json={
+            "agent_id": agent_id, "task_type": task_type, "params": params
+        })
+
+    def list_tasks(self, status=None, agent_id=None):
+        """任务列表"""
+        params = []
+        if status: params.append(f"status={status}")
+        if agent_id: params.append(f"agent_id={agent_id}")
+        qs = "&" + "&".join(params) if params else ""
+        return self.client._request("GET", f"/admin/agent-matrix/tasks?{qs}")
+
+    def get_token_stats(self, period="7d", dimension="agent", agent_id=None):
+        """Token 消耗统计"""
+        p = f"period={period}&dimension={dimension}"
+        if agent_id: p += f"&agent_id={agent_id}"
+        return self.client._request("GET", f"/admin/agent-matrix/token-stats?{p}")
+
+    def generate_image(self, prompt, model=None):
+        """AI 生成图片"""
+        data = {"prompt": prompt}
+        if model: data["model"] = model
+        return self.client._request("POST", "/admin/agent-matrix/generate-image", json=data)
+```
+
+### 2.9 优惠券客户端
+
+```python
+class CouponClient:
+    """优惠券插件 API 封装"""
+
+    def __init__(self, client: VeroRunClient):
+        self.client = client
+
+    def list_coupons(self, page=1, page_size=20):
+        """优惠券列表（用户端）"""
+        return self.client._request("GET",
+            f"/plugin/coupons/coupons?page={page}&pageSize={page_size}")
+
+    def validate_coupon(self, code, cart_amount):
+        """验证优惠券"""
+        return self.client._request("POST", "/plugin/coupons/validate",
+                                     json={"code": code, "cart_amount": cart_amount})
+
+    def get_recommendations(self, cart_items=None):
+        """AI 推荐最优优惠券"""
+        data = {}
+        if cart_items: data["cart_items"] = cart_items
+        return self.client._request("POST", "/plugin/coupons/recommend", json=data)
+```
+
+### 2.10 订阅客户端
 
 ```python
 class SubscriptionClient:
@@ -1015,6 +1134,8 @@ class EasyKaiSDK:
         self.kb = KnowledgeClient(self._client)
         self.agent = AgentClient(self._client)
         self.shop = ShopClient(self._client)
+        self.matrix = AgentMatrixClient(self._client)
+        self.coupon = CouponClient(self._client)
         self.sub = SubscriptionClient(self._client)
 
     def login(self, phone=None, password=None, token=None):

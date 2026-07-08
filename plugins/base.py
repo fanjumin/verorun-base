@@ -66,6 +66,14 @@ class BasePlugin(ABC):
     depends_on: List[str] = []
     config_schema: Dict[str, Any] = {}
 
+    # ── 运行时引用（由 PluginManager 注入） ──
+    plugin_info: Any = None
+    """plugin_manager.models.PluginInfo 引用"""
+    manager: Any = None
+    """plugin_manager.PluginManager 引用"""
+    _log: Any = None
+    """独立日志器（logging.Logger），由 PluginManager 注入"""
+
     def __init__(self):
         self._config = {}
         self._i18n_data: Dict[str, Dict[str, str]] = {}
@@ -79,8 +87,17 @@ class BasePlugin(ABC):
             __import__(self.__class__.__module__).__file__), 'i18n')
 
     def _load_i18n(self):
-        """Pre-load this plugin's translation files."""
-        self._i18n_data = _load_plugin_yaml(self.name, self._get_i18n_dir())
+        """Pre-load this plugin's translation files.
+
+        Uses self.plugin_info.name (from PluginManager) as priority,
+        falls back to self.name (class attribute).
+        """
+        plugin_name = self.name
+        if self.plugin_info and hasattr(self.plugin_info, 'name') and self.plugin_info.name:
+            plugin_name = self.plugin_info.name
+        elif not plugin_name:
+            plugin_name = getattr(self.plugin_info, 'identifier', self.__class__.__module__.split('.')[0])
+        self._i18n_data = _load_plugin_yaml(plugin_name, self._get_i18n_dir())
 
     def t(self, text: str, locale: str = None) -> str:
         """Plugin i18n: translate text using own i18n/{locale}.yml.
@@ -97,7 +114,35 @@ class BasePlugin(ABC):
         translations = self._i18n_data.get(locale, {})
         return translations.get(text, text)
 
-    # ── 生命周期 ──
+    # ── 生命周期（新系统 — PluginManager 调用） ──
+
+    def setup(self):
+        """[ENABLED 阶段] 插件初始化。
+
+        调用时机: enable() 时调用，在依赖检查通过之后。
+        职责: 创建数据库表、注册钩子、初始化配置。
+        返回 False 会导致 enable 失败。
+        """
+        return True
+
+    def activate(self):
+        """[ACTIVE 阶段] 插件激活。
+
+        调用时机: activate() 时调用。
+        职责: 注册路由(Blueprint)、注册事件监听、启动后台任务。
+        路由通过 register_routes() 自动注册，此处只需启动其他运行时资源。
+        """
+        pass
+
+    def deactivate(self):
+        """[DISABLED 阶段] 插件停用。
+
+        调用时机: disable() 时调用。
+        职责: 移除路由引用、取消事件监听、停止后台任务。
+        """
+        pass
+
+    # ── 生命周期（旧系统兼容 — 被 plugins.registry.PluginRegistry 调用） ──
 
     def on_install(self, registry) -> bool:
         """Called when plugin is first installed. Override to init DB tables etc."""
@@ -143,9 +188,28 @@ class BasePlugin(ABC):
         """Get a plugin config value from plugin.json 'config' section."""
         return self._config.get(key, default)
 
+    def set_config_value(self, key: str, value: Any) -> bool:
+        """Set a plugin config value and persist to database.
+
+        需要 manager 引用（由 PluginManager enable 时注入）。
+        """
+        if self.manager and self.plugin_info:
+            return self.manager.set_config(self.plugin_info.identifier, key, value)
+        # 降级：仅设置内存值
+        self._config[key] = value
+        return True
+
     def log(self, message: str, level: str = 'info'):
-        """Log a message with plugin name prefix."""
-        print(f'[{self.name}/{level}] {message}')
+        """Log a message with plugin name prefix.
+
+        如果已有注入的独立日志器（_log），使用文件日志；
+        否则回退到 print。
+        """
+        if self._log is not None:
+            level_fn = getattr(self._log, level.lower(), self._log.info)
+            level_fn(message)
+        else:
+            print(f'[{self.name}/{level}] {message}')
 
     def validate_config(self) -> List[str]:
         """Validate _config against config_schema. Return list of errors."""

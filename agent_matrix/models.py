@@ -281,9 +281,9 @@ DEFAULT_AGENTS = [
     },
     {
         "name": "CMS Agent", "role_type": "sub",
-        "description": "内容管理专家 — CMS文章、评论审核、内容工厂",
+        "description": "内容管理专家 — CMS文章、评论审核、内容工厂、图像生成",
         "domain": "cms",
-        "managed_modules": '["cms","comments","contentfactory"]',
+        "managed_modules": '["cms","comments","contentfactory","image","cover"]',
         "system_prompt": "prompts/sub_cms_prompt.md",
         "is_active": 1
     },
@@ -320,47 +320,12 @@ DEFAULT_AGENTS = [
         "is_active": 1
     },
     {
-        "name": "Ticket Agent", "role_type": "sub",
-        "description": "客服专家 — 工单处理、AI客服",
-        "domain": "support",
-        "managed_modules": '["contacts"]',
-        "system_prompt": "prompts/sub_ticket_prompt.md",
-        "is_active": 1
-    },
-    {
         "name": "Kai Assistant", "role_type": "sub",
         "description": "智能客服机器人 — 全站FAQ问答、人工转接、工单创建、飞书通知",
         "domain": "chatbot",
         "managed_modules": '["chatbot","contacts"]',
         "provider": "deepseek", "model_name": "deepseek-chat",
         "system_prompt": "prompts/sub_chatbot_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Voice Agent", "role_type": "sub",
-        "description": "语音合成专家 — 声音克隆、TTS 文字转语音",
-        "domain": "voice",
-        "managed_modules": '["voice","tts"]',
-        "provider": "volcengine", "model_name": "volc-voice-clone-v2",
-        "system_prompt": "prompts/sub_voice_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Video Agent", "role_type": "sub",
-        "description": "数字人视频专家 — 照片驱动口播视频、抖音发布",
-        "domain": "video",
-        "managed_modules": '["video","avatar"]',
-        "provider": "volcengine", "model_name": "volc-avatar-v3",
-        "system_prompt": "prompts/sub_video_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Image Agent", "role_type": "sub",
-        "description": "图像生成专家 — AI 配图、封面图、社媒素材",
-        "domain": "image",
-        "managed_modules": '["image","cover"]',
-        "provider": "dashscope", "model_name": "wan2.7-image",
-        "system_prompt": "prompts/sub_image_prompt.md",
         "is_active": 1
     },
     {

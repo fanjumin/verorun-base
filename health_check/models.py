@@ -187,6 +187,9 @@ def init_health_tables():
         """)
         print(f'[HealthCheck] ✅ Database tables initialized')
 
+    # Idempotent migration: add missing columns from schema updates
+    migrate_alert_schema()
+
 
 def migrate_alert_schema():
     """Idempotent migration: add new alert columns to existing tables if missing."""

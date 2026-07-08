@@ -232,6 +232,13 @@ def sms_register():
             (user_id, token_hash, device_name, device_type, ip_address, user_agent))
         conn.commit()
 
+    # ── 钩子: 用户注册完成 ──
+    try:
+        from plugin_manager.injectors import fire_hook
+        fire_hook('user/registered', user_id=user_id, username=username, phone=phone)
+    except Exception:
+        pass
+
     return api_ok({
         'token': token,
         'user': {

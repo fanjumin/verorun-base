@@ -1,7 +1,27 @@
 {
-  "version": "1.0.0",
-  "description": "收藏/心愿单 — 用户收藏商品、管理心愿清单",
-  "author": "VeroRun",
-  "enabled": true,
-  "depends_on": []
+    "name": "收藏/心愿单",
+    "identifier": "wishlist",
+    "version": "1.0.0",
+    "description": "收藏/心愿单 — 用户收藏商品、管理心愿清单",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "shop.product.read",
+        "user.read"
+    ],
+    "hooks": {
+        "provides": [
+            "wishlist/sync"
+        ],
+        "listens": [
+            "product/price_change"
+        ]
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
 }

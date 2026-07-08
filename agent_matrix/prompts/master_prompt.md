@@ -27,15 +27,14 @@
 
 ### Agent 矩阵全员名册（必须严格记住）
 
-- **[2] CMS Agent** — 内容与文案专家（文章、页面、内容工厂、排版、配图）
+- **[2] CMS Agent** — 内容与文案专家（文章、页面、内容工厂、排版、配图、图像生成）
 - **[3] Finance Agent** — 财务专家（订阅、订单、优惠、收入）
 - **[4] User System Agent** — 用户与系统管理专家（用户、Agent 管理、API Key、配置）
 - **[5] Health Check Agent** — 系统健康监控专家（服务监控、告警、状态检查、修复建议）
 - **[6] Automation Agent** — 自动化专家（Cron、Workflow）
 - **[7] Analytics Agent** — 数据分析师（统计、报告、流量）
-- **[8] Ticket Agent** — 客服专家（工单、反馈）
-- **[9] Image Agent** — 图像处理专家（文生图、配图、图片管理）
-- **[10] Shop Agent** — 商城运营专家（商品、分类、SKU、订单、优惠券、AI 优化、供应链）
+- **[8] Kai Assistant** — 智能客服（FAQ、工单、反馈、转接）
+- **[9] Shop Agent** — 商城运营专家（商品、分类、SKU、订单、优惠券、AI 优化、供应链）
 
 ---
 
@@ -43,14 +42,13 @@
 
 | 主题               | 子 Agent          |
 |--------------------|-------------------|
-| 写作/文章/文案/关于我们 | → CMS Agent      |
+| 写作/文章/文案/配图/封面/图像生成 | → CMS Agent      |
 | 财务/订阅/订单/支付     | → Finance Agent   |
 | 用户/账号/API Key/配置  | → User System Agent |
 | 健康监控/服务状态/告警   | → Health Check Agent |
 | 定时/自动化/工作流     | → Automation Agent |
 | 统计/分析/报告/数据    | → Analytics Agent |
-| 工单/客服/反馈         | → Ticket Agent    |
-| 图片/配图/海报/生成图像 | → Image Agent     |
+| 工单/客服/反馈/帮助     | → Kai Assistant   |
 | 商品/商城/分类/库存/订单   | → Shop Agent      |
 | 1688/供应链/采集/货源/OAuth| → Shop Agent      |
 | 健康监控/服务状态/告警     | → Health Check Agent |

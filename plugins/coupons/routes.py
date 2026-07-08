@@ -21,11 +21,13 @@ coupon_bp = Blueprint('coupons', __name__)
 _engine: CouponEngine = None
 _recommender: AICouponRecommender = None
 _get_db = None
+_get_main_db = None
 
 
-def init_routes(get_db, engine: CouponEngine, recommender: AICouponRecommender):
-    global _get_db, _engine, _recommender
+def init_routes(get_db, get_main_db, engine: CouponEngine, recommender: AICouponRecommender):
+    global _get_db, _get_main_db, _engine, _recommender
     _get_db = get_db
+    _get_main_db = get_main_db
     _engine = engine
     _recommender = recommender
 
@@ -75,7 +77,7 @@ def _require_admin():
 def _check_rate_limit(uid, action, max_requests=30, window=60):
     """简易限流。"""
     try:
-        with _get_db() as conn:
+        with _get_main_db() as conn:
             row = conn.execute(
                 '''SELECT COUNT(*) as c FROM api_logs
                    WHERE user_id=? AND action=? AND created_at > datetime('now', ?)''',
@@ -175,7 +177,7 @@ def admin_distribute():
     if not user_ids and not all_users:
         return jsonify({'success': False, 'error': '请指定用户'}), 400
     if all_users:
-        with _get_db() as conn:
+        with _get_main_db() as conn:
             rows = conn.execute('SELECT id FROM users WHERE active=1').fetchall()
             user_ids = [r['id'] for r in rows]
     count = _engine.distribute(coupon_id, user_ids)

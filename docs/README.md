@@ -58,7 +58,7 @@
 
 | # | 文档 | 说明 |
 |---|------|------|
-| 11 | [Agent Matrix — AI矩阵编排](agent-matrix.md) | 1 Master + 12 Sub Agent，5 家 AI 供应商，83 个 API 端点 |
+| 11 | [Agent Matrix — AI矩阵编排](agent-matrix.md) | 1 Master + 8 Sub Agent，5 家 AI 供应商，83 个 API 端点 |
 | 12 | [Workflow — 工作流引擎](workflow.md) | Cron 调度 + DAG 工作流，13 种节点类型，Safe Eval 沙箱 |
 
 ### 🎨 主题与站点

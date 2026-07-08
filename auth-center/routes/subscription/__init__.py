@@ -584,6 +584,16 @@ def _fulfill_order(order_no, payment_method=None, channel_order_id=None, notify_
         print(f'[Invoice] auto-generate skipped: {e}')
 
     _audit_log(uid, f'{item_type}_paid', f'{plan_key}/{period} ¥{order["amount_fen"]/100:.2f}')
+
+    # ── 钩子: 订单支付成功 ──
+    try:
+        from plugin_manager.injectors import fire_hook
+        fire_hook('order/paid', order_no=order_no, user_id=uid,
+                   plan_key=plan_key, period=period,
+                   amount_fen=order['amount_fen'])
+    except Exception:
+        pass
+
     return True
 
 
@@ -628,6 +638,15 @@ def cancel_subscription():
             logging.warning(f"[Subscription] Failed to unsign WeChat contract: {e}")
 
     _audit_log(uid, 'canceled', f'取消原因: {reason}')
+
+    # ── 钩子: 订阅取消 ──
+    try:
+        from plugin_manager.injectors import fire_hook
+        fire_hook('sub/cancelled', user_id=uid, plan_key=plan_key,
+                   reason=reason)
+    except Exception:
+        pass
+
     return api_res({'status': 'canceled', 'message': '已取消，当前权益至周期结束有效'})
 
 @sub_bp.route('/reactivate', methods=['POST'])

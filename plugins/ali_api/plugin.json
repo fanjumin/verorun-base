@@ -1,11 +1,31 @@
 {
-    "name": "ali_api",
+    "name": "1688 供应链采集",
+    "identifier": "ali_api",
     "version": "0.2.1",
     "description": "1688 供应链采集插件 — 商品搜索、AI 优化、本地商城发布",
     "author": "VeroRun",
-    "depends_on": [],
+    "min_app_version": "0.10.0",
+    "depends_on": {},
     "enabled": true,
     "config": {
         "api_gateway": "https://gw.open.1688.com/openapi"
+    },
+    "permissions": [
+        "network.request",
+        "shop.product.write"
+    ],
+    "hooks": {
+        "provides": [],
+        "listens": []
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "api_gateway": {
+                "title": "API 网关地址",
+                "type": "string",
+                "description": "1688 Open API 网关地址"
+            }
+        }
     }
 }

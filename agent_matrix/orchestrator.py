@@ -48,19 +48,19 @@ class AgentOrchestrator:
         # 注入模式指令
         mode_prefixes = {
             'deep': '【深度思考模式】请进行深入、全面、细致的分析，尽可能给出最详尽的回答。',
-            'image': '【图像处理模式】请优先将任务委派给图像处理Agent（image域）处理，如图片生成、编辑、优化等图像相关操作。',
+            'image': '【图像处理模式】请优先将任务委派给内容管理Agent（CMS域），由负责图像生成，包括文生图、图生图、配图等操作。',
         }
         if mode in mode_prefixes:
             instruction = mode_prefixes[mode] + '\n\n' + instruction
 
-        # 图像模式：直接搜索图像Agent并派发
+        # 图像模式：派发给 CMS Agent（含图像能力）
         if mode == 'image':
-            image_agents = [a for a in self.models.list_agents(role_type='sub', active_only=True)
-                           if a.get('domain') == 'image']
-            if image_agents:
-                img_agent = image_agents[0]
-                instruction = (f'请将以下任务委派给图像处理Agent（ID={img_agent["id"]}, '
-                               f'名称={img_agent["name"]}），由其直接处理：\n\n{instruction}')
+            cms_agents = [a for a in self.models.list_agents(role_type='sub', active_only=True)
+                          if a.get('domain') == 'cms']
+            if cms_agents:
+                cms_agent = cms_agents[0]
+                instruction = (f'请将以下任务委派给内容管理Agent（ID={cms_agent["id"]}, '
+                               f'名称={cms_agent["name"]}），由其执行图像相关操作：\n\n{instruction}')
 
         # 1. 创建 Master 任务
         master_task_id = self.models.create_task({
@@ -242,6 +242,10 @@ class AgentOrchestrator:
             logger.info("Master Agent 未分解出子任务，使用模板分解作为 fallback")
             return self._template_decompose(instruction, sub_agents)
 
+        # 图像关键词集合（与 _template_decompose 同步）
+        _ai_image_kw = {'图片', '图像', '配图', '封面', '海报', '生成图片', '文生图',
+                        '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'}
+
         # 将 Agent 名称映射为 ID
         agent_map = {a['name']: a for a in sub_agents}
         result = []
@@ -249,12 +253,14 @@ class AgentOrchestrator:
             agent_name = t.get('target_agent_name', '')
             if agent_name and agent_name in agent_map:
                 agent = agent_map[agent_name]
+                title_desc = (t.get('title', '') + ' ' + t.get('description', '')).lower()
+                target_module = 'image' if any(kw in title_desc for kw in _ai_image_kw) else agent.get('domain', '')
                 result.append({
                     'title': t.get('title', ''),
                     'description': t.get('description', ''),
                     'target_agent_id': agent['id'],
                     'target_agent_name': agent['name'],
-                    'target_module': agent.get('domain', ''),
+                    'target_module': target_module,
                     'task_type': t.get('task_type', 'execute'),
                     'priority': t.get('priority', 5),
                     'input_data': t.get('input_data', {}),
@@ -272,15 +278,15 @@ class AgentOrchestrator:
 
         agent_keywords = {
             'CMS Agent': ['cms', '文章', '发布', '内容', '排版', '配图', '博客', '栏目',
-                          '文案', '关于我们', '关于', '介绍页', '帮助', '页面', '写作', '撰写', '生成', 'about'],
+                          '文案', '关于我们', '关于', '介绍页', '帮助', '页面', '写作', '撰写', '生成', 'about',
+                          '图片', '图像', '封面', '海报', '生成图片', '文生图',
+                          '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'],
             'Finance Agent': ['套餐', '订阅', '订单', '优惠券', '收入', '支付', '扣款', '财务', '付费'],
             'User System Agent': ['用户', 'agent管理', 'api key', '系统设置', '日志', '管理员', '账号'],
             'Health Check Agent': ['健康', '检查', '监控', '告警', '状态', '服务', '运行', '服务器', '系统状态', 'health', 'uptime', '服务器状态'],
             'Automation Agent': ['自动', 'cron', '调度', '定时', '工作流', 'workflow', 'dag'],
             'Analytics Agent': ['统计', '分析', '报告', 'pv', 'uv', '流量', '数据', '趋势'],
-            'Ticket Agent': ['工单', '客服', '联系', '反馈', '投诉', '问题'],
-            'Image Agent': ['图片', '图像', '配图', '封面', '海报', '生成图片', '文生图',
-                           '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'],
+            'Kai Assistant': ['工单', '客服', '联系', '反馈', '投诉', '问题', '帮助', '求助'],
             'Shop Agent': ['商品', '商城', '上架', '下架', '分类', '品类', '类目',
                           '库存', '价格', 'SKU', '规格', '订单', '退款', '优惠券',
                           '1688', '阿里巴巴', '采集', '供应链', '货源',
@@ -293,6 +299,10 @@ class AgentOrchestrator:
                           '对象存储', 'CDN', '云数据库', 'SSL证书', '域名'],
         }
 
+        # 图像关键词集合：匹配时标记 target_module=image 以触发图像执行分支
+        _image_kw = {'图片', '图像', '配图', '封面', '海报', '生成图片', '文生图',
+                     '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'}
+
         agent_map = {a['name']: a for a in sub_agents}
         found_agents = set()
 
@@ -303,12 +313,13 @@ class AgentOrchestrator:
                 if kw in instruction_lower:
                     if agent_name not in found_agents:
                         a = agent_map[agent_name]
+                        target_module = 'image' if kw in _image_kw else a.get('domain', '')
                         matched.append({
                             'title': f'{a["description"].split("—")[0] if "—" in a["description"] else a["name"]} — 指令相关操作',
                             'description': instruction[:200],
                             'target_agent_id': a['id'],
                             'target_agent_name': a['name'],
-                            'target_module': a.get('domain', ''),
+                            'target_module': target_module,
                             'task_type': 'execute',
                             'priority': 5,
                             'input_data': {'raw_instruction': instruction},
@@ -377,8 +388,8 @@ class AgentOrchestrator:
             })
             self.models.update_task_status(sub_task_id, 'running')
 
-            agent_domain = agent_config.get('domain', '')
-            if agent_domain == 'image':
+            target_module = task_def.get('target_module', '')
+            if target_module == 'image':
                 exec_result = self._execute_image_agent(
                     task_def, agent_config, sub_task_id, target_id,
                     session_id, original_instruction

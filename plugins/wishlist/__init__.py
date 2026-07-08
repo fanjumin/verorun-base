@@ -4,7 +4,7 @@ import logging
 from typing import List
 
 from plugins.base import BasePlugin
-from models import get_db
+from .models import get_db, get_main_db, init_db
 
 logger = logging.getLogger(__name__)
 
@@ -15,19 +15,8 @@ class WishlistPlugin(BasePlugin):
     description = '收藏/心愿单 — 用户收藏商品、管理心愿清单'
 
     def on_install(self, registry) -> bool:
-        """安装时创建表"""
-        with get_db() as conn:
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS wishlist (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id     INTEGER NOT NULL,
-                    product_id  INTEGER NOT NULL,
-                    created_at  TEXT DEFAULT (datetime('now','localtime')),
-                    UNIQUE(user_id, product_id)
-                )
-            ''')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_wishlist_user ON wishlist(user_id)')
-            conn.commit()
+        """安装时创建插件表"""
+        init_db()
         return True
 
     def register_routes(self) -> List:
@@ -53,18 +42,36 @@ class WishlistPlugin(BasePlugin):
                     'SELECT COUNT(*) FROM wishlist WHERE user_id=?', (uid,)
                 ).fetchone()[0]
                 rows = conn.execute(
-                    '''SELECT w.*, p.title, p.price, p.original_price, p.thumbnail,
-                              p.stock, p.is_active, p.sales_count
-                       FROM wishlist w
-                       JOIN products p ON w.product_id=p.id
-                       WHERE w.user_id=?
-                       ORDER BY w.created_at DESC LIMIT ? OFFSET ?''',
+                    '''SELECT * FROM wishlist WHERE user_id=?
+                       ORDER BY created_at DESC LIMIT ? OFFSET ?''',
                     (uid, size, offset)
                 ).fetchall()
+
+            # 跨库查商品信息
+            product_ids = [r['product_id'] for r in rows if r['product_id']]
+            product_map = {}
+            if product_ids:
+                with get_main_db() as main:
+                    for pid in set(product_ids):
+                        p = main.execute(
+                            '''SELECT id, title, price, original_price, thumbnail,
+                                      stock, is_active, sales_count FROM products WHERE id=?''',
+                            (pid,)
+                        ).fetchone()
+                        if p:
+                            product_map[pid] = dict(p)
 
             items = []
             for r in rows:
                 d = dict(r)
+                p = product_map.get(d['product_id'], {})
+                d['title'] = p.get('title', '')
+                d['price'] = p.get('price', 0)
+                d['original_price'] = p.get('original_price', 0)
+                d['thumbnail'] = p.get('thumbnail', '')
+                d['stock'] = p.get('stock', 0)
+                d['is_active'] = p.get('is_active', 0)
+                d['sales_count'] = p.get('sales_count', 0)
                 items.append(d)
 
             return jsonify({

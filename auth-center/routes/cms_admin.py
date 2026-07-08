@@ -195,6 +195,14 @@ def publish_post(post_id):
         )
         results['social'].append(result)
 
+    # ── 钩子: 内容发布 ──
+    try:
+        from plugin_manager.injectors import fire_hook
+        fire_hook('cms/published', post_id=post_id,
+                   channels=channels, admin_id=a['user_id'])
+    except Exception:
+        pass
+
     return _ok({'channels': channels, 'results': results})
 
 
