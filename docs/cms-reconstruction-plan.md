@@ -1,6 +1,6 @@
 # CMS 模块重构方案与执行计划
 
-> 版本：v1.1 | 日期：2026-07-08 | 状态：已执行完成（Phase 1/2/3）
+> 版本：v1.2 | 日期：2026-07-08 | 状态：已执行完成（Phase 1/2/3）| 验证：静态检测全部通过
 
 ---
 
@@ -439,6 +439,28 @@ if source.auto_crawl:
 | `orchestrator/nodes.py` | 节点处理器 registry，不变 |
 | `auth-center/services/ai_content_generator.py` | AI 服务，不变 |
 | `auth-center/services/content_factory/ai_processor.py` | AI 加工引擎，不变 |
+
+---
+
+## 十二、补充事项
+
+### 12.1 图标补全（2026-07-08）
+
+静态检测发现 `admin/templates/partials/icons.html` 的 `I` 对象缺少 6 个被菜单引用的图标定义，会触发前端 `I.xxx is not a function` 错误。本次同步补全：
+
+| 图标键 | 用途 | SVG 含义 |
+|--------|------|---------|
+| `admins` | 用户组/管理员列表 | 用户组 + 头像徽章 |
+| `ai_chat` | AI 对话终端 | 终端框 + AI 节点 |
+| `channels` | IM 渠道/网关 | 对话气泡 |
+| `email` | 邮件营销 | 信封 |
+| `logs` | 审计日志 | 文档列表 |
+| `tickets` | 工单系统 | 票据 + 销孔 |
+
+**变更文件**：
+- `admin/templates/partials/icons.html` — 在 `posts` 定义后追加 6 行 `S('...')`
+
+**风险**：纯 SVG 字符串追加，无任何逻辑依赖。所有 SVG 已通过 `viewBox`/`stroke` 兼容性检查（与既有图标风格一致）。
 
 ---
 
