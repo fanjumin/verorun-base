@@ -1234,19 +1234,22 @@ def _get_allowed_domains():
     # 从 DB 读取额外白名单
     try:
         from ..models import get_db
+        row = None
         with get_db() as conn:
-            # ① 优先 ali_api_config
+            # ① 优先 ali_api_config（插件独立库）
             row = conn.execute(
                 "SELECT value FROM ali_api_config WHERE key='alibaba_redirect_domains'"
             ).fetchone()
-            # ② 回退 system_config
-            if not row or not row['value']:
-                row = conn.execute(
+        # ② 回退 system_config（主库只读）
+        if not row or not row['value']:
+            from ..models import get_main_db
+            with get_main_db() as mconn:
+                row = mconn.execute(
                     "SELECT value FROM system_config WHERE key='alibaba_redirect_domains'"
                 ).fetchone()
-            if row and row['value']:
-                extras = [d.strip() for d in row['value'].split(',') if d.strip()]
-                domains.extend(extras)
+        if row and row['value']:
+            extras = [d.strip() for d in row['value'].split(',') if d.strip()]
+            domains.extend(extras)
     except Exception:
         pass
     return list(set(domains))

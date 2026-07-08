@@ -14,33 +14,40 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from contextlib import contextmanager
 
-# 导入主项目数据库配置
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
-try:
-    from models import get_db as get_main_db
-    USE_MAIN_DB = True
-except ImportError:
-    USE_MAIN_DB = False
+
+# 插件独立数据库路径（本插件所有 ali_api_* 表均存于此，卸载时随 .db 删除，零残留）
+ALI_DB_PATH = os.environ.get(
+    "ALIBABA_DB_PATH", os.path.join(os.path.dirname(__file__), "ali_api.db")
+)
+
 
 @contextmanager
 def get_db():
-    """获取数据库连接"""
-    if USE_MAIN_DB:
-        with get_main_db() as conn:
-            yield conn
-    else:
-        # 独立数据库连接（开发测试用）
-        db_path = os.environ.get("ALIBABA_DB_PATH", os.path.join(os.path.dirname(__file__), "ali_api.db"))
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        try:
-            yield conn
-        finally:
-            conn.close()
+    """连接插件自有数据库 ali_api.db（写入 ali_api_* 表）。"""
+    conn = sqlite3.connect(ALI_DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@contextmanager
+def get_main_db():
+    """只读连接主库（用于查询 users/products/api_keys/system_config 等主表）。
+
+    脱离主项目单独运行时（无法 import models）抛出 ImportError，由调用方兜底。
+    """
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+    from models import get_db as _main_get_db
+    with _main_get_db() as conn:
+        yield conn
 
 # ===== 数据模型类 =====
 
@@ -447,8 +454,8 @@ class AliApiLog:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER REFERENCES users(id),
-                api_key_id INTEGER REFERENCES api_keys(id),
+                user_id INTEGER,
+                api_key_id INTEGER,
                 endpoint TEXT NOT NULL,
                 params TEXT DEFAULT '{}',
                 response_code INTEGER,
@@ -531,7 +538,7 @@ class AliApiUserStats:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_user_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER UNIQUE REFERENCES users(id),
+                user_id INTEGER UNIQUE,
                 calls_today INTEGER DEFAULT 0,
                 calls_total INTEGER DEFAULT 0,
                 last_reset_date TEXT,
@@ -782,8 +789,9 @@ class AliApiConfig:
 
     @staticmethod
     def migrate_from_system_config(conn) -> bool:
-        """从旧 system_config 迁移 alibaba_* 配置到 ali_api_config
+        """从旧 system_config（主库）迁移 alibaba_* 配置到 ali_api_config（独立库）
 
+        读取走主库只读连接 get_main_db()，写入走传入的独立库 conn。
         幂等：已迁移过的不会重复迁移（检查 _migrated 标记）。
         返回 True 表示发生了迁移，False 表示无需迁移。
         """
@@ -794,27 +802,30 @@ class AliApiConfig:
         if already:
             return False
 
-        # 检查 system_config 表是否存在
-        table_check = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='system_config'"
-        ).fetchone()
-        if not table_check:
-            return False
+        # 从主库读取 alibaba_* 配置（主库不可用/无表则视为无需迁移）
+        rows_map = {}
+        try:
+            from .models import get_main_db
+            with get_main_db() as main_conn:
+                table_check = main_conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='system_config'"
+                ).fetchone()
+                if table_check:
+                    for key in AliApiConfig.SYSTEM_CONFIG_KEYS:
+                        row = main_conn.execute(
+                            'SELECT value, description FROM system_config WHERE key = ?', (key,)
+                        ).fetchone()
+                        if row and row['value']:
+                            rows_map[key] = (row['value'], row['description'] or '')
+        except Exception:
+            rows_map = {}
 
-        # 逐条迁移
+        # 写入独立库
         migrated = 0
-        for key in AliApiConfig.SYSTEM_CONFIG_KEYS:
-            row = conn.execute(
-                'SELECT value, description FROM system_config WHERE key = ?', (key,)
-            ).fetchone()
-            if row and row['value']:
-                is_encrypted = 1 if key in ('alibaba_app_secret',) else 0
-                AliApiConfig.set(
-                    conn, key, row['value'],
-                    description=row['description'] or '',
-                    encrypted=is_encrypted,
-                )
-                migrated += 1
+        for key, (val, desc) in rows_map.items():
+            is_encrypted = 1 if key in ('alibaba_app_secret',) else 0
+            AliApiConfig.set(conn, key, val, description=desc, encrypted=is_encrypted)
+            migrated += 1
 
         # 打迁移标记
         AliApiConfig.set(conn, '_migrated_from_system_config',
@@ -828,8 +839,59 @@ class AliApiConfig:
 
 # ===== 数据库初始化 =====
 
+# 本插件全部数据表（用于遗留数据迁移）
+ALI_TABLES = [
+    'ali_api_items', 'ali_api_reviews', 'ali_api_logs', 'ali_api_user_stats',
+    'ali_api_tokens', 'ali_oauth_states', 'ali_api_config',
+]
+
+
+def migrate_data_from_main_db():
+    """一次性把主库中遗留的 ali_api_* 表数据复制到独立库 ali_api.db。
+
+    - 幂等：独立库中某表已有数据则跳过该表。
+    - 非破坏：只读主库、只写独立库，绝不删除或修改主库任何数据。
+    - 脱离主项目运行（无法 import 主库）时静默跳过。
+    """
+    try:
+        with get_main_db() as main_conn:
+            with get_db() as local_conn:
+                for t in ALI_TABLES:
+                    # 主库该表存在才迁移
+                    if not main_conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)
+                    ).fetchone():
+                        continue
+                    # 独立库已有数据 → 跳过（幂等）
+                    local_cnt = local_conn.execute(f"SELECT COUNT(*) AS c FROM {t}").fetchone()['c']
+                    if local_cnt > 0:
+                        continue
+                    src_rows = main_conn.execute(f"SELECT * FROM {t}").fetchall()
+                    if not src_rows:
+                        continue
+                    # 只复制两库都存在的列，避免结构差异导致失败
+                    local_cols = [r[1] for r in local_conn.execute(f"PRAGMA table_info({t})").fetchall()]
+                    main_cols = [r[1] for r in main_conn.execute(f"PRAGMA table_info({t})").fetchall()]
+                    cols = [c for c in main_cols if c in local_cols]
+                    if not cols:
+                        continue
+                    collist = ','.join(cols)
+                    placeholders = ','.join('?' for _ in cols)
+                    for row in src_rows:
+                        local_conn.execute(
+                            f"INSERT OR IGNORE INTO {t} ({collist}) VALUES ({placeholders})",
+                            [row[c] for c in cols],
+                        )
+                    print(f"[AliApi] 迁移遗留数据 {t}: {len(src_rows)} 行 → ali_api.db")
+                local_conn.commit()
+    except ImportError:
+        pass  # 脱离主项目，无需迁移
+    except Exception as e:
+        print(f"[AliApi] 遗留数据迁移跳过/失败（不影响运行）: {e}")
+
+
 def init_tables():
-    """初始化所有表"""
+    """初始化独立库所有表，并迁移遗留数据与配置"""
     with get_db() as conn:
         AliApiItem.create_table(conn)
         AliApiItem.migrate_b2b_fields(conn)  # 幂等迁移 B2B 字段
@@ -840,7 +902,15 @@ def init_tables():
         OAuthState.create_table(conn)
         AliApiConfig.create_table(conn)
         conn.commit()
-        print("[AliApi] 数据表初始化完成（含 B2B 字段 + 评论表）")
+    # 复制主库遗留的 ali_api_* 数据（幂等、非破坏）
+    migrate_data_from_main_db()
+    # 迁移旧 system_config 配置到独立库
+    with get_db() as conn:
+        try:
+            AliApiConfig.migrate_from_system_config(conn)
+        except Exception as e:
+            print(f"[AliApi] 配置迁移跳过: {e}")
+    print("[AliApi] 数据表初始化完成（独立库 ali_api.db）")
 
 if __name__ == "__main__":
     # 测试数据库初始化

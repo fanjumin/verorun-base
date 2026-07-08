@@ -39,6 +39,10 @@ REMOTE_ROOT = '/home/easykai/easykai-workspace/easykai.cn/'
 EXCLUDE_DIRS = {
     '.git', '__pycache__', 'tmp', 'node_modules', '.env',
     'VeroRun', '__MACOSX', '.idea', '.vscode', 'venv',
+    'data',           # database files — never overwrite remote DB
+    '.trae',          # Trae IDE artifacts / temporary scripts
+    'backups',         # local backup copies of remote DB
+    '.kilo',           # git worktree artifacts
 }
 
 # File patterns to skip (exact filenames or extension checks)
@@ -46,10 +50,10 @@ EXCLUDE_FILES = {
     '.DS_Store', 'Thumbs.db',
 }
 
-EXCLUDE_EXTENSIONS = {'.pyc', '.pyo'}
+EXCLUDE_EXTENSIONS = {'.pyc', '.pyo', '.db', '.wal', '.shm'}
 
-# Remote command to restart services
-RESTART_CMD = 'supervisorctl restart all'
+# Remote command to restart services (systemd on this server)
+RESTART_CMD = 'sudo systemctl restart admin auth-center captcha platform health health-guardian'
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -182,8 +186,9 @@ def do_sync(sftp, files, dry_run: bool = False):
 
 def do_restart(ssh):
     """SSH in to restart services."""
-    print('  Restarting services via supervisorctl...')
-    stdin, stdout, stderr = ssh.exec_command(RESTART_CMD)
+    print('  Restarting services via systemd...')
+    # sudo requires -S for non-interactive SSH
+    stdin, stdout, stderr = ssh.exec_command(f'echo {PASS} | sudo -S {RESTART_CMD}')
     exit_code = stdout.channel.recv_exit_status()
     out = stdout.read().decode().strip()
     err = stderr.read().decode().strip()

@@ -26,7 +26,7 @@ def _get_alibaba_config_from_db() -> Dict[str, str]:
     try:
         from .models import get_db
         with get_db() as conn:
-            # ① 优先从 ali_api_config 读取
+            # ① 优先从 ali_api_config 读取（插件独立库）
             placeholders = ','.join('?' for _ in required_keys)
             rows = conn.execute(
                 f"SELECT key, value FROM ali_api_config WHERE key IN ({placeholders})",
@@ -35,8 +35,11 @@ def _get_alibaba_config_from_db() -> Dict[str, str]:
             if rows:
                 return {r['key']: r['value'].strip() for r in rows}
 
-            # ② 回退：从旧 system_config 读取
-            rows = conn.execute(
+        # ② 回退：从旧 system_config（主库）只读
+        from .models import get_main_db
+        with get_main_db() as mconn:
+            placeholders = ','.join('?' for _ in required_keys)
+            rows = mconn.execute(
                 f"SELECT key, value FROM system_config WHERE key IN ({placeholders})",
                 required_keys
             ).fetchall()
