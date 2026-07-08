@@ -1,7 +1,12 @@
 """Behavioral trajectory analysis + risk scoring"""
 import math
-from typing import List, Optional
-from models.schemas import TracePoint
+from typing import List, Optional, NamedTuple
+
+# Simple named tuple to replace Pydantic TracePoint
+class TracePoint(NamedTuple):
+    t: int
+    x: int
+    y: int
 
 
 def analyze_trajectory(trace: List[TracePoint], expected_distance: int) -> dict:
