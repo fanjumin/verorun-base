@@ -1,5 +1,5 @@
 window.l_cms=function(){
-  document.getElementById("pt").textContent="{{ _('Omni-Media Creation') }}";
+  document.getElementById("pt").textContent="{{ _('Create Article') }}";
   document.getElementById("mc").innerHTML='<div id="cmsContent"></div>';
   cmsTabArticle();
 };
@@ -14,7 +14,6 @@ function cmsTabArticle(){
   h+='<span style="flex:1"></span>';
   h+='<button class="btn bp" onclick="cmsNewPost()">+ {{ _('New Article') }}</button>';
   h+='<button class="btn bo" onclick="cmsManageCategories()">{{ _('Column Management') }}</button>';
-  h+='<button class="btn bo" onclick="cmsGenerateAllStatic()">🗂 {{ _('Generate Full Site Static Pages') }}</button>';
   h+='</div>';
   h+='<div id="cmsPostForm" style="display:none;margin-bottom:14px" class="cd">';
   h+='<div class="st" id="cmsFormTitle">{{ _('New Article') }}</div>';
@@ -49,96 +48,7 @@ function cmsTabArticle(){
   cmsFilterPosts('all');
 }
 
-// ── Tab 1: AI {{ _('Chat') }}（{{ _('Original Command Console') }}）──
-function cmsTabChat(){
-  var h='<div class="cd" style="margin-bottom:12px;border-color:rgba(0,212,170,.3)">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center">';
-  h+='<div class="st" style="border:none;margin:0;padding:0">🤖 主 Agent: Athena <span class="bdg on">{{ _('Running') }}</span></div>';
-  h+='<button class="btn bo bs" onclick="cmsTabChat()">🔄 {{ _('Refresh') }}</button>';
-  h+='</div></div>';
-  h+='<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">';
-  h+='<button class="btn bo bs" id="aiBtnFast" style="font-size:11px;padding:3px 10px;border-color:var(--accent);background:rgba(0,245,255,0.1)" onclick="aiSetMode(\'fast\')">⚡ {{ _('Fast') }}</button>';
-  h+='<button class="btn bo bs" id="aiBtnDeep" style="font-size:11px;padding:3px 10px" onclick="aiSetMode(\'deep\')">🧠 {{ _('Deep Thinking') }}</button>';
-  h+='<button class="btn bo bs" id="aiBtnImage" style="font-size:11px;padding:3px 10px" onclick="aiSetMode(\'image\')">🎨 {{ _('Image Understanding') }}</button>';
-  h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px;color:#f0ad4e" id="aiBtnTool" onclick="aiSetMode(\'tool\')">🔧 {{ _('Tool Call') }}</button>';
-  h+='<span style="flex:1"></span>';
-  h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px" onclick="aiNewSession()">🆕 {{ _('New Chat') }}</button>';
-  h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px;color:#f85149" onclick="aiResetSession()">🔄 {{ _('Reset') }}</button>';
-  h+='</div>';
-  h+='<div id="aiChatMsgs" style="min-height:280px;max-height:380px;overflow-y:auto;margin-bottom:8px;padding:8px;background:rgba(0,0,0,.2);border-radius:6px;font-size:12px;line-height:1.6">';
-  h+='<div style="color:var(--dim);text-align:center;padding:20px">💬 {{ _('Send Command to Start Chat') }}。{{ _('Try') }}：「{{ _('Generate About') }}AI的10页PPT」或「{{ _('Draw a Cyberpunk Cat') }}」</div>';
-  h+='</div>';
-  h+='<div style="display:flex;gap:4px;margin-bottom:12px">';
-  h+='<input type="file" id="aiFileInput" style="display:none" onchange="aiUpload(this)" accept="image/*,audio/*,video/*">';
-  h+='<button class="btn bo bs" onclick="document.getElementById(\'aiFileInput\').click()" title="{{ _('Upload File') }}({{ _('Image') }}/{{ _('Audio') }}/{{ _('Video') }})" style="font-size:14px;padding:3px 8px">📎</button>';
-  h+='<textarea class="in" id="aiChatInput" placeholder="{{ _('Enter Command') }}，如「{{ _('Generate') }}PPT」「{{ _('Draw') }}」「{{ _('Analyze Image') }}」「{{ _('Clone Voice') }}」" style="flex:1;font-size:12px;resize:none;min-height:36px;max-height:120px;line-height:1.4;padding-top:8px;padding-bottom:8px" onkeydown="if(event.key===\'Enter\'&&!event.ctrlKey&&!event.shiftKey){event.preventDefault();aiSend()}" oninput="aiAutoResize(this)"></textarea>';
-  h+='<button class="btn bp" onclick="aiSend()">{{ _('Send') }}</button>';
-  h+='</div>';
-  h+='<div class="cd"><div class="st">💬 {{ _('Chat History') }}</div>';
-  h+='<div style="display:flex;gap:4px;margin-bottom:6px">';
-  h+='<input class="in" id="aiSearchInput" placeholder="{{ _('Search Keywords') }}..." style="flex:1;font-size:11px;padding:4px 6px" onkeydown="if(event.key===\'Enter\')aiSearchSessions()">';
-  h+='<button class="btn bo bs" style="font-size:10px;padding:2px 6px" onclick="aiSearchSessions()">🔍</button>';
-  h+='<button class="btn bo bs" style="font-size:10px;padding:2px 6px;color:#f85149" onclick="aiBatchDelete()">🗑️</button>';
-  h+='</div><div id="aiSessions"><div class="lo"><div class="s"></div></div></div></div>';
-  document.getElementById("cmsContent").innerHTML=h;
-  fetch("/admin/agent-matrix/chat/history",{headers:{"Authorization":"Bearer "+T}})
-    .then(function(r){return r.json()})
-    .then(function(d){
-      if(!d.success||!d.data)return;
-      var sl=d.data,el=document.getElementById("aiSessions");
-      if(!el)return;
-      if(!sl.length){el.innerHTML='<div class="em">{{ _('No Chat History') }}</div>';return}
-      var sh='<table><tr><th style="width:30px"><input type="checkbox" id="aiSelAll" onchange="aiToggleAll(this)"></th><th>{{ _('Session Title') }}</th><th>{{ _('Last Time') }}</th><th>{{ _('Actions') }}</th></tr>';
-      sl.forEach(function(s){
-        var title=s.session_name||s.first_query||s.session_id;
-        sh+='<tr onclick="aiLoadSession(this.dataset.sid)" data-sid="'+esc(s.session_id)+'" style="cursor:pointer">';
-        sh+='<td style="width:30px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="aiSel" value="'+esc(s.session_id)+'"></td>';
-        sh+='<td>'+esc((title||'').slice(0,50))+'</td>';
-        sh+='<td style="font-size:10px;color:var(--dim)">'+esc(s.last_msg||"")+'</td>';
-        sh+='<td style="width:40px" onclick="event.stopPropagation()"><button class="btn bs" style="font-size:10px;padding:1px 4px" onclick="aiDeleteSession(this)">🗑️</button></td></tr>';
-      });
-      sh+='</table>';el.innerHTML=sh;
-    }).catch(function(){});
-};
-
-// ── Tab 2: PPT {{ _('Generate') }} ──
-function cmsTabPPT(){
-  var h='<div class="cd"><div class="st">📊 {{ _('Generate') }} PPT</div>';
-  h+='<div class="g2" style="margin-bottom:8px">';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Theme') }} *</div><input class="in" id="pptTopic" placeholder="如：{{ _('Quantum Computing Frontier Tech') }}" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Pages') }}</div><select class="sl" id="pptPages" style="width:100%"><option value="5">5页</option><option value="8">8页</option><option value="10" selected>10页</option><option value="15">15页</option><option value="20">20页</option></select></div>';
-  h+='</div>';
-  h+='<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--dim)">{{ _('Style Description') }}</div><input class="in" id="pptStyle" placeholder="{{ _('Default') }}：Dark {{ _('Tech Style') }}，16:9" style="width:100%"></div>';
-  h+='<button class="btn bp" id="pptGenBtn" onclick="pptGenerate()">🤖 AI {{ _('Generate') }} PPT</button>';
-  h+='<div id="pptResult" style="margin-top:8px"></div></div>';
-  document.getElementById("cmsContent").innerHTML=h;
-}
-
-// ── Tab 3: {{ _('Image Gen') }} ──
-function cmsTabImage(){
-  var h='<div class="cd"><div class="st">🎨 {{ _('Image Gen') }}</div>';
-  h+='<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--dim)">{{ _('Prompt') }} *</div>';
-  h+='<textarea class="in" id="imgPrompt" placeholder="{{ _('Describe the Image You Want in Chinese') }}..." style="width:100%;min-height:80px"></textarea></div>';
-  h+='<div class="g2" style="margin-bottom:8px">';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Style') }}</div><select class="sl" id="imgStyle" style="width:100%"><option value="realistic">{{ _('Realistic') }}</option><option value="anime">{{ _('Anime') }}</option><option value="oil-painting">{{ _('Oil Painting') }}</option><option value="cyberpunk">{{ _('Cyberpunk') }}</option><option value="watercolor">{{ _('Watercolor') }}</option><option value="3d-render">3D{{ _('Render') }}</option></select></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Count') }}</div><select class="sl" id="imgCount" style="width:100%"><option value="1">1张</option><option value="2">2张</option><option value="4">4张</option></select></div>';
-  h+='</div>';
-  h+='<button class="btn bp" id="imgGenBtn" onclick="imgGenerate()">🎨 {{ _('Generate Image') }}</button>';
-  h+='<div id="imgResult" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px"></div></div>';
-  document.getElementById("cmsContent").innerHTML=h;
-}
-
-// ── Tab 4: {{ _('Multimedia') }} ──
-var mvTab=0;
-function cmsTabMedia(){
-  var h='<div style="margin-bottom:10px;display:flex;gap:4px">';
-  h+='<button class="btn '+(mvTab===0?'bp':'bo')+'" onclick="mvSwitchTab(0)">🎙️ {{ _('Audio Source Management') }}</button>';
-  h+='<button class="btn '+(mvTab===1?'bp':'bo')+'" onclick="mvSwitchTab(1)">🎬 {{ _('Video Creation') }}</button>';
-  h+='<button class="btn '+(mvTab===2?'bp':'bo')+'" onclick="mvSwitchTab(2)">📋 {{ _('Publish Management') }}</button>';
-  h+='</div><div id="mvContent"></div>';
-  document.getElementById("cmsContent").innerHTML=h;
-  mvSwitchTab(mvTab);
-}
+// ── (Tabs moved to AI Tools sidebar group) ──
 
 var cmsPosts=[];
 var cmsQuill=null;
