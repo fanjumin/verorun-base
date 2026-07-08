@@ -49,7 +49,7 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵** 的全栈 SaaS 建
 | 12 | **分析系统** | `analytics/` | 访客追踪、IP 地理定位、UA 解析 |
 | 13 | **社交分发** | `auth-center/routes/social_push.py` | 微博/微信/头条/抖音 内容分发 |
 | 14 | **内容工厂** | `auth-center/services/content_factory/` | RSS 采集 → AI 加工 → Skill 推送 |
-| 15 | **插件系统** | `plugins/` | BasePlugin 框架 + 事件钩子 + 4 个内置插件（1688 采集/评价/收藏/订单通知） |
+| 15 | **插件系统** | `plugin_manager/` + `plugins/` | PluginManager 统一管理 — 发现/安装/启用/卸载，5 个内置插件，各自独立数据库 |
 
 ---
 
@@ -156,7 +156,6 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵** 的全栈 SaaS 建
 | **商品评价**（插件） | 回复/删除/审核 | 列表/统计 | `plugins/reviews/` 5 星评分 + 晒图 + 匿名 |
 | **收藏心愿单**（插件） | — | 收藏/取消/检查/数量 | `plugins/wishlist/` |
 | **订单通知**（插件） | — | 自动站内信 | `plugins/order_notify/` 6 种事件通知 |
-| **支付** | — | 支付宝/微信/Stripe/PayPal | RSA2 签名 + 桩模式降级 + 三层备降 |
 
 #### 支付系统
 
@@ -301,7 +300,7 @@ Cron Scheduler ──→ Workflow Engine ──→ Worker Pool
   定时触发                             并发执行节点
 ```
 
-## 2.5 广告推广系统（Advertising）
+### 2.6 广告推广系统（Advertising）
 
 位置：`adplatform/`
 
@@ -385,7 +384,7 @@ app.jinja_loader = ChoiceLoader([
 │  ① Service Discovery    端口探活 / 路由发现  │
 │  ② Health Checkers      MySQL / HTTP / Ping  │
 │  ③ Alerter              邮件 / Webhook 告警  │
-│  ④ AI Fixer             LLM 诊断 + 🔧 修复  │
+│  ④ AI Fixer             LLM 诊断 + 修复      │
 │  ⑤ Scheduler            定时巡检（APScheduler）│
 └─────────────────────────────────────────────┘
 ```
@@ -394,13 +393,65 @@ app.jinja_loader = ChoiceLoader([
 
 ### 2.10 插件系统（Plugin System）
 
-位置：`plugins/`
+位置：`plugin_manager/`（管理引擎）+ `plugins/`（插件代码目录）
 
-标准化的插件框架，支持 i18n 隔离翻译、自动路由挂载、事件钩子系统。
+标准化插件管理系统，由 PluginManager 统一管理插件的完整生命周期：**发现 → 安装 → 启用 → 激活 → 禁用 → 卸载**。每个插件拥有独立的 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留。
+
+#### 系统架构
+
+```
+PluginManager (plugin_manager/)
+├── manager.py        # 核心：生命周期管理（install/enable/disable/uninstall）
+├── discovery.py      # 文件系统扫描 + plugin.json 解析
+├── models.py         # PluginInfo / PluginStatus / PluginRegistry 模型
+├── routes.py         # Flask 管理 API（/admin/plugins/*）
+├── base.py           # BasePlugin 抽象基类（所有插件继承）
+├── event_bus.py      # EventBus 事件总线（插件间通信）
+├── deps.py           # 依赖解析器
+├── config_validator.py # 配置验证器
+├── exceptions.py     # 异常定义
+├── hooks.py          # Hook 系统
+├── injectors.py      # 依赖注入
+├── logger.py         # 独立日志系统
+├── store.py          # 插件商店 API
+├── models_store.py   # 商店数据模型
+└── subscription.py   # 商店订阅
+```
+
+#### 插件生命周期
+
+```
+  发现 (discover)       安装 (install)        启用 (enable)         激活 (activate)
+  ┌─────────┐          ┌──────────┐          ┌────────┐           ┌──────────┐
+  │ 扫描    │          │ 写入 DB  │          │ setup  │           │ 注册路由  │
+  │ plugins/│ ──────→  │ 记录元   │ ───────→ │ 建表   │ ────────→ │ 注册事件  │
+  │ 目录    │ 发现     │ 数据     │ 安装     │ 初始化  │ 启用     │ 启动任务  │
+  └─────────┘          └──────────┘          └────────┘           └──────────┘
+
+  卸载 (uninstall)               禁用 (disable)
+  ┌────────────┐                ┌──────────┐
+  │ 删除.db文件 │  ←──────────  │ deactivate│
+  │ 清理DB记录  │  卸载         │ 取消事件  │
+  │ 删除配置    │               │ 停止任务  │
+  └────────────┘               └──────────┘
+```
+
+#### 管理 API（管理后台 → 插件管理）
+
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/admin/plugins` | GET | 已安装插件列表（含 installed 标记） |
+| `/admin/plugins/discover` | GET | 扫描插件目录，返回全部发现（含 installed: true/false） |
+| `/admin/plugins/<id>/install` | POST | 安装插件 |
+| `/admin/plugins/<id>/uninstall` | POST | 卸载插件（自动删 `.db` 文件 + 清理数据库） |
+| `/admin/plugins/<id>/enable` | POST | 启用插件 |
+| `/admin/plugins/<id>/disable` | POST | 禁用插件 |
+| `/admin/plugins/<id>/activate` | POST | 激活插件 |
+| `/admin/plugins/<id>/config` | GET/PUT | 插件配置读写 |
 
 #### 事件系统
 
-5 个核心业务事件，插件通过 `plugins/hooks.py` 订阅后自动触发：
+5 个核心业务事件，通过 `plugin_manager/event_bus.py` 订阅后自动触发：
 
 | 事件 | 触发时机 | 订阅插件 |
 |------|----------|----------|
@@ -414,38 +465,50 @@ app.jinja_loader = ChoiceLoader([
 #### 插件规范
 
 ```python
-class AliApiPlugin(BasePlugin):
-    def __init__(self):
-        self.name = 'ali_api'
-        self.version = '1.0.0'
-        self.description = '1688/阿里巴巴商品采集'
+from plugin_manager.base import BasePlugin
 
-    def t(self, text, locale=None):
-        """插件自有翻译，从本插件 i18n/{locale}.yml 读取"""
-        locale = locale or get_lang()
-        return self._yaml.get(locale, {}).get(text, text)
+class MyPlugin(BasePlugin):
+    name = 'my_plugin'
+    version = '1.0.0'
+    description = '我的插件'
+    author = 'VeroRun'
+
+    def on_install(self, registry) -> bool:
+        """安装时初始化插件自有数据库"""
+        init_db()  # 在 plugins/my_plugin/my_plugin.db 中建表
+        return True
+
+    def on_uninstall(self, registry) -> bool:
+        """卸载时清理 — BasePlugin 默认自动删除 .db 文件"""
+        return True
+
+    def register_routes(self):
+        """注册 Flask 蓝图（自动挂载 /plugin/<name>/）"""
+        from flask import Blueprint
+        bp = Blueprint('my_plugin', __name__, url_prefix='/plugin/my_plugin')
+        return [bp]
 ```
 
 #### 内置插件
 
-| 插件 | 位置 | 说明 |
-|------|------|------|
-| **1688 供应链采集** | `plugins/ali_api/` | 阿里巴巴商品搜索、评论、按图搜索、店铺全量采集 + AI 优化发布 (v0.2.1) |
-| **商品评价** | `plugins/reviews/` | 5 星评分 + 晒图 + 匿名评价 + 管理回复 + 统计 |
-| **收藏心愿单** | `plugins/wishlist/` | 收藏/取消/检查/列表/数量统计 |
-| **订单通知** | `plugins/order_notify/` | 自动站内信：下单/支付/发货/退款/取消/完成 |
+| 插件 | 位置 | 数据库 | 说明 |
+|------|------|--------|------|
+| **1688 供应链采集** | `plugins/ali_api/` | `ali_api.db`（7 表） | 阿里巴巴商品搜索、评论、按图搜索、店铺全量采集 + AI 优化发布 (v0.2.1) |
+| **商品评价** | `plugins/reviews/` | `reviews.db`（1 表） | 5 星评分 + 晒图 + 匿名评价 + 管理回复 + 统计 |
+| **收藏心愿单** | `plugins/wishlist/` | `wishlist.db`（1 表） | 收藏/取消/检查/列表/数量统计 |
+| **订单通知** | `plugins/order_notify/` | 无持久化数据 | 自动站内信：下单/支付/发货/退款/取消/完成 |
+| **智能优惠券** | `plugins/coupons/` | `coupons.db`（2 表） | 场景券 + AI 推荐 + 订阅联动 (v0.1.0) |
 
 #### 目录结构规范
 
 ```
 plugins/<name>/
 ├── __init__.py        # 插件类 (继承 BasePlugin)
-├── plugin.json        # 元数据
+├── plugin.json        # 元数据（含 permissions 声明）
+├── <name>.db          # 插件自有数据库（自动创建/删除）
 ├── i18n/              # 插件自有翻译（隔离于系统 _()）
 │   ├── zh-CN.yml
 │   └── en.yml
-├── README.zh-CN.md
-├── README.en.md
 ├── routes/            # Flask 蓝图（自动挂载 /plugin/<name>/）
 ├── services/          # 业务逻辑
 ├── static/            # 静态资源
@@ -539,7 +602,7 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 |------|------|
 | **Python 3** | 主要开发语言 |
 | **Flask** | Web 框架（4 个独立服务实例） |
-| **SQLite** | 数据库（单文件 `data/easykai.db`） |
+| **SQLite** | 数据库（主库 `data/easykai.db` + 各插件独立 `.db`） |
 | **Jinja2** | 模板引擎 |
 | **JWT** | SSO 单点登录 |
 | **APScheduler** | 定时任务（工作流调度 + 健康检查 + 分析聚合） |
@@ -689,28 +752,48 @@ VeroRunSystem/
 │   ├── ua_parser.py           # UA 解析
 │   └── ip2region/             # IP 库
 │
-├── plugins/                   # 插件系统
-│   ├── base.py                # BasePlugin 基类
-│   ├── registry.py            # 插件注册表
-│   ├── hooks.py               # 事件总线
-│   ├── __init__.py            # 插件加载器
-│   ├── ali_api/               # 1688 供应链采集插件（可选）
-│       ├── i18n/{zh-CN,en}.yml
-│       ├── services/ (5)
-│       ├── routes/admin.py
-│       ├── static/ali_console.js
-│       └── templates/ali_admin/
-│   ├── reviews/                # 商品评价插件
-│   │   ├── i18n/{zh-CN,en}.yml
-│   │   ├── routes/ (4)
-│   │   └── README.{zh-CN,en}.md
-│   ├── wishlist/               # 收藏心愿单插件
-│   │   ├── i18n/{zh-CN,en}.yml
-│   │   ├── routes/ (1)
-│   │   └── README.{zh-CN,en}.md
-│   └── order_notify/           # 订单通知插件
-│       ├── i18n/{zh-CN,en}.yml
-│       └── plugin.json
+├── plugin_manager/            # 插件管理引擎
+│   ├── __init__.py            # 包入口
+│   ├── manager.py             # PluginManager — 生命周期管理核心
+│   ├── discovery.py           # PluginDiscovery — 文件系统扫描
+│   ├── base.py                # BasePlugin 抽象基类
+│   ├── event_bus.py           # EventBus 事件总线
+│   ├── models.py              # PluginInfo / PluginStatus / PluginRegistry
+│   ├── routes.py              # /admin/plugins/* 管理 API
+│   ├── deps.py                # 依赖解析器
+│   ├── config_validator.py    # 配置验证器
+│   ├── exceptions.py          # 异常定义
+│   ├── hooks.py               # Hook 系统
+│   ├── injectors.py           # 依赖注入
+│   ├── logger.py              # 独立日志系统
+│   ├── store.py               # 插件商店 API
+│   ├── models_store.py        # 商店数据模型
+│   ├── subscription.py        # 商店订阅
+│   └── license.py             # 许可管理
+│
+├── plugins/                   # 插件代码目录（独立数据库）
+│   ├── ali_api/               # 1688 供应链采集 (ali_api.db)
+│   │   ├── __init__.py        # AliApiPlugin
+│   │   ├── models.py          # 7 张表（自有 DB）
+│   │   ├── services/ (5)      # alibaba_client, ai_processor 等
+│   │   ├── routes/admin.py    # 管理路由
+│   │   ├── static/ali_console.js
+│   │   └── templates/ali_admin/
+│   ├── coupons/               # 智能优惠券 (coupons.db)
+│   │   ├── __init__.py
+│   │   ├── models.py          # 2 张表
+│   │   ├── engine.py          # CouponEngine
+│   │   ├── ai_recommender.py  # AI 推荐
+│   │   └── routes.py
+│   ├── reviews/               # 商品评价 (reviews.db)
+│   │   ├── __init__.py
+│   │   └── models.py          # 1 张表
+│   ├── wishlist/              # 收藏心愿单 (wishlist.db)
+│   │   ├── __init__.py
+│   │   └── models.py          # 1 张表
+│   └── order_notify/          # 订单通知（无持久化）
+│       ├── __init__.py
+│       └── i18n/
 │
 ├── themes/                    # 5 个主题
 │   ├── default/               # 默认 / light/ / nature/ / ocean/ / warm/
@@ -782,7 +865,7 @@ python app.py 8084 &
 |------|------|------|
 | 官网 | `http://localhost:8081` | 主站页面 / 登录 / 订阅 |
 | 用户控制台 | `http://localhost:8083` | 商城 / CMS / 用户中心 |
-| 管理后台 | `http://localhost:8084/admin` | Agent 矩阵 / 商品管理 / 系统设置 |
+| 管理后台 | `http://localhost:8084/admin` | Agent 矩阵 / 商品管理 / 系统设置 / 插件管理 |
 
 ---
 
@@ -797,16 +880,17 @@ python app.py 8084 &
 
 ### 新增一个插件
 
-1. 创建 `plugins/<name>/__init__.py`（继承 `BasePlugin`）
-2. 创建 `plugins/<name>/plugin.json` 填写元数据
+1. 创建 `plugins/<name>/__init__.py`（继承 `plugin_manager.base.BasePlugin`）
+2. 创建 `plugins/<name>/plugin.json` 填写元数据（含 `permissions` 声明）
 3. 添加翻译：`plugins/<name>/i18n/{locale}.yml`
 4. 添加路由：`plugins/<name>/routes/`（自动挂载到 `/plugin/<name>/`）
-5. 可选：在 `on_register()` 中 `subscribe('ORDER_CREATED', self.handler)` 订阅事件
+5. 在 `on_install()` 中调用 `init_db()` 创建插件自有数据库
+6. 通过 `event_bus.on(EventName.XXX, self.handler)` 订阅事件
 
 ### 添加事件钩子
 
-1. 在核心路由中调用 `emit('EVENT_NAME', key1=val1, key2=val2)`
-2. 插件通过 `subscribe('EVENT_NAME', handler_func)` 订阅
+1. 在核心路由中调用 `get_event_bus().emit('EVENT_NAME', key1=val1, key2=val2)`
+2. 插件通过 `event_bus.on(EventName.XXX, handler_func)` 订阅
 3. 参见 `plugins/order_notify/__init__.py` 完整示例
 
 ### 新增主题
@@ -820,9 +904,9 @@ python app.py 8084 &
 
 - Python：PEP8
 - 路由：Flask Blueprint，前缀明确
-- 数据库：统一在 `models/database.py` 管理建表
+- 数据库：主库统一在 `models/database.py` 管理；插件使用自有 `.db` 文件
 - 翻译：统一使用 `_()`，插件使用 `self.t()`
-- 禁止：创建独立数据库 / 独立配置文件
+- 插件隔离：每个插件拥有独立 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留
 
 ---
 
@@ -877,6 +961,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.10.1 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.10.2 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有
