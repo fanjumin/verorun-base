@@ -373,7 +373,7 @@ if source.auto_crawl:
 | 3.4 | 预置 4 个内容工作流模板 | `orchestrator/workflow_templates.py`, `routes.py` | 开箱即用的模板 | ✅ 完成（只读蓝图 + `GET /admin/automation/workflow-templates`） |
 | 3.5 | 改造 `publish_post()` 触发匹配工作流 | `cms_admin.py`, `orchestrator/trigger_dispatch.py` | 发布可触发工作流 | ✅ 完成（fire-and-forget，失败静默不影响发布） |
 | 3.6 | 新建 `workflow_triggers` 表 | `orchestrator/models.py` | 事件驱动基础 | ✅ 完成（建在 orchestrator 库，幂等） |
-| 3.7 | 删除 `Risk & Audit` 菜单分组 | `icons.html` | 菜单精简 | ⬜ 待办（破坏性操作，需单独确认） |
+| 3.7 | 删除 `Risk & Audit` 菜单分组 | `icons.html` | 菜单精简 | ❌ 放弃（前提 2.4 未落地：Post Audit 审的是 agent_experiences 表，All Content 的 agent 筛选查 cms_posts 表，数据源不同无法替代；且分组内 Comment Moderation 为独立功能不应删除。经决策保留分组，不为精简牺牲功能。） |
 | 3.8 | 删除 AI Create 分组，替换为 AI Tools | `icons.html` | 菜单精简 | ✅ 完成（Phase 1 已落地） |
 
 **验证**：工作流模板可加载、Social Push 页面正常、发布触发工作流正常
