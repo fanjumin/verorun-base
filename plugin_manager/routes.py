@@ -81,16 +81,27 @@ def list_plugins():
 
 @bp.route('/discover', methods=['GET'])
 def discover_plugins():
-    """扫描 plugins/ 目录，返回新发现的插件列表"""
+    """扫描 plugins/ 目录，返回所有插件（含已安装的）"""
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
 
     try:
-        new_plugins = mgr.discover()
+        all_plugins = mgr.discover_all()
+        # 标记已安装
+        installed_ids = {p.identifier for p in mgr._cache.values()}
+        dicts = []
+        for p in all_plugins:
+            d = _info_to_dict(p)
+            d['installed'] = p.identifier in installed_ids
+            if p.identifier in mgr._cache:
+                cached = mgr._cache[p.identifier]
+                d['status'] = cached.status.value if cached.status else 'unknown'
+            dicts.append(d)
+
         return _json_result(True, data={
-            'total': len(new_plugins),
-            'plugins': [_info_to_dict(p) for p in new_plugins],
+            'total': len(dicts),
+            'plugins': dicts,
         })
     except Exception as e:
         return _json_result(False, error=str(e), code=500)

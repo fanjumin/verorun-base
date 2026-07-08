@@ -98,6 +98,20 @@ class PluginManager:
         # 从数据库加载已注册插件到缓存
         self._load_cache()
 
+        # 自动安装新发现的插件
+        try:
+            discovered = self._discovery.discover()
+            auto_installed = 0
+            for info in discovered:
+                if info.identifier not in self._cache:
+                    self.install(info.identifier)
+                    auto_installed += 1
+            if auto_installed > 0:
+                print(f'[PluginManager] ✅ 自动安装 {auto_installed} 个新插件')
+                self._load_cache()  # 重新加载缓存
+        except Exception as e:
+            print(f'[PluginManager] ⚠️ 自动安装失败: {e}')
+
         # 记录到 app 扩展
         if not hasattr(app, 'extensions'):
             app.extensions = {}
