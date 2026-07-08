@@ -25,7 +25,11 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 @contextmanager
 def get_db():
-    """获取数据库连接（复用 easykai 主库连接模式）"""
+    """获取数据库连接（复用 easykai 主库连接模式）
+
+    正常退出时自动 commit，发生异常时 rollback，最后关闭连接。
+    这样各写函数无需重复显式 commit（已有的显式 commit 亦无害）。
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -33,6 +37,10 @@ def get_db():
     conn.execute("PRAGMA busy_timeout=5000")
     try:
         yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

@@ -378,7 +378,7 @@ if source.auto_crawl:
 
 **验证**：工作流模板可加载、Social Push 页面正常、发布触发工作流正常
 
-> ⚠️ **已知阻塞问题（独立任务，待修）**：`orchestrator/models.py` 的写函数（`create_workflow`/`create_cron_job`/`update_*`/`delete_*`/`add_log` 等）普遍缺少 `conn.commit()`，而 `get_db()` 上下文管理器退出时只 `close()` 不 `commit()`，导致这些写操作在连接关闭时被回滚。**后果**：工作流/定时任务无法真正持久化创建，3.5 的"发布触发工作流"在修复此 bug 前无法端到端生效。仅 `init_orchestrator_tables` 和 `create_workflow_instance` 有显式 commit 而正常工作。建议单独立项修复（最简方案：在 `get_db()` 正常退出路径加 `conn.commit()`，但需评估所有调用方）。
+> ✅ **已修复（2026-07-08）**：`orchestrator/models.py` 的 `get_db()` 上下文管理器原先退出时只 `close()` 不 `commit()`，导致 `create_workflow`/`create_cron_job`/`update_*`/`delete_*` 等写函数的操作在连接关闭时被回滚。现已修改 `get_db()`：正常退出自动 `commit()`、异常 `rollback()`。已验证 create/update/delete 工作流、create cron、异常回滚均正确，且原有显式 commit 的函数不受影响。至此 3.5 的"发布触发工作流"可端到端生效。
 
 ---
 
