@@ -681,6 +681,14 @@ def init_db():
                     created_at      TEXT DEFAULT (datetime('now'))
                 );
             """)
+            # Migration: add content_sources automation fields (idempotent)
+            cs_cols = [r[1] for r in c4.execute("PRAGMA table_info(content_sources)").fetchall()]
+            if 'ai_prompt_template' not in cs_cols:
+                c4.execute("ALTER TABLE content_sources ADD COLUMN ai_prompt_template TEXT DEFAULT ''")
+            if 'skip_review' not in cs_cols:
+                c4.execute("ALTER TABLE content_sources ADD COLUMN skip_review INTEGER DEFAULT 0")
+            if 'auto_publish' not in cs_cols:
+                c4.execute("ALTER TABLE content_sources ADD COLUMN auto_publish INTEGER DEFAULT 0")
             c4.commit()
         # ── Skill推送表 (2026-05-08) ──
         with get_db() as c5:

@@ -696,5 +696,48 @@ def push_processed_to_knowledge():
     result = process_clean_content(raw, admin_id=admin['user_id'])
 
     _log(admin['user_id'], 'cf_to_knowledge', 'processed_content', str(pid),
-         f"知识库ID: {result.get('kb_id', '?')}")
+         f"鐭ヨ瘑搴揑D: {result.get('kb_id', '?')}")
     return jsonify(result)
+
+
+# =============================================
+# 13. 定时采集 Tick 端点（供 orchestrator scheduler 调用）
+# =============================================
+
+@cf_bp.route('/cron/tick', methods=['POST'])
+def cron_tick():
+    """定时采集钩子：由 orchestrator scheduler 周期性调用。
+    扫描所有 is_active=1 且 crawl_interval>0 的来源，
+    若距 last_crawled_at 超过 crawl_interval 秒则触发采集。
+    """
+    from datetime import datetime
+    try:
+        now = datetime.now()
+        triggered = []
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, name, crawl_interval, last_crawled_at, is_active "
+                "FROM content_sources "
+                "WHERE is_active=1 AND crawl_interval>0"
+            ).fetchall()
+            for r in rows:
+                last = r['last_crawled_at']
+                last_dt = None
+                if last:
+                    try:
+                        last_dt = datetime.fromisoformat(last)
+                    except (ValueError, TypeError):
+                        last_dt = None
+                if last_dt is None or (now - last_dt).total_seconds() >= r['crawl_interval']:
+                    triggered.append(r['id'])
+        results = []
+        for sid in triggered:
+            try:
+                run_collection(source_id=sid)
+                results.append({'source_id': sid, 'status': 'triggered'})
+            except Exception as e:
+                results.append({'source_id': sid, 'status': 'error', 'error': str(e)})
+        return jsonify({'success': True, 'checked': len(rows), 'triggered': len(triggered), 'results': results})
+    except Exception as e:
+        logger.exception('cron_tick failed')
+        return jsonify({'success': False, 'error': str(e)}), 500
