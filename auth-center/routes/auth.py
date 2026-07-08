@@ -32,36 +32,6 @@ def _get_token_from_request():
 
 
 # =============================================
-# SLIDER CAPTCHA: Generate sliding puzzle challenge
-# =============================================
-@auth_bp.route('/captcha/gen', methods=['GET'])
-def slider_gen():
-    """Generate a sliding puzzle challenge"""
-    from services.captcha_service import generate_slider
-    result = generate_slider()
-    return api_ok(result)
-
-
-@auth_bp.route('/captcha/verify', methods=['POST'])
-def slider_verify():
-    """Phase 1: Verify slider (position + behavioral). Marks as verified, NOT consumed."""
-    data = request.get_json() or {}
-    captcha_id = data.get('captcha_id', '')
-    user_x = data.get('user_x')
-    trajectory = data.get('trajectory', None)
-    from services.captcha_service import verify_slider_behavioral
-    result = verify_slider_behavioral(captcha_id, user_x, trajectory)
-    if result.get('pass'):
-        return api_ok({
-            'valid': True,
-            'mode': result.get('mode', 'legacy'),
-            'combined_score': result.get('combined_score'),
-        })
-    return api_err('Invalid verification code, please retry', 400)
-
-
-
-# =============================================
 # SMS: Send verification code
 # =============================================
 @auth_bp.route('/sms/send', methods=['POST'])
