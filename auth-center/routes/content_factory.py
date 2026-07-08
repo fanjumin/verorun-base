@@ -416,6 +416,8 @@ def publish():
             'cover_image': pc['image_url'] or '',
             'author': f'admin_{admin["display_name"]}',
             'is_published': 1,
+            'source': 'factory',
+            'source_id': pid,
         })
         post_id = post.get('id')
         with get_db() as conn:
@@ -462,6 +464,8 @@ def publish():
                 'cover_image': pc['image_url'] or '',
                 'author': f'admin_{admin["display_name"]}',
                 'is_published': 1,
+                'source': 'factory',
+                'source_id': pid,
             })
             post_id = post.get('id')
 

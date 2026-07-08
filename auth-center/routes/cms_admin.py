@@ -94,7 +94,8 @@ def list_posts():
     limit = request.args.get('limit', 50, type=int)
     offset = request.args.get('offset', 0, type=int)
     status = request.args.get('status', None)
-    return _ok(get_all_posts(limit=limit, offset=offset, status_filter=status))
+    source = request.args.get('source', None)
+    return _ok(get_all_posts(limit=limit, offset=offset, status_filter=status, source=source))
 
 
 @cms_admin_bp.route('/posts', methods=['POST'])

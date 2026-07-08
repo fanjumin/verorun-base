@@ -55,6 +55,8 @@ def init_cms_tables():
                 is_published    INTEGER NOT NULL DEFAULT 0,
                 publish_channels TEXT DEFAULT '[]',
                 published_at    TEXT DEFAULT NULL,
+                source          TEXT DEFAULT 'manual',
+                source_id       INTEGER DEFAULT NULL,
                 created_at      TEXT DEFAULT (datetime('now')),
                 updated_at      TEXT DEFAULT (datetime('now'))
             );
@@ -114,6 +116,12 @@ def init_cms_tables():
                     "INSERT INTO cms_categories (id, name, icon, slug, audience, sort_order) VALUES (?,?,?,?,?,?)",
                     (cid, name, icon, slug, audience, sort)
                 )
+        # Migration: add source/source_id columns for existing DBs (idempotent)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(cms_posts)").fetchall()]
+        if 'source' not in cols:
+            conn.execute("ALTER TABLE cms_posts ADD COLUMN source TEXT DEFAULT 'manual'")
+        if 'source_id' not in cols:
+            conn.execute("ALTER TABLE cms_posts ADD COLUMN source_id INTEGER DEFAULT NULL")
         conn.commit()
 
 
@@ -216,7 +224,8 @@ def get_post_by_slug_preview(slug: str):
         return dict(row) if row else None
 
 
-def get_all_posts(limit: int = 50, offset: int = 0, status_filter: str = None, audience: str = None):
+def get_all_posts(limit: int = 50, offset: int = 0, status_filter: str = None, audience: str = None,
+                  source: str = None):
     with get_db() as conn:
         sql = "SELECT * FROM cms_posts"
         params = []
@@ -225,6 +234,9 @@ def get_all_posts(limit: int = 50, offset: int = 0, status_filter: str = None, a
             conditions.append("is_published=0")
         elif status_filter == 'published':
             conditions.append("is_published=1")
+        if source and source != 'all':
+            conditions.append("source=?")
+            params.append(source)
         if audience:
             conditions.append(f"audience=?" if '?' not in audience else "audience IN ({})".format(audience))
             params.append(audience)
@@ -332,6 +344,7 @@ def upsert_post(data: dict):
                     tags=?, audience=?,
                     is_published=?,
                     publish_channels=?,
+                    source=?, source_id=?,
                     published_at=COALESCE(?, published_at),
                     updated_at=datetime('now')
                 WHERE id=?
@@ -342,13 +355,14 @@ def upsert_post(data: dict):
                 tags_json, data.get('audience', 'public'),
                 data.get('is_published', 0),
                 channels_json,
+                data.get('source', 'manual'), data.get('source_id'),
                 data.get('published_at') if data.get('is_published') in (1, True) else None,
                 data['id']
             ))
         else:
             cur = conn.execute("""
-                INSERT INTO cms_posts (slug, category, title, excerpt, content, content_format, cover_image, author, tags, audience, is_published, publish_channels, published_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ? THEN datetime('now') ELSE NULL END)
+                INSERT INTO cms_posts (slug, category, title, excerpt, content, content_format, cover_image, author, tags, audience, is_published, publish_channels, source, source_id, published_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ? THEN datetime('now') ELSE NULL END)
             """, (
                 data.get('slug', ''), data.get('category', 'insights'),
                 data.get('title', ''), data.get('excerpt', ''), data.get('content', ''),
@@ -356,6 +370,7 @@ def upsert_post(data: dict):
                 tags_json, data.get('audience', 'public'),
                 data.get('is_published', 0),
                 channels_json,
+                data.get('source', 'manual'), data.get('source_id'),
                 1 if data.get('is_published') in (1, True) else 0
             ))
             data['id'] = cur.lastrowid
