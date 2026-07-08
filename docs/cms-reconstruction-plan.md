@@ -370,13 +370,15 @@ if source.auto_crawl:
 | 3.1 | 在菜单中加入 Automation > Social Push 和 Publish History | `icons.html` | 入口就绪 | ✅ 完成 |
 | 3.2 | Social Push 页面接入菜单（复用现有 `l_social` + social_push.py API） | `icons.html`, `social.html` | Social Push 管理页 | ✅ 完成（`l_social` 原为孤立页，已接入 `social` 菜单键） |
 | 3.3 | 新增 `l_publish_history()` 独立发布历史页 | `social.html` | 发布历史统一视图 | ✅ 完成（复用 `/admin/social/history` API） |
-| 3.4 | 预置 4 个内容工作流模板 | `routes.py` 或种子数据 | 开箱即用的模板 | ⬜ 待办 |
-| 3.5 | 改造 `publish_post()` 增加 Hook 事件 | `cms_admin.py` | 发布可触发工作流 | ⬜ 待办 |
-| 3.6 | 新建 `workflow_triggers` 表 | `database.py` | 事件驱动基础 | ⬜ 待办 |
+| 3.4 | 预置 4 个内容工作流模板 | `orchestrator/workflow_templates.py`, `routes.py` | 开箱即用的模板 | ✅ 完成（只读蓝图 + `GET /admin/automation/workflow-templates`） |
+| 3.5 | 改造 `publish_post()` 触发匹配工作流 | `cms_admin.py`, `orchestrator/trigger_dispatch.py` | 发布可触发工作流 | ✅ 完成（fire-and-forget，失败静默不影响发布） |
+| 3.6 | 新建 `workflow_triggers` 表 | `orchestrator/models.py` | 事件驱动基础 | ✅ 完成（建在 orchestrator 库，幂等） |
 | 3.7 | 删除 `Risk & Audit` 菜单分组 | `icons.html` | 菜单精简 | ⬜ 待办（破坏性操作，需单独确认） |
 | 3.8 | 删除 AI Create 分组，替换为 AI Tools | `icons.html` | 菜单精简 | ✅ 完成（Phase 1 已落地） |
 
 **验证**：工作流模板可加载、Social Push 页面正常、发布触发工作流正常
+
+> ⚠️ **已知阻塞问题（独立任务，待修）**：`orchestrator/models.py` 的写函数（`create_workflow`/`create_cron_job`/`update_*`/`delete_*`/`add_log` 等）普遍缺少 `conn.commit()`，而 `get_db()` 上下文管理器退出时只 `close()` 不 `commit()`，导致这些写操作在连接关闭时被回滚。**后果**：工作流/定时任务无法真正持久化创建，3.5 的"发布触发工作流"在修复此 bug 前无法端到端生效。仅 `init_orchestrator_tables` 和 `create_workflow_instance` 有显式 commit 而正常工作。建议单独立项修复（最简方案：在 `get_db()` 正常退出路径加 `conn.commit()`，但需评估所有调用方）。
 
 ---
 
