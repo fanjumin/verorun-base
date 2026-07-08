@@ -25,25 +25,23 @@ import re
 from datetime import datetime, timedelta
 from services.deployment_config import deploy
 
-# ─── 数据库路径 ───────────────────────────────────────────────────────────────
+# ─── 数据库路径（独立 DB，插件目录内）──────────────────────────────────────────
 
-DB_PATH = None  # 在 init_analytics_db() 时设置
+# analytics 使用独立数据库 analytics/data/analytics.db，不依赖主库
+_ANALYTICS_DB = None
 
 def resolve_db_path():
-    """按优先级确定数据库路径"""
-    if DB_PATH:
-        return DB_PATH
-    env_path = os.environ.get('DB_PATH', '')
-    if env_path:
-        return env_path
-    candidates = [
-        './data/x7k2m9a4.db',
-        '../data/x7k2m9a4.db',
-    ]
-    for p in candidates:
-        if os.path.exists(p) or os.path.exists(os.path.dirname(p)):
-            return p
-    return candidates[-1]
+    """按优先级确定 analytics 独立数据库路径（插件目录内）"""
+    global _ANALYTICS_DB
+    if _ANALYTICS_DB:
+        return _ANALYTICS_DB
+    # 数据库位于 analytics/data/ 目录内
+    base = os.path.dirname(os.path.abspath(__file__))
+    db_dir = os.path.join(base, 'data')
+    os.makedirs(db_dir, exist_ok=True)
+    db_path = os.path.join(db_dir, 'analytics.db')
+    _ANALYTICS_DB = db_path
+    return db_path
 
 
 # ─── Schema ───────────────────────────────────────────────────────────────────
@@ -307,9 +305,9 @@ def get_db():
 
 def init_analytics_tables(db_path=None):
     """创建所有分析表（幂等）"""
-    global DB_PATH
+    global _ANALYTICS_DB
     if db_path:
-        DB_PATH = db_path
+        _ANALYTICS_DB = db_path
     conn = get_db()
     for stmt in SCHEMA_SQL.split(';'):
         s = stmt.strip()

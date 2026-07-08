@@ -2,7 +2,7 @@
 """
 Health Check — Database Models
 ============================
-All health check related database tables. Reuses the main database (site.db).
+All health check related database tables. Uses independent database data/health.db.
 
 Table structure:
   health_checks     — Check item definitions (registered checks, configuration, enable/disable)
@@ -20,9 +20,10 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager
 from collections import defaultdict
 
+# ── 独立数据库路径（插件目录内）──
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
-DB_PATH = os.environ.get('DB_PATH', os.path.join(DATA_DIR, 'x7k2m9a4.db'))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+DB_PATH = os.path.join(DATA_DIR, 'health.db')
 os.makedirs(DATA_DIR, exist_ok=True)
 
 

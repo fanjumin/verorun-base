@@ -1,0 +1,27 @@
+{
+    "name": "Health Check",
+    "identifier": "health_check",
+    "version": "0.1.0",
+    "description": "System Health Check — Automated health monitoring + alerting + trend analysis",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "health.read",
+        "health.write"
+    ],
+    "hooks": {
+        "provides": [
+            "health/run_check",
+            "health/get_status",
+            "health/get_trend"
+        ],
+        "listens": []
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}

@@ -26,12 +26,7 @@ from routes.theme_admin import theme_bp
 from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
-from analytics.middleware import AnalyticsMiddleware
-from analytics.dashboard import analytics_bp
-from analytics.processor import AnalyticsProcessor
 from models.cms import init_cms_tables
-from health_check import health_bp
-from health_check.models import init_health_tables, seed_default_checks, migrate_alert_schema
 from routes.douyin_miniprogram import douyin_mp_bp
 from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp
@@ -39,9 +34,6 @@ from routes.cleaner_agent import cleaner_bp
 from routes.deployment_api import deploy_bp, init_deployment_tables
 from routes.renewal import renew_bp
 import time as _time
-
-# ── Captcha Blueprint (embedded) ──
-from captcha_bp import captcha_bp, register_admin_stats
 
 # ── PluginManager ──
 from plugin_manager.manager import PluginManager
@@ -107,22 +99,6 @@ app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..'))
 ])
 
-AnalyticsMiddleware(app, service_name="admin", sample_rate=0.2)
-
-# 启动分析聚合处理器（后台线程，每60秒聚合一次原始日志）
-import threading as _thr
-import time as _t
-_analytics_proc = AnalyticsProcessor()
-def _analytics_loop():
-    while True:
-        try:
-            _analytics_proc.process()
-        except Exception as e:
-            print(f'[Analytics Processor] Error: {e}')
-        _t.sleep(60)
-_thr.Thread(target=_analytics_loop, daemon=True, name='analytics-processor').start()
-print('[Analytics] ✅ 聚合处理器已启动 (60s 间隔)')
-
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 try:
@@ -149,14 +125,11 @@ app.register_blueprint(header_bp)
 app.register_blueprint(comments_bp)
 app.register_blueprint(cf_bp)
 app.register_blueprint(theme_bp)
-app.register_blueprint(analytics_bp)
 app.register_blueprint(douyin_mp_bp)  # Douyin Mini-Program API
 app.register_blueprint(shop_bp)        # 商城管理
 app.register_blueprint(sub_bp)
 app.register_blueprint(cleaner_bp)     # 数据清洗智能体
 app.register_blueprint(renew_bp)     # 订阅续费页面
-app.register_blueprint(captcha_bp)   # 验证码服务 (嵌入式)
-register_admin_stats(app)            # Captcha admin stats endpoint
 # 独立部署订阅管理API — 仅在主服务器模式注册
 _EASYKAI_MODE = os.environ.get('EASYKAI_MODE', 'main')
 if _EASYKAI_MODE == 'main':
@@ -172,14 +145,6 @@ except Exception as e:
     print(f'[CleanerAgent] ⚠️ 自动注册失败: {e}')
 init_cms_tables()
 
-# ===== 健康巡检中心 =====
-init_health_tables()
-migrate_alert_schema()
-seed_default_checks()
-app.register_blueprint(health_bp)
-print(f'[HealthCheck] ✅ 健康巡检已注册')
-print(f'[HealthCheck] 📋 API: /admin/health/*')
-
 # ===== PluginManager（新插件系统）=====
 try:
     app.version = '0.10.2'
@@ -191,14 +156,6 @@ except Exception as e:
     print(f'[PluginManager] ❌ 初始化失败: {e}')
     import traceback
     traceback.print_exc()
-
-# 注册定时巡检任务
-try:
-    from health_check.scheduler_setup import seed_health_schedules
-    seed_health_schedules()
-    print(f'[HealthCheck/Scheduler] ✅ 定时巡检注册完成')
-except Exception as e:
-    print(f'[HealthCheck/Scheduler] ⚠️ 定时巡检注册失败: {e}')
 
 # ===== 自动化调度系统 (Cron + Workflow) =====
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'orchestrator'))
