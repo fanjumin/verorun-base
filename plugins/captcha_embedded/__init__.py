@@ -22,11 +22,10 @@ class CaptchaEmbeddedPlugin(BasePlugin):
     author = 'VeroRun'
 
     def on_enable(self, registry):
-        """启用时注册 admin stats 端点和 i18n"""
-        from captcha_bp import register_admin_stats, init_i18n
-        register_admin_stats(self.app)
+        """启用时注册 i18n"""
+        from captcha_bp import init_i18n
         init_i18n(self.t)
-        print('[CaptchaEmbedded] Admin stats endpoint registered')
+        print('[CaptchaEmbedded] Plugin i18n initialized')
         return True
 
     def register_routes(self):

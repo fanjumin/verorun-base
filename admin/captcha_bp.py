@@ -156,8 +156,7 @@ def captcha_consume():
 
 # ── Admin stats ──
 
-def register_admin_stats(admin_app):
-    """在 admin Flask app 上注册 /api/admin/captcha/stats 端点。"""
-    @admin_app.route('/api/admin/captcha/stats', methods=['GET'])
-    def admin_captcha_stats():
-        return jsonify(get_stats())
+
+@captcha_bp.route('/admin/stats/', methods=['GET'])
+def admin_captcha_stats():
+    return jsonify(get_stats())
