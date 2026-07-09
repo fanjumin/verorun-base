@@ -1192,12 +1192,27 @@ def api_logs():
 def get_config():
     """获取配置信息（脱敏）"""
     try:
+        # 从独立库 ali_api_config 实时读取 AppKey/AppSecret（不依赖内存缓存）
+        from ..models import get_db
+        db_app_key = ''
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM ali_api_config WHERE key='alibaba_app_key'"
+            ).fetchone()
+            if row:
+                db_app_key = row['value']
+
+        app_key_masked = ''
+        if db_app_key:
+            app_key_masked = db_app_key[:7] + '...' if len(db_app_key) > 7 else db_app_key
+
         safe_config = {
             'alibaba': {
                 'api_gateway': config['alibaba']['api_gateway'],
                 'api_version': config['alibaba']['api_version'],
                 'sign_method': config['alibaba']['sign_method'],
-                'app_key_configured': bool(config['alibaba']['app_key']),
+                'app_key_configured': bool(db_app_key),
+                'app_key_masked': app_key_masked,
             },
             'rate_limit': config['rate_limit'],
             'cache': {
@@ -1211,12 +1226,38 @@ def get_config():
                 'available': is_ai_available(),
             },
         }
-        
+
         return _success(safe_config)
-        
+
     except Exception as e:
         logger.error(f"获取配置失败: {e}")
         return _error(f"获取配置失败: {e}")
+
+
+@ali_admin_bp.route('/config', methods=['POST'])
+@csrf_protect
+def save_config():
+    """保存阿里巴巴配置（AppKey / AppSecret）到独立库 ali_api_config 表"""
+    admin = _require_admin()
+    if not admin:
+        return _error('请先登录', 401)
+
+    data = request.json or {}
+    app_key = (data.get('app_key') or '').strip()
+    app_secret = (data.get('app_secret') or '').strip()
+
+    from ..models import get_db, AliApiConfig
+    with get_db() as conn:
+        if app_key:
+            AliApiConfig.set(conn, 'alibaba_app_key', app_key,
+                             '1688 AppKey')
+        if app_secret:
+            AliApiConfig.set(conn, 'alibaba_app_secret', app_secret,
+                             '1688 AppSecret', encrypted=1)
+        conn.commit()
+
+    logger.info(f"ali_api 配置已保存 (user_id={admin['user_id']})")
+    return _success(None, '配置保存成功。部分更改需要重启服务后才能生效。')
 
 # ===== 允许的 OAuth 回调域名白名单（从配置动态获取）=====
 def _get_allowed_domains():

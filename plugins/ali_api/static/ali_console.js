@@ -741,16 +741,18 @@ async function loadConfig() {
         if (!res.data.success) return;
         const c = res.data.data;
 
-        // 阿里巴巴配置
-        const aliEl = document.getElementById('alibaba-config');
-        if (aliEl) {
-            aliEl.innerHTML = `
-                <dt class="col-sm-5">API网关</dt><dd class="col-sm-7">${escHtml(c.alibaba.api_gateway)}</dd>
-                <dt class="col-sm-5">API版本</dt><dd class="col-sm-7">${escHtml(c.alibaba.api_version)}</dd>
-                <dt class="col-sm-5">签名方法</dt><dd class="col-sm-7">${escHtml(c.alibaba.sign_method)}</dd>
-                <dt class="col-sm-5">AppKey</dt><dd class="col-sm-7"><span class="api-status ${c.alibaba.app_key_configured ? 'status-active' : 'status-inactive'}">${c.alibaba.app_key_configured ? '已配置' : '未配置'}</span></dd>
-            `;
-        }
+        // 阿里巴巴配置（填充输入框）
+        const gwEl = document.getElementById('cfg-api-gateway');
+        if (gwEl) gwEl.value = c.alibaba.api_gateway || '';
+        const verEl = document.getElementById('cfg-api-version');
+        if (verEl) verEl.value = c.alibaba.api_version || '';
+        const sigEl = document.getElementById('cfg-sign-method');
+        if (sigEl) sigEl.value = c.alibaba.sign_method || '';
+        const keyEl = document.getElementById('cfg-app-key');
+        if (keyEl) keyEl.value = c.alibaba.app_key_masked || '';
+        // 如已配置则在 secret 输入框给予提示
+        const secEl = document.getElementById('cfg-app-secret');
+        if (secEl) secEl.placeholder = c.alibaba.app_key_configured ? '已配置，输入新值以覆盖' : '输入 1688 AppSecret';
 
         // AI配置
         const aiEl = document.getElementById('ai-config');
@@ -924,3 +926,35 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// ===== 配置保存 =====
+async function saveConfig() {
+    const appKey = document.getElementById('cfg-app-key')?.value?.trim();
+    const appSecret = document.getElementById('cfg-app-secret')?.value?.trim();
+    if (!appKey && !appSecret) {
+        showMessage('config-save-result', '请至少填写 AppKey 或 AppSecret', 'error');
+        return;
+    }
+    if (appKey && appKey.endsWith('...')) {
+        showMessage('config-save-result', 'AppKey 显示为脱敏值，如需修改请完整输入新的 AppKey', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('save-config-btn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 保存中...'; }
+
+    try {
+        const res = await axios.post('/admin/ali-api/config', { app_key: appKey, app_secret: appSecret });
+        if (res.data.success) {
+            showMessage('config-save-result', '✅ ' + res.data.message, 'success');
+            // 刷新配置展示
+            loadConfig();
+        } else {
+            showMessage('config-save-result', '❌ ' + (res.data.error || '保存失败'), 'error');
+        }
+    } catch (e) {
+        showMessage('config-save-result', '❌ 保存失败: ' + (e.response?.data?.error || e.message), 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存配置'; }
+    }
+}

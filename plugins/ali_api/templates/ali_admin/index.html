@@ -537,21 +537,45 @@
                                 <h5 class="mb-0"><i class="bi bi-shop"></i> 阿里巴巴配置</h5>
                             </div>
                             <div class="card-body">
-                                <dl class="row" id="alibaba-config">
-                                    <dt class="col-sm-5">API网关</dt>
-                                    <dd class="col-sm-7">加载中...</dd>
-                                    
-                                    <dt class="col-sm-5">API版本</dt>
-                                    <dd class="col-sm-7">加载中...</dd>
-                                    
-                                    <dt class="col-sm-5">签名方法</dt>
-                                    <dd class="col-sm-7">加载中...</dd>
-                                    
-                                    <dt class="col-sm-5">AppKey配置</dt>
-                                    <dd class="col-sm-7">
-                                        <span class="api-status status-inactive">未配置</span>
-                                    </dd>
-                                </dl>
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">API 网关</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" id="cfg-api-gateway" readonly>
+                                    </div>
+                                </div>
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">API 版本</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" id="cfg-api-version" readonly>
+                                    </div>
+                                </div>
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">签名方法</label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" id="cfg-sign-method" readonly>
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">AppKey <span class="text-danger">*</span></label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" id="cfg-app-key" placeholder="输入 1688 AppKey">
+                                    </div>
+                                </div>
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">AppSecret <span class="text-danger">*</span></label>
+                                    <div class="col-sm-9">
+                                        <input type="password" class="form-control" id="cfg-app-secret" placeholder="输入 1688 AppSecret">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-9 offset-sm-3">
+                                        <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()">
+                                            <i class="bi bi-check-lg"></i> 保存配置
+                                        </button>
+                                        <span id="config-save-result" class="ms-2 small"></span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
