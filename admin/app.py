@@ -151,6 +151,7 @@ try:
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
+    pm.mount_active_routes()   # 启动期挂载已启用插件的路由（首个请求前）
     print(f'[PluginManager] ✅ 管理 API 蓝图已注册 (/admin/plugins/*)')
 except Exception as e:
     print(f'[PluginManager] ❌ 初始化失败: {e}')

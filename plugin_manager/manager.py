@@ -387,6 +387,38 @@ class PluginManager:
                 except Exception as e:
                     print(f'[PluginManager] ❌ auto-activate {identifier}: {e}')
 
+    def mount_active_routes(self):
+        """启动期挂载所有 enabled/active 插件的路由（必须在首个请求前调用）。
+
+        Flask 的 register_blueprint 只能在启动阶段调用，运行时 activate() 挂载的路由
+        无法生效。因此在 app 初始化时统一挂载已启用插件的 Blueprint。
+        幂等：已挂载的 Blueprint（同名）会跳过，可安全重复调用。
+        """
+        if not self.app:
+            return
+        mounted = []
+        for identifier, info in self._cache.items():
+            if info.status not in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
+                continue
+            try:
+                instance = self._instances.get(identifier)
+                if instance is None:
+                    instance = self._load_instance(info)
+                    if hasattr(instance, 'setup') and callable(instance.setup):
+                        instance.setup()
+                    self._instances[identifier] = instance
+                if hasattr(instance, 'register_routes'):
+                    for bp in instance.register_routes():
+                        if bp.name in self.app.blueprints:
+                            continue  # 已挂载，跳过
+                        prefix = self._get_route_prefix(identifier, bp)
+                        self.app.register_blueprint(bp, url_prefix=prefix)
+                        mounted.append(f'{identifier}:{prefix}')
+            except Exception as e:
+                print(f'[PluginManager] ⚠️ mount {identifier} failed: {e}')
+        if mounted:
+            print(f'[PluginManager] ✅ 启动挂载路由: {mounted}')
+
     # ── 查询方法 ────────────────────────────────────────────────────────
 
     def get_info(self, identifier: str) -> Optional[PluginInfo]:
