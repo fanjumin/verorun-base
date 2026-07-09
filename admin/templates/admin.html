@@ -5,7 +5,7 @@
 {% include 'partials/dashboard.html' %}
 {% include 'partials/users.html' %}
 {% include 'partials/customers.html' %}
-{% include 'plugins/enterprise_verify/templates/admin_verify.html' %}
+{% include 'plugins/enterprise_verify/templates/admin_verify.html' ignore missing %}
 {% include 'partials/customer_agents.html' %}
 {% include 'partials/agents.html' %}
 {% include 'partials/api_keys.html' %}
@@ -15,7 +15,7 @@
 {% include 'partials/plans.html' %}
 {% include 'partials/subscriptions.html' %}
 {% include 'partials/sub_orders.html' %}
-{% include 'plugins/ads/templates/admin_ads.html' %}
+{% include 'plugins/ads/templates/admin_ads.html' ignore missing %}
 
 {% include 'partials/shop_products.html' %}
 {% include 'partials/shop_categories.html' %}
@@ -36,10 +36,10 @@
 {% include 'partials/cms.html' %}
 {% include 'partials/all_content.html' %}
 {% include 'partials/social.html' %}
-{% include 'plugins/content_factory/templates/admin_contentfactory.html' %}
+{% include 'plugins/content_factory/templates/admin_contentfactory.html' ignore missing %}
 {% include 'partials/automation.html' %}
-{% include 'partials/analytics.html' %}
-{% include 'partials/health.html' %}
+{% include 'partials/analytics.html' ignore missing %}
+{% include 'partials/health.html' ignore missing %}
 {% include 'partials/i18n_translations.html' %}
 {% include 'partials/comments.html' %}
 {% include 'partials/admins.html' %}
