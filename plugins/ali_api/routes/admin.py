@@ -35,7 +35,7 @@ from ..models import get_db, AliApiItem, AliApiLog, AliApiUserStats
 ali_admin_bp = Blueprint('ali_api_admin', __name__, url_prefix='/admin/ali-api',
                           template_folder='../templates',
                           static_folder='../static',
-                          static_url_path='/admin/ali-api/static')
+                          static_url_path='static')
 
 logger = logging.getLogger(__name__)
 
