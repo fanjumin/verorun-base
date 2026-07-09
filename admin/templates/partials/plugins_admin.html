@@ -60,7 +60,7 @@ function scanPlugins(){
   act.innerHTML='<div class="lo"><div class="s"></div>{{ _('Scanning') }}...</div>';
   fetch("/admin/plugins/discover",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success){act.innerHTML='<div class="em">'+esc(d.error||'{{ _('Scan failed') }}')+'</div>';return}
-    var ps=d.data.plugins||[];
+    var ps=(d.data.plugins||[]).filter(function(p){return !p.installed});
     if(ps.length===0){
       showToast("{{ _('No new plugins found') }}","success");
       act.innerHTML='<div class="cd"><div class="em">{{ _('No new plugins found') }}</div></div>';

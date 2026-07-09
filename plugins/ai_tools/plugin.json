@@ -19,6 +19,13 @@
         ],
         "listens": []
     },
+    "menu": {
+        "group": "AI Tools",
+        "key": "ai_tools",
+        "icon": "media_video",
+        "label": "AI Tools",
+        "embed_url": "/admin/ai-tools/"
+    },
     "settings_schema": {
         "type": "object",
         "properties": {}

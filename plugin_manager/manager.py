@@ -555,6 +555,23 @@ class PluginManager:
         reverse_plugins = {k: list(v) for k, v in reverse.items()}
         return deps_module.get_dependents_tree(identifier, reverse_plugins)
 
+    def get_plugin_menus(self) -> list:
+        """收集所有已安装+已启用插件的菜单项"""
+        menus = []
+        for pid, pinfo in self._cache.items():
+            if pinfo.status not in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
+                continue
+            # 从 plugin.json 读取 menu 配置
+            menu_cfg = pinfo.metadata.get('menu') if pinfo.metadata else None
+            if not menu_cfg:
+                # 尝试从插件实例获取
+                if pinfo.instance and hasattr(pinfo.instance, 'get_menu'):
+                    menu_cfg = pinfo.instance.get_menu()
+            if menu_cfg:
+                menu_cfg['_plugin_id'] = pid
+                menus.append(menu_cfg)
+        return menus
+
     # ── 日志 ──────────────────────────────────────────────────────────
 
     def read_log(self, identifier: str, lines: int = 50) -> str:

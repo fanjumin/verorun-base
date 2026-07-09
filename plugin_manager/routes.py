@@ -768,6 +768,19 @@ def renew_subscription(plugin_id: str):
     return _json_result(False, error='Renewal failed', code=400)
 
 
+# ── 32. 插件菜单列表 ─────────────────────────────────────
+
+@bp.route('/menus', methods=['GET'])
+def plugin_menus():
+    """返回所有已安装+已启用插件的菜单项"""
+    mgr = _get_manager()
+    if not mgr:
+        return _json_result(False, error='PluginManager not initialized', code=503)
+
+    menus = mgr.get_plugin_menus()
+    return _json_result(True, data={'menus': menus})
+
+
 # ── 工具: 触发支付相关钩子 ──────────────────────────────
 
 def _fire_payment_hook(plugin_id: str, event: str, order_no: str):

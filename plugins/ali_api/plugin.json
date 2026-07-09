@@ -18,6 +18,13 @@
         "provides": [],
         "listens": []
     },
+    "menu": {
+        "group": "Plugins",
+        "key": "ali_api",
+        "icon": "plugins",
+        "label": "1688 供应链采集",
+        "embed_url": "/admin/ali-api/"
+    },
     "settings_schema": {
         "type": "object",
         "properties": {

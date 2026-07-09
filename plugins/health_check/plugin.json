@@ -20,6 +20,13 @@
         ],
         "listens": []
     },
+    "menu": {
+        "group": "Ops Data",
+        "key": "health",
+        "icon": "health",
+        "label": "Health Check",
+        "embed_url": "/admin/health/"
+    },
     "settings_schema": {
         "type": "object",
         "properties": {}

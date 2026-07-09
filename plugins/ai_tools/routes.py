@@ -332,3 +332,73 @@ def media_download(filename):
     if not os.path.exists(filepath):
         return jsonify({'success': False, 'error': '文件不存在或已过期'}), 404
     return send_file(filepath, as_attachment=True, download_name=filename)
+
+
+# ============================================================
+# AI Tools 嵌入式仪表盘（供侧边栏 iframe 加载）
+# ============================================================
+
+@ai_tools_bp.route('/ai-tools/')
+def ai_tools_embed():
+    """返回 AI Tools 嵌入式仪表盘 HTML"""
+    admin, err = _require_admin()
+    if err: return err
+    return '''<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Tools</title>
+<style>
+:root{--bg:#050508;--fg:#e0e0e0;--accent:#6366f1;--dim:#6b7280;--border:#1f2937;--card:#111118}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);padding:24px}
+.tabs{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
+.tab-btn{padding:8px 16px;border:1px solid var(--border);background:var(--card);color:var(--dim);cursor:pointer;border-radius:6px;font-size:13px;transition:all .2s}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tab-btn:hover:not(.active){border-color:var(--accent);color:var(--fg)}
+.panel{display:none}
+.panel.active{display:block}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;color:var(--dim);margin-bottom:4px}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:13px}
+.form-group textarea{min-height:100px;resize:vertical}
+.btn{padding:10px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;transition:opacity .2s}
+.btn:hover{opacity:.9}
+.result{margin-top:16px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;font-size:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap}
+.status{font-size:11px;color:var(--dim);margin-top:8px}
+</style></head>
+<body>
+<div class="tabs">
+<button class="tab-btn active" onclick="switchTab('ppt')">PPT Generation</button>
+<button class="tab-btn" onclick="switchTab('image')">Image Gen</button>
+<button class="tab-btn" onclick="switchTab('media')">Multimedia</button>
+</div>
+
+<div id="ppt" class="panel active">
+<h3 style="margin-bottom:16px">PPT Generation</h3>
+<div class="form-group"><label>Topic</label><input id="pptTopic" placeholder="Enter PPT topic"></div>
+<div class="form-group"><label>Slides (3-10)</label><input id="pptSlides" type="number" min="3" max="10" value="5"></div>
+<button class="btn" onclick="generatePPT()">Generate PPT</button><span class="status" id="pptStatus"></span>
+<div class="result" id="pptResult" style="display:none"></div>
+</div>
+
+<div id="image" class="panel">
+<h3 style="margin-bottom:16px">Image Generation</h3>
+<div class="form-group"><label>Prompt</label><textarea id="imgPrompt" placeholder="Describe the image you want to generate..."></textarea></div>
+<div class="form-group"><label>Size</label><select id="imgSize"><option value="1024x1024">1024x1024</option><option value="1792x1024">1792x1024</option><option value="1024x1792">1024x1792</option></select></div>
+<button class="btn" onclick="generateImage()">Generate Image</button><span class="status" id="imgStatus"></span>
+<div class="result" id="imgResult" style="display:none"></div>
+</div>
+
+<div id="media" class="panel">
+<h3 style="margin-bottom:16px">Multimedia</h3>
+<p style="color:var(--dim);font-size:13px">Generated media files will appear here.</p>
+<div class="result" id="mediaResult" style="display:none"></div>
+<button class="btn" style="margin-top:12px" onclick="loadMedia()">Refresh</button>
+</div>
+<script>
+var T=parent.T||'';
+function switchTab(t){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});event.target.classList.add('active');document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});document.getElementById(t).classList.add('active')}
+function generatePPT(){var t=document.getElementById('pptTopic').value.trim();var s=document.getElementById('pptSlides').value;if(!t){alert('Please enter a topic');return}document.getElementById('pptStatus').textContent='Generating...';fetch('/admin/generate-ppt',{method:'POST',headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},body:JSON.stringify({topic:t,slides:parseInt(s)})}).then(function(r){return r.json()}).then(function(d){document.getElementById('pptStatus').textContent='';if(d.success){var el=document.getElementById('pptResult');el.style.display='block';el.innerHTML='<a href="'+d.url+'" target="_blank" style="color:var(--accent)">Download '+d.filename+'</a> ('+d.slides+' slides)'}else{document.getElementById('pptResult').style.display='block';document.getElementById('pptResult').textContent='Error: '+d.error}}).catch(function(e){document.getElementById('pptStatus').textContent='Network error'})}
+function generateImage(){var p=document.getElementById('imgPrompt').value.trim();var s=document.getElementById('imgSize').value;if(!p){alert('Please enter a prompt');return}document.getElementById('imgStatus').textContent='Generating...';fetch('/admin/generate-image',{method:'POST',headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},body:JSON.stringify({prompt:p,size:s})}).then(function(r){return r.json()}).then(function(d){document.getElementById('imgStatus').textContent='';if(d.success){var el=document.getElementById('imgResult');el.style.display='block';el.innerHTML='<img src="'+d.url+'" style="max-width:100%;border-radius:6px" alt="Generated">'}else{document.getElementById('imgResult').style.display='block';document.getElementById('imgResult').textContent='Error: '+d.error}}).catch(function(e){document.getElementById('imgStatus').textContent='Network error'})}
+function loadMedia(){document.getElementById('mediaResult').style.display='block';document.getElementById('mediaResult').innerHTML='Loading...'}
+</script></body></html>'''

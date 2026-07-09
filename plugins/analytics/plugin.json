@@ -24,6 +24,13 @@
         ],
         "listens": []
     },
+    "menu": {
+        "group": "Ops Data",
+        "key": "analytics",
+        "icon": "analytics",
+        "label": "Analytics",
+        "embed_url": "/admin/analytics/"
+    },
     "settings_schema": {
         "type": "object",
         "properties": {
