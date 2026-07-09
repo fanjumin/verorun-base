@@ -75,6 +75,8 @@ def _require_admin():
     if not token:
         token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
     if not token:
+        token = request.args.get('token')  # 支持 URL 传 token（iframe 加载场景）
+    if not token:
         return None
     
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center'))

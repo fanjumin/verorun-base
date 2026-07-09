@@ -34,25 +34,13 @@ function goPlugin(key,embedUrl){
   document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
   var el=document.getElementById("n-"+key);if(el)el.classList.add("sel");
   if(!embedUrl){document.getElementById("mc").innerHTML='<div class="em">Plugin embed URL not configured</div>';return}
-  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
-  var xhr=new XMLHttpRequest();
-  xhr.open('GET',embedUrl,true);
-  xhr.setRequestHeader('Authorization','Bearer '+T);
-  xhr.onload=function(){
-    if(xhr.status===200){
-      var html=xhr.responseText;
-      var ifr=document.createElement('iframe');
-      ifr.style.cssText='width:100%;height:calc(100vh - 70px);border:none;background:#050508';
-      ifr.srcdoc=html;
-      document.getElementById("mc").innerHTML='';
-      document.getElementById("mc").appendChild(ifr);
-    }else{
-      document.getElementById("mc").innerHTML='<div class="em">⚠️ {{ _('Load failed') }} HTTP '+xhr.status+'</div>';
-    }
-  };
-  xhr.onerror=function(){
-    document.getElementById("mc").innerHTML='<div class="em">⚠️ {{ _('Network Request Failed') }}</div>';
-  };
-  xhr.send();
+  // 真实 iframe 加载：URL 携带 token，插件页 JS / 外部脚本正常初始化并鉴权
+  var sep=embedUrl.indexOf('?')>=0?'&':'?';
+  var url=embedUrl+sep+'token='+encodeURIComponent(T||'');
+  var ifr=document.createElement('iframe');
+  ifr.style.cssText='width:100%;height:calc(100vh - 70px);border:none;background:#050508';
+  ifr.src=url;
+  document.getElementById("mc").innerHTML='';
+  document.getElementById("mc").appendChild(ifr);
 }
 

@@ -18,12 +18,17 @@ let currentProductPage = 1;
 let currentLogPage = 1;
 let currentAiItemId = null; // 当前正在AI处理的商品ID
 
-// ===== CSRF 防护 =====
-// 在所有 axios 请求中自动附加 CSRF Token
+// ===== CSRF 防护 + JWT 鉴权 =====
+// 从 iframe URL 读取 token（父页面通过 ?token= 传入），附加到所有请求
+const _pageToken = new URLSearchParams(location.search).get('token') || '';
+// 在所有 axios 请求中自动附加 CSRF Token + JWT
 axios.interceptors.request.use(function(config) {
     const csrfToken = getCookie('csrf_token');
     if (csrfToken) {
         config.headers['X-CSRF-Token'] = csrfToken;
+    }
+    if (_pageToken) {
+        config.headers['Authorization'] = 'Bearer ' + _pageToken;
     }
     return config;
 }, function(error) {
