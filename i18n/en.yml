@@ -285,7 +285,6 @@ your_username: your_username
 企业认证待审核: Enterprise Verification Pending
 '企业认证未通过:': 'Verification failed:'
 企业认证申请已提交，请等待管理员审核: Verification submitted, pending admin review
-优惠券: Coupon
 优惠券管理: Coupon Management
 优惠码不能为空: Promo code cannot be empty
 会员体系: Membership System
@@ -313,7 +312,6 @@ your_username: your_username
 全站生成中...: Generating entire site...
 全自动流水线+社媒推送: Auto Pipeline + Social Push
 全设备自适应响应: Fully Responsive
-全部: All
 全部客户: All Customers
 全部已读: Mark All as Read
 全部类型: All Types
@@ -1008,15 +1006,12 @@ VeroRun: VeroRun
 请填写账号和密码: Please enter username and password
 请填写驳回原因: Please enter a reason for rejection
 请核对以下自动识别出的企业信息，确认无误后提交: Please review the recognized info before submitting
-请求失败: Request Failed
 请稍后重试: Please try again later
 请联系管理员: Please contact admin
 请至少选择一个发布渠道: Select at least one channel
 请至少选择一个平台: Select at least one platform
 请输入11位手机号: Please enter 11-digit phone number
 请输入6位验证码: Please enter 6-digit code
-请输入主题: Enter a topic
-请输入优惠码: Enter coupon code
 请输入分类名称: Enter category name
 请输入原文（中文）: Enter source text (Chinese)
 请输入图片描述: Enter image description
@@ -1205,7 +1200,6 @@ VeroRun: VeroRun
 主导航管理: Main Nav Management
 主机名: Hostname
 主站: Main Site
-主题: Theme
 也可以直接: Or Directly
 事件: Event
 事件类型: Event Type
@@ -1412,7 +1406,6 @@ VeroRun: VeroRun
 危险: Danger
 即将推出: Coming Soon
 原价: Original Price
-原因: Reason
 原始内容: Raw Content
 原始内容列表: Raw Content List
 原指令控制台: Original Command Console
@@ -1627,7 +1620,6 @@ VeroRun: VeroRun
 已加入清洗队列: Added to Cleaning Queue
 已加工: Processed
 已发布: Published
-已发货: Shipped
 '已发送 ': 'Sent '
 已启用: Enabled
 已启用该主题的站点将自动恢复默认主题: Sites using this theme will auto-restore Default Theme
@@ -1707,7 +1699,6 @@ VeroRun: VeroRun
 必须带: Must Include
 快手: Kuaishou
 快手等社媒平台: Kuaishou & Other Social Media
-快递: Express
 快递公司: Courier
 快递单号: Tracking No.
 快速: Fast
@@ -2075,7 +2066,6 @@ VeroRun: VeroRun
 渲染图表: Render Chart
 渲染子任务生成的图片到聊天界面: Render Sub-task Images to Chat
 满减: Discount
-满减券: Discount Coupon
 演示主题: Demo Theme
 演示文稿生成: Presentation Generation
 激活: Activate
@@ -2114,7 +2104,6 @@ VeroRun: VeroRun
 生成图像: Generate Image
 生成图片: Generate Picture
 生成图片并自动填入: Generate Image & Auto-fill
-生成失败: Generation Failed
 生成成功: Generated Successfully
 生成的图片并上传到媒体库: Generated Images & Upload to Media Library
 生成结果: Generation Result
@@ -2359,7 +2348,6 @@ VeroRun: VeroRun
 设置失败: Set Failed
 设置头像: Set Avatar
 设计师: Designer
-评分: Rating
 试用: Trial
 试试: Try
 该用户暂无: This User Has No
@@ -2465,7 +2453,6 @@ VeroRun: VeroRun
 通义万相: Tongyi Wanxiang
 通义万相生成中: Tongyi Wanxiang Generating
 通用: General
-通用券: General Coupon
 通知: Notification
 通知内容: Notification Content
 通知标题: Notification Title
@@ -2547,7 +2534,6 @@ VeroRun: VeroRun
 饼图: Pie Chart
 首字母: First Letter
 首张图为商品主图: First Image is Main Product Image
-首月特价: First Month Special
 首次必填: Required on First Entry
 首页展示: Homepage Display
 首页展示视频窗口: Homepage Video Window
@@ -2612,16 +2598,7 @@ on_enable 返回 False: on_enable returned False
 外部 API 连通性检查: External API Connectivity Check
 你好，这是示例插件！: Hello, this is a demo plugin!
 每日报告生成中...: Generating daily report...
-AI分析: AI Analysis
-一键修复: One-Click Fix
-AI分析中...: AI Analyzing...
 确定执行AI修复？此操作不可自动撤销。: Confirm AI fix? This action cannot be undone automatically.
-正在获取AI修复方案...: Getting AI fix suggestions...
-无需修复: No Fix Needed
-正在执行: Executing
-项修复...: Item(s) Fix...
-修复完成: Fix Complete
-修复失败: Fix Failed
 
 '暂无中国城市数据': 'No China city data'
 '暂无页面数据': 'No page data'
