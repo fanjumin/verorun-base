@@ -109,6 +109,15 @@ class PluginManager:
             if auto_installed > 0:
                 print(f'[PluginManager] ✅ 自动安装 {auto_installed} 个新插件')
                 self._load_cache()  # 重新加载缓存
+
+            # 用磁盘 plugin.json 刷新已缓存插件的静态元信息（menu/version 等）。
+            # 仅更新内存缓存，不写 DB，避免污染运行时状态（status/config）；
+            # 保证 plugin.json 始终是菜单等静态元信息的权威来源。
+            for disk_info in discovered:
+                cached = self._cache.get(disk_info.identifier)
+                if cached:
+                    cached.metadata = disk_info.metadata
+                    cached.version = disk_info.version
         except Exception as e:
             print(f'[PluginManager] ⚠️ 自动安装失败: {e}')
 
