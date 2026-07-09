@@ -79,6 +79,11 @@ class BasePlugin(ABC):
         self._i18n_data: Dict[str, Dict[str, str]] = {}
         self._load_i18n()
 
+    @property
+    def app(self):
+        """Flask app 引用（从 manager 获取），供插件注册中间件等使用。"""
+        return getattr(self.manager, 'app', None)
+
     # ── i18n ──
 
     def _get_i18n_dir(self) -> str:
@@ -122,8 +127,16 @@ class BasePlugin(ABC):
         调用时机: enable() 时调用，在依赖检查通过之后。
         职责: 创建数据库表、注册钩子、初始化配置。
         返回 False 会导致 enable 失败。
+
+        默认桥接到旧系统钩子 on_install() + on_enable()，
+        使仅实现旧钩子的插件（如 analytics/health_check）在新系统下也能正确初始化。
         """
-        return True
+        reg = getattr(self, 'manager', None)
+        try:
+            self.on_install(reg)
+        except Exception as e:
+            print(f'[Plugin] {getattr(self, "name", "?")} on_install warning: {e}')
+        return self.on_enable(reg)
 
     def activate(self):
         """[ACTIVE 阶段] 插件激活。
@@ -139,8 +152,10 @@ class BasePlugin(ABC):
 
         调用时机: disable() 时调用。
         职责: 移除路由引用、取消事件监听、停止后台任务。
+        默认桥接到旧系统钩子 on_disable()。
         """
-        pass
+        reg = getattr(self, 'manager', None)
+        return self.on_disable(reg)
 
     # ── 生命周期（旧系统兼容 — 被 plugins.registry.PluginRegistry 调用） ──
 
