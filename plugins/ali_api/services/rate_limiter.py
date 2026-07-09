@@ -218,7 +218,13 @@ class CircuitBreaker:
             state = self.states[endpoint]
             
             if state['state'] == 'open':
-                remaining = self.timeout - (time.time() - state['opened_at'])
+                elapsed = time.time() - (state['opened_at'] or 0)
+                # 超时自动恢复：进入半开状态，放行本次试探请求（修复永久卡死 bug）
+                if elapsed >= self.timeout:
+                    state['state'] = 'half-open'
+                    logger.info(f"熔断器超时恢复，进入半开状态: {endpoint}")
+                    return True, None
+                remaining = max(0, self.timeout - elapsed)
                 return False, f"API熔断中，请等待{int(remaining)} 秒后重试"
             
             return True, None
