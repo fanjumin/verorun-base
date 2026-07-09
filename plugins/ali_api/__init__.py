@@ -19,7 +19,12 @@ class AliApiPlugin(BasePlugin):
     author = 'VeroRun'
 
     def on_enable(self, registry):
-        """插件启用时设置 i18n 桥接"""
+        """插件启用时: 初始化独立数据库表 + 设置 i18n 桥接"""
+        try:
+            from .models import init_tables
+            init_tables()
+        except Exception as e:
+            print(f'[AliApi] DB init warning: {e}')
         set_plugin(self)
         return True
 
