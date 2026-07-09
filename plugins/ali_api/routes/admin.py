@@ -1234,6 +1234,7 @@ def get_config():
         return _error(f"获取配置失败: {e}")
 
 
+# ── 配置保存（用户通过 UI 写入 ali_api_config 表）──
 @ali_admin_bp.route('/config', methods=['POST'])
 @csrf_protect
 def save_config():
