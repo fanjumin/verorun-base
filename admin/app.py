@@ -77,7 +77,7 @@ app.jinja_env.globals['_'] = _
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Content-Security-Policy'] = (
@@ -87,7 +87,7 @@ def add_security_headers(response):
         "img-src 'self' data: blob: https:; "
         "font-src 'self' data: https://cdn.jsdelivr.net; "
         "connect-src 'self' ws: wss: https://cdn.jsdelivr.net; "
-        "frame-ancestors 'none';"
+        "frame-ancestors 'self';"
     )
     return response
 
