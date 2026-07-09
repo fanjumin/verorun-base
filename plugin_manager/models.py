@@ -67,7 +67,7 @@ class PluginStatus(str, Enum):
             cls.ACTIVE:      {cls.DISABLED, cls.UNINSTALLED},
             cls.DISABLED:    {cls.ENABLED, cls.UNINSTALLED},
             cls.UNINSTALLED: set(),
-            cls.ERROR:       {cls.INSTALLED, cls.DISABLED, cls.UNINSTALLED},
+            cls.ERROR:       {cls.INSTALLED, cls.ENABLED, cls.DISABLED, cls.UNINSTALLED},
         }
         return target in transitions.get(current, set())
 
