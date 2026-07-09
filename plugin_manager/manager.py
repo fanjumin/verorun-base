@@ -664,16 +664,15 @@ class PluginManager:
         if not os.path.isdir(plugin_dir):
             raise PluginNotFoundError(identifier)
 
-        # 确保插件目录在 sys.path 中
-        plugins_parent = os.path.dirname(plugin_dir)
-        if plugins_parent not in sys.path:
-            sys.path.insert(0, plugins_parent)
-        if plugin_dir not in sys.path:
-            sys.path.insert(0, plugin_dir)
+        # 确保项目根在 sys.path（供插件导入根业务模块 analytics/health_check 等）
+        project_root = os.path.dirname(os.path.dirname(plugin_dir))  # plugins/ 的父目录
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
 
         try:
-            # 兼容现有 plugins 系统: 插件有 __init__.py 且包含 BasePlugin 子类
-            mod = importlib.import_module(identifier)
+            # 用命名空间包导入（plugins.<identifier>），避免插件包名污染顶层命名空间，
+            # 防止如 plugins/analytics 遮蔽项目根 analytics 业务模块。
+            mod = importlib.import_module(f'plugins.{identifier}')
 
             from plugin_manager.base import BasePlugin
 
