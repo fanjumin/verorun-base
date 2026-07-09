@@ -81,6 +81,8 @@ var GROUPS=[
   ["{{ _('Ops Data') }}",true,[["token_monitoring",I.token_monitoring,"{{ _('Token Usage') }}"],["logs",I.logs,"{{ _('Operation Log') }}"]]],
   ["{{ _('Plugin Management') }}",false,[["plugins",I.plugins,"{{ _('Plugin Management') }}"],["plugins_store",I.plugins,"{{ _('Plugin Store') }}"],["plugins_licenses",I.plugins,"{{ _('License Management') }}"],["plugins_subscriptions",I.plugins,"{{ _('Subscriptions') }}"]]],
 ];
+// 与 GROUPS 一一对应的英文标识（插件 menu.group 用此匹配现有组，避免 i18n 翻译差异）
+var GROUP_KEYS=["Dashboard","AI Chat","System","Content","Strategy","Automation","Operations","Messages & Support","Customer Management","Risk & Audit","International","Ops Data","Plugin Management"];
 function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(function(g,i){var n=g[0],c=g[1],t=g[2];if(!c&&t.length===1){var k=t[0][0],x=t[0][1],l=t[0][2];h+='<div class="ni" onclick="go(\''+k+'\')\" id="n-'+k+'">'+x+'<span>'+l+'</span></div>'}else{h+='<div class="ng" id="ng-'+i+'"><div class="ns" onclick="toggleGroup('+i+')"><span class="ns-arrow">'+(c?'▶':'▼')+'</span><span class="ns-label">'+n+'</span></div><div class="ng-body'+(c?' collapsed':'')+'" id="ngb-'+i+'">';t.forEach(function(m){var k=m[0],x=m[1],l=m[2];h+='<div class="ni" onclick="go(\''+k+'\')\" id="n-'+k+'">'+x+'<span>'+l+'</span></div>'});h+='</div></div>'}});e.innerHTML=h;
   // Load plugin menus
   fetch("/admin/plugins/menus",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
@@ -94,15 +96,22 @@ function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(fu
     var gIdx=GROUPS.length;
     Object.keys(groups).forEach(function(gn){
       var items=groups[gn];
-      ph+='<div class="ng" id="ng-'+gIdx+'"><div class="ns" onclick="toggleGroup('+gIdx+')"><span class="ns-arrow">▼</span><span class="ns-label">'+esc(gn)+'</span></div><div class="ng-body" id="ngb-'+gIdx+'">';
+      var itemsHtml='';
       items.forEach(function(m){
         var iconHtml=I[m.icon]||I.plugins||'';
-        ph+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
+        itemsHtml+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
       });
-      ph+='</div></div>';
+      // 若插件 group 匹配现有组（英文标识），插入该组 body，避免新建重复组
+      var existIdx=GROUP_KEYS.indexOf(gn);
+      if(existIdx>=0){
+        var body=document.getElementById("ngb-"+existIdx);
+        if(body){body.insertAdjacentHTML('beforeend',itemsHtml);return;}
+      }
+      // 否则新建插件组
+      ph+='<div class="ng" id="ng-'+gIdx+'"><div class="ns" onclick="toggleGroup('+gIdx+')"><span class="ns-arrow">▼</span><span class="ns-label">'+esc(gn)+'</span></div><div class="ng-body" id="ngb-'+gIdx+'">'+itemsHtml+'</div></div>';
       gIdx++;
     });
-    e.insertAdjacentHTML('beforeend',ph);
+    if(ph)e.insertAdjacentHTML('beforeend',ph);
   }).catch(function(){});
 }
 function toggleGroup(i){var b=document.getElementById("ngb-"+i),a=document.querySelector("#ng-"+i+" .ns-arrow");b.classList.contains("collapsed")?(b.classList.remove("collapsed"),a.textContent="▼"):(b.classList.add("collapsed"),a.textContent="▶")}
