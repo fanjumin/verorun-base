@@ -257,7 +257,13 @@ def ai_format():
     title = d.get('title', '')
     if not content.strip():
         return jsonify({'success': False, 'error': '内容不可为空'})
-    from services.ai_content_generator import _qwen_chat
+    try:
+        try:
+            from services.ai_content_generator import _qwen_chat
+        except ImportError:
+            from auth_center.services.ai_content_generator import _qwen_chat
+    except ImportError:
+        return jsonify({'success': False, 'error': 'AI 排版模块未就绪（ai_content_generator 不可用）'}), 503
     prompt = f"""你是一个专业的内容排版编辑。请仔细阅读全文，然后执行以下步骤：
 
 ## 任务
@@ -290,7 +296,13 @@ def ai_cover():
     prompt_text = d.get('prompt', '')
     if not prompt_text:
         prompt_text = f'科技金融封面图：{topic or title}，深色科幻风格，蓝紫渐变'
-    from services.ai_content_generator import generate_image
+    try:
+        try:
+            from services.ai_content_generator import generate_image
+        except ImportError:
+            from auth_center.services.ai_content_generator import generate_image
+    except ImportError:
+        return jsonify({'success': False, 'error': 'AI 配图模块未就绪（ai_content_generator 不可用）'}), 503
     try:
         url = generate_image(prompt_text, size='1280x720')
         _log(admin['user_id'], 'cf_ai_cover', '', '', f'配图: {title[:30]}')
@@ -405,7 +417,13 @@ def publish():
         return jsonify({'success': False, 'error': f'当前状态 {pc["status"]} 不允许发布（需 approved 或 draft）'})
 
     if platform == 'internal':
-        from models.cms import upsert_post
+        try:
+            from models.cms import upsert_post
+        except ImportError:
+            try:
+                from auth_center.models.cms import upsert_post
+            except ImportError:
+                return jsonify({'success': False, 'error': 'CMS 发布模块未就绪（models.cms 不可用）'}), 503
         import time
         slug = f'cf-{pid}-{int(time.time())}'
         post = upsert_post({
@@ -429,7 +447,13 @@ def publish():
         return jsonify({'success': True, 'post_id': post_id, 'platform': 'internal'})
 
     elif platform in ('social', 'both'):
-        from routes.social_push import _publish_to_platform
+        try:
+            from routes.social_push import _publish_to_platform
+        except ImportError:
+            try:
+                from auth_center.routes.social_push import _publish_to_platform
+            except ImportError:
+                return jsonify({'success': False, 'error': '社媒发布模块未就绪（social_push 不可用）'}), 503
         social_platforms = d.get('social_platforms', ['wechat'])
         auto_publish = d.get('auto_publish', False)
         social_results = []
@@ -445,7 +469,13 @@ def publish():
 
         post_id = None
         if platform == 'both':
-            from models.cms import upsert_post
+            try:
+                from models.cms import upsert_post
+            except ImportError:
+                try:
+                    from auth_center.models.cms import upsert_post
+                except ImportError:
+                    return jsonify({'success': False, 'error': 'CMS 发布模块未就绪（models.cms 不可用）'}), 503
             import time
             slug = f'cf-{pid}-{int(time.time())}'
             post = upsert_post({
@@ -605,7 +635,10 @@ def generate_static():
 
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'platform'))
-        from staticgen import generate_post, generate_all, generate_category, generate_docs_index
+        try:
+            from staticgen import generate_post, generate_all, generate_category, generate_docs_index
+        except ImportError:
+            return jsonify({'success': False, 'error': '静态页面生成模块未就绪（platform/staticgen 不可用）'}), 503
 
         results = []
         if action == 'all':
@@ -649,7 +682,13 @@ def push_processed_to_knowledge():
         return jsonify({'success': False, 'error': '加工内容不存在'}), 404
 
     raw = f"标题：{row['title'] or ''}\n关键词：{row['keywords'] or ''}\n类型：{row['content_type'] or ''}\n正文：{row['body'] or ''}"
-    from routes.cleaner_agent import process_clean_content
+    try:
+        from routes.cleaner_agent import process_clean_content
+    except ImportError:
+        try:
+            from auth_center.routes.cleaner_agent import process_clean_content
+        except ImportError:
+            return jsonify({'success': False, 'error': '知识库推送模块未就绪（cleaner_agent 不可用）'}), 503
     result = process_clean_content(raw, admin_id=admin['user_id'])
     _log(admin['user_id'], 'cf_to_knowledge', 'processed_content', str(pid),
          f"知识库ID: {result.get('kb_id', '?')}")

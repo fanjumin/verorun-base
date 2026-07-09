@@ -29,12 +29,21 @@ def list_ads():
     admin, err = _require_admin()
     if err:
         return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    offset = (page - 1) * limit
     from plugins.ads.models import get_ads_db
     conn = get_ads_db()
+    total = conn.execute('SELECT COUNT(*) FROM ad_placements').fetchone()[0]
     rows = conn.execute(
-        'SELECT * FROM ad_placements ORDER BY sort_order, id'
+        'SELECT * FROM ad_placements ORDER BY sort_order, id LIMIT ? OFFSET ?',
+        (limit, offset)
     ).fetchall()
-    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+    return jsonify({
+        'success': True,
+        'data': [dict(r) for r in rows],
+        'total': total, 'page': page, 'limit': limit
+    })
 
 
 # ── POST /admin/ads ──
@@ -115,3 +124,28 @@ def delete_ad(ad_id):
     conn.commit()
     _log(admin['user_id'], 'delete_ad', detail=f'id={ad_id}')
     return jsonify({'success': True})
+
+
+# ── 公开广告渲染 API (无需认证) ──
+@ads_bp.route('/api/v1/ads', methods=['GET'])
+def public_ads():
+    """公开端点 — 前端页面调用以渲染广告
+    GET /admin/ads/api/v1/ads?page=*&position=sidebar
+    返回当前页和位置下所有活跃广告
+    """
+    page = request.args.get('page', '*', type=str).strip()
+    position = request.args.get('position', '', type=str).strip()
+    from plugins.ads.models import get_ads_db
+    conn = get_ads_db()
+    where = ['is_active=1']
+    params = []
+    if position:
+        where.append('position=?')
+        params.append(position)
+    where.append('(page=? OR page=?)')
+    params.extend([page, '*'])
+    rows = conn.execute(
+        f'SELECT * FROM ad_placements WHERE {" AND ".join(where)} ORDER BY sort_order, id',
+        params
+    ).fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})

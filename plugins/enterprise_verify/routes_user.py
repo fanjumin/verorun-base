@@ -112,7 +112,7 @@ def enterprise_verify_submit():
         (user_id, company_name, tax_id, ocr_raw, status, review_notes)
     )
 
-    if status == 'approve':
+    if status == 'approved':
         ev_conn.commit()
         with _get_main_db() as conn:
             conn.execute(

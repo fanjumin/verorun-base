@@ -130,9 +130,9 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
             result = json.loads(text)
             confidence = result.get('confidence', 0.0)
             if confidence >= 0.8 and result.get('decision') == 'approve':
-                return {'decision': 'approve', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核通过')}
+                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核通过')}
             return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核不确定，需人工复核')}
         except Exception:
             pass
 
-    return {'decision': 'approve', 'confidence': 0.85, 'reason': '格式校验通过，已自动认证'}
+    return {'decision': 'approved', 'confidence': 0.85, 'reason': '格式校验通过，已自动认证'}
