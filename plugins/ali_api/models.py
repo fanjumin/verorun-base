@@ -331,6 +331,33 @@ class AliApiItem:
         conn.commit()
         return True
 
+    @staticmethod
+    def update_ai_titles(conn, item_id: int, ai_title_options: list, selected_title: str = '') -> bool:
+        """更新AI生成的标题选项"""
+        now_iso = datetime.now().isoformat()
+        conn.execute('''
+            UPDATE ali_api_items SET
+                ai_title_options = ?, selected_title = ?,
+                ai_title = ?, updated_at = ?
+            WHERE id = ?
+        ''', (
+            json.dumps(ai_title_options, ensure_ascii=False),
+            selected_title,
+            selected_title or (ai_title_options[0]['title'] if ai_title_options else ''),
+            now_iso,
+            item_id
+        ))
+        return conn.rowcount > 0
+
+    @staticmethod
+    def list_by_publish_status(conn, publish_status: str = 'draft', limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """按发布状态列出商品"""
+        rows = conn.execute(
+            'SELECT * FROM ali_api_items WHERE publish_status = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?',
+            (publish_status, limit, offset)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
 
 class AliApiReview:
     """1688 商品评论"""
@@ -412,38 +439,6 @@ class AliApiReview:
         ''', (product_id,)).fetchone()
         return dict(row) if row else {'total': 0, 'avg_rating': 0, 'positive': 0, 'neutral': 0, 'negative': 0}
 
-
-#
-# ── AliApiItem 方法延续 ──
-#
-class AliApiItem:
-
-    @staticmethod
-    def update_ai_titles(conn, item_id: int, ai_title_options: list, selected_title: str = '') -> bool:
-        """更新AI生成的标题选项"""
-        now_iso = datetime.now().isoformat()
-        conn.execute('''
-            UPDATE ali_api_items SET
-                ai_title_options = ?, selected_title = ?,
-                ai_title = ?, updated_at = ?
-            WHERE id = ?
-        ''', (
-            json.dumps(ai_title_options, ensure_ascii=False),
-            selected_title,
-            selected_title or (ai_title_options[0]['title'] if ai_title_options else ''),
-            now_iso,
-            item_id
-        ))
-        return conn.rowcount > 0
-
-    @staticmethod
-    def list_by_publish_status(conn, publish_status: str = 'draft', limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """按发布状态列出商品"""
-        rows = conn.execute(
-            'SELECT * FROM ali_api_items WHERE publish_status = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?',
-            (publish_status, limit, offset)
-        ).fetchall()
-        return [dict(row) for row in rows]
 
 class AliApiLog:
     """API调用日志"""
