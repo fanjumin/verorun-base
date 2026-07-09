@@ -565,8 +565,9 @@ class PluginManager:
             menu_cfg = pinfo.metadata.get('menu') if pinfo.metadata else None
             if not menu_cfg:
                 # 尝试从插件实例获取
-                if pinfo.instance and hasattr(pinfo.instance, 'get_menu'):
-                    menu_cfg = pinfo.instance.get_menu()
+                inst = getattr(pinfo, 'instance', None)
+                if inst and hasattr(inst, 'get_menu'):
+                    menu_cfg = inst.get_menu()
             if menu_cfg:
                 menu_cfg['_plugin_id'] = pid
                 menus.append(menu_cfg)
