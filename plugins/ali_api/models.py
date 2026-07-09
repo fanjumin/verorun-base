@@ -710,7 +710,29 @@ class OAuthState:
         conn.execute('UPDATE ali_oauth_states SET used = 1 WHERE id = ?', (row['id'],))
         conn.commit()
         return True
-    
+
+    @staticmethod
+    def validate_and_consume_row(conn, state: str, max_age_seconds: int = 600):
+        """验证 state 并返回记录（含 user_id / redirect_uri），失败返回 None。
+
+        用于 OAuth 回调：1688 跨站跳转不携带 admin cookie，
+        改由 state 记录中保存的 user_id / redirect_uri 完成鉴权与校验。
+        """
+        row = conn.execute(
+            'SELECT * FROM ali_oauth_states WHERE state = ? AND used = 0', (state,)
+        ).fetchone()
+        if not row:
+            return None
+        from datetime import datetime, timedelta
+        created = datetime.fromisoformat(row['created_at'])
+        if datetime.now() - created > timedelta(seconds=max_age_seconds):
+            conn.execute('DELETE FROM ali_oauth_states WHERE id = ?', (row['id'],))
+            conn.commit()
+            return None
+        conn.execute('UPDATE ali_oauth_states SET used = 1 WHERE id = ?', (row['id'],))
+        conn.commit()
+        return dict(row)
+
     @staticmethod
     def clean_expired(conn, max_age_seconds: int = 3600):
         """清理过期 state"""

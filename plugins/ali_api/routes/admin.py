@@ -1301,6 +1301,30 @@ def _get_allowed_domains():
 _ALLOWED_REDIRECT_DOMAINS = _get_allowed_domains()
 
 
+def _get_default_redirect():
+    """获取默认 OAuth 回调地址（插件自有配置优先，不依赖主系统环境变量）。
+
+    优先级：
+      1. ali_api_config 表 alibaba_oauth_redirect_uri（插件自有）
+      2. DEPLOY_DOMAIN 环境变量 → https://{domain}/admin/ali-api/oauth/callback
+      3. 空字符串（调用方需显式传 redirect_uri）
+    """
+    try:
+        from ..models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM ali_api_config WHERE key='alibaba_oauth_redirect_uri'"
+            ).fetchone()
+        if row and row['value']:
+            return row['value'].strip()
+    except Exception:
+        pass
+    deploy_domain = os.environ.get('DEPLOY_DOMAIN', '')
+    if deploy_domain:
+        return f'https://{deploy_domain}/admin/ali-api/oauth/callback'
+    return ''
+
+
 def _validate_redirect_uri(uri):
     """校验 redirect_uri 在白名单中，防止开放重定向攻击"""
     from urllib.parse import urlparse
@@ -1376,8 +1400,7 @@ def oauth_url():
     admin = _require_admin()
     if not admin:
         return _error('请先登录', 401)
-    deploy_domain = os.environ.get('DEPLOY_DOMAIN', '')
-    default_redirect = f'https://{deploy_domain}/ali-callback' if deploy_domain else ''
+    default_redirect = _get_default_redirect()
     redirect_uri = request.args.get('redirect_uri', default_redirect)
     # 校验 redirect_uri 白名单
     validated_uri = _validate_redirect_uri(redirect_uri)
@@ -1401,48 +1424,46 @@ def oauth_url():
 @ali_admin_bp.route('/oauth/callback', methods=['GET', 'POST'])
 def oauth_callback():
     """处理 1688 OAuth 回调（授权码 → access_token）
-    需要管理员认证 + state 校验 + redirect_uri 白名单校验。
+
+    鉴权说明：1688 授权后浏览器跨站跳转回本域，通常不携带 admin cookie，
+    因此这里不强制 admin 登录态，改由一次性 state 记录完成鉴权：
+      - state 必须存在且未使用、未过期（防 CSRF + 防重放）
+      - user_id / redirect_uri 从 state 记录中取回（授权发起时已绑定登录管理员）
     """
-    # 1. 必须先登录（管理员）
-    admin = _require_admin()
-    if not admin:
-        return _error('请先登录后再进行 1688 授权', 401)
-    
-    code = request.args.get('code') or (request.get_json() or {}).get('code')
+    code = request.args.get('code') or (request.get_json(silent=True) or {}).get('code')
     if not code:
         return _error('缺少授权码 code')
-    
-    # 2. 校验 state（持久化验证，防 CSRF + 防重放）
+
+    # 校验 state（持久化验证，防 CSRF + 防重放），并取回绑定信息
     state = request.args.get('state', '')
     if not state:
         return _error('缺少 state 参数', 400)
     from ..models import OAuthState
     with get_db() as conn:
-        if not OAuthState.validate_and_consume(conn, state):
-            return _error('state 无效或已过期，请重新授权', 400)
-    
-    # 3. 校验 redirect_uri 白名单
-    deploy_domain = os.environ.get('DEPLOY_DOMAIN', '')
-    default_redirect = f'https://{deploy_domain}/ali-callback' if deploy_domain else ''
-    redirect_uri = request.args.get('redirect_uri', default_redirect)
-    validated_uri = _validate_redirect_uri(redirect_uri)
-    if not validated_uri:
+        state_row = OAuthState.validate_and_consume_row(conn, state)
+    if not state_row:
+        return _error('state 无效或已过期，请重新授权', 400)
+
+    user_id = state_row.get('user_id') or 0
+    # redirect_uri 取自 state 记录（授权发起时已白名单校验），确保与换 token 时一致
+    validated_uri = state_row.get('redirect_uri', '')
+    if not _validate_redirect_uri(validated_uri):
         return _error('非法的回调地址')
-    
+
     app_key = config['alibaba']['app_key']
     app_secret = config['alibaba']['app_secret']
-    
+
     result = get_access_token(app_key, app_secret, code, validated_uri)
-    
+
     if 'error' in result:
         return _error(f'获取token失败: {result.get("error_message", result["error"])}')
-    
-    # 4. 保存 token 到数据库（绑定到当前用户而非硬编码 user_id=1）
+
+    # 保存 token 到数据库（绑定到发起授权的管理员）
     result['app_key'] = app_key
     from ..models import AliApiToken
     with get_db() as conn:
-        AliApiToken.save(conn, result, user_id=admin['user_id'])
-    
+        AliApiToken.save(conn, result, user_id=user_id)
+
     return _success({
         'access_token': result.get('access_token', '')[:20] + '...',
         'ali_id': result.get('ali_id', ''),
