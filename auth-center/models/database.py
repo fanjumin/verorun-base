@@ -866,21 +866,6 @@ def init_db():
                     created_at      TEXT DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_pay_events_sub ON payment_events(sub_id);
-                CREATE TABLE IF NOT EXISTS coupons (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    code            TEXT UNIQUE NOT NULL,
-                    type            TEXT NOT NULL,
-                    value           INTEGER NOT NULL,
-                    max_uses        INTEGER DEFAULT 0,
-                    used_count      INTEGER DEFAULT 0,
-                    max_per_user    INTEGER DEFAULT 1,
-                    min_amount_fen  INTEGER DEFAULT 0,
-                    applicable_plans TEXT,
-                    expires_at      TEXT,
-                    is_active       INTEGER DEFAULT 1,
-                    created_by      INTEGER,
-                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
-                );
 
                 CREATE TABLE IF NOT EXISTS subscription_audit_log (
                     id              INTEGER PRIMARY KEY AUTOINCREMENT,

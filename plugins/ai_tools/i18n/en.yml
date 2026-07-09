@@ -1,0 +1,11 @@
+未授权: Unauthorized
+权限不足，暂无权限: Insufficient permissions
+请输入主题: Please enter a topic
+DeepSeek API Key 未配置，请在插件设置中配置: DeepSeek API Key not configured, please configure in plugin settings
+AI生成失败: AI generation failed
+AI未生成有效内容: AI did not generate valid content
+PPT生成失败: PPT generation failed
+请输入图像描述: Please enter an image description
+生成失败: Generation failed
+文件不存在或已过期: File not found or expired
+主题: Topic

@@ -44,6 +44,7 @@ def init_db():
             description     TEXT DEFAULT '',
             coupon_category TEXT DEFAULT 'general',
             applicable_products TEXT DEFAULT '',
+            applicable_plans    TEXT DEFAULT '',
             scene           TEXT DEFAULT '',
             first_month_only   INTEGER DEFAULT 0,
             stackable       INTEGER DEFAULT 0,

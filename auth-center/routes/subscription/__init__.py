@@ -331,10 +331,21 @@ def create_subscription():
     order_no = new_order_no()
     desc = f'{plan["name"]}{period_label_map[period]}'
 
-    # 优惠券折扣
+    # 优惠券折扣（走插件引擎）
     discount_fen = 0
     if coupon_code:
-        discount_fen = _apply_coupon(coupon_code, uid, plan_key, amount_fen)
+        try:
+            from plugins.coupons import get_engine
+            engine = get_engine()
+            if engine:
+                result = engine.validate(coupon_code, amount_fen / 100.0,
+                                          user_id=uid, plan=plan_key)
+                if result.get('valid'):
+                    discount_fen = int(result['discount'] * 100)
+                    # 记录使用
+                    engine.apply_to_order(coupon_code, uid, order_no, amount_fen / 100.0)
+        except Exception:
+            pass
 
     final_amount = max(0, amount_fen - discount_fen)
 
@@ -994,48 +1005,23 @@ def admin_stats():
         'distribution': [dict(r) for r in dist],
     })
 
-@sub_bp.route('/admin/coupons', methods=['GET'])
-def admin_coupon_list():
-    admin, err = _require_admin()
-    if err: return err
-    with get_db() as conn:
-        rows = conn.execute('SELECT * FROM coupons ORDER BY created_at DESC').fetchall()
-    return api_res({'coupons': [dict(r) for r in rows]})
-
-@sub_bp.route('/admin/coupons', methods=['POST'])
-def admin_coupon_create():
-    admin, err = _require_admin()
-    if err: return err
-    data = request.get_json(force=True) or {}
-    code = data.get('code', '').strip().upper()
-    if not code: return api_err(_('Promo code cannot be empty'))
-
-    coupon_type = data.get('coupon_type', 'fixed')
-    # 新旧字段兼容
-    db_type = coupon_type  # 写入 coupon_type
-    old_type = 'fixed' if coupon_type == 'first_month_percent' else coupon_type  # 兼容旧 type 字段
-
-    with get_db() as conn:
-        try:
-            conn.execute(
-                """INSERT INTO coupons (code, type, coupon_type, name, value, max_uses, max_per_user,
-                   min_amount_fen, applicable_plans, description, coupon_category,
-                   first_month_only, stackable, active_from, active_to, expires_at, is_active)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
-                (code, old_type, coupon_type, data.get('name', ''),
-                 int(data.get('value', 0)), int(data.get('max_uses', 0)),
-                 int(data.get('max_per_user', 1)), int(data.get('min_amount_fen', 0)),
-                 data.get('applicable_plans', ''), data.get('description', ''),
-                 data.get('coupon_category', 'general'),
-                 1 if coupon_type == 'first_month_percent' else int(data.get('first_month_only', 0)),
-                 int(data.get('stackable', 0)),
-                 data.get('active_from', ''), data.get('active_to', ''),
-                 data.get('expires_at', '')))
-            conn.commit()
-        except Exception as e:
-            return api_err(str(e))
-    _audit_log(admin['user_id'], 'create_coupon', f'优惠码 {code} ({coupon_type})', admin_id=admin['user_id'])
-    return api_res({'message': '优惠券已创建'}, status=201)
+# ============================================================
+# Coupon Application (Helper) — 已迁移至 plugins/coupons/
+# ============================================================
+def _apply_coupon(code, user_id, plan_key, amount_fen):
+    """走插件引擎验证优惠券，返回折扣金额（分）"""
+    try:
+        from plugins.coupons import get_engine
+        engine = get_engine()
+        if not engine:
+            return 0
+        result = engine.validate(code, amount_fen / 100.0,
+                                  user_id=user_id, plan=plan_key)
+        if not result.get('valid'):
+            return 0
+        return int(result['discount'] * 100)
+    except Exception:
+        return 0
 
 @sub_bp.route('/admin/events', methods=['GET'])
 def admin_payment_events():

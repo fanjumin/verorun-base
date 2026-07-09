@@ -51,16 +51,17 @@ def _safe_int(v, default=0):
 
 
 def _require_auth():
-    """从请求头解析用户 JWT（兼容 admin 和 user 体系）。"""
+    """从请求头解析用户 JWT（复用 auth-center 验证逻辑）。"""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None, jsonify({'success': False, 'error': _t('未登录')}), 401
     token = auth[7:]
     try:
-        import jwt as pyjwt
-        from flask import current_app
-        secret = current_app.config.get('JWT_SECRET', 'verorun-jwt-secret-2025')
-        payload = pyjwt.decode(token, secret, algorithms=['HS256'])
+        # 走 auth-center 的 jwt_service（统一 JWT_SECRET 来源）
+        from services.jwt_service import validate_token
+        payload = validate_token(token)
+        if payload is None:
+            return None, jsonify({'success': False, 'error': _t('Token 无效或已过期')}), 401
         return payload, None, None
     except Exception:
         return None, jsonify({'success': False, 'error': _t('Token 无效或已过期')}), 401

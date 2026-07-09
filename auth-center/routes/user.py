@@ -1796,26 +1796,6 @@ def apply_verification():
         return jsonify({'success': False, 'error': f'Verification service error: {str(e)}'}), 500
 
 
-# ================================================================
-# GET /user/coupons — 用户优惠券列表（已迁移至插件: plugins/coupons/）
-# ================================================================
-@user_bp.route('/coupons', methods=['GET'])
-def get_user_coupons():
-    """跳转到插件路由"""
-    try:
-        from plugins.coupons import get_engine
-        engine = get_engine()
-        if engine:
-            payload, err = _require_auth()
-            if err:
-                return err
-            data = engine.get_user_coupons(payload['user_id'])
-            return jsonify({'success': True, 'data': data})
-    except Exception:
-        pass
-    return jsonify({'success': True, 'data': []})
-
-
 # POST /user/verification/callback — 第三方认证回调（无需 JWT，通过 request_id 识别用户）
 @user_bp.route('/verification/callback', methods=['GET', 'POST'])
 def verification_callback():

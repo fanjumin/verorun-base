@@ -196,23 +196,14 @@ def check_milestone_rewards(user_id):
             # Issue reward
             coupon_id = None
             if rule['reward_type'] == 'coupon' and rule['reward_id']:
-                # Create a coupon redemption for this user
-                # Find the coupon template
-                coupon = conn.execute(
-                    'SELECT * FROM coupons WHERE id=? AND is_active=1',
-                    (rule['reward_id'],)
-                ).fetchone()
-                if coupon:
-                    coupon = dict(coupon)
-                    # Insert into coupon_redemptions
-                    now = __import__('datetime').datetime.now().isoformat()
-                    # We create a personal coupon assignment by inserting into coupon_redemptions
-                    # The coupon system uses coupon_redemptions to track usage
-                    cur = conn.execute(
-                        'INSERT INTO coupon_redemptions (coupon_id, user_id, order_no, discount_fen, created_at) VALUES (?,?,?,?,?)',
-                        (coupon['id'], user_id, 'reward_' + str(rule['id']), coupon.get('value', 0), now)
-                    )
-                    coupon_id = cur.lastrowid
+                # 走插件引擎分发优惠券
+                try:
+                    from plugins.coupons import get_engine
+                    engine = get_engine()
+                    if engine:
+                        engine.distribute(rule['reward_id'], [user_id])
+                except Exception:
+                    pass
 
             # Record claim
             conn.execute(

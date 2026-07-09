@@ -162,8 +162,18 @@ class CouponEngine:
 
     def validate(self, code: str, amount: float,
                  user_id: int = None, quantity: int = 0,
-                 product_id: int = None, scene: str = None) -> dict:
+                 product_id: int = None, scene: str = None,
+                 plan: str = None) -> dict:
         """验证优惠券并返回折扣金额。
+
+        Args:
+            code: 优惠码
+            amount: 订单金额（元）
+            user_id: 用户 ID
+            quantity: 商品数量
+            product_id: 商品 ID
+            scene: 场景标识
+            plan: 订阅套餐标识
 
         Returns:
             {'valid': True, 'discount': float, 'coupon': dict}
@@ -193,6 +203,12 @@ class CouponEngine:
         # 场景检查
         if scene and cpn.get('scene') and cpn['scene'] != scene:
             return {'valid': False, 'error': '该优惠券不适用于当前场景'}
+
+        # 适用套餐检查（订阅独有）
+        if plan and cpn.get('applicable_plans'):
+            allowed = str(cpn['applicable_plans']).split(',')
+            if plan not in allowed:
+                return {'valid': False, 'error': '该优惠券不适用于当前套餐'}
 
         # 新人专享（读主库）
         if cpn.get('coupon_category') == 'new_user' and user_id:
