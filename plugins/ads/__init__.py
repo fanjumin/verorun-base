@@ -15,6 +15,15 @@ from plugin_manager.base import BasePlugin
 from .models import init_ad_db
 from .routes import ads_bp
 
+# 模块级 i18n 引用，由 on_enable 注入
+_t = lambda text: text
+
+
+def init_i18n(t_fn):
+    """供插件启用时注入 i18n 翻译函数"""
+    global _t
+    _t = t_fn
+
 
 class AdsPlugin(BasePlugin):
     name = 'ads'
@@ -28,8 +37,9 @@ class AdsPlugin(BasePlugin):
         return True
 
     def on_enable(self, registry):
-        """启用时初始化数据库（幂等）"""
+        """启用时初始化数据库 + i18n（幂等）"""
         init_ad_db()
+        init_i18n(self.t)
         print('[AdsPlugin] ✅ 广告管理插件已启用')
         return True
 

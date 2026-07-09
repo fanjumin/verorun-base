@@ -2,18 +2,28 @@
     "name": "Ad Management",
     "identifier": "ads",
     "version": "0.1.0",
+    "category": "Operations",
+    "tags": ["advertising", "banner", "placement"],
+    "icon": "ads",
     "description": "Ad Management — Create, edit, and manage ad placements across the site",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "depends_on": {},
     "enabled": true,
-    "config": {},
+    "config": {
+        "default_width": 320,
+        "default_height": 0,
+        "max_placements": 50
+    },
     "permissions": [
         "ads.read",
         "ads.write"
     ],
     "hooks": {
-        "provides": [],
+        "provides": [
+            "ads/get_placements",
+            "ads/render_ad"
+        ],
         "listens": []
     },
     "menu": {
@@ -25,6 +35,22 @@
     },
     "settings_schema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+            "default_width": {
+                "type": "integer",
+                "default": 320,
+                "description": "Default ad width"
+            },
+            "default_height": {
+                "type": "integer",
+                "default": 0,
+                "description": "Default ad height (0 = auto)"
+            },
+            "max_placements": {
+                "type": "integer",
+                "default": 50,
+                "description": "Maximum placement count"
+            }
+        }
     }
 }

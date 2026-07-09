@@ -2,18 +2,29 @@
     "name": "Enterprise Verification",
     "identifier": "enterprise_verify",
     "version": "0.1.0",
+    "category": "Customer Management",
+    "tags": ["verification", "enterprise", "ocr", "kyc", "audit"],
+    "icon": "enterprise_verify",
     "description": "Enterprise Verification — OCR business license recognition + AI auto-audit",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "depends_on": {},
     "enabled": true,
-    "config": {},
+    "config": {
+        "siliconflow_api_key": "",
+        "auto_approve": false,
+        "max_retry": 3
+    },
     "permissions": [
         "enterprise_verify.read",
         "enterprise_verify.write"
     ],
     "hooks": {
-        "provides": [],
+        "provides": [
+            "enterprise_verify/submit",
+            "enterprise_verify/audit",
+            "enterprise_verify/ocr_recognize"
+        ],
         "listens": []
     },
     "menu": {
@@ -31,6 +42,16 @@
                 "label": "SiliconFlow API Key",
                 "default": "",
                 "description": "API Key for DeepSeek-OCR + AI audit"
+            },
+            "auto_approve": {
+                "type": "boolean",
+                "default": false,
+                "description": "Auto-approve high-confidence OCR results"
+            },
+            "max_retry": {
+                "type": "integer",
+                "default": 3,
+                "description": "Max OCR retry attempts"
             }
         }
     }

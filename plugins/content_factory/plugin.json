@@ -2,19 +2,32 @@
     "name": "Content Factory",
     "identifier": "content_factory",
     "version": "0.1.0",
+    "category": "Content",
+    "tags": ["content", "collection", "ai", "publishing", "rss", "skill"],
+    "icon": "contentfactory",
     "description": "Content Factory — Multi-source content collection, AI processing, review workflow, publishing, skill push, and static page generation",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "depends_on": {},
     "enabled": true,
-    "config": {},
+    "config": {
+        "dashscope_text_key": "",
+        "max_items_per_run": 10,
+        "skip_review": false,
+        "auto_publish": false
+    },
     "permissions": [
         "content_factory.read",
         "content_factory.write",
         "content_factory.publish"
     ],
     "hooks": {
-        "provides": ["/api/v1/skills"],
+        "provides": [
+            "content_factory/collect",
+            "content_factory/process",
+            "content_factory/publish",
+            "content_factory/push_skill"
+        ],
         "listens": ["cron.tick"]
     },
     "menu": {
@@ -32,6 +45,21 @@
                 "label": "DashScope API Key",
                 "default": "",
                 "description": "通义千问 API Key for AI processing"
+            },
+            "max_items_per_run": {
+                "type": "integer",
+                "default": 10,
+                "description": "Max items per crawl run"
+            },
+            "skip_review": {
+                "type": "boolean",
+                "default": false,
+                "description": "Skip manual review for AI-generated content"
+            },
+            "auto_publish": {
+                "type": "boolean",
+                "default": false,
+                "description": "Auto-publish after AI processing"
             }
         }
     }
