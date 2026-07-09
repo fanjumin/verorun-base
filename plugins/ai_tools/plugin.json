@@ -20,7 +20,7 @@
         "listens": []
     },
     "menu": {
-        "group": "AI Tools",
+        "group": "Content",
         "key": "ai_tools",
         "icon": "media_video",
         "label": "AI Tools",
