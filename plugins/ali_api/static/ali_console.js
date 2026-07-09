@@ -505,7 +505,8 @@ async function searchCollect() {
             showMessage('search-result', '❌ 搜索失败: ' + res.data.error, 'error');
         }
     } catch (e) {
-        showMessage('search-result', '❌ 搜索失败', 'error');
+        const errMsg = e.response?.data?.error || e.message || '未知错误';
+        showMessage('search-result', '❌ 搜索失败: ' + errMsg, 'error');
     } finally {
         hideLoading();
     }
