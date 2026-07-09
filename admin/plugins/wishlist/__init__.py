@@ -22,6 +22,7 @@ class WishlistPlugin(BasePlugin):
     def register_routes(self) -> List:
         from flask import Blueprint, jsonify, request
         bp = Blueprint('wishlist', __name__, url_prefix='/plugin/wishlist')
+        _t = self.t  # bind to local var for closure safety
 
         @bp.route('/api/list', methods=['GET'])
         def get_wishlist():
@@ -101,7 +102,7 @@ class WishlistPlugin(BasePlugin):
                     conn.execute('DELETE FROM wishlist WHERE id=?', (existing['id'],))
                     conn.commit()
                     return jsonify({'success': True, 'favorited': False,
-                                    'message': self.t('已取消收藏')})
+                                    'message': _t('已取消收藏')})
                 else:
                     conn.execute(
                         'INSERT INTO wishlist (user_id, product_id) VALUES (?,?)',
@@ -109,7 +110,7 @@ class WishlistPlugin(BasePlugin):
                     )
                     conn.commit()
                     return jsonify({'success': True, 'favorited': True,
-                                    'message': self.t('收藏成功')})
+                                    'message': _t('收藏成功')})
 
         @bp.route('/api/check', methods=['POST'])
         def check_wishlist():

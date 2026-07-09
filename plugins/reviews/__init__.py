@@ -39,6 +39,7 @@ class ReviewsPlugin(BasePlugin):
     def register_routes(self) -> List:
         from flask import Blueprint, jsonify, request
         bp = Blueprint('reviews', __name__, url_prefix='/plugin/reviews')
+        _t = self.t  # bind to local var for closure safety
 
         @bp.route('/api/<int:product_id>', methods=['GET'])
         def get_reviews(product_id):
@@ -152,7 +153,7 @@ class ReviewsPlugin(BasePlugin):
                         (uid, product_id, order_id)
                     ).fetchone()
                 if not purchase:
-                    return jsonify({'success': False, 'error': self.t('请先购买商品再评价')}), 400
+                    return jsonify({'success': False, 'error': _t('请先购买商品再评价')}), 400
 
             with get_db() as conn:
                 # 检查是否已评价
@@ -161,7 +162,7 @@ class ReviewsPlugin(BasePlugin):
                     (uid, product_id, order_id)
                 ).fetchone()
                 if existing:
-                    return jsonify({'success': False, 'error': self.t('您已评价过该商品')}), 400
+                    return jsonify({'success': False, 'error': _t('您已评价过该商品')}), 400
 
                 conn.execute(
                     '''INSERT INTO product_reviews (user_id, product_id, order_id, rating, content,
@@ -172,7 +173,7 @@ class ReviewsPlugin(BasePlugin):
                 )
                 conn.commit()
 
-            return jsonify({'success': True, 'message': self.t('评价成功')})
+            return jsonify({'success': True, 'message': _t('评价成功')})
 
         @bp.route('/api/<int:review_id>', methods=['DELETE'])
         def delete_review(review_id):
@@ -192,7 +193,7 @@ class ReviewsPlugin(BasePlugin):
                     return jsonify({'success': False, 'error': '评价不存在'}), 404
                 conn.execute("UPDATE product_reviews SET is_active=0 WHERE id=?", (review_id,))
                 conn.commit()
-            return jsonify({'success': True, 'message': self.t('评价删除成功')})
+            return jsonify({'success': True, 'message': _t('评价删除成功')})
 
         @bp.route('/api/user/reviews', methods=['GET'])
         def my_reviews():

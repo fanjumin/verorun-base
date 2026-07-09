@@ -2245,217 +2245,217 @@ def _get_default_interests():
     return tags
 
 
-    # ── Migration: deployment_codes 独立部署订阅表 (2026-06-27) ──
+# ── Migration: deployment_codes 独立部署订阅表 (2026-06-27) ──
+with get_db() as m:
+    m.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        code            TEXT UNIQUE NOT NULL,
+        code_hash       TEXT NOT NULL,
+        user_id         INTEGER NOT NULL,
+        plan_key        TEXT NOT NULL DEFAULT 'deploy_basic',
+        duration_days   INTEGER NOT NULL DEFAULT 365,
+        expires_at      TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
+        last_heartbeat  TEXT,
+        last_hostname   TEXT DEFAULT '',
+        last_version    TEXT DEFAULT '',
+        created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+    )''')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_dc_code ON deployment_codes(code)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_dc_user ON deployment_codes(user_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_dc_status ON deployment_codes(status)')
+    m.commit()
+    print('[Migration] ✅ deployment_codes 独立部署订阅表')
+
+# ── Migration: 清理旧版套餐数据 (2026-06-27) ──
+with get_db() as m:
+    old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
+    for pk in old_plan_keys:
+        m.execute("DELETE FROM subscription_plans WHERE plan_key=?", (pk,))
+    # 更新已存在的老 plan_key 的订阅记录
+    m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
+    m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
+    m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
+    m.commit()
+    print('[Migration] ✅ 旧版套餐数据已清理')
+
+# ── 国际化: 市场特定表结构 (2026-06-29) ──
+if MARKET == 'intl':
     with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            code            TEXT UNIQUE NOT NULL,
-            code_hash       TEXT NOT NULL,
-            user_id         INTEGER NOT NULL,
-            plan_key        TEXT NOT NULL DEFAULT 'deploy_basic',
-            duration_days   INTEGER NOT NULL DEFAULT 365,
-            expires_at      TEXT NOT NULL,
-            status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
-            last_heartbeat  TEXT,
-            last_hostname   TEXT DEFAULT '',
-            last_version    TEXT DEFAULT '',
-            created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_dc_code ON deployment_codes(code)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_dc_user ON deployment_codes(user_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_dc_status ON deployment_codes(status)')
-        m.commit()
-        print('[Migration] ✅ deployment_codes 独立部署订阅表')
-
-    # ── Migration: 清理旧版套餐数据 (2026-06-27) ──
-    with get_db() as m:
-        old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
-        for pk in old_plan_keys:
-            m.execute("DELETE FROM subscription_plans WHERE plan_key=?", (pk,))
-        # 更新已存在的老 plan_key 的订阅记录
-        m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
-        m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
-        m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
-        m.commit()
-        print('[Migration] ✅ 旧版套餐数据已清理')
-
-    # ── 国际化: 市场特定表结构 (2026-06-29) ──
-    if MARKET == 'intl':
-        with get_db() as m:
-            # INTL 用户表补充 OAuth 字段（CN 已有的 wechat/douyin 字段在 INTL 中保持空值）
-            intl_cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
-            intl_additions = {
-                'country_code': "country_code TEXT DEFAULT ''",
-                'google_id': "google_id TEXT",
-                'github_id': "github_id TEXT",
-                'facebook_id': "facebook_id TEXT",
-            }
-            for col_name, col_def in intl_additions.items():
-                if col_name not in intl_cols:
-                    try:
-                        m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
-                        print(f'[i18n] users.{col_name} added')
-                    except Exception as e:
-                        print(f'[i18n] users.{col_name} skipped: {e}')
-
-            # INTL 地址表（自由文本）
-            m.execute('''CREATE TABLE IF NOT EXISTS user_addresses_intl (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL REFERENCES users(id),
-                label           TEXT DEFAULT '',
-                recipient_name  TEXT NOT NULL DEFAULT '',
-                phone           TEXT NOT NULL DEFAULT '',
-                country         TEXT NOT NULL DEFAULT '',
-                state           TEXT DEFAULT '',
-                city            TEXT DEFAULT '',
-                address_line1   TEXT NOT NULL DEFAULT '',
-                address_line2   TEXT DEFAULT '',
-                postal_code     TEXT DEFAULT '',
-                is_default      INTEGER DEFAULT 0,
-                status          INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
-            )''')
-            m.execute('CREATE INDEX IF NOT EXISTS idx_addr_intl_user ON user_addresses_intl(user_id)')
-
-            # INTL subscription_plans 种子数据（美元计价）
-            intl_plans = [
-                ('deploy_basic', 'Starter', 'For entrepreneurs and small businesses', 999, 9999, 0, 'basic',
-                 '["AI Site Builder","AI Chat Assistant (basic)","AI Content Generator","Basic SEO","CMS","Multi AI provider switching","AI Analytics Report","$5 AI Credits included"]', 1),
-                ('deploy_pro', 'Professional', 'For growing businesses and online sellers', 2999, 29999, 0, 'popular',
-                 '["AI Site Builder","AI Chat with RAG Knowledge Base","CMS","Full eCommerce","Knowledge Base + RAG","AI SEO + Ranking Tracking","User Analytics","$8 AI Credits included"]', 2),
-                ('deploy_enterprise', 'Enterprise', 'Full-stack AI-powered business operations', 5999, 59999, 0, 'premium',
-                 '["AI Site Builder","AI Chat (multi-turn + CRM)","Content Factory (RSS→AI→CMS→Social)","Agent Matrix (1+12 agents)","Social auto-publish","Cloud service auto-provisioning","User profiling + intent scoring","Analytics dashboard + AI insights","$12 AI Credits included"]', 3),
-            ]
-            for pk, nm, desc, pm, py, td, tier, feats, so in intl_plans:
-                exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (pk,)).fetchone()
-                if not exists:
-                    m.execute(
-                        "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (?,?,?,?,?,?,?,?,?,'USD')",
-                        (pk, nm, desc, pm, py, td, tier, feats, so))
-            m.commit()
-            print('[i18n] ✅ INTL-specific tables and data initialized')
-    else:
-        # CN 区: subscription_plans 增加 currency 字段（向后兼容）
-        with get_db() as m:
-            plan_cols = [r['name'] for r in m.execute('PRAGMA table_info(subscription_plans)').fetchall()]
-            if 'currency' not in plan_cols:
-                try:
-                    m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
-                    print('[i18n] subscription_plans.currency added (CNY)')
-                except Exception as e:
-                    print(f'[i18n] subscription_plans.currency skipped: {e}')
-
-    # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
-    with get_db() as m:
-        user_cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
-        enterprise_fields = {
-            'enterprise_name': "enterprise_name TEXT DEFAULT ''",
-            'enterprise_tax_id': "enterprise_tax_id TEXT DEFAULT ''",
-            'enterprise_address': "enterprise_address TEXT DEFAULT ''",
-            'enterprise_phone': "enterprise_phone TEXT DEFAULT ''",
-            'enterprise_bank': "enterprise_bank TEXT DEFAULT ''",
-            'enterprise_bank_acct': "enterprise_bank_acct TEXT DEFAULT ''",
-            'enterprise_verified': "enterprise_verified INTEGER DEFAULT 0",
-            'enterprise_verified_at': "enterprise_verified_at TEXT",
+        # INTL 用户表补充 OAuth 字段（CN 已有的 wechat/douyin 字段在 INTL 中保持空值）
+        intl_cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+        intl_additions = {
+            'country_code': "country_code TEXT DEFAULT ''",
+            'google_id': "google_id TEXT",
+            'github_id': "github_id TEXT",
+            'facebook_id': "facebook_id TEXT",
         }
-        for col_name, col_def in enterprise_fields.items():
-            if col_name not in user_cols:
+        for col_name, col_def in intl_additions.items():
+            if col_name not in intl_cols:
                 try:
                     m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+                    print(f'[i18n] users.{col_name} added')
                 except Exception as e:
-                    print(f'[migration] users.{col_name} skipped: {e}')
+                    print(f'[i18n] users.{col_name} skipped: {e}')
 
-        m.execute('''CREATE TABLE IF NOT EXISTS enterprise_verifications (
+        # INTL 地址表（自由文本）
+        m.execute('''CREATE TABLE IF NOT EXISTS user_addresses_intl (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id         INTEGER NOT NULL REFERENCES users(id),
-            enterprise_name TEXT NOT NULL,
-            tax_id          TEXT NOT NULL,
-            license_url     TEXT DEFAULT '',
-            ocr_raw         TEXT DEFAULT '',
-            status          TEXT NOT NULL DEFAULT 'pending',
-            review_notes    TEXT DEFAULT '',
-            reviewed_by     INTEGER REFERENCES users(id),
-            reviewed_at     TEXT,
+            label           TEXT DEFAULT '',
+            recipient_name  TEXT NOT NULL DEFAULT '',
+            phone           TEXT NOT NULL DEFAULT '',
+            country         TEXT NOT NULL DEFAULT '',
+            state           TEXT DEFAULT '',
+            city            TEXT DEFAULT '',
+            address_line1   TEXT NOT NULL DEFAULT '',
+            address_line2   TEXT DEFAULT '',
+            postal_code     TEXT DEFAULT '',
+            is_default      INTEGER DEFAULT 0,
+            status          INTEGER DEFAULT 1,
             created_at      TEXT DEFAULT (datetime('now')),
             updated_at      TEXT DEFAULT (datetime('now'))
         )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_ev_user ON enterprise_verifications(user_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_ev_status ON enterprise_verifications(status)')
-        print('[migration] ✅ enterprise_verifications table + users enterprise fields initialized')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_addr_intl_user ON user_addresses_intl(user_id)')
 
-    # ── i18n 翻译表 (2026-06-30) ──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS i18n_strings (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            locale      TEXT NOT NULL DEFAULT 'zh-CN',
-            source_hash TEXT NOT NULL,
-            source      TEXT NOT NULL,
-            translation TEXT NOT NULL DEFAULT '',
-            is_auto     INTEGER DEFAULT 0,
-            updated_at  TEXT DEFAULT (datetime('now')),
-            created_at  TEXT DEFAULT (datetime('now')),
-            UNIQUE(locale, source_hash)
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_i18n_locale ON i18n_strings(locale)')
-        print('[i18n] ✅ i18n_strings table created')
-
-    # ── Migration: site_domains 子域名管理表 (2026-07-06) ──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS site_domains (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            site_config_id  INTEGER NOT NULL DEFAULT 1,
-            subdomain       TEXT NOT NULL,
-            full_domain     TEXT NOT NULL UNIQUE,
-            display_name    TEXT NOT NULL DEFAULT '',
-            template        TEXT DEFAULT 'default',
-            is_published    INTEGER DEFAULT 1,
-            page_keys_json  TEXT DEFAULT '["home"]',
-            sort_order      INTEGER DEFAULT 0,
-            service_port    INTEGER DEFAULT NULL,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (site_config_id) REFERENCES site_configs(id)
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_sd_config ON site_domains(site_config_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_sd_domain ON site_domains(full_domain)')
+        # INTL subscription_plans 种子数据（美元计价）
+        intl_plans = [
+            ('deploy_basic', 'Starter', 'For entrepreneurs and small businesses', 999, 9999, 0, 'basic',
+             '["AI Site Builder","AI Chat Assistant (basic)","AI Content Generator","Basic SEO","CMS","Multi AI provider switching","AI Analytics Report","$5 AI Credits included"]', 1),
+            ('deploy_pro', 'Professional', 'For growing businesses and online sellers', 2999, 29999, 0, 'popular',
+             '["AI Site Builder","AI Chat with RAG Knowledge Base","CMS","Full eCommerce","Knowledge Base + RAG","AI SEO + Ranking Tracking","User Analytics","$8 AI Credits included"]', 2),
+            ('deploy_enterprise', 'Enterprise', 'Full-stack AI-powered business operations', 5999, 59999, 0, 'premium',
+             '["AI Site Builder","AI Chat (multi-turn + CRM)","Content Factory (RSS→AI→CMS→Social)","Agent Matrix (1+12 agents)","Social auto-publish","Cloud service auto-provisioning","User profiling + intent scoring","Analytics dashboard + AI insights","$12 AI Credits included"]', 3),
+        ]
+        for pk, nm, desc, pm, py, td, tier, feats, so in intl_plans:
+            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (pk,)).fetchone()
+            if not exists:
+                m.execute(
+                    "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (?,?,?,?,?,?,?,?,?,'USD')",
+                    (pk, nm, desc, pm, py, td, tier, feats, so))
         m.commit()
-        print('[Migration] ✅ site_domains 子域名管理表')
-
-    # ── Migration: site_domains 新增 service_port 列 (2026-07-06) ──
-    try:
-        with get_db() as m:
-            m.execute("ALTER TABLE site_domains ADD COLUMN service_port INTEGER DEFAULT NULL")
-            m.commit()
-            print('[Migration] ✅ site_domains 新增 service_port 列')
-    except Exception:
-        pass  # 列已存在
-
-    # 默认主页站点在 site_configs 中创建（如不存在）
-    _default_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
-    _default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
+        print('[i18n] ✅ INTL-specific tables and data initialized')
+else:
+    # CN 区: subscription_plans 增加 currency 字段（向后兼容）
     with get_db() as m:
+        plan_cols = [r['name'] for r in m.execute('PRAGMA table_info(subscription_plans)').fetchall()]
+        if 'currency' not in plan_cols:
+            try:
+                m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
+                print('[i18n] subscription_plans.currency added (CNY)')
+            except Exception as e:
+                print(f'[i18n] subscription_plans.currency skipped: {e}')
+
+# ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
+with get_db() as m:
+    user_cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+    enterprise_fields = {
+        'enterprise_name': "enterprise_name TEXT DEFAULT ''",
+        'enterprise_tax_id': "enterprise_tax_id TEXT DEFAULT ''",
+        'enterprise_address': "enterprise_address TEXT DEFAULT ''",
+        'enterprise_phone': "enterprise_phone TEXT DEFAULT ''",
+        'enterprise_bank': "enterprise_bank TEXT DEFAULT ''",
+        'enterprise_bank_acct': "enterprise_bank_acct TEXT DEFAULT ''",
+        'enterprise_verified': "enterprise_verified INTEGER DEFAULT 0",
+        'enterprise_verified_at': "enterprise_verified_at TEXT",
+    }
+    for col_name, col_def in enterprise_fields.items():
+        if col_name not in user_cols:
+            try:
+                m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+            except Exception as e:
+                print(f'[migration] users.{col_name} skipped: {e}')
+
+    m.execute('''CREATE TABLE IF NOT EXISTS enterprise_verifications (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER NOT NULL REFERENCES users(id),
+        enterprise_name TEXT NOT NULL,
+        tax_id          TEXT NOT NULL,
+        license_url     TEXT DEFAULT '',
+        ocr_raw         TEXT DEFAULT '',
+        status          TEXT NOT NULL DEFAULT 'pending',
+        review_notes    TEXT DEFAULT '',
+        reviewed_by     INTEGER REFERENCES users(id),
+        reviewed_at     TEXT,
+        created_at      TEXT DEFAULT (datetime('now')),
+        updated_at      TEXT DEFAULT (datetime('now'))
+    )''')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_ev_user ON enterprise_verifications(user_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_ev_status ON enterprise_verifications(status)')
+    print('[migration] ✅ enterprise_verifications table + users enterprise fields initialized')
+
+# ── i18n 翻译表 (2026-06-30) ──
+with get_db() as m:
+    m.execute('''CREATE TABLE IF NOT EXISTS i18n_strings (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        locale      TEXT NOT NULL DEFAULT 'zh-CN',
+        source_hash TEXT NOT NULL,
+        source      TEXT NOT NULL,
+        translation TEXT NOT NULL DEFAULT '',
+        is_auto     INTEGER DEFAULT 0,
+        updated_at  TEXT DEFAULT (datetime('now')),
+        created_at  TEXT DEFAULT (datetime('now')),
+        UNIQUE(locale, source_hash)
+    )''')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_i18n_locale ON i18n_strings(locale)')
+    print('[i18n] ✅ i18n_strings table created')
+
+# ── Migration: site_domains 子域名管理表 (2026-07-06) ──
+with get_db() as m:
+    m.execute('''CREATE TABLE IF NOT EXISTS site_domains (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_config_id  INTEGER NOT NULL DEFAULT 1,
+        subdomain       TEXT NOT NULL,
+        full_domain     TEXT NOT NULL UNIQUE,
+        display_name    TEXT NOT NULL DEFAULT '',
+        template        TEXT DEFAULT 'default',
+        is_published    INTEGER DEFAULT 1,
+        page_keys_json  TEXT DEFAULT '["home"]',
+        sort_order      INTEGER DEFAULT 0,
+        service_port    INTEGER DEFAULT NULL,
+        created_at      TEXT DEFAULT (datetime('now')),
+        updated_at      TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (site_config_id) REFERENCES site_configs(id)
+    )''')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_sd_config ON site_domains(site_config_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_sd_domain ON site_domains(full_domain)')
+    m.commit()
+    print('[Migration] ✅ site_domains 子域名管理表')
+
+# ── Migration: site_domains 新增 service_port 列 (2026-07-06) ──
+try:
+    with get_db() as m:
+        m.execute("ALTER TABLE site_domains ADD COLUMN service_port INTEGER DEFAULT NULL")
+        m.commit()
+        print('[Migration] ✅ site_domains 新增 service_port 列')
+except Exception:
+    pass  # 列已存在
+
+# 默认主页站点在 site_configs 中创建（如不存在）
+_default_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
+_default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
+with get_db() as m:
+    m.execute(
+        "INSERT OR IGNORE INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, ?, ?, 'ai', 'self_hosted', '[\"main\"]')",
+        (_default_domain, _default_brand)
+    )
+    m.commit()
+
+# site_domains 默认种子（3 个标准子域名）
+with get_db() as m:
+    _defaults = [
+        ('www',      f'www.{_default_domain}',      f'{_default_brand} 官网',       'default', 1, 1),
+        ('agent',    f'agent.{_default_domain}',    f'{_default_brand} 管理后台',   'default', 1, 2),
+        ('platform', f'platform.{_default_domain}', f'{_default_brand} 用户中心',   'default', 1, 3),
+    ]
+    for sub, full, name, template, pub, so in _defaults:
         m.execute(
-            "INSERT OR IGNORE INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, ?, ?, 'ai', 'self_hosted', '[\"main\"]')",
-            (_default_domain, _default_brand)
+            "INSERT OR IGNORE INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, ?, ?, ?, ?, ?, ?)",
+            (sub, full, name, template, pub, so)
         )
         m.commit()
-
-    # site_domains 默认种子（3 个标准子域名）
-    with get_db() as m:
-        _defaults = [
-            ('www',      f'www.{_default_domain}',      f'{_default_brand} 官网',       'default', 1, 1),
-            ('agent',    f'agent.{_default_domain}',    f'{_default_brand} 管理后台',   'default', 1, 2),
-            ('platform', f'platform.{_default_domain}', f'{_default_brand} 用户中心',   'default', 1, 3),
-        ]
-        for sub, full, name, template, pub, so in _defaults:
-            m.execute(
-                "INSERT OR IGNORE INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, ?, ?, ?, ?, ?, ?)",
-                (sub, full, name, template, pub, so)
-            )
-        m.commit()
-        print('[Migration] ✅ site_domains 默认种子 (www/agent/platform)')
+    print('[Migration] ✅ site_domains 默认种子 (www/agent/platform)')
 
 
 def now_iso():

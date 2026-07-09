@@ -1,6 +1,6 @@
 # 插件标准 v1.1 — 完整规范
 
-> 生成日期：2026-07-08
+> 生成日期：2026-07-09（§9-11 于 07-09 追加）
 > 前置阅读：本规范假定已了解项目最高宪法 [AGENTS.md](../AGENTS.md) 和 `project_rules.md`。
 
 ---
@@ -383,3 +383,307 @@ def get_dashboard_stats(self) -> dict:
 - 旧 PluginInfo 序列化/反序列化 → `from_json`/`to_dict` 自动适配新字段（dataclass 默认值）
 - `seed_default_agents()` 的 9 个内置 Agent 补 `source='builtin'` → 现有行为不变
 - `model_policy` 不填 → 默认 `strategy=inherit`，等价于直接用全局默认模型，和现在完全一样
+
+---
+
+## 9. 目录结构与部署映射
+
+### 9.1 两个插件目录
+
+| 目录 | 所属服务 | 端口 | 数据库模式 | 说明 |
+|------|----------|------|-----------|------|
+| `plugins/` | Auth 服务（主站后端） | `:8081`（主站）/ `:8083`（认证） | **独立库**（各插件自有 `.db`） | 插件业务逻辑、API 路由、独立数据存储 |
+| `admin/plugins/` | Admin 服务（管理后台） | `:8084` | **无独立库**，通过 `get_main_db()` 只读主库 | 管理端 UI、统计仪表盘、配置页面 |
+
+### 9.2 同步策略
+
+- `plugins/` 是插件**真实数据源**，每个插件有自己的 `*.db` 文件
+- 当插件新增一个 `plugins/<name>/` 目录时，需手动在 `admin/plugins/` 下创建对应的管理端模块
+- `admin/plugins/` 下的模块通过 `get_main_db()` 主库只读连接查询数据，不直接操作插件库
+- 部分插件（如 `coupons`、`reviews`、`wishlist`）在两个目录下都有对应代码
+
+---
+
+## 10. 功能扩展规范
+
+### 10.1 事件/钩子系统（Actions + Filters）
+
+扩展现有的 `plugin_manager/event_bus.py`，增加双钩子机制。
+
+#### Action（通知型）
+
+事件触发后执行回调，无返回值。已支持的 `EventName`：
+
+```python
+class EventName(Enum):
+    PLUGIN_ENABLED = 'plugin_enabled'
+    PLUGIN_DISABLED = 'plugin_disabled'
+    PLUGIN_INSTALLED = 'plugin_installed'
+    PLUGIN_UNINSTALLED = 'plugin_uninstalled'
+    ORDER_PAID = 'order_paid'
+    USER_REGISTERED = 'user_registered'
+    USER_LOGIN = 'user_login'
+    PRODUCT_CREATED = 'product_created'
+    PRODUCT_UPDATED = 'product_updated'
+    CONTENT_PUBLISHED = 'content_published'
+```
+
+注册方式：
+
+```python
+class MyPlugin(BasePlugin):
+    def on_enable(self, registry):
+        bus = get_event_bus()
+        bus.on(EventName.ORDER_PAID, self._on_order_paid)
+
+    def _on_order_paid(self, **kwargs):
+        logger.info(f"订单 {kwargs.get('order_id')} 已支付")
+```
+
+#### Filter（过滤型 — 新增）
+
+允许插件修改数据后再返回，支持链式调用：
+
+```python
+class FilterBus:
+    def __init__(self):
+        self._filters = defaultdict(list)
+
+    def add_filter(self, name: str, handler, priority: int = 10):
+        self._filters[name].append((priority, handler))
+        self._filters[name].sort(key=lambda x: x[0])
+
+    def apply(self, name: str, value, **kwargs):
+        for _, handler in self._filters.get(name, []):
+            value = handler(value, **kwargs)
+        return value
+```
+
+**适用场景**：
+- `page_head` → 插件注入自定义 CSS/JS
+- `product_detail` → 插件扩展商品详情字段
+- `user_profile` → 插件添加用户自定义字段
+
+### 10.2 权限模型
+
+插件通过 `plugin.json` 的 `permissions` 字段声明所需权限范围：
+
+```json
+{
+  "permissions": [
+    "api:read",
+    "api:write",
+    "user:profile"
+  ],
+  "admin_permissions": ["admin:access"]
+}
+```
+
+| 权限 | 说明 |
+|------|------|
+| `api:read` | 可读取业务数据（订单、商品、用户信息） |
+| `api:write` | 可写入业务数据（创建订单、发布商品） |
+| `user:profile` | 可读取用户基本信息（但不含密码/密钥） |
+| `admin:access` | 可访问管理后台接口 |
+| `network:request` | 可发起外部网络请求 |
+| `filesystem:read` | 可读取插件目录外的文件 |
+| `filesystem:write` | 可在插件目录外写入文件 |
+
+**实施规则**：
+- 路由自动注册到统一前缀 `/plugin/<name>/`，`plugin_manager/routes.py` 检查权限
+- 超过声明范围的调用返回 403
+- `admin_permissions` 中声明的权限需要管理员角色才能放行
+
+### 10.3 配置 UI
+
+每个插件通过 `settings_schema`（JSON Schema Draft-07）声明配置表单，自动渲染为管理后台设置页面。
+
+**存储**：`plugin_configs` 表（主库）：
+
+```sql
+CREATE TABLE IF NOT EXISTS plugin_configs (
+    plugin_name TEXT NOT NULL,
+    key         TEXT NOT NULL,
+    value       TEXT DEFAULT '',
+    updated_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (plugin_name, key)
+)
+```
+
+**默认值**在 `plugin.json` 中声明：
+
+```json
+{
+  "config": {
+    "api_key": "",
+    "max_items": 20,
+    "enable_notify": true
+  },
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "api_key": {
+        "title": "API Key",
+        "type": "string",
+        "description": "第三方服务 API 密钥"
+      },
+      "max_items": {
+        "title": "最大条目数",
+        "type": "integer",
+        "default": 20,
+        "minimum": 1
+      },
+      "enable_notify": {
+        "title": "启用通知",
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }
+}
+```
+
+**管理端入口**：`admin/templates/partials/plugins_admin.html` 中自动加载已安装插件的配置面板。
+
+### 10.4 依赖管理
+
+#### 声明方式
+
+```json
+{
+  "depends_on": {
+    "reviews": ">=1.0.0",
+    "order_notify": "*"
+  },
+  "conflicts": ["legacy_reviews"]
+}
+```
+
+`depends_on` 值使用语义化版本范围：
+- `"*"` — 任意版本
+- `">=1.0.0"` — 大于等于 1.0.0
+- `"1.0.0"` — 精确匹配
+- `"~1.0.0"` — 兼容版本（>=1.0.0 且 <1.1.0）
+
+#### 加载规则
+
+1. `PluginManager.enable()` 时解析所有依赖
+2. **拓扑排序**确定加载顺序，确保依赖先加载
+3. **循环依赖检测** — 发现环则报错，阻止 enable
+4. **依赖缺失** — 如果依赖插件不存在，允许 keep disabled，enable 时报错提示
+
+**核心逻辑**（增强 `plugin_manager/deps.py`）：
+
+```python
+def resolve_load_order(plugins: Dict[str, PluginMeta]) -> List[str]:
+    """拓扑排序，按依赖顺序返回插件名列表"""
+    graph = {}
+    for name, meta in plugins.items():
+        graph[name] = set(meta.metadata.get('depends_on', {}).keys())
+    # Kahn 算法检测循环依赖
+    # 返回排序后的列表
+```
+
+### 10.5 日志与监控
+
+#### 独立日志通道
+
+每个插件自动获得隔离的日志文件：
+
+```python
+from plugin_manager.logger import get_plugin_logger
+
+logger = get_plugin_logger('my_plugin')
+logger.info("操作成功")       # → logs/plugins/my_plugin.log
+logger.error("操作失败")      # → logs/plugins/my_plugin.log
+```
+
+日志文件位置：`data/logs/plugins/<plugin_name>.log`
+
+#### 监控指标
+
+通过 `BasePlugin.get_dashboard_stats()` 暴露：
+
+```python
+class MyPlugin(BasePlugin):
+    def get_dashboard_stats(self) -> dict:
+        with get_db() as conn:
+            return {
+                'total_items': conn.execute('SELECT COUNT(*) FROM my_items').fetchone()[0],
+                'api_calls_24h': conn.execute(
+                    "SELECT COUNT(*) FROM api_logs WHERE created_at > datetime('now', '-1 day')"
+                ).fetchone()[0],
+            }
+```
+
+**指标规范**：
+- 全部暴露为 `/admin/plugins/metrics` 端点
+- 错误率超过阈值（如 5%）触发管理告警
+- 每个插件最多上报 10 个指标
+
+### 10.6 版本与 Schema 迁移
+
+#### 版本声明
+
+```json
+{
+  "version": "1.0.0"
+}
+```
+
+语义化版本约定：
+- **主版本**：Schema 破坏性变更（删表、改列）
+- **次版本**：新增功能、新增表、新增列（向后兼容）
+- **补丁**：Bug 修复、性能优化
+
+#### 迁移机制
+
+`BasePlugin` 提供可选迁移方法：
+
+```python
+class BasePlugin:
+    def get_schema_version(self) -> str:
+        """从插件独立库读取当前 schema 版本"""
+
+    def migrate(self, from_version: str, to_version: str) -> bool:
+        """版本升级逻辑，子类覆写"""
+        return True
+```
+
+**约定目录结构**：
+
+```
+plugins/<name>/
+├── migrations/
+│   ├── v1.0.0_to_v1.1.0.sql
+│   └── v1.1.0_to_v2.0.0.sql
+└── plugin.json
+```
+
+**执行流程**：
+1. 插件 enable 时检查 `get_schema_version()` vs `plugin.json` 中的 `version`
+2. 如果落后，顺序执行 `migrations/` 下的 SQL 文件
+3. 每个 SQL 文件用事务包裹，失败自动回滚
+4. 迁移完成后更新存储的 schema 版本号
+
+---
+
+## 11. 安全与合规
+
+### 11.1 最小权限原则
+
+- 插件只能访问其 `permissions` 中声明的资源
+- 默认无权限，需要显式声明
+- 敏感权限（`admin:access`、`filesystem:write`、`network:request`）需要管理员在安装时手动确认
+
+### 11.2 数据隔离
+
+- 每个插件使用独立 SQLite 数据库（`plugins/<name>/<name>.db`）
+- 插件只能通过 `get_main_db()` 只读访问主库
+- 不得直接修改主库表结构
+
+### 11.3 网络隔离
+
+- `network:request` 权限默认关闭，开启需管理员确认
+- 插件发起的 HTTP 请求默认超时 10 秒
+- 禁止访问内网 IP 段（127.0.0.0/8、10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）

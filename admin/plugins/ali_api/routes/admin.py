@@ -768,26 +768,9 @@ def publish_product(item_id):
                 ))
                 target_product_id = cursor.lastrowid
                 
-                # 如果有 SKU，插入到 product_skus 表（如果存在）
+                # 如果有 SKU，插入到 product_skus 表（主库已存在该表）
                 if product_sku:
-                    try:
-                        main_conn.execute('''
-                            CREATE TABLE IF NOT EXISTS product_skus (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                product_id INTEGER NOT NULL REFERENCES products(id),
-                                sku_code TEXT DEFAULT '',
-                                spec1_name TEXT DEFAULT '',
-                                spec1_value TEXT DEFAULT '',
-                                spec2_name TEXT DEFAULT '',
-                                spec2_value TEXT DEFAULT '',
-                                price_offset REAL DEFAULT 0,
-                                stock INTEGER DEFAULT 0,
-                                image_url TEXT DEFAULT '',
-                                is_active INTEGER DEFAULT 1,
-                                created_at TEXT DEFAULT (datetime('now','localtime'))
-                            )
-                        ''')
-                        for sku in product_sku:
+                    for sku in product_sku:
                             main_conn.execute('''
                                 INSERT INTO product_skus (
                                     product_id, sku_code, spec1_name, spec1_value,
@@ -807,8 +790,6 @@ def publish_product(item_id):
                                 1,
                                 now_iso,
                             ))
-                    except Exception as sku_err:
-                        logger.warning(f"SKU表创建/插入失败（可能表不存在）: {sku_err}")
                 
                 main_conn.commit()
             
