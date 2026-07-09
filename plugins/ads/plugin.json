@@ -1,0 +1,30 @@
+{
+    "name": "Ad Management",
+    "identifier": "ads",
+    "version": "0.1.0",
+    "description": "Ad Management — Create, edit, and manage ad placements across the site",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "ads.read",
+        "ads.write"
+    ],
+    "hooks": {
+        "provides": [],
+        "listens": []
+    },
+    "menu": {
+        "group": "Operations",
+        "key": "ads",
+        "icon": "ads",
+        "label": "Ad Management",
+        "embed_url": "/admin/ads/"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}

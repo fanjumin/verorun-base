@@ -1,0 +1,37 @@
+{
+    "name": "Enterprise Verification",
+    "identifier": "enterprise_verify",
+    "version": "0.1.0",
+    "description": "Enterprise Verification — OCR business license recognition + AI auto-audit",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "enterprise_verify.read",
+        "enterprise_verify.write"
+    ],
+    "hooks": {
+        "provides": [],
+        "listens": []
+    },
+    "menu": {
+        "group": "Customer Management",
+        "key": "enterprise_verify",
+        "icon": "enterprise_verify",
+        "label": "Enterprise Verification",
+        "embed_url": "/admin/enterprise-verifications"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "siliconflow_api_key": {
+                "type": "string",
+                "label": "SiliconFlow API Key",
+                "default": "",
+                "description": "API Key for DeepSeek-OCR + AI audit"
+            }
+        }
+    }
+}

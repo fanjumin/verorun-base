@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-"""Content Factory — Base Collector + 去重工具"""
+"""Content Factory Plugin — Base Collector + 去重工具"""
 import hashlib, json, random, time, re
 from typing import List, Tuple
 from difflib import SequenceMatcher
 
 
-# ── 去重 ──
 def content_hash(text: str) -> str:
     return hashlib.sha256((text or '')[:5000].encode('utf-8')).hexdigest()
 
 
 def title_similar(t1: str, t2: str, threshold: float = 0.80) -> bool:
-    """标题相似度 — 80% 以上视为重复"""
     if not t1 or not t2:
         return False
     return SequenceMatcher(None, t1.strip().lower(), t2.strip().lower()).ratio() >= threshold
 
 
-# ── 采集结果值对象 ──
 class CollectResult:
     def __init__(self, **kw):
         self.title = (kw.get('title') or '')[:200]
@@ -35,10 +32,8 @@ class CollectResult:
         return {k: v for k, v in self.__dict__.items()}
 
 
-# ── 基类 ──
 class BaseCollector:
-    """采集器基类。子类实现 collect(**kwargs) → List[CollectResult]"""
-
+    """采集器基类"""
     name = 'base'
     source_type = 'rss'
 
@@ -72,42 +67,36 @@ class BaseCollector:
         return re.sub(r'<[^>]+>', '', html).replace('&nbsp;', ' ').replace('&amp;', '&').strip()
 
     def _is_duplicate(self, conn, title: str, c_hash: str) -> Tuple[bool, str]:
-        """返回 (是重复, 原因)"""
-        row = conn.execute(
-            'SELECT id FROM raw_contents WHERE content_hash=?', (c_hash,)
-        ).fetchone()
+        row = conn.execute('SELECT id FROM raw_contents WHERE content_hash=?', (c_hash,)).fetchone()
         if row:
             return True, 'exact_hash'
-        recent = conn.execute(
-            'SELECT title FROM raw_contents ORDER BY id DESC LIMIT 100'
-        ).fetchall()
+        recent = conn.execute('SELECT title FROM raw_contents ORDER BY id DESC LIMIT 100').fetchall()
         for r in recent:
             if title_similar(title, r['title']):
                 return True, 'similar_title'
         return False, ''
 
     def save_results(self, results: List[CollectResult], task_id: int = 0) -> Tuple[int, int]:
-        """批量写入 raw_contents。返回 (inserted, skipped)"""
-        from models import get_db
+        from plugins.content_factory.models import get_cf_db
+        conn = get_cf_db()
         inserted = 0
         skipped = 0
-        with get_db() as conn:
-            for r in results:
-                dup, why = self._is_duplicate(conn, r.title, r.content_hash)
-                if dup:
-                    skipped += 1
-                    continue
-                conn.execute(
-                    """INSERT INTO raw_contents (source_id, task_id, title, author,
-                       source_url, content_text, content_html, summary, content_hash,
-                       publish_time, tags, content_json)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (self.source_id, task_id or None, r.title, r.author,
-                     r.source_url, r.content_text, r.content_html, r.summary,
-                     r.content_hash, r.publish_time, r.tags, r.content_json)
-                )
-                inserted += 1
-            conn.commit()
+        for r in results:
+            dup, why = self._is_duplicate(conn, r.title, r.content_hash)
+            if dup:
+                skipped += 1
+                continue
+            conn.execute(
+                """INSERT INTO raw_contents (source_id, task_id, title, author,
+                   source_url, content_text, content_html, summary, content_hash,
+                   publish_time, tags, content_json)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (self.source_id, task_id or None, r.title, r.author,
+                 r.source_url, r.content_text, r.content_html, r.summary,
+                 r.content_hash, r.publish_time, r.tags, r.content_json)
+            )
+            inserted += 1
+        conn.commit()
         return inserted, skipped
 
     def collect(self, **kwargs) -> List[CollectResult]:

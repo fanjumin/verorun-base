@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Enterprise Verification Service — 硅基流动 DeepSeek-OCR 营业执照识别 + AI 自动审核"""
-import sys, os, json, re, base64
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from models import get_db
+"""Enterprise Verification Plugin — OCR 识别 + AI 自动审核"""
+import sys, os, json, re
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 
 SILICONFLOW_BASE_URL = 'https://api.siliconflow.cn/v1'
 DEFAULT_OCR_MODEL = 'deepseek-ai/DeepSeek-OCR'
@@ -10,8 +10,9 @@ DEFAULT_AUDIT_MODEL = 'deepseek-ai/DeepSeek-V3'
 
 
 def _get_config(key: str, default=''):
-    """从 system_config 表读取配置"""
+    """从主系统 system_config 表读取配置"""
     try:
+        from models import get_db
         with get_db() as conn:
             row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
             return row['value'] if row else default
@@ -36,11 +37,9 @@ def ocr_business_license(image_base64: str) -> dict:
     if not api_key:
         raise RuntimeError('硅基流动 API Key 未配置（system_config.siliconflow_api_key）')
 
-    # 清理 base64 前缀
     if ',' in image_base64:
         image_base64 = image_base64.split(',', 1)[1]
 
-    # 调用硅基流动 chat/completions (OpenAI 兼容)
     from openai import OpenAI
     client = OpenAI(api_key=api_key, base_url=SILICONFLOW_BASE_URL)
 
@@ -80,14 +79,12 @@ def ocr_business_license(image_base64: str) -> dict:
     )
 
     text = resp.choices[0].message.content.strip()
-    # 提取 JSON
     json_match = re.search(r'\{.*\}', text, re.DOTALL)
     if json_match:
         result = json.loads(json_match.group())
     else:
         result = json.loads(text)
 
-    # 确保所有字段存在
     fields = ['company_name', 'reg_num', 'legal_person', 'address', 'registered_capital', 'business_scope']
     for f in fields:
         result.setdefault(f, '')
@@ -108,14 +105,12 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
     AI 自动审核企业认证
     返回: {decision: 'approve'|'pending', confidence: float, reason: str}
     """
-    # Step 1: 格式校验
     if not company_name or not tax_id:
         return {'decision': 'pending', 'confidence': 0.0, 'reason': '企业名称或税号为空'}
 
     if not _validate_tax_id(tax_id):
         return {'decision': 'pending', 'confidence': 0.0, 'reason': '统一社会信用代码格式不正确'}
 
-    # Step 2: LLM 语义校验（名称与税号是否匹配）
     api_key = _get_siliconflow_api_key()
     if api_key:
         try:
@@ -137,8 +132,7 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
             if confidence >= 0.8 and result.get('decision') == 'approve':
                 return {'decision': 'approve', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核通过')}
             return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核不确定，需人工复核')}
-        except Exception as e:
-            pass  # 降级
+        except Exception:
+            pass
 
-    # 降级: 格式校验通过直接自动通过（保守策略）
     return {'decision': 'approve', 'confidence': 0.85, 'reason': '格式校验通过，已自动认证'}

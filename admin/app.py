@@ -21,7 +21,6 @@ from routes.social_media import social_media_bp
 from routes.footer_admin import footer_bp
 from routes.header_admin import header_bp
 from routes.comments import comments_bp
-from routes.content_factory import cf_bp
 from routes.theme_admin import theme_bp
 from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp
@@ -123,7 +122,6 @@ app.register_blueprint(social_media_bp)
 app.register_blueprint(footer_bp)
 app.register_blueprint(header_bp)
 app.register_blueprint(comments_bp)
-app.register_blueprint(cf_bp)
 app.register_blueprint(theme_bp)
 app.register_blueprint(douyin_mp_bp)  # Douyin Mini-Program API
 app.register_blueprint(shop_bp)        # 商城管理

@@ -25,7 +25,7 @@ window.l_ads=function(){
     h+='</select></div></div>';
     h+='<div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Position') }}</label><select class="sl" id="adPos" style="width:100%"><option value="sidebar">{{ _('Sidebar') }}</option></select></div>';
     h+='<div><label style="font-size:12px;color:var(--dim)">{{ _('Type') }}</label><select class="sl" id="adType" style="width:100%" onchange="toggleAdType()"><option value="image">{{ _('Image Ad') }}</option><option value="code">{{ _('Ad Code') }}</option></select></div></div>';
-    h+='<div id="adImageFields"><div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Image') }}URL</label><input class="in" id="adImageUrl" style="width:100%" placeholder="https://..."></div>';
+    h+='<div id="adImageFields"><div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Image URL') }}</label><input class="in" id="adImageUrl" style="width:100%" placeholder="https://..."></div>';
     h+='<div><label style="font-size:12px;color:var(--dim)">{{ _('Redirect Link') }}</label><input class="in" id="adLinkUrl" style="width:100%" placeholder="https://..."></div></div></div>';
     h+='<div id="adCodeField" style="display:none"><label style="font-size:12px;color:var(--dim)">{{ _('Ad Code') }}</label><textarea class="ta" id="adCode" style="width:100%;height:120px;font-family:monospace;font-size:11px" placeholder="{{ _('Paste') }} AdSense {{ _('Or Other Ad Code') }}..."></textarea></div>';
     h+='<div class="g2"><div><label style="font-size:12px;color:var(--dim)">{{ _('Sort') }}</label><input class="in" id="adSort" style="width:80px" value="0" type="number"></div>';
@@ -94,7 +94,7 @@ function saveAd(){
   var url=id?"/admin/ads/"+id:"/admin/ads";
   var method=id?"PUT":"POST";
   fetch(url,{method:method,headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){showToast(id?"✅ {{ _('Updated') }}":"✅ {{ _('Created') }}","success");hideAdForm();l_ads()}
+    if(d.success){showToast(id?"✅ "+"{{ _('Updated') }}":"✅ "+"{{ _('Created') }}","success");hideAdForm();l_ads()}
     else showToast(d.error||"{{ _('Save failed') }}","error");
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
 }
@@ -107,11 +107,7 @@ function toggleAd(id,v){
 function deleteAd(id){
   if(!confirm("{{ _('Delete this ad?') }}"))return;
   fetch("/admin/ads/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){showToast("{{ _('✅ Deleted') }}","success");l_ads()}
+    if(d.success){showToast("✅ "+"{{ _('Deleted') }}","success");l_ads()}
     else showToast(d.error||"{{ _('Delete failed') }}","error");
   });
 }
-
-// ============================
-// 📦 {{ _('Shop') }} — l_shop_products ({{ _('Product Management') }})
-// ============================

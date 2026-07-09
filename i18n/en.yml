@@ -533,7 +533,7 @@ your_username: your_username
 年付: Yearly
 年付价格: Yearly Price
 并行执行+自检: Parallel Execution + Self-Check
-广告管理: Ad Management
+
 应用: Apply
 建站服务: Site Building Service
 建站需要自己准备域名吗？: Do I need my own domain?
@@ -847,7 +847,7 @@ VeroRun: VeroRun
   few seconds.
 确定移除Agent头像？: Remove agent avatar?
 确定移除用户头像？: Remove user avatar?
-确定要删除此广告吗？: Delete this ad?
+
 确定退款此订单？: Refund this order?
 确定重置当前会话？所有消息将被清除。: Reset current session? All messages will be cleared.
 确认: Confirm
@@ -1012,7 +1012,7 @@ VeroRun: VeroRun
 请输入分类名称: Enter category name
 请输入原文（中文）: Enter source text (Chinese)
 请输入图片描述: Enter image description
-请输入广告名称: Enter ad name
+
 请输入手机号: Enter phone number
 请输入提示词: Enter a prompt
 请输入有效手机号: Please enter a valid phone number
@@ -1639,8 +1639,8 @@ VeroRun: VeroRun
 平台名称: Platform Name
 平台标识: Platform ID
 年价: Annual
-广告代码: Ad Code
-广告列表: Ad List
+
+
 广场: Plaza
 序号: '#'
 库存: Stock
@@ -1705,7 +1705,7 @@ VeroRun: VeroRun
 我的声音: My Voices
 我的设置: My Settings
 或上传: Or Upload
-或其他广告代码: Or Other Ad Code
+
 或点击选择: Or Click to Select
 或自然语言: Or Natural Language
 或选择上方模板: Or Select Template Above
@@ -1769,7 +1769,7 @@ VeroRun: VeroRun
 搜索关键词: Search Keywords
 搜索名称: Search Name
 搜索商品名称: Search Product Name
-搜索广告: Search Ads
+
 搜索文件名: Search File Name
 搜索标题: Search Title
 搜索用户: Search Users
@@ -1832,7 +1832,7 @@ VeroRun: VeroRun
 新建分类: New Category
 新建商品: New Product
 新建工作流: New Workflow
-新建广告: New Ad
+
 新建模板: New Template
 新建规则: New Rule
 新用户注册: New User Registration
@@ -1890,7 +1890,7 @@ VeroRun: VeroRun
 暂无已发布的: No Published
 暂无已配置平台: No Configured Platform
 暂无帖子: No Posts
-暂无广告: No Ads
+
 暂无执行记录: No Execution Records
 暂无推送记录: No Push Records
 暂无日志: No Logs Yet
@@ -2242,7 +2242,7 @@ VeroRun: VeroRun
 编辑器: Editor
 编辑导航链接: Edit Nav Link
 编辑工作流: Edit Workflow
-编辑广告: Edit Ad
+
 编辑提示词和配置: Edit Prompts & Settings
 编辑模型: Edit Model
 编辑生态伙伴: Edit Partner

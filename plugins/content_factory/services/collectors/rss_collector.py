@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""RSS/Atom 通用采集器 — 基于 feedparser"""
+"""Content Factory Plugin — RSS/Atom 通用采集器"""
 from datetime import datetime
-from typing import List, Optional
-from ..base_collector import BaseCollector, CollectResult
+from typing import List
+from plugins.content_factory.services.base_collector import BaseCollector, CollectResult
 
 try:
     import feedparser
@@ -11,13 +11,6 @@ except ImportError:
 
 
 class RSSCollector(BaseCollector):
-    """通用 RSS 采集器
-
-    用法:
-        col = RSSCollector(source_id, config={'url': 'https://example.com/feed.xml'})
-        results = col.collect(count=10)
-    """
-
     name = 'rss'
     source_type = 'rss'
 
@@ -52,13 +45,10 @@ class RSSCollector(BaseCollector):
                 content_html = raw
                 content_text = self._strip_html(raw)
 
-            # 提取第一张图片作为封面
             cover_url = ''
             if content_html:
-                import re
                 m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content_html)
-                if m:
-                    cover_url = m.group(1)
+                if m: cover_url = m.group(1)
 
             pub_time = ''
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
@@ -73,12 +63,10 @@ class RSSCollector(BaseCollector):
 
             results.append(CollectResult(
                 title=getattr(entry, 'title', ''),
-                content_text=content_text,
-                content_html=content_html,
+                content_text=content_text, content_html=content_html,
                 source_url=entry.get('link', ''),
                 author=getattr(entry, 'author', ''),
-                publish_time=pub_time,
-                summary=content_text[:300],
+                publish_time=pub_time, summary=content_text[:300],
                 tags=tags_str,
                 content_json={'cover_url': cover_url},
             ))

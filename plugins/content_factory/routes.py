@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
-"""Content Factory Routes — /admin/content-factory/*"""
+"""Content Factory Plugin — 23 API 路由"""
 import sys, os, json, logging
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+_auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
+if _auth_dir not in sys.path:
+    sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
-from models import get_db
-from routes.admin import _require_admin, _log
-from services.content_factory import run_collection
-from services.content_factory.ai_processor import process_raw_content, batch_process
 
 logger = logging.getLogger(__name__)
 cf_bp = Blueprint('content_factory', __name__, url_prefix='/admin/content-factory')
+
+
+# ── Helpers ──
+def _require_admin():
+    from routes.admin import _require_admin as _ra
+    return _ra()
+
+
+def _log(admin_id, action, target_type='', target_id='', detail=''):
+    from routes.admin import _log as _l
+    _l(admin_id, action, target_type, target_id, detail)
+
+
+def _get_db():
+    from plugins.content_factory.models import get_cf_db
+    return get_cf_db()
 
 
 # =============================================
@@ -21,10 +36,8 @@ cf_bp = Blueprint('content_factory', __name__, url_prefix='/admin/content-factor
 def list_sources():
     admin, err = _require_admin()
     if err: return err
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT * FROM content_sources ORDER BY sort_order, id'
-        ).fetchall()
+    conn = _get_db()
+    rows = conn.execute('SELECT * FROM content_sources ORDER BY sort_order, id').fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
 
@@ -37,20 +50,20 @@ def add_source():
     for k in required:
         if not d.get(k):
             return jsonify({'success': False, 'error': f'{k} 必填'})
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO content_sources (name, source_type, platform, url, config_json,
-               crawl_interval, keywords, max_per_run, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (d['name'], d['source_type'], d.get('platform', ''),
-             d['url'], json.dumps(d.get('config', {}), ensure_ascii=False),
-             int(d.get('crawl_interval', 0)),
-             d.get('keywords', ''),
-             int(d.get('max_per_run', 10)),
-             admin['user_id'])
-        )
-        conn.commit()
-        sid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    conn = _get_db()
+    conn.execute(
+        """INSERT INTO content_sources (name, source_type, platform, url, config_json,
+           crawl_interval, keywords, max_per_run, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        (d['name'], d['source_type'], d.get('platform', ''),
+         d['url'], json.dumps(d.get('config', {}), ensure_ascii=False),
+         int(d.get('crawl_interval', 0)),
+         d.get('keywords', ''),
+         int(d.get('max_per_run', 10)),
+         admin['user_id'])
+    )
+    conn.commit()
+    sid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
     _log(admin['user_id'], 'cf_source_add', 'content_source', str(sid), f"来源: {d['name']}")
     return jsonify({'success': True, 'id': sid})
 
@@ -73,11 +86,9 @@ def update_source(sid):
     sets.append("config_json=?")
     vals.append(json.dumps(d.get('config', {}), ensure_ascii=False))
     vals.append(sid)
-    with get_db() as conn:
-        conn.execute(
-            f"UPDATE content_sources SET {', '.join(sets)} WHERE id=?", vals
-        )
-        conn.commit()
+    conn = _get_db()
+    conn.execute(f"UPDATE content_sources SET {', '.join(sets)} WHERE id=?", vals)
+    conn.commit()
     _log(admin['user_id'], 'cf_source_update', 'content_source', str(sid))
     return jsonify({'success': True})
 
@@ -86,9 +97,9 @@ def update_source(sid):
 def delete_source(sid):
     admin, err = _require_admin()
     if err: return err
-    with get_db() as conn:
-        conn.execute('DELETE FROM content_sources WHERE id=?', (sid,))
-        conn.commit()
+    conn = _get_db()
+    conn.execute('DELETE FROM content_sources WHERE id=?', (sid,))
+    conn.commit()
     _log(admin['user_id'], 'cf_source_delete', 'content_source', str(sid))
     return jsonify({'success': True})
 
@@ -105,6 +116,7 @@ def trigger_crawl():
     source_id = d.get('source_id')
     if not source_id:
         return jsonify({'success': False, 'error': 'source_id 必填'})
+    from plugins.content_factory.services import run_collection
     result = run_collection(source_id, admin_id=admin['user_id'])
     _log(admin['user_id'], 'cf_crawl', 'content_source', str(source_id),
          f"新增 {result.get('inserted',0)}, 跳过 {result.get('skipped',0)}")
@@ -134,17 +146,17 @@ def list_contents():
         where.append('r.status=?')
         params.append(status)
 
-    with get_db() as conn:
-        total = conn.execute(
-            f'SELECT COUNT(*) FROM raw_contents r WHERE {" AND ".join(where)}', params
-        ).fetchone()[0]
-        rows = conn.execute(
-            f"""SELECT r.*, s.name as source_name
-                FROM raw_contents r LEFT JOIN content_sources s ON r.source_id=s.id
-                WHERE {" AND ".join(where)}
-                ORDER BY r.id DESC LIMIT ? OFFSET ?""",
-            params + [limit, offset]
-        ).fetchall()
+    conn = _get_db()
+    total = conn.execute(
+        f'SELECT COUNT(*) FROM raw_contents r WHERE {" AND ".join(where)}', params
+    ).fetchone()[0]
+    rows = conn.execute(
+        f"""SELECT r.*, s.name as source_name
+            FROM raw_contents r LEFT JOIN content_sources s ON r.source_id=s.id
+            WHERE {" AND ".join(where)}
+            ORDER BY r.id DESC LIMIT ? OFFSET ?""",
+        params + [limit, offset]
+    ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows],
                     'total': total, 'page': page, 'limit': limit})
 
@@ -153,10 +165,10 @@ def list_contents():
 def delete_content(rid):
     admin, err = _require_admin()
     if err: return err
-    with get_db() as conn:
-        conn.execute('DELETE FROM raw_contents WHERE id=?', (rid,))
-        conn.execute('DELETE FROM processed_contents WHERE raw_id=?', (rid,))
-        conn.commit()
+    conn = _get_db()
+    conn.execute('DELETE FROM raw_contents WHERE id=?', (rid,))
+    conn.execute('DELETE FROM processed_contents WHERE raw_id=?', (rid,))
+    conn.commit()
     _log(admin['user_id'], 'cf_delete', 'raw_content', str(rid))
     return jsonify({'success': True})
 
@@ -173,6 +185,7 @@ def process():
     raw_ids = d.get('raw_ids', [])
     if not raw_ids:
         return jsonify({'success': False, 'error': 'raw_ids 必填'})
+    from plugins.content_factory.services.ai_processor import batch_process
     result = batch_process(raw_ids, admin_id=admin['user_id'])
     _log(admin['user_id'], 'cf_process', '', '',
          f"加工 {len(raw_ids)} 条: OK={result.get('ok',0)} FAIL={result.get('fail',0)}")
@@ -198,18 +211,18 @@ def list_processed():
         where.append('p.status=?')
         params.append(status)
 
-    with get_db() as conn:
-        total = conn.execute(
-            f'SELECT COUNT(*) FROM processed_contents p WHERE {" AND ".join(where)}', params
-        ).fetchone()[0]
-        rows = conn.execute(
-            f"""SELECT p.*, r.title as raw_title, r.source_url
-                FROM processed_contents p
-                LEFT JOIN raw_contents r ON p.raw_id=r.id
-                WHERE {" AND ".join(where)}
-                ORDER BY p.id DESC LIMIT ? OFFSET ?""",
-            params + [limit, offset]
-        ).fetchall()
+    conn = _get_db()
+    total = conn.execute(
+        f'SELECT COUNT(*) FROM processed_contents p WHERE {" AND ".join(where)}', params
+    ).fetchone()[0]
+    rows = conn.execute(
+        f"""SELECT p.*, r.title as raw_title, r.source_url
+            FROM processed_contents p
+            LEFT JOIN raw_contents r ON p.raw_id=r.id
+            WHERE {" AND ".join(where)}
+            ORDER BY p.id DESC LIMIT ? OFFSET ?""",
+        params + [limit, offset]
+    ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows],
                     'total': total, 'page': page, 'limit': limit})
 
@@ -222,21 +235,21 @@ def batch_delete_processed():
     ids = d.get('ids', [])
     if not ids:
         return jsonify({'success': False, 'error': 'ids 必填'})
-    with get_db() as conn:
-        for pid in ids:
-            conn.execute('DELETE FROM skill_pushes WHERE processed_id=?', (pid,))
-            conn.execute('DELETE FROM processed_contents WHERE id=?', (pid,))
-        conn.commit()
+    conn = _get_db()
+    for pid in ids:
+        conn.execute('DELETE FROM skill_pushes WHERE processed_id=?', (pid,))
+        conn.execute('DELETE FROM processed_contents WHERE id=?', (pid,))
+    conn.commit()
     _log(admin['user_id'], 'cf_batch_delete', 'processed', f'{len(ids)}条')
     return jsonify({'success': True, 'deleted': len(ids)})
 
 
 # =============================================
-# 6. AI 排版 + 配图 (给CMS编辑器用)
+# 6. AI 排版 + 配图
 # =============================================
+
 @cf_bp.route('/ai-format', methods=['POST'])
 def ai_format():
-    """AI 深度排版：修复格式 + 生成摘要 + 配图建议"""
     admin, err = _require_admin()
     if err: return err
     d = request.get_json() or {}
@@ -252,13 +265,9 @@ def ai_format():
 2. **重新组织结构**：用 <h2> 或 <h3> 划分章节，每章之间用 <p> 段落，列表用 <ul><li>
 3. **数据突出**：重要数字、百分比、日期用 <strong> 加粗
 4. **生成摘要**：用 <blockquote> 包裹一句话摘要放在正文开头
-5. **配图建议**：在正文末尾添加 <p class="cover-suggest">配图建议：xxx</p>，建议一张与内容相关的封面图描述
+5. **配图建议**：在正文末尾添加 <p class="cover-suggest">配图建议：xxx</p>
 
-## 输出要求
-- 输出纯 HTML，不要用 markdown
-- 段落分明，每段之间空行
-- 保持原文意思完整不变
-- 不要丢失任何原文内容
+输出纯 HTML，不要用 markdown。段落分明，每段之间空行。保持原文意思完整不变。不要丢失任何原文内容。
 
 原文标题：{title}
 原文正文：
@@ -298,13 +307,13 @@ def ai_cover():
 def get_processed(pid):
     admin, err = _require_admin()
     if err: return err
-    with get_db() as conn:
-        row = conn.execute(
-            """SELECT p.*, r.title as raw_title, r.source_url, r.content_text as raw_text
-               FROM processed_contents p LEFT JOIN raw_contents r ON p.raw_id=r.id
-               WHERE p.id=?""",
-            (pid,)
-        ).fetchone()
+    conn = _get_db()
+    row = conn.execute(
+        """SELECT p.*, r.title as raw_title, r.source_url, r.content_text as raw_text
+           FROM processed_contents p LEFT JOIN raw_contents r ON p.raw_id=r.id
+           WHERE p.id=?""",
+        (pid,)
+    ).fetchone()
     if not row:
         return jsonify({'success': False, 'error': '不存在'})
     return jsonify({'success': True, 'data': dict(row)})
@@ -324,11 +333,9 @@ def update_processed(pid):
             vals.append(d[k])
     if sets:
         vals.append(pid)
-        with get_db() as conn:
-            conn.execute(
-                f"UPDATE processed_contents SET {', '.join(sets)} WHERE id=?", vals
-            )
-            conn.commit()
+        conn = _get_db()
+        conn.execute(f"UPDATE processed_contents SET {', '.join(sets)} WHERE id=?", vals)
+        conn.commit()
     return jsonify({'success': True})
 
 
@@ -342,39 +349,33 @@ def review_content():
     if err: return err
     d = request.get_json() or {}
     pid = d.get('processed_id')
-    action = d.get('action', '')  # submit_review / approve / reject / back_to_draft
+    action = d.get('action', '')
     if not pid or action not in ('submit_review', 'approve', 'reject', 'back_to_draft'):
         return jsonify({'success': False, 'error': 'processed_id 和 action 必填'})
 
-    status_map = {
-        'submit_review': 'review',   # draft → review
-        'approve': 'approved',       # review → approved
-        'reject': 'rejected',        # review → rejected
-        'back_to_draft': 'draft',    # any → draft
-    }
+    status_map = {'submit_review': 'review', 'approve': 'approved', 'reject': 'rejected', 'back_to_draft': 'draft'}
     target = status_map[action]
 
-    with get_db() as conn:
-        pc = conn.execute('SELECT * FROM processed_contents WHERE id=?', (pid,)).fetchone()
-        if not pc:
-            return jsonify({'success': False, 'error': '不存在'})
-        # 状态机校验
-        cur = pc['status']
-        valid_transitions = {
-            'draft': ['submit_review', 'publish'],
-            'review': ['approve', 'reject'],
-            'rejected': ['submit_review', 'back_to_draft'],
-            'approved': ['publish', 'back_to_draft'],
-            'published': [],
-        }
-        if action not in valid_transitions.get(cur, []):
-            return jsonify({'success': False, 'error': f'状态 {cur} 不允许执行 {action}'})
+    conn = _get_db()
+    pc = conn.execute('SELECT * FROM processed_contents WHERE id=?', (pid,)).fetchone()
+    if not pc:
+        return jsonify({'success': False, 'error': '不存在'})
+    cur = pc['status']
+    valid_transitions = {
+        'draft': ['submit_review', 'publish'],
+        'review': ['approve', 'reject'],
+        'rejected': ['submit_review', 'back_to_draft'],
+        'approved': ['publish', 'back_to_draft'],
+        'published': [],
+    }
+    if action not in valid_transitions.get(cur, []):
+        return jsonify({'success': False, 'error': f'状态 {cur} 不允许执行 {action}'})
 
-        conn.execute(
-            "UPDATE processed_contents SET status=?, reviewed_by=?, reviewed_at=datetime('now') WHERE id=?",
-            (target, admin['user_id'], pid)
-        )
-        conn.commit()
+    conn.execute(
+        "UPDATE processed_contents SET status=?, reviewed_by=?, reviewed_at=datetime('now') WHERE id=?",
+        (target, admin['user_id'], pid)
+    )
+    conn.commit()
 
     action_labels = {'submit_review': '提交审核', 'approve': '通过', 'reject': '驳回', 'back_to_draft': '退回草稿'}
     _log(admin['user_id'], f'cf_review_{action}', 'processed_content', str(pid),
@@ -396,8 +397,8 @@ def publish():
     if not pid:
         return jsonify({'success': False, 'error': 'processed_id 必填'})
 
-    with get_db() as conn:
-        pc = conn.execute('SELECT * FROM processed_contents WHERE id=?', (pid,)).fetchone()
+    conn = _get_db()
+    pc = conn.execute('SELECT * FROM processed_contents WHERE id=?', (pid,)).fetchone()
     if not pc:
         return jsonify({'success': False, 'error': '加工内容不存在'})
     if pc['status'] not in ('approved', 'draft'):
@@ -420,14 +421,11 @@ def publish():
             'source_id': pid,
         })
         post_id = post.get('id')
-        with get_db() as conn:
-            conn.execute(
-                "UPDATE processed_contents SET is_published=1, status='published' WHERE id=?",
-                (pid,)
-            )
-            conn.commit()
-        _log(admin['user_id'], 'cf_publish', 'processed_content', str(pid),
-             f"发布到本站 post_id={post_id}")
+        conn.execute(
+            "UPDATE processed_contents SET is_published=1, status='published' WHERE id=?", (pid,)
+        )
+        conn.commit()
+        _log(admin['user_id'], 'cf_publish', 'processed_content', str(pid), f"发布到本站 post_id={post_id}")
         return jsonify({'success': True, 'post_id': post_id, 'platform': 'internal'})
 
     elif platform in ('social', 'both'):
@@ -437,53 +435,38 @@ def publish():
         social_results = []
         for sp in social_platforms:
             result = _publish_to_platform(
-                platform=sp,
-                title=pc['title'] or '',
-                body=pc['body'] or '',
+                platform=sp, title=pc['title'] or '', body=pc['body'] or '',
                 body_html=pc.get('body_html', '') or pc['body'] or '',
-                summary=pc['summary'] or '',
-                author=f'admin_{admin["display_name"]}',
-                cover_image_url=pc['image_url'] or '',
-                auto_publish=auto_publish,
+                summary=pc['summary'] or '', author=f'admin_{admin["display_name"]}',
+                cover_image_url=pc['image_url'] or '', auto_publish=auto_publish,
                 admin_id=admin['user_id'],
             )
             social_results.append(result)
 
-        # 如果 both，先发 CMS 再发社媒
         post_id = None
         if platform == 'both':
             from models.cms import upsert_post
             import time
             slug = f'cf-{pid}-{int(time.time())}'
             post = upsert_post({
-                'slug': slug,
-                'category': 'content_factory',
-                'title': pc['title'] or f"内容工厂#{pid}",
-                'excerpt': pc['summary'] or '',
-                'content': pc['body'] or '',
-                'cover_image': pc['image_url'] or '',
-                'author': f'admin_{admin["display_name"]}',
-                'is_published': 1,
-                'source': 'factory',
-                'source_id': pid,
+                'slug': slug, 'category': 'content_factory', 'title': pc['title'] or f"内容工厂#{pid}",
+                'excerpt': pc['summary'] or '', 'content': pc['body'] or '',
+                'cover_image': pc['image_url'] or '', 'author': f'admin_{admin["display_name"]}',
+                'is_published': 1, 'source': 'factory', 'source_id': pid,
             })
             post_id = post.get('id')
 
-        with get_db() as conn:
-            conn.execute(
-                "UPDATE processed_contents SET is_published=1, status='published' WHERE id=?",
-                (pid,)
-            )
-            conn.commit()
+        conn.execute(
+            "UPDATE processed_contents SET is_published=1, status='published' WHERE id=?", (pid,)
+        )
+        conn.commit()
 
         log_msg = f"社媒发布: {', '.join(social_platforms)}"
-        if post_id:
-            log_msg += f", CMS post_id={post_id}"
+        if post_id: log_msg += f", CMS post_id={post_id}"
         _log(admin['user_id'], 'cf_publish_social', 'processed_content', str(pid), log_msg)
 
         resp = {'success': True, 'platform': platform, 'social_results': social_results}
-        if post_id:
-            resp['post_id'] = post_id
+        if post_id: resp['post_id'] = post_id
         return jsonify(resp)
     else:
         return jsonify({'success': False, 'error': f'未知发布平台: {platform}'})
@@ -499,21 +482,19 @@ def list_tasks():
     if err: return err
     source_id = request.args.get('source_id')
     limit = int(request.args.get('limit', 20))
-
     where = ['1=1']
     params = []
     if source_id:
         where.append('t.source_id=?')
         params.append(int(source_id))
-
-    with get_db() as conn:
-        rows = conn.execute(
-            f"""SELECT t.*, s.name as source_name
-                FROM content_tasks t LEFT JOIN content_sources s ON t.source_id=s.id
-                WHERE {" AND ".join(where)}
-                ORDER BY t.id DESC LIMIT ?""",
-            params + [limit]
-        ).fetchall()
+    conn = _get_db()
+    rows = conn.execute(
+        f"""SELECT t.*, s.name as source_name
+            FROM content_tasks t LEFT JOIN content_sources s ON t.source_id=s.id
+            WHERE {" AND ".join(where)}
+            ORDER BY t.id DESC LIMIT ?""",
+        params + [limit]
+    ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
 
@@ -525,21 +506,18 @@ def list_tasks():
 def stats():
     admin, err = _require_admin()
     if err: return err
-    with get_db() as conn:
-        source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()[0]
-        pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()[0]
-        processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()[0]
-        published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()[0]
-        failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()[0]
-        recent_sources = conn.execute(
-            'SELECT name, last_crawled_at FROM content_sources ORDER BY last_crawled_at DESC LIMIT 5'
-        ).fetchall()
+    conn = _get_db()
+    source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()[0]
+    pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()[0]
+    processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()[0]
+    published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()[0]
+    failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()[0]
+    recent_sources = conn.execute(
+        'SELECT name, last_crawled_at FROM content_sources ORDER BY last_crawled_at DESC LIMIT 5'
+    ).fetchall()
     return jsonify({'success': True, 'data': {
-        'source_count': source_count,
-        'pending': pending,
-        'processed': processed,
-        'published': published,
-        'failed': failed,
+        'source_count': source_count, 'pending': pending, 'processed': processed,
+        'published': published, 'failed': failed,
         'recent_sources': [dict(r) for r in recent_sources],
     }})
 
@@ -557,8 +535,7 @@ def push_to_skill():
     target = d.get('target_agent', 'hermes')
     if not pid:
         return jsonify({'success': False, 'error': 'processed_id 必填'})
-
-    from services.content_factory.skill_pusher import push_to_skill as do_push
+    from plugins.content_factory.services.skill_pusher import push_to_skill as do_push
     result = do_push(pid, admin_id=admin['user_id'], target_agent=target)
     if result['success']:
         _log(admin['user_id'], 'cf_skill_push', 'processed_content', str(pid),
@@ -570,7 +547,7 @@ def push_to_skill():
 def list_pushed():
     admin, err = _require_admin()
     if err: return err
-    from services.content_factory.skill_pusher import list_pushed_skills
+    from plugins.content_factory.services.skill_pusher import list_pushed_skills
     skills = list_pushed_skills()
     return jsonify({'success': True, 'data': skills})
 
@@ -579,43 +556,35 @@ def list_pushed():
 def delete_pushed(push_id):
     admin, err = _require_admin()
     if err: return err
-    with get_db() as conn:
-        conn.execute("DELETE FROM skill_pushes WHERE id=?", (push_id,))
-        conn.commit()
+    conn = _get_db()
+    conn.execute("DELETE FROM skill_pushes WHERE id=?", (push_id,))
+    conn.commit()
     _log(admin['user_id'], 'cf_skill_delete', 'skill_push', str(push_id))
     return jsonify({'success': True})
 
 
 # =============================================
-# 13. 用户端拉取 Skill API (无认证, 只读)
+# 13. 用户端拉取 Skill API (无认证)
 # =============================================
 
 @cf_bp.route('/api/v1/skills', methods=['GET'])
 def api_list_skills():
-    """用户端 Hermes/OpenClaw 可调用的拉取列表"""
     agent = request.args.get('agent', 'hermes')
-    from services.content_factory.skill_pusher import list_pushed_skills
+    from plugins.content_factory.services.skill_pusher import list_pushed_skills
     skills = list_pushed_skills(limit=50, target_agent=agent)
     return jsonify({
-        'success': True,
-        'agent': agent,
-        'count': len(skills),
+        'success': True, 'agent': agent, 'count': len(skills),
         'skills': [{
-            'id': s['id'],
-            'skill_name': s['skill_name'],
-            'title': s['title'],
-            'description': s['description'],
-            'category': s['skill_category'],
-            'version': s['skill_version'],
-            'pushed_at': s['last_pushed_at'],
+            'id': s['id'], 'skill_name': s['skill_name'], 'title': s['title'],
+            'description': s['description'], 'category': s['skill_category'],
+            'version': s['skill_version'], 'pushed_at': s['last_pushed_at'],
         } for s in skills],
     })
 
 
 @cf_bp.route('/api/v1/skills/<int:push_id>/download', methods=['GET'])
 def api_download_skill(push_id):
-    """用户端拉取单个 skill 的 SKILL.md 内容"""
-    from services.content_factory.skill_pusher import get_skill_for_download
+    from plugins.content_factory.services.skill_pusher import get_skill_for_download
     skill = get_skill_for_download(push_id)
     if not skill:
         return jsonify({'success': False, 'error': '不存在'}), 404
@@ -628,7 +597,6 @@ def api_download_skill(push_id):
 
 @cf_bp.route('/generate-static', methods=['POST'])
 def generate_static():
-    """一键生成静态 HTML — 单篇或全站"""
     admin, err = _require_admin()
     if err: return err
     d = request.get_json() or {}
@@ -656,16 +624,10 @@ def generate_static():
 
         ok = sum(1 for r in results if r.get('ok'))
         fail = sum(1 for r in results if not r.get('ok'))
-        _log(admin['user_id'], 'cf_static_gen', '', '',
-             f"{action}: {ok} ok, {fail} fail")
-        return jsonify({
-            'success': True,
-            'action': action,
-            'ok': ok,
-            'fail': fail,
-            'results': [{'path': r.get('path', ''), 'ok': r.get('ok', False),
-                         'error': r.get('error', '')} for r in results]
-        })
+        _log(admin['user_id'], 'cf_static_gen', '', '', f"{action}: {ok} ok, {fail} fail")
+        return jsonify({'success': True, 'action': action, 'ok': ok, 'fail': fail,
+                        'results': [{'path': r.get('path', ''), 'ok': r.get('ok', False),
+                                     'error': r.get('error', '')} for r in results]})
     except Exception as e:
         logger.exception("Static generation failed")
         return jsonify({'success': False, 'error': str(e)})
@@ -673,63 +635,54 @@ def generate_static():
 
 @cf_bp.route('/push-to-knowledge', methods=['POST'])
 def push_processed_to_knowledge():
-    """将加工内容推送到知识库（调用数据清洗智能体）"""
     admin, err = _require_admin()
-    if err:
-        return err
+    if err: return err
     d = request.get_json() or {}
     pid = d.get('processed_id')
     if not pid:
         return jsonify({'success': False, 'error': 'processed_id 必填'}), 400
 
-    with get_db() as conn:
-        row = conn.execute("SELECT id, title, body, keywords, content_type "
-                           "FROM processed_contents WHERE id=?", (pid,)).fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': '加工内容不存在'}), 404
+    conn = _get_db()
+    row = conn.execute("SELECT id, title, body, keywords, content_type "
+                       "FROM processed_contents WHERE id=?", (pid,)).fetchone()
+    if not row:
+        return jsonify({'success': False, 'error': '加工内容不存在'}), 404
 
-    # 拼装原始内容（含标题+正文+关键词）
     raw = f"标题：{row['title'] or ''}\n关键词：{row['keywords'] or ''}\n类型：{row['content_type'] or ''}\n正文：{row['body'] or ''}"
-
-    # 调用 Cleaner 的清洗函数
     from routes.cleaner_agent import process_clean_content
     result = process_clean_content(raw, admin_id=admin['user_id'])
-
     _log(admin['user_id'], 'cf_to_knowledge', 'processed_content', str(pid),
-         f"鐭ヨ瘑搴揑D: {result.get('kb_id', '?')}")
+         f"知识库ID: {result.get('kb_id', '?')}")
     return jsonify(result)
 
 
 # =============================================
-# 13. 定时采集 Tick 端点（供 orchestrator scheduler 调用）
+# 15. 定时采集 Tick 端点
 # =============================================
 
 @cf_bp.route('/cron/tick', methods=['POST'])
 def cron_tick():
-    """定时采集钩子：由 orchestrator scheduler 周期性调用。
-    扫描所有 is_active=1 且 crawl_interval>0 的来源，
-    若距 last_crawled_at 超过 crawl_interval 秒则触发采集。
-    """
     from datetime import datetime
     try:
         now = datetime.now()
         triggered = []
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT id, name, crawl_interval, last_crawled_at, is_active "
-                "FROM content_sources "
-                "WHERE is_active=1 AND crawl_interval>0"
-            ).fetchall()
-            for r in rows:
-                last = r['last_crawled_at']
-                last_dt = None
-                if last:
-                    try:
-                        last_dt = datetime.fromisoformat(last)
-                    except (ValueError, TypeError):
-                        last_dt = None
-                if last_dt is None or (now - last_dt).total_seconds() >= r['crawl_interval']:
-                    triggered.append(r['id'])
+        conn = _get_db()
+        rows = conn.execute(
+            "SELECT id, name, crawl_interval, last_crawled_at, is_active "
+            "FROM content_sources WHERE is_active=1 AND crawl_interval>0"
+        ).fetchall()
+        for r in rows:
+            last = r['last_crawled_at']
+            last_dt = None
+            if last:
+                try:
+                    last_dt = datetime.fromisoformat(last)
+                except (ValueError, TypeError):
+                    last_dt = None
+            if last_dt is None or (now - last_dt).total_seconds() >= r['crawl_interval']:
+                triggered.append(r['id'])
+
+        from plugins.content_factory.services import run_collection
         results = []
         for sid in triggered:
             try:

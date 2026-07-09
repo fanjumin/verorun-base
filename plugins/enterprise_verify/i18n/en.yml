@@ -1,0 +1,44 @@
+# Enterprise Verification Plugin — English Translation
+企业认证: Enterprise Verification
+企业认证审核: Enterprise Verification Review
+企业认证审核中，请耐心等待: Verification in progress, please wait
+企业认证已通过: Enterprise Verified
+企业认证已驳回: Enterprise Verification Rejected
+企业认证待审核: Enterprise Verification Pending
+'企业认证未通过:': 'Enterprise Verification Failed:'
+企业认证申请已提交，请等待管理员审核: Verification submitted, pending admin review
+审核备注（可选）: Review Notes (optional)
+尚未申请企业认证: No enterprise verification yet
+已有待审核的企业认证申请: You already have a pending verification request
+开始识别: Start OCR
+您已完成企业认证: You are already verified
+暂无认证记录: No verification records
+法定代表人: Legal Representative
+注册资本: Registered Capital
+系统将使用 AI 自动识别企业信息: AI will automatically extract business info
+经营范围: Business Scope
+营业执照: Business License
+'营业执照识别失败: {}': 'Business License OCR failed: {}'
+认证记录不存在: Verification record not found
+识别中...: Recognizing...
+识别失败: Recognition Failed
+识别结果确认: Review Recognition Result
+识别营业执照: Recognize License
+请上传营业执照图片: Please upload license image
+请先上传营业执照图片: Please upload the license image first
+请核对以下自动识别出的企业信息，确认无误后提交: Please review the recognized info before submitting
+企业名称和信用代码不能为空: Company name and credit code are required
+企业名称和统一社会信用代码为必填项: Company name and Unified Social Credit Code are required
+企业认证审核: Enterprise Verification Review
+请填写拒绝原因: Please enter a reason for rejection
+确认提交: Confirm Submit
+重新上传: Re-upload
+提交中...: Submitting...
+提交失败: Submit Failed
+网络错误，请重试: Network error, please retry
+返回首页: Back to Home
+上传营业执照: Upload Business License
+上传营业执照图片: Upload License Image
+支持 JPG/PNG，请拍摄清晰照片: Supports JPG/PNG, please take a clear photo
+点击上传或拖拽图片: Click to upload or drag image here
+加载中: Loading...

@@ -608,110 +608,6 @@ def init_db():
             c3.execute("INSERT OR IGNORE INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
                        "('pro', 'Pro', '每日1000次调用', 188, 1888, 1000, '[\"all\"]', 3)")
             c3.commit()
-        # ── 内容工厂 4 张表 (2026-05-08) ──
-        with get_db() as c4:
-            c4.executescript("""
-                CREATE TABLE IF NOT EXISTS content_sources (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name            TEXT NOT NULL,
-                    source_type     TEXT NOT NULL DEFAULT 'rss',   -- rss / api / web
-                    platform        TEXT DEFAULT '',               -- 标识: xueqiu/sec/rss
-                    url             TEXT DEFAULT '',
-                    config_json     TEXT DEFAULT '{}',
-                    crawl_interval  INTEGER DEFAULT 0,            -- 秒, 0=手动
-                    keywords        TEXT DEFAULT '',
-                    max_per_run     INTEGER DEFAULT 10,
-                    is_active       INTEGER DEFAULT 1,
-                    sort_order      INTEGER DEFAULT 0,
-                    last_crawled_at TEXT,
-                    created_at      TEXT DEFAULT (datetime('now')),
-                    created_by      INTEGER REFERENCES users(id)
-                );
-                CREATE TABLE IF NOT EXISTS raw_contents (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source_id       INTEGER REFERENCES content_sources(id),
-                    task_id         INTEGER,
-                    title           TEXT DEFAULT '',
-                    author          TEXT DEFAULT '',
-                    source_url      TEXT DEFAULT '',
-                    content_text    TEXT DEFAULT '',
-                    content_html    TEXT DEFAULT '',
-                    content_json    TEXT DEFAULT '{}',
-                    summary         TEXT DEFAULT '',
-                    content_hash    TEXT UNIQUE,
-                    publish_time    TEXT,
-                    language        TEXT DEFAULT 'zh',
-                    tags            TEXT DEFAULT '',
-                    status          TEXT DEFAULT 'pending',   -- pending / processing / processed / failed
-                    error_msg       TEXT DEFAULT '',
-                    created_at      TEXT DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS processed_contents (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    raw_id          INTEGER REFERENCES raw_contents(id),
-                    content_type    TEXT DEFAULT 'article',    -- article / short_comment / social_card
-                    title           TEXT DEFAULT '',
-                    summary         TEXT DEFAULT '',
-                    body            TEXT DEFAULT '',
-                    body_html       TEXT DEFAULT '',
-                    keywords        TEXT DEFAULT '',
-                    risk_level      TEXT DEFAULT 'normal',
-                    image_url       TEXT DEFAULT '',
-                    agent_chain     TEXT DEFAULT '[]',
-                    is_published    INTEGER DEFAULT 0,
-                    status          TEXT DEFAULT 'draft',      -- draft / review / approved / rejected / published
-                    reviewed_by     INTEGER REFERENCES users(id),
-                    reviewed_at     TEXT,
-                    created_by      INTEGER REFERENCES users(id),
-                    created_at      TEXT DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS content_tasks (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source_id       INTEGER REFERENCES content_sources(id),
-                    task_type       TEXT NOT NULL,              -- crawl / process / publish / batch
-                    trigger_type    TEXT DEFAULT 'manual',      -- manual / scheduled / keyword
-                    status          TEXT DEFAULT 'pending',     -- pending / running / completed / failed
-                    total_items     INTEGER DEFAULT 0,
-                    done_items      INTEGER DEFAULT 0,
-                    error_count     INTEGER DEFAULT 0,
-                    log_text        TEXT DEFAULT '',
-                    started_at      TEXT,
-                    finished_at     TEXT,
-                    created_by      INTEGER REFERENCES users(id),
-                    created_at      TEXT DEFAULT (datetime('now'))
-                );
-            """)
-            # Migration: add content_sources automation fields (idempotent)
-            cs_cols = [r[1] for r in c4.execute("PRAGMA table_info(content_sources)").fetchall()]
-            if 'ai_prompt_template' not in cs_cols:
-                c4.execute("ALTER TABLE content_sources ADD COLUMN ai_prompt_template TEXT DEFAULT ''")
-            if 'skip_review' not in cs_cols:
-                c4.execute("ALTER TABLE content_sources ADD COLUMN skip_review INTEGER DEFAULT 0")
-            if 'auto_publish' not in cs_cols:
-                c4.execute("ALTER TABLE content_sources ADD COLUMN auto_publish INTEGER DEFAULT 0")
-            c4.commit()
-        # ── Skill推送表 (2026-05-08) ──
-        with get_db() as c5:
-            c5.executescript("""
-                CREATE TABLE IF NOT EXISTS skill_pushes (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    processed_id    INTEGER REFERENCES processed_contents(id),
-                    title           TEXT NOT NULL,
-                    description     TEXT DEFAULT '',
-                    skill_name      TEXT NOT NULL,
-                    skill_category  TEXT DEFAULT 'content',
-                    skill_content   TEXT NOT NULL,
-                    skill_version   TEXT DEFAULT '1.0',
-                    status          TEXT DEFAULT 'pushed',   -- pushed / installed / withdrawn
-                    target_agent    TEXT DEFAULT 'hermes',    -- hermes / openclaw
-                    push_count      INTEGER DEFAULT 0,
-                    last_pushed_at  TEXT,
-                    created_by      INTEGER REFERENCES users(id),
-                    created_at      TEXT DEFAULT (datetime('now'))
-                )
-            """)
-            c5.commit()
-        
         # ── 管理员配置表 (2026-05-10) ──
         with get_db() as c_adm:
             c_adm.executescript("""
@@ -1448,26 +1344,7 @@ def init_db():
         m.commit()
         print('[Migration] notification templates seeded')
 
-        # ── Migration: ad_placements table (2026-05-20) ──
-        m.execute('''CREATE TABLE IF NOT EXISTS ad_placements (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            name            TEXT NOT NULL,
-            position        TEXT NOT NULL DEFAULT 'sidebar',
-            page            TEXT NOT NULL DEFAULT '*',
-            ad_type         TEXT NOT NULL DEFAULT 'image',
-            image_url       TEXT DEFAULT '',
-            link_url        TEXT DEFAULT '',
-            ad_code         TEXT DEFAULT '',
-            width           INTEGER DEFAULT 320,
-            height          INTEGER DEFAULT 0,
-            is_active       INTEGER DEFAULT 1,
-            sort_order      INTEGER DEFAULT 0,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_ad_page ON ad_placements(page, position)')
-        m.commit()
-        print('[Migration] ad_placements table created')
+        
 
     # ── Migration: voice_templates + video_tasks (口播视频 — 2026-05-22) ──
     with get_db() as m:
@@ -2280,23 +2157,8 @@ with get_db() as m:
             except Exception as e:
                 print(f'[migration] users.{col_name} skipped: {e}')
 
-    m.execute('''CREATE TABLE IF NOT EXISTS enterprise_verifications (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id         INTEGER NOT NULL REFERENCES users(id),
-        enterprise_name TEXT NOT NULL,
-        tax_id          TEXT NOT NULL,
-        license_url     TEXT DEFAULT '',
-        ocr_raw         TEXT DEFAULT '',
-        status          TEXT NOT NULL DEFAULT 'pending',
-        review_notes    TEXT DEFAULT '',
-        reviewed_by     INTEGER REFERENCES users(id),
-        reviewed_at     TEXT,
-        created_at      TEXT DEFAULT (datetime('now')),
-        updated_at      TEXT DEFAULT (datetime('now'))
-    )''')
-    m.execute('CREATE INDEX IF NOT EXISTS idx_ev_user ON enterprise_verifications(user_id)')
-    m.execute('CREATE INDEX IF NOT EXISTS idx_ev_status ON enterprise_verifications(status)')
-    print('[migration] ✅ enterprise_verifications table + users enterprise fields initialized')
+    
+    
 
 # ── i18n 翻译表 (2026-06-30) ──
 with get_db() as m:
