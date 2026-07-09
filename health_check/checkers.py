@@ -18,7 +18,10 @@ from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Type, Tuple
 from services.deployment_config import deploy
-from i18n import _
+_t = lambda s: s
+def init_i18n(t_func):
+    global _t
+    _t = t_func
 
 import urllib.request
 import urllib.error

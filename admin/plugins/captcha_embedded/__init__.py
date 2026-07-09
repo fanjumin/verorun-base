@@ -22,15 +22,17 @@ class CaptchaEmbeddedPlugin(BasePlugin):
     author = 'VeroRun'
 
     def on_enable(self, registry):
-        """启用时注册 admin stats 端点"""
-        from captcha_bp import register_admin_stats
+        """启用时注册 admin stats 端点和 i18n"""
+        from captcha_bp import register_admin_stats, init_i18n
         register_admin_stats(self.app)
+        init_i18n(self.t)
         print('[CaptchaEmbedded] Admin stats endpoint registered')
         return True
 
     def register_routes(self):
         """注册 Captcha Blueprint"""
-        from captcha_bp import captcha_bp
+        from captcha_bp import captcha_bp, init_i18n
+        init_i18n(self.t)
         return [captcha_bp]
 
     def on_disable(self, registry):

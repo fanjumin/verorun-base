@@ -33,7 +33,10 @@ from flask import Blueprint, request, jsonify, render_template
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
-from i18n import _
+_t = lambda s: s
+def init_i18n(t_func):
+    global _t
+    _t = t_func
 
 from . import models as m
 from .checkers import CheckerRegistry
@@ -46,6 +49,12 @@ health_bp = Blueprint('health', __name__,
                       template_folder='templates',
                       static_folder='static',
                       static_url_path='/admin/health/static')
+
+
+@health_bp.context_processor
+def inject_i18n():
+    """Inject plugin _t into template context"""
+    return {'_t': _t}
 
 
 # ─── Authentication Helper ──────────────────────────────────────────────────
@@ -106,11 +115,11 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
             result = {
                 'check_id': check['id'],
                 'check_key': check['check_key'],
-                'check_name': _(check['name']),
+                'check_name': _t(check['name']),
                 'category': check['category'],
                 'status': 'warning',
                 'response_time_ms': 0,
-                'message': _('No checker implementation for: {key}').format(key=check['check_key']),
+                'message': _t('No checker implementation for: {key}').format(key=check['check_key']),
                 'detail': '{}',
             }
         else:
@@ -119,7 +128,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                 result = {
                     'check_id': check['id'],
                     'check_key': check['check_key'],
-                    'check_name': _(check['name']),
+                    'check_name': _t(check['name']),
                     'category': check['category'],
                     'status': cr.status,
                     'response_time_ms': cr.response_time_ms,
@@ -130,11 +139,11 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
                 result = {
                     'check_id': check['id'],
                     'check_key': check['check_key'],
-                    'check_name': _(check['name']),
+                    'check_name': _t(check['name']),
                     'category': check['category'],
                     'status': 'error',
                     'response_time_ms': 0,
-                    'message': _('Checker exception: {err}').format(err=e),
+                    'message': _t('Checker exception: {err}').format(err=e),
                     'detail': json.dumps({'error': str(e)}, ensure_ascii=False),
                 }
 
@@ -225,7 +234,7 @@ def api_status():
     """Get current health check status (latest run results + overview statistics)"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     latest = m.get_latest_status()
     unread_alerts = m.get_unread_alert_count()
@@ -255,7 +264,7 @@ def api_discovery_status():
     """Run resource discovery and return results."""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     reporter = DiscoveryReporter()
 
@@ -281,7 +290,7 @@ def api_run():
     """Trigger manual health check"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     check_keys = request.json.get('checks') if request.is_json else None
 
@@ -293,7 +302,7 @@ def api_run():
     t = threading.Thread(target=_async_run, daemon=True)
     t.start()
 
-    return jsonify({'success': True, 'message': _('Health check started, results will appear shortly')})
+    return jsonify({'success': True, 'message': _t('Health check started, results will appear shortly')})
 
 
 @health_bp.route('/api/history')
@@ -301,7 +310,7 @@ def api_history():
     """Health check history list"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     page = request.args.get('page', 1, type=int)
     limit = min(request.args.get('limit', 20, type=int), 100)
@@ -345,12 +354,12 @@ def api_history_detail(run_id):
     """Detailed results of a specific health check run"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     with m.get_db() as conn:
         run = conn.execute('SELECT * FROM check_runs WHERE id=?', (run_id,)).fetchone()
         if not run:
-            return jsonify({'success': False, 'error': _('Health check record not found')}), 404
+            return jsonify({'success': False, 'error': _t('Health check record not found')}), 404
         items = m.get_history_for_run(run_id)
 
     return jsonify({
@@ -367,7 +376,7 @@ def api_checks():
     """Get check items list"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     with m.get_db() as conn:
         rows = conn.execute('SELECT * FROM health_checks ORDER BY sort_order').fetchall()
@@ -385,7 +394,7 @@ def api_update_check(check_id):
     """Update or delete check item configuration"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     if request.method == 'DELETE':
         with m.get_db() as conn:
@@ -395,12 +404,12 @@ def api_update_check(check_id):
 
     data = request.json
     if not data:
-        return jsonify({'success': False, 'error': _('Invalid data')}), 400
+        return jsonify({'success': False, 'error': _t('Invalid data')}), 400
 
     with m.get_db() as conn:
         check = conn.execute('SELECT * FROM health_checks WHERE id=?', (check_id,)).fetchone()
         if not check:
-            return jsonify({'success': False, 'error': _('Check item not found')}), 404
+            return jsonify({'success': False, 'error': _t('Check item not found')}), 404
 
         updates = []
         params = []
@@ -421,7 +430,7 @@ def api_update_check(check_id):
         )
         conn.commit()
 
-    return jsonify({'success': True, 'message': _('Updated')})
+    return jsonify({'success': True, 'message': _t('Updated')})
 
 
 @health_bp.route('/api/trend')
@@ -429,7 +438,7 @@ def api_trend():
     """Health trend data"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     days = request.args.get('days', 7, type=int)
     if days not in (7, 14, 30):
@@ -451,7 +460,7 @@ def api_checkers_registry():
     """Get all registered checker metadata (for management UI)"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     registered = CheckerRegistry.list_registered()
 
@@ -500,7 +509,7 @@ def api_register_check():
     """Register a new check item from admin (write to DB + check if checker class is already loaded)"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     check_key = data.get('check_key', '').strip()
@@ -509,7 +518,7 @@ def api_register_check():
     severity = data.get('severity', 'warning')
 
     if not check_key:
-        return jsonify({'success': False, 'error': _('check_key is required')}), 400
+        return jsonify({'success': False, 'error': _t('check_key is required')}), 400
 
     checker_class = CheckerRegistry.get(check_key)
     if checker_class:
@@ -541,7 +550,7 @@ def api_register_check():
 
     return jsonify({
         'success': True,
-        'message': _('Check item {name} added').format(name=name),
+        'message': _t('Check item {name} added').format(name=name),
         'data': {'id': new_id, 'check_key': check_key, 'has_checker': checker_class is not None}
     })
 
@@ -560,7 +569,7 @@ def api_alerts():
     """Alert history"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     alerts = m.get_alerts(limit=100)
 
@@ -577,7 +586,7 @@ def api_alerts_read():
     """Mark alerts as read"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     alert_id = data.get('alert_id')
@@ -603,7 +612,7 @@ def api_silences_list():
     """List all silence windows"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     with m.get_db() as conn:
         silences = conn.execute(
@@ -622,7 +631,7 @@ def api_silences_create():
     """Create a new silence window"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     check_key = data.get('check_key', '*')
@@ -650,7 +659,7 @@ def api_silences_delete(silence_id):
     """Delete a silence window"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     with m.get_db() as conn:
         conn.execute('DELETE FROM alert_silences WHERE id=?', (silence_id,))
@@ -687,7 +696,7 @@ def api_export():
     """Export health check report as JSON"""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     run_id = request.args.get('run_id', type=int)
     recent = request.args.get('recent', '1', type=str)
@@ -701,7 +710,7 @@ def api_export():
             ).fetchone()
 
         if not run:
-            return jsonify({'success': False, 'error': _('No health report available')}), 404
+            return jsonify({'success': False, 'error': _t('No health report available')}), 404
 
         run = dict(run)
         items = conn.execute(
@@ -736,7 +745,7 @@ def api_fix():
     """
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     run_id = data.get('run_id')
@@ -757,7 +766,7 @@ def api_fix():
         ).fetchone()
 
     if not history_row:
-        return jsonify({'success': False, 'error': _('Corresponding check result not found')}), 404
+        return jsonify({'success': False, 'error': _t('Corresponding check result not found')}), 404
 
     history = dict(history_row)
     try:
@@ -767,14 +776,14 @@ def api_fix():
 
     fix_suggestions = detail.get('fix_suggestions', [])
     if not fix_suggestions:
-        return jsonify({'success': True, 'message': _('No items need fixing')})
+        return jsonify({'success': True, 'message': _t('No items need fixing')})
 
     # Filter suggestions to execute
     if selected_indices is not None:
         try:
             to_apply = [fix_suggestions[i] for i in selected_indices]
         except (IndexError, TypeError):
-            return jsonify({'success': False, 'error': _('Invalid index')}), 400
+            return jsonify({'success': False, 'error': _t('Invalid index')}), 400
     else:
         to_apply = fix_suggestions
 
@@ -808,7 +817,7 @@ def api_fix():
             'errors': errors,
             'run_id': run_id,
         },
-        'message': _('Fixed {applied}/{total} records').format(applied=applied, total=len(to_apply))
+        'message': _t('Fixed {applied}/{total} records').format(applied=applied, total=len(to_apply))
     })
 
 
@@ -828,7 +837,7 @@ def api_links_scan():
     """
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     from .checkers import InternalLinkChecker
@@ -861,7 +870,7 @@ def api_links_report():
     """
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     check_key = request.args.get('check_key', 'internal_links')
     limit = request.args.get('limit', 1, type=int)
@@ -877,7 +886,7 @@ def api_links_report():
         return jsonify({
             'success': True,
             'data': None,
-            'message': _('No reports found for this check'),
+            'message': _t('No reports found for this check'),
         })
 
     reports = []
@@ -911,7 +920,7 @@ def api_ai_analyze():
     """
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     run_id = data.get('run_id')
@@ -929,7 +938,7 @@ def api_ai_analyze():
                 (run_id, check_key)
             ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('Check result not found')}), 404
+            return jsonify({'success': False, 'error': _t('Check result not found')}), 404
         detail_raw = row['detail'] or '{}'
         detail_override = json.loads(detail_raw) if isinstance(detail_raw, str) else (detail_raw or {})
 
@@ -970,7 +979,7 @@ def api_ai_fix():
     """
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     data = request.json or {}
     confirm = data.get('confirm', False)
@@ -1016,7 +1025,7 @@ def api_ai_fix():
             'run_id': run_id,
             'check_key': check_key,
         },
-        'message': _('Applied {applied}/{total} fixes').format(
+        'message': _t('Applied {applied}/{total} fixes').format(
             applied=result['applied'], total=result['total']
         )
     })
@@ -1029,7 +1038,7 @@ def api_fix_audit():
     """Query fix audit log with optional filters."""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     limit = min(request.args.get('limit', 50, type=int), 200)
     check_key = request.args.get('check_key', '')
@@ -1083,7 +1092,7 @@ def api_fix_rollback(audit_id):
     """Rollback a previously applied fix."""
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     with m.get_db() as conn:
         row = conn.execute(
@@ -1189,7 +1198,7 @@ def api_internal_run():
 
     return jsonify({
         'success': True,
-        'data': {'run_id': run_id, 'message': _('Health check completed (ID: {id})').format(id=run_id)}
+        'data': {'run_id': run_id, 'message': _t('Health check completed (ID: {id})').format(id=run_id)}
     })
 
 
@@ -1207,14 +1216,14 @@ def api_guardian_log():
     """
     admin = _require_admin()
     if not admin:
-        return jsonify({'success': False, 'error': _('Unauthorized')}), 401
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
     log_file = os.environ.get('GUARDIAN_LOG_FILE', '/var/log/health-guardian.log')
     lines = min(request.args.get('lines', 50, type=int), 200)
 
     if not os.path.exists(log_file):
         return jsonify({'success': True, 'data': [], 'total': 0,
-                        'message': _('Guardian log file not found')})
+                        'message': _t('Guardian log file not found')})
 
     try:
         with open(log_file, 'r') as f:

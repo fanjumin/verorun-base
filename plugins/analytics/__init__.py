@@ -40,9 +40,13 @@ class AnalyticsPlugin(BasePlugin):
         return True
 
     def on_enable(self, registry):
-        """启用时: 注册中间件 + 启动聚合线程"""
+        """启用时: 注册中间件 + 启动聚合线程 + 初始化 i18n"""
         from analytics.middleware import AnalyticsMiddleware
         from analytics.processor import AnalyticsProcessor
+        from analytics.dashboard import init_i18n
+
+        # 初始化 i18n
+        init_i18n(self.t)
 
         # 初始化数据库表（幂等）
         from analytics.models import init_analytics_tables

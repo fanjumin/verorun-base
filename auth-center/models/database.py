@@ -881,14 +881,7 @@ def init_db():
                     created_by      INTEGER,
                     created_at      TEXT DEFAULT CURRENT_TIMESTAMP
                 );
-                CREATE TABLE IF NOT EXISTS coupon_redemptions (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    coupon_id       INTEGER NOT NULL REFERENCES coupons(id),
-                    user_id         INTEGER NOT NULL,
-                    order_no        TEXT NOT NULL,
-                    discount_fen    INTEGER NOT NULL,
-                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
-                );
+
                 CREATE TABLE IF NOT EXISTS subscription_audit_log (
                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id         INTEGER NOT NULL,
@@ -1683,21 +1676,7 @@ def init_db():
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_up_user ON user_purchases(user_id)')
         m.execute('CREATE INDEX IF NOT EXISTS idx_up_status ON user_purchases(status)')
-        m.execute('''CREATE TABLE IF NOT EXISTS coupons (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            code            TEXT UNIQUE NOT NULL,
-            name            TEXT NOT NULL DEFAULT '',
-            coupon_type     TEXT NOT NULL DEFAULT 'fixed',
-                        -- fixed / percent
-            value           REAL NOT NULL DEFAULT 0,
-            min_amount      REAL DEFAULT 0,
-            usage_limit     INTEGER DEFAULT 0,
-            used_count      INTEGER DEFAULT 0,
-            expire_at       TEXT,
-            is_active       INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code)')
+
         m.execute('''CREATE TABLE IF NOT EXISTS order_items (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             order_id        TEXT NOT NULL,
@@ -2140,57 +2119,6 @@ def init_db():
                     print(f'[Migration] order_items.{col_name} added')
                 except Exception as e:
                     print(f'[Migration] order_items.{col_name} skipped: {e}')
-
-    # ── Migration: coupons 升级 — 新增字段 (2026-06-22) ──
-    with get_db() as m:
-        coupon_cols = [r['name'] for r in m.execute('PRAGMA table_info(coupons)').fetchall()]
-        coupon_upgrades = {
-            'description': "description TEXT DEFAULT ''",
-            'coupon_category': "coupon_category TEXT DEFAULT 'general'",
-            'per_user_limit': "per_user_limit INTEGER DEFAULT 1",
-            'applicable_products': "applicable_products TEXT DEFAULT ''",
-            'min_quantity': "min_quantity INTEGER DEFAULT 0",
-        }
-        for col_name, col_def in coupon_upgrades.items():
-            if col_name not in coupon_cols:
-                try:
-                    m.execute(f"ALTER TABLE coupons ADD COLUMN {col_def}")
-                    print(f'[Migration] coupons.{col_name} added')
-                except Exception as e:
-                    print(f'[Migration] coupons.{col_name} skipped: {e}')
-        # 如果 coupon_type 不存在但 type 存在，添加 coupon_type 别名字段并迁移数据
-        if 'coupon_type' not in coupon_cols and 'type' in coupon_cols:
-            try:
-                m.execute("ALTER TABLE coupons ADD COLUMN coupon_type TEXT DEFAULT 'fixed'")
-                m.execute("UPDATE coupons SET coupon_type=type WHERE coupon_type='fixed' AND type IS NOT NULL")
-                print('[Migration] coupons.coupon_type migrated from type')
-            except Exception as e:
-                print(f'[Migration] coupons.coupon_type migration skipped: {e}')
-        if 'name' not in coupon_cols:
-            try:
-                m.execute("ALTER TABLE coupons ADD COLUMN name TEXT DEFAULT ''")
-                print('[Migration] coupons.name added')
-            except Exception as e:
-                print(f'[Migration] coupons.name migration skipped: {e}')
-        m.commit()
-
-    # ── Migration: coupons P2.5 新增 — 首月特价/叠加规则/限时折扣 ──
-    with get_db() as m:
-        coupon_cols2 = [r['name'] for r in m.execute('PRAGMA table_info(coupons)').fetchall()]
-        for col_name, col_def in {
-            'first_month_only': "first_month_only INTEGER DEFAULT 0",
-            'stackable': "stackable INTEGER DEFAULT 0",
-            'active_from': "active_from TEXT DEFAULT ''",
-            'active_to': "active_to TEXT DEFAULT ''",
-        }.items():
-            if col_name not in coupon_cols2:
-                try:
-                    m.execute(f"ALTER TABLE coupons ADD COLUMN {col_def}")
-                    print(f'[Migration] coupons.{col_name} added')
-                except Exception as e:
-                    print(f'[Migration] coupons.{col_name} skipped: {e}')
-        m.commit()
-        print('[Migration] coupons P2.5 fields migrated (first_month/stackable/time_window)')
 
     # ── Migration: invoices 发票系统 ──
     with get_db() as m:

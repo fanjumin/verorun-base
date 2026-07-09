@@ -14,9 +14,10 @@ from plugins.coupons.scene import SceneName
 class CouponEngine:
     """优惠券引擎，使用独立 coupons.db 存储券表，主库只读查询。"""
 
-    def __init__(self, get_db, get_main_db):
+    def __init__(self, get_db, get_main_db, t_func=None):
         self._get_db = get_db
         self._get_main_db = get_main_db
+        self._t = t_func or (lambda s: s)
 
     # ── 查询 ──
 
@@ -184,7 +185,7 @@ class CouponEngine:
             return {'valid': False, 'error': '优惠券已过期'}
 
         if amount < cpn['min_amount']:
-            return {'valid': False, 'error': f'未达到最低消费 ¥{cpn["min_amount"]}'}
+            return {'valid': False, 'error': self._t('未达到最低消费') + f' ¥{cpn["min_amount"]}'}
 
         if cpn['min_quantity'] and quantity < cpn['min_quantity']:
             return {'valid': False, 'error': f'至少需要购买 {cpn["min_quantity"]} 件商品'}
@@ -217,7 +218,7 @@ class CouponEngine:
                     (cpn['id'], user_id)
                 ).fetchone()['c']
             if uc >= per_limit:
-                return {'valid': False, 'error': '您已使用过此优惠券'}
+                return {'valid': False, 'error': self._t('您已使用过此优惠券')}
 
         discount = self._calc_discount(cpn, amount)
         return {'valid': True, 'discount': round(discount, 2), 'coupon': cpn}

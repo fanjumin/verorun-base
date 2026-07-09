@@ -30,6 +30,14 @@ analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
                          static_folder='static',
                          static_url_path='/admin/analytics/static')
 
+# i18n 桥接 — 由插件注入
+_t = lambda s: s
+
+
+def init_i18n(t_func):
+    global _t
+    _t = t_func
+
 
 # ─── 鉴权 ──────────────────────────────────────────────────────────────────────
 
@@ -52,7 +60,7 @@ def check_auth():
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
         if request.is_json or path.startswith('/admin/analytics/api/'):
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+            return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
         # 页面请求 → 不重定向，token 通过 URL ?token= 传递，API 层自行鉴权
         # 避免 iframe 重定向到 /login 导致空白
         return None
@@ -96,7 +104,7 @@ def api_log():
     """
     data = request.get_json(silent=True) or {}
     if not data.get('path'):
-        return jsonify({'success': False, 'error': 'path required'}), 400
+        return jsonify({'success': False, 'error': _t('path required')}), 400
 
     conn = am.get_db()
     try:
@@ -144,7 +152,7 @@ def api_event():
     """
     data = request.get_json(silent=True) or {}
     if not data.get('event_name'):
-        return jsonify({'success': False, 'error': 'event_name required'}), 400
+        return jsonify({'success': False, 'error': _t('event_name required')}), 400
 
     event_id = track_event(
         event_name=data['event_name'],
@@ -459,7 +467,7 @@ def api_export():
                 csv += f"{r['country']},{r['pv']},{r['uv']}\n"
 
         else:
-            return jsonify({'success': False, 'error': f'unknown type: {report_type}'}), 400
+            return jsonify({'success': False, 'error': f'{_t("unknown type")}: {report_type}'}), 400
 
         filename = f'analytics_{report_type}_{datetime.now().strftime("%Y%m%d")}.csv'
         return Response(

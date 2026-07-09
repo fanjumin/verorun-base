@@ -26,6 +26,14 @@ from config import TOLERANCE, RISK_THRESHOLD
 
 captcha_bp = Blueprint('captcha', __name__, url_prefix='/api/captcha')
 
+# i18n 桥接 — 由插件 on_enable 注入
+_t = lambda s: s
+
+
+def init_i18n(t_func):
+    global _t
+    _t = t_func
+
 
 def _client_ip():
     """从请求中提取客户端 IP。"""
@@ -41,16 +49,16 @@ def _client_ip():
 def captcha_generate():
     ip = _client_ip()
     if check_ip_blocked(ip):
-        return jsonify({'error': 'IP blocked'}), 403
+        return jsonify({'error': _t('IP blocked')}), 403
 
     rate = check_rate_limit(ip)
     if not rate['allowed']:
-        return jsonify({'error': f'Too many attempts, retry in {rate["reset_after"]}s'}), 429
+        return jsonify({'error': f'{_t("Too many attempts")}, retry in {rate["reset_after"]}s'}), 429
 
     try:
         puzzle = generate_puzzle()
     except Exception as e:
-        return jsonify({'error': f'Puzzle generation failed: {e}'}), 500
+        return jsonify({'error': f'{_t("Puzzle generation failed")}: {e}'}), 500
 
     token = generate_token(
         puzzle['hole']['x'], puzzle['hole']['y'],
@@ -79,21 +87,21 @@ def captcha_verify():
     drag_trace_raw = data.get('drag_trace', [])
 
     if check_ip_blocked(ip):
-        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'block', 'detail': 'IP blocked'})
+        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'block', 'detail': _t('IP blocked')})
 
     rate = check_rate_limit(ip)
     if not rate['allowed']:
-        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'block', 'detail': 'Rate limited'})
+        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'block', 'detail': _t('Rate limited')})
 
     payload = verify_token(token)
     if payload is None:
         record_fail(ip)
-        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'refresh', 'detail': 'Invalid or expired token'})
+        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'refresh', 'detail': _t('Invalid or expired token')})
 
     stored = peek_challenge(token)
     if stored is None:
         record_fail(ip)
-        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'refresh', 'detail': 'Token not found or already used'})
+        return jsonify({'success': False, 'risk_score': 0, 'next_action': 'refresh', 'detail': _t('Token not found or already used')})
 
     target_x = int(stored.get('target_x', -1))
     target_y = int(stored.get('y_position', 0))
@@ -126,9 +134,9 @@ def captcha_verify():
     if passed:
         return jsonify({'success': True, 'risk_score': risk, 'next_action': 'ok'})
     elif behavior.get('risk_level') == 'high':
-        return jsonify({'success': False, 'risk_score': risk, 'next_action': 'refresh', 'detail': 'Suspicious activity detected'})
+        return jsonify({'success': False, 'risk_score': risk, 'next_action': 'refresh', 'detail': _t('Suspicious activity detected')})
     else:
-        return jsonify({'success': False, 'risk_score': risk, 'next_action': 'refresh', 'detail': 'Position mismatch, try again'})
+        return jsonify({'success': False, 'risk_score': risk, 'next_action': 'refresh', 'detail': _t('Position mismatch')})
 
 
 # ── /consume ───────────────────────────────────────────────

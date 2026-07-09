@@ -32,15 +32,17 @@ class AIToolsPlugin(BasePlugin):
     def on_enable(self, registry):
         """启用时确保表存在"""
         try:
-            from .routes import init_ai_tools_tables
+            from .routes import init_ai_tools_tables, init_routes
             init_ai_tools_tables()
+            init_routes(t_func=self.t)
         except Exception as e:
             print(f'[AITools] DB init warning: {e}')
         print('[AITools] AI Tools routes registered')
         return True
 
     def register_routes(self):
-        from .routes import ai_tools_bp
+        from .routes import init_routes, ai_tools_bp
+        init_routes(t_func=self.t)
         return [ai_tools_bp]
 
     def on_disable(self, registry):

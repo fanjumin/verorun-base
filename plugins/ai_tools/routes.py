@@ -3,15 +3,9 @@
 AI Tools Routes — PPT Generation + Image Generation
 =====================================================
 完全解耦版：零 auth-center 导入，独立 DB，JWT 纯鉴权。
-
-端点:
-  POST /admin/generate-ppt     → PPT 生成（DeepSeek 驱动）
-  POST /admin/generate-image   → 图像生成
-  GET  /admin/media/download/<filename> → 媒体文件下载
 """
 
 import os
-import sys
 import json as _json
 import time as _time
 import sqlite3
@@ -19,6 +13,14 @@ import sqlite3
 from flask import Blueprint, request, jsonify, send_file, current_app
 
 ai_tools_bp = Blueprint('ai_tools', __name__, url_prefix='/admin')
+
+# i18n 桥接 — 由 init_routes 注入
+_t = lambda s: s
+
+
+def init_routes(t_func=None):
+    global _t
+    _t = t_func or (lambda s: s)
 
 # ── 独立数据库（插件目录内）──
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,9 +89,9 @@ def _require_admin():
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': chr(26410)+chr(30331)+chr(24405)}), 401)
+        return None, (jsonify({'success': False, 'error': _t('未授权')}), 401)
     if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': chr(20165)+chr(31649)+chr(29702)+chr(21592)+chr(21487)+chr(20316)+chr(20316)}), 403)
+        return None, (jsonify({'success': False, 'error': _t('权限不足，暂无权限')}), 403)
     return {'user_id': payload['user_id']}, None
 
 
@@ -119,7 +121,7 @@ def generate_ppt():
     topic = (data.get('topic', '') or '').strip()
     slide_count = min(max(int(data.get('slides', 8) or 8), 3), 20)
     if not topic:
-        return jsonify({'success': False, 'error': '请输入主题'}), 400
+        return jsonify({'success': False, 'error': _t('请输入主题')}), 400
 
     # 从插件自有配置读取 API Key
     api_key = _get_config('deepseek_api_key')
@@ -127,7 +129,7 @@ def generate_ppt():
         # 回退到环境变量
         api_key = os.environ.get('DEEPSEEK_API_KEY', '')
     if not api_key:
-        return jsonify({'success': False, 'error': 'DeepSeek API Key 未配置，请在插件设置中配置'}), 500
+        return jsonify({'success': False, 'error': _t('DeepSeek API Key 未配置，请在插件设置中配置')}), 500
 
     prompt = f'''你是一个专业的演示文稿设计师。请为主题「{topic}」设计一个{slide_count}页的PPT大纲。
 
@@ -165,7 +167,7 @@ def generate_ppt():
             raw = raw.strip()
         outline = _json.loads(raw)
     except Exception as e:
-        return jsonify({'success': False, 'error': f'AI生成失败: {str(e)[:200]}'}), 500
+        return jsonify({'success': False, 'error': f'{_t("AI生成失败")}: {str(e)[:200]}'}), 500
 
     try:
         from pptx import Presentation
@@ -214,7 +216,7 @@ def generate_ppt():
 
         slides_data = outline.get('slides', [])
         if not slides_data:
-            return jsonify({'success': False, 'error': 'AI未生成有效内容'}), 500
+            return jsonify({'success': False, 'error': _t('AI未生成有效内容')}), 500
 
         for i, s in enumerate(slides_data):
             layout_idx = 6
@@ -266,7 +268,7 @@ def generate_ppt():
         filepath = os.path.join(MEDIA_DIR, filename)
         prs.save(filepath)
 
-        _log(admin['user_id'], 'create', 'ppt', filename, f'主题: {topic}')
+        _log(admin['user_id'], 'create', 'ppt', filename, f'{_t("主题")}: {topic}')
         return jsonify({
             'success': True,
             'url': f'/admin/media/download/{filename}',
@@ -274,7 +276,7 @@ def generate_ppt():
             'slides': len(slides_data)
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': f'PPT生成失败: {str(e)[:200]}'}), 500
+        return jsonify({'success': False, 'error': f'{_t("PPT生成失败")}: {str(e)[:200]}'}), 500
 
 
 # ============================================================
@@ -289,7 +291,7 @@ def generate_image():
     data = request.get_json(force=True) or {}
     prompt = (data.get('prompt') or '').strip()
     if not prompt:
-        return jsonify({'success': False, 'error': '请输入图像描述'}), 400
+        return jsonify({'success': False, 'error': _t('请输入图像描述')}), 400
 
     style = data.get('style', 'realistic')
     count = min(int(data.get('count', 1)), 4)
@@ -315,7 +317,7 @@ def generate_image():
         })
     except Exception as e:
         import traceback; traceback.print_exc()
-        return jsonify({'success': False, 'error': f'生成失败: {str(e)[:200]}'}), 500
+        return jsonify({'success': False, 'error': f'{_t("生成失败")}: {str(e)[:200]}'}), 500
 
 
 # ============================================================
@@ -330,7 +332,7 @@ def media_download(filename):
     _media_ensure_dir()
     filepath = os.path.join(MEDIA_DIR, filename)
     if not os.path.exists(filepath):
-        return jsonify({'success': False, 'error': '文件不存在或已过期'}), 404
+        return jsonify({'success': False, 'error': _t('文件不存在或已过期')}), 404
     return send_file(filepath, as_attachment=True, download_name=filename)
 
 

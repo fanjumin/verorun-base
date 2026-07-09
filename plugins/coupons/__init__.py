@@ -43,11 +43,11 @@ class CouponPlugin(BasePlugin):
         """启用时初始化引擎。"""
         global _engine, _recommender
 
-        _engine = CouponEngine(get_db, get_main_db)
+        _engine = CouponEngine(get_db, get_main_db, t_func=self.t)
         _recommender = AICouponRecommender(_engine)
 
-        # 注入到 routes
-        init_routes(get_db, get_main_db, _engine, _recommender)
+        # 注入到 routes（传递 t 函数）
+        init_routes(get_db, get_main_db, _engine, _recommender, t_func=self.t)
 
         print(f'[CouponPlugin] CouponEngine initialized')
         return True

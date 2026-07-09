@@ -1,9 +1,9 @@
 """订单通知插件 — 基于事件系统的自动通知"""
 import logging
-from typing import Dict, Any, List
 
 from plugin_manager.base import BasePlugin
 from plugin_manager.event_bus import EventName, get_event_bus
+from .models import get_main_db, init_db, close_db
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,7 @@ class OrderNotifyPlugin(BasePlugin):
     description = '订单通知 — 下单/支付成功/发货/退款时自动发送通知'
 
     def on_enable(self, registry) -> bool:
+        init_db()
         bus = get_event_bus()
         bus.on(EventName.ORDER_CREATED, self._on_created)
         bus.on(EventName.ORDER_PAID, self._on_paid)
@@ -71,8 +72,7 @@ class OrderNotifyPlugin(BasePlugin):
         # 事件参数里可能没有 user_id，从数据库查
         if not uid:
             try:
-                from models import get_db
-                with get_db() as conn:
+                with get_main_db() as conn:
                     row = conn.execute(
                         'SELECT user_id FROM order_items WHERE order_id=? LIMIT 1', (oid,)
                     ).fetchone()

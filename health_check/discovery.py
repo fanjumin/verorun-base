@@ -27,7 +27,10 @@ PROJECT_ROOT = os.path.normpath(os.path.join(BASE_DIR, '..'))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
-from i18n import _
+_t = lambda s: s
+def init_i18n(t_func):
+    global _t
+    _t = t_func
 
 
 # ────────────────────────────────────────────────────────────────
@@ -307,7 +310,7 @@ def scan_plugins() -> List[dict]:
         return results
 
     except ImportError:
-        return [{'error': _('Plugin system not available')}]
+        return [{'error': _t('Plugin system not available')}]
     except Exception as e:
         return [{'error': str(e)}]
 
@@ -362,10 +365,10 @@ class DiscoveryReporter:
         """
         s = result.get('summary', {})
         parts = []
-        parts.append(_('{n} modules discovered').format(n=s.get('modules', 0)))
-        parts.append(_('{n} endpoints discovered').format(n=s.get('endpoints', 0)))
-        parts.append(_('{n} database tables discovered').format(n=s.get('tables', 0)))
-        parts.append(_('{n} plugins discovered').format(n=s.get('plugins', 0)))
+        parts.append(_t('{n} modules discovered').format(n=s.get('modules', 0)))
+        parts.append(_t('{n} endpoints discovered').format(n=s.get('endpoints', 0)))
+        parts.append(_t('{n} database tables discovered').format(n=s.get('tables', 0)))
+        parts.append(_t('{n} plugins discovered').format(n=s.get('plugins', 0)))
         return ' | '.join(parts)
 
 
@@ -444,13 +447,13 @@ class ModuleDiscoveryCheck(BaseHealthCheck):
         if new_modules:
             return CheckResult(
                 'warning', elapsed,
-                _('{n} new module(s) detected: {names}').format(
+                _t('{n} new module(s) detected: {names}').format(
                     n=len(new_modules), names=', '.join(sorted(new_modules))),
                 detail
             )
         return CheckResult(
             'passed', elapsed,
-            _('{n} modules stable').format(n=len(modules)),
+            _t('{n} modules stable').format(n=len(modules)),
             detail
         )
 
@@ -470,7 +473,7 @@ class EndpointDiscoveryCheck(BaseHealthCheck):
         start = time.time()
         app = get_default_app()
         if app is None:
-            return CheckResult('warning', 0, _('Flask app not available for endpoint scanning'))
+            return CheckResult('warning', 0, _t('Flask app not available for endpoint scanning'))
 
         endpoints = scan_endpoints(app)
         elapsed = int((time.time() - start) * 1000)
@@ -494,7 +497,7 @@ class EndpointDiscoveryCheck(BaseHealthCheck):
 
         return CheckResult(
             'passed', elapsed,
-            _('{n} endpoints across {b} blueprints').format(
+            _t('{n} endpoints across {b} blueprints').format(
                 n=len(endpoints), b=len(by_blueprint)),
             detail
         )
@@ -540,11 +543,11 @@ class TableDiscoveryCheck(BaseHealthCheck):
         elapsed = int((time.time() - start) * 1000)
 
         if not tables:
-            return CheckResult('error', elapsed, _('No database tables found or DB unavailable'))
+            return CheckResult('error', elapsed, _t('No database tables found or DB unavailable'))
 
         if 'error' in tables[0]:
             return CheckResult('warning', elapsed,
-                               _('Database scan error: {err}').format(err=tables[0]['error']),
+                               _t('Database scan error: {err}').format(err=tables[0]['error']),
                                tables[0])
 
         # Check for new/removed tables vs previous state
@@ -583,13 +586,13 @@ class TableDiscoveryCheck(BaseHealthCheck):
 
         warnings = []
         if new_tables:
-            warnings.append(_('{n} new table(s): {names}').format(
+            warnings.append(_t('{n} new table(s): {names}').format(
                 n=len(new_tables), names=', '.join(sorted(new_tables))))
         if removed_tables:
-            warnings.append(_('{n} table(s) removed').format(n=len(removed_tables)))
+            warnings.append(_t('{n} table(s) removed').format(n=len(removed_tables)))
 
         status = 'passed'
-        message = _('{n} tables, {r} total rows').format(n=len(tables), r=total_rows)
+        message = _t('{n} tables, {r} total rows').format(n=len(tables), r=total_rows)
 
         if warnings:
             status = 'warning'
@@ -615,11 +618,11 @@ class PluginDiscoveryCheck(BaseHealthCheck):
         elapsed = int((time.time() - start) * 1000)
 
         if not plugins:
-            return CheckResult('passed', elapsed, _('No plugins discovered'))
+            return CheckResult('passed', elapsed, _t('No plugins discovered'))
 
         if 'error' in plugins[0]:
             return CheckResult('warning', elapsed,
-                               _('Plugin scan: {msg}').format(msg=plugins[0].get('error', '')))
+                               _t('Plugin scan: {msg}').format(msg=plugins[0].get('error', '')))
 
         total = len(plugins)
         enabled = sum(1 for p in plugins if p.get('status') == 'enabled')
@@ -635,12 +638,12 @@ class PluginDiscoveryCheck(BaseHealthCheck):
         }
 
         status = 'passed'
-        message = _('{n} plugins ({e} enabled, {h} with health checks)').format(
+        message = _t('{n} plugins ({e} enabled, {h} with health checks)').format(
             n=total, e=enabled, h=with_health)
 
         if errors:
             status = 'warning'
-            message += _(' | {n} plugin(s) have errors: {names}').format(
+            message += _t(' | {n} plugin(s) have errors: {names}').format(
                 n=len(errors), names=', '.join(errors))
 
         return CheckResult(status, elapsed, message, detail)

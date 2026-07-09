@@ -25,7 +25,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
-from i18n import _
+_t = lambda s: s
+def init_i18n(t_func):
+    global _t
+    _t = t_func
 
 
 # ─── Health Check Schedule Definitions ─────────────────────────
@@ -40,16 +43,16 @@ HEALTH_INTERNAL_URL = os.environ.get(
 
 SCHEDULES = [
     {
-        'name': _('Health Check — Quick Scan'),
-        'description': _('Quick health scan every 5 minutes: system-level checks only'),
+        'name': _t('Health Check — Quick Scan'),
+        'description': _t('Quick health scan every 5 minutes: system-level checks only'),
         'frequency': 'interval',
         'interval_seconds': 300,
         'checks': ['core_api', 'database', 'redis', 'server_resources'],
         'trigger_info': 'cron:quick',
     },
     {
-        'name': _('Health Check — Standard Scan'),
-        'description': _('Standard health scan every 30 minutes: system + external + workflow'),
+        'name': _t('Health Check — Standard Scan'),
+        'description': _t('Standard health scan every 30 minutes: system + external + workflow'),
         'frequency': 'interval',
         'interval_seconds': 1800,
         'checks': [
@@ -61,16 +64,16 @@ SCHEDULES = [
         'trigger_info': 'cron:standard',
     },
     {
-        'name': _('Health Check — Full Scan'),
-        'description': _('Full health scan every 6 hours: all checks + deep database scan'),
+        'name': _t('Health Check — Full Scan'),
+        'description': _t('Full health scan every 6 hours: all checks + deep database scan'),
         'frequency': 'interval',
         'interval_seconds': 21600,
         'checks': [],  # All active checks
         'trigger_info': 'cron:full',
     },
     {
-        'name': _('Health Check — Deep DB Scan'),
-        'description': _('Deep database table integrity scan daily at 03:00'),
+        'name': _t('Health Check — Deep DB Scan'),
+        'description': _t('Deep database table integrity scan daily at 03:00'),
         'frequency': 'cron',
         'cron_expr': '0 0 3 * * *',
         'checks': ['discovery_tables', 'database', 'media_integrity'],
@@ -88,7 +91,7 @@ def seed_health_schedules():
         from orchestrator.models import get_db as orch_db
     except ImportError:
         print(
-            _('[HealthCheck/Scheduler] orchestrator module not available, '
+            _t('[HealthCheck/Scheduler] orchestrator module not available, '
               'skipping schedule seeding')
         )
         return
@@ -156,17 +159,17 @@ def seed_health_schedules():
 
         except Exception as e:
             print(
-                _('[HealthCheck/Scheduler] Failed to register schedule "{name}": {err}')
+                _t('[HealthCheck/Scheduler] Failed to register schedule "{name}": {err}')
                 .format(name=name, err=str(e))
             )
 
     if registered > 0:
         print(
-            _('[HealthCheck/Scheduler] Registered {n} new health check schedules')
+            _t('[HealthCheck/Scheduler] Registered {n} new health check schedules')
             .format(n=registered)
         )
     if skipped > 0:
         print(
-            _('[HealthCheck/Scheduler] {n} schedules already exist (skipped)')
+            _t('[HealthCheck/Scheduler] {n} schedules already exist (skipped)')
             .format(n=skipped)
         )

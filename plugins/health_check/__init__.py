@@ -43,10 +43,20 @@ class HealthCheckPlugin(BasePlugin):
         seed_default_checks()
         print('[HealthCheck] Tables initialized, schema migrated, default checks seeded')
 
+        # 初始化插件 i18n（注入 self.t 到各模块）
+        from health_check import routes as _routes
+        from health_check import checkers as _checkers
+        from health_check import discovery as _discovery
+        from health_check import scheduler_setup as _sched
+        _routes.init_i18n(self.t)
+        _checkers.init_i18n(self.t)
+        _discovery.init_i18n(self.t)
+        _sched.init_i18n(self.t)
+        print('[HealthCheck] Plugin i18n initialized')
+
         # 注册定时巡检（写入 orchestrator cron_jobs 表）
         try:
-            from health_check.scheduler_setup import seed_health_schedules
-            seed_health_schedules()
+            _sched.seed_health_schedules()
             print('[HealthCheck/Scheduler] Health check schedules registered')
         except Exception as e:
             print(f'[HealthCheck/Scheduler] Warning: {e}')

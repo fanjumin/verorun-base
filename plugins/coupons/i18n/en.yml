@@ -29,3 +29,25 @@ AI 内容生成: AI Content
 立即领取: Claim Now
 领取成功: Claimed Successfully
 领取失败: Failed to Claim
+# ── Response / Error Messages ──
+未登录: Not logged in
+Token 无效或已过期: Invalid or expired token
+无权限: No permission
+操作太频繁: Too many requests, please try again later
+缺少必填字段: Missing required fields
+请输入优惠码: Please enter a coupon code
+缺少参数: Missing parameters
+优惠券已创建: Coupon created
+优惠券已更新: Coupon updated
+优惠券已删除: Coupon deleted
+请指定优惠券ID: Please specify a coupon ID
+请指定用户: Please specify users
+已发给: Distributed to
+个用户: users
+优惠码不存在: Coupon code does not exist
+优惠码已过期: Coupon code has expired
+优惠码已被用完: Coupon code has been fully redeemed
+未达到最低消费: Minimum purchase amount not met
+优惠码不可用于该商品: Coupon code cannot be used for this product
+优惠码不可用于该场景: Coupon code cannot be used for this scenario
+您已使用过该优惠码: You have already used this coupon code

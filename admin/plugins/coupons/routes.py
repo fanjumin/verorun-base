@@ -22,14 +22,16 @@ _engine: CouponEngine = None
 _recommender: AICouponRecommender = None
 _get_db = None
 _get_main_db = None
+_t = None
 
 
-def init_routes(get_db, get_main_db, engine: CouponEngine, recommender: AICouponRecommender):
-    global _get_db, _get_main_db, _engine, _recommender
+def init_routes(get_db, get_main_db, engine: CouponEngine, recommender: AICouponRecommender, t_func=None):
+    global _get_db, _get_main_db, _engine, _recommender, _t
     _get_db = get_db
     _get_main_db = get_main_db
     _engine = engine
     _recommender = recommender
+    _t = t_func or (lambda s: s)
 
 
 # ── Helpers ──
@@ -52,7 +54,7 @@ def _require_auth():
     """从请求头解析用户 JWT（兼容 admin 和 user 体系）。"""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
-        return None, jsonify({'success': False, 'error': '未登录'}), 401
+        return None, jsonify({'success': False, 'error': _t('未登录')}), 401
     token = auth[7:]
     try:
         import jwt as pyjwt
@@ -61,7 +63,7 @@ def _require_auth():
         payload = pyjwt.decode(token, secret, algorithms=['HS256'])
         return payload, None, None
     except Exception:
-        return None, jsonify({'success': False, 'error': 'Token 无效或已过期'}), 401
+        return None, jsonify({'success': False, 'error': _t('Token 无效或已过期')}), 401
 
 
 def _require_admin():
@@ -70,7 +72,7 @@ def _require_admin():
     if err_resp:
         return None, err_resp
     if payload.get('role') not in ('admin', 'super_admin'):
-        return None, jsonify({'success': False, 'error': '无权限'}), 403
+        return None, jsonify({'success': False, 'error': _t('无权限')}), 403
     return payload, None
 
 
@@ -122,12 +124,12 @@ def admin_create():
         return err, 403
     data = request.get_json() or {}
     if not data.get('code') or data.get('value') is None:
-        return jsonify({'success': False, 'error': '缺少必填字段: code, value'}), 400
+        return jsonify({'success': False, 'error': _t('缺少必填字段')}), 400
     try:
         cid = _engine.create(data)
         with _get_db() as conn:
             _log_admin_action(conn, payload['user_id'], 'create', 'coupon', cid, data['code'])
-        return jsonify({'success': True, 'data': {'id': cid}, 'message': '优惠券已创建'})
+        return jsonify({'success': True, 'data': {'id': cid}, 'message': _t('优惠券已创建')})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -141,7 +143,7 @@ def admin_update(cid):
     _engine.update(cid, data)
     with _get_db() as conn:
         _log_admin_action(conn, payload['user_id'], 'update', 'coupon', cid)
-    return jsonify({'success': True, 'message': '优惠券已更新'})
+    return jsonify({'success': True, 'message': _t('优惠券已更新')})
 
 
 @coupon_bp.route('/admin/delete/<int:cid>', methods=['POST'])
@@ -152,7 +154,7 @@ def admin_delete(cid):
     _engine.delete(cid)
     with _get_db() as conn:
         _log_admin_action(conn, payload['user_id'], 'delete', 'coupon', cid)
-    return jsonify({'success': True, 'message': '优惠券已删除'})
+    return jsonify({'success': True, 'message': _t('优惠券已删除')})
 
 
 @coupon_bp.route('/admin/stats', methods=['GET'])
@@ -173,9 +175,9 @@ def admin_distribute():
     user_ids = data.get('user_ids', [])
     all_users = data.get('all_users', False)
     if not coupon_id:
-        return jsonify({'success': False, 'error': '请指定优惠券ID'}), 400
+        return jsonify({'success': False, 'error': _t('请指定优惠券ID')}), 400
     if not user_ids and not all_users:
-        return jsonify({'success': False, 'error': '请指定用户'}), 400
+        return jsonify({'success': False, 'error': _t('请指定用户')}), 400
     if all_users:
         with _get_main_db() as conn:
             rows = conn.execute('SELECT id FROM users WHERE active=1').fetchall()
@@ -183,8 +185,9 @@ def admin_distribute():
     count = _engine.distribute(coupon_id, user_ids)
     with _get_db() as conn:
         _log_admin_action(conn, payload['user_id'], 'distribute', 'coupon', coupon_id,
-                          f'发放给{count}个用户')
-    return jsonify({'success': True, 'data': {'total': count}, 'message': f'已发放给 {count} 个用户'})
+                          f'{_t("已发给")}{count}{_t("个用户")}')
+    return jsonify({'success': True, 'data': {'total': count},
+                    'message': f'{_t("已发给")} {count} {_t("个用户")}'})
 
 
 @coupon_bp.route('/admin/redemptions/<int:cid>', methods=['GET'])
@@ -209,7 +212,7 @@ def api_validate():
         return err, status
     uid = payload['user_id']
     if not _check_rate_limit(uid, 'coupon_validate'):
-        return jsonify({'success': False, 'error': '操作太频繁'}), 429
+        return jsonify({'success': False, 'error': _t('操作太频繁')}), 429
     data = request.get_json() or {}
     code = data.get('code', '').strip().upper()
     amount = _safe_float(data.get('amount', 0))
@@ -217,7 +220,7 @@ def api_validate():
     product_id = data.get('product_id')
     scene = data.get('scene', '')
     if not code:
-        return jsonify({'success': False, 'error': '请输入优惠码'}), 400
+        return jsonify({'success': False, 'error': _t('请输入优惠码')}), 400
     result = _engine.validate(code, amount, user_id=uid, quantity=quantity,
                               product_id=product_id, scene=scene or None)
     if not result['valid']:
@@ -316,7 +319,7 @@ def api_apply():
     order_no = data.get('order_no', '')
     amount = _safe_float(data.get('amount', 0))
     if not code or not order_no:
-        return jsonify({'success': False, 'error': '缺少参数'}), 400
+        return jsonify({'success': False, 'error': _t('缺少参数')}), 400
     result = _engine.apply_to_order(code, uid, order_no, amount)
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 400
