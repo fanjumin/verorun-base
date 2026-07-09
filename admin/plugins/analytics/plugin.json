@@ -1,0 +1,56 @@
+{
+    "name": "Analytics",
+    "identifier": "analytics",
+    "version": "0.1.0",
+    "description": "Analytics Middleware & Dashboard — Server-side Cookieless Analytics",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {
+        "sample_rate": 1.0,
+        "geoip_enabled": true,
+        "service_name": "admin"
+    },
+    "permissions": [
+        "analytics.read",
+        "analytics.write"
+    ],
+    "hooks": {
+        "provides": [
+            "analytics/track_event",
+            "analytics/get_realtime",
+            "analytics/get_trend"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "Ops Data",
+        "key": "analytics",
+        "icon": "analytics",
+        "label": "Analytics",
+        "embed_url": "/admin/analytics/"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "sample_rate": {
+                "type": "number",
+                "default": 1.0,
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Sampling rate for request capture"
+            },
+            "geoip_enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable GeoIP location lookup"
+            },
+            "service_name": {
+                "type": "string",
+                "default": "admin",
+                "description": "Service name label for analytics logs"
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+{
+    "name": "AI Tools",
+    "identifier": "ai_tools",
+    "version": "0.1.0",
+    "description": "AI Tools — PPT Generation + Image Generation + Multimedia",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "ai_tools.ppt",
+        "ai_tools.image"
+    ],
+    "hooks": {
+        "provides": [
+            "ai_tools/generate_ppt",
+            "ai_tools/generate_image"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "Content",
+        "key": "ai_tools",
+        "icon": "media_video",
+        "label": "AI Tools",
+        "embed_url": "/admin/ai-tools/"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}

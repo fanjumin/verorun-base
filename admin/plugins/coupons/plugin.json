@@ -1,0 +1,30 @@
+{
+    "name": "智能优惠券引擎",
+    "identifier": "coupons",
+    "version": "0.1.0",
+    "description": "智能优惠券引擎 — 场景券/AI推荐/订阅联动",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "order.read",
+        "order.write",
+        "user.read"
+    ],
+    "hooks": {
+        "provides": [
+            "coupon/validate",
+            "coupon/apply"
+        ],
+        "listens": [
+            "order/paid",
+            "order/cancelled"
+        ]
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}
