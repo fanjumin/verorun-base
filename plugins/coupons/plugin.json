@@ -26,5 +26,11 @@
     "settings_schema": {
         "type": "object",
         "properties": {}
+    },
+    "menu": {
+        "key": "coupons_plugin",
+        "group": "Operations",
+        "icon": "coupons",
+        "label": "Coupon Management"
     }
 }

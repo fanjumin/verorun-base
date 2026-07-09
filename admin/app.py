@@ -147,7 +147,7 @@ init_cms_tables()
 
 # ===== PluginManager（新插件系统）=====
 try:
-    app.version = '0.10.2'
+    app.version = '0.10.3'
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)

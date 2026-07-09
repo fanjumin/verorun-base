@@ -31,7 +31,7 @@ class WishlistPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
 
             page = request.args.get('page', 1, type=int)
@@ -87,12 +87,12 @@ class WishlistPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
             data = request.get_json() or {}
             pid = data.get('product_id')
             if not pid:
-                return jsonify({'success': False, 'error': '缺少商品ID'}), 400
+                return jsonify({'success': False, 'error': _t('缺少商品ID')}), 400
 
             with get_db() as conn:
                 existing = conn.execute(
@@ -119,7 +119,7 @@ class WishlistPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
             data = request.get_json() or {}
             product_ids = data.get('product_ids', [])
@@ -142,7 +142,7 @@ class WishlistPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
             with get_db() as conn:
                 count = conn.execute(

@@ -48,7 +48,7 @@ class CouponEngine:
                 'SELECT id FROM coupons WHERE code=?', (data['code'].upper(),)
             ).fetchone()
             if existing:
-                raise ValueError('优惠券代码已存在')
+                raise ValueError(self._t('优惠券代码已存在'))
             conn.execute(
                 '''INSERT INTO coupons (code, name, coupon_type, value, min_amount, min_quantity,
                    usage_limit, per_user_limit, expire_at, is_active, description, coupon_category,
@@ -181,34 +181,34 @@ class CouponEngine:
         """
         cpn = self.get_by_code(code)
         if not cpn:
-            return {'valid': False, 'error': '优惠券无效'}
+            return {'valid': False, 'error': self._t('优惠券无效')}
 
         if cpn['usage_limit'] and cpn['used_count'] >= cpn['usage_limit']:
-            return {'valid': False, 'error': '优惠券已用完'}
+            return {'valid': False, 'error': self._t('优惠券已用完')}
 
         now = datetime.now().isoformat()
         if cpn['expire_at'] and cpn['expire_at'] < now:
-            return {'valid': False, 'error': '优惠券已过期'}
+            return {'valid': False, 'error': self._t('优惠券已过期')}
         if cpn.get('active_from') and cpn['active_from'] > now:
-            return {'valid': False, 'error': '优惠券尚未生效'}
+            return {'valid': False, 'error': self._t('优惠券尚未生效')}
         if cpn.get('active_to') and cpn['active_to'] < now:
-            return {'valid': False, 'error': '优惠券已过期'}
+            return {'valid': False, 'error': self._t('优惠券已过期')}
 
         if amount < cpn['min_amount']:
             return {'valid': False, 'error': self._t('未达到最低消费') + f' ¥{cpn["min_amount"]}'}
 
         if cpn['min_quantity'] and quantity < cpn['min_quantity']:
-            return {'valid': False, 'error': f'至少需要购买 {cpn["min_quantity"]} 件商品'}
+            return {'valid': False, 'error': self._t('至少需要购买 {n} 件商品', n=cpn['min_quantity'])}
 
         # 场景检查
         if scene and cpn.get('scene') and cpn['scene'] != scene:
-            return {'valid': False, 'error': '该优惠券不适用于当前场景'}
+            return {'valid': False, 'error': self._t('该优惠券不适用于当前场景')}
 
         # 适用套餐检查（订阅独有）
         if plan and cpn.get('applicable_plans'):
             allowed = str(cpn['applicable_plans']).split(',')
             if plan not in allowed:
-                return {'valid': False, 'error': '该优惠券不适用于当前套餐'}
+                return {'valid': False, 'error': self._t('该优惠券不适用于当前套餐')}
 
         # 新人专享（读主库）
         if cpn.get('coupon_category') == 'new_user' and user_id:
@@ -217,13 +217,13 @@ class CouponEngine:
                     'SELECT id FROM order_items WHERE user_id=? LIMIT 1', (user_id,)
                 ).fetchone()
             if has:
-                return {'valid': False, 'error': '仅限新用户使用'}
+                return {'valid': False, 'error': self._t('仅限新用户使用')}
 
         # 适用商品
         if cpn.get('applicable_products') and product_id:
             allowed = str(cpn['applicable_products']).split(',')
             if str(product_id) not in allowed:
-                return {'valid': False, 'error': '该商品不适用此优惠券'}
+                return {'valid': False, 'error': self._t('该商品不适用此优惠券')}
 
         # 每人限用
         if user_id:
@@ -411,15 +411,15 @@ class CouponEngine:
             ctype = d['coupon_type']
             val = d['value']
             if ctype == 'fixed':
-                desc = f"¥{val} 优惠券"
+                desc = self._t('¥{val} 优惠券', val=val)
             elif ctype == 'percent':
-                desc = f"{int(val)}% 折扣"
+                desc = self._t('{pct}% 折扣', pct=int(val))
             elif ctype == 'free_shipping':
-                desc = '免运费'
+                desc = self._t('免运费')
             else:
-                desc = f"优惠 {val}"
+                desc = self._t('优惠 {val}', val=val)
             if d['min_amount'] and d['min_amount'] > 0:
-                desc += f"（满¥{d['min_amount']}可用）"
+                desc += self._t('（满¥{amt}可用）', amt=d['min_amount'])
             d['description'] = d.get('description') or desc
             results.append(d)
         return results

@@ -51,17 +51,18 @@ def _safe_int(v, default=0):
 
 
 def _require_auth():
-    """从请求头解析用户 JWT（复用 auth-center 验证逻辑）。"""
+    """从请求头解析用户 JWT（读取环境变量 JWT_SECRET）。"""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None, jsonify({'success': False, 'error': _t('未登录')}), 401
     token = auth[7:]
     try:
-        # 走 auth-center 的 jwt_service（统一 JWT_SECRET 来源）
-        from services.jwt_service import validate_token
-        payload = validate_token(token)
-        if payload is None:
+        import jwt as pyjwt
+        import os
+        secret = os.environ.get('JWT_SECRET', '')
+        if not secret:
             return None, jsonify({'success': False, 'error': _t('Token 无效或已过期')}), 401
+        payload = pyjwt.decode(token, secret, algorithms=['HS256'])
         return payload, None, None
     except Exception:
         return None, jsonify({'success': False, 'error': _t('Token 无效或已过期')}), 401
@@ -72,7 +73,7 @@ def _require_admin():
     payload, err_resp, status = _require_auth()
     if err_resp:
         return None, err_resp
-    if payload.get('role') not in ('admin', 'super_admin'):
+    if not payload.get('is_admin'):
         return None, jsonify({'success': False, 'error': _t('无权限')}), 403
     return payload, None
 

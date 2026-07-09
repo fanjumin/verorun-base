@@ -108,7 +108,7 @@ class ReviewsPlugin(BasePlugin):
                 d['avatar'] = uinfo.get('avatar', '')
                 d['is_anonymous'] = bool(d['is_anonymous'])
                 if d['is_anonymous']:
-                    d['username'] = '匿***'
+                    d['username'] = _t('匿***')
                     d['avatar'] = ''
                 reviews.append(d)
 
@@ -130,7 +130,7 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
             data = request.get_json() or {}
 
@@ -141,9 +141,9 @@ class ReviewsPlugin(BasePlugin):
             order_id = (data.get('order_id') or '').strip()
 
             if rating < 1 or rating > 5:
-                return jsonify({'success': False, 'error': '评分需在1-5之间'}), 400
+                return jsonify({'success': False, 'error': _t('评分需在1-5之间')}), 400
             if not content:
-                return jsonify({'success': False, 'error': '请填写评价内容'}), 400
+                return jsonify({'success': False, 'error': _t('请填写评价内容')}), 400
 
             # 跨库检查是否购买过
             if order_id:
@@ -182,7 +182,7 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
             with get_db() as conn:
                 row = conn.execute(
@@ -190,7 +190,7 @@ class ReviewsPlugin(BasePlugin):
                     (review_id, uid)
                 ).fetchone()
                 if not row:
-                    return jsonify({'success': False, 'error': '评价不存在'}), 404
+                    return jsonify({'success': False, 'error': _t('评价不存在')}), 404
                 conn.execute("UPDATE product_reviews SET is_active=0 WHERE id=?", (review_id,))
                 conn.commit()
             return jsonify({'success': True, 'message': _t('评价删除成功')})
@@ -202,7 +202,7 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload:
-                return jsonify({'success': False, 'error': '请先登录'}), 401
+                return jsonify({'success': False, 'error': _t('请先登录')}), 401
             uid = payload['user_id']
             page = request.args.get('page', 1, type=int)
             size = min(request.args.get('size', 20, type=int), 50)
@@ -258,7 +258,7 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload or not payload.get('is_admin'):
-                return jsonify({'success': False, 'error': '无权限'}), 403
+                return jsonify({'success': False, 'error': _t('无权限')}), 403
             page = request.args.get('page', 1, type=int)
             size = request.args.get('size', 20, type=int)
             offset = (page - 1) * size
@@ -305,16 +305,16 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload or not payload.get('is_admin'):
-                return jsonify({'success': False, 'error': '无权限'}), 403
+                return jsonify({'success': False, 'error': _t('无权限')}), 403
             reply = (request.get_json() or {}).get('reply', '').strip()
             if not reply:
-                return jsonify({'success': False, 'error': '请输入回复内容'}), 400
+                return jsonify({'success': False, 'error': _t('请输入回复内容')}), 400
             with get_db() as conn:
                 conn.execute(
                     "UPDATE product_reviews SET reply_content=?, reply_at=datetime('now','localtime') WHERE id=?",
                     (reply, rid)
                 )
                 conn.commit()
-            return jsonify({'success': True, 'message': '回复成功'})
+            return jsonify({'success': True, 'message': _t('回复成功')})
 
         return [bp]

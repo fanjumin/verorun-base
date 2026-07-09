@@ -118,6 +118,16 @@ class PluginManager:
                 if cached:
                     cached.metadata = disk_info.metadata
                     cached.version = disk_info.version
+
+            # ── 加载所有插件的 locale 翻译 ─────────────────────
+            try:
+                from i18n import seed_plugin_translations
+                for disk_info in discovered:
+                    locale_dir = os.path.join(disk_info.path, 'locale')
+                    if os.path.isdir(locale_dir):
+                        seed_plugin_translations(disk_info.identifier, locale_dir)
+            except Exception as e:
+                print(f'[PluginManager] ⚠️ 加载插件翻译失败: {e}')
         except Exception as e:
             print(f'[PluginManager] ⚠️ 自动安装失败: {e}')
 
@@ -233,6 +243,35 @@ class PluginManager:
 
             self._emit('plugin.enabled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} enabled')
+
+            # ── 自动激活: enable 后立即注册路由/钩子 ────────────
+            try:
+                instance = self._instances.get(identifier)
+                if instance:
+                    if hasattr(instance, 'activate') and callable(instance.activate):
+                        instance.activate()
+
+                    # 注册路由
+                    if self.app and hasattr(instance, 'register_routes'):
+                        bps = instance.register_routes()
+                        for bp in bps:
+                            prefix = self._get_route_prefix(identifier, bp)
+                            self.app.register_blueprint(bp, url_prefix=prefix)
+                            print(f'[PluginManager] {identifier}: mounted {prefix}')
+
+                    # 注册钩子
+                    if self._hook_registry and hasattr(instance, 'get_event_handlers'):
+                        handlers = instance.get_event_handlers()
+                        for event, handler in handlers.items():
+                            self._hook_registry.add_action(event, handler)
+
+                    info.status = PluginStatus.ACTIVE
+                    info.updated_at = datetime.now().isoformat()
+                    self._save_to_db(info)
+                    print(f'[PluginManager] ✅ {identifier} active (auto)')
+            except Exception as e:
+                print(f'[PluginManager] ⚠️ {identifier} auto-activate warning: {e}')
+
             return info
 
     # ── 激活 ────────────────────────────────────────────────────────────

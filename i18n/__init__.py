@@ -268,3 +268,46 @@ def seed_from_yaml(locale: str = None) -> int:
 def get_lang() -> str:
     """返回当前语言代码"""
     return DEPLOY_LANG
+
+
+# ─── 插件翻译支持 ──────────────────────────────────────────
+
+def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
+    """
+    将插件 locale 目录下的 YAML 翻译文件写入 i18n DB。
+    每次调用都会 UPSERT（根据 locale+source_hash 去重），幂等安全。
+    返回本次写入的条目数。
+    """
+    count = 0
+    for locale in ('zh-CN', 'en'):
+        yml_path = os.path.join(locale_dir, f'{locale}.yml')
+        if not os.path.isfile(yml_path):
+            continue
+        try:
+            with open(yml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f'[i18n] plugin {plugin_id} {locale} load error: {e}')
+            continue
+        if not data:
+            continue
+        try:
+            conn = _get_db()
+            for source, translation in data.items():
+                if not source or not translation:
+                    continue
+                s_hash = _source_hash(source)
+                conn.execute(
+                    '''INSERT OR REPLACE INTO i18n_strings
+                       (locale, source_hash, source, translation, is_auto)
+                       VALUES (?,?,?,?,?)''',
+                    (locale, s_hash, source, translation, 1)
+                )
+                count += 1
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f'[i18n] plugin {plugin_id} {locale} db error: {e}')
+    if count:
+        print(f'[i18n] plugin {plugin_id}: seeded {count} translations')
+    return count

@@ -181,7 +181,6 @@ your_username: your_username
 ⚠ 使用声明：: '⚠ Usage Statement:'
 ⚠️ 强制取消后用户将降级为免费版，确定？: ⚠️ User will be downgraded to free. Confirm?
 ✅ SKU已更新: ✅ SKU updated
-✅ 优惠券已创建: ✅ Coupon created
 ✅ 发送成功: ✅ Sent
 ✅ 图片已上传: ✅ Image uploaded
 ✅ 图片已添加: ✅ Image added
@@ -285,8 +284,6 @@ your_username: your_username
 企业认证待审核: Enterprise Verification Pending
 '企业认证未通过:': 'Verification failed:'
 企业认证申请已提交，请等待管理员审核: Verification submitted, pending admin review
-优惠券管理: Coupon Management
-优惠码不能为空: Promo code cannot be empty
 会员体系: Membership System
 使用密码登录: Use password to login
 使用短信验证码登录: Use SMS code to login
@@ -1125,7 +1122,6 @@ VeroRun: VeroRun
 📝 该分类暂无文章，敬请期待。: 📝 No articles in this category yet.
 "📦 {{ brand.site_name_cn if brand else 'VeroRun' }}商城": "'📦 {{ brand.site_name_cn if brand else 'VeroRun' }}Mall'"
 📦 七牛云: 📦 Qiniu Cloud
-📦 优惠券: 📦 Coupons
 '📦 发货 - 订单 #': '📦 Ship - Order #'
 📦 商品管理: 📦 Product Management
 📦 订单管理: 📦 Order Management
@@ -1242,9 +1238,6 @@ VeroRun: VeroRun
 企业微信配置加载中: WeCom Config Loading
 优先级: Priority
 优先读取数据库配置: Priority Read from DB Settings
-优惠券列表: Coupons List
-优惠券说明: Coupon Description
-优惠码: Coupon Code
 伙伴: Partner
 伙伴名称: Partner Name
 会话: Session
@@ -1275,7 +1268,6 @@ VeroRun: VeroRun
 侧栏: Sidebar
 侧边栏: Sidebar
 促销: Promotion
-促销券: Promo Coupon
 保存: Save
 保存中: Saving
 保存子品牌设置: Save Sub-brand Settings
@@ -1338,8 +1330,6 @@ VeroRun: VeroRun
 写实: Realistic
 写邮件: Write Email
 决定了: Decided
-减免值: Discount Value
-减免类型: Discount Type
 几何: Geometric
 出生日期: Date of Birth
 分析图片: Analyze Image
@@ -1353,7 +1343,6 @@ VeroRun: VeroRun
 列出你的子: List Your
 列表: List
 创建: Create
-创建优惠券: Create Coupons
 创建失败: Creation Failed
 创建智能体: Create Agent
 创建视频: Create Video
@@ -1424,7 +1413,6 @@ VeroRun: VeroRun
 发布管理: Publish Management
 发抖音: Post to Douyin
 发放: Issue
-发放优惠券: Issue Coupons
 发放完成: Issued
 发放给所有用户: Issue to All Users
 发货: Ship
@@ -1495,7 +1483,6 @@ VeroRun: VeroRun
 回调地址: Callback URL
 回调地址自动生成: Callback URL Auto-Generated
 固定: Fixed
-固定减免: Fixed Discount
 固定金额: Fixed Amount
 图像: Image
 图像处理: Image Processing
@@ -1707,7 +1694,6 @@ VeroRun: VeroRun
 思考中: Thinking
 性别: Gender
 总任务: Total Tasks
-总优惠券: Total Coupons
 总使用次数: Total Usage Count
 总用户: Total Users
 总量: Total
@@ -1842,7 +1828,6 @@ VeroRun: VeroRun
 新增页脚文章: Add Footer Article
 新建: New
 新建任务: New Task
-新建优惠券: New Coupons
 新建会话: New Chat
 新建分类: New Category
 新建商品: New Product
@@ -1884,7 +1869,6 @@ VeroRun: VeroRun
 暂无: None
 暂无事件: No Events
 暂无任务: No Tasks
-暂无优惠券: No Coupons
 暂无使用记录: No Usage History
 暂无内容: No Content
 暂无分类: No Categories
@@ -2065,7 +2049,6 @@ VeroRun: VeroRun
 渲染各风格预览: Render Style Previews
 渲染图表: Render Chart
 渲染子任务生成的图片到聊天界面: Render Sub-task Images to Chat
-满减: Discount
 演示主题: Demo Theme
 演示文稿生成: Presentation Generation
 激活: Activate
@@ -2080,7 +2063,6 @@ VeroRun: VeroRun
 点击行跳转会话: Click Row to Jump to Chat
 点击设为缩略图: Click to Set as Thumbnail
 点赞: Like
-热门页面: Popular Pages
 照片: Photo
 版本: Version
 版权信息: Copyright
@@ -2252,7 +2234,6 @@ VeroRun: VeroRun
 编码设置加载失败: Encoding Load Failed
 '编辑 — ': 'Edit — '
 编辑任务: Edit Task
-编辑优惠券: Edit Coupons
 编辑内容: Edit Content
 编辑内容后发送: Edit Content & Send
 编辑分类: Edit Category
@@ -2432,9 +2413,7 @@ VeroRun: VeroRun
 选图后自动填入: Auto-fill After Selection
 选填: Optional
 选择: Select
-选择优惠券: Select Coupons
 选择分类: Select Category
-选择券: Select Coupon
 选择功能开始配置: Select Function to Start Settings
 选择后自动填充: Auto-fill After Selection
 选择图片插入描述: Select Image to Insert Description
@@ -2548,20 +2527,6 @@ VeroRun: VeroRun
 '{% if current_cat %}该分类暂无Download项。{% else %}暂无Download项，Stay Tuned。{% endif %}': '{%
   if current_cat %}No downloads in this category.{% else %}No downloads yet, Stay
   Tuned.{% endif %}'
-地图加载失败（网络问题），数据见下方表格: Map failed to load (network issue), view data table below
-暂无地理位置数据（需配置 GeoIP）: No geolocation data (GeoIP required)
-暂无设备数据: No device data
-暂无自定义事件。当用户启动 Agent、查看股票、创建 Workflow 等操作时会自动记录。: No custom events. Automatically logged
-  when users launch agents, view stocks, create workflows etc.
-暂无告警规则。添加告警后，当指标超出阈值时系统会自动通知。: No alert rules. System auto-notifies when metrics exceed
-  thresholds after adding alerts.
-● 启用: ● Enabled
-○ 禁用: ○ Disabled
-确定删除此告警规则?: Delete this alert rule?
-30天: 30 Days
-分: pts
-暂无趋势数据，发布内容后将自动生成: No trend data yet, will auto-generate after publishing
-暂无页面数据: No page data
 扫描并加载插件...: Scanning and loading plugins...
 未发现任何插件: No plugins found
 插件 {name} 缺少 plugin.json: Plugin {name} missing plugin.json
@@ -2600,141 +2565,4 @@ on_enable 返回 False: on_enable returned False
 每日报告生成中...: Generating daily report...
 确定执行AI修复？此操作不可自动撤销。: Confirm AI fix? This action cannot be undone automatically.
 
-'暂无中国城市数据': 'No China city data'
-'暂无页面数据': 'No page data'
-'暂无省份数据': 'No province data'
-'其他地区': 'Other Regions'
-'高': 'High'
-'低': 'Low'
-'地图加载失败（网络问题），数据见下方表格': 'Map loading failed (network issue). See table below for data.'
 
-# ── Health Check & Analytics UI Keys ──
-"📊 统计仪表盘": "📊 Analytics Dashboard"
-"站点统计": "Site Statistics"
-"实时数据 · 隐私友好 · 无 Cookie 追踪": "Real-time Data · Privacy-friendly · No Cookie Tracking"
-"在线": "Online"
-"今日浏览量 (PV)": "Today Page Views (PV)"
-"独立访客 (UV)": "Unique Visitors (UV)"
-"总会话": "Total Sessions"
-"平均响应": "Avg Response"
-"标签页": "Tabs"
-"趋势": "Trend"
-"地区": "Geo"
-"设备": "Devices"
-"告警": "Alerts"
-"流量趋势": "Traffic Trend"
-"小时级分布 (今天)": "Hourly Distribution (Today)"
-"详细数据": "Details"
-"热门页面 (30天)": "Top Pages (30d)"
-"来源分布": "Source Distribution"
-"来源明细": "Source Details"
-"🇨🇳 访问分布图": "🇨🇳 China Access Map"
-"省份排行": "Province Ranking"
-"城市明细": "City Details"
-"🌍 国家/地区分布": "🌍 Country/Region Distribution"
-"设备类型": "Device Type"
-"浏览器 & OS": "Browser & OS"
-"自定义事件 (30天)": "Custom Events (30d)"
-"告警规则": "Alert Rules"
-"📋 添加告警规则": "📋 Add Alert Rule"
-"UV (独立访客)": "UV (Unique Visitors)"
-"PV (浏览量)": "PV (Page Views)"
-"跳出率 (%)": "Bounce Rate (%)"
-"错误率 (%)": "Error Rate (%)"
-"平均响应时间 (ms)": "Avg Response Time (ms)"
-"(大于)": "(Greater Than)"
-"(小于)": "(Less Than)"
-"(大于等于)": "(Greater or Equal)"
-"(小于等于)": "(Less or Equal)"
-"阈值": "Threshold"
-"1 小时": "1 Hour"
-"24 小时": "24 Hours"
-"7 天": "7 Days"
-"➕ 添加": "➕ Add"
-"刷新数据": "Refresh"
-"日期": "Date"
-"跳出率": "Bounce Rate"
-"平均时长": "Avg Duration"
-"路径": "Path"
-"省份": "Province"
-"城市": "City"
-"国家": "Country"
-"浏览器": "Browser"
-"指标": "Metric"
-"条件": "Condition"
-"窗口": "Window"
-"最后触发": "Last Triggered"
-"总值": "Total"
-"系统健康巡检": "System Health Check"
-"立即巡检": "Run Check"
-"导出报告": "Export Report"
-"上次更新": "Last Updated"
-"加载巡检数据...": "Loading check data..."
-"详细报告": "Detailed Report"
-"巡检历史": "Check History"
-"检查项配置": "Check Config"
-"14天": "14 Days"
-"健康趋势": "Health Trend"
-"每日健康分": "Daily Score"
-"检查详情 ": "Check Details "
-"告警列表 ": "Alert List "
-"加载失败，请检查网络": "Load failed, check network"
-"健康度": "Health Score"
-"警告": "Warning"
-"全部正常": "All Normal"
-"需关注": "Needs Attention"
-"需立即处理": "Needs Immediate Action"
-"巡检耗时": "Check Duration"
-"分类状态": "Category Status"
-"外部依赖": "External Dependencies"
-"巡检中...": "Checking..."
-"巡检已启动，5秒后自动刷新": "Check started, auto-refresh in 5s"
-"全部 (": "All ("
-"外部": "External"
-"信息": "Message"
-"响应时间": "Response Time"
-"检查时间": "Checked At"
-"触发方式": "Trigger"
-"批次 ": "Run #"
-"正常 ": "Passed "
-"警告 ": "Warnings "
-"异常 ": "Errors "
-"暂无趋势数据，请执行一次巡检": "No trend data yet, run a check first"
-"加载检查项...": "Loading check items..."
-"可添加的检查器 ": "Available Checkers "
-"个可用)": " available)"
-"已配置检查项 ": "Configured Checks "
-"项)": " items)"
-"名称 / Key": "Name / Key"
-"手动添加检查项": "Add Check Manually"
-"自定义检查\" style": "Custom Check\" style"
-"添加新检查项指南": "Add Check Guide"
-"方式 1 ": "Method 1 "
-"代码注册": "Register in Code"
-"推荐）": "Recommended)"
-"在 checkers.py 中继承 BaseHealthCheck，用 ": "Inherit BaseHealthCheck in checkers.py, use "
-"注册。": "to register."
-"然后点击上方": "Then click "
-"按钮写入 DB 即可生效。": "button to write to DB."
-"直接在上方手动添加后，在 check() 方法中实现逻辑。": "Add manually above, then implement logic in check()."
-"如果 check_key 发生在 Python 中已有对应的 ": "If a Python checker class already exists for this check_key, "
-"类，会自动匹配。": "it will auto-match."
-"完整模板：": "Full Template:"
-"我的检查": "My Check"
-"你的检查逻辑 ...                                                     ": "Your check logic..."
-"已添加检查项": "Check added"
-"排序已更新": "Sort order updated"
-"配置已保存": "Config saved"
-"确定要删除检查项": "Delete check item"
-"吗？": "?"
-"请输入 check_key": "Enter check_key"
-"自定义检查项": "Custom Check"
-"暂无告警记录": "No alert records"
-"检查项": "Check Items"
-"全部标记已读": "Mark All Read"
-"已全部标记已读": "All marked as read"
-"暂无报告可导出": "No report to export"
-"报告已导出": "Report exported"
-"导出失败": "Export failed"
-"仅 DB 记录": "DB Only"
-"方式 2 ": "Method 2 "

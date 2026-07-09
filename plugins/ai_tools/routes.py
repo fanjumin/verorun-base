@@ -313,7 +313,8 @@ def generate_image():
         return jsonify({
             'success': True,
             'images': [],
-            'message': f'图像生成：「{prompt}」（{style}，{count}张）\n图像生成API接入中。提示词已通过AI增强，后续接入通义万相/DeepSeek Janus即可自动生成。'
+            'message': _t('图像生成：「{prompt}」（{style}，{count}张）\n图像生成API接入中。提示词已通过AI增强，后续接入通义万相/DeepSeek Janus即可自动生成。',
+                          prompt=prompt, style=style, count=count)
         })
     except Exception as e:
         import traceback; traceback.print_exc()
