@@ -147,7 +147,7 @@ class PluginManager:
             try:
                 from i18n import seed_plugin_translations
                 for disk_info in discovered:
-                    locale_dir = os.path.join(disk_info.path, 'locale')
+                    locale_dir = os.path.join(disk_info.path, 'i18n')
                     if os.path.isdir(locale_dir):
                         seed_plugin_translations(disk_info.identifier, locale_dir)
             except Exception as e:

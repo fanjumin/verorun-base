@@ -1875,232 +1875,11 @@ def reorder_social_links():
     return jsonify({'success': True})
 
 # ════════════════════════════════════════════════════════════════
-# 频道管理 — 飞书/微信/QQ/钉钉
+# 频道管理（IM Gateway）已迁移至 plugins/im_gateway/
+#   - REST 路由：plugins/im_gateway/routes.py（/admin/channels/*）
+#   - 第三方逻辑：plugins/im_gateway/adapters/*
+#   - 独立数据库：plugins/im_gateway/im_gateway.db
 # ════════════════════════════════════════════════════════════════
-
-@admin_bp.route('/channels', methods=['GET'])
-def list_channels():
-    """获取所有频道配置（secret 值掩码）"""
-    admin, err = _require_admin()
-    if err: return err
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT id, channel, config_json, is_enabled, created_at, updated_at FROM channel_configs ORDER BY id'
-        ).fetchall()
-    result = []
-    for r in rows:
-        cfg = json.loads(r['config_json'] or '{}')
-        # 掩码 secret 类字段
-        for key in list(cfg.keys()):
-            if 'secret' in key or 'token' in key or 'key' in key:
-                val = cfg[key]
-                if val and len(val) > 4:
-                    cfg[key] = val[:4] + '●' * (len(val) - 4)
-        result.append({
-            'id': r['id'],
-            'channel': r['channel'],
-            'config': cfg,
-            'is_enabled': r['is_enabled'],
-            'created_at': r['created_at'],
-            'updated_at': r['updated_at'],
-        })
-    return jsonify({'success': True, 'data': result})
-
-
-@admin_bp.route('/channels/<channel>', methods=['GET'])
-def get_channel(channel):
-    """获取单个频道配置（secret 掩码）"""
-    admin, err = _require_admin()
-    if err: return err
-    with get_db() as conn:
-        row = conn.execute(
-            'SELECT id, channel, config_json, is_enabled, created_at, updated_at FROM channel_configs WHERE channel=?',
-            (channel,)
-        ).fetchone()
-    if not row:
-        # 返回空配置让前端知道这是新频道
-        return jsonify({'success': True, 'data': {
-            'channel': channel,
-            'config': {},
-            'is_enabled': 0,
-            'from_env': _get_env_fallback(channel),
-        }})
-    cfg = json.loads(row['config_json'] or '{}')
-    for key in list(cfg.keys()):
-        if 'secret' in key or 'token' in key or 'key' in key:
-            val = cfg[key]
-            if val and len(val) > 4:
-                cfg[key] = val[:4] + '●' * (len(val) - 4)
-    return jsonify({'success': True, 'data': {
-        'channel': row['channel'],
-        'config': cfg,
-        'is_enabled': row['is_enabled'],
-        'created_at': row['created_at'],
-        'updated_at': row['updated_at'],
-        'from_env': _get_env_fallback(channel),
-    }})
-
-
-@admin_bp.route('/channels/<channel>', methods=['PUT'])
-def update_channel(channel):
-    """保存/更新频道配置"""
-    admin, err = _require_admin()
-    if err: return err
-    data = request.get_json(force=True) or {}
-    config = data.get('config', {})
-    is_enabled = 1 if data.get('is_enabled', False) else 0
-
-    # 与现有 config 合并：如果传来的某字段是掩码值（含●），保留旧值
-    with get_db() as conn:
-        existing = conn.execute(
-            'SELECT config_json FROM channel_configs WHERE channel=?', (channel,)
-        ).fetchone()
-        old_cfg = json.loads(existing['config_json']) if existing else {}
-
-    merged = dict(old_cfg)
-    for k, v in config.items():
-        if isinstance(v, str) and '●' in v:
-            continue  # 掩码值，不覆盖
-        merged[k] = v
-
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO channel_configs (channel, config_json, is_enabled)
-               VALUES (?, ?, ?)
-               ON CONFLICT(channel) DO UPDATE SET
-               config_json=excluded.config_json, is_enabled=excluded.is_enabled,
-               updated_at=datetime('now')""",
-            (channel, json.dumps(merged, ensure_ascii=False), is_enabled)
-        )
-        conn.commit()
-    _log(admin['user_id'], 'update', 'channel_config', channel, f'频道配置已更新')
-    return jsonify({'success': True, 'message': f'{channel} 配置已保存'})
-
-
-@admin_bp.route('/channels/<channel>/test', methods=['POST'])
-def test_channel(channel):
-    """测试频道连接"""
-    admin, err = _require_admin()
-    if err: return err
-    if channel not in ('feishu', 'wecom', 'dingtalk', 'qq'):
-        return jsonify({'success': False, 'error': f'{channel} 暂不支持连接测试'}), 400
-
-    data = request.get_json(force=True) or {}
-
-    if channel == 'feishu':
-        app_id = data.get('app_id', '').strip()
-        app_secret = data.get('app_secret', '').strip()
-        if not app_id or not app_secret:
-            return jsonify({'success': False, 'error': 'App ID 和 App Secret 不能为空'}), 400
-        try:
-            import requests as _req
-            resp = _req.post(
-                'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-                json={'app_id': app_id, 'app_secret': app_secret},
-                timeout=10
-            )
-            resp_data = resp.json()
-            if resp_data.get('code') == 0:
-                return jsonify({'success': True, 'message': '飞书连接成功！'})
-            else:
-                return jsonify({'success': False, 'error': f"飞书返回错误: {resp_data.get('msg', '未知')} (code={resp_data.get('code')})"}), 400
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'连接失败: {str(e)}'}), 500
-
-    # wecom
-    if channel == 'wecom':
-        corp_id = data.get('corp_id', '').strip()
-        secret = data.get('secret', '').strip()
-        if not corp_id or not secret:
-            return jsonify({'success': False, 'error': '企业ID 和 Secret 不能为空'}), 400
-        try:
-            import requests as _req
-            resp = _req.get(
-                f'https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={corp_id}&corpsecret={secret}',
-                timeout=10
-            )
-            resp_data = resp.json()
-            if resp_data.get('access_token'):
-                return jsonify({'success': True, 'message': '企业微信连接成功！'})
-            else:
-                return jsonify({'success': False, 'error': f"企业微信返回: {resp_data.get('errmsg', '未知')} (errcode={resp_data.get('errcode')})"}), 400
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'连接失败: {str(e)}'}), 500
-
-    # dingtalk - 尝试使用 appkey/appsecret 获取 access_token
-    if channel == 'dingtalk':
-        app_key = data.get('app_key', '').strip() or data.get('appId','').strip()
-        app_secret = data.get('app_secret', '').strip() or data.get('appSecret','').strip()
-        if not app_key or not app_secret:
-            return jsonify({'success': False, 'error': 'AppKey 和 AppSecret 不能为空'}), 400
-        try:
-            import requests as _req
-            resp = _req.get(
-                f'https://oapi.dingtalk.com/gettoken?appkey={app_key}&appsecret={app_secret}',
-                timeout=10
-            )
-            resp_data = resp.json()
-            if resp_data.get('access_token'):
-                return jsonify({'success': True, 'message': '钉钉连接成功！'})
-            else:
-                return jsonify({'success': False, 'error': f"钉钉返回: {resp_data.get('errmsg', '未知')} (errcode={resp_data.get('errcode')})"}), 400
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'连接失败: {str(e)}'}), 500
-
-    # qq - QQ 开放平台没有统一的短测 token 接口，使用最小凭证校验：检查 app_id/app_key 非空
-    if channel == 'qq':
-        app_id = data.get('app_id', '').strip()
-        app_key = data.get('app_key', '').strip()
-        if not app_id or not app_key:
-            return jsonify({'success': False, 'error': 'App ID 和 App Key 不能为空'}), 400
-        # 无标准单次 token 接口，先进行参数校验并返回成功提示（如需更严格校验，可实现 OAuth 流程验证）
-        return jsonify({'success': True, 'message': 'QQ 凭证已接受（未做第三方 API 调用）'})
-
-
-def _get_env_fallback(channel: str) -> dict:
-    """返回当前环境变量中的频道配置（供前端参考）"""
-    if channel == 'feishu':
-        import os as _os
-        cfg = {}
-        app_id = _os.environ.get('FEISHU_APP_ID', '')
-        app_secret = _os.environ.get('FEISHU_APP_SECRET', '')
-        admin_id = _os.environ.get('FEISHU_ADMIN_OPEN_ID', '')
-        verify_token = _os.environ.get('FEISHU_VERIFICATION_TOKEN', '')
-        if app_id:
-            cfg['app_id'] = app_id
-        if app_secret:
-            cfg['app_secret'] = app_secret[:4] + '●' * max(0, len(app_secret) - 4) if len(app_secret) > 4 else app_secret
-        if admin_id:
-            cfg['admin_open_id'] = admin_id
-        if verify_token:
-            cfg['verification_token'] = verify_token[:4] + '●' * max(0, len(verify_token) - 4) if len(verify_token) > 4 else verify_token
-        encrypt_key = _os.environ.get('FEISHU_ENCRYPT_KEY', '')
-        if encrypt_key:
-            cfg['encrypt_key'] = encrypt_key[:4] + '●' * max(0, len(encrypt_key) - 4) if len(encrypt_key) > 4 else encrypt_key
-        return cfg
-    if channel == 'wecom':
-        import os as _os
-        cfg = {}
-        corp_id = _os.environ.get('WECOM_CORP_ID', '')
-        secret = _os.environ.get('WECOM_SECRET', '')
-        agent_id = _os.environ.get('WECOM_AGENT_ID', '')
-        touser = _os.environ.get('WECOM_TOUSER', '')
-        token = _os.environ.get('WECOM_TOKEN', '')
-        aes_key = _os.environ.get('WECOM_ENCODING_AES_KEY', '')
-        if corp_id:
-            cfg['corp_id'] = corp_id
-        if secret:
-            cfg['secret'] = secret[:4] + '●' * max(0, len(secret) - 4) if len(secret) > 4 else secret
-        if agent_id:
-            cfg['agent_id'] = agent_id
-        if touser:
-            cfg['touser'] = touser
-        if token:
-            cfg['token'] = token[:4] + '●' * max(0, len(token) - 4) if len(token) > 4 else token
-        if aes_key:
-            cfg['encoding_aes_key'] = aes_key[:4] + '●' * max(0, len(aes_key) - 4) if len(aes_key) > 4 else aes_key
-        return cfg
-    return {}
 
 # =============================================
 # GET /admin/users/export — 脱敏导出用户列表
@@ -3781,16 +3560,19 @@ def media_library_push(fid):
     mime = row['mime_type']
 
     result = {'success': True, 'target': target}
-    if target == 'feishu':
+    if target in ('feishu', 'wecom'):
         try:
-            _push_media_to_feishu(file_url, filename, mime)
+            im = None
+            import flask as _flask
+            pm = _flask.current_app.extensions.get('plugin_manager') if hasattr(_flask.current_app, 'extensions') else None
+            if pm and pm.is_enabled('im_gateway'):
+                im = pm.get_instance('im_gateway')
+            if im is None:
+                result = {'success': False, 'error': 'IM 网关插件未启用，无法推送'}
+            else:
+                im.push_media(target, file_url, filename, mime)
         except Exception as e:
-            result = {'success': False, 'error': '飞书推送失败: ' + str(e)}
-    elif target == 'wecom':
-        try:
-            _push_media_to_wecom(file_url, filename, mime)
-        except Exception as e:
-            result = {'success': False, 'error': '企微推送失败: ' + str(e)}
+            result = {'success': False, 'error': f'{target} 推送失败: ' + str(e)}
 
     if result['success']:
         with get_db() as conn:
@@ -3803,143 +3585,9 @@ def media_library_push(fid):
     return jsonify(result)
 
 
-def _push_media_to_feishu(file_url, filename, mime):
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT config_json FROM channel_configs WHERE channel_name='feishu' AND is_enabled=1 LIMIT 1"
-        ).fetchone()
-    if not row or not row['config_json']:
-        raise Exception("飞书通道未配置")
-    import json as _json
-    cfg = _json.loads(row['config_json'])
-    app_id = cfg.get('app_id', '')
-    app_secret = cfg.get('app_secret', '')
-    if not app_id or not app_secret:
-        raise Exception("飞书 App ID 或 App Secret 为空")
-    import urllib.request as _ur
-    token_resp = _json.loads(_ur.urlopen(
-        _ur.Request('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-                    data=_json.dumps({"app_id": app_id, "app_secret": app_secret}).encode(),
-                    headers={'Content-Type': 'application/json'})
-    ).read())
-    token = token_resp.get('tenant_access_token', '')
-    if not token:
-        raise Exception("飞书 Token 获取失败: " + str(token_resp))
-
-    chat_id = cfg.get('chat_id', '')
-    if not chat_id:
-        raise Exception("飞书群 chat_id 未配置")
-
-    is_image = mime.startswith('image/')
-    if is_image:
-        body = {
-            "receive_id": chat_id, "msg_type": "image",
-            "content": _json.dumps({"image_key": _upload_feishu_image(token, file_url)})
-        }
-    elif mime.startswith('video/') or mime.startswith('audio/'):
-        body = {
-            "receive_id": chat_id, "msg_type": "file",
-            "content": _json.dumps({"file_key": _upload_feishu_file(token, file_url, filename, mime)})
-        }
-    else:
-        card = {
-            "header": {"title": {"tag": "plain_text", "content": "媒体文件"}, "template": "blue"},
-            "elements": [
-                {"tag": "div", "text": {"tag": "lark_md",
-                 "content": "**{}**".format(filename)}},
-                {"tag": "action", "actions": [
-                    {"tag": "button", "text": {"tag": "plain_text", "content": "下载"},
-                     "type": "primary", "url": file_url}
-                ]}
-            ]
-        }
-        body = {"receive_id": chat_id, "msg_type": "interactive", "content": _json.dumps(card)}
-
-    url = 'https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id'
-    resp = _json.loads(_ur.urlopen(_ur.Request(url,
-        data=_json.dumps(body).encode(),
-        headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
-    )).read())
-    if resp.get('code', -1) != 0:
-        raise Exception(resp.get('msg', '飞书消息发送失败'))
-
-
-def _upload_feishu_image(token, file_url):
-    import urllib.request as _ur, json as _json
-    img_data = _ur.urlopen(file_url).read()
-    boundary = '----FormBoundary7MA4YWxkTrZu0gW'
-    body = (b'--' + boundary.encode() + b'\r\n'
-            b'Content-Disposition: form-data; name="image_type"\r\n\r\nmessage\r\n'
-            b'--' + boundary.encode() + b'\r\n'
-            b'Content-Disposition: form-data; name="image"; filename="image"\r\n'
-            b'Content-Type: application/octet-stream\r\n\r\n' + img_data + b'\r\n'
-            b'--' + boundary.encode() + b'--\r\n')
-    resp = _json.loads(_ur.urlopen(_ur.Request(
-        'https://open.feishu.cn/open-apis/im/v1/images', data=body,
-        headers={'Authorization': 'Bearer ' + token,
-                 'Content-Type': 'multipart/form-data; boundary=' + boundary}
-    )).read())
-    if resp.get('code', -1) != 0:
-        raise Exception("上传图片失败: " + resp.get('msg', ''))
-    return resp['data']['image_key']
-
-
-def _upload_feishu_file(token, file_url, filename, mime):
-    import urllib.request as _ur, json as _json
-    file_data = _ur.urlopen(file_url).read()
-    boundary = '----FormBoundary7MA4YWxkTrZu0gW'
-    file_type = 'mp4' if mime.startswith('video/') else 'opus'
-    body = (b'--' + boundary.encode() + b'\r\n'
-            b'Content-Disposition: form-data; name="file_type"\r\n\r\n' +
-            file_type.encode() + b'\r\n'
-            b'--' + boundary.encode() + b'\r\n'
-            b'Content-Disposition: form-data; name="file_name"\r\n\r\n' +
-            filename.encode() + b'\r\n'
-            b'--' + boundary.encode() + b'\r\n'
-            b'Content-Disposition: form-data; name="file"; filename="' +
-            filename.encode() + b'"\r\n'
-            b'Content-Type: application/octet-stream\r\n\r\n' + file_data + b'\r\n'
-            b'--' + boundary.encode() + b'--\r\n')
-    resp = _json.loads(_ur.urlopen(_ur.Request(
-        'https://open.feishu.cn/open-apis/im/v1/files', data=body,
-        headers={'Authorization': 'Bearer ' + token,
-                 'Content-Type': 'multipart/form-data; boundary=' + boundary}
-    )).read())
-    if resp.get('code', -1) != 0:
-        raise Exception("上传文件失败: " + resp.get('msg', ''))
-    return resp['data']['file_key']
-
-
-def _push_media_to_wecom(file_url, filename, mime):
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT config_json FROM channel_configs WHERE channel_name='wecom' AND is_enabled=1 LIMIT 1"
-        ).fetchone()
-    if not row or not row['config_json']:
-        raise Exception("企微通道未配置")
-    import json as _json
-    cfg = _json.loads(row['config_json'])
-    webhook = cfg.get('webhook_url', '')
-    if not webhook:
-        raise Exception("企微 webhook_url 为空")
-    import urllib.request as _ur
-    if mime.startswith('image/'):
-        body = {"msgtype": "image", "image": {"base64": _fetch_as_base64(file_url), "md5": ""}}
-    elif mime.startswith('video/') or mime.startswith('audio/'):
-        body = {"msgtype": "file", "file": {"media_id": "暂不支持文件上传"}}
-    else:
-        body = {"msgtype": "markdown",
-                "markdown": {"content": "**{}**\n[下载文件]({})".format(filename, file_url)}}
-    resp = _json.loads(_ur.urlopen(_ur.Request(webhook,
-        data=_json.dumps(body).encode(), headers={'Content-Type': 'application/json'}
-    )).read())
-    if resp.get('errcode', -1) != 0:
-        raise Exception(resp.get('errmsg', '企微推送失败'))
-
-
-def _fetch_as_base64(url):
-    import urllib.request as _ur, base64 as _b64
-    return _b64.b64encode(_ur.urlopen(url).read()).decode()
+# NOTE: 媒体推送函数（_push_media_to_feishu / _push_media_to_wecom / _upload_feishu_*
+#        / _fetch_as_base64）已迁移至 plugins/im_gateway/adapters/，
+#        由 media_library_push 通过插件实例 im.push_media() 调用。
 
 
 def _send_file_or_stream(fp, filename, mime):

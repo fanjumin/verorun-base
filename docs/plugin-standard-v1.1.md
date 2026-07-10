@@ -687,3 +687,58 @@ plugins/<name>/
 - `network:request` 权限默认关闭，开启需管理员确认
 - 插件发起的 HTTP 请求默认超时 10 秒
 - 禁止访问内网 IP 段（127.0.0.0/8、10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）
+
+---
+
+## 12. 模块解耦标准操作手册（2026-07 追加）
+
+> 本章沉淀自"系统模块 → 插件"解耦实践（IM Gateway 试点），作为后续模块解耦的统一模板。
+
+### 12.1 i18n 前置铁律
+
+插件翻译文件必须放在 `plugins/<id>/i18n/{zh-CN,en}.yml`（**不是 `locale/`**）。
+PluginManager 在 `init_app` 时调用 `seed_plugin_translations()` 将其写入主库 `i18n_strings` 表，
+使全局 `{{ _() }}` 能查到。模板统一用 `{{ _('English Source') }}`，源串为英文，
+`zh-CN.yml` 提供中文映射，`en.yml` 为同一映射（identity）。
+
+### 12.2 标准目录结构
+
+```
+plugins/<id>/
+├── plugin.json          # 标识/菜单/settings_schema（menu.key 复用旧前端函数名以兼容侧边栏）
+├── __init__.py          # <Name>Plugin(BasePlugin)：on_install 建表+迁移、register_routes、对外接口
+├── models.py            # 独立库 <id>.db：get_<id>_db() / init_<id>_db() / migrate_from_main_db()
+├── routes.py            # Blueprint，url_prefix 保持与迁出前一致（如 /admin/channels）
+├── adapters/            # （可选）多实现抽象：base.py 基类 + 各实现子类 + __init__.py 工厂
+├── templates/           # 前端 partial（从 admin/templates/partials/ 迁入）
+└── i18n/                # zh-CN.yml / en.yml
+```
+
+### 12.3 独立库 + 主库只读契约
+
+- 插件自有数据写独立库 `plugins/<id>/<id>.db`（`get_<id>_db()`）。
+- 需读主库时用 `from models import get_db`（只读），严禁跨库 JOIN / 写主库结构。
+- `migrate_from_main_db()`：从主库同名表幂等迁移历史数据，仅在本地为空时覆盖，避免回退用户新配置。
+
+### 12.4 主系统改造清单（迁出四件事）
+
+1. **路由**：删除 admin.py 中迁出的路由，留一行迁移注释。
+2. **模板 include**：admin.html 的 `{% include 'partials/x.html' %}` 改为
+   `{% include 'plugins/<id>/templates/xxx.html' ignore missing %}`。
+3. **前端 JS**：从 partials 中删除迁出的函数块，迁入插件模板。
+4. **跨模块调用**：主系统若需调插件能力（如媒体库推送），通过
+   `app.extensions['plugin_manager'].get_instance('<id>')` 获取实例调用，
+   插件禁用时实例为 None，主系统据此降级提示。
+
+### 12.5 双写过渡与卸载零残留
+
+- 迁移后**保留主库旧表**一个过渡期（删表是破坏性操作，需单独批准）。
+  部署验证插件读写正常后，再单独批准删主库表。
+- `on_uninstall` 需清理插件独立库与注册的 Agent（`WHERE source_plugin='<id>'`）。
+
+### 12.6 验证步骤
+
+1. `python -m py_compile` 全部新增/修改的 .py 文件。
+2. 隔离脚本验证：插件导入、`init_db`、adapter 工厂、对外接口可调用。
+3. `GetDiagnostics` 无报错。
+4. 部署到服务器后，验证真实数据迁移 + 页面功能 + i18n 显示。
