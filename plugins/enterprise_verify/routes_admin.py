@@ -53,20 +53,39 @@ def enterprise_verification_list():
         (status,)
     ).fetchone()['c']
 
-    rows = ev_conn.execute("""
-        SELECT ev.*, u.display_name, u.phone, u.email
-        FROM enterprise_verifications ev
-        JOIN users u ON ev.user_id = u.id
-        WHERE ev.status = ?
-        ORDER BY ev.created_at DESC
+    # 1) 插件库查认证记录（不跨库 JOIN）
+    ev_rows = ev_conn.execute("""
+        SELECT * FROM enterprise_verifications
+        WHERE status = ?
+        ORDER BY created_at DESC
         LIMIT ? OFFSET ?
     """, (status, limit, offset)).fetchall()
+    verifications = [dict(r) for r in ev_rows]
+
+    # 2) 主库批量补充用户信息（display_name/phone/email）
+    user_ids = list({v['user_id'] for v in verifications if v.get('user_id')})
+    user_map = {}
+    if user_ids:
+        placeholders = ','.join('?' * len(user_ids))
+        with _get_main_db() as conn:
+            urows = conn.execute(
+                f"SELECT id, display_name, phone, email FROM users WHERE id IN ({placeholders})",
+                user_ids
+            ).fetchall()
+            user_map = {u['id']: dict(u) for u in urows}
+
+    # 3) Python 内合并
+    for v in verifications:
+        u = user_map.get(v.get('user_id'), {})
+        v['display_name'] = u.get('display_name')
+        v['phone'] = u.get('phone')
+        v['email'] = u.get('email')
 
     return jsonify({
         "success": True,
         "data": {
             "total": total,
-            "verifications": [dict(r) for r in rows],
+            "verifications": verifications,
         }
     })
 
