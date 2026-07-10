@@ -29,16 +29,7 @@ class AgentRunner:
     def _get_engine(self):
         if not self._engine:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-            import traceback
-            with open('/tmp/hermes_runner_debug.log', 'a') as f:
-                f.write(f"AgentRunner._get_engine called for agent_id={self.agent_id}, name={self.name}, "
-                       f"provider={self.config.get('provider','?')}, model={self.config.get('model_name','?')}, "
-                       f"api_key_ref={self.config.get('api_key_ref','?')}\n")
-                traceback.print_stack(file=f)
-            from agent_matrix.engine import AIEngine, _get_system_key
-            with open('/tmp/hermes_runner_debug.log', 'a') as f:
-                test_key = _get_system_key(self.config.get('api_key_ref', ''))
-                f.write(f"  -> _get_system_key returned: last_8={test_key[-8:] if test_key else 'N/A'}\n")
+            from agent_matrix.engine import AIEngine
             self._engine = AIEngine(self.config)
             self._engine_ready = self._engine.is_ready()
         return self._engine
