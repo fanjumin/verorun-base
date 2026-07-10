@@ -109,19 +109,20 @@ class PluginManager:
             if auto_installed > 0:
                 print(f'[PluginManager] ✅ 自动安装 {auto_installed} 个新插件')
                 self._load_cache()  # 重新加载缓存
-                # 自动启用新安装的插件
-                auto_enabled = 0
-                for info in discovered:
-                    cached = self._cache.get(info.identifier)
-                    if cached and cached.status == PluginStatus.INSTALLED:
-                        try:
-                            self.enable(info.identifier)
-                            auto_enabled += 1
-                        except Exception as e:
-                            print(f'[PluginManager] ⚠️ auto-enable {info.identifier}: {e}')
-                if auto_enabled > 0:
-                    print(f'[PluginManager] ✅ 自动启用 {auto_enabled} 个新插件')
-                    self._load_cache()
+
+            # 自动启用所有 INSTALLED 状态的插件（新安装 + 已安装未启用）
+            auto_enabled = 0
+            for info in discovered:
+                cached = self._cache.get(info.identifier)
+                if cached and cached.status == PluginStatus.INSTALLED:
+                    try:
+                        self.enable(info.identifier)
+                        auto_enabled += 1
+                    except Exception as e:
+                        print(f'[PluginManager] ⚠️ auto-enable {info.identifier}: {e}')
+            if auto_enabled > 0:
+                print(f'[PluginManager] ✅ 自动启用 {auto_enabled} 个插件')
+                self._load_cache()
 
             # 用磁盘 plugin.json 刷新已缓存插件的静态元信息（menu/version 等）。
             # 仅更新内存缓存，不写 DB，避免污染运行时状态（status/config）；
