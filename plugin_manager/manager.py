@@ -501,6 +501,94 @@ class PluginManager:
         if mounted:
             print(f'[PluginManager] ✅ 启动挂载路由: {mounted}')
 
+    def mount_all_routes(self):
+        """启动期挂载**所有已安装插件**（含 disabled）的路由 + 注册前缀映射。
+
+        Flask 3.x 运行时无法动态 register_blueprint，因此启用/禁用免重启的做法是：
+        启动时把磁盘上所有插件的 Blueprint 全部挂上，运行时由 before_request 门卫
+        按 DB/缓存中的实时启用状态放行或拦截（禁用则 404），从而无需重启。
+
+        同时把每个插件的路由前缀记录到 self._plugin_prefixes，供门卫精确匹配。
+        幂等：已挂载的 Blueprint（同名）会跳过，可安全重复调用。
+        """
+        if not self.app:
+            return
+        # {url_prefix: identifier} —— 供门卫按最长前缀匹配
+        if not hasattr(self, '_plugin_prefixes'):
+            self._plugin_prefixes = {}
+        mounted = []
+        for identifier, info in self._cache.items():
+            # 只跳过已卸载/未知状态；installed/enabled/active/disabled 都挂载
+            if info.status in (PluginStatus.UNINSTALLED, PluginStatus.UNKNOWN):
+                continue
+            try:
+                instance = self._instances.get(identifier)
+                if instance is None:
+                    instance = self._load_instance(info)
+                    if hasattr(instance, 'setup') and callable(instance.setup):
+                        instance.setup()
+                    self._instances[identifier] = instance
+                if hasattr(instance, 'register_routes'):
+                    for bp in instance.register_routes():
+                        prefix = self._get_route_prefix(identifier, bp)
+                        self._plugin_prefixes[prefix] = identifier
+                        if bp.name in self.app.blueprints:
+                            continue  # 已挂载，跳过
+                        self.app.register_blueprint(bp, url_prefix=prefix)
+                        mounted.append(f'{identifier}:{prefix}')
+            except Exception as e:
+                print(f'[PluginManager] ⚠️ mount-all {identifier} failed: {e}')
+        if mounted:
+            print(f'[PluginManager] ✅ 启动挂载全部插件路由: {mounted}')
+
+    def is_path_allowed(self, path: str) -> bool:
+        """门卫：判断请求路径对应的插件是否处于启用状态。
+
+        Args:
+            path: request.path，如 '/plugin/coupons/api/list'
+
+        Returns:
+            True  → 非插件路径，或插件已启用（放行）
+            False → 命中某个已挂载但当前被禁用的插件（应拦截为 404）
+        """
+        prefixes = getattr(self, '_plugin_prefixes', None)
+        if not prefixes:
+            return True
+        # 最长前缀匹配，避免 /plugin/a 误伤 /plugin/ab
+        matched_id = None
+        matched_len = -1
+        for prefix, identifier in prefixes.items():
+            if prefix and (path == prefix or path.startswith(prefix + '/')):
+                if len(prefix) > matched_len:
+                    matched_len = len(prefix)
+                    matched_id = identifier
+        if matched_id is None:
+            return True  # 非插件路径
+        return self.is_enabled(matched_id)
+
+    def refresh_status_from_db(self):
+        """重新从 plugin_registry 读取各插件状态，刷新内存缓存中的 status。
+
+        仅更新 status 字段，不重建实例/不动路由，供门卫读取最新启用状态。
+        用于跨进程或非 API 途径改库后同步（可选，由调用方按需调用）。
+        """
+        try:
+            with get_registry_db() as conn:
+                rows = conn.execute(
+                    'SELECT identifier, status FROM plugin_registry'
+                ).fetchall()
+        except Exception as e:
+            print(f'[PluginManager] ⚠️ refresh_status_from_db failed: {e}')
+            return
+        for row in rows:
+            d = dict(row)
+            info = self._cache.get(d['identifier'])
+            if info is not None:
+                try:
+                    info.status = PluginStatus(d['status'])
+                except ValueError:
+                    pass
+
     # ── 查询方法 ────────────────────────────────────────────────────────
 
     def get_info(self, identifier: str) -> Optional[PluginInfo]:

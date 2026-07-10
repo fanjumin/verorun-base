@@ -149,7 +149,17 @@ try:
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
-    pm.mount_active_routes()   # 启动期挂载已启用插件的路由（首个请求前）
+    # 启动期挂载全部已安装插件（含 disabled）的路由，运行时由门卫按启用状态放行/拦截，
+    # 从而实现后台启用/禁用插件免重启（Flask 3 运行时无法动态注册蓝图）。
+    pm.mount_all_routes()
+
+    @app.before_request
+    def _plugin_gatekeeper():
+        """禁用插件的路由请求返回 404，等价于插件不存在。"""
+        from flask import request, abort
+        if not pm.is_path_allowed(request.path):
+            abort(404)
+
     print(f'[PluginManager] ✅ 管理 API 蓝图已注册 (/admin/plugins/*)')
 except Exception as e:
     print(f'[PluginManager] ❌ 初始化失败: {e}')
