@@ -108,11 +108,15 @@ class AgentRunner:
             self._log(task_id, 'warn', 'execution',
                        f'重试 #{retries}: confidence={confidence} < 0.7')
 
-            # 用更明确的 prompt 重试
+            # 用更明确的 prompt 重试，带入自检发现的问题点
+            issues = self_review.get('issues', [])
+            issues_str = ('\n'.join(f'- {i}' for i in issues)) if issues else '（无具体问题清单）'
             retry_query = (
                 f"之前的结果不理想（置信度: {confidence}）。\n"
-                f"自检反馈: {self_review.get('review', '')}\n\n"
-                f"请重新执行任务，特别注意以下改进点。\n\n"
+                f"自检反馈: {self_review.get('review', '')}\n"
+                f"需改进的问题:\n{issues_str}\n"
+                f"改进建议: {self_review.get('suggestion', '') or '无'}\n\n"
+                f"请针对上述问题重新执行任务。\n\n"
                 f"原任务: {user_query}"
             )
             response = engine.ask(retry_query)
@@ -178,8 +182,7 @@ class AgentRunner:
         return '\n'.join(parts)
 
     def _self_critique(self, response, task):
-        """自检：让 LLM 对自己的输出打分"""
-        title = task.get('title', '')
+        """自检：先做规则初判，灰区(0.5~0.8)时再让 LLM 做结构化自评"""
         expected = task.get('expected_output', {})
         if isinstance(expected, str):
             try:
@@ -187,7 +190,7 @@ class AgentRunner:
             except (json.JSONDecodeError, TypeError):
                 expected = {}
 
-        # 简单自检：检查输出长度和格式
+        # 1. 规则初判：检查输出长度和格式
         review_parts = []
         confidence = 0.85
 
@@ -209,14 +212,60 @@ class AgentRunner:
             review_parts.append("输出包含错误/失败信息")
             confidence = max(0.2, confidence - 0.3)
 
-        if not review_parts:
-            review_parts.append("基本质量通过")
-            confidence = min(1.0, confidence + 0.1)
-
-        return {
-            'confidence': round(confidence, 2),
-            'review': '; '.join(review_parts)
+        confidence = round(confidence, 2)
+        result = {
+            'confidence': confidence,
+            'review': '; '.join(review_parts),
+            'issues': [],
+            'suggestion': ''
         }
+
+        # 2. 灰区触发 LLM 结构化自评（仅 0.5~0.8 之间，控制成本）
+        if 0.5 <= confidence <= 0.8:
+            llm_review = self._llm_critique(response, task)
+            if llm_review:
+                result.update(llm_review)
+
+        return result
+
+    def _llm_critique(self, response, task):
+        """让 LLM 对输出做结构化自评，失败时返回 None 由规则结果兜底"""
+        engine = self._get_engine()
+        if not engine or not engine.is_ready():
+            return None
+
+        critique_prompt = (
+            "你是严格的质量审查员。请评估下面的【任务】与【输出】是否达标，"
+            "只输出纯 JSON（不要 markdown 代码块），格式：\n"
+            '{"confidence": 0.0-1.0 的浮点数, "issues": ["问题1", ...], "suggestion": "改进建议"}\n\n'
+            f"【任务】{task.get('title', '')}\n{task.get('description', '')}\n\n"
+            f"【输出】\n{response[:2000]}"
+        )
+        try:
+            raw = engine.ask(critique_prompt, temperature=0.2)
+            if not raw or raw.startswith('Error:'):
+                return None
+            import re as _re
+            match = _re.search(r'\{[\s\S]*\}', raw)
+            if not match:
+                return None
+            data = json.loads(match.group())
+            conf = float(data.get('confidence', 0.85))
+            conf = round(max(0.0, min(1.0, conf)), 2)
+            issues = data.get('issues', []) or []
+            suggestion = data.get('suggestion', '') or ''
+            review = 'LLM自评: ' + (suggestion or '通过')
+            if issues:
+                review += ' | 问题: ' + '; '.join(str(i) for i in issues)
+            return {
+                'confidence': conf,
+                'review': review,
+                'issues': issues,
+                'suggestion': suggestion
+            }
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            logger.warning(f"[{self.name}] LLM 自评解析失败，回退规则结果: {e}")
+            return None
 
     def _log(self, task_id, level, log_type, message):
         if self.models:
