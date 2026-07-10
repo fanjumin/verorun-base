@@ -1,7 +1,7 @@
-<script>
 // ============================================================
 // IM Gateway Plugin — 频道管理前端（迁移自 partials/channels.html + partials/tickets.html）
 // 依赖全局工具：T(token)、esc()、escAttr()（由 admin core 提供）
+// 注意：本文件为裸 JS，由 admin.html 外层统一 <script> 包裹，切勿在此再加 <script> 标签
 // ============================================================
 window.l_channels=function(){
   document.getElementById('pt').textContent='{{ _('Channel Management') }}';
@@ -369,4 +369,3 @@ function _wcTest(){
     msg.innerHTML='<span style="color:var(--rose)">{{ _('Network error') }}</span>';
   })
 }
-</script>

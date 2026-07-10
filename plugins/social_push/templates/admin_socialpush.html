@@ -1,8 +1,8 @@
-<script>
 // ============================================================
 // Social Push Plugin — 社媒推广前端（迁移自 partials/social.html 1-358）
 // 依赖全局工具：T(token)、esc()、showToast()、go()（由 admin core 提供）
 // 注意：AI 排版/配图按钮走 content_factory 插件；AI 生成/生成图片走本插件 social_bp
+// 本文件为裸 JS，由 admin.html 外层统一 <script> 包裹，切勿在此再加 <script> 标签
 // ============================================================
 window.l_social=function(){
   var h='';
@@ -374,4 +374,3 @@ function loadPublishHistory(){
     el.innerHTML=h;
   }).catch(function(){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
 }
-</script>
