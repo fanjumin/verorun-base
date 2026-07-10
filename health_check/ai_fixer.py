@@ -86,6 +86,16 @@ def _call_llm(system_prompt: str, user_prompt: str,
     AIEngine handles API key resolution across all supported providers,
     including DashScope, DeepSeek, SiliconFlow (all accessible in China).
     """
+    # AI 费用闸门：日预算熔断 + 速率限制，超限则拒绝本次调用
+    try:
+        from agent_matrix.engine import check_ai_budget
+        allowed, reason = check_ai_budget(scene='health_ai_fixer')
+        if not allowed:
+            logger.warning("[AIFixer] blocked by AI budget guard: %s", reason)
+            return None
+    except Exception as e:
+        logger.warning("[AIFixer] budget guard unavailable, proceeding: %s", e)
+
     engine_config = _build_aiengine_config()
 
     try:

@@ -6,6 +6,8 @@ Agent Matrix — AI 引擎
 复用 system_config 中的 API Key，无需额外配置。
 """
 import json, logging, sys, os, threading
+from collections import deque
+import time as _time
 
 logger = logging.getLogger(__name__)
 
@@ -388,3 +390,102 @@ def _log_token_usage(agent_id, agent_name, model_name, provider,
             conn.commit()
     except Exception:
         pass
+
+
+# ============================================================
+# AI 费用闸门（日预算熔断 + 速率限制）
+# ============================================================
+# 复用现有 agent_token_daily（算当日消耗）+ system_config（存阈值），
+# 不新建表/库/文件。任一维度超限即拒绝；读库异常时 fail-open 放行，
+# 避免闸门自身故障阻断正常业务。
+
+# 速率限制：进程内滑动窗口时间戳队列
+_AI_CALL_TIMES = deque()
+_AI_RATE_LOCK = threading.Lock()
+
+# 阈值默认值（system_config 无对应 key 时生效）
+_AI_BUDGET_DEFAULTS = {
+    'ai_budget_daily_tokens': 2000000,   # 全站每日 token 上限，0=不限
+    'ai_rate_max_calls': 30,             # 速率窗口内最大调用次数，0=不限
+    'ai_rate_window_sec': 60,            # 速率窗口秒数
+}
+
+
+def _get_ai_budget_config() -> dict:
+    """从 system_config 读取 AI 闸门阈值，缺失则用默认值。"""
+    cfg = dict(_AI_BUDGET_DEFAULTS)
+    try:
+        from models import get_db as _main_get_db
+        with _main_get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM system_config WHERE key IN "
+                "('ai_budget_daily_tokens','ai_rate_max_calls','ai_rate_window_sec')"
+            ).fetchall()
+        for r in rows:
+            key = r['key'] if not isinstance(r, tuple) else r[0]
+            val = r['value'] if not isinstance(r, tuple) else r[1]
+            if val is None or str(val).strip() == '':
+                continue
+            try:
+                cfg[key] = int(val)
+            except (ValueError, TypeError):
+                pass
+    except Exception as e:
+        logger.warning("[AIBudget] read config failed, using defaults: %s", e)
+    return cfg
+
+
+def _today_token_usage() -> int:
+    """读取全站今日已消耗 token 总数（来自 agent_token_daily 汇总表）。"""
+    try:
+        from agent_matrix.models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(total_tokens),0) AS c "
+                "FROM agent_token_daily WHERE stat_date = date('now')"
+            ).fetchone()
+        if row is None:
+            return 0
+        return int(row['c'] if not isinstance(row, tuple) else row[0])
+    except Exception as e:
+        logger.warning("[AIBudget] read daily usage failed: %s", e)
+        return -1  # -1 表示读取失败，交由调用方 fail-open
+
+
+def check_ai_budget(scene: str = '') -> tuple:
+    """AI 调用前的费用闸门检查。
+
+    Args:
+        scene: 调用场景标识（仅用于日志）
+
+    Returns:
+        (allowed: bool, reason: str)
+        allowed=True 放行；False 拒绝，reason 为原因。
+        读库/配置异常时 fail-open（放行）。
+    """
+    cfg = _get_ai_budget_config()
+
+    # 1) 速率限制（进程内滑动窗口）
+    max_calls = cfg.get('ai_rate_max_calls', 0) or 0
+    window = cfg.get('ai_rate_window_sec', 60) or 60
+    if max_calls > 0:
+        now = _time.time()
+        with _AI_RATE_LOCK:
+            while _AI_CALL_TIMES and now - _AI_CALL_TIMES[0] > window:
+                _AI_CALL_TIMES.popleft()
+            if len(_AI_CALL_TIMES) >= max_calls:
+                logger.warning("[AIBudget] rate limit hit (scene=%s): %d/%ds",
+                               scene, max_calls, window)
+                return False, f'AI 调用速率超限（{max_calls} 次/{window} 秒），请稍后再试'
+            _AI_CALL_TIMES.append(now)
+
+    # 2) 日预算熔断
+    daily_limit = cfg.get('ai_budget_daily_tokens', 0) or 0
+    if daily_limit > 0:
+        used = _today_token_usage()
+        if used >= 0 and used >= daily_limit:
+            logger.warning("[AIBudget] daily budget exhausted (scene=%s): %d/%d",
+                           scene, used, daily_limit)
+            return False, f'今日 AI 预算已用尽（{used}/{daily_limit} tokens）'
+
+    return True, ''
