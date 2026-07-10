@@ -343,9 +343,13 @@ def media_download(filename):
 
 @ai_tools_bp.route('/ai-tools/')
 def ai_tools_embed():
-    """返回 AI Tools 嵌入式仪表盘 HTML"""
-    admin, err = _require_admin()
-    if err: return err
+    """返回 AI Tools 嵌入式仪表盘 HTML（iframe 加载，token 在 URL）"""
+    from services.jwt_service import validate_token
+    token = request.args.get('token') or \
+        request.headers.get('Authorization', '').replace('Bearer ', '')
+    payload = validate_token(token)
+    if not payload or not payload.get('is_admin'):
+        return '<div style="color:#888;padding:40px;text-align:center;font-family:sans-serif">请重新登录</div>', 401
     return '''<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
