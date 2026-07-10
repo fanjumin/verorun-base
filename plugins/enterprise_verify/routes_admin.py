@@ -36,7 +36,7 @@ def _get_ev_db():
 
 
 # ── GET /admin/enterprise-verifications ──
-@ev_admin_bp.route('', methods=['GET'])
+@ev_admin_bp.route('/', methods=['GET'])
 def enterprise_verification_list():
     admin, err = _require_admin()
     if err:

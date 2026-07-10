@@ -156,6 +156,15 @@ def revenue_dashboard():
     if err:
         return err
 
+    try:
+        return _revenue_dashboard_data()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"Revenue dashboard unavailable: {e}"}), 500
+
+
+def _revenue_dashboard_data():
     with get_db() as conn:
         # ── 收入汇总 ──
         today = conn.execute("""

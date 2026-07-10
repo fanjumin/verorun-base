@@ -31,8 +31,7 @@
         "group": "Customer Management",
         "key": "enterprise_verify",
         "icon": "enterprise_verify",
-        "label": "Enterprise Verification",
-        "embed_url": "/admin/enterprise-verifications"
+        "label": "Enterprise Verification"
     },
     "settings_schema": {
         "type": "object",

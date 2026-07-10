@@ -30,8 +30,7 @@
         "group": "Operations",
         "key": "ads",
         "icon": "ads",
-        "label": "Ad Management",
-        "embed_url": "/admin/ads/"
+        "label": "Ad Management"
     },
     "settings_schema": {
         "type": "object",

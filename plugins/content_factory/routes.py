@@ -28,6 +28,23 @@ def _get_db():
     return get_cf_db()
 
 
+# ── 根路由：仪表盘统计 ──
+@cf_bp.route('/', methods=['GET'])
+def dashboard():
+    admin, err = _require_admin()
+    if err: return err
+    conn = _get_db()
+    source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()[0]
+    pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()[0]
+    processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()[0]
+    published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()[0]
+    failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()[0]
+    return jsonify({'success': True, 'data': {
+        'source_count': source_count, 'pending': pending,
+        'processed': processed, 'published': published, 'failed': failed,
+    }})
+
+
 # =============================================
 # 1. 来源管理 CRUD
 # =============================================

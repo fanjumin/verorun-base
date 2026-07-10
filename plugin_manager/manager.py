@@ -279,6 +279,9 @@ class PluginManager:
                     if self.app and hasattr(instance, 'register_routes'):
                         bps = instance.register_routes()
                         for bp in bps:
+                            if bp.name in self.app.blueprints:
+                                print(f'[PluginManager] {identifier}: blueprint {bp.name} already mounted, skip')
+                                continue
                             prefix = self._get_route_prefix(identifier, bp)
                             self.app.register_blueprint(bp, url_prefix=prefix)
                             print(f'[PluginManager] {identifier}: mounted {prefix}')
@@ -294,6 +297,8 @@ class PluginManager:
                     self._save_to_db(info)
                     print(f'[PluginManager] ✅ {identifier} active (auto)')
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 print(f'[PluginManager] ⚠️ {identifier} auto-activate warning: {e}')
 
             return info
@@ -325,6 +330,9 @@ class PluginManager:
                 if self.app and hasattr(instance, 'register_routes'):
                     bps = instance.register_routes()
                     for bp in bps:
+                        if bp.name in self.app.blueprints:
+                            print(f'[PluginManager] {identifier}: blueprint {bp.name} already mounted, skip')
+                            continue
                         prefix = self._get_route_prefix(identifier, bp)
                         self.app.register_blueprint(bp, url_prefix=prefix)
                         print(f'[PluginManager] {identifier}: mounted {prefix}')
@@ -339,6 +347,8 @@ class PluginManager:
                 info.last_error = f'activate error: {e}'
                 info.status = PluginStatus.ERROR
                 self._save_to_db(info)
+                import traceback
+                traceback.print_exc()
                 print(f'[PluginManager] ❌ {identifier} activate failed: {e}')
                 raise
 

@@ -34,8 +34,7 @@
         "group": "Content",
         "key": "contentfactory",
         "icon": "contentfactory",
-        "label": "Content Factory",
-        "embed_url": "/admin/content-factory"
+        "label": "Content Factory"
     },
     "settings_schema": {
         "type": "object",
