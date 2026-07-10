@@ -33,7 +33,17 @@ from .exceptions import (
 from .hooks import HookRegistry, get_hook_registry
 from .event_bus import EventBus, get_event_bus, EventName
 from . import deps as deps_module
-from .config_validator import validate_config as _validate_config, coerce_config
+# config_validator 懒加载：避免 jsonschema→uuid→platform 导入链与项目 platform/ 目录冲突
+_validate_config = None
+_coerce_config = None
+
+def _get_validators():
+    global _validate_config, _coerce_config
+    if _validate_config is None:
+        from .config_validator import validate_config as vc, coerce_config as cc
+        _validate_config = vc
+        _coerce_config = cc
+    return _validate_config, _coerce_config
 from .logger import get_plugin_logger, init_plugin_logging
 from .license import LicenseManager, get_license_manager
 from .store import StoreAPIClient, get_store_client
@@ -547,7 +557,8 @@ class PluginManager:
             if validate and info.settings_schema:
                 test_config = dict(info.config)
                 test_config[key] = value
-                errors = _validate_config(test_config, info.settings_schema)
+                _v, _ = _get_validators()
+                errors = _v(test_config, info.settings_schema)
                 if errors:
                     print(f'[PluginManager] {identifier}: config validate warnings: {errors}')
 
@@ -578,10 +589,12 @@ class PluginManager:
 
             # 类型强制转换
             if coerce and schema:
-                target = coerce_config(target, schema)
+                _, _cc = _get_validators()
+                target = _cc(target, schema)
 
             # 校验
-            errors = _validate_config(target, schema)
+            _v, _ = _get_validators()
+            errors = _v(target, schema)
 
             if errors:
                 # 仍保存（宽松模式），但返回错误列表
@@ -616,7 +629,8 @@ class PluginManager:
 
         schema = info.settings_schema or {}
         target = config if config is not None else info.config
-        errors = _validate_config(target, schema)
+        _v, _ = _get_validators()
+        errors = _v(target, schema)
 
         return {
             'success': len(errors) == 0,
