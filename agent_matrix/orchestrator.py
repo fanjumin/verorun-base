@@ -575,7 +575,7 @@ class AgentOrchestrator:
             urls = _re.findall(r'/static/uploads/temp/[^\s]+', original_instruction)
             if urls:
                 rel_path = urls[0]
-                from auth-center.services.deployment_config import deploy
+                from services.deployment_config import deploy
                 ref_image_url = deploy.url('agent') + rel_path
                 ref_local_path = os.path.join(
                     os.path.dirname(os.path.abspath(__file__)),
@@ -590,7 +590,7 @@ class AgentOrchestrator:
                         old_urls = _re.findall(r'/static/uploads/temp/[^\s]+', content)
                         if old_urls:
                             rel_path = old_urls[0]
-                            from auth-center.services.deployment_config import deploy
+                            from services.deployment_config import deploy
                             ref_image_url = deploy.url('agent') + rel_path
                             ref_local_path = os.path.join(
                                 os.path.dirname(os.path.abspath(__file__)),
