@@ -79,7 +79,12 @@ class AgentRunner:
         self._log(task_id, 'info', 'api_call',
                    f'调用 {self.config.get("provider")}/{self.config.get("model_name")}')
 
-        if history:
+        # 按 allowed_tools 白名单决定是否启用 ReAct 工具循环
+        tools = self._get_tools()
+        if tools:
+            logs.append(f'[Tools] 启用 {len(tools)} 个工具，进入 ReAct 循环')
+            response = self._run_react_loop(engine, user_query, history, tools, logs, task_id)
+        elif history:
             response = engine.ask_with_history(history, user_query)
         else:
             response = engine.ask(user_query)
@@ -146,6 +151,88 @@ class AgentRunner:
             err_msg = f'重试 {retries} 次后 confidence={confidence} 仍低于阈值'
             self._log(task_id, 'error', 'execution', err_msg)
             return self._fail(err_msg, logs, confidence)
+
+    def _get_tools(self):
+        """按 Agent 的 allowed_tools 返回可用工具 schema，无则返回 []"""
+        try:
+            from agent_matrix.tools import get_tools_for_agent
+            return get_tools_for_agent(self.config.get('allowed_tools'))
+        except Exception as e:
+            logger.warning(f"[{self.name}] 加载工具失败，退回单轮: {e}")
+            return []
+
+    def _run_react_loop(self, engine, user_query, history, tools, logs, task_id,
+                        max_rounds=5):
+        """ReAct 工具循环：思考→调用工具→观察→再思考，直到模型给出终态答复。
+
+        任何异常/达到轮次上限均安全收尾，返回已有的文本（或错误字符串）。
+        """
+        from agent_matrix.tools import execute_tool
+
+        # 构建初始消息
+        messages = [{"role": "system", "content": self.config.get('system_prompt', '')}]
+        if history:
+            for h in history:
+                role = 'user' if h.get('role') == 'user' else 'assistant'
+                messages.append({"role": role, "content": h.get('content', '')})
+        messages.append({"role": "user", "content": user_query})
+
+        last_text = ''
+        for round_i in range(1, max_rounds + 1):
+            msg = engine.chat_with_tools(messages, tools)
+            if msg is None:
+                logs.append(f'[ReAct #{round_i}] 工具调用返回空，退回普通对话')
+                fallback = engine.ask(user_query)
+                return fallback if not last_text else last_text
+
+            tool_calls = getattr(msg, 'tool_calls', None)
+            if msg.content:
+                last_text = msg.content
+
+            # 模型未请求工具 → 终态答复
+            if not tool_calls:
+                self._log(task_id, 'info', 'execution',
+                           f'ReAct 于第 {round_i} 轮结束（无更多工具调用）')
+                return last_text or ''
+
+            # 把 assistant 的 tool_calls 消息追加回上下文
+            messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    } for tc in tool_calls
+                ]
+            })
+
+            # 逐个执行工具，把结果作为 tool 消息回灌
+            for tc in tool_calls:
+                name = tc.function.name
+                try:
+                    args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+                self._log(task_id, 'info', 'tool_call', f'调用工具 {name} args={args}')
+                logs.append(f'[ReAct #{round_i}] 调用工具 {name}')
+                result = execute_tool(name, args)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": str(result)[:4000]
+                })
+
+        # 达到轮次上限，做最后一次无工具收尾
+        logs.append(f'[ReAct] 达到最大轮次 {max_rounds}，强制收尾')
+        final = engine.chat_with_tools(messages, tools)
+        if final is not None and final.content:
+            return final.content
+        return last_text or '（工具循环达到上限，未产出最终答复）'
 
     def _build_query(self, task):
         """构造发给 LLM 的用户消息"""
