@@ -86,33 +86,19 @@ def _(text: str, locale: str = None, **kwargs) -> str:
         return ''
 
     locale = locale or DEPLOY_LANG
-    s_hash = _source_hash(text)
 
-    # 1. 查 DB
-    try:
-        conn = _get_db()
-        row = conn.execute(
-            'SELECT translation FROM i18n_strings WHERE locale=? AND source_hash=?',
-            (locale, s_hash)
-        ).fetchone()
-        conn.close()
-        if row and row['translation']:
-            result = row['translation']
-            if kwargs:
-                return result.format(**kwargs)
-            return result
-    except Exception:
-        pass
-
-    # 2. 查 YAML fallback
-    yml = _load_yaml(locale)
-    if text in yml and yml[text]:
-        result = yml[text]
+    # 从内存缓存字典取（get_all_translations 带 lru_cache，
+    # 内部已按 YAML 打底 + DB 覆盖，结果与逐条查 DB 等价）。
+    # 一个 locale 仅首次触发 1 次 DB 全量读取，之后全部命中内存，
+    # 避免每个 {{ _() }} 都新建 SQLite 连接导致的严重性能问题。
+    translations = get_all_translations(locale)
+    result = translations.get(text)
+    if result:  # 空串/None 时回退原文，与原 DB 优先逻辑一致
         if kwargs:
             return result.format(**kwargs)
         return result
 
-    # 3. 返回原文
+    # 回退原文
     if kwargs:
         return text.format(**kwargs)
     return text
@@ -147,6 +133,7 @@ def set_translation(locale: str, source: str, translation: str,
         )
         conn.commit()
         conn.close()
+        get_all_translations.cache_clear()
         return True
     except Exception as e:
         print(f'[i18n] set_translation error: {e}')
@@ -160,6 +147,7 @@ def delete_translation(translation_id: int) -> bool:
         conn.execute('DELETE FROM i18n_strings WHERE id=?', (translation_id,))
         conn.commit()
         conn.close()
+        get_all_translations.cache_clear()
         return True
     except Exception as e:
         print(f'[i18n] delete_translation error: {e}')
@@ -259,6 +247,8 @@ def seed_from_yaml(locale: str = None) -> int:
                 count += 1
         conn.commit()
         conn.close()
+        if count:
+            get_all_translations.cache_clear()
         print(f'[i18n] Seeded {count} translations from {locale}.yml')
     except Exception as e:
         print(f'[i18n] seed_from_yaml error: {e}')
