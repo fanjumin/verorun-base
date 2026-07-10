@@ -82,17 +82,18 @@ class ReviewsPlugin(BasePlugin):
                     FROM product_reviews WHERE product_id=? AND is_active=1
                 ''', (product_id,)).fetchone()
 
-            # 跨库查用户信息
+            # 跨库查用户信息（一次 IN 批量，避免 N+1 点查）
             user_ids = [r['user_id'] for r in rows if r['user_id']]
             user_map = {}
-            if user_ids:
+            uid_set = set(user_ids)
+            if uid_set:
+                ph = ','.join('?' * len(uid_set))
                 with get_main_db() as main:
-                    for uid in set(user_ids):
-                        u = main.execute(
-                            'SELECT id, username, avatar FROM users WHERE id=?', (uid,)
-                        ).fetchone()
-                        if u:
-                            user_map[uid] = dict(u)
+                    for u in main.execute(
+                        f'SELECT id, username, avatar FROM users WHERE id IN ({ph})',
+                        tuple(uid_set)
+                    ):
+                        user_map[u['id']] = dict(u)
 
             reviews = []
             for r in rows:
@@ -220,17 +221,18 @@ class ReviewsPlugin(BasePlugin):
                     (uid, size, offset)
                 ).fetchall()
 
-            # 跨库查商品信息
+            # 跨库查商品信息（一次 IN 批量，避免 N+1 点查）
             product_ids = [r['product_id'] for r in rows if r['product_id']]
             product_map = {}
-            if product_ids:
+            pid_set = set(product_ids)
+            if pid_set:
+                ph = ','.join('?' * len(pid_set))
                 with get_main_db() as main:
-                    for pid in set(product_ids):
-                        p = main.execute(
-                            'SELECT id, title, thumbnail FROM products WHERE id=?', (pid,)
-                        ).fetchone()
-                        if p:
-                            product_map[pid] = dict(p)
+                    for p in main.execute(
+                        f'SELECT id, title, thumbnail FROM products WHERE id IN ({ph})',
+                        tuple(pid_set)
+                    ):
+                        product_map[p['id']] = dict(p)
 
             reviews = []
             for r in rows:
@@ -271,20 +273,26 @@ class ReviewsPlugin(BasePlugin):
                     (size, offset)
                 ).fetchall()
 
-            # 跨库查用户+商品信息
+            # 跨库查用户+商品信息（各一次 IN 批量，避免 N+1 点查）
             user_ids = [r['user_id'] for r in rows if r['user_id']]
             product_ids = [r['product_id'] for r in rows if r['product_id']]
             user_map = {}
             product_map = {}
+            uid_set = set(user_ids)
+            pid_set = set(product_ids)
             with get_main_db() as main:
-                for uid in set(user_ids):
-                    u = main.execute('SELECT id, username FROM users WHERE id=?', (uid,)).fetchone()
-                    if u:
-                        user_map[uid] = dict(u)
-                for pid in set(product_ids):
-                    p = main.execute('SELECT id, title FROM products WHERE id=?', (pid,)).fetchone()
-                    if p:
-                        product_map[pid] = dict(p)
+                if uid_set:
+                    ph = ','.join('?' * len(uid_set))
+                    for u in main.execute(
+                        f'SELECT id, username FROM users WHERE id IN ({ph})', tuple(uid_set)
+                    ):
+                        user_map[u['id']] = dict(u)
+                if pid_set:
+                    ph = ','.join('?' * len(pid_set))
+                    for p in main.execute(
+                        f'SELECT id, title FROM products WHERE id IN ({ph})', tuple(pid_set)
+                    ):
+                        product_map[p['id']] = dict(p)
 
             data = []
             for r in rows:

@@ -350,17 +350,18 @@ class CouponEngine:
                 (coupon_id, limit, offset)
             ).fetchall()
 
-        # 跨库查用户信息
+        # 跨库查用户信息（一次 IN 批量，避免 N+1 点查）
         user_ids = [r['user_id'] for r in rows if r['user_id']]
         user_map = {}
-        if user_ids:
+        uid_set = set(user_ids)
+        if uid_set:
+            ph = ','.join('?' * len(uid_set))
             with self._get_main_db() as conn:
-                for uid in set(user_ids):
-                    u = conn.execute(
-                        'SELECT id, nickname, phone FROM users WHERE id=?', (uid,)
-                    ).fetchone()
-                    if u:
-                        user_map[uid] = dict(u)
+                for u in conn.execute(
+                    f'SELECT id, nickname, phone FROM users WHERE id IN ({ph})',
+                    tuple(uid_set)
+                ):
+                    user_map[u['id']] = dict(u)
 
         redemptions = []
         for r in rows:
