@@ -144,11 +144,15 @@ def publish_post(post_id):
     # Separate local vs social
     local_cats = []
     social_platforms = []
-    from routes.social_push import _publish_to_platform, PLATFORM_INFO
+    # social_push 已解耦为插件，经 PluginManager 获取实例（禁用则无社媒平台）
+    import flask as _flask
+    _pm = _flask.current_app.extensions.get('plugin_manager') if hasattr(_flask.current_app, 'extensions') else None
+    _sp = _pm.get_instance('social_push') if (_pm and _pm.is_enabled('social_push')) else None
+    _platform_info = _sp.PLATFORM_INFO if _sp else {}
     for ch in channels:
         if ch.startswith('local:'):
             local_cats.append(ch.split(':', 1)[1])
-        elif ch in PLATFORM_INFO:
+        elif ch in _platform_info:
             social_platforms.append(ch)
 
     # Local publish: update post record
@@ -186,7 +190,7 @@ def publish_post(post_id):
 
     # Social publish
     for plat in social_platforms:
-        result = _publish_to_platform(
+        result = _sp.publish_to_platform(
             platform=plat, title=post['title'] or '',
             body=post['content'] or '', body_html=post['content'] or '',
             summary=post.get('excerpt', '') or '',

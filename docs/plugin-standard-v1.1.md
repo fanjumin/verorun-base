@@ -742,3 +742,29 @@ plugins/<id>/
 2. 隔离脚本验证：插件导入、`init_db`、adapter 工厂、对外接口可调用。
 3. `GetDiagnostics` 无报错。
 4. 部署到服务器后，验证真实数据迁移 + 页面功能 + i18n 显示。
+
+### 12.7 跨模块依赖处理（Social Push 案例）
+
+当被解耦模块的函数/常量被其他模块 import 时（如 `social_push._publish_to_platform`、
+`PLATFORM_INFO` 被 content_factory、cms_admin 引用），处理模式：
+
+1. 插件 `__init__.py` 将这些能力暴露为**实例方法/属性**
+   （如 `publish_to_platform()`、`PLATFORM_INFO` property）。
+2. 调用方改为经 PluginManager 获取实例：
+   ```python
+   import flask as _flask
+   _pm = _flask.current_app.extensions.get('plugin_manager')
+   _sp = _pm.get_instance('social_push') if (_pm and _pm.is_enabled('social_push')) else None
+   if _sp is None:
+       # 降级：插件未启用
+       ...
+   _sp.publish_to_platform(...)
+   ```
+3. 插件禁用时实例为 None，调用方降级（返回提示 / 视为无该能力）。
+
+### 12.8 前端拆分边界（Social Push 案例）
+
+原 partial 若混入无关功能（如 social.html 尾部混入 PPT / 数字人视频），
+**只迁移属于本模块的函数**，无关代码留在原 partial 原地，避免越界改动。
+被迁移函数依赖的全局工具（T / esc / showToast / go）在插件模板中仍可用
+（插件模板同样 include 进 admin.html 全局作用域）。

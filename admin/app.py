@@ -16,7 +16,7 @@ from routes.auth import auth_bp
 from routes.admin import admin_bp
 from routes.cms_admin import cms_admin_bp
 from routes.user import user_bp
-from routes.social_push import social_bp
+# social_bp（社媒推广）已解耦为 plugins/social_push/，由 PluginManager 挂载
 from routes.social_media import social_media_bp
 from routes.footer_admin import footer_bp
 from routes.header_admin import header_bp
@@ -117,7 +117,7 @@ app.register_blueprint(user_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(cms_admin_bp)
-app.register_blueprint(social_bp)
+# social_bp 由 PluginManager 挂载（plugins/social_push），此处不再注册
 app.register_blueprint(social_media_bp)
 app.register_blueprint(footer_bp)
 app.register_blueprint(header_bp)

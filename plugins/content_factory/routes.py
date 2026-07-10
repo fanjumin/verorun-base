@@ -464,18 +464,17 @@ def publish():
         return jsonify({'success': True, 'post_id': post_id, 'platform': 'internal'})
 
     elif platform in ('social', 'both'):
-        try:
-            from routes.social_push import _publish_to_platform
-        except ImportError:
-            try:
-                from auth_center.routes.social_push import _publish_to_platform
-            except ImportError:
-                return jsonify({'success': False, 'error': '社媒发布模块未就绪（social_push 不可用）'}), 503
+        # social_push 已解耦为插件，经 PluginManager 获取实例调用（禁用则降级）
+        import flask as _flask
+        _pm = _flask.current_app.extensions.get('plugin_manager') if hasattr(_flask.current_app, 'extensions') else None
+        _sp = _pm.get_instance('social_push') if (_pm and _pm.is_enabled('social_push')) else None
+        if _sp is None:
+            return jsonify({'success': False, 'error': '社媒发布模块未就绪（social_push 插件未启用）'}), 503
         social_platforms = d.get('social_platforms', ['wechat'])
         auto_publish = d.get('auto_publish', False)
         social_results = []
         for sp in social_platforms:
-            result = _publish_to_platform(
+            result = _sp.publish_to_platform(
                 platform=sp, title=pc['title'] or '', body=pc['body'] or '',
                 body_html=pc.get('body_html', '') or pc['body'] or '',
                 summary=pc['summary'] or '', author=f'admin_{admin["display_name"]}',

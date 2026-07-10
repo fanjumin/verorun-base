@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""
+Social Push Plugin — 社媒推广插件
+==================================
+独立数据库 social_push.db
+
+多平台社媒内容发布（微信公众号 / 微博 / 今日头条），含发布历史。
+对外暴露 publish_to_platform() / PLATFORM_INFO，供 content_factory、
+cms_admin 等主系统模块经 plugin_manager 调用。
+
+注意：本插件为 Phase 2 物理解耦产物，LLM 调用（AI 文案/配图）暂保持原状，
+      将在 Phase 3 下沉到 agent_matrix 内核。
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from plugin_manager.base import BasePlugin
+from .models import init_sp_db, migrate_from_main_db
+
+# 模块级 i18n 引用，由 on_enable 注入
+_t = lambda text: text
+
+
+def init_i18n(t_fn):
+    """供插件启用时注入 i18n 翻译函数"""
+    global _t
+    _t = t_fn
+
+
+class SocialPushPlugin(BasePlugin):
+    name = 'social_push'
+    version = '0.1.0'
+    description = 'Social Push — Multi-platform social content publishing'
+    author = 'VeroRun'
+
+    def on_install(self, registry):
+        """安装时初始化独立数据库 + 从主库迁移历史发布记录"""
+        init_sp_db()
+        try:
+            n = migrate_from_main_db()
+            if n:
+                print(f'[SocialPushPlugin] ✅ 从主库迁移 {n} 条发布记录')
+        except Exception as e:
+            print(f'[SocialPushPlugin] ⚠️ 发布记录迁移警告: {e}')
+        return True
+
+    def on_enable(self, registry):
+        """启用时初始化数据库 + i18n（幂等）"""
+        init_sp_db()
+        init_i18n(self.t)
+        print('[SocialPushPlugin] ✅ 社媒推广插件已启用')
+        return True
+
+    def register_routes(self):
+        """注册 Flask 路由（社媒发布 API）"""
+        from .routes import social_bp
+        return [social_bp]
+
+    def on_disable(self, registry):
+        """禁用时清理"""
+        print('[SocialPushPlugin] ⚠️  社媒推广插件已禁用')
+        return True
+
+    # ── 对外接口：供主系统（content_factory / cms_admin）调用 ──
+
+    @property
+    def PLATFORM_INFO(self):
+        """平台元信息，供 cms_admin 判定频道是否为社媒平台"""
+        from .routes import PLATFORM_INFO
+        return PLATFORM_INFO
+
+    def publish_to_platform(self, platform, title, body, body_html, summary,
+                            author, cover_image_url, auto_publish, admin_id):
+        """发布到单个社媒平台。供主系统跨模块调用。
+
+        Returns: {platform, status, media_id, message, error}
+        """
+        from .routes import _publish_to_platform
+        return _publish_to_platform(
+            platform=platform, title=title, body=body, body_html=body_html,
+            summary=summary, author=author, cover_image_url=cover_image_url,
+            auto_publish=auto_publish, admin_id=admin_id,
+        )

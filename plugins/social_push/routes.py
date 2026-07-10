@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
-"""Social Push Routes — /admin/social/* for multi-platform content publishing."""
+"""Social Push Plugin — /admin/social/* 多平台社媒内容发布路由
+
+迁移自 auth-center/routes/social_push.py（Phase 2 物理解耦）。
+- 发布日志读写：插件独立库 social_push.db（get_sp_db）
+- 主库只读（cms_posts / system_config）：get_main_db
+- 发布/LLM services：经 auth-center sys.path 复用（LLM Phase 3 再下沉）
+"""
 
 import sys, os, json, logging
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+_auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
+if _auth_dir not in sys.path:
+    sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
-from models import get_db
-from routes.admin import _require_admin, _log
+
+from .models import get_sp_db
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +29,23 @@ PLATFORM_INFO = {
 }
 
 
+# ── Helpers ──
+def _require_admin():
+    from routes.admin import _require_admin as _ra
+    return _ra()
+
+
+def _log(admin_id, action, target_type='', target_id='', detail=''):
+    from routes.admin import _log as _l
+    _l(admin_id, action, target_type, target_id, detail)
+
+
+def _get_main_db():
+    """主库只读连接（system_config / cms_posts）"""
+    from models import get_db
+    return get_db()
+
+
 # =============================================
 # 配置检测
 # =============================================
@@ -30,7 +56,7 @@ def check_config():
     admin, err = _require_admin()
     if err:
         return err
-    with get_db() as conn:
+    with _get_main_db() as conn:
         rows = conn.execute(
             "SELECT key, value FROM system_config WHERE key IN "
             "('wechat_app_id','wechat_app_secret','weibo_app_key','weibo_access_token','toutiao_app_id','toutiao_access_token','dashscope_api_key','dashscope_text_key')"
@@ -160,8 +186,7 @@ def generate_image():
 
         # 下载到本地，不暴露外部 OSS URL
         import uuid, urllib.request
-        SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                '..', 'admin', 'static', 'uploads', 'temp')
+        SAVE_DIR = os.path.join(_auth_dir, '..', 'admin', 'static', 'uploads', 'temp')
         os.makedirs(SAVE_DIR, exist_ok=True)
         img_data = urllib.request.urlopen(oss_url, timeout=30).read()
         ext = '.png'
@@ -259,7 +284,7 @@ def _publish_wechat(title, body_html, summary, author, cover_image_url, auto_pub
             publish_id = submit_publish(media_id)
             status = 'publishing'
 
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, summary, article_json, media_id, publish_id, status, admin_id)
@@ -280,7 +305,7 @@ def _publish_wechat(title, body_html, summary, author, cover_image_url, auto_pub
         }
     except Exception as e:
         logger.exception('WeChat publish failed')
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, article_json, status, admin_id, error_msg)
@@ -299,7 +324,7 @@ def _publish_weibo(title, body, cover_image_url, admin_id):
         text = f'{title}\n\n{body}'[:2000] if title else body[:2000]
         result = publish_weibo(text=text, image_url=cover_image_url or None)
 
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, summary, article_json, media_id, status, admin_id)
@@ -314,7 +339,7 @@ def _publish_weibo(title, body, cover_image_url, admin_id):
         return {'platform': 'weibo', 'status': 'published', 'media_id': result.get('id', ''), 'message': '微博已发布'}
     except Exception as e:
         logger.exception('Weibo publish failed')
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, article_json, status, admin_id, error_msg)
@@ -336,7 +361,7 @@ def _publish_toutiao(title, body_html, summary, cover_image_url, admin_id):
             cover_url=cover_image_url or '',
             summary=summary or title[:200],
         )
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, summary, article_json, media_id, status, admin_id)
@@ -350,7 +375,7 @@ def _publish_toutiao(title, body_html, summary, cover_image_url, admin_id):
         return {'platform': 'toutiao', 'status': 'published', 'media_id': result.get('id', ''), 'message': '头条已发布'}
     except Exception as e:
         logger.exception('Toutiao publish failed')
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, article_json, status, admin_id, error_msg)
@@ -366,7 +391,7 @@ def _publish_douyin_video(title, body, cover_image_url, admin_id):
     try:
         from services.douyin_service import publish_video
         result = publish_video(video_url=cover_image_url, title=title)
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, summary, article_json, media_id, status, admin_id)
@@ -382,7 +407,7 @@ def _publish_douyin_video(title, body, cover_image_url, admin_id):
                 'media_id': result.get('item_id', ''), 'message': '抖音视频已发布'}
     except Exception as e:
         logger.exception('Douyin publish failed')
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 """INSERT INTO social_push_logs
                    (platform, content_type, title, article_json, status, admin_id, error_msg)
@@ -392,8 +417,6 @@ def _publish_douyin_video(title, body, cover_image_url, admin_id):
             )
             conn.commit()
         return {'platform': 'douyin_video', 'status': 'failed', 'error': str(e)}
-
-
 
 
 # =============================================
@@ -410,7 +433,7 @@ def check_publish_status(publish_id):
         from services.wechat_push_service import get_publish_status
         result = get_publish_status(publish_id)
         status = result.get('publish_status', 'unknown')
-        with get_db() as conn:
+        with get_sp_db() as conn:
             conn.execute(
                 "UPDATE social_push_logs SET status=?, error_msg=? WHERE publish_id=?",
                 (status, result.get('errmsg', ''), publish_id)
@@ -442,7 +465,7 @@ def push_history():
         where = 'WHERE platform=?'
         params.append(platform)
 
-    with get_db() as conn:
+    with get_sp_db() as conn:
         total = conn.execute(f'SELECT COUNT(*) as c FROM social_push_logs {where}', params).fetchone()
         rows = conn.execute(
             f"""SELECT id, platform, content_type, title, summary, media_id, publish_id,
@@ -473,8 +496,7 @@ def import_cms_articles():
     admin, err = _require_admin()
     if err:
         return err
-    from models import get_db
-    with get_db() as conn:
+    with _get_main_db() as conn:
         rows = conn.execute(
             "SELECT id, slug, category, title, excerpt, content, cover_image, author, "
             "is_published, published_at, created_at "
@@ -497,7 +519,7 @@ def delete_history(log_id):
     admin, err = _require_admin()
     if err:
         return err
-    with get_db() as conn:
+    with get_sp_db() as conn:
         conn.execute('DELETE FROM social_push_logs WHERE id=?', (log_id,))
         conn.commit()
     _log(admin['user_id'], 'social_delete', 'social', str(log_id))

@@ -1,0 +1,36 @@
+{
+    "name": "Social Push",
+    "identifier": "social_push",
+    "version": "0.1.0",
+    "category": "Content",
+    "tags": ["social", "publish", "wechat", "weibo", "toutiao", "content"],
+    "icon": "social_media",
+    "description": "Social Push — Multi-platform social content publishing (WeChat OA / Weibo / Toutiao) with publish history",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "social_push.read",
+        "social_push.write",
+        "social_push.publish",
+        "network.request"
+    ],
+    "hooks": {
+        "provides": [
+            "social_push/publish"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "Automation",
+        "key": "social",
+        "icon": "social_media",
+        "label": "Social Push"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}
