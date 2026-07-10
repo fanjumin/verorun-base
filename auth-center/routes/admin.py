@@ -3620,100 +3620,12 @@ def _send_file_or_stream(fp, filename, mime):
 # OAuth 提供商配置（多租户抖音登录）
 # =============================================
 
-# OAuth provider 回调路径映射
-OAUTH_CALLBACK_PATHS = {
-    'douyin': '/auth/douyin/callback',
-    'wechat': '/auth/wechat/callback',
-    'alipay': '/auth/alipay/callback',
-}
-
-@admin_bp.route('/oauth/configs', methods=['GET'])
-def admin_oauth_configs():
-    """列出所有站点的 OAuth 配置，支持按 provider 过滤"""
-    a, e = _require_admin()
-    if e: return e
-    provider = request.args.get('provider', 'all')
-    from models import get_db
-    with get_db() as conn:
-        if provider == 'all':
-            rows = conn.execute(
-                'SELECT id, site_domain, provider, client_key, client_secret, is_active, created_at, updated_at '
-                'FROM oauth_providers ORDER BY site_domain, provider'
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                'SELECT id, site_domain, provider, client_key, client_secret, is_active, created_at, updated_at '
-                'FROM oauth_providers WHERE provider=? ORDER BY site_domain',
-                (provider,)
-            ).fetchall()
-    # 隐藏 client_secret，只显示后4位
-    data = []
-    for r in rows:
-        secret = r['client_secret'] or ''
-        masked_secret = '***' + secret[-4:] if len(secret) > 4 else '***'
-        data.append({
-            'id': r['id'],
-            'site_domain': r['site_domain'],
-            'provider': r['provider'],
-            'client_key': r['client_key'],
-            'client_secret_masked': masked_secret,
-            'has_secret': bool(secret),
-            'is_active': r['is_active'],
-            'created_at': r['created_at'],
-            'updated_at': r['updated_at'],
-        })
-    return jsonify({'success': True, 'data': data})
-
-
-@admin_bp.route('/oauth/configs', methods=['POST'])
-def admin_oauth_save():
-    """保存/更新站点 OAuth 配置，支持多种 provider"""
-    a, e = _require_admin()
-    if e: return e
-    d = request.get_json() or {}
-    domain = d.get('site_domain', '').strip()
-    provider = d.get('provider', 'douyin').strip()
-    key = d.get('client_key', '').strip()
-    secret = d.get('client_secret', '').strip()
-    
-    # 验证 provider
-    valid_providers = ['douyin', 'wechat', 'alipay']
-    if provider not in valid_providers:
-        return jsonify({'success': False, 'error': f'不支持的 provider: {provider}'}), 400
-    
-    if not domain or not key:
-        return jsonify({'success': False, 'error': '域名和 Client Key 不能为空'}), 400
-    
-    # 如果 secret 为空，尝试保留原有 secret（编辑时可能不修改）
-    if not secret:
-        from models import get_db
-        with get_db() as conn:
-            existing = conn.execute(
-                'SELECT client_secret FROM oauth_providers WHERE site_domain=? AND provider=?',
-                (domain, provider)
-            ).fetchone()
-            if existing and existing['client_secret']:
-                secret = existing['client_secret']
-            else:
-                return jsonify({'success': False, 'error': 'Client Secret 不能为空（首次配置）'}), 400
-    
-    from services.douyin_service import save_config_to_db
-    save_config_to_db(domain, key, secret, provider)
-    
-    callback_path = OAUTH_CALLBACK_PATHS.get(provider, '/auth/douyin/callback')
-    callback = f'https://{domain}{callback_path}'
-    _log(a['user_id'], 'save_oauth', 'oauth', domain, f'{provider} for {domain}')
-    return jsonify({'success': True, 'data': {'callback_url': callback, 'provider': provider}})
-
-
-@admin_bp.route('/oauth/configs/<int:cfg_id>', methods=['DELETE'])
-def admin_oauth_delete(cfg_id):
-    """删除站点 OAuth 配置"""
-    a, e = _require_admin()
-    if e: return e
-    from services.douyin_service import delete_config
-    delete_config(cfg_id)
-    return jsonify({'success': True})
+# ════════════════════════════════════════════════════════════════
+# OAuth 登录配置管理已迁移至 plugins/oauth_config/（Phase 4A 逻辑解耦）
+#   - REST 路由：plugins/oauth_config/routes.py（/admin/oauth/configs）
+#   - oauth_providers 表仍留主库，供登录回调链路（auth.py / *_service）共享读取
+#   - 登录回调链路（auth.py oauth_login/callback、oauth_service）保持不变
+# ════════════════════════════════════════════════════════════════
 
 
 def _get_media_agent_id():

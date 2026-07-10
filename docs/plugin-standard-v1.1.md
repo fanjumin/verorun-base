@@ -786,3 +786,25 @@ plugins/<id>/
 
 **死代码清理**：`_publish_douyin_video` 调用不存在的 `douyin_service.publish_video`
 （必然 ImportError），连同 `PLATFORM_INFO` 的 `douyin_video` 一并删除。
+
+### 12.10 逻辑解耦 vs 数据解耦（OAuth Config 案例）
+
+并非所有解耦都用独立库。当迁出模块的**数据表被其他核心链路共享读取**时，
+必须只做"逻辑解耦"（路由/UI 进插件），**数据表留主库**：
+
+- **案例**：OAuth 配置管理（Phase 4A）迁入 `plugins/oauth_config/`，但
+  `oauth_providers` 表被登录回调链路（auth-center 的 douyin/alipay/wechat
+  `_service._get_config`）读取。若插件用独立库，配置写入插件库、登录读主库
+  → 凭据读不到 → **切断登录**。
+- **正确做法**：插件 `routes.py` 通过 `get_main_db()` 直接读写主库 `oauth_providers`，
+  不建独立库、不写 migrate。插件只是"把路由和 UI 搬进来"。
+- **判据**：迁出的表是否被 admin 之外的服务（auth-center :8083 等）读取？
+  是 → 留主库（逻辑解耦）；否 → 可独立库（数据解耦，如 im_gateway/social_push）。
+
+### 12.11 前端模板铁律：禁止 `<script>` 标签（重要）
+
+admin 所有 partial（含插件模板）是**裸 JS**，由 core.html 开启外层大 `<script>`、
+tail.html 统一闭合。插件模板**绝不能自带 `<script>...</script>`**，否则中间的
+闭合标签会提前截断外层 script，导致其后所有 partial 的 JS 变成裸 HTML
+（表现为满屏 `Unexpected token '<'`、`xxx is not defined`、URL 片段被当资源 404）。
+插件前端模板首行应直接是 JS 或 `//` 注释，不加任何 HTML script 标签。

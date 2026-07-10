@@ -1,0 +1,32 @@
+{
+    "name": "OAuth Login Config",
+    "identifier": "oauth_config",
+    "version": "0.1.0",
+    "category": "System",
+    "tags": ["oauth", "login", "sso", "douyin", "wechat", "alipay", "config"],
+    "icon": "social_media",
+    "description": "OAuth Login Config — 后台管理多站点第三方登录凭据（抖音/微信/支付宝）。仅配置管理，登录回调链路仍在 auth-center 核心。",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "oauth_config.read",
+        "oauth_config.write"
+    ],
+    "hooks": {
+        "provides": [],
+        "listens": []
+    },
+    "menu": {
+        "group": "System",
+        "key": "oauth",
+        "icon": "social_media",
+        "label": "OAuth Login"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}

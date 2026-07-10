@@ -1,3 +1,8 @@
+// ============================================================
+// OAuth Login Config Plugin — 第三方登录配置前端（迁移自 partials/oauth.html）
+// 依赖全局工具：T(token)、esc()、showToast()（由 admin core 提供）
+// 本文件为裸 JS，由 admin.html 外层统一 script 标签包裹，切勿在此再加 script 标签
+// ============================================================
 window.l_oauth=function(){
   document.getElementById("pt").textContent="{{ _('OAuth Login Config') }}";
   var mc=document.getElementById("mc");
