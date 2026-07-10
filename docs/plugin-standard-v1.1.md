@@ -768,3 +768,21 @@ plugins/<id>/
 **只迁移属于本模块的函数**，无关代码留在原 partial 原地，避免越界改动。
 被迁移函数依赖的全局工具（T / esc / showToast / go）在插件模板中仍可用
 （插件模板同样 include 进 admin.html 全局作用域）。
+
+### 12.9 LLM 归属与概念分离（Social Push 缺陷改造）
+
+**决策**：`services.ai_content_generator`（通义千问文案 + 通义万相配图）是
+**全站公共 LLM 底层服务**，agent_matrix 内核自身亦依赖它。故：
+- ❌ 不下沉到 agent_matrix（会造成循环依赖，且 agent_matrix 无图像生成能力）
+- ❌ 不搬进插件私有（多方共享）
+- ✅ 保持公共服务原地，插件通过 `from services.ai_content_generator import ...` 复用
+
+**缺陷修复（UI/概念层）**：原 `check-config` 把 AI 文案/配图与社媒平台混在
+同一 `platforms` 数组，造成"社媒号与 LLM 混放"。改造为两个字段：
+- `platforms`：仅【发布渠道】（真实社媒号）
+- `ai_capabilities`：【创作工具】（AI 文案/配图，非发布目标）
+
+前端据此分区渲染：发布勾选框只含社媒平台，AI 能力单列信息区。
+
+**死代码清理**：`_publish_douyin_video` 调用不存在的 `douyin_service.publish_video`
+（必然 ImportError），连同 `PLATFORM_INFO` 的 `douyin_video` 一并删除。

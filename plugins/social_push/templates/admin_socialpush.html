@@ -14,15 +14,15 @@ window.l_social=function(){
   h+='<span id="socConfigStatus" style="font-size:10px;color:var(--dim);align-self:center"></span>';
   h+='</div><div id="socContent"></div>';
   document.getElementById("mc").innerHTML=h;
-  // Show config status
+  // Show config status（Phase 3：社媒号 与 AI 工具 分区展示）
   fetch("/admin/social/check-config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
-    var st=[];
-    d.data.platforms.forEach(function(p){
-      if(p.configured)st.push(p.icon+" "+p.name+"✅");
-      else st.push(p.icon+" "+p.name+"❌");
-    });
-    document.getElementById("socConfigStatus").textContent=st.join(" | ");
+    var plat=(d.data.platforms||[]).map(function(p){return p.icon+" "+p.name+(p.configured?"✅":"❌")});
+    var ai=(d.data.ai_capabilities||[]).map(function(p){return p.icon+" "+p.name+(p.configured?"✅":"❌")});
+    var parts=[];
+    if(plat.length)parts.push('{{ _('Publish Channels') }}: '+plat.join(" | "));
+    if(ai.length)parts.push('{{ _('AI Tools') }}: '+ai.join(" | "));
+    document.getElementById("socConfigStatus").textContent=parts.join("　　");
   }).catch(function(){});
   socialTab(0);
 };
@@ -205,10 +205,11 @@ function socialGenImage(){
 function socialPublish(){
   fetch("/admin/social/check-config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(cfg){
     var platforms=cfg.success?cfg.data.platforms:[];
+    var aiCaps=cfg.success?(cfg.data.ai_capabilities||[]):[];
     var h='';
 
-    // Platform selection
-    h+='<div class="cd"><div class="st">{{ _('Push To') }}</div>';
+    // 发布渠道（社媒号）—— 只列真实平台，不含 AI
+    h+='<div class="cd"><div class="st">📤 {{ _('Push To') }}（{{ _('Publish Channels') }}）</div>';
     h+='<div style="display:flex;gap:12px;flex-wrap:wrap">';
     platforms.forEach(function(p){
       var checked=p.configured?"checked":"";
@@ -220,6 +221,17 @@ function socialPublish(){
       h+='</label>';
     });
     h+='</div></div>';
+
+    // AI 创作工具 —— 独立信息区，仅显示可用状态，不是发布目标
+    if(aiCaps.length){
+      h+='<div class="cd" style="margin-top:8px;border-left:3px solid var(--accent2)"><div class="st">🛠️ {{ _('AI Creation Tools') }}</div>';
+      h+='<div style="font-size:11px;color:var(--dim);margin-bottom:6px">{{ _('AI tools are for content creation, not publish targets') }}</div>';
+      h+='<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px">';
+      aiCaps.forEach(function(a){
+        h+='<span style="opacity:'+(a.configured?1:0.4)+'">'+a.icon+' '+a.name+(a.configured?" ✅":" ❌")+'</span>';
+      });
+      h+='</div></div>';
+    }
 
     // Any platform configured?
     var hasAny=platforms.some(function(p){return p.configured});

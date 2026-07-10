@@ -4,7 +4,13 @@
 迁移自 auth-center/routes/social_push.py（Phase 2 物理解耦）。
 - 发布日志读写：插件独立库 social_push.db（get_sp_db）
 - 主库只读（cms_posts / system_config）：get_main_db
-- 发布/LLM services：经 auth-center sys.path 复用（LLM Phase 3 再下沉）
+- 发布 services：经 auth-center sys.path 复用
+
+LLM 说明（Phase 3）：
+  AI 文案（通义千问）与 AI 配图（通义万相）走全站【公共 LLM 服务】
+  services.ai_content_generator，而非本插件私有能力，也不属于"发布平台"。
+  agent_matrix 内核自身亦依赖该公共服务，故不下沉、不搬动，保持共享。
+  概念上：AI = 创作工具（ai_capabilities），社媒号 = 发布渠道（platforms），二者分离。
 """
 
 import sys, os, json, logging
@@ -21,11 +27,11 @@ logger = logging.getLogger(__name__)
 
 social_bp = Blueprint('social', __name__, url_prefix='/admin/social')
 
+# 仅"发布渠道"——真实社媒平台。AI 能力不在此列（见文件顶部说明）。
 PLATFORM_INFO = {
     'wechat': {'name': '微信公众号', 'icon': '💬'},
     'weibo':  {'name': '微博',       'icon': '📢'},
     'toutiao':{'name': '今日头条',    'icon': '📰'},
-    'douyin_video': {'name': '抖音视频', 'icon': '🎵'},
 }
 
 
@@ -52,7 +58,13 @@ def _get_main_db():
 
 @social_bp.route('/check-config', methods=['GET'])
 def check_config():
-    """Check which platforms are configured."""
+    """Check platform + AI capability config.
+
+    返回结构（Phase 3 拆分）：
+      - platforms:       仅【发布渠道】社媒号（wechat/weibo/toutiao）
+      - ai_capabilities: 【创作工具】AI 文案/配图（走公共 LLM 服务，非发布平台）
+    兼容：仍保留 platforms 字段，但不再混入 AI 项；前端据两字段分区渲染。
+    """
     admin, err = _require_admin()
     if err:
         return err
@@ -87,6 +99,8 @@ def check_config():
                     'configured': bool(cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')),
                     'fields_needed': [] if (cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')) else ['App ID', 'Access Token'],
                 },
+            ],
+            'ai_capabilities': [
                 {
                     'id': 'image_gen',
                     'name': 'AI配图 (通义万相)',
@@ -101,7 +115,7 @@ def check_config():
                     'configured': bool(cfg.get('dashscope_text_key')),
                     'fields_needed': [] if cfg.get('dashscope_text_key') else ['DashScope Key'],
                 },
-            ]
+            ],
         }
     })
 
@@ -258,8 +272,6 @@ def _publish_to_platform(platform, title, body, body_html, summary, author,
         return _publish_weibo(title, body, cover_image_url, admin_id)
     elif platform == 'toutiao':
         return _publish_toutiao(title, body_html, summary, cover_image_url, admin_id)
-    elif platform == 'douyin_video':
-        return _publish_douyin_video(title, body, cover_image_url, admin_id)
     else:
         return {'platform': platform, 'status': 'failed', 'error': f'不支持的平台: {platform}'}
 
@@ -385,38 +397,6 @@ def _publish_toutiao(title, body_html, summary, cover_image_url, admin_id):
             )
             conn.commit()
         return {'platform': 'toutiao', 'status': 'failed', 'error': str(e)}
-
-
-def _publish_douyin_video(title, body, cover_image_url, admin_id):
-    try:
-        from services.douyin_service import publish_video
-        result = publish_video(video_url=cover_image_url, title=title)
-        with get_sp_db() as conn:
-            conn.execute(
-                """INSERT INTO social_push_logs
-                   (platform, content_type, title, summary, article_json, media_id, status, admin_id)
-                   VALUES (?, ?, ?, ?, ?, ?, 'published', ?)""",
-                ('douyin_video', 'video', title, body[:100],
-                 json.dumps({'video_url': cover_image_url}, ensure_ascii=False),
-                 result.get('item_id', ''), admin_id)
-            )
-            conn.commit()
-        _log(admin_id, 'social_publish', 'social', result.get('item_id', ''),
-             'Douyin: ' + title)
-        return {'platform': 'douyin_video', 'status': 'published',
-                'media_id': result.get('item_id', ''), 'message': '抖音视频已发布'}
-    except Exception as e:
-        logger.exception('Douyin publish failed')
-        with get_sp_db() as conn:
-            conn.execute(
-                """INSERT INTO social_push_logs
-                   (platform, content_type, title, article_json, status, admin_id, error_msg)
-                   VALUES (?, ?, ?, ?, 'failed', ?, ?)""",
-                ('douyin_video', 'video', title,
-                 json.dumps({'body': body[:200]}, ensure_ascii=False), admin_id, str(e))
-            )
-            conn.commit()
-        return {'platform': 'douyin_video', 'status': 'failed', 'error': str(e)}
 
 
 # =============================================
