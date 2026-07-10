@@ -177,6 +177,38 @@ class AIEngine:
             logger.error(f"[AIEngine] {self.provider}/{self.model} 调用失败: {e}")
             return f"Error: {e}"
 
+    def chat_with_tools(self, messages, tools, temperature=0.7, max_tokens=4096):
+        """支持原生 function calling 的调用。
+
+        返回完整的 message 对象（含 .content 与 .tool_calls），
+        由调用方（AgentRunner 的 ReAct 循环）决定是否执行工具。
+        出错时返回 None。
+        """
+        if not self.client:
+            return None
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            # 异步记录 token 消耗（与 chat() 保持一致）
+            if hasattr(resp, 'usage') and resp.usage:
+                threading.Thread(target=_log_token_usage, args=(
+                    self.agent_id, self.agent_name, self.model, self.provider,
+                    resp.usage.prompt_tokens or 0,
+                    resp.usage.completion_tokens or 0,
+                    resp.usage.total_tokens or 0,
+                    'tool_call'
+                ), daemon=True).start()
+            return resp.choices[0].message
+        except Exception as e:
+            logger.error(f"[AIEngine] {self.provider}/{self.model} 工具调用失败: {e}")
+            return None
+
     def ask(self, user_query, temperature=0.7):
         """简单一问一答"""
         messages = [
