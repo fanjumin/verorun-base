@@ -485,6 +485,55 @@ class AgentOrchestrator:
 
         return results
 
+    def _compress_history(self, conv, agent_config):
+        """构建注入 Agent 的历史消息。
+
+        - 会话 <= 8 条：直接返回原文。
+        - 会话 > 8 条：保留最近 6 条原文，对更早消息用 LLM 生成一段摘要，
+          作为一条 assistant 记忆消息插到最前。LLM 不可用/失败时回退为 conv[-6:]。
+        """
+        recent_n = 6
+        threshold = 8
+        if not conv:
+            return None
+        if len(conv) <= threshold:
+            return [{'role': m['role'], 'content': m['content']} for m in conv]
+
+        older = conv[:-recent_n]
+        recent = conv[-recent_n:]
+        recent_msgs = [{'role': m['role'], 'content': m['content']} for m in recent]
+
+        summary = self._summarize_messages(older, agent_config)
+        if not summary:
+            # 摘要失败，回退为最近 6 条原文
+            return recent_msgs
+
+        memory_msg = {'role': 'assistant', 'content': f'[历史对话摘要]\n{summary}'}
+        return [memory_msg] + recent_msgs
+
+    def _summarize_messages(self, messages, agent_config):
+        """用 LLM 把较早的历史消息压缩成摘要，失败返回 None"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+            from agent_matrix.engine import AIEngine
+            engine = AIEngine(agent_config)
+            if not engine.is_ready():
+                return None
+            convo_text = '\n'.join(
+                f"{m['role']}: {m['content']}" for m in messages
+            )[:4000]
+            prompt = (
+                "请把下面的多轮对话压缩成简洁摘要，保留关键事实、结论与未完成事项，"
+                "用要点列出，不要寒暄：\n\n" + convo_text
+            )
+            summary = engine.ask(prompt, temperature=0.3)
+            if not summary or summary.startswith('Error:'):
+                return None
+            return summary.strip()
+        except Exception as e:
+            logger.warning(f"历史摘要压缩失败，回退最近消息: {e}")
+            return None
+
     def _execute_standard_agent(self, task_def, agent_config, sub_task_id, target_id,
                                  session_id, master_task_id):
         """执行标准 LLM Agent"""
@@ -496,7 +545,7 @@ class AgentOrchestrator:
         history = None
         if session_id:
             conv = self.models.get_conversation(session_id)
-            history = [{'role': m['role'], 'content': m['content']} for m in conv[-6:]]
+            history = self._compress_history(conv, agent_config)
         if session_id:
             self.models.add_message(
                 session_id, 'sub', f"开始执行: {task_def.get('title', '')}",
