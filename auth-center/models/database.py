@@ -2061,16 +2061,19 @@ with get_db() as m:
     print('[Migration] ✅ deployment_codes 独立部署订阅表')
 
 # ── Migration: 清理旧版套餐数据 (2026-06-27) ──
-with get_db() as m:
-    old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
-    for pk in old_plan_keys:
-        m.execute("DELETE FROM subscription_plans WHERE plan_key=?", (pk,))
-    # 更新已存在的老 plan_key 的订阅记录
-    m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
-    m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
-    m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
-    m.commit()
-    print('[Migration] ✅ 旧版套餐数据已清理')
+try:
+    with get_db() as m:
+        old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
+        for pk in old_plan_keys:
+            m.execute("DELETE FROM subscription_plans WHERE plan_key=?", (pk,))
+        # 更新已存在的老 plan_key 的订阅记录
+        m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
+        m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
+        m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
+        m.commit()
+        print('[Migration] ✅ 旧版套餐数据已清理')
+except Exception as e:
+    print(f'[Migration] ⚠️ 旧版套餐数据迁移跳过: {e}')
 
 # ── 国际化: 市场特定表结构 (2026-06-29) ──
 if MARKET == 'intl':
