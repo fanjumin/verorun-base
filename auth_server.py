@@ -23,6 +23,15 @@ from auth_blueprint import register_auth
 
 app = Flask(__name__)
 
+# 主站(www)模板位于 site/templates 与 platform/templates，非本文件同级 templates，
+# 因此显式挂载到 jinja loader，避免 public_home.html 等模板 TemplateNotFound。
+import jinja2
+app.jinja_loader = jinja2.ChoiceLoader([
+    jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'site', 'templates')),
+    jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'platform', 'templates')),
+    app.jinja_loader,
+])
+
 app.secret_key = os.environ.get('JWT_SECRET', 'dev-secret-key-change-in-production')
 app.config['SESSION_TYPE'] = 'filesystem'
 
