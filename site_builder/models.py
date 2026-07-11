@@ -86,7 +86,7 @@ def seed_default_prompts():
                 continue
 
             conn.execute(
-                f'''INSERT INTO {TABLE_PROMPTS}
+                f'''INSERT OR IGNORE INTO {TABLE_PROMPTS}
                     (identifier, name, description, icon, industry, tags_json,
                      is_builtin, defaults_json, pages_json, documents_json, prompts_json)
                     VALUES (?,?,?,?,?,?,1,?,?,?,?)''',

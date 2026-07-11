@@ -2302,7 +2302,7 @@ with get_db() as m:
 
     # ── site_settings: 统一设计令牌表（替代 brand_settings + header_nav + footer_* + themes）──
     try:
-        c_th.execute("""
+        m.execute("""
             CREATE TABLE IF NOT EXISTS design_tokens (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 site_key        TEXT NOT NULL DEFAULT 'platform',
@@ -2315,8 +2315,8 @@ with get_db() as m:
                 UNIQUE(site_key)
             );
         """)
-        c_th.execute("CREATE INDEX IF NOT EXISTS idx_dt_site_key ON design_tokens(site_key)")
-        c_th.commit()
+        m.execute("CREATE INDEX IF NOT EXISTS idx_dt_site_key ON design_tokens(site_key)")
+        m.commit()
         print('[Migration] ✅ design_tokens 表已创建')
     except Exception as e_th:
         print(f'[Migration] ⚠️ design_tokens 表创建失败（可能已存在）: {e_th}')
