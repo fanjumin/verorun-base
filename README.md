@@ -13,20 +13,20 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
 ### 服务拓扑
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│    Site     │    │  Platform   │    │   Admin     │    │   Captcha   │
-│   :8081     │    │   :8083     │    │   :8084     │    │   :8090     │
-│ 主站后端    │    │ 用户控制台  │    │ 管理后台    │    │ 验证码服务  │
-│ OAuth/用户  │    │ 商城前端    │    │ Agent矩阵   │    │             │
-│ 订阅        │    │ CMS展示     │    │ 插件管理    │    │             │
-│ 官网页面    │    │ 登录/定价   │    │ 订阅/支付   │    │             │
-│             │    │ 用户中心    │    │ 分析/健康   │    │             │
-└──────┬──────┘    └──────┬──────┘    └──────┬──────┘    └──────┬──────┘
-       │                   │                   │                   │
-       └───────────────────┼───────────────────┼───────────────────┘
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│    Site     │    │  Platform   │    │   Admin     │
+│   :8081     │    │   :8083     │    │   :8084     │
+│ 主站后端    │    │ 用户控制台  │    │ 管理后台    │
+│ OAuth/用户  │    │ 商城前端    │    │ Agent矩阵   │
+│ 订阅        │    │ CMS展示     │    │ 插件管理    │
+│ 官网页面    │    │ 登录/定价   │    │ 订阅/支付   │
+│             │    │ 用户中心    │    │ 分析/健康   │
+└──────┬──────┘    └──────┬──────┘    └──────┬──────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
                            │
                     ┌──────┴──────┐
-                    │   SQLite    │
+                    │   SQLite   │
                     │  easykai.db │
                     └─────────────┘
 ```
@@ -57,9 +57,9 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
 | 9 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth、企业认证 |
 | 10 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 订阅支付（4 网关） |
 | 11 | **主题系统** | `themes/` | 5 个主题 + Jinja2 ChoiceLoader 模板覆盖 |
-| 12 | **健康检查** | `health_check/` | 服务探活、异常诊断、AI 自动修复、定时巡检 |
-| 13 | **验证码服务** | `captcha-service/` | 拼图行为验证码（独立服务 8090） |
-| 14 | **分析系统** | `analytics/` | 访客追踪、IP 地理定位、UA 解析、60s 聚合 |
+| 12 | **健康检查**（插件） | `plugins/health_check/` | 服务探活、异常诊断、AI 自动修复、定时巡检 |
+| 13 | **验证码服务**（插件） | `plugins/captcha_embedded/` | 滑块拼图验证码，嵌入式蓝图（已废弃独立 8090 服务） |
+| 14 | **分析系统**（插件） | `plugins/analytics/` | 访客追踪、IP 地理定位、UA 解析、60s 聚合 |
 | 15 | **社交分发**（插件） | `plugins/social_push/` | 微博/微信/头条/抖音 内容分发 |
 | 16 | **插件系统** | `plugin_manager/` + `plugins/` | PluginManager 统一管理 — 发现/安装/启用/卸载，17 个内置插件，各自独立数据库，支持免重启启停 |
 
@@ -664,15 +664,11 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 
 ### 2.12 其他服务
 
-#### 验证码服务（captcha-service）
+#### 验证码服务（Captcha Embedded）
 
-独立服务（端口 8090），通过 Platform/Admin 反向代理接入：
+作为嵌入式插件 `plugins/captcha_embedded/` 运行，通过 Flask Blueprint 挂载到 Admin/Platform 服务内（与 admin 进程共用，无独立端口）。原独立服务 captcha-service:8090 已废弃（systemd `captcha.service` 已停）。
 
-```
-用户请求 → Platform:8083 → /api/captcha/* → Captcha:8090
-```
-
-能力：拼图验证码生成 / 验证 / 消耗限流。
+能力：滑块拼图验证码生成 / 验证 / 行为分析 / 消耗限流。
 
 #### 分析系统（analytics）
 
@@ -705,7 +701,7 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 | 技术 | 用途 |
 |------|------|
 | **Python 3** | 主要开发语言 |
-| **Flask** | Web 框架（5 个独立服务实例：Site/Platform/Admin/Captcha） |
+| **Flask** | Web 框架（独立服务实例：Site/Platform/Admin，验证码为嵌入式插件） |
 | **SQLite** | 数据库（主库 `data/easykai.db` + 各插件独立 `.db`） |
 | **Jinja2** | 模板引擎（ChoiceLoader 主题覆盖） |
 | **JWT** | SSO 单点登录（跨子域名 Cookie 共享） |
@@ -774,10 +770,7 @@ VeroRunSystem/
 │   ├── templates/             # 前端模板
 │   └── static/                # 静态资源
 │
-├── captcha-service/           # 验证码服务（独立 Flask, 端口 8090）
-│   ├── server.py              # 入口
-│   ├── routes/captcha.py      # 验证码 API
-│   └── captcha/               # 行为验证/生成/安全
+├── captcha-service/           # 验证码核心算法库（供 captcha_embedded 插件引用）
 │
 ├── auth-center/               # 认证中心 + 业务核心
 │   ├── auth_blueprint.py      # 蓝图注册中心（7 蓝图统一注册）
@@ -955,19 +948,15 @@ pip install -r requirements.txt
 ### 启动全部服务
 
 ```bash
-# ① 验证码服务（端口 8090）
-cd captcha-service
-python server.py &
-
-# ② 站点后端（端口 8081）
-cd ../site
+# ① 站点后端（端口 8081）
+cd site
 python app.py 8081 &
 
-# ③ 用户控制台（端口 8083）
+# ② 用户控制台（端口 8083）
 cd ../platform
 python app.py 8083 &
 
-# ④ 管理后台（端口 8084）
+# ③ 管理后台（端口 8084）
 cd ../admin
 python app.py 8084 &
 ```
@@ -1082,6 +1071,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.11.0 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.11.1 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有
