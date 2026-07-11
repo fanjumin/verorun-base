@@ -18,12 +18,15 @@ import sys
 # 确保能从项目根目录 import health_check
 # 注意: 用 append() 而不是 insert(0, ...)，避免项目中的 platform/ 包 shadow stdlib platform 模块
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+AUTH_DIR = os.path.join(BASE_DIR, 'auth-center')
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
+if AUTH_DIR not in sys.path:
+    sys.path.append(AUTH_DIR)
 
 from flask import Flask
-from health_check.routes import health_bp
-from health_check.models import init_health_tables, migrate_alert_schema
+from plugins.health_check.routes import health_bp
+from plugins.health_check.models import init_health_tables, migrate_alert_schema
 
 app = Flask(__name__)
 app.register_blueprint(health_bp)  # url_prefix 已在 BP 定义中: /admin/health
@@ -39,9 +42,9 @@ def ping():
 def ready():
     """Readiness probe — 检查数据库连接"""
     try:
-        from health_check.models import get_db
-        db = get_db()
-        db.execute('SELECT 1').fetchone()
+        from plugins.health_check.models import get_db
+        with get_db() as db:
+            db.execute('SELECT 1').fetchone()
         return {'status': 'ready', 'service': 'health-service'}
     except Exception as e:
         return {'status': 'not_ready', 'error': str(e)}, 503
