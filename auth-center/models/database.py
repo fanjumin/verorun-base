@@ -2123,13 +2123,16 @@ if MARKET == 'intl':
             ('deploy_enterprise', 'Enterprise', 'Full-stack AI-powered business operations', 5999, 59999, 0, 'premium',
              '["AI Site Builder","AI Chat (multi-turn + CRM)","Content Factory (RSS→AI→CMS→Social)","Agent Matrix (1+12 agents)","Social auto-publish","Cloud service auto-provisioning","User profiling + intent scoring","Analytics dashboard + AI insights","$12 AI Credits included"]', 3),
         ]
-        for pk, nm, desc, pm, py, td, tier, feats, so in intl_plans:
-            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (pk,)).fetchone()
-            if not exists:
-                m.execute(
-                    "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (?,?,?,?,?,?,?,?,?,'USD')",
-                    (pk, nm, desc, pm, py, td, tier, feats, so))
-        m.commit()
+        try:
+            for pk, nm, desc, pm, py, td, tier, feats, so in intl_plans:
+                exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (pk,)).fetchone()
+                if not exists:
+                    m.execute(
+                        "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (?,?,?,?,?,?,?,?,?,'USD')",
+                        (pk, nm, desc, pm, py, td, tier, feats, so))
+            m.commit()
+        except Exception as e:
+            print(f'[i18n] INTL plans seed skipped: {e}')
         print('[i18n] ✅ INTL-specific tables and data initialized')
 else:
     # CN 区: subscription_plans 增加 currency 字段（向后兼容）
