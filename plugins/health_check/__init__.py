@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Health Check Plugin — System Health Monitoring
-================================================
+Health Check — 系统健康巡检中心 + 插件
+============================================
+全站自动化健康巡检：可扩展检查框架、定时自动巡检、仪表盘、
+异常告警（邮件/站内信/Webhook）、与 Workflow 引擎集成（自动恢复）。
 独立数据库 data/health.db，8 张表完全自包含。
 
-插件能力:
-  - on_install: 初始化健康巡检表
-  - on_enable:  迁移 schema + 种子默认检查项 + 注册定时巡检
-  - register_routes: 注册 /admin/health/* 仪表盘
+使用方式:
+    from plugins.health_check import health_bp
+    app.register_blueprint(health_bp)
 """
 
 import os
@@ -15,7 +16,12 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from .routes import health_bp
+from .models import init_health_tables, get_db
+
 from plugin_manager.base import BasePlugin
+
+__all__ = ['health_bp', 'init_health_tables', 'get_db', 'HealthCheckPlugin']
 
 
 class HealthCheckPlugin(BasePlugin):
@@ -26,7 +32,7 @@ class HealthCheckPlugin(BasePlugin):
 
     def on_install(self, registry):
         """安装时初始化独立数据库表"""
-        from health_check.models import init_health_tables
+        from .models import init_health_tables
         try:
             init_health_tables()
             print('[HealthCheck] Independent DB initialized (data/health.db)')
@@ -36,7 +42,7 @@ class HealthCheckPlugin(BasePlugin):
 
     def on_enable(self, registry):
         """启用时: 初始化表 + 迁移 schema + 种子检查项 + 注册定时巡检"""
-        from health_check.models import init_health_tables, migrate_alert_schema, seed_default_checks
+        from .models import init_health_tables, migrate_alert_schema, seed_default_checks
 
         init_health_tables()
         migrate_alert_schema()
@@ -44,10 +50,10 @@ class HealthCheckPlugin(BasePlugin):
         print('[HealthCheck] Tables initialized, schema migrated, default checks seeded')
 
         # 初始化插件 i18n（注入 self.t 到各模块）
-        from health_check import routes as _routes
-        from health_check import checkers as _checkers
-        from health_check import discovery as _discovery
-        from health_check import scheduler_setup as _sched
+        from . import routes as _routes
+        from . import checkers as _checkers
+        from . import discovery as _discovery
+        from . import scheduler_setup as _sched
         _routes.init_i18n(self.t)
         _checkers.init_i18n(self.t)
         _discovery.init_i18n(self.t)
@@ -65,7 +71,7 @@ class HealthCheckPlugin(BasePlugin):
 
     def register_routes(self):
         """注册健康巡检 Blueprint"""
-        from health_check import health_bp
+        from . import health_bp
         return [health_bp]
 
     def on_disable(self, registry):

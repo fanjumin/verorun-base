@@ -84,7 +84,7 @@ def _tool_get_system_health(args):
     """读取最近一次健康巡检结果汇总（只读）"""
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-        from health_check.models import get_db as health_db
+        from plugins.health_check.models import get_db as health_db
         with health_db() as conn:
             run = conn.execute(
                 "SELECT * FROM check_runs WHERE status='completed' "
