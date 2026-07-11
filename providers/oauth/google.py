@@ -21,11 +21,29 @@ class GoogleOAuthProvider(BaseOAuthProvider):
     TOKEN_URL = 'https://oauth2.googleapis.com/token'
     USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
+    def _db_config(self, key):
+        """从 oauth_providers 表读取 google 配置，用于 DB 优先的配置管理。"""
+        try:
+            from models import get_db
+            with get_db() as conn:
+                row = conn.execute(
+                    'SELECT client_key, client_secret FROM oauth_providers '
+                    'WHERE provider=? AND is_active=1 LIMIT 1',
+                    ('google',)
+                ).fetchone()
+            if row:
+                return row[key]
+        except Exception:
+            pass
+        return ''
+
     def get_client_id(self) -> str:
-        return os.environ.get('GOOGLE_CLIENT_ID', '')
+        db_id = self._db_config('client_key')
+        return db_id or os.environ.get('GOOGLE_CLIENT_ID', '')
 
     def get_client_secret(self) -> str:
-        return os.environ.get('GOOGLE_CLIENT_SECRET', '')
+        db_secret = self._db_config('client_secret')
+        return db_secret or os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
     def get_authorize_url(self, redirect_uri: str, state: str = 'login') -> str:
         params = urllib.parse.urlencode({

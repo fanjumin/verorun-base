@@ -17,11 +17,13 @@ from flask import Blueprint, request, jsonify
 
 oauth_cfg_bp = Blueprint('oauth_config', __name__, url_prefix='/admin/oauth')
 
-VALID_PROVIDERS = ['douyin', 'wechat', 'alipay']
+VALID_PROVIDERS = ['douyin', 'wechat', 'alipay', 'google', 'telegram']
 OAUTH_CALLBACK_PATHS = {
     'douyin': '/auth/douyin/callback',
     'wechat': '/auth/wechat/callback',
     'alipay': '/auth/alipay/callback',
+    'google': '/auth/oauth/google/callback',
+    'telegram': '/auth/oauth/telegram/callback',
 }
 
 
@@ -94,6 +96,19 @@ def admin_oauth_save():
         return jsonify({'success': False, 'error': f'不支持的 provider: {provider}'}), 400
     if not domain or not key:
         return jsonify({'success': False, 'error': '域名和 Client Key 不能为空'}), 400
+
+    # 检查该站点已启用的第三方登录数量（最多 2 个）
+    with _get_main_db() as conn:
+        existing_for_domain = conn.execute(
+            'SELECT provider FROM oauth_providers WHERE site_domain=? AND is_active=1',
+            (domain,)
+        ).fetchall()
+        existing_providers = [r['provider'] for r in existing_for_domain]
+        if provider not in existing_providers and len(existing_providers) >= 2:
+            return jsonify({
+                'success': False,
+                'error': f'该站点已启用 {len(existing_providers)} 个第三方登录（{", ".join(existing_providers)}），最多允许 2 个。请先禁用或删除一个再添加。'
+            }), 400
 
     # secret 为空时保留原有（编辑不改密钥场景）
     with _get_main_db() as conn:

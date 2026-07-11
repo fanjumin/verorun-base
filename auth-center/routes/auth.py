@@ -516,13 +516,24 @@ def douyin_callback():
 
 
 # =============================================
+# OAuth provider list (dynamic frontend rendering)
+# =============================================
+@auth_bp.route('/oauth/providers', methods=['GET'])
+def oauth_providers():
+    """Return enabled OAuth providers for the frontend login page (max 2)."""
+    from services.oauth_service import get_enabled_oauth_providers
+    providers = get_enabled_oauth_providers()
+    return jsonify({'success': True, 'data': providers})
+
+
+# =============================================
 # Authlib-based OAuth — 统一第三方登录
 # =============================================
 @auth_bp.route('/oauth/<provider>/login', methods=['GET'])
 def oauth_login(provider):
     """Initiate OAuth login via authlib or provider-specific URL."""
     from flask import redirect as flask_redirect, url_for
-    from services.oauth_service import oauth, get_alipay_oauth_url, get_douyin_oauth_url, is_intl_oauth_provider, get_intl_oauth_provider
+    from services.oauth_service import oauth, get_douyin_oauth_url, is_intl_oauth_provider, get_intl_oauth_provider
     import secrets, urllib.parse
 
     # ── International OAuth providers (Google/GitHub/Facebook) ──
@@ -535,11 +546,19 @@ def oauth_login(provider):
         return flask_redirect(auth_url)
 
     if provider == 'alipay':
-        # 强制使用主站域名（支付宝白名单固定）
-        callback = f'{deploy.url("platform")}/auth/oauth/alipay/callback'
-        url = get_alipay_oauth_url(callback)
-        if not url:
+        # 强制使用主站域名（支付宝白名单固定）→ 回调路径为 /auth/oauth/alipay/callback
+        from services.alipay_service import _get_config as ali_get_cfg
+        cfg = ali_get_cfg(site_domain=deploy.url("platform").replace('https://', ''))
+        if not cfg:
             return flask_redirect(f'/{provider}-login?error=Not configured')
+        callback = f'{deploy.url("platform")}/auth/oauth/alipay/callback'
+        params = urllib.parse.urlencode({
+            'app_id': cfg['client_key'],
+            'scope': 'auth_user',
+            'redirect_uri': callback,
+            'state': 'login',
+        })
+        url = f'https://openauth.alipay.com/oauth2/publicAppAuthorize.htm?{params}'
         return flask_redirect(url)
 
     if provider == 'douyin':
@@ -568,6 +587,50 @@ def oauth_callback(provider):
     from services.oauth_service import oauth, get_douyin_userinfo, is_intl_oauth_provider, get_intl_oauth_provider
 
     domain = _get_site_domain()
+
+    # ── Telegram OAuth (special: hash verification, not code exchange) ──
+    if provider == 'telegram':
+        from flask import make_response
+        from services.oauth_service import get_intl_oauth_provider
+        prov = get_intl_oauth_provider(provider)
+        if not prov:
+            return flask_redirect(f'https://{domain}/login?error=telegram not configured')
+        # Telegram sends user data as direct query params, not a "code"
+        raw_query = request.query_string.decode('utf-8')
+        user_info = prov.get_user_by_code(raw_query, '')
+        if 'error' in user_info:
+            return flask_redirect(f'https://{domain}/login?error={urllib.parse.quote(user_info["error"][:50])}')
+        open_id = user_info.get('open_id', '')
+        nickname = user_info.get('nickname', '')
+        avatar = user_info.get('avatar', '')
+        id_field = 'telegram_open_id'
+        display_name = nickname or f'Telegram user {open_id[-4:]}'
+        now = now_iso()
+        with get_db() as conn:
+            cur = conn.execute(f'SELECT * FROM users WHERE {id_field}=?', (open_id,))
+            user_row = cur.fetchone()
+            if user_row:
+                user = dict(user_row)
+                conn.execute('UPDATE users SET last_login=?, display_name=? WHERE id=?',
+                             (now, display_name or user.get('display_name', ''), user['id']))
+            else:
+                cur = conn.execute(
+                    f'INSERT INTO users ({id_field}, display_name, avatar_url, last_login) VALUES (?,?,?,?)',
+                    (open_id, display_name, avatar, now))
+                user_id = cur.lastrowid
+                conn.execute(
+                    'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                    (user_id, 'trademind', 'free'))
+                user = {'id': user_id, id_field: open_id, 'display_name': display_name}
+            conn.commit()
+        jwt = create_token(user['id'], app_name='trademind')
+        main_domain = os.environ.get('DEPLOY_DOMAIN', '')
+        callback_url = f'https://{main_domain}/?token={jwt}'
+        cd_val = '.' + main_domain
+        resp = make_response(flask_redirect(callback_url))
+        resp.set_cookie('sso_token', jwt, domain=cd_val, path='/', max_age=604800,
+                        httponly=True, secure=True, samesite='Lax')
+        return resp
 
     # ── International OAuth providers (Google/GitHub/Facebook) ──
     if is_intl_oauth_provider(provider):

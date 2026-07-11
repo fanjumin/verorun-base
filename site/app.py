@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 from services.deployment_config import deploy
 from services.brand_service import get_brand_settings
 from services.notification_service import get_unread_count, mark_read
-from services.oauth_service import get_alipay_oauth_configured
+from services.oauth_service import init_oauth
 
 # ══ routes 包名冲突处理 ══
 from auth_blueprint import register_auth
@@ -599,13 +599,7 @@ def login_page():
     except:
         pass
 
-    alipay_oauth = False
-    try:
-        alipay_oauth = get_alipay_oauth_configured()
-    except Exception:
-        pass
-
-    return render_template('login.html', plans=plans, brand=brand, alipay_oauth=alipay_oauth)
+    return render_template('login.html', plans=plans, brand=brand)
 
 
 @app.route('/register')

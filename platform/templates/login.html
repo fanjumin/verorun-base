@@ -160,19 +160,9 @@
           <div class="lf-toggle"><a href="/reset-password">{{ _('Forgot password?') }}</a></div>
         </div>
 
-        <!-- Divider & Third-party -->
-        <div class="lf-divider"><span>{{ _('Other login methods') }}</span></div>
-        <div class="lf-social-row">
-          <button type="button" class="lf-btn-social" id="douyinLogin">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.69h-2.87v12.07a2.87 2.87 0 1 1-1.97-2.75v-2.87a5.73 5.73 0 1 0 5.73 5.73V10.1a4.83 4.83 0 0 0 2.88.99V8.16c-.12 0-.23-.01-.34-.03a4.85 4.85 0 0 1-3.48-1.68l.82 2.76z" fill="currentColor"/></svg>
-            {{ _('Douyin') }}
-          </button>
-          {% if alipay_oauth %}
-          <button type="button" class="lf-btn-social" id="alipayLogin">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.26 6.5h-4.5a.5.5 0 0 0-.5.5v.5h2.75c.41 0 .75.34.75.75s-.34.75-.75.75h-2.75V12h2.25c.41 0 .75.34.75.75s-.34.75-.75.75h-2.25v2.5c0 .41-.34.75-.75.75s-.75-.34-.75-.75v-2.5H9.5c-.41 0-.75-.34-.75-.75s.34-.75.75-.75h1.75v-1.5H8.74a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h2.75V7.75c0-.41.34-.75.75-.75h3.77c.41 0 .75.34.75.75s-.34.75-.75.75z" fill="currentColor"/></svg>
-            {{ _('Alipay') }}
-          </button>
-          {% endif %}
+        <!-- Divider & Third-party (dynamic) -->
+        <div class="lf-divider" id="oauthDivider" style="display:none"><span>{{ _('Other login methods') }}</span></div>
+        <div class="lf-social-row" id="oauthProviders">
         </div>
 
         <div class="lf-register">

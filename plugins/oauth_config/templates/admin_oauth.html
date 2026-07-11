@@ -17,17 +17,20 @@ window.l_oauth=function(){
     h+='<option value="douyin">{{ _('Douyin') }}</option>';
     h+='<option value="wechat">{{ _('WeChat') }}</option>';
     h+='<option value="alipay">{{ _('Alipay') }}</option>';
+    h+='<option value="google">Google</option>';
+    h+='<option value="telegram">Telegram</option>';
     h+='</select></div>';
     h+='<div><div style="font-size:11px;color:var(--dim)">Client Key (AppID)</div><input class="in" id="oaKey" placeholder="{{ _('Open Platform') }} App ID" style="width:100%"></div>';
     h+='<div><div style="font-size:11px;color:var(--dim)">Client Secret</div><input class="in" id="oaSecret" type="password" placeholder="{{ _('Required on First Entry') }}，{{ _('Edit (Optional)') }}" style="width:100%"></div>';
     h+='</div>';
     h+='<div style="color:var(--dim);font-size:11px;margin-bottom:8px">{{ _('Callback URL Auto-Generated') }}: <code style="color:var(--accent)" id="oaCallbackPreview">https://<span id="oaDomainPreview">{{ _('Your Domain') }}</span>/auth/douyin/callback</code></div>';
     h+='<button class="btn bp" onclick="oaSave()">{{ _('Save') }}</button></div>';
-    h+='<div class="cd"><div class="st">{{ _('Configured Sites') }}</div>';
+    var activeCount = (d.data||[]).filter(function(c){return c.is_active}).length;
+    h+='<div class="cd"><div class="st">{{ _('Configured Sites') }} <span style="font-size:11px;color:var(--dim);font-weight:400">{{ _('Max') }} 2 {{ _('providers') }}（<span style="color:'+(activeCount>=2?'#f85149':'var(--accent)')+'">'+activeCount+'/2</span>）</span></div>';
     h+='<table><tr><th>{{ _('Domain') }}</th><th>{{ _('Platform') }}</th><th>Client Key</th><th>Client Secret</th><th>{{ _('Status') }}</th><th>{{ _('Callback URL') }}</th><th>{{ _('Actions') }}</th></tr>';
     (d.data||[]).forEach(function(c){
-      var providerLabel={'douyin':'{{ _('Douyin') }}','wechat':'{{ _('WeChat') }}','alipay':'{{ _('Alipay') }}'}[c.provider]||c.provider;
-      var callbackPath={'douyin':'/auth/douyin/callback','wechat':'/auth/wechat/callback','alipay':'/auth/alipay/callback'}[c.provider]||'/auth/douyin/callback';
+      var providerLabel={'douyin':'{{ _('Douyin') }}','wechat':'{{ _('WeChat') }}','alipay':'{{ _('Alipay') }}','google':'Google'}[c.provider]||c.provider;
+      var callbackPath={'douyin':'/auth/douyin/callback','wechat':'/auth/wechat/callback','alipay':'/auth/alipay/callback','google':'/auth/oauth/google/callback'}[c.provider]||'/auth/douyin/callback';
       h+='<tr><td>'+esc(c.site_domain)+'</td>';
       h+='<td><span class="bdg">'+providerLabel+'</span></td>';
       h+='<td><code>'+esc(c.client_key)+'</code></td>';
@@ -43,7 +46,7 @@ window.l_oauth=function(){
 function oaProviderChange(){
   var provider=document.getElementById("oaProvider").value;
   var domain=document.getElementById("oaDomain").value.trim()||'{{ _('Your Domain') }}';
-  var paths={'douyin':'/auth/douyin/callback','wechat':'/auth/wechat/callback','alipay':'/auth/alipay/callback'};
+  var paths={'douyin':'/auth/douyin/callback','wechat':'/auth/wechat/callback','alipay':'/auth/alipay/callback','google':'/auth/oauth/google/callback','telegram':'/auth/oauth/telegram/callback'};
   document.getElementById("oaCallbackPreview").innerHTML='https://<span id="oaDomainPreview">'+domain+'</span>'+paths[provider];
 }
 function oaEdit(id,provider){

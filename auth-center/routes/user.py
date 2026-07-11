@@ -589,9 +589,6 @@ CONFIG_SCHEMA = {
     'wechat_api_v3_key':       {'label': '微信支付 API v3 密钥','category': 'payment', 'sensitive': True,  'placeholder': 'API v3 Key'},
     'wechat_cert_serial':      {'label': '微信支付证书序列号',   'category': 'payment', 'sensitive': False, 'placeholder': '证书序列号'},
     'wechat_plan_id':          {'label': '微信支付扣费计划ID',   'category': 'payment', 'sensitive': False, 'placeholder': '签约计划ID'},
-    # ├─ 支付宝登录（替换微信登录）─
-    'alipay_oauth_app_id':     {'label': '支付宝登录 AppID',  'category': 'alipay_oauth', 'sensitive': False, 'placeholder': '支付宝开放平台 AppID'},
-    'alipay_oauth_private_key':{'label': '支付宝登录私钥',    'category': 'alipay_oauth', 'sensitive': True,  'placeholder': '应用私钥 (PKCS8)'},
     # ├─ 支付宝实人认证 ─
     'verification.provider':                {'label': '实名认证服务商',       'category': 'verification', 'sensitive': False, 'placeholder': 'alipay'},
     'verification.stub_mode':               {'label': '实名认证测试模式',     'category': 'verification', 'sensitive': False, 'placeholder': 'true 或 false'},
@@ -608,7 +605,6 @@ CONFIG_CATEGORIES = [
     {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
     {'id': 'express', 'title': '物流配送（快递鸟）'},
     {'id': 'payment', 'title': '支付配置'},
-    {'id': 'alipay_oauth', 'title': '支付宝登录'},
     {'id': 'verification', 'title': '支付宝实人认证'},
 ]
 

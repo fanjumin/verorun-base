@@ -279,7 +279,7 @@ Platform 的认证体系基于 **SSO（Single Sign-On）**：
 关键细节：
 - **Cookie 域名**：`cookie_domain` 读取自 `brand.site_domain`，跨子域共享
 - **Token 来源**：`sso_token`（SSO 登录）、`tm_token`（旧兼容）
-- **OAuth**：支持支付宝登录（`get_alipay_oauth_configured()`）
+- **OAuth**：支持第三方登录（动态加载，最多 2 个），通过 `GET /auth/oauth/providers` API 获取
 - **登录页**：双栏布局，左栏展示订阅套餐，右栏为登录表单
 
 ---

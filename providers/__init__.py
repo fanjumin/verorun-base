@@ -51,7 +51,8 @@ _PROVIDER_REGISTRY = {
         'sms':       [('providers.sms.twilio', 'TwilioSMSProvider')],
         'oauth':     [('providers.oauth.google', 'GoogleOAuthProvider'),
                       ('providers.oauth.github', 'GitHubOAuthProvider'),
-                      ('providers.oauth.facebook', 'FacebookOAuthProvider')],
+                      ('providers.oauth.facebook', 'FacebookOAuthProvider'),
+                      ('providers.oauth.telegram', 'TelegramOAuthProvider')],
         'payment':   [('providers.payment.stripe', 'StripeGateway'),
                       ('providers.payment.paypal', 'PayPalGateway')],
         'verify':    [],  # 国际区跳过实名认证

@@ -31,25 +31,7 @@ def _get_config(site_domain=None, provider='alipay'):
         except Exception:
             pass
 
-    # 2. 从 system_config 查（管理员后台配置）
-    try:
-        from models import get_db
-        with get_db() as conn:
-            app_id_row = conn.execute(
-                "SELECT value FROM system_config WHERE key='alipay_oauth_app_id'"
-            ).fetchone()
-            key_row = conn.execute(
-                "SELECT value FROM system_config WHERE key='alipay_oauth_private_key'"
-            ).fetchone()
-        if app_id_row and app_id_row['value']:
-            return {
-                'client_key': app_id_row['value'],
-                'client_secret': key_row['value'] if key_row else ''
-            }
-    except Exception:
-        pass
-
-    # 3. 环境变量兜底
+    # 2. 环境变量兜底
     if ALIPAY_APP_ID and ALIPAY_APP_ID != 'stub':
         return {'client_key': ALIPAY_APP_ID, 'client_secret': ALIPAY_PRIVATE_KEY}
 

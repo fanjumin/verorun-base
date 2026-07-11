@@ -57,7 +57,9 @@ def init_db():
                 totp_enabled      INTEGER DEFAULT 0,
                 security_level    INTEGER DEFAULT 0,
                 completion_percentage  INTEGER DEFAULT 0,
-                completion_last_updated TEXT
+                completion_last_updated TEXT,
+                alipay_user_id          TEXT UNIQUE,
+                telegram_open_id        TEXT UNIQUE
             );
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2157,8 +2159,18 @@ with get_db() as m:
             except Exception as e:
                 print(f'[migration] users.{col_name} skipped: {e}')
 
-    
-    
+    # ── Migration: alipay_user_id + telegram_open_id (2026-07-11) ──
+    oauth_user_fields = {
+        'alipay_user_id': "alipay_user_id TEXT UNIQUE",
+        'telegram_open_id': "telegram_open_id TEXT UNIQUE",
+    }
+    for col_name, col_def in oauth_user_fields.items():
+        if col_name not in user_cols:
+            try:
+                m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+            except Exception as e:
+                print(f'[migration] users.{col_name} skipped: {e}')
+
 
 # ── i18n 翻译表 (2026-06-30) ──
 with get_db() as m:

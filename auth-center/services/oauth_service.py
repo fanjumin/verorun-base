@@ -28,8 +28,9 @@ def get_intl_oauth_providers():
             from providers.oauth.google import GoogleOAuthProvider
             from providers.oauth.github import GitHubOAuthProvider
             from providers.oauth.facebook import FacebookOAuthProvider
+            from providers.oauth.telegram import TelegramOAuthProvider
             from providers import register_provider
-            for cls in (GoogleOAuthProvider, GitHubOAuthProvider, FacebookOAuthProvider):
+            for cls in (GoogleOAuthProvider, GitHubOAuthProvider, FacebookOAuthProvider, TelegramOAuthProvider):
                 register_provider('intl', 'oauth', cls)
                 _INTL_OAUTH_PROVIDERS.append(cls)
         except ImportError:
@@ -94,40 +95,74 @@ def is_intl_oauth_provider(provider_name):
 
 
 def get_intl_oauth_provider(provider_name):
-    """Get an intl OAuth provider instance by name (e.g. 'google', 'github', 'facebook')."""
-    from providers import get_provider
-    return get_provider('oauth', provider_name, market='intl')
+    """Get an intl OAuth provider instance by name (e.g. 'google', 'github', 'telegram').
+    Searches the already-loaded _INTL_OAUTH_PROVIDERS list by PROVIDER attribute,
+    avoiding get_provider() which expects an int position parameter."""
+    providers = get_intl_oauth_providers()
+    for cls in providers:
+        if hasattr(cls, 'PROVIDER') and cls.PROVIDER == provider_name:
+            return cls()
+    return None
 
 
-# ── Alipay OAuth (non-standard, needs custom RSA signing) ──
-def _get_db_config(key):
-    """从 system_config 读取配置（延迟导入避免循环依赖）"""
+# ── Enabled OAuth providers (for dynamic frontend rendering) ──
+PROVIDER_NAMES = {
+    'douyin': '抖音', 'wechat': '微信', 'alipay': '支付宝',
+    'google': 'Google', 'github': 'GitHub', 'facebook': 'Facebook',
+    'telegram': 'Telegram',
+}
+
+def get_enabled_oauth_providers(max_providers=2):
+    """Query enabled OAuth providers (DB + env) and return up to max_providers.
+
+    Returns list of dicts: [{'provider': 'douyin', 'name': '抖音', 'login_url': '/auth/oauth/douyin/login'}, ...]
+    """
+    enabled = []
+    seen = set()
+
+    # 1. DB-configured providers (oauth_providers table)
     try:
         from models import get_db
         with get_db() as conn:
-            row = conn.execute(
-                "SELECT value FROM system_config WHERE key=?", (key,)
-            ).fetchone()
-        return row['value'] if row else ''
+            rows = conn.execute(
+                'SELECT DISTINCT provider FROM oauth_providers WHERE is_active=1 ORDER BY provider'
+            ).fetchall()
+        for row in rows:
+            p = row['provider']
+            if p not in seen:
+                seen.add(p)
+                enabled.append(p)
     except Exception:
-        return ''
+        pass
 
-def get_alipay_oauth_url(redirect_uri):
-    """Generate Alipay OAuth authorize URL from system_config."""
-    app_id = _get_db_config('alipay_oauth_app_id')
-    if not app_id or app_id == 'stub':
-        return None
-    params = urllib.parse.urlencode({
-        'app_id': app_id,
-        'scope': 'auth_user',
-        'redirect_uri': redirect_uri,
-        'state': 'login',
-    })
-    return f'https://openauth.alipay.com/oauth2/publicAppAuthorize.htm?{params}'
+    # 2. Env-based intl providers (google/github/facebook)
+    for module_path, cls_name, provider_name in [
+        ('providers.oauth.google', 'GoogleOAuthProvider', 'google'),
+        ('providers.oauth.github', 'GitHubOAuthProvider', 'github'),
+        ('providers.oauth.facebook', 'FacebookOAuthProvider', 'facebook'),
+    ]:
+        if provider_name in seen:
+            continue
+        try:
+            mod = __import__(module_path, fromlist=[cls_name])
+            cls = getattr(mod, cls_name)
+            if cls().is_configured():
+                seen.add(provider_name)
+                enabled.append(provider_name)
+        except Exception:
+            pass
 
-def get_alipay_oauth_configured():
-    """Check if Alipay OAuth is configured (for frontend to show/hide login button)."""
-    return bool(_get_db_config('alipay_oauth_app_id'))
+    # 3. Limit to max_providers
+    enabled = enabled[:max_providers]
+
+    return [
+        {
+            'provider': p,
+            'name': PROVIDER_NAMES.get(p, p),
+            'login_url': f'/auth/oauth/{p}/login',
+        }
+        for p in enabled
+    ]
 
 
 def get_douyin_userinfo(access_token, open_id):

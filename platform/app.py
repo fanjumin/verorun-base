@@ -18,7 +18,7 @@ sys.path.insert(0, stdlib_dir)
 from services.deployment_config import deploy
 from services.brand_service import get_brand_settings
 from services.notification_service import get_unread_count, mark_read
-from services.oauth_service import get_alipay_oauth_configured
+from services.oauth_service import init_oauth
 
 # ══ routes 包名冲突处理 ══
 from auth_blueprint import register_auth
