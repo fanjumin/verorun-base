@@ -51,6 +51,14 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
+# 扩展模板搜索路径，支持插件模板
+import jinja2
+SITE_ADS_STATIC = os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'static')
+app.jinja_loader = jinja2.ChoiceLoader([
+    app.jinja_loader,
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'templates')),
+])
+
 # ══ 子域名识别中间件 ══
 from middleware.site_domain_middleware import resolve_current_site
 app.before_request(resolve_current_site)
@@ -867,6 +875,12 @@ def static_media(filename):
 @app.route('/static/<path:filename>')
 def static_files(filename):
     return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'platform', 'static'), filename)
+
+
+@app.route('/static/ads/<path:filename>')
+def ads_static_files(filename):
+    """广告插件静态文件"""
+    return send_from_directory(SITE_ADS_STATIC, filename)
 
 
 # ══ 主题系统 ══

@@ -98,6 +98,7 @@ app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..')),
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'health_check', 'templates')),
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'analytics', 'templates')),
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'templates')),
 ])
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -214,6 +215,7 @@ except Exception as e:
 
 PLATFORM_STATIC = os.path.join(os.path.dirname(__file__), '..', 'platform', 'static')
 ADMIN_STATIC = os.path.join(os.path.dirname(__file__), 'static')
+ADS_STATIC = os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'static')
 
 # ══ 独立部署：订阅过期锁定（客户端模式，仅锁定后台管理页面） ══
 if os.environ.get('EASYKAI_MODE', 'main') == 'client':
@@ -663,6 +665,12 @@ def static_files(filename):
     if os.path.isfile(local_path):
         return send_from_directory(ADMIN_STATIC, filename)
     return send_from_directory(PLATFORM_STATIC, filename)
+
+
+@app.route('/static/ads/<path:filename>')
+def ads_static_files(filename):
+    """广告插件静态文件"""
+    return send_from_directory(ADS_STATIC, filename)
 
 
 # 商品图片（上传到 platform/static/products/）
