@@ -1,0 +1,81 @@
+{
+    "name": "Email Service",
+    "identifier": "email",
+    "version": "0.1.0",
+    "category": "Communication",
+    "tags": ["email", "smtp", "imap", "notification"],
+    "icon": "email",
+    "description": "Email Service — SMTP/IMAP email client with inbox, compose, attachments, and contact management",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {
+        "smtp_host": "smtp.qiye.aliyun.com",
+        "smtp_port": 465,
+        "smtp_user": "",
+        "smtp_pass": "",
+        "smtp_from": "",
+        "imap_host": "imap.qiye.aliyun.com",
+        "imap_port": 993
+    },
+    "permissions": [
+        "email.send",
+        "email.read",
+        "email.manage"
+    ],
+    "hooks": {
+        "provides": [
+            "email/send",
+            "email/send_contact",
+            "email/get_config"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "RISK&AUDIT",
+        "key": "email",
+        "icon": "email",
+        "label": "Email Management"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "smtp_host": {
+                "type": "string",
+                "default": "smtp.qiye.aliyun.com",
+                "description": "SMTP server hostname"
+            },
+            "smtp_port": {
+                "type": "integer",
+                "default": 465,
+                "description": "SMTP port"
+            },
+            "smtp_user": {
+                "type": "string",
+                "default": "",
+                "description": "SMTP username"
+            },
+            "smtp_pass": {
+                "type": "string",
+                "default": "",
+                "description": "SMTP password (sensitive)"
+            },
+            "smtp_from": {
+                "type": "string",
+                "default": "",
+                "description": "From address"
+            },
+            "imap_host": {
+                "type": "string",
+                "default": "imap.qiye.aliyun.com",
+                "description": "IMAP server hostname"
+            },
+            "imap_port": {
+                "type": "integer",
+                "default": 993,
+                "description": "IMAP port"
+            }
+        }
+    }
+}

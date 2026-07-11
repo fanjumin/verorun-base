@@ -753,7 +753,7 @@ def email_send_code():
         conn.execute('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (?,?,?,?)',
                      (email, code, 'email_verify', expires_at))
         conn.commit()
-    from services.mail_service import send_email
+    from plugins.email.services import send_email
     subject = 'VeroRun 邮箱验证码'
     body_text = f'您的验证码是：{code}，10分钟内有效。如非本人操作，请忽略。'
     body_html = f'<h3>邮箱验证码</h3><p>您的验证码是：<b style="font-size:20px;color:#6366f1">{code}</b></p><p>10分钟内有效。如非本人操作，请忽略。</p>'

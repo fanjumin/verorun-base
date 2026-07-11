@@ -239,7 +239,7 @@ def send_notification(method: str, message: str, rule: dict):
 def _send_email_alert(message: str, alert_level: str = 'P2'):
     """Send alert via email."""
     try:
-        from easykai_auth.services.email_service import send_email
+        from plugins.email.services import send_email
         level_label = _level_label(alert_level)
         emoji = _level_emoji(alert_level)
         color = {'P0': '#f85149', 'P1': '#f0883e', 'P2': '#fbbf24', 'P3': '#60a5fa'}.get(alert_level, '#8b949e')
@@ -248,15 +248,19 @@ def _send_email_alert(message: str, alert_level: str = 'P2'):
                 "SELECT email FROM users WHERE is_admin=1 AND email IS NOT NULL AND email!=''"
             ).fetchall()
         for admin in admins:
+            html_body = (
+                f'<div style="background:#0d1117;color:#c9d1d9;padding:20px;font-family:sans-serif">'
+                f'<h2 style="color:{color}">{emoji} [{alert_level}] {level_label}</h2>'
+                f'<p style="white-space:pre-wrap">{message}</p>'
+                f'<p style="color:#8b949e;font-size:12px">Sent at: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>'
+                f'<p><a href="https://agent.easykai.cn/admin/health" style="color:#58a6ff">View in Admin Panel</a></p>'
+                f'</div>'
+            )
             send_email(
-                to=admin['email'],
+                to_addr=admin['email'],
                 subject=f'{emoji} [{alert_level}] {level_label} — System Health Alert',
-                body=f'<div style="background:#0d1117;color:#c9d1d9;padding:20px;font-family:sans-serif">'
-                     f'<h2 style="color:{color}">{emoji} [{alert_level}] {level_label}</h2>'
-                     f'<p style="white-space:pre-wrap">{message}</p>'
-                     f'<p style="color:#8b949e;font-size:12px">Sent at: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>'
-                     f'<p><a href="https://agent.easykai.cn/admin/health" style="color:#58a6ff">View in Admin Panel</a></p>'
-                     f'</div>',
+                body_text=message,
+                body_html=html_body,
             )
     except Exception as e:
         print(f'[HealthAlert] Failed to send email: {e}')

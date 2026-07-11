@@ -97,7 +97,7 @@
     97|if(T)document.cookie="sso_token="+T+"; path=/; max-age=604800";
     98|var P=new URLSearchParams(location.search);
     99|if(P.get("token")){T=P.get("token");localStorage.setItem("sso_token",T);localStorage.setItem("tm_token",T);localStorage.setItem("token",T);document.cookie="sso_token="+T+"; path=/; max-age=604800";window.history.replaceState({},"",window.location.pathname)}
-   100|var NAV=[["dashboard", "■", "总览", ""], ["", "", "管理", "ns"], ["users", "👥", "用户管理", ""], ["agents", "🤖", "Agent 管理", ""], ["keys", "🔑", "API Key", ""], ["posts", "💬", "社区内容", ""], ["contacts", "✉️", "工单", ""], ["email", "✉️", "邮件", ""], ["matrix", "🤖", "Agent 矩阵", ""], ["cms", "📄", "CMS 管理", ""], ["downloads", "⬇", "下载管理", ""], ["", "", "财务", "ns"], ["revenue", "📊", "收入看板", ""], ["orders", "💳", "订单", ""], ["", "", "系统", "ns"], ["config", "⚙️", "系统设置", ""], ["logs", "📄", "操作日志", ""]];
+   100|var NAV=[["dashboard", "■", "总览", ""], ["", "", "管理", "ns"], ["users", "👥", "用户管理", ""], ["agents", "🤖", "Agent 管理", ""], ["keys", "🔑", "API Key", ""], ["posts", "💬", "社区内容", ""], ["contacts", "✉️", "工单", ""], ["matrix", "🤖", "Agent 矩阵", ""], ["cms", "📄", "CMS 管理", ""], ["downloads", "⬇", "下载管理", ""], ["", "", "财务", "ns"], ["revenue", "📊", "收入看板", ""], ["orders", "💳", "订单", ""], ["", "", "系统", "ns"], ["config", "⚙️", "系统设置", ""], ["logs", "📄", "操作日志", ""]];
    101|var navEl=document.getElementById("nav");
    102|NAV.forEach(function(n){
    103|  if(n[3]=="ns"){navEl.innerHTML+='<div class="ns">'+n[2]+'</div>';return}

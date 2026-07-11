@@ -460,8 +460,19 @@ def _send_webhook(url: str, title: str, message: str) -> dict:
 
 
 def _send_email(email_to: str, title: str, message: str) -> dict:
-    """发送邮件（调用现有邮件服务）"""
-    return {'success': True, 'email_to': email_to, 'title': title, '_mock': True}
+    """发送邮件（调用 Email 插件服务）"""
+    if not email_to:
+        return {'success': False, 'error': 'email_to 为空'}
+    try:
+        from plugins.email.services import send_email as plugin_send_email
+        ok, msg = plugin_send_email(
+            to_addr=email_to,
+            subject=title,
+            body_text=message,
+        )
+        return {'success': ok, 'message': msg}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
 
 
 # ============================================================

@@ -115,7 +115,7 @@ function scfg(k){
   }).catch(function(){alert("{{ _('Save failed') }}")})
 }
 function seedConfig(){
-  if(!confirm("{{ _('Initialize all email/SMS config (existing kept)?') }}"))return;
+  if(!confirm("{{ _('Initialize all config items (existing kept)?') }}"))return;
   fetch("/user/config/seed",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){alert(d.message);loadConfigs()}else{alert(d.error||"{{ _('Initialize Failed') }}")}
   })

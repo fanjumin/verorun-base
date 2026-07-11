@@ -552,20 +552,13 @@ def usage_history():
 
 # Known config keys with metadata
 CONFIG_SCHEMA = {
-    # ├─ 邮箱配置 ─
-    'smtp_host':  {'label': 'SMTP 服务器',    'category': 'email', 'sensitive': False, 'placeholder': 'smtp.qiye.aliyun.com'},
-    'smtp_port':  {'label': 'SMTP 端口',      'category': 'email', 'sensitive': False, 'placeholder': '465'},
-    'smtp_user':  {'label': 'SMTP 账号',      'category': 'email', 'sensitive': False, 'placeholder': 'support@example.com'},
-    'smtp_pass':  {'label': 'SMTP 密码',      'category': 'email', 'sensitive': True,  'placeholder': '输入新密码'},
-    'smtp_from':  {'label': '发件人地址',      'category': 'email', 'sensitive': False, 'placeholder': '支持@your-domain.com'},
-    'imap_host':  {'label': 'IMAP 服务器',     'category': 'email', 'sensitive': False, 'placeholder': 'imap.qiye.aliyun.com'},
-    'imap_port':  {'label': 'IMAP 端口',       'category': 'email', 'sensitive': False, 'placeholder': '993'},
+    # ├─ 邮箱配置（SMTP/IMAP 已迁移至 Email 插件，由插件独立管理） ─
     # ├─ 短信配置 ─
     'aliyun_sms_sign_name':    {'label': '短信签名',      'category': 'sms', 'sensitive': False, 'placeholder': '徐州易开网络科技'},
     'aliyun_sms_access_key':   {'label': 'AccessKey ID',   'category': 'sms', 'sensitive': True,  'placeholder': '输入 AccessKey ID'},
     'aliyun_sms_secret':       {'label': 'AccessKey Secret','category': 'sms', 'sensitive': True,  'placeholder': '输入 AccessKey Secret'},
     # ├─ 联系邮箱 ─
-    'contact_email':           {'label': '联系邮箱',       'category': 'email', 'sensitive': False, 'placeholder': 'myname@163.com'},
+    'contact_email':           {'label': '联系邮箱',       'category': 'other', 'sensitive': False, 'placeholder': 'myname@163.com'},
     # ├─ 社媒推送配置 ─
     'wechat_token':            {'label': '公众号 Token',       'category': 'social', 'sensitive': True,  'placeholder': '输入 Token (可选)'},
     # ├─ 微博推送 ─
@@ -610,7 +603,6 @@ CONFIG_SCHEMA = {
 }
 
 CONFIG_CATEGORIES = [
-    {'id': 'email', 'title': '邮箱配置'},
     {'id': 'sms',   'title': '短信配置'},
     {'id': 'social', 'title': '社媒推送'},
     {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
