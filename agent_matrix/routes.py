@@ -424,7 +424,7 @@ def chat_tool():
 
     # 工具路由映射
     intent_prompt = """你是一个意图分析器。分析用户消息，只返回一个 JSON：
-{"intent":"ppt|image|voice|video|cms|supply_chain|clean|chat","args":{}}
+{"intent":"ppt|image|voice|video|cms|supply_chain|clean|site_build|chat","args":{}}
 
 - ppt: 生成PPT。args: {topic, pages(默认10), style(可选)}
 - image: 生成/分析图像。args: {prompt, style(可选), count(默认1), action:"generate"|"analyze"}
@@ -433,6 +433,7 @@ def chat_tool():
 - cms: 写文章。args: {title, category(可选), content_prompt}
 - supply_chain: 供应链与商城操作。args: {action:"search"|"collect"|"optimize"|"publish",keywords(可选),item_id(可选)}
 - clean: 数据清洗。用户提供了需要清洗的原始内容（文章、白皮书、行业背景等）。args: {content: 原始内容全文}
+- site_build: 用户想创建/搭建一个网站。关键词包括"建站""创建网站""搭建网站""帮我做一个网站""生成网站"。args: {prompt_identifier: 行业标识(如law_firm/restaurant等，从用户描述推断), action:"preview"|"execute"|"modify"}
 - chat: 普通对话，不是工具调用。"""
 
     # 用轻量模型快速识别意图
@@ -540,6 +541,67 @@ def chat_tool():
                 'actions': [],
                 'status': result.get('status', 'ok'),
             })
+
+        elif intent == 'site_build':
+            # AI 智能建站 → 通过 Site Builder 引擎处理
+            action = args.get('action', 'preview')
+            prompt_identifier = args.get('prompt_identifier', '')
+            try:
+                from site_builder.models import get_prompt as _get_prompt, list_prompts as _list_prompts
+                from site_builder.engine import SiteBuilderEngine
+                engine = SiteBuilderEngine()
+
+                # 获取提示词模板
+                if prompt_identifier:
+                    prompt_template = _get_prompt(prompt_identifier)
+                else:
+                    prompts = _list_prompts(active_only=True)
+                    prompt_template = prompts[0] if prompts else None
+
+                if not prompt_template:
+                    summary = '❌ 没有可用的行业提示词模板，请先在「AI 建站」中创建模板。'
+                    return _success({
+                        'session_id': session_id,
+                        'summary': summary,
+                        'sub_task_results': [],
+                        'actions': [],
+                        'status': 'ok',
+                        'intent': intent,
+                    })
+
+                if action == 'execute':
+                    # 执行建站：需要前端传来的 plan 数据
+                    summary = '✅ 请切换到「AI 智能建站」页面，在方案预览中点击「确认执行」按钮来启动建站流程。'
+                    actions.append({
+                        'type': 'navigate',
+                        'text': '前往 AI 智能建站',
+                        'url': '/admin/site-builder'
+                    })
+                elif action == 'modify':
+                    # 最小化修改
+                    modify_result = engine.modify_block(message)
+                    if modify_result.get('success'):
+                        summary = f'✅ 已修改：{modify_result.get("old_value", "")} → {modify_result.get("new_value", "")}'
+                    else:
+                        summary = f'❌ {modify_result.get("error", "无法定位需要修改的区块")}'
+                else:
+                    # 默认：生成方案预览
+                    parsed = engine.parse_requirement(prompt_template, message)
+                    plan = engine.generate_plan(prompt_template, parsed, message)
+                    summary = plan.get('summary', '方案已生成')
+
+                    # 返回方案数据供前端展示
+                    actions.append({
+                        'type': 'site_build_plan',
+                        'plan': plan,
+                        'parsed': parsed,
+                        'prompt_id': prompt_template.get('id', 0),
+                    })
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                summary = f'❌ 建站处理失败：{e}'
 
         else:
             # 普通对话

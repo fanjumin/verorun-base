@@ -2233,6 +2233,50 @@ with get_db() as m:
     print('[Migration] ✅ site_domains 默认种子 (www/agent/platform)')
 
 
+# ── Site Builder 模块表 (2026-07-11) ──
+with get_db() as m:
+    m.execute('''CREATE TABLE IF NOT EXISTS site_builder_prompts (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        identifier      TEXT UNIQUE NOT NULL,
+        name            TEXT NOT NULL,
+        description     TEXT DEFAULT '',
+        icon            TEXT DEFAULT '📄',
+        industry        TEXT DEFAULT '',
+        tags_json       TEXT DEFAULT '[]',
+        is_builtin      INTEGER DEFAULT 1,
+        is_active       INTEGER DEFAULT 1,
+        defaults_json   TEXT DEFAULT '{}',
+        pages_json      TEXT DEFAULT '[]',
+        documents_json  TEXT DEFAULT '[]',
+        prompts_json    TEXT DEFAULT '{}',
+        created_by      INTEGER DEFAULT 0,
+        created_at      TEXT DEFAULT (datetime('now')),
+        updated_at      TEXT DEFAULT (datetime('now'))
+    )''')
+    m.execute('''CREATE TABLE IF NOT EXISTS site_builder_tasks (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id         TEXT UNIQUE NOT NULL,
+        user_id         INTEGER NOT NULL,
+        site_config_id  INTEGER DEFAULT 1,
+        prompt_id       INTEGER,
+        user_input      TEXT DEFAULT '',
+        status          TEXT DEFAULT 'pending',
+        plan_json       TEXT DEFAULT '{}',
+        result_json     TEXT DEFAULT '{}',
+        current_step    TEXT DEFAULT '',
+        error_message   TEXT DEFAULT '',
+        created_at      TEXT DEFAULT (datetime('now')),
+        updated_at      TEXT DEFAULT (datetime('now')),
+        finished_at     TEXT DEFAULT ''
+    )''')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_sbp_identifier ON site_builder_prompts(identifier)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_sbp_industry ON site_builder_prompts(industry)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_sbt_user ON site_builder_tasks(user_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_sbt_status ON site_builder_tasks(status)')
+    m.commit()
+    print('[Migration] ✅ site_builder 表已创建')
+
+
 def now_iso():
     return datetime.now().isoformat()
 

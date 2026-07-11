@@ -183,6 +183,21 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# ===== Site Builder 核心模块 =====
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+try:
+    from site_builder import init_site_builder
+    from site_builder.models import init_tables, seed_default_prompts
+    init_tables()
+    seed_default_prompts()
+    init_site_builder(app)
+    print(f'[SiteBuilder] ✅ 核心模块已初始化')
+    print(f'[SiteBuilder] 📋 API: /admin/site-builder/*')
+except Exception as e:
+    print(f'[SiteBuilder] ❌ 初始化失败: {e}')
+    import traceback
+    traceback.print_exc()
+
 # ===== Agent 矩阵系统 =====
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 try:
