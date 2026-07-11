@@ -66,6 +66,130 @@ TOOL_SCHEMAS = {
             }
         }
     },
+    "ads_list": {
+        "type": "function",
+        "function": {
+            "name": "ads_list",
+            "description": "列出广告管理系统中的广告位，可按站点、位置、是否启用筛选。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "site_key": {"type": "string", "description": "站点标识，默认 default"},
+                    "position": {"type": "string", "description": "广告位置，例如 sidebar"},
+                    "active_only": {"type": "boolean", "description": "是否只返回启用状态的广告", "default": False}
+                },
+                "required": []
+            }
+        }
+    },
+    "ads_create": {
+        "type": "function",
+        "function": {
+            "name": "ads_create",
+            "description": "创建一个新的广告位。支持图片广告或广告代码，可设置投放位置、时间、定向规则、权重等。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "广告名称（必填）"},
+                    "site_key": {"type": "string", "description": "站点标识，默认 default"},
+                    "zone_id": {"type": "integer", "description": "广告区域 ID，默认 0"},
+                    "position": {"type": "string", "description": "广告位置标识，默认 sidebar"},
+                    "page": {"type": "string", "description": "展示页面，默认 * 表示全站"},
+                    "ad_type": {"type": "string", "enum": ["image", "code"], "description": "广告类型"},
+                    "image_url": {"type": "string", "description": "图片广告 URL"},
+                    "link_url": {"type": "string", "description": "图片广告跳转链接"},
+                    "ad_code": {"type": "string", "description": "广告代码（HTML/JS）"},
+                    "width": {"type": "integer", "description": "宽度（px）"},
+                    "height": {"type": "integer", "description": "高度（px）"},
+                    "targeting_rules": {"type": "object", "description": "定向规则 JSON 对象"},
+                    "schedule_start": {"type": "string", "description": "投放开始时间 ISO 格式"},
+                    "schedule_end": {"type": "string", "description": "投放结束时间 ISO 格式"},
+                    "weight": {"type": "integer", "description": "权重，默认 1"},
+                    "freq_cap": {"type": "integer", "description": "每用户每日频次上限，0 表示无限制"},
+                    "click_tag": {"type": "string", "description": "点击追踪标记"},
+                    "utm_source": {"type": "string", "description": "UTM 来源"},
+                    "is_active": {"type": "integer", "description": "是否启用，1=启用，0=禁用"},
+                    "sort_order": {"type": "integer", "description": "排序，默认 0"}
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    "ads_update": {
+        "type": "function",
+        "function": {
+            "name": "ads_update",
+            "description": "更新指定广告位的字段，例如启用/禁用、修改代码、调整权重等。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ad_id": {"type": "integer", "description": "广告 ID"},
+                    "updates": {"type": "object", "description": "要更新的字段键值对，字段含义同 ads_create"}
+                },
+                "required": ["ad_id", "updates"]
+            }
+        }
+    },
+    "ads_delete": {
+        "type": "function",
+        "function": {
+            "name": "ads_delete",
+            "description": "删除指定广告位。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ad_id": {"type": "integer", "description": "广告 ID"}
+                },
+                "required": ["ad_id"]
+            }
+        }
+    },
+    "ads_get_stats": {
+        "type": "function",
+        "function": {
+            "name": "ads_get_stats",
+            "description": "查询广告统计数据，包括展示量、点击量、CTR 及每日趋势。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ad_id": {"type": "integer", "description": "广告 ID，不传则统计全部广告"},
+                    "days": {"type": "integer", "description": "统计天数，默认 7", "default": 7}
+                },
+                "required": []
+            }
+        }
+    },
+    "ads_analyze": {
+        "type": "function",
+        "function": {
+            "name": "ads_analyze",
+            "description": "分析广告效果，返回高点击、低 CTR、趋势等文字洞察与优化建议。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "description": "统计天数，默认 7", "default": 7}
+                },
+                "required": []
+            }
+        }
+    },
+    "ads_render_snippet": {
+        "type": "function",
+        "function": {
+            "name": "ads_render_snippet",
+            "description": "生成一段 Jinja2 模板代码，用于在页面指定位置渲染广告位。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "position": {"type": "string", "description": "广告位置标识，默认 sidebar"},
+                    "page": {"type": "string", "description": "展示页面，默认 *"},
+                    "site_key": {"type": "string", "description": "站点标识，默认 default"},
+                    "zone_id": {"type": "integer", "description": "广告区域 ID"}
+                },
+                "required": ["position"]
+            }
+        }
+    },
 }
 
 
@@ -161,10 +285,145 @@ def _tool_search_knowledge(args):
         return f"检索知识库失败: {e}"
 
 
+def _tool_ads_list(args):
+    """列出广告"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        res = ads_tools.list_ads(
+            site_key=args.get('site_key'),
+            position=args.get('position'),
+            active_only=args.get('active_only', False)
+        )
+        if not res['success']:
+            return f"获取广告列表失败: {res.get('error')}"
+        ads = res.get('data', [])
+        if not ads:
+            return "暂无广告位。"
+        lines = [f"共 {len(ads)} 个广告位："]
+        for a in ads:
+            status = '启用' if a.get('is_active') else '停用'
+            lines.append(
+                f"ID {a['id']}: {a['name']} | 站点 {a.get('site_key','default')} | "
+                f"位置 {a.get('position','-')} | 类型 {a.get('ad_type','image')} | {status}"
+            )
+        return '\n'.join(lines)
+    except Exception as e:
+        logger.warning(f"[tool:ads_list] 执行失败: {e}")
+        return f"获取广告列表失败: {e}"
+
+
+def _tool_ads_create(args):
+    """创建广告"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        res = ads_tools.create_ad(args)
+        if res['success']:
+            return f"✅ 广告已创建，ID: {res['data']['id']}"
+        return f"❌ 创建失败: {res.get('error')}"
+    except Exception as e:
+        logger.warning(f"[tool:ads_create] 执行失败: {e}")
+        return f"创建广告失败: {e}"
+
+
+def _tool_ads_update(args):
+    """更新广告"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        ad_id = args.get('ad_id')
+        updates = args.get('updates', {})
+        res = ads_tools.update_ad(ad_id, updates)
+        if res['success']:
+            return f"✅ 广告 {ad_id} 已更新"
+        return f"❌ 更新失败: {res.get('error')}"
+    except Exception as e:
+        logger.warning(f"[tool:ads_update] 执行失败: {e}")
+        return f"更新广告失败: {e}"
+
+
+def _tool_ads_delete(args):
+    """删除广告"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        res = ads_tools.delete_ad(args.get('ad_id'))
+        if res['success']:
+            return f"✅ 广告 {args.get('ad_id')} 已删除"
+        return f"❌ 删除失败: {res.get('error')}"
+    except Exception as e:
+        logger.warning(f"[tool:ads_delete] 执行失败: {e}")
+        return f"删除广告失败: {e}"
+
+
+def _tool_ads_get_stats(args):
+    """查询广告统计"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        res = ads_tools.get_stats(
+            ad_id=args.get('ad_id'),
+            days=int(args.get('days', 7))
+        )
+        if not res['success']:
+            return f"查询统计失败: {res.get('error')}"
+        data = res.get('data', {})
+        total = data.get('total', {})
+        daily = data.get('daily', [])
+        lines = [
+            f"=== 广告统计（最近 {args.get('days',7)} 天）===",
+            f"展示量: {total.get('impressions', 0)}",
+            f"点击量: {total.get('clicks', 0)}",
+            f"CTR: {total.get('ctr', 0)}%",
+        ]
+        if daily:
+            lines.append("每日趋势:")
+            for r in daily[-10:]:
+                lines.append(f"  {r['stat_date']}: 展示 {r.get('impressions',0)} 点击 {r.get('clicks',0)}")
+        return '\n'.join(lines)
+    except Exception as e:
+        logger.warning(f"[tool:ads_get_stats] 执行失败: {e}")
+        return f"查询广告统计失败: {e}"
+
+
+def _tool_ads_analyze(args):
+    """分析广告效果"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        res = ads_tools.analyze_ads(days=int(args.get('days', 7)))
+        if res['success']:
+            return res['data']
+        return f"分析失败: {res.get('error')}"
+    except Exception as e:
+        logger.warning(f"[tool:ads_analyze] 执行失败: {e}")
+        return f"广告分析失败: {e}"
+
+
+def _tool_ads_render_snippet(args):
+    """生成广告渲染代码片段"""
+    try:
+        import plugins.ads.ai_tools as ads_tools
+        res = ads_tools.generate_render_snippet(
+            position=args.get('position', 'sidebar'),
+            page=args.get('page', '*'),
+            site_key=args.get('site_key', 'default'),
+            zone_id=args.get('zone_id')
+        )
+        if res['success']:
+            return "在模板中加入以下代码即可渲染广告位：\n```jinja2\n" + res['data'] + "\n```"
+        return f"生成代码失败: {res.get('error')}"
+    except Exception as e:
+        logger.warning(f"[tool:ads_render_snippet] 执行失败: {e}")
+        return f"生成广告渲染代码失败: {e}"
+
+
 TOOL_EXECUTORS = {
     "get_system_health": _tool_get_system_health,
     "query_stats": _tool_query_stats,
     "search_knowledge": _tool_search_knowledge,
+    "ads_list": _tool_ads_list,
+    "ads_create": _tool_ads_create,
+    "ads_update": _tool_ads_update,
+    "ads_delete": _tool_ads_delete,
+    "ads_get_stats": _tool_ads_get_stats,
+    "ads_analyze": _tool_ads_analyze,
+    "ads_render_snippet": _tool_ads_render_snippet,
 }
 
 

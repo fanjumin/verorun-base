@@ -424,7 +424,7 @@ def chat_tool():
 
     # 工具路由映射
     intent_prompt = """你是一个意图分析器。分析用户消息，只返回一个 JSON：
-{"intent":"ppt|image|voice|video|cms|supply_chain|clean|site_build|chat","args":{}}
+{"intent":"ppt|image|voice|video|cms|supply_chain|clean|site_build|ads|chat","args":{}}
 
 - ppt: 生成PPT。args: {topic, pages(默认10), style(可选)}
 - image: 生成/分析图像。args: {prompt, style(可选), count(默认1), action:"generate"|"analyze"}
@@ -434,6 +434,7 @@ def chat_tool():
 - supply_chain: 供应链与商城操作。args: {action:"search"|"collect"|"optimize"|"publish",keywords(可选),item_id(可选)}
 - clean: 数据清洗。用户提供了需要清洗的原始内容（文章、白皮书、行业背景等）。args: {content: 原始内容全文}
 - site_build: 用户想创建/搭建一个网站。关键词包括"建站""创建网站""搭建网站""帮我做一个网站""生成网站"。args: {prompt_identifier: 行业标识(如law_firm/restaurant等，从用户描述推断), action:"preview"|"execute"|"modify"}
+- ads: 广告管理操作。用户提到了"广告""广告位""AD""banner""投放""分析广告""添加广告"等。args: {action:"list"|"create"|"update"|"delete"|"stats"|"analyze"|"snippet", name, position, ad_type, image_url, link_url, ad_code, site_key(默认default), page(默认*), ad_id, days(默认7)}
 - chat: 普通对话，不是工具调用。"""
 
     # 用轻量模型快速识别意图
@@ -540,6 +541,66 @@ def chat_tool():
                 'sub_task_results': result.get('sub_task_results', []),
                 'actions': [],
                 'status': result.get('status', 'ok'),
+            })
+
+        elif intent == 'ads':
+            # 广告管理 → 直接调用插件 AI 工具
+            import plugins.ads.ai_tools as ads_ai
+            action = args.get('action', 'list')
+            result = {'success': False, 'error': '未知 ads 操作'}
+            try:
+                if action == 'list':
+                    result = ads_ai.list_ads(
+                        site_key=args.get('site_key'),
+                        position=args.get('position'),
+                        active_only=args.get('active_only', False)
+                    )
+                elif action == 'create':
+                    result = ads_ai.create_ad(args)
+                elif action == 'update':
+                    result = ads_ai.update_ad(
+                        args.get('ad_id'),
+                        args.get('updates', {})
+                    )
+                elif action == 'delete':
+                    result = ads_ai.delete_ad(args.get('ad_id'))
+                elif action == 'stats':
+                    result = ads_ai.get_stats(
+                        ad_id=args.get('ad_id'),
+                        days=int(args.get('days', 7))
+                    )
+                elif action == 'analyze':
+                    result = ads_ai.analyze_ads(days=int(args.get('days', 7)))
+                elif action == 'snippet':
+                    result = ads_ai.generate_render_snippet(
+                        position=args.get('position', 'sidebar'),
+                        page=args.get('page', '*'),
+                        site_key=args.get('site_key', 'default'),
+                        zone_id=args.get('zone_id')
+                    )
+            except Exception as ads_err:
+                result = {'success': False, 'error': str(ads_err)}
+
+            if result['success']:
+                data = result.get('data')
+                if isinstance(data, str):
+                    summary = data
+                elif isinstance(data, dict) and 'id' in data:
+                    summary = f'✅ 操作成功，ID: {data["id"]}'
+                elif isinstance(data, list):
+                    summary = '\n'.join(str(x) for x in data[:30])
+                else:
+                    summary = '✅ 操作成功'
+            else:
+                summary = f'❌ 操作失败: {result.get("error", "未知错误")}'
+
+            return _success({
+                'session_id': session_id,
+                'summary': summary,
+                'sub_task_results': [],
+                'actions': [],
+                'status': 'ok',
+                'intent': intent,
             })
 
         elif intent == 'site_build':
