@@ -185,11 +185,11 @@ def delete_ad(ad_id):
         return {'success': False, 'error': str(e)}
 
 
-def get_stats(ad_id=None, days=7):
+def get_stats(ad_id=None, site_key=None, days=7):
     """获取广告统计"""
     try:
         from plugins.ads.models import get_ad_stats
-        return {'success': True, 'data': get_ad_stats(ad_id=ad_id, days=days)}
+        return {'success': True, 'data': get_ad_stats(ad_id=ad_id, site_key=site_key, days=days)}
     except Exception as e:
         return {'success': False, 'error': str(e)}
 

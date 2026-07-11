@@ -215,7 +215,7 @@ def record_click(ad_id, page='', position='', ip='', user_agent='', referrer='')
     conn.commit()
 
 
-def get_ad_stats(ad_id=None, days=7):
+def get_ad_stats(ad_id=None, site_key=None, days=7):
     """查询广告统计，返回每日列表和汇总"""
     conn = get_ads_db()
     from datetime import date, timedelta
@@ -227,6 +227,9 @@ def get_ad_stats(ad_id=None, days=7):
     if ad_id:
         where += " AND ad_id=?"
         params.append(ad_id)
+    elif site_key:
+        where += " AND ad_id IN (SELECT id FROM ad_placements WHERE site_key=? AND is_active=1)"
+        params.append(site_key)
 
     rows = conn.execute(
         f'SELECT stat_date, SUM(impressions) AS impressions, SUM(clicks) AS clicks FROM ad_stats {where} GROUP BY stat_date ORDER BY stat_date',

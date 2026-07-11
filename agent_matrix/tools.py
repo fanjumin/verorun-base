@@ -359,6 +359,7 @@ def _tool_ads_get_stats(args):
         import plugins.ads.ai_tools as ads_tools
         res = ads_tools.get_stats(
             ad_id=args.get('ad_id'),
+            site_key=args.get('site_key'),
             days=int(args.get('days', 7))
         )
         if not res['success']:

@@ -306,10 +306,34 @@ def api_get_stats():
     if err:
         return err
     ad_id = request.args.get('ad_id', type=int)
+    site_key = request.args.get('site_key', '').strip() or None
     days = request.args.get('days', 7, type=int)
     days = max(1, min(days, 90))
     from plugins.ads.models import get_ad_stats
-    return jsonify({'success': True, 'data': get_ad_stats(ad_id=ad_id, days=days)})
+    return jsonify({'success': True, 'data': get_ad_stats(ad_id=ad_id, site_key=site_key, days=days)})
+
+
+# ============================================================
+# 站点解析辅助
+# ============================================================
+
+def _resolve_site_key_from_host():
+    """根据请求 Host 从 site_domains 表解析当前子域名作为 site_key"""
+    host = request.headers.get('Host', '').split(':')[0].lower()
+    if not host or host.startswith('127.') or host == 'localhost':
+        return 'default'
+    try:
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT subdomain FROM site_domains WHERE full_domain=? AND is_published=1",
+                (host,)
+            ).fetchone()
+            if row and row['subdomain']:
+                return row['subdomain']
+    except Exception:
+        pass
+    return 'default'
 
 
 # ============================================================
@@ -324,7 +348,7 @@ def public_ads():
     """
     page = request.args.get('page', '*', type=str).strip()
     position = request.args.get('position', '', type=str).strip()
-    site_key = request.args.get('site_key', 'default', type=str).strip()
+    site_key = request.args.get('site_key', '').strip() or _resolve_site_key_from_host()
     zone_id = request.args.get('zone_id', type=int)
 
     from plugins.ads.models import get_ads_db

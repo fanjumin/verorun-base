@@ -1,9 +1,10 @@
 window.l_ads=function(){
   document.getElementById("pt").textContent="{{ _('Ad Management') }}";
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  var siteParam=_currentSiteKey?'?site_key='+encodeURIComponent(_currentSiteKey):'';
   Promise.all([
-    fetch("/admin/ads",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}),
-    fetch("/admin/ads/zones",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()})
+    fetch("/admin/ads"+siteParam,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}),
+    fetch("/admin/ads/zones"+siteParam,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()})
   ]).then(function(results){
     var adsRes=results[0], zonesRes=results[1];
     if(!adsRes.success)return;
@@ -16,6 +17,13 @@ window.l_ads=function(){
 var _adsCache=[];
 var _zonesCache=[];
 var _currentTab='ads';
+var _currentSiteKey='default';
+
+function changeSiteKey(){
+  var v=(document.getElementById("siteKeyFilter")?.value||'').trim();
+  _currentSiteKey=v||'default';
+  l_ads();
+}
 
 var _pages={"*":"{{ _('Entire Site') }}","plaza":"{{ _('Plaza') }}","guilds":"{{ _('Camp') }}","debates":"{{ _('Debate') }}","alerts":"{{ _('Alert') }}","ranking":"{{ _('Ranking') }}","arena":"{{ _('Competitive') }}","cognition":"{{ _('Cognitive Map') }}"};
 
@@ -24,6 +32,9 @@ function renderAdsApp(){
   h+='<button class="btn bp" onclick="switchAdTab(\'ads\')">{{ _('Ad List') }}</button> ';
   h+='<button class="btn bo" onclick="switchAdTab(\'zones\')">{{ _('Zone Management') }}</button> ';
   h+='<button class="btn bo" onclick="switchAdTab(\'stats\')">{{ _('Ad Statistics') }}</button>';
+  h+='<span style="flex:1"></span>';
+  h+='<label style="font-size:12px;color:var(--dim);margin-right:6px">{{ _('Site') }}</label>';
+  h+='<input id="siteKeyFilter" class="in" style="width:140px" value="'+esc(_currentSiteKey)+'" onchange="changeSiteKey()" placeholder="site_key">';
   h+='</div>';
   h+='<div id="adTabAds"></div>';
   h+='<div id="adTabZones" style="display:none"></div>';
@@ -136,7 +147,7 @@ function showAdForm(id){
     toggleAdType();
   }else{
     document.getElementById("adName").value="";
-    document.getElementById("adSiteKey").value="default";
+    document.getElementById("adSiteKey").value=_currentSiteKey;
     document.getElementById("adPage").value="*";
     document.getElementById("adPos").value="sidebar";
     document.getElementById("adZoneId").value=0;
@@ -175,7 +186,7 @@ function saveAd(){
   try{targeting=JSON.parse(targetingStr)}catch(e){showToast("{{ _('Targeting Rules') }} JSON {{ _('Save failed') }}","error");return}
   var data={
     name:document.getElementById("adName").value.trim(),
-    site_key:document.getElementById("adSiteKey").value.trim()||"default",
+    site_key:document.getElementById("adSiteKey").value.trim()||_currentSiteKey,
     page:document.getElementById("adPage").value,
     position:document.getElementById("adPos").value.trim()||"sidebar",
     zone_id:parseInt(document.getElementById("adZoneId").value)||0,
@@ -261,7 +272,7 @@ function showZoneForm(id){
   }else{
     document.getElementById("zoneName").value="";
     document.getElementById("zoneIdentifier").value="";
-    document.getElementById("zoneSiteKey").value="default";
+    document.getElementById("zoneSiteKey").value=_currentSiteKey;
     document.getElementById("zoneDesc").value="";
     document.getElementById("zoneWidth").value=0;
     document.getElementById("zoneHeight").value=0;
@@ -278,7 +289,7 @@ function saveZone(){
   var data={
     name:document.getElementById("zoneName").value.trim(),
     identifier:document.getElementById("zoneIdentifier").value.trim(),
-    site_key:document.getElementById("zoneSiteKey").value.trim()||"default",
+    site_key:document.getElementById("zoneSiteKey").value.trim()||_currentSiteKey,
     description:document.getElementById("zoneDesc").value.trim(),
     width:parseInt(document.getElementById("zoneWidth").value)||0,
     height:parseInt(document.getElementById("zoneHeight").value)||0,
@@ -315,7 +326,7 @@ function renderStatsPanel(){
 function loadStats(){
   var adId=document.getElementById("statsAdId").value;
   var days=document.getElementById("statsDays").value;
-  var url="/admin/ads/api/v1/stats?days="+days;
+  var url="/admin/ads/api/v1/stats?days="+days+"&site_key="+encodeURIComponent(_currentSiteKey);
   if(adId)url+="&ad_id="+adId;
   document.getElementById("statsResult").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
   fetch(url,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){

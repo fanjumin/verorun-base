@@ -567,6 +567,7 @@ def chat_tool():
                 elif action == 'stats':
                     result = ads_ai.get_stats(
                         ad_id=args.get('ad_id'),
+                        site_key=args.get('site_key'),
                         days=int(args.get('days', 7))
                     )
                 elif action == 'analyze':

@@ -11,11 +11,12 @@
     - 支持图片广告和广告代码两种类型
 #}
 
-{% macro render_ads(position, page=None, site_key='default', zone_id=None) -%}
+{% macro render_ads(position, page=None, site_key=None, zone_id=None) -%}
+{% set effective_site_key = site_key or (current_site.subdomain if current_site else None) or 'default' %}
 <div class="ad-slot"
      data-ad-position="{{ position }}"
      data-ad-page="{{ page or '' }}"
-     data-ad-site-key="{{ site_key }}"
+     data-ad-site-key="{{ effective_site_key }}"
      {% if zone_id is not none %}data-ad-zone-id="{{ zone_id }}"{% endif %}>
 </div>
 <script src="/static/ads/ads.js" defer></script>

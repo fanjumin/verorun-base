@@ -110,7 +110,9 @@
     if (!container) return;
     var position = container.getAttribute('data-ad-position') || '';
     var page = _detectPage(container);
-    var siteKey = container.getAttribute('data-ad-site-key') || 'default';
+    var siteKey = container.getAttribute('data-ad-site-key')
+      || document.body.getAttribute('data-site-key')
+      || 'default';
     var zoneId = container.getAttribute('data-ad-zone-id');
 
     var url = API_BASE + '/ads?page=' + encodeURIComponent(page)
