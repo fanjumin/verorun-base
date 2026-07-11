@@ -628,8 +628,14 @@ def track_order_user(oid):
 
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
-        from services.kdniao_service import query_track
-        success, data, err_msg = query_track(shipper_code, logistic_code)
+        # Try LogisticsPlugin first
+        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+        _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+        if _logistics:
+            success, data, err_msg = _logistics.query_track(shipper_code, logistic_code)
+        else:
+            from services.kdniao_service import query_track
+            success, data, err_msg = query_track(shipper_code, logistic_code)
         return jsonify({
             'success': True,
             'data': {
@@ -702,11 +708,17 @@ def api_pay_order(oid):
 
     # ── 支付宝（默认） ──
     try:
-        # platform/app.py 会移除 auth-center 的 sys.path，这里临时加上
-        _auth_center = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
-        if _auth_center not in sys.path:
-            sys.path.insert(0, _auth_center)
-        from services.payment_service import create_shop_payment
+        # Try PaymentPlugin first
+        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+        _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+        if _payment:
+            result = _payment.create_shop_payment(oid, total, subject)
+        else:
+            _auth_center = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+            if _auth_center not in sys.path:
+                sys.path.insert(0, _auth_center)
+            from services.payment_service import create_shop_payment
+            result = create_shop_payment(oid, total, subject)
     except ImportError:
         return jsonify({'success': False, 'error': '支付服务未就绪'}), 500
 
@@ -734,7 +746,14 @@ def api_stub_confirm(oid):
     if err:
         return err
     uid = payload['user_id']
-    from services.payment_service import confirm_shop_order
+    # Try PaymentPlugin first
+    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+    _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+    if _payment:
+        success, msg = _payment.confirm_shop_order(oid)
+    else:
+        from services.payment_service import confirm_shop_order
+        success, msg = confirm_shop_order(oid, f'STUB_{oid}', 'stub')
     with get_db() as conn:
         row = conn.execute(
             'SELECT status FROM order_items WHERE order_id=? AND user_id=?', (oid, uid)
@@ -756,7 +775,14 @@ def api_stub_confirm(oid):
 def api_wechat_notify():
     """微信支付异步通知回调 — 商城订单"""
     from routes.subscription.gateway.wechat import _verify_wechat_sign, _decrypt_wechat_resource
-    from services.payment_service import confirm_shop_order
+    # Try PaymentPlugin first
+    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+    _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+    if _payment:
+        confirm_fn = _payment.confirm_shop_order
+        verify_fn = _payment.verify_notify
+    else:
+        from services.payment_service import confirm_shop_order as confirm_fn, verify_notify as verify_fn
 
     body = request.get_data(as_text=True)
     headers = request.headers
@@ -787,7 +813,7 @@ def api_wechat_notify():
     if not order_id:
         return 'FAIL', 400
 
-    success, msg = confirm_shop_order(order_id, transaction_id, 'wechat')
+    success, msg = confirm_fn(order_id, transaction_id, 'wechat')
     return 'SUCCESS' if success else 'FAIL', 200 if success else 400
 
 
@@ -797,16 +823,25 @@ def api_wechat_notify():
 @shop_public_bp.route('/api/pay/notify', methods=['POST'])
 def api_pay_notify():
     """支付宝异步通知回调"""
-    from services.payment_service import verify_notify, confirm_shop_order
+    try:
+        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+        _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+        if _payment:
+            verify_fn = _payment.verify_notify
+            confirm_fn = _payment.confirm_shop_order
+        else:
+            raise RuntimeError('plugin not available')
+    except Exception:
+        from services.payment_service import verify_notify as verify_fn, confirm_shop_order as confirm_fn
     data = request.form.to_dict()
     trade_status = data.get('trade_status', '')
     order_id = data.get('out_trade_no', '')
     trade_no = data.get('trade_no', '')
     if trade_status != 'TRADE_SUCCESS':
         return 'failure'
-    if not verify_notify(data):
+    if not verify_fn(data):
         return 'failure'
-    success, msg = confirm_shop_order(order_id, trade_no)
+    success, msg = confirm_fn(order_id, trade_no)
     return 'success' if success else 'failure'
 
 

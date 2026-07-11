@@ -1,0 +1,48 @@
+// Identity Verification — 实名认证插件管理面板
+// 无 <script> 标签，遵循插件模板铁律 §12.11
+
+window.l_verification = function(){
+  document.getElementById("pt").textContent = "{{ _('verification_management') }}";
+  var h='<div class="cd"><div id="verification-content"></div></div>';
+  document.getElementById("mc").innerHTML = h;
+  loadVerificationMain();
+};
+
+function loadVerificationMain(){
+  var ct = document.getElementById("verification-content");
+  ct.innerHTML =
+    '<div class="cd" style="margin-bottom:12px"><div class="st">{{ _('verification_config') }}</div>'+
+    '<div id="verification-config-form"></div>'+
+    '</div>'+
+    '<div class="cd"><div class="st">{{ _('verification_requests') }}</div><div id="verification-requests"></div></div>';
+  loadVerificationConfig();
+  loadVerificationRequests();
+}
+
+function loadVerificationConfig(){
+  fetch("/user/config", {headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success) return;
+    var items = d.data.filter(function(k){return k.category=="verification"});
+    var h='';
+    items.forEach(function(k){
+      var isSensitive = k.sensitive;
+      var displayVal = isSensitive ? k.masked_value : k.value;
+      var safeVal = (k.value||"").replace(/"/g,"&quot;");
+      var safeMasked = (k.masked_value||"").replace(/"/g,"&quot;");
+      var ph = k.placeholder||"";
+      h+='<div class="fl"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+(k.label||k.key)+'</div></div>';
+      if(isSensitive){
+        h+='<input class="in" id="cf-'+k.key+'" type="password" value="'+safeMasked+'" placeholder="'+ph+'" style="width:180px" onfocus="this.value=\'\'" onblur="if(!this.value)this.value=\''+safeMasked+'\'">';
+      }else{
+        h+='<input class="in" id="cf-'+k.key+'" value="'+safeVal+'" placeholder="'+ph+'" style="width:200px">';
+      }
+      h+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('save') }}</button></div>';
+    });
+    document.getElementById("verification-config-form").innerHTML = h||'<div class="em">{{ _('No Config') }}</div>';
+  }).catch(function(){});
+}
+
+function loadVerificationRequests(){
+  // For now, show a placeholder. The main verification flow still uses auth-center routes.
+  document.getElementById("verification-requests").innerHTML = '<div class="em">{{ _('Verification requests are managed by the auth-center routes.') }}</div>';
+}

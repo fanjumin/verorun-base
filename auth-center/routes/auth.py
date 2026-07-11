@@ -5,7 +5,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, request, jsonify, make_response
 from models import get_db, init_db, now_iso
 from services.jwt_service import create_token, validate_token
-from services.sms_service import generate_code, send_sms, check_rate_limit, validate_phone
+# SMS functions — delegates to SmsPlugin if available, fallback to sms_service
+try:
+    import flask as _flask
+    _pm = _flask.current_app.extensions.get('plugin_manager')
+    _sms = _pm.get_instance('sms') if (_pm and _pm.is_enabled('sms')) else None
+    if _sms:
+        generate_code = _sms.generate_code
+        send_sms = _sms.send_sms
+        check_rate_limit = _sms.check_rate_limit
+        validate_phone = _sms.validate_phone
+    else:
+        raise RuntimeError('plugin not available')
+except Exception:
+    from services.sms_service import generate_code, send_sms, check_rate_limit, validate_phone
 from services.wechat_service import get_openid_by_code, get_user_info, get_qr_url, is_stub
 from services.douyin_service import get_access_token as dy_get_token, get_user_info as dy_get_user, get_oauth_url as dy_get_url, is_stub as dy_is_stub, _get_config as dy_get_config
 import hashlib, hmac, time

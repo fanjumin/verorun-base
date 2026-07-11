@@ -1,0 +1,34 @@
+{
+    "name": "Identity Verification",
+    "identifier": "verification",
+    "version": "0.1.0",
+    "category": "System",
+    "tags": ["verification", "identity", "alipay"],
+    "icon": "plugins",
+    "description": "Identity Verification — real-name verification via Alipay identity service",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "user.verification"
+    ],
+    "hooks": {
+        "provides": [
+            "verification/initiate",
+            "verification/verify_callback"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "System",
+        "key": "verification",
+        "icon": "plugins",
+        "label": "ID Verification"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}

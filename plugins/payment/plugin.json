@@ -1,0 +1,35 @@
+{
+    "name": "Payment Gateway",
+    "identifier": "payment",
+    "version": "0.1.0",
+    "category": "Shop",
+    "tags": ["payment", "alipay", "wechat", "gateway"],
+    "icon": "plugins",
+    "description": "Payment Gateway — Alipay/WeChat Pay configuration management",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {},
+    "permissions": [
+        "payment.manage"
+    ],
+    "hooks": {
+        "provides": [
+            "payment/create",
+            "payment/confirm",
+            "payment/verify_notify"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "System",
+        "key": "payment",
+        "icon": "plugins",
+        "label": "Payment Config"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}

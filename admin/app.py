@@ -520,8 +520,15 @@ def admin_send_code():
             conn.commit()
 
         try:
-            from services.sms_service import send_sms
-            send_sms(target, code, 'login')
+            # Try SmsPlugin first
+            import flask as _flask
+            _pm = _flask.current_app.extensions.get('plugin_manager')
+            _sms = _pm.get_instance('sms') if (_pm and _pm.is_enabled('sms')) else None
+            if _sms:
+                _sms.send_sms(target, code, 'login')
+            else:
+                from services.sms_service import send_sms
+                send_sms(target, code, 'login')
         except Exception:
             pass  # stub mode already prints
         return jsonify({'success': True, 'message': '验证码已发送'})

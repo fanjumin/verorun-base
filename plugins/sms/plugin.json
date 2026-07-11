@@ -1,0 +1,57 @@
+{
+    "name": "SMS Service",
+    "identifier": "sms",
+    "version": "0.1.0",
+    "category": "Communication",
+    "tags": ["sms", "notification", "verification"],
+    "icon": "message",
+    "description": "SMS Service — phone verification code sending with Aliyun/Twilio providers",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {
+        "aliyun_sms_sign_name": "",
+        "aliyun_sms_access_key": "",
+        "aliyun_sms_secret": ""
+    },
+    "permissions": [
+        "sms.send",
+        "sms.manage"
+    ],
+    "hooks": {
+        "provides": [
+            "sms/send",
+            "sms/generate_code",
+            "sms/validate_phone",
+            "sms/check_rate_limit"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "Risk & Audit",
+        "key": "sms",
+        "icon": "plugins",
+        "label": "SMS Management"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "aliyun_sms_sign_name": {
+                "type": "string",
+                "default": "",
+                "description": "阿里云短信签名"
+            },
+            "aliyun_sms_access_key": {
+                "type": "string",
+                "default": "",
+                "description": "阿里云 AccessKey ID"
+            },
+            "aliyun_sms_secret": {
+                "type": "string",
+                "default": "",
+                "description": "阿里云 AccessKey Secret (sensitive)"
+            }
+        }
+    }
+}

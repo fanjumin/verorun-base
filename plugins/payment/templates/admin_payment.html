@@ -1,0 +1,46 @@
+// Payment Management — 支付管理插件面板
+// 无 <script> 标签，遵循插件模板铁律 §12.11
+
+window.l_payment = function(){
+  document.getElementById("pt").textContent = "{{ _('payment_management') }}";
+  var h='<div class="cd"><div id="payment-content"></div></div>';
+  document.getElementById("mc").innerHTML = h;
+  loadPaymentMain();
+};
+
+function loadPaymentMain(){
+  var ct = document.getElementById("payment-content");
+  ct.innerHTML =
+    '<div class="cd" style="margin-bottom:12px"><div class="st">{{ _('alipay_config') }}</div>'+
+    '<div id="alipay-config-form"></div></div>'+
+    '<div class="cd"><div class="st">{{ _('wechat_config') }}</div>'+
+    '<div id="wechat-config-form"></div></div>';
+  loadPaymentConfig();
+}
+
+function loadPaymentConfig(){
+  fetch("/user/config", {headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success) return;
+    var items = d.data.filter(function(k){return k.category=="payment"});
+    var alipayH = '', wechatH = '';
+    items.forEach(function(k){
+      var isSensitive = k.sensitive;
+      var safeVal = (k.value||"").replace(/"/g,"&quot;");
+      var safeMasked = (k.masked_value||"").replace(/"/g,"&quot;");
+      var ph = k.placeholder||"";
+      var inputId = 'cf-'+k.key;
+      var inputHtml = isSensitive
+        ? '<input class="in" id="'+inputId+'" type="password" value="'+safeMasked+'" placeholder="'+ph+'" style="width:200px" onfocus="this.value=\'\'" onblur="if(!this.value)this.value=\''+safeMasked+'\'">'
+        : '<input class="in" id="'+inputId+'" value="'+safeVal+'" placeholder="'+ph+'" style="width:200px">';
+      var row = '<div class="fl"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+(k.label||k.key)+'</div></div>'+
+        inputHtml+'<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('save') }}</button></div>';
+      if(k.key.indexOf('alipay')===0||k.key==='payment.notify_base'){
+        alipayH += row;
+      }else if(k.key.indexOf('wechat')===0){
+        wechatH += row;
+      }
+    });
+    document.getElementById("alipay-config-form").innerHTML = alipayH||'<div class="em">{{ _('No Config') }}</div>';
+    document.getElementById("wechat-config-form").innerHTML = wechatH||'<div class="em">{{ _('No Config') }}</div>';
+  }).catch(function(){});
+}

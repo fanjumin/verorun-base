@@ -45,7 +45,6 @@ function loadSystemConfig(){
       c+='</div></div>';
     });
     document.getElementById("config-tab-content").innerHTML=c||'<div class="em">{{ _('No Config Item') }}</div>';
-    loadSmsTemplatesConfig();
   }).catch(function(){document.getElementById("config-tab-content").innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
 }
 function toggleCat(catId){
@@ -58,49 +57,7 @@ function toggleCat(catId){
     sec.style.display='none';arr.textContent='▶';localStorage.setItem('cfg-cat-'+catId,'1');
   }
 }
-function loadSmsTemplatesConfig(){
-  var ct=document.getElementById("config-tab-content");
-  ct.insertAdjacentHTML("beforeend",'<div id="sms-config-loader" style="text-align:center;padding:12px;color:var(--dim)"><div class="s" style="display:inline-block"></div>{{ _('Encoding Loading') }}...</div>');
-  fetch("/admin/sms/templates",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    var loader=document.getElementById("sms-config-loader");if(loader)loader.remove();
-    var h='<div class="cd" style="margin-top:12px" id="sms-config-section"><div class="st">{{ _('Encoding Settings') }}</div>';
-    h+='<div style="margin-bottom:12px"><button class="btn bp" onclick="showSmsForm()">+ {{ _('Add Template') }}</button></div>';
-    h+='<div id="smsForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="smsFormTitle">{{ _('Add Template') }}</div>';
-    h+='<div class="g2">';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Categories') }}</div><select class="sl" id="smsCat" style="width:100%"><option value="captcha">{{ _('Verification Code') }}</option><option value="notice">{{ _('SMS Notification') }}</option><option value="promo">{{ _('SMS Promotion') }}</option></select></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }}</div><input class="in" id="smsName" placeholder="如：{{ _('New User Registration') }}" style="width:100%"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Templates') }} CODE</div><input class="in" id="smsCode" placeholder="SMS_xxxxxxxxx" style="width:100%"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Notes') }}</div><input class="in" id="smsNote" placeholder="{{ _('Usage Description') }}" style="width:100%"></div>';
-    h+='</div>';
-    h+='<div style="margin-top:10px"><button class="btn bp" onclick="saveSmsTemplate()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'smsForm\').style.display=\'none\'">{{ _('Cancel') }}</button><input type="hidden" id="smsEditId" value=""></div></div>';
-    if(!d.success||!d.data){h+='<div class="em">{{ _('Load failed') }}</div>'}
-    else{
-      var cats=d.data.categories;
-      h+='<div id="smsTemplates">';
-      var order=["captcha","notice","promo"];
-      var hasItems=false;
-      order.forEach(function(k){
-        var c=cats[k];
-        if(!c||!c.items||!c.items.length)return;
-        hasItems=true;
-        h+='<div class="cd" style="margin-bottom:12px"><div class="st">'+c.title+' ('+c.items.length+')</div><table><tr><th>{{ _('Name') }}</th><th>{{ _('Templates') }} CODE</th><th>{{ _('Notes') }}</th><th>{{ _('Actions') }}</th></tr>';
-        c.items.forEach(function(t){
-          h+='<tr><td>'+esc(t.name)+'</td><td style="font-family:monospace;color:var(--accent)">'+esc(t.template_code)+'</td><td style="color:var(--dim)">'+esc(t.note)+'</td>';
-          h+='<td><button class="btn bo bs" onclick="editSmsTemplate('+t.id+',\''+t.category+'\',\''+esc(t.name)+'\',\''+esc(t.template_code)+'\',\''+esc(t.note)+'\')">{{ _('Edit') }}</button> ';
-          h+='<button class="btn bo bs" onclick="deleteSmsTemplate('+t.id+')">{{ _('Delete') }}</button></td></tr>';
-        });
-        h+='</table></div>';
-      });
-      if(!hasItems)h+='<div class="em">{{ _('No Templates') }}，{{ _('Click') }}「+ {{ _('Add Template') }}」{{ _('Create') }}</div>';
-      h+='</div>';
-    }
-    h+='</div>';
-    ct.insertAdjacentHTML("beforeend",h);
-  }).catch(function(){
-    var loader=document.getElementById("sms-config-loader");if(loader)loader.remove();
-    ct.insertAdjacentHTML("beforeend",'<div class="em">{{ _('Encoding Load Failed') }}</div>');
-  })
-}
+// loadSmsTemplatesConfig() — 已迁移至 SmsPlugin 插件，由插件模板 admin_sms.html 管理
 function loadNavConfig(){
   var ct=document.getElementById("config-tab-content");
   ct.insertAdjacentHTML("beforeend",'<div id="hn-loader" style="text-align:center;padding:12px;color:var(--dim)"><div class="s" style="display:inline-block"></div>{{ _('Main Nav Loading') }}...</div>');

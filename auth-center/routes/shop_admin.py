@@ -1256,8 +1256,16 @@ def list_orders():
         d = dict(r)
         d['shipping_status_text'] = ''
         if d.get('shipping_status') == 'shipped':
-            from services.kdniao_service import get_shipping_status_text
-            d['shipping_status_text'] = get_shipping_status_text(d['shipping_status'])
+            try:
+                _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+                _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+                if _logistics:
+                    d['shipping_status_text'] = _logistics.get_shipping_status_text(d['shipping_status'])
+                else:
+                    raise RuntimeError('plugin not available')
+            except Exception:
+                from services.kdniao_service import get_shipping_status_text
+                d['shipping_status_text'] = get_shipping_status_text(d['shipping_status'])
         data.append(d)
     return jsonify({'success': True, 'data': data})
 
@@ -1464,8 +1472,16 @@ def track_order(oid):
         logistic_code = row['tracking_number']
 
     # 调用快递鸟查询
-    from services.kdniao_service import query_track
-    success, data, err_msg = query_track(shipper_code, logistic_code)
+    try:
+        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+        _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+        if _logistics:
+            success, data, err_msg = _logistics.query_track(shipper_code, logistic_code)
+        else:
+            raise RuntimeError('plugin not available')
+    except Exception:
+        from services.kdniao_service import query_track
+        success, data, err_msg = query_track(shipper_code, logistic_code)
 
     if not success:
         # 返回基础发货信息 + 错误提示

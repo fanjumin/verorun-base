@@ -6,7 +6,18 @@ from flask import Blueprint, request, jsonify, make_response
 from i18n import _
 from models import get_db, now_iso, TIERS
 from services.jwt_service import validate_token
-from services.verification_service import initiate_verification, verify_callback
+# Verification — delegates to VerificationPlugin if available
+try:
+    import flask as _flask
+    _pm = _flask.current_app.extensions.get('plugin_manager')
+    _ver = _pm.get_instance('verification') if (_pm and _pm.is_enabled('verification')) else None
+    if _ver:
+        initiate_verification = _ver.initiate_verification
+        verify_callback = _ver.verify_callback
+    else:
+        raise RuntimeError('plugin not available')
+except Exception:
+    from services.verification_service import initiate_verification, verify_callback
 
 user_bp = Blueprint('user', __name__, url_prefix='/user')
 
@@ -577,35 +588,14 @@ CONFIG_SCHEMA = {
     # ├─ 快递鸟物流配置 ─
     'kdniao_eid':              {'label': '快递鸟商户ID',         'category': 'express', 'sensitive': False, 'placeholder': 'EBusinessID'},
     'kdniao_api_key':          {'label': '快递鸟API Key',        'category': 'express', 'sensitive': True,  'placeholder': '输入 API Key'},
-    # ├─ 支付配置 ─
-    'payment.notify_base':     {'label': '支付回调域名',         'category': 'payment', 'sensitive': False, 'placeholder': '如 https://your-domain.com'},
-    # ├─ 支付宝支付（商城支付）─
-    'alipay_app_id':           {'label': '支付宝 App ID（支付）','category': 'payment', 'sensitive': False, 'placeholder': '支付宝开放平台 AppID'},
-    'alipay_private_key':      {'label': '支付宝支付私钥',       'category': 'payment', 'sensitive': True,  'placeholder': '应用私钥 (PKCS8)'},
-    'alipay_public_key':       {'label': '支付宝支付公钥',       'category': 'payment', 'sensitive': False, 'placeholder': '支付宝公钥'},
-    # ├─ 微信支付配置 ─
-    'wechat_app_id':          {'label': '微信支付 AppID',      'category': 'payment', 'sensitive': False, 'placeholder': '公众号/小程序 AppID(与商户号绑定)'},
-    'wechat_mchid':            {'label': '微信支付商户号',       'category': 'payment', 'sensitive': False, 'placeholder': '商户号'},
-    'wechat_api_v3_key':       {'label': '微信支付 API v3 密钥','category': 'payment', 'sensitive': True,  'placeholder': 'API v3 Key'},
-    'wechat_cert_serial':      {'label': '微信支付证书序列号',   'category': 'payment', 'sensitive': False, 'placeholder': '证书序列号'},
-    'wechat_plan_id':          {'label': '微信支付扣费计划ID',   'category': 'payment', 'sensitive': False, 'placeholder': '签约计划ID'},
-    # ├─ 支付宝实人认证 ─
-    'verification.provider':                {'label': '实名认证服务商',       'category': 'verification', 'sensitive': False, 'placeholder': 'alipay'},
-    'verification.stub_mode':               {'label': '实名认证测试模式',     'category': 'verification', 'sensitive': False, 'placeholder': 'true 或 false'},
-    'verification.alipay.app_id':           {'label': '实名认证 AppID',       'category': 'verification', 'sensitive': False, 'placeholder': '支付宝开放平台 AppID'},
-    'verification.alipay.private_key':      {'label': '实名认证应用私钥',     'category': 'verification', 'sensitive': True,  'placeholder': '应用私钥 (PKCS8)'},
-    'verification.alipay.alipay_public_key':{'label': '实名认证支付宝公钥',   'category': 'verification', 'sensitive': False, 'placeholder': '应用公钥上传后获取的支付宝公钥'},
-    'verification.alipay.return_url':       {'label': '实名认证回调URL',     'category': 'verification', 'sensitive': False, 'placeholder': '默认自动生成，留空即可'},
-    'verification.enabled':                 {'label': '启用实名认证',        'category': 'verification', 'sensitive': False, 'placeholder': 'true 或 false'},
+    # ├─ 支付配置（已迁移至 PaymentPlugin 插件管理） ─
+    # ├─ 实名认证（已迁移至 VerificationPlugin 插件管理） ─
 }
 
 CONFIG_CATEGORIES = [
-    {'id': 'sms',   'title': '短信配置'},
     {'id': 'social', 'title': '社媒推送'},
     {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
     {'id': 'express', 'title': '物流配送（快递鸟）'},
-    {'id': 'payment', 'title': '支付配置'},
-    {'id': 'verification', 'title': '支付宝实人认证'},
 ]
 
 
