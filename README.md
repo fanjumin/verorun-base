@@ -42,25 +42,26 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
 | platform.easykai.cn | `:8083` | Platform 用户控制台 |
 | agent.easykai.cn | `:8084` | Admin（Agent 矩阵入口） |
 
-### 15 个子系统一览
+### 16 个子系统一览
 
 | # | 子系统 | 位置 | 职责 |
 |---|--------|------|------|
 | 1 | **Agent 矩阵** | `agent_matrix/` | 9 Agent 协作引擎 — 任务分解/ReAct 工具循环/调度/执行/汇总 |
 | 2 | **工具注册中心** | `agent_matrix/tools.py` | 3 个只读内置工具 + 白名单过滤 + function calling |
-| 3 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、SKU、订单、购物车、优惠券、AI 优化、评价、收藏、订单通知 |
-| 4 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类、下载管理 |
-| 5 | **工作流引擎** | `orchestrator/` | DAG 工作流编排、Cron 调度、12 种节点 |
-| 6 | **数据清洗** | `auth-center/routes/cleaner_agent.py` | 原始内容 → LLM 清洗 → 知识库 |
-| 7 | **Site Domains** | `auth-center/routes/admin.py` + `auth-center/middleware/site_domain_middleware.py` | 子域名管理、独立服务 Nginx 配置自动生成与 reload |
-| 8 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth、企业认证 |
-| 9 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 订阅支付（4 网关） |
-| 10 | **主题系统** | `themes/` | 5 个主题 + Jinja2 ChoiceLoader 模板覆盖 |
-| 11 | **健康检查** | `health_check/` | 服务探活、异常诊断、AI 自动修复、定时巡检 |
-| 12 | **验证码服务** | `captcha-service/` | 拼图行为验证码（独立服务 8090） |
-| 13 | **分析系统** | `analytics/` | 访客追踪、IP 地理定位、UA 解析、60s 聚合 |
-| 14 | **社交分发** | `auth-center/routes/social_push.py` | 微博/微信/头条/抖音 内容分发 |
-| 15 | **插件系统** | `plugin_manager/` + `plugins/` | PluginManager 统一管理 — 发现/安装/启用/卸载，12 个内置插件，各自独立数据库 |
+| 3 | **Site Builder** | `site_builder/` | LLM 驱动一键建站（品牌→主题→导航→页面→文档）+ 统一设计令牌 Site Settings |
+| 4 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、SKU、订单、购物车、优惠券、AI 优化、评价、收藏、订单通知 |
+| 5 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类、下载管理 |
+| 6 | **工作流引擎** | `orchestrator/` | DAG 工作流编排、Cron 调度、12 种节点 |
+| 7 | **数据清洗** | `auth-center/routes/cleaner_agent.py` | 原始内容 → LLM 清洗 → 知识库 |
+| 8 | **Site Domains**（插件） | `plugins/site_domains/` | 子域名管理、独立服务 Nginx 配置自动生成与 reload（表留主库） |
+| 9 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth、企业认证 |
+| 10 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 订阅支付（4 网关） |
+| 11 | **主题系统** | `themes/` | 5 个主题 + Jinja2 ChoiceLoader 模板覆盖 |
+| 12 | **健康检查** | `health_check/` | 服务探活、异常诊断、AI 自动修复、定时巡检 |
+| 13 | **验证码服务** | `captcha-service/` | 拼图行为验证码（独立服务 8090） |
+| 14 | **分析系统** | `analytics/` | 访客追踪、IP 地理定位、UA 解析、60s 聚合 |
+| 15 | **社交分发**（插件） | `plugins/social_push/` | 微博/微信/头条/抖音 内容分发 |
+| 16 | **插件系统** | `plugin_manager/` + `plugins/` | PluginManager 统一管理 — 发现/安装/启用/卸载，17 个内置插件，各自独立数据库，支持免重启启停 |
 
 ---
 
@@ -176,6 +177,47 @@ AIEngine 通过 `chat_with_tools()` 提供原生 function calling，AgentRunner 
 - **供应商切换**：管理后台支持 50+ 模型配置，随时切换
 - **流式输出**：支持 SSE（Server-Sent Events）实时流式聊天
 - **媒体能力**：声音克隆（火山引擎）、数字人视频生成、文生图（通义万相）
+
+---
+
+### 2.1b Site Builder（LLM 一键建站）
+
+位置：`site_builder/`
+
+Site Builder 是 LLM 驱动的站内网页一键建站核心模块，复用 Agent 矩阵的 Master Agent（AIEngine）生成站点内容，并按建站 DAG 逐步落地。
+
+#### 两个子模块
+
+| 子模块 | 位置 | 职责 |
+|--------|------|------|
+| **建站引擎** | `site_builder/engine.py` + `site_builder/routes.py` | 解析用户需求 → 结构化方案 → 执行建站 DAG（品牌→主题→导航→页面→文档），支持增量更新单个区块 |
+| **统一设计令牌 Site Settings** | `site_builder/site_settings/` | 用一套设计令牌（brand/colors/typography/navigation/footer/seo）**统一替代原 brand_settings + header_nav + footer_* + themes 四套独立模块** |
+
+#### 建站流程
+
+```
+用户需求（自然语言）
+      │
+      ▼
+Master Agent（AIEngine）解析 → 结构化建站方案
+      │
+      ▼
+建站 DAG：品牌 → 主题 → 导航 → 页面 → 文档
+      │
+      ▼
+写入统一设计令牌 + CMS 页面块 → 站点生效
+```
+
+#### 内置行业提示词模板
+
+`site_builder/prompts/`：`tech_company`（科技公司）、`law_firm`（律所）、`restaurant`（餐饮）、`education`（教育）等。
+
+#### API 蓝图
+
+- `/admin/site-builder/*` — 建站任务 API
+- `/admin/site-settings/*` — 统一设计令牌读写（管理后台「站点设置」界面：品牌/颜色/排版/导航/页脚/SEO 六个 Tab）
+
+> 说明：管理后台「站点设置」为纯 JS 动态渲染模块，界面由 `l_site_settings()` 注入，样式经 JS 注入 `<head>`，与其它管理模块渲染模式一致。
 
 ---
 
@@ -436,7 +478,7 @@ app.jinja_loader = ChoiceLoader([
 
 位置：`plugin_manager/`（管理引擎，19 个 .py 文件）+ `plugins/`（插件代码目录）
 
-标准化插件管理系统，由 PluginManager 统一管理插件的完整生命周期：**发现 → 安装 → 启用 → 激活 → 禁用 → 卸载**。每个插件拥有独立的 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留。
+标准化插件管理系统，由 PluginManager 统一管理插件的完整生命周期：**发现 → 安装 → 启用 → 激活 → 禁用 → 卸载**。每个插件拥有独立的 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留。启动期通过 `pm.mount_all_routes()` 挂载全部已安装插件（含 disabled）的路由，运行时由门卫按启用状态放行/拦截，实现**后台启用/禁用插件免重启**。
 
 #### 系统架构
 
@@ -522,7 +564,7 @@ EventBus 定义了 46 个预定义事件，覆盖以下领域：
 | **健康检查** | `health.passed`, `health.warning`, `health.error` |
 | **插件生命周期** | `plugin.installed`, `plugin.enabled`, `plugin.disabled`, `plugin.uninstalled` |
 
-#### 内置插件（12 个）
+#### 内置插件（17 个）
 
 | 插件 | 位置 | 版本 | 描述 | 独立数据库 |
 |------|------|------|------|-----------|
@@ -538,6 +580,11 @@ EventBus 定义了 46 个预定义事件，覆盖以下领域：
 | **分析看板** | `plugins/analytics/` | 0.1.0 | 无 Cookie 分析中间件 + 仪表盘 | analytics.db |
 | **验证码服务** | `plugins/captcha_embedded/` | 0.1.0 | 滑块验证码 | — |
 | **健康检查** | `plugins/health_check/` | 0.1.0 | 系统健康巡检/告警/趋势分析 | health.db |
+| **社交分发** | `plugins/social_push/` | 0.1.0 | 微博/微信/头条/抖音 内容分发（逻辑解耦，表留主库） | 主库 |
+| **IM 网关** | `plugins/im_gateway/` | 0.1.0 | 飞书/企业微信/钉钉/QQ 多适配器消息网关 | im_gateway.db |
+| **OAuth 登录配置** | `plugins/oauth_config/` | 0.1.0 | 第三方 OAuth 登录配置管理（后台插件化） | 主库 |
+| **Site Domains** | `plugins/site_domains/` | 0.1.0 | 子域名管理 + 独立服务 Nginx 配置自动生成/reload（表留主库） | 主库 |
+| **邮件服务** | `plugins/email/` | 0.1.0 | 邮件发送配置与收发记录管理 | email.db |
 
 #### 插件规范
 
@@ -747,7 +794,6 @@ VeroRunSystem/
 │   │   ├── cms_admin.py       # CMS 管理
 │   │   ├── comments.py        # 评论管理
 │   │   ├── sessions.py        # 会话管理
-│   │   ├── social_push.py     # 社交推送
 │   │   ├── social_media.py    # 社交媒体管理
 │   │   ├── theme_admin.py     # 主题管理
 │   │   ├── footer_admin.py    # 页脚管理
@@ -782,6 +828,18 @@ VeroRunSystem/
 │       ├── sub_cms_prompt.md
 │       ├── sub_health_check_prompt.md
 │       └── ...（共 10 个）
+│
+├── site_builder/              # LLM 驱动一键建站
+│   ├── engine.py              # 建站引擎（需求解析 + 建站 DAG + 增量更新）
+│   ├── routes.py              # 建站任务 API（/admin/site-builder/*）
+│   ├── models.py              # 建站任务数据模型
+│   ├── generators/            # 分步生成器（brand/theme/navigation/pages）
+│   ├── prompts/               # 行业提示词模板（科技/律所/餐饮/教育）
+│   └── site_settings/         # 统一设计令牌系统（替代 brand/header/footer/themes）
+│       ├── routes.py          # 令牌读写 API（/admin/site-settings/*）
+│       ├── token_service.py   # 令牌服务
+│       ├── token_renderer.py  # 令牌渲染
+│       └── generators/token_generator.py
 │
 ├── orchestrator/              # DAG 工作流引擎（10 个 .py）
 │   ├── workflow_engine.py     # 引擎核心
@@ -837,10 +895,15 @@ VeroRunSystem/
 │   ├── captcha_embedded/      # 验证码嵌入
 │   ├── content_factory/       # 内容工厂（content_factory.db）
 │   ├── coupons/               # 智能优惠券（coupons.db, 2 表）
+│   ├── email/                 # 邮件服务（email.db）
 │   ├── enterprise_verify/     # 企业认证（enterprise_verify.db）
 │   ├── health_check/          # 健康检查（health.db）
+│   ├── im_gateway/            # IM 网关（飞书/企微/钉钉/QQ 适配器）
+│   ├── oauth_config/          # OAuth 登录配置（表留主库）
 │   ├── order_notify/          # 订单通知（无持久化, 1.0.0）
 │   ├── reviews/               # 商品评价（reviews.db, 1.0.0）
+│   ├── site_domains/          # 子域名管理（表留主库）
+│   ├── social_push/           # 社交分发（表留主库）
 │   └── wishlist/              # 收藏心愿单（wishlist.db, 1.0.0）
 │
 ├── themes/                    # 5 个主题
@@ -1019,6 +1082,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.10.5 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.11.0 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有
