@@ -1,219 +1,214 @@
-# 统一域名模块（Domain & Nginx Manager）设计文档
+# 统一域名模块（Domain & TLS Manager）设计文档
 
-> **版本**：v1.0  
-> **状态**：设计阶段（待立项）  
+> **版本**：v2.0（对齐国际主流 SaaS 实践）
+> **状态**：设计阶段（待立项）
 > **更新**：2026-07-11
 
 ## 一、概述
 
-将「子域名管理」与「Nginx 配置生成/应用」合并为一个统一模块，实现：用户在域名商配置 `*.easykai.cn`（泛解析）后，服务器端完全自主控制子域名的创建、绑定端口、HTTPS 证书，不再依赖域名商管理面板。
+将「子域名管理」与「HTTPS/反向代理」合并为一个统一模块，目标：**用户在后台添加子域名/绑定插件时只填一个名字，证书与路由全自动**——达到 Vercel / Netlify 级"零运维"体验。
 
-## 二、核心前提
+## 二、国际主流平台怎么做（调研结论）
 
-用户在域名商配置 **泛解析（wildcard DNS）**：
+| 平台 | TLS 技术 | 用户操作量 |
+|------|---------|-----------|
+| **Vercel** | 自建 ACME：非通配用 HTTP-01，通配用 DNS-01 | 仅配 DNS |
+| **Netlify** | Let's Encrypt 自动签发/续签；Netlify DNS 下自动通配证书 | 仅配 DNS |
+| **Cloudflare** | 边缘托管证书 + Cloudflare for SaaS（自定义主机名） | 面板点几下 |
+| **现代自建 SaaS** | **Caddy On-Demand TLS** | 仅配 DNS |
+
+**共识**：用户唯一手动动作 = 配 DNS 解析。证书**自动申请、自动续签、自动装配**，无 certbot 脚本、无 cron、无手动改配置。
+
+**黄金方案 = Caddy On-Demand TLS**：TLS 握手瞬间，Caddy 调用平台的校验 API（`ask`）确认域名合法后，即时向 Let's Encrypt 申请证书并缓存，**无需预配置、无需 reload、无需 DNS API**（HTTP-01 验证）。这是"让用户最省心"的业界天花板做法，被大量 SaaS 用于支撑数千自定义域名。
+
+**参考来源见文末。**
+
+## 三、选型决策：Caddy 作为 TLS 边缘层（替代 Nginx+certbot 手动模式）
+
+### 现状 vs 目标
+
+| 维度 | 现状（Nginx + certbot 手动） | 目标（Caddy On-Demand TLS） |
+|------|------------------------------|------------------------------|
+| 新增子域名 | 改配置文件 + `nginx -t` + reload | **零操作**，请求进来自动生效 |
+| 证书申请 | 手动 certbot | **自动**（握手时签发） |
+| 证书续签 | cron 定时 | **自动**（到期前自动续） |
+| 通配证书 | 需 DNS-01 + DNS API | 免（On-Demand 用 HTTP-01 逐域签） |
+| 用户后台操作 | 复制 Nginx 配置手动贴 | **填个子域名名字即可** |
+
+### 目标架构
+
+```
+用户在域名商配 *.easykai.cn 泛解析（一次性，唯一手动步骤）
+        │
+        ▼
+Caddy（:80 + :443，公网入口，On-Demand TLS）
+   ├─ ask → 平台校验 API：GET /internal/caddy/check?domain=xxx
+   │         查 site_domains 表，合法返回 200，否则拒绝（防滥用）
+   ├─ 自动签发/续签 Let's Encrypt 证书（HTTP-01），本地缓存
+   └─ 按 Host 反向代理到后端
+        │
+        ▼
+后端服务（loopback）：platform 8081 / auth 8083 / admin 8084 / 插件端口
+```
+
+Caddy 独占 80/443；后端服务改监听 `127.0.0.1`（仅回环，不对公网暴露）。
+
+## 四、核心前提（用户唯一手动步骤）
+
+域名商配置**泛解析**：
 ```
 *.easykai.cn  A  服务器IP
 ```
-这是一次性操作。之后所有子域名自动解析到服务器，无需再逐个加 DNS 记录。任何域名服务商（阿里云/GoDaddy/Cloudflare/境外等）均支持。
+一次性操作，任何服务商（阿里云/GoDaddy/Cloudflare/境外）均支持。之后所有子域名自动解析到服务器，Caddy 负责签证书 + 路由。
 
-**此前提消除 DNS API 依赖**，模块只需关注服务器端（Nginx + 证书）。
+## 五、Caddy 最小配置
 
-## 三、模块能力分层
-
-```
-Domain & Nginx Manager
-├── 前提     → 用户在域名商配 *.easykai.cn 泛解析（一次性，手动）
-├── Nginx 层 → 生成/校验/应用/reload server 块
-├── 证书层   → 泛域名证书 *.easykai.cn（一张证书覆盖所有子域名）
-├── 端口分配 → 插件声明端口（如 8089），模块记录 + 生成反代
-├── 数据层   → site_domains 表（现有，含 subdomain/full_domain/service_port 等）
-└── 编排层   → "一键添加子域名" = Nginx 生成 → 校验 → 应用 → 证书 → 入库
-```
-
-## 四、Nginx 权限方案（选定：受限 sudo 白名单）
-
-### 推荐方案：受限 sudo 白名单
-
-给 `easykai` 用户配置仅限特定命令的免密 sudo（`/etc/sudoers.d/easykai-nginx`）：
-
-```
-easykai ALL=(root) NOPASSWD: /usr/sbin/nginx -t
-easykai ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
-easykai ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/sites-enabled/*
-easykai ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/*
-easykai ALL=(root) NOPASSWD: /bin/cp -f /tmp/nginx_rollback_* /etc/nginx/sites-enabled/*
-easykai ALL=(root) NOPASSWD: /bin/rm /etc/nginx/sites-enabled/*.disabled
-```
-
-### 为什么选这个方案
-
-| 维度 | sudo 白名单 | 特权 Agent | 队列+人工 |
-|------|-----------|-----------|----------|
-| 开发成本 | 🟢 低（纯配置） | 🟡 中（需独立进程） | 🟢 低 |
-| 安全风险 | 🟡 中（命令范围是关键） | 🟢 高（最小攻击面） | 🟢 高（人工确认壁垒） |
-| 用户体验 | 🟢 好（实时生效） | 🟢 好 | 🟡 差（需手动确认） |
-| 维护成本 | 🟢 低 | 🟡 中 | 🟢 低 |
-| **结论** | **✅ 推荐**（同机、体验最佳） | 保留（异地/多机场景） | 备选 |
-
-同机部署场景下，sudo 白名单是性价比最高的方案。命令列表经过精心限定——只允许 `nginx -t`（校验）、`reload`（热加载）、`tee` 写特定目录（通过目录限定防篡改），以及受控的回滚 `cp`/`rm`。
-
-## 五、安全护栏（必须实现）
-
-1. **`nginx -t` 强制校验**：应用前先测试，失败**绝不 reload**（否则全站 502）
-2. **自动备份 + 回滚**：
-   - 写入前 `cp /etc/nginx/sites-enabled/X /tmp/nginx_rollback_X`
-   - reload 失败 → 自动还原 `/tmp/nginx_rollback_X` → 再次 reload
-   - reload 成功 → 清理备份
-3. **输入严格校验**：
-   - 域名格式正则：`^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$`（仅允许合法二级域名）
-   - 端口范围：1024-65535
-   - 禁止自由编辑 server 块原文——只允许填参数（域名、端口），生成逻辑固定
-4. **server 块模板固定**——不接受用户自定义 `location`/`proxy_pass`，防配置注入
-
-## 六、插件端口绑定与子域名升级
-
-### 插件启用时将插件路由从路径升级为子域名
-
-**路径模式**（默认）：`easykai.cn/plugins/shop`
-- 已有机制，无需 Nginx 变更
-
-**子域名模式**（启用时选择）：`shop.easykai.cn`
-- 插件声明需要端口（如 8089）
-- 后台生成 Nginx server 块：`shop.easykai.cn → proxy_pass 127.0.0.1:8089`
-- 写入 site_domains（service_port=8089, subdomain=shop）
-- 应用 Nginx + 证书
-
-| 模式 | 适用场景 |
-|------|---------|
-| 路径模式 | 轻量插件，不需独立入口 |
-| 子域名模式 | 需要独立品牌/独立服务的插件（电商、社区等）|
-
-## 七、HTTPS 证书策略
-
-**泛域名证书 `*.easykai.cn`**——一张证书覆盖所有子域名。
-
-```bash
-certbot certonly --manual --preferred-challenges dns \
-  -d "easykai.cn" -d "*.easykai.cn"
-```
-
-优势：
-- 新增子域名**无需重新签发证书**（已覆盖）
-- 非 certbot 签发方式同样适用（手动 DNS-01 + 上传至 Nginx）
-
-Nginx 引用：
-```nginx
-ssl_certificate     /etc/letsencrypt/live/easykai.cn/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/easykai.cn/privkey.pem;
-```
-
-## 八、server 块模板
-
-每个独立子域名生成的 Nginx 配置模板：
-
-```nginx
-server {
-    listen 80;
-    server_name {{subdomain}}.easykai.cn;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name {{subdomain}}.easykai.cn;
-    client_max_body_size 50M;
-
-    ssl_certificate     /etc/letsencrypt/live/easykai.cn/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/easykai.cn/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:{{service_port}};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+```caddy
+{
+    # On-Demand TLS：握手时向校验 API 询问是否放行
+    on_demand_tls {
+        ask http://127.0.0.1:8084/internal/caddy/check
+        interval 2m
+        burst 5
     }
+    email admin@easykai.cn
+}
+
+# 主域名 + 已知固定子域名（显式声明，最稳）
+platform.easykai.cn {
+    reverse_proxy 127.0.0.1:8081
+}
+agent.easykai.cn {
+    reverse_proxy 127.0.0.1:8084
+}
+
+# 通配 catch-all：任意子域名，按需签证书 + 动态路由
+*.easykai.cn {
+    tls {
+        on_demand
+    }
+    # 动态反代：由平台返回目标端口，或在此按 Host 映射
+    reverse_proxy 127.0.0.1:8081
 }
 ```
 
-## 九、部署脚本集成
+## 六、校验 API（防滥用的关键）
 
-### 安装时自动配置
+Caddy 每次为新域名签证书前会调用此接口。**必须实现**，否则攻击者可用随机域名耗尽 Let's Encrypt 速率限制。
 
-部署脚本（ansible/paramiko）执行：
-1. 写入 sudo 白名单 `/etc/sudoers.d/easykai-nginx`
-2. 验证：`sudo -u easykai sudo -n nginx -t` 无报错
-3. 生成三默认子域名：
-   ```
-   platform.easykai.cn → 8081
-   agent.easykai.cn    → 8084
-   admin.easykai.cn    → 8084（或独立端口）
-   ```
-4. 写 `/etc/nginx/sites-available/easykai-platform.conf`（以及 agent/admin）→ symlink 到 sites-enabled
-5. `nginx -t && systemctl reload nginx`
-6. 幂等：配置存在则跳过
-
-### 日常运维
-
-后台"添加子域名"按钮 → 模块编排：
 ```
-① 校验域名格式 + 端口可用性
-② 生成 server 块 → 写入 /etc/nginx/sites-available/<name>.conf
-③ ln -s 到 sites-enabled
-④ nginx -t（失败则回滚：①删除 → ②还原备份）
-⑤ systemctl reload nginx
-⑥ 写入 site_domains 表
-⑦ 返回成功（含生成的 Nginx 配置预览）
+GET /internal/caddy/check?domain=shop.easykai.cn
+  → 查 site_domains WHERE full_domain=? AND is_published=1
+  → 命中返回 200（放行签发）
+  → 未命中返回 403（拒绝）
 ```
 
-## 十、与现有系统集成
+- 仅监听回环（127.0.0.1），不对公网暴露
+- 域名必须先在后台 site_domains 表登记，才会被签发——**签发权与业务数据绑定**
 
-### 现有 asset: site_domains 表
+## 七、模块能力分层
 
-```sql
-CREATE TABLE IF NOT EXISTS site_domains (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    site_config_id INTEGER NOT NULL DEFAULT 1,
-    subdomain      TEXT NOT NULL,
-    full_domain    TEXT NOT NULL UNIQUE,
-    display_name   TEXT NOT NULL,
-    template       TEXT DEFAULT 'default',
-    is_published   INTEGER DEFAULT 1,
-    page_keys_json TEXT DEFAULT '["home"]',
-    sort_order     INTEGER DEFAULT 0,
-    service_port   INTEGER,
-    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (site_config_id) REFERENCES site_configs(id)
-);
+```
+Domain & TLS Manager
+├── 前提     → 用户配 *.easykai.cn 泛解析（一次性，手动）
+├── 边缘层   → Caddy On-Demand TLS（自动证书 + 反代）
+├── 校验 API → /internal/caddy/check（查 site_domains 决定放行）
+├── 端口分配 → 插件声明端口，模块记录 + 动态路由映射
+├── 数据层   → site_domains 表（现有，含 subdomain/full_domain/service_port）
+└── 编排层   → "添加子域名" = 写 site_domains 表（就绪，无需碰配置文件）
 ```
 
-表结构完全匹配所需属性，无需变更。
+**注意**：引入 Caddy 后，"添加子域名"简化为**仅写一行数据库记录**——无需生成/写入/reload 任何配置文件。证书与路由由 Caddy 运行时按 site_domains 表自动处理。这是相比原 Nginx 方案的最大简化。
 
-### 现有 asset: site_domain_middleware.py
+## 八、插件端口绑定与子域名升级
 
-运行时中间件根据 Host header 查 `site_domains` JOIN `site_configs`，决定当前站点主题/端口。**模块无需改动中间件**——它只是添加记录到表，中间件自动生效。
+| 模式 | 示例 | 实现 |
+|------|------|------|
+| 路径模式（默认） | `easykai.cn/plugins/shop` | 无需任何域名操作 |
+| 子域名模式 | `shop.easykai.cn` | 后台 site_domains 加一条记录（subdomain=shop, service_port=8089）→ Caddy 自动签证书 + 路由到 8089 |
 
-### 现有 asset: admin/app.py get_nginx_config
+插件启用时让用户选择路径或独立子域名；选子域名仅需写库，其余全自动。
 
-已有 `GET /admin/api/domains/<id>/nginx-config` 生成 server 块文本。为 L1 能力，已实现。
+## 九、迁移与兼容（重要：不推翻现有 Nginx）
 
-## 十一、分阶段实施计划
+当前生产用 Nginx（easykai.cn / agent / platform 等已在 :8081/8083/8084）。**不建议一次性替换**，采用渐进式：
+
+**阶段 A（现状保留）**：Nginx 继续服务现有固定域名，certbot 现有证书不动。
+
+**阶段 B（Caddy 并行接管通配）**：
+- Caddy 监听非标端口或新增泛解析专用入口，仅接管 `*.easykai.cn` 动态子域名
+- 或：Caddy 置于 Nginx 之前作为 TLS 终止层，Nginx 退到 loopback
+
+**阶段 C（可选，完全迁移）**：Caddy 统一接管 80/443，Nginx 完全退到内部。
+
+> 决策点：是否引入 Caddy 是架构级选择。若不引入，退回 v1 的"Nginx + sudo 白名单 + certbot"手动方案（见附录 A），但用户操作量更大。
+
+## 十、安全护栏
+
+1. **校验 API 强制**：`ask` 未通过绝不签发，防随机域名滥用
+2. **速率限制**：`interval` + `burst` 限制签发频率
+3. **证书日志监控**：复用现有 health_check `ssl_cert` 检查器监控到期
+4. **后端仅 loopback**：8081/8083/8084 改监听 127.0.0.1，不对公网暴露
+5. **输入校验**：子域名正则 `^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$`，端口 1024-65535
+
+## 十一、与现有系统集成
+
+### 现有 asset 复用
+
+| 资产 | 用途 |
+|------|------|
+| `site_domains` 表 | 域名登记 + 校验 API 数据源（结构已就绪，含 service_port）|
+| `site_domain_middleware.py` | 运行时按 Host 解析站点主题（不变） |
+| plugins/site_domains（本次已解耦）| 后台 CRUD UI，未来加"绑定子域名"入口 |
+| health_check `ssl_cert` | 证书到期监控（Caddy 自动续签后可保留作双保险）|
+
+### 已存在的 Nginx L2 能力（勿重写）
+
+`auth-center/routes/admin.py` 已实现一套 Nginx 配置生成/写入/reload：
+- `_generate_domain_nginx_config()`：写 server 块
+- `_reload_nginx()`：`sudo /usr/sbin/nginx -s reload`（受 `NGINX_SNIPPETS_DIR` 开关）
+
+若最终不引入 Caddy 而走 Nginx 方案，直接复用这套，不要重写。
+
+## 十二、分阶段实施计划
 
 | 阶段 | 内容 | 依赖 |
 |------|------|------|
-| P1 | 插件化（Phase 5）：后台 CRUD 抽离为插件 | 无，可立即做 |
-| P2 | Nginx 应用能力（L2）：sudo 白名单 + 备份/回滚 | P1 完成 |
-| P3 | 编排：一键添加子域名（Nginx 生成→应用→入库）| P2 完成 |
-| P4 | 插件端口绑定 + 子域名升级入口 | P2 完成 |
-| P5 | 泛域名证书 + 部署脚本集成 | P2 完成 |
+| P1 ✅ | site_domains 后台 CRUD 插件化 | 已完成 |
+| P2 | 决策：引入 Caddy（推荐）or 沿用 Nginx | 架构决策 |
+| P3a（Caddy 路线）| 装 Caddy + 校验 API + 并行接管通配子域名 | P2 |
+| P3b（Nginx 路线）| sudo 白名单 + 复用 admin.py 的 L2 + certbot 通配证书 | P2 |
+| P4 | 插件"绑定子域名"入口（写 site_domains 即生效）| P3 |
+| P5 | 部署脚本集成：装边缘层 + 生成默认三子域名 | P3 |
 
-## 十二、自检清单
+## 十三、自检清单
 
-- [ ] sudo 白名单命令列表已审核（无路径穿越风险）
-- [ ] `nginx -t` 校验在每次 apply 前执行
-- [ ] 回滚逻辑覆盖：校验失败 / reload 失败
-- [ ] 输入校验正则防御配置注入
-- [ ] server 块模板不可用户自定义
-- [ ] 幂等性：同一域名重复添加 = 更新（非覆盖）
-- [ ] 审计日志：每次 Nginx 变更记录操作人 + 时间 + diff
+- [ ] Caddy 校验 API 已实现且仅回环监听
+- [ ] `ask` 拒绝未登记域名（防滥用）
+- [ ] 速率限制 interval/burst 已配置
+- [ ] 后端服务改监听 127.0.0.1
+- [ ] 泛解析前提已在部署文档中说明
+- [ ] 现有 Nginx/证书迁移路径明确（不中断现有域名）
+- [ ] 子域名输入校验正则
+
+---
+
+## 附录 A：Nginx + certbot 手动方案（备选，若不引入 Caddy）
+
+保留 v1 方案要点，供不引入 Caddy 时参考：
+
+- **权限**：`easykai` 受限 sudo 白名单（`nginx -t` / `reload` / 写 sites-enabled）
+- **通配证书**：`certbot certonly --dns-<provider> -d easykai.cn -d "*.easykai.cn"`（**需 DNS API**，因通配强制 DNS-01）
+- **单域名证书**：泛解析下可用 HTTP-01，每子域签一张（免 DNS API）
+- **安全护栏**：`nginx -t` 强制校验 + 备份回滚 + 输入校验 + 模板固定
+
+**核心差异**：Nginx 方案每加域名需改配置 + reload + 管理证书续签；Caddy 方案写库即生效、证书全自动。**用户省心度：Caddy > Nginx。**
+
+## 附录 B：参考来源
+
+- [Vercel — Working with SSL Certificates](https://vercel.com/docs/domains/working-with-ssl)
+- [Netlify — HTTPS (SSL)](https://docs.netlify.com/manage/domains/secure-domains-with-https/https-ssl/)
+- [Caddy — On-Demand TLS](https://caddyserver.com/on-demand-tls)
+- [Caddy TLS On-Demand 2026 Guide](https://fivenines.io/blog/caddy-tls-on-demand-complete-guide-to-dynamic-https-with-lets-encrypt/)
+- [Multi-Tenant SaaS with Caddy + Cloudflare + Nginx](https://tallcms.com/zh-CN/docs/multi-tenant-saas-on-digitalocean-with-caddy-cloudflare-nginx-and-ploi)
+- [SaaS Custom Domains on AWS: Past the 25 SSL Certificate Wall](https://techunfiltered.dev/scalable-ssl-saas-custom-domains-aws)

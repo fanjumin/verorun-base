@@ -32,6 +32,41 @@ def _get_main_db():
     return get_db()
 
 
+# ── Caddy On-Demand TLS 校验端点 ──
+# Caddy 在为某域名签发证书前调用 `ask` 指向的此接口；返回 200 才放行签发。
+# 该接口无需 JWT（Caddy 无法携带管理员 token），但通过两道防线保证安全：
+#   1) 仅信任来自本机回环（127.0.0.1）的请求 —— Caddy 与后端同机
+#   2) 域名必须已登记在 site_domains 且 is_published=1 —— 签发权绑定业务数据
+# 防止攻击者用随机域名耗尽 Let's Encrypt 速率限制。
+def _is_loopback_request():
+    ra = request.remote_addr or ''
+    return ra in ('127.0.0.1', '::1', 'localhost')
+
+
+@site_domains_bp.route('/internal/caddy/check', methods=['GET'])
+def caddy_check_domain():
+    """Caddy On-Demand TLS ask 端点：校验域名是否允许签发证书"""
+    if not _is_loopback_request():
+        return ('forbidden', 403)
+    domain = (request.args.get('domain') or '').strip().lower()
+    if not domain:
+        return ('missing domain', 400)
+    # 基础格式校验（防注入/异常输入）
+    if not re.match(r'^[a-z0-9]([a-z0-9\-\.]*[a-z0-9])?$', domain) or len(domain) > 253:
+        return ('invalid domain', 400)
+    try:
+        with _get_main_db() as conn:
+            row = conn.execute(
+                'SELECT id FROM site_domains WHERE full_domain=? AND is_published=1',
+                (domain,)
+            ).fetchone()
+    except Exception:
+        return ('db error', 500)
+    if row:
+        return ('ok', 200)
+    return ('not allowed', 403)
+
+
 # ── 路由 ──
 @site_domains_bp.route('/admin/api/domains', methods=['GET'])
 def list_domains():
