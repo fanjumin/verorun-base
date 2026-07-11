@@ -175,23 +175,60 @@ Domain & TLS Manager
 | 阶段 | 内容 | 依赖 |
 |------|------|------|
 | P1 ✅ | site_domains 后台 CRUD 插件化 | 已完成 |
+| P1.5 ✅ | Caddy 校验 API（/internal/caddy/check）+ Caddyfile（测试/生产）| 已完成 |
+| P1.6 ✅ | **On-Demand TLS 机制生产验证（非标 8443，不碰 443）** | 已完成，见 §十四 |
 | P2 | 决策：引入 Caddy（推荐）or 沿用 Nginx | 架构决策 |
-| P3a（Caddy 路线）| 装 Caddy + 校验 API + 并行接管通配子域名 | P2 |
+| P3a（Caddy 路线）| Caddy 接管公网 443 + Let's Encrypt 真实签发 + 后端退 loopback | P2，需停机窗口 |
 | P3b（Nginx 路线）| sudo 白名单 + 复用 admin.py 的 L2 + certbot 通配证书 | P2 |
 | P4 | 插件"绑定子域名"入口（写 site_domains 即生效）| P3 |
 | P5 | 部署脚本集成：装边缘层 + 生成默认三子域名 | P3 |
 
 ## 十三、自检清单
 
-- [ ] Caddy 校验 API 已实现且仅回环监听
-- [ ] `ask` 拒绝未登记域名（防滥用）
-- [ ] 速率限制 interval/burst 已配置
-- [ ] 后端服务改监听 127.0.0.1
-- [ ] 泛解析前提已在部署文档中说明
+- [x] Caddy 校验 API 已实现且仅回环监听
+- [x] `ask` 拒绝未登记域名（防滥用）
+- [x] 速率限制 interval/burst 已配置
+- [ ] 后端服务改监听 127.0.0.1（P3 生产切换时做）
+- [x] 泛解析前提已在部署文档中说明
 - [ ] 现有 Nginx/证书迁移路径明确（不中断现有域名）
-- [ ] 子域名输入校验正则
+- [x] 子域名输入校验正则
 
----
+## 十四、On-Demand TLS 机制验证记录（2026-07-11）
+
+在生产机（***REMOVED***）完成机制验证，**全程不碰生产 80/443**，Nginx 与核心服务无影响。
+
+### 验证环境
+- Caddy 2.6.2（apt 安装，systemd 服务已 `stop` + `disable`，防止抢占 80/443）
+- 手动前台运行监听非标端口 **8080/8443**，使用 Caddy 内置 CA（`tls internal`）自签证书
+- 配置：[deploy/caddy/Caddyfile.test](file:///f:/Sites/VeroRun/deploy/caddy/Caddyfile.test)
+- 校验端点：admin(:8084) 的 `/internal/caddy/check`（查 site_domains 表）
+
+### 验证结果
+
+| 测试项 | 命令 | 结果 | 结论 |
+|--------|------|------|------|
+| **已登记域名** | `curl -k --resolve www.easykai.cn:8443:127.0.0.1 https://www.easykai.cn:8443/` | `HTTP=200` | ask→200→自动签证书→握手成功 ✅ |
+| **未登记域名** | `curl -k --resolve nope-xyz-123.easykai.cn:8443:127.0.0.1 ...` | 握手失败 | ask→403→拒绝签发 ✅ |
+
+### Caddy 日志证据链（已登记域名）
+```
+tls.on_demand  obtaining new certificate  server_name=www.easykai.cn
+tls.obtain     lock acquired
+tls.obtain     certificate obtained successfully  identifier=www.easykai.cn
+```
+未登记域名 `nope-xyz-123.easykai.cn` 无任何 obtaining 记录——被校验 API 挡在签发前。
+
+### 结论
+On-Demand TLS + ask 校验机制在生产环境验证通过：
+- **新子域名首次访问即自动签发证书**（无需预配置、无需 reload）
+- **未登记域名被校验 API 拒绝**（防滥用 Let's Encrypt 速率限制）
+- 达到 Vercel / Netlify 级"用户只配 DNS，其余全自动"的目标
+
+### 验证后环境状态（已清理）
+- Caddy 验证进程已停，8443/8080 释放
+- 生产 80/443 全程 Nginx 服务，未受影响
+- Caddy 二进制保留（`apt` 装，disabled 状态），供 P3 正式切换复用
+- 生产切换（P3a）仍是全站命门级操作，需专门停机窗口 + 回滚预案
 
 ## 附录 A：Nginx + certbot 手动方案（备选，若不引入 Caddy）
 
