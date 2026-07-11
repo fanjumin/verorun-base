@@ -2228,27 +2228,33 @@ except Exception:
 # 默认主页站点在 site_configs 中创建（如不存在）
 _default_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
 _default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
-with get_db() as m:
-    m.execute(
-        "INSERT OR IGNORE INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, ?, ?, 'ai', 'self_hosted', '[\"main\"]')",
-        (_default_domain, _default_brand)
-    )
-    m.commit()
-
-# site_domains 默认种子（3 个标准子域名）
-with get_db() as m:
-    _defaults = [
-        ('www',      f'www.{_default_domain}',      f'{_default_brand} 官网',       'default', 1, 1),
-        ('agent',    f'agent.{_default_domain}',    f'{_default_brand} 管理后台',   'default', 1, 2),
-        ('platform', f'platform.{_default_domain}', f'{_default_brand} 用户中心',   'default', 1, 3),
-    ]
-    for sub, full, name, template, pub, so in _defaults:
+try:
+    with get_db() as m:
         m.execute(
-            "INSERT OR IGNORE INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, ?, ?, ?, ?, ?, ?)",
-            (sub, full, name, template, pub, so)
+            "INSERT OR IGNORE INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, ?, ?, 'ai', 'self_hosted', '[\"main\"]')",
+            (_default_domain, _default_brand)
         )
         m.commit()
+except Exception:
+    pass  # site_configs 表可能尚未创建
+
+# site_domains 默认种子（3 个标准子域名）
+_defaults = [
+    ('www',      f'www.{_default_domain}',      f'{_default_brand} 官网',       'default', 1, 1),
+    ('agent',    f'agent.{_default_domain}',    f'{_default_brand} 管理后台',   'default', 1, 2),
+    ('platform', f'platform.{_default_domain}', f'{_default_brand} 用户中心',   'default', 1, 3),
+]
+try:
+    with get_db() as m:
+        for sub, full, name, template, pub, so in _defaults:
+            m.execute(
+                "INSERT OR IGNORE INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, ?, ?, ?, ?, ?, ?)",
+                (sub, full, name, template, pub, so)
+            )
+        m.commit()
     print('[Migration] ✅ site_domains 默认种子 (www/agent/platform)')
+except Exception:
+    pass  # site_domains 表可能尚未创建
 
 
 # ── Site Builder 模块表 (2026-07-11) ──
