@@ -95,7 +95,9 @@ import jinja2
 app.jinja_loader = jinja2.ChoiceLoader([
     app.jinja_loader,
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'platform', 'templates')),
-    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..'))
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..')),
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'health_check', 'templates')),
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'analytics', 'templates')),
 ])
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
