@@ -18,11 +18,13 @@ analytics/models.py — Analytics 数据库 Schema + 完整 CRUD
 
 import os
 import sqlite3
+import sys
 import json
 import hashlib
 import time
 import re
 from datetime import datetime, timedelta
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from services.deployment_config import deploy
 
 # ─── 数据库路径（独立 DB，插件目录内）──────────────────────────────────────────

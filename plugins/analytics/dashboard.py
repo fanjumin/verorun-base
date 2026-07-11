@@ -19,11 +19,11 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, render_template, Response
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
-from analytics import models as am
-from analytics.tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
-from analytics.tracker import generate_report, generate_insight_text
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+from . import models as am
+from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
+from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
                          template_folder='templates',

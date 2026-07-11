@@ -22,9 +22,9 @@ import json
 import time
 from datetime import datetime, timedelta
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from analytics.tracker import generate_report, generate_insight_text
-from analytics import models as am
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from .tracker import generate_report, generate_insight_text
+from . import models as am
 
 
 def handle_analytics_report(node_def: dict, input_data: dict) -> dict:
@@ -189,7 +189,7 @@ def handle_analytics_event(node_def: dict, input_data: dict) -> dict:
     event_name = config.get('event_name') or input_data.get('event_name', 'workflow_step')
 
     try:
-        from analytics.tracker import track_event
+        from .tracker import track_event
         event_id = track_event(
             event_name=event_name,
             category=config.get('category', 'workflow'),

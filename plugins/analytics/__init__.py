@@ -31,7 +31,7 @@ class AnalyticsPlugin(BasePlugin):
 
     def on_install(self, registry):
         """安装时初始化独立数据库表"""
-        from analytics.models import init_analytics_tables
+        from .models import init_analytics_tables
         try:
             init_analytics_tables()
             print('[Analytics] Independent DB initialized (data/analytics.db)')
@@ -87,7 +87,7 @@ class AnalyticsPlugin(BasePlugin):
 
     def register_routes(self):
         """注册 Analytics 仪表盘 Blueprint"""
-        from analytics.dashboard import analytics_bp
+        from .dashboard import analytics_bp
         return [analytics_bp]
 
     def on_disable(self, registry):

@@ -28,10 +28,9 @@ import fnmatch
 from datetime import datetime
 
 # ─── 本地导入 ──────────────────────────────────────────────────────────────────
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from analytics import models as am
-from analytics.geoip import geoip_lookup, init_geoip
-from analytics.ua_parser import parse_ua
+from . import models as am
+from .geoip import geoip_lookup, init_geoip
+from .ua_parser import parse_ua
 
 # ─── 全局状态 ──────────────────────────────────────────────────────────────────
 

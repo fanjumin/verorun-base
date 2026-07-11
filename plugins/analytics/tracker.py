@@ -16,8 +16,8 @@ import json
 import time
 from datetime import datetime, timedelta
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from analytics import models as am
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from . import models as am
 
 
 def track_event(event_name: str,

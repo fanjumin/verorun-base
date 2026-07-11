@@ -20,10 +20,10 @@ import time
 import signal
 from datetime import datetime
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from analytics import models as am
-from analytics.tracker import generate_report, generate_insight_text, create_alert
-from analytics.processor import AnalyticsProcessor
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from . import models as am
+from .tracker import generate_report, generate_insight_text, create_alert
+from .processor import AnalyticsProcessor
 
 
 def cmd_init():
@@ -188,7 +188,7 @@ def cmd_add_alert():
 def cmd_seed_workflows():
     """创建预设分析工作流"""
     try:
-        from analytics.workflow_nodes import create_daily_report_workflow, create_weekly_report_workflow
+        from .workflow_nodes import create_daily_report_workflow, create_weekly_report_workflow
         from orchestrator import models as om
         om.init_orchestrator_tables()
     except ImportError:

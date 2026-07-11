@@ -129,7 +129,7 @@ def _tool_query_stats(args):
         days = int(args.get('days', 7) or 7)
         days = max(1, min(days, 90))
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-        from analytics.tracker import generate_report, generate_insight_text
+        from plugins.analytics.tracker import generate_report, generate_insight_text
         report = generate_report(days=days)
         return generate_insight_text(report)
     except Exception as e:
