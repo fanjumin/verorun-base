@@ -4,8 +4,7 @@
 
 配置优先级：
 1. DB 表 oauth_providers → 按 site_domain + provider='alipay' 查询
-2. system_config 表（alipay_oauth_app_id / alipay_oauth_private_key）
-3. 环境变量 ALIPAY_APP_ID / ALIPAY_PRIVATE_KEY（全局兜底）
+2. 环境变量 ALIPAY_APP_ID / ALIPAY_PRIVATE_KEY（全局兜底）
 """
 import os, json, urllib.request, urllib.parse, time, base64, traceback
 
@@ -15,7 +14,7 @@ ALIPAY_GATEWAY = 'https://openapi.alipay.com/gateway.do'
 
 
 def _get_config(site_domain=None, provider='alipay'):
-    """获取站点 OAuth 配置，按优先级：DB oauth_providers > system_config > 环境变量"""
+    """获取站点 OAuth 配置，按优先级：DB oauth_providers > 环境变量"""
     # 1. 从 DB 按域名查 oauth_providers
     if site_domain:
         try:
