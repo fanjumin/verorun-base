@@ -17,7 +17,7 @@
 图片: Image
 代码: Code
 启用: Enabled
-禁用: Disable
+禁用: Disabled
 排序: Sort
 操作: Actions
 搜索广告: Search Ads
@@ -44,3 +44,34 @@
 名称: Name
 状态: Status
 加载中: Loading...
+# v0.2.0 new
+站点: Site
+全部站点: All Sites
+广告区域: Ad Zone
+区域管理: Zone Management
+区域名称: Zone Name
+区域标识: Zone Identifier
+区域描述: Zone Description
+区域尺寸: Zone Size
+新增区域: New Zone
+编辑区域: Edit Zone
+投放时间: Schedule
+开始时间: Start Time
+结束时间: End Time
+权重: Weight
+频次上限: Frequency Cap
+定向规则: Targeting Rules
+展示量: Impressions
+点击量: Clicks
+点击率: CTR
+统计: Statistics
+广告统计: Ad Statistics
+广告分析: Ad Analytics
+广告位: Ad Placement
+激活: Activate
+暂停: Pause
+无数据: No Data
+最近7天: Last 7 Days
+最近30天: Last 30 Days
+utm来源: UTM Source
+追踪标记: Click Tag

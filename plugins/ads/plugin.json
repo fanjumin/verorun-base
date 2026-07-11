@@ -1,11 +1,11 @@
 {
     "name": "Ad Management",
     "identifier": "ads",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "category": "Operations",
-    "tags": ["advertising", "banner", "placement"],
+    "tags": ["advertising", "banner", "placement", "analytics", "ai-ready"],
     "icon": "ads",
-    "description": "Ad Management — Create, edit, and manage ad placements across the site",
+    "description": "Ad Management — Ad placements, zones, impressions/clicks stats, and AI-ready APIs",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "depends_on": {},
@@ -22,7 +22,10 @@
     "hooks": {
         "provides": [
             "ads/get_placements",
-            "ads/render_ad"
+            "ads/render_ad",
+            "ads/get_stats",
+            "ads/record_impression",
+            "ads/record_click"
         ],
         "listens": []
     },

@@ -27,8 +27,8 @@ def init_i18n(t_fn):
 
 class AdsPlugin(BasePlugin):
     name = 'ads'
-    version = '0.1.0'
-    description = 'Ad Management — Create, edit, and manage ad placements across the site'
+    version = '0.2.0'
+    description = 'Ad Management — Ad placements, zones, impressions/clicks stats, and AI-ready APIs'
     author = 'VeroRun'
 
     def on_install(self, registry):
