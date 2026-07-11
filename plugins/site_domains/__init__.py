@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""
+Site Domains Plugin — 子域名管理 + Nginx 配置生成
+==================================================
+仅【逻辑解耦】：后台 site_domains CRUD + Nginx 配置从 admin/app.py 迁入插件。
+
+重要约束（与 im_gateway / social_push 不同）：
+  - 【不使用独立库】。site_domains 表被中间件 site_domain_middleware 每请求读取，
+    且有 FK → site_configs，必须继续留在主库。本插件通过 get_main_db() 读写主库。
+  - 中间件 site_domain_middleware.py 完全不改，建表/种子留 database.py 不动。
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from plugin_manager.base import BasePlugin
+
+
+class SiteDomainsPlugin(BasePlugin):
+    name = 'site_domains'
+    version = '0.1.0'
+    description = 'Site Domains — 子域名 & Nginx 配置管理'
+    author = 'VeroRun'
+
+    def on_enable(self, registry):
+        """启用（无独立库，不建表）"""
+        print('[SiteDomainsPlugin] ✅ 子域名管理插件已启用')
+        return True
+
+    def register_routes(self):
+        """注册 Flask 路由（site_domains CRUD + Nginx 配置）"""
+        from .routes import site_domains_bp
+        return [site_domains_bp]
+
+    def on_disable(self, registry):
+        print('[SiteDomainsPlugin] ⚠️  子域名管理插件已禁用')
+        return True

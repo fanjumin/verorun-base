@@ -1,0 +1,21 @@
+{
+  "name": "Site Domains",
+  "identifier": "site_domains",
+  "version": "0.1.0",
+  "category": "System",
+  "tags": ["domain", "subdomain", "nginx", "deploy"],
+  "icon": "site_domains",
+  "description": "Site Domains — Subdomain & Nginx configuration manager. Manage subdomain sites, bind service ports, and generate Nginx configs.",
+  "author": "VeroRun",
+  "min_app_version": "0.10.0",
+  "depends_on": {},
+  "menu": {
+    "group": "System",
+    "key": "site_domains",
+    "icon": "site_domains",
+    "label": "Site Domains"
+  },
+  "enabled": true,
+  "price_type": "free",
+  "price": null
+}

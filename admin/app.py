@@ -496,11 +496,11 @@ def admin_send_code():
             conn.commit()
 
         try:
-            from services.mail_service import send_mail
-            send_mail(
-                to=target,
+            from plugins.email.services import send_email
+            send_email(
+                to_addr=target,
                 subject='VeroRun Admin Login Code',
-                body=f'Your verification code is: {code}\n\nValid for 5 minutes.\n\nIf you did not request this, please ignore.'
+                body_text=f'Your verification code is: {code}\n\nValid for 5 minutes.\n\nIf you did not request this, please ignore.'
             )
             print(f'[Admin] Email code sent to {target}')
         except Exception as e:
@@ -736,162 +736,6 @@ def serve_theme_file(slug, filename):
     if not os.path.isdir(theme_static):
         return 'Theme not found', 404
     return send_from_directory(theme_static, filename)
-
-
-# ══ 子域名管理 API (site_domains) ══
-def _admin_auth():
-    """验证管理员 token，返回 payload 或 None"""
-    from services.jwt_service import validate_token
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    if not token:
-        token = request.cookies.get('sso_token')
-    payload = validate_token(token) if token else None
-    if not payload or not payload.get('is_admin'):
-        return None
-    return payload
-
-
-@app.route('/admin/api/domains', methods=['GET'])
-def list_domains():
-    """获取子域名列表 + 配额"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    from models import get_db
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT id, site_config_id, subdomain, full_domain, display_name, '
-            'template, is_published, page_keys_json, sort_order, service_port, '
-            'created_at, updated_at '
-            'FROM site_domains ORDER BY sort_order ASC, id ASC'
-        ).fetchall()
-    data = [dict(r) for r in rows]
-    # Quota: 在 site_configs 中找 max_domains，默认 10
-    max_domains = 10
-    try:
-        with get_db() as conn:
-            sc = conn.execute("SELECT max_domains FROM site_configs WHERE id=1").fetchone()
-            if sc and sc['max_domains']:
-                max_domains = sc['max_domains']
-    except:
-        pass
-    used = len(data)
-    quota = {'used': used, 'limit': max_domains, 'can_add': used < max_domains}
-    return jsonify({'success': True, 'data': data, 'quota': quota})
-
-
-@app.route('/admin/api/domains', methods=['POST'])
-def create_domain():
-    """添加子域名"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    body = request.get_json(silent=True) or {}
-    subdomain = (body.get('subdomain') or '').strip().lower()
-    display_name = (body.get('display_name') or '').strip()
-    service_port = body.get('service_port')
-    if not subdomain or not display_name:
-        return jsonify({'success': False, 'error': 'subdomain and display_name required'}), 400
-    # Validate subdomain format
-    import re
-    if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', subdomain):
-        return jsonify({'success': False, 'error': 'Invalid subdomain format'}), 400
-    if service_port and (not isinstance(service_port, int) or service_port < 1024 or service_port > 65535):
-        return jsonify({'success': False, 'error': 'Invalid port range (1024-65535)'}), 400
-    deploy_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
-    full_domain = f"{subdomain}.{deploy_domain}"
-    from models import get_db
-    try:
-        with get_db() as conn:
-            conn.execute(
-                'INSERT INTO site_domains (subdomain, full_domain, display_name, service_port) '
-                'VALUES (?, ?, ?, ?)',
-                (subdomain, full_domain, display_name, service_port)
-            )
-            conn.commit()
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 409
-    return jsonify({'success': True, 'message': 'Domain created'})
-
-
-@app.route('/admin/api/domains/<int:domain_id>', methods=['PUT'])
-def update_domain(domain_id):
-    """更新子域名"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    body = request.get_json(silent=True) or {}
-    display_name = (body.get('display_name') or '').strip()
-    is_published = body.get('is_published')
-    service_port = body.get('service_port')
-    if not display_name:
-        return jsonify({'success': False, 'error': 'display_name required'}), 400
-    from models import get_db
-    with get_db() as conn:
-        existing = conn.execute('SELECT id FROM site_domains WHERE id=?', (domain_id,)).fetchone()
-        if not existing:
-            return jsonify({'success': False, 'error': 'Domain not found'}), 404
-        conn.execute(
-            'UPDATE site_domains SET display_name=?, is_published=?, service_port=?, '
-            'updated_at=datetime(\'now\') WHERE id=?',
-            (display_name, 1 if is_published else 0, service_port, domain_id)
-        )
-        conn.commit()
-    return jsonify({'success': True, 'message': 'Domain updated'})
-
-
-@app.route('/admin/api/domains/<int:domain_id>', methods=['DELETE'])
-def delete_domain(domain_id):
-    """删除子域名"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    from models import get_db
-    with get_db() as conn:
-        existing = conn.execute('SELECT id, full_domain FROM site_domains WHERE id=?', (domain_id,)).fetchone()
-        if not existing:
-            return jsonify({'success': False, 'error': 'Domain not found'}), 404
-        conn.execute('DELETE FROM site_domains WHERE id=?', (domain_id,))
-        conn.commit()
-    return jsonify({'success': True, 'message': f"Domain {existing['full_domain']} deleted"})
-
-
-@app.route('/admin/api/domains/<int:domain_id>/nginx-config', methods=['GET'])
-def get_nginx_config(domain_id):
-    """生成 Nginx 配置"""
-    payload = _admin_auth()
-    if not payload:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    from models import get_db
-    with get_db() as conn:
-        row = conn.execute(
-            'SELECT id, full_domain, service_port, display_name FROM site_domains WHERE id=?',
-            (domain_id,)
-        ).fetchone()
-    if not row:
-        return jsonify({'success': False, 'error': 'Domain not found'}), 404
-    if not row['service_port']:
-        return jsonify({'success': False, 'error': 'Not an independent service (no port)'}), 400
-    domain = row['full_domain']
-    port = row['service_port']
-    server_path = f"/home/easykai/easykai-workspace/{domain}"
-    config_text = f"""server {{
-    listen 80;
-    server_name {domain};
-
-    location / {{
-        proxy_pass http://127.0.0.1:{port};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }}
-}}"""
-    return jsonify({'success': True, 'data': {
-        'full_domain': domain,
-        'server_path': server_path,
-        'config_text': config_text
-    }})
 
 
 if __name__ == '__main__':
