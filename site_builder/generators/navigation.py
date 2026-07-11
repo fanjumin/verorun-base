@@ -1,66 +1,64 @@
 #!/usr/bin/env python3
-"""导航 & 页脚生成器 — 将 LLM 输出的导航/页脚数据写入对应表"""
+"""导航 & 页脚生成器 — 将 LLM 输出的导航/页脚数据写入统一 design_tokens"""
 
-import json
-from models import get_db
+from site_builder.site_settings.models import get_tokens, save_tokens
 
 
 class NavigationGenerator:
-    """主导航 & 页脚生成器"""
+    """主导航 & 页脚生成器（统一令牌版）"""
 
     @staticmethod
-    def apply_nav(nav_data: dict, site: str = 'www'):
-        """写入主导航 header_nav 表（幂等：先清后写）
+    def apply_nav(nav_data: dict, site_key='platform'):
+        """写入主导航到 design_tokens.navigation.items
 
         nav_data 期望字段：
-            nav_items: [{"title": "...", "url": "/..."}, ...]
+            nav_items: [{"title": "...", "url": "/...", "icon": "", "children": [...]}, ...]
         """
         items = nav_data.get('nav_items', [])
-        with get_db() as conn:
-            # 清空当前 site 的导航
-            conn.execute("DELETE FROM header_nav WHERE site=?", (site,))
-            for i, item in enumerate(items):
-                conn.execute(
-                    "INSERT INTO header_nav (site, title, url, sort_order, is_enabled) VALUES (?,?,?,?,1)",
-                    (site, item.get('title', ''), item.get('url', '/'), i + 1)
-                )
-            conn.commit()
-        print(f'[SiteBuilder] ✅ Navigation applied: {len(items)} items')
+        formatted = []
+        for i, item in enumerate(items):
+            formatted.append({
+                'id': i + 1,
+                'title': item.get('title', ''),
+                'url': item.get('url', '/'),
+                'icon': item.get('icon', ''),
+                'target': item.get('target', '_self'),
+                'children': item.get('children', []),
+            })
+
+        tokens = get_tokens(site_key)
+        current = tokens['token_json']
+        current['navigation']['items'] = formatted
+        save_tokens(site_key, current, generated_by='ai', prompt_id=None)
+        print(f'[SiteBuilder] ✅ Navigation applied via design_tokens: {len(formatted)} items')
 
     @staticmethod
-    def apply_footer(footer_data: dict):
-        """写入页脚结构 — footer_links + footer_articles
+    def apply_footer(footer_data: dict, site_key='platform'):
+        """写入页脚分组到 design_tokens.footer.sections
 
         footer_data 期望字段：
             footer_groups: [{"group_name": "...", "links": [{"title": "...", "url": "..."}]}]
         """
         groups = footer_data.get('footer_groups', [])
-        with get_db() as conn:
-            # 清空 footer_links
-            conn.execute("DELETE FROM footer_links")
+        sections = []
+        for group in groups:
+            sections.append({
+                'name': group.get('group_name', ''),
+                'links': group.get('links', []),
+            })
 
-            section_order = 0
-            total_links = 0
-            for group in groups:
-                section_order += 1
-                group_name = group.get('group_name', '')
-                links = group.get('links', [])
-                for i, link in enumerate(links):
-                    conn.execute(
-                        "INSERT INTO footer_links (section, title, url, sort_order, is_enabled) VALUES (?,?,?,?,1)",
-                        (group_name, link.get('title', ''), link.get('url', '/'), i + 1)
-                    )
-                    total_links += 1
-            conn.commit()
-        print(f'[SiteBuilder] ✅ Footer applied: {len(groups)} groups, {total_links} links')
+        tokens = get_tokens(site_key)
+        current = tokens['token_json']
+        current['footer']['sections'] = sections
+        save_tokens(site_key, current, generated_by='ai', prompt_id=None)
+        print(f'[SiteBuilder] ✅ Footer applied via design_tokens: {len(sections)} groups')
 
     @staticmethod
-    def apply_footer_articles(documents: list):
-        """写入页脚法律文档链接 footer_articles 表
+    def apply_footer_articles(documents: list, site_key='platform'):
+        """写入页脚法律文档链接到 design_tokens.footer.articles
 
         documents: [{"id": "privacy_policy", "name": "隐私政策"}, ...]
         """
-        article_slugs = [d.get('id', '') for d in documents]
         articles = []
         for doc in documents:
             slug = doc.get('id', '')
@@ -68,16 +66,11 @@ class NavigationGenerator:
             if slug and name:
                 articles.append({
                     'title': name,
-                    'url': f'/page/{slug}'
+                    'url': f'/page/{slug}',
                 })
 
-        with get_db() as conn:
-            # 清空
-            conn.execute("DELETE FROM footer_articles")
-            for i, article in enumerate(articles):
-                conn.execute(
-                    "INSERT INTO footer_articles (title, url, sort_order, is_enabled) VALUES (?,?,?,1)",
-                    (article['title'], article['url'], i + 1)
-                )
-            conn.commit()
-        print(f'[SiteBuilder] ✅ Footer articles applied: {len(articles)} items')
+        tokens = get_tokens(site_key)
+        current = tokens['token_json']
+        current['footer']['articles'] = articles
+        save_tokens(site_key, current, generated_by='ai', prompt_id=None)
+        print(f'[SiteBuilder] ✅ Footer articles applied via design_tokens: {len(articles)}')

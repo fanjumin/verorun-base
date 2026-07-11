@@ -2276,6 +2276,27 @@ with get_db() as m:
     m.commit()
     print('[Migration] ✅ site_builder 表已创建')
 
+    # ── site_settings: 统一设计令牌表（替代 brand_settings + header_nav + footer_* + themes）──
+    try:
+        c_th.execute("""
+            CREATE TABLE IF NOT EXISTS design_tokens (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_key        TEXT NOT NULL DEFAULT 'platform',
+                token_json      TEXT DEFAULT '{}',
+                generated_by    TEXT DEFAULT 'manual',
+                prompt_id       INTEGER DEFAULT NULL,
+                version         INTEGER DEFAULT 1,
+                created_at      TEXT DEFAULT (datetime('now')),
+                updated_at      TEXT DEFAULT (datetime('now')),
+                UNIQUE(site_key)
+            );
+        """)
+        c_th.execute("CREATE INDEX IF NOT EXISTS idx_dt_site_key ON design_tokens(site_key)")
+        c_th.commit()
+        print('[Migration] ✅ design_tokens 表已创建')
+    except Exception as e_th:
+        print(f'[Migration] ⚠️ design_tokens 表创建失败（可能已存在）: {e_th}')
+
 
 def now_iso():
     return datetime.now().isoformat()
