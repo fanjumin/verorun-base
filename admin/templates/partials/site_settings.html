@@ -1,56 +1,30 @@
 {# Site Settings — 统一设计令牌管理界面 #}
-<style>
-.st-container{max-width:840px;margin:0 auto}
-.st-tabs{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border,#334155);flex-wrap:wrap}
-.st-tab{padding:8px 16px;cursor:pointer;border:none;background:transparent;color:var(--dim);font-size:13px;border-bottom:2px solid transparent;transition:all .2s}
-.st-tab:hover{color:var(--text,#e2e8f0)}
-.st-tab.active{color:var(--accent,#00f5ff);border-bottom-color:var(--accent,#00f5ff)}
-.st-panel{display:none}
-.st-panel.active{display:block}
-.st-field{margin-bottom:14px}
-.st-field label{display:block;font-size:12px;color:var(--dim);margin-bottom:4px;font-weight:500}
-.st-field input[type="text"],.st-field input[type="color"],.st-field input[type="url"],.st-field textarea,.st-field select{width:100%;padding:8px 10px;background:var(--bg,#0d0d18);border:1px solid var(--border,#334155);border-radius:6px;color:var(--text,#e2e8f0);font-size:13px;font-family:inherit}
-.st-field input[type="color"]{width:60px;height:36px;padding:2px;cursor:pointer}
-.st-field textarea{min-height:80px;resize:vertical}
-.st-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.st-row-3{grid-template-columns:1fr 1fr 1fr}
-.st-color-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.st-color-preview span{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);display:inline-block}
-.st-btn{padding:8px 20px;background:var(--accent,#00f5ff);color:#000;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .2s}
-.st-btn:hover{opacity:.85}
-.st-btn.danger{background:#ef4444;color:#fff}
-.st-toast{position:fixed;top:16px;right:16px;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;animation:fadeIn .3s}
-.st-toast.success{background:#10b981;color:#fff}
-.st-toast.error{background:#ef4444;color:#fff}
-.st-nav-item{display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:var(--bg,#0d0d18);border:1px solid var(--border);border-radius:6px}
-.st-nav-item input{flex:1;min-width:0}
-.st-nav-item .st-btn-sm{padding:4px 10px;font-size:11px}
-.st-nav-children{margin-left:24px;border-left:2px solid var(--border);padding-left:12px}
-.st-section-title{font-size:14px;font-weight:600;color:var(--text);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.st-meta{font-size:11px;color:var(--dim);margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
-@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-</style>
-
-<div class="st-container" id="stApp">
-  <div class="st-tabs">
-    <button class="st-tab active" onclick="stSwitchTab('brand')">{{ _('Brand') }}</button>
-    <button class="st-tab" onclick="stSwitchTab('colors')">{{ _('Colors') }}</button>
-    <button class="st-tab" onclick="stSwitchTab('typography')">{{ _('Typography') }}</button>
-    <button class="st-tab" onclick="stSwitchTab('navigation')">{{ _('Navigation') }}</button>
-    <button class="st-tab" onclick="stSwitchTab('footer')">{{ _('Footer') }}</button>
-    <button class="st-tab" onclick="stSwitchTab('seo')">{{ _('SEO') }}</button>
-  </div>
-  <div id="stContent"><div class="lo"><div class="s"></div>{{ _('Loading...') }}</div></div>
-  <div class="st-meta" id="stMeta"></div>
-</div>
-
-<script>
-// ── State ──
+// ── Site Settings State ──
 var _tokens=null;
 var _siteKey='platform';
 
-// ── Loader ──
+// 注入模块样式（仅一次）
+(function(){
+  if(document.getElementById('stStyles'))return;
+  var st=document.createElement('style');st.id='stStyles';
+  st.textContent='.st-container{max-width:840px;margin:0 auto}.st-tabs{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border,#334155);flex-wrap:wrap}.st-tab{padding:8px 16px;cursor:pointer;border:none;background:transparent;color:var(--dim);font-size:13px;border-bottom:2px solid transparent;transition:all .2s}.st-tab:hover{color:var(--text,#e2e8f0)}.st-tab.active{color:var(--accent,#00f5ff);border-bottom-color:var(--accent,#00f5ff)}.st-panel{display:none}.st-panel.active{display:block}.st-field{margin-bottom:14px}.st-field label{display:block;font-size:12px;color:var(--dim);margin-bottom:4px;font-weight:500}.st-field input[type="text"],.st-field input[type="color"],.st-field input[type="url"],.st-field textarea,.st-field select{width:100%;padding:8px 10px;background:var(--bg,#0d0d18);border:1px solid var(--border,#334155);border-radius:6px;color:var(--text,#e2e8f0);font-size:13px;font-family:inherit}.st-field input[type="color"]{width:60px;height:36px;padding:2px;cursor:pointer}.st-field textarea{min-height:80px;resize:vertical}.st-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.st-row-3{grid-template-columns:1fr 1fr 1fr}.st-color-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.st-color-preview span{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);display:inline-block}.st-btn{padding:8px 20px;background:var(--accent,#00f5ff);color:#000;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .2s}.st-btn:hover{opacity:.85}.st-btn.danger{background:#ef4444;color:#fff}.st-toast{position:fixed;top:16px;right:16px;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;animation:fadeIn .3s}.st-toast.success{background:#10b981;color:#fff}.st-toast.error{background:#ef4444;color:#fff}.st-nav-item{display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:var(--bg,#0d0d18);border:1px solid var(--border);border-radius:6px}.st-nav-item input{flex:1;min-width:0}.st-nav-item .st-btn-sm{padding:4px 10px;font-size:11px}.st-nav-children{margin-left:24px;border-left:2px solid var(--border);padding-left:12px}.st-section-title{font-size:14px;font-weight:600;color:var(--text);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}.st-meta{font-size:11px;color:var(--dim);margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}';
+  document.head.appendChild(st);
+})();
+
+// ── Loader：动态注入界面到 #mc（对齐框架其它模块的渲染模式）──
 window.l_site_settings=function(){
+  document.getElementById('mc').innerHTML='<div class="st-container" id="stApp">'+
+    '<div class="st-tabs">'+
+    '<button class="st-tab active" onclick="stSwitchTab(\'brand\')">{{ _('Brand') }}</button>'+
+    '<button class="st-tab" onclick="stSwitchTab(\'colors\')">{{ _('Colors') }}</button>'+
+    '<button class="st-tab" onclick="stSwitchTab(\'typography\')">{{ _('Typography') }}</button>'+
+    '<button class="st-tab" onclick="stSwitchTab(\'navigation\')">{{ _('Navigation') }}</button>'+
+    '<button class="st-tab" onclick="stSwitchTab(\'footer\')">{{ _('Footer') }}</button>'+
+    '<button class="st-tab" onclick="stSwitchTab(\'seo\')">{{ _('SEO') }}</button>'+
+    '</div>'+
+    '<div id="stContent"><div class="lo"><div class="s"></div>{{ _('Loading...') }}</div></div>'+
+    '<div class="st-meta" id="stMeta"></div>'+
+    '</div>';
   stLoad();
 };
 
@@ -310,4 +284,3 @@ function stToast(type,msg){
 }
 
 function stShowError(msg){document.getElementById('stContent').innerHTML='<div class="em">'+stEsc(msg)+'</div>'}
-</script>

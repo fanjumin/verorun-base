@@ -383,3 +383,37 @@ var fileCtx="\n\n[已上传文件]:\n";
    - 刷新页面 → token 仍然有效
 3. **JSON-only token 返回是高风险模式**：前端 JS 存 localStorage 是按域名隔离的，多个子域名必须靠 `domain=.xxx.com` 的 cookie 共享
 4. **排查"登录后跳回"问题时，第一件事**：用浏览器 DevTools → Application → Cookies 看 `sso_token` cookie 是否存在，domain 是什么，path 是什么
+
+---
+
+## 2026-07-11 admin 后台 partial 含 `<style>`/`<div>` 静态 HTML 混入主 `<script>` — 一个 bug 三种错法
+
+### 问题现象（分三个阶段暴露）
+- **阶段一**：`agent.easykai.cn/admin` 控制台报 `Uncaught SyntaxError: Unexpected token '<'`、`"'+(item.service_port||'')+'" cannot be parsed`、`'+esc(filePath)+'` / `'+u+'` 资源 404。媒体库、站点域名等模块的 JS 拼接串被当成 HTML 文本渲染。
+- **阶段二**：修完阶段一后页面永远停在"验证身份中..."，无侧边栏。
+- **阶段三**：修完阶段二后能登录，但每个模块右侧都常驻一份 Site Settings 界面，布局混乱。
+
+### 根本原因（同一个结构性问题的三种表现）
+`admin.html` 把 icons.html 到 tail.html 之间的**所有 partial 拼进同一个大 `<script>`**。而 `partials/site_settings.html` 是异类：它自带 `<style>` + `<div id="stApp">` 静态 HTML + 自己的 `<script>...</script>`。
+
+- **阶段一根因**：site_settings 内部的 `</script>`（在主脚本区中间）把主 `<script>` 提前闭合，其后的 media_library/site_domains 等 partial 脱离脚本上下文，JS 源码被当 HTML 文本渲染 → 拼接串 `'+esc(...)+'` 直接进 DOM。
+- **阶段二根因**：只删了 site_settings 的 `<script>/</script>` 标签，却把它的 `<style>`+`<div>` 裸留在主脚本 JS 流里。`<style>` 在 JS 上下文是非法 token → 整段主脚本语法错误 → `init()` 无法执行 → 卡"验证身份中"。
+- **阶段三根因**：把整个 site_settings include 移到主 `</script>` 之后（tail 内），JS 语法虽合法，但它的静态 `<div id="stApp">` 被渲染在 `#mc` 主容器之外、常驻 `<body>` → 每个模块都能看到。
+
+### 最终正确修复
+让 site_settings **对齐框架的"单一 `#mc` + `window.l_xxx()` 动态渲染"模式**（其它所有 partial 都是纯裸 JS，靠 `l_xxx()` 往 `#mc` 注入 innerHTML）：
+1. 删除静态 `<style>` → 改由 JS 一次性注入 `<head>`（用 `#stStyles` 去重）
+2. 删除静态 `<div id="stApp">` → 改由 `l_site_settings()` 动态 `innerHTML` 注入 `#mc`
+3. 删除自带 `<script>/</script>` → 变纯裸 JS 融入主脚本
+4. tail.html / admin.html 的 include 位置回退到常规位置
+
+### 为什么绕了三轮（教训）
+- **同症状不同病因**：三个阶段现象各异，但都源于"static HTML 不该待在主 `<script>` 里/外"这一个结构问题。前两次都是"头痛医头"，没从框架契约层面根治。
+- **服务重启方式错误一度掩盖修复效果**：8084 是 gunicorn（systemd `admin.service`，2 worker），最初用 `pkill + nohup python3 app.py` 重启**完全无效**，旧 worker 一直缓存旧模板，误以为"文件改了没用"。正确方式：对 gunicorn master `kill -HUP` 热重载（无需 sudo、不中断服务），或 `systemctl restart admin.service`。这与 2026-06-26 记录的"禁止 pkill+nohup"一致。
+- **curl 验证不了 JS**：全靠 `node --check` 抓渲染后每个 `<script>` 的语法，一击命中 `<style>` 那行（呼应 2026-06-30 教训）。
+
+### 永久防范
+1. **admin.html/其它聚合页里被 include 进大 `<script>` 的 partial，必须是纯裸 JS**，绝对不能含 `<style>`、`<div>`、`</script>` 等 HTML 标签。
+2. **新增 admin 模块 partial 必须遵循框架契约**：只写 `window.l_<key>=function(){...}`，界面用 JS 往 `#mc` 注入 innerHTML，样式用 JS 注入 `<head>` 或写进全局 head.html，不得在 partial 里放静态 HTML/style。
+3. **改完 admin 模板后，必须用 `node --check` 校验渲染后每个 `<script>`**，并 `grep -c 'id="xxx"'` 确认没有意外常驻的静态 DOM 节点。
+4. **重启 8084(admin)/8083(platform) 一律用 `systemctl restart` 或对 gunicorn master `kill -HUP`**，禁止 `pkill + nohup python3 app.py`。
