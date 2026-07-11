@@ -10,21 +10,20 @@ from models import get_db
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 def _require_admin():
-    import flask, logging
+    """鉴权守卫 — 与 agent_matrix/site_builder 版本对齐：
+    1. 优先从 Authorization header 提取 token
+    2. 无 header 时回退到 sso_token / tm_token cookie
+    3. 使用 JWT is_admin 声明，不再冗余查询数据库
+    """
     from services.jwt_service import validate_token
     auth = request.headers.get('Authorization', '')
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
-    payload = validate_token(token)
-    flask.current_app.logger.warning(f"[_require_admin] auth_header={auth[:50] if auth else 'EMPTY'} token={token[:30] if token else 'EMPTY'} payload={payload}")
-    if not payload:
-        return None, (jsonify({'success': False, 'error': chr(26410)+chr(30331)+chr(24405)}), 401)
-    user_id = payload['user_id']
-    with get_db() as conn:
-        user = conn.execute('SELECT id, is_admin, display_name FROM users WHERE id=?', (user_id,)).fetchone()
-    flask.current_app.logger.warning(f"[_require_admin] db_user={dict(user) if user else None}")
-    if not user or not user['is_admin']:
-        return None, (jsonify({'success': False, 'error': chr(20165)+chr(31649)+chr(29702)+chr(21592)+chr(21487)+chr(20316)+chr(20316)}), 403)
-    return {'user_id': user_id, 'nickname': user['display_name'] if 'display_name' in user.keys() else ''}, None
+    if not token:
+        token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return None, (jsonify({'success': False, 'error': '需要管理权限'}), 401)
+    return {'user_id': payload['user_id'], 'nickname': ''}, None
 
 
 def _log(admin_id, action, target_type="", target_id="", detail=""):
