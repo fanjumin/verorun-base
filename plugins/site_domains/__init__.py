@@ -30,9 +30,10 @@ class SiteDomainsPlugin(BasePlugin):
         return True
 
     def register_routes(self):
-        """注册 Flask 路由（site_domains CRUD + Nginx 配置）"""
-        from .routes import site_domains_bp
-        return [site_domains_bp]
+        """注册 Flask 路由（Caddy On-Demand TLS 校验端点）。
+        CRUD 由 auth-center admin_bp 提供，本插件不重复注册。"""
+        from .routes import caddy_check_bp
+        return [caddy_check_bp]
 
     def on_disable(self, registry):
         print('[SiteDomainsPlugin] ⚠️  子域名管理插件已禁用')
