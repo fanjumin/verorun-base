@@ -197,9 +197,9 @@ function sbPreview(){
   var sel=document.getElementById("sbTemplate");
   var inp=document.getElementById("sbInput");
   var res=document.getElementById("sbResult");
-  if(!sel||!sel.value){alert("{{ _('Please Select a Template First') }}");return}
+  if(!sel||!sel.value){res.innerHTML='<div class="warn" style="border:1px solid rgba(240,160,32,.4);border-radius:6px;padding:10px;background:rgba(240,160,32,.05);font-size:12px;color:#f0a020">⚠️ {{ _('Please Select a Template First') }}</div>';return}
   var msg=(inp.value||"").trim();
-  if(!msg){alert("{{ _('Please Describe Your Needs') }}");return}
+  if(!msg){res.innerHTML='<div class="warn" style="border:1px solid rgba(240,160,32,.4);border-radius:6px;padding:10px;background:rgba(240,160,32,.05);font-size:12px;color:#f0a020">⚠️ {{ _('Please Describe Your Needs') }}</div>';return}
   res.innerHTML='<div class="lo"><div class="s"></div>{{ _('Generating Plan') }}...</div>';
   fetch("/admin/site-builder/preview",{
     method:"POST",
@@ -230,8 +230,8 @@ function sbRenderPlan(data){
 
 // 执行建站（写入草稿）
 function sbExecute(){
-  if(!sbCurrentPlan){alert("{{ _('Please Generate a Plan First') }}");return}
   var res=document.getElementById("sbResult");
+  if(!sbCurrentPlan){res.innerHTML='<div class="warn" style="border:1px solid rgba(240,160,32,.4);border-radius:6px;padding:10px;background:rgba(240,160,32,.05);font-size:12px;color:#f0a020">⚠️ {{ _('Please Generate a Plan First') }}</div>';return}
   var actions=document.getElementById("sbActions");
   res.innerHTML='<div class="lo"><div class="s"></div>{{ _('Building your site, please wait...') }}</div>';
   fetch("/admin/site-builder/execute",{
@@ -269,9 +269,25 @@ function sbPreviewSite(){
   window.open('/admin/site-builder/preview-site', '_blank', 'width=1200,height=800,scrollbars=yes');
 }
 
-// 发布草稿到生产
+// 发布草稿到生产（主题化确认弹窗）
 function sbPublishDraft(){
-  if(!confirm("{{ _('Publish this draft to production? This will overwrite the current live site.') }}")){return}
+  var h='<div class="modal-overlay" onclick="if(event.target===this)this.remove()">';
+  h+='<div class="modal-box" style="width:420px;text-align:center">';
+  h+='<div style="font-size:40px;margin-bottom:12px">🚀</div>';
+  h+='<h3>{{ _('Publish to Production') }}</h3>';
+  h+='<div class="modal-meta" style="font-size:13px;margin-bottom:16px">{{ _('Publish this draft to production? This will overwrite the current live site.') }}</div>';
+  h+='<div style="display:flex;gap:10px;justify-content:center">';
+  h+=`<button class="btn bo" style="font-size:13px;padding:6px 20px" onclick="this.closest('.modal-overlay').remove()">{{ _('Cancel') }}</button>`;
+  h+='<button class="btn bp" style="font-size:13px;padding:6px 20px" onclick="sbConfirmPublish()">{{ _('Confirm Publish') }}</button>';
+  h+='</div></div></div>';
+  var m=document.createElement("div");
+  m.innerHTML=h;
+  document.body.appendChild(m);
+}
+
+function sbConfirmPublish(){
+  var m=document.querySelector(".modal-overlay");
+  if(m)m.remove();
   var res=document.getElementById("sbResult");
   var actions=document.getElementById("sbActions");
   res.innerHTML='<div class="lo"><div class="s"></div>{{ _('Publishing...') }}</div>';
