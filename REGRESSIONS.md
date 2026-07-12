@@ -18,7 +18,118 @@
 
 ---
 
-**Agent 执行指令**：每次思考/行动前，必须默念并检查：“当前操作是否违反 REGRESSIONS.md 中的任何一条？”如果违反，必须先报告，不得执行。
+**Agent 执行指令**：每次思考/行动前，必须默念并检查："当前操作是否违反 REGRESSIONS.md 中的任何一条？"如果违反，必须先报告，不得执行。
+
+---
+
+## 2026-07-12 插件 i18n 翻译丢失事故 — 从全英文页面到"中英混杂"的完整根因
+
+### 问题现象
+- analytics 模板 tab 行从全英文（Trend / Page / Source / Geo / Devices / Event / Alerts）变成中英混杂（趋势 / Page / Source / 地区 / 设备 / Event / 告警）
+- 用户反复质疑"为什么源码里是杂乱的？之前页面确实是全英文的"
+- 其他插件（email、coupons、ads）存在同样问题：中文 key 硬编码、yml 不匹配、YAML 解析失败
+
+### 根本原因 — 四环叠加事故链
+
+#### 第一环（源头）：「AI 批量翻译」把中文 key 的译文写进 DB 而非 yml
+- `i18n/translate.py` 批量调用通义千问，将中文 key 的英文译文写入了**数据库 `i18n_strings` 表**，而非插件的 `i18n/en.yml`
+- 备份 DB `backups/data_20260708_143015/x7k2m9a4.db` 的 `i18n_strings` 表有 2678 条记录，其中 en 翻译 2658 条
+- analytics 的 12 个中文 key（趋势、Page、Source、地区、设备、Event、告警等）在 DB 中全部有英文译文，命中率 **12/12**
+- **后果**：用户看到的全英文页面是靠 DB 翻译撑起来的，而模板源码仍然是中文 key — 埋下隐患
+
+#### 第二环（致命一击）：「插件化重构」从全局 yml 删 key 但没补进插件 yml
+- 全局 `i18n/en.yml` 曾经包含 analytics 所有 key 的英文翻译（如 `趋势: Trend`）
+- 提交 `dfb9f6d`（"remove plugin i18n keys from main i18n"）把这些 key 从全局 yml 删除
+- 但 `plugins/analytics/i18n/en.yml` **从创建起就只配了 4 条路由 key**（Dashboard、Overview、Realtime、Historical），全部 85 个模板 key 没有任何 en 翻译
+- **后果**：DB 成了 analytics 翻译的唯一残存副本，yml 权威源体系实际上不存在
+
+#### 第三环（毁灭）：「删库重建」清除了唯一残存副本
+- 提交 `ed9dd88`（"重建空白数据库"）删除了所有数据，包括 `i18n_strings` 表
+- DB 中的 2658 条 en 翻译全部消失
+- **后果**：`_('趋势')` 在 en 环境下查不到翻译 → 回退原文 `趋势` → 页面显示"趋势/Page/Source/地区/设备/Event/告警" = 用户看到的"中英混杂"
+
+#### 第四环（蔓延）：「未统一 i18n 架构」导致其他插件同样有病
+- 大部分插件模板用中文 key 硬编码（coupons: `智能优惠券`、email: `[收起]`、ads: 模板用英文 key 但 yml 用中文 key）
+- 多个插件 yml 文件存在 YAML 语法错误：
+  - `currency_converter/i18n/en.yml` L22: `Rates synced::` 含冒号未加引号
+  - `order_notify/i18n/en.yml` + `zh-CN.yml`: key 含 `%s`/`%.2f` 未加引号
+  - `reviews/i18n/en.yml`: key 含 `%d` 未加引号
+- ads 的 yml 用中文 key（`广告管理: 广告管理`），模板用英文 key（`Ad Management`），两套完全不匹配
+- coupons 的 `_ai_recommend.html` partial 被 `.gitignore` 的 `_*.html` 规则误伤，未纳入版本控制
+
+### 证据链（可追溯、可复现）
+
+1. **备份 DB `backups/data_20260708_143015/x7k2m9a4.db`**：
+   ```sql
+   -- i18n_strings 表有 2678 条，en 翻译 2658 条
+   SELECT count(*) FROM i18n_strings WHERE locale='en';  -- 2658
+   SELECT string_key, translation FROM i18n_strings WHERE locale='en' AND string_key IN ('趋势','地区','设备','告警','Page','Source','Event');
+   -- 全部有翻译: 趋势→Trend, 地区→Geo, 设备→Devices, 告警→Alerts, Page→Page, Source→Source, Event→Event
+   ```
+
+2. **Git 提交记录**：
+   - `dfb9f6d` - "remove plugin i18n keys from main i18n" — 从全局 yml 删 analytics key
+   - `ed9dd88` - "重建空白数据库" — 清空 DB（含 i18n_strings）
+
+3. **全局 `i18n/en.yml` 旧版本（在 dfb9f6d 之前）**：包含 `趋势: Trend` 等 analytics 翻译
+4. **`plugins/analytics/i18n/en.yml` 所有版本**：从未包含超过 4 条 key
+
+### 修复的三类问题及改动文件
+
+#### 类型一：模板 key 从中文改为英文（源码级别）
+| 插件 | 文件 | 改动要点 |
+|------|------|---------|
+| analytics | `plugins/analytics/templates/analytics.html` | 63 处中文 key → 英文（如 `_('趋势')`→`_('Trend')`） |
+| email | `plugins/email/templates/admin_email.html` | 2 处中文 key → 英文（`[收起]`→`[Collapse]`、`[展开]`→`[Expand]`） |
+| coupons | `plugins/coupons/templates/admin_coupons.html` | 72 个中文 key → 英文（94 处替换） |
+| coupons | `plugins/coupons/templates/_ai_recommend.html` | 6 处中文 key → 英文（首次纳入 git） |
+
+#### 类型二：yml 从零重建（对齐英文 key 架构）
+| 文件 | 改动要点 |
+|------|---------|
+| `plugins/analytics/i18n/zh-CN.yml` | 89 条 `英文key: 中文`（覆盖全部模板 key） |
+| `plugins/analytics/i18n/en.yml` | 8 条路由 key（模板英文 key 回退即英文） |
+| `plugins/coupons/i18n/en.yml` | 118 条 `英文key: 英文`，从中文 key 模式重建 |
+| `plugins/coupons/i18n/zh-CN.yml` | 118 条 `英文key: 中文` |
+| `plugins/ads/i18n/en.yml` + `zh-CN.yml` | 76 条 `英文key: 英文/中文`，从中英错配重建 |
+| `plugins/email/i18n/en.yml` + `zh-CN.yml` | 补充 `[Collapse]`/`[Expand]` 映射 |
+
+#### 类型三：YAML 语法错误修复
+| 文件 | 问题 | 修复 |
+|------|------|------|
+| `plugins/currency_converter/i18n/en.yml` | L22 `Rates synced::` 冒号未引号 | 双引号包裹全部 key/value |
+| `plugins/order_notify/i18n/en.yml` | key 含 `%s`/`%.2f` 未引号 | 双引号包裹 |
+| `plugins/order_notify/i18n/zh-CN.yml` | 同上 | 双引号包裹 |
+| `plugins/reviews/i18n/en.yml` | key 含 `%d` 未引号 | 双引号包裹 |
+
+#### 类型四：基础设施修复
+| 文件 | 改动 |
+|------|------|
+| `.gitignore` | L20 下方增加 `!plugins/**/templates/_*.html`，放行插件 partial 模板 |
+
+### 新架构原则（修复后确立）
+1. **模板源码统一使用英文 key**，`_('English Key')`，不出现中文
+2. **`zh-CN.yml` 是中文映射的权威源**：`English Key: 中文翻译`
+3. **`en.yml` 留空或只配少数特殊 key**：英文 key 查不到翻译时回退即英文本身
+4. **数据库 `i18n_strings` 仅作为运行时缓存**：可随时从 yml 重建（`seed_plugin_translations()`）
+5. **DB 被删时 yml 不受影响**：下次启动自动 seed，翻译恢复
+
+### 提交记录
+```
+617c695 - fix: analytics i18n - english keys, zh-CN.yml, en.yml
+e19ddb6 - fix: plugin i18n issues - email, coupons, currency_converter, order_notify, reviews yml
+7729846 - fix: ads yml key mismatch, restore _ai_recommend.html, gitignore exception
+```
+
+### 永久防范
+1. **模板源码禁止出现 `_('中文...')`** — 所有 `_()` 参数必须是英文
+2. **yml 是翻译权威源，DB 是缓存** — 确保删除 DB 后 yml 能完整恢复翻译，不依赖任何运行时状态
+3. **新增插件 i18n 必须两步走**：① 模板用英文 key → ② zh-CN.yml 配齐映射（en.yml 留空即可）
+4. **涉及"插件化拆分"时，必须确保**：从全局 yml 删除的 key 已写入对应插件的 yml，且覆盖全部模板 key
+5. **.yml 文件必须通过 `yaml.safe_load()` 校验** — key 含 `:/%` 等特殊字符必须用双引号包裹
+6. **`_(*.html` 类 gitignore 规则必须有例外**：`!plugins/**/templates/_*.html`
+7. **删库/重建 DB 前检查 `i18n_strings`** — 如果 yml 未配齐，必须有警告机制阻止破坏唯一翻译副本
+8. **每周/每次大版本前运行全量扫描**：`grep -rn "_('" plugins/*/templates/ | grep -P "_\('[^a-zA-Z]"` 检查是否混入中文 key
 
 ### 2026-06-24 JWT_SECRET 不一致导致登录循环
 - **问题**：部署重构后的 `platform/app.py` 时，用临时密钥 `JWT_SECRET=dev_secret_key_2026` 重启了 platform 服务（8083），但 auth-center 服务（8081）的实际密钥来自 `/etc/environment.easykai`(`30e55814...`)。登录 API 走 8081 生成 token，OAuth 回调验证走 8083，密钥不同导致 token 验证失败，用户陷入登录循环。
