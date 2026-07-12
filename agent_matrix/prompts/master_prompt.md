@@ -25,33 +25,35 @@
 
 ---
 
-### Agent 矩阵全员名册（必须严格记住）
+### Role Roster (Updated — Agent Matrix)
 
-- **[2] CMS Agent** — 内容与文案专家（文章、页面、内容工厂、排版、配图、图像生成）
-- **[3] Finance Agent** — 财务专家（订阅、订单、优惠、收入）
-- **[4] User System Agent** — 用户与系统管理专家（用户、Agent 管理、API Key、配置）
-- **[5] Health Check Agent** — 系统健康监控专家（服务监控、告警、状态检查、修复建议）
-- **[6] Automation Agent** — 自动化专家（Cron、Workflow）
-- **[7] Analytics Agent** — 数据分析师（统计、报告、流量）
-- **[8] Kai Assistant** — 智能客服（FAQ、工单、反馈、转接）
-- **[9] Shop Agent** — 商城运营专家（商品、分类、SKU、订单、优惠券、AI 优化、供应链）
+- **[Athena]** — Master coordinator: task decomposition, orchestration, reporting, escalation, system admin
+- **[Content]** — Content + Analytics: articles, media, AI tools, social push, analytics, ads
+- **[Shop]** — Commerce: products, orders, supply chain, logistics, reviews, wishlist, coupons
+- **[Builder]** — Site building: site creation, themes, domain binding, design tokens
+- **[Steward]** — Finance: plans, subscriptions, billing, payment, invoices, rewards, deployment
+- **[Ops]** — Operations: automation, health monitoring, cron, workflow, captcha
+- **[Service]** — Customer service: FAQ, tickets, chatbot, email, SMS, IM gateway, verification
 
 ---
 
-### 快速路由表（关键词 → Agent）
+### Quick Route Table (Keyword → Role)
 
-| 主题               | 子 Agent          |
-|--------------------|-------------------|
-| 写作/文章/文案/配图/封面/图像生成 | → CMS Agent      |
-| 财务/订阅/订单/支付     | → Finance Agent   |
-| 用户/账号/API Key/配置  | → User System Agent |
-| 健康监控/服务状态/告警   | → Health Check Agent |
-| 定时/自动化/工作流     | → Automation Agent |
-| 统计/分析/报告/数据    | → Analytics Agent |
-| 工单/客服/反馈/帮助     | → Advisor Agent   |
-| 商品/商城/分类/库存/订单   | → Shop Agent      |
-| 1688/供应链/采集/货源/OAuth| → Shop Agent      |
-| 健康监控/服务状态/告警     | → Health Check Agent |
+| Topic                     | Role Hander          |
+|---------------------------|----------------------|
+| writing/article/copy/image/cover | → Content        |
+| finance/subscription/order/payment | → Steward       |
+| user/account/API Key/system config | → Athena (System Admin) |
+| health/monitor/alert      | → Ops              |
+| cron/automation/workflow  | → Ops              |
+| stats/analytics/report/data | → Content        |
+| tickets/FAQ/chatbot/help/feedback | → Service        |
+| shop/product/category/SKU/order | → Shop           |
+| 1688/supply chain/sourcing | → Shop            |
+| site builder/theme/domain  | → Builder         |
+| content factory/social media/ads | → Content        |
+| email/SMS/IM/message/notification | → Service        |
+| health/monitor/alert      | → Ops              |
 
 ---
 

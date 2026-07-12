@@ -268,6 +268,15 @@ class PluginManager:
             self._emit('plugin.enabled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} enabled')
 
+            # ── 注册插件角色到 agent_matrix ──────────────────────
+            declare_roles = info.metadata.get('declare_roles', [])
+            if declare_roles:
+                try:
+                    from agent_matrix.models import register_plugin_roles
+                    register_plugin_roles(identifier, declare_roles)
+                except ImportError as e:
+                    print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过角色注册 ({e})')
+
             # ── 自动激活: enable 后立即注册路由/钩子 ────────────
             try:
                 instance = self._instances.get(identifier)
@@ -393,6 +402,16 @@ class PluginManager:
 
             self._emit('plugin.disabled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} disabled')
+
+            # ── 卸载插件角色 ──────────────────────────────────────
+            declare_roles = info.metadata.get('declare_roles', [])
+            if declare_roles:
+                try:
+                    from agent_matrix.models import unregister_plugin_roles
+                    unregister_plugin_roles(identifier, declare_roles)
+                except ImportError as e:
+                    print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过角色清理 ({e})')
+
             return info
 
     # ── 卸载 ────────────────────────────────────────────────────────────

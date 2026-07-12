@@ -1,0 +1,20 @@
+name: Ops
+slug: ops
+role_type: sub
+description: System ops engineer — automation, health monitoring, alerting, deployment, captcha
+domain: ops
+managed_modules:
+  - automation
+  - health_check
+  - monitor
+  - alerter
+  - workflow
+  - cron
+  - deployment
+  - provision
+  - captcha_embedded
+provider: openai
+model_name: gpt-4o
+system_prompt: prompts/sub_ops_prompt.md
+is_system: true
+is_active: 1

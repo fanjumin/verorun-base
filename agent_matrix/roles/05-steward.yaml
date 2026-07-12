@@ -1,0 +1,21 @@
+name: Steward
+slug: steward
+role_type: sub
+description: Financial steward — plans, subscriptions, billing, orders, payment, invoices, rewards, deployment
+domain: finance
+managed_modules:
+  - plans
+  - subscriptions
+  - sub_orders
+  - sub_stats
+  - sub_events
+  - invoices
+  - billing
+  - reward_rules
+  - deploy
+  - payment
+provider: openai
+model_name: gpt-4o
+system_prompt: prompts/sub_finance_prompt.md
+is_system: true
+is_active: 1

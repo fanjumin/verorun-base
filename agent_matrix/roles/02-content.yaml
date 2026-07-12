@@ -1,0 +1,28 @@
+name: Content
+slug: content
+role_type: sub
+description: Content manager — content creation, publishing, analytics, ads, social media
+domain: content
+managed_modules:
+  - cms
+  - comments
+  - image
+  - cover
+  - media_library
+  - downloads
+  - analytics
+  - reports
+  - stats
+  - trends
+  - daily_usage
+  - token_monitoring
+  - ads
+  - content_factory
+  - ai_tools
+  - social_push
+  - content_factory
+provider: openai
+model_name: gpt-4o
+system_prompt: prompts/sub_content_prompt.md
+is_system: true
+is_active: 1

@@ -2,18 +2,88 @@
 """
 Agent Matrix — 数据库模型
 ======================
-4 张新表 + CRUD 操作 + 种子数据。
+4 张新表 + CRUD 操作 + 种子数据（基于 YAML 角色定义）。
 复用 auth-center/models/database.py 的 get_db() 模式。
 """
-import json, os, sys
+import json, os, sys, re
 import sqlite3
 from datetime import datetime
 from contextlib import contextmanager
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROLES_DIR = os.path.join(BASE_DIR, 'roles')
 DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
 DB_PATH = os.environ.get('DB_PATH', os.path.join(DATA_DIR, 'x7k2m9a4.db'))
 os.makedirs(DATA_DIR, exist_ok=True)
+
+
+# ── 轻量 YAML 解析器（仅支持角色定义所需子集） ──
+def _parse_role_yaml(text):
+    """解析简单的 flat key:value / key:\\n  - item 格式 YAML，返回 dict。"""
+    data = {}
+    current_list_key = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        # key: value 行（非缩进）
+        m = re.match(r'^(\w[\w_]*)\s*:\s*(.*)', line)
+        if m and not line.startswith(' '):
+            key, val = m.group(1), m.group(2).strip()
+            current_list_key = None
+            if val == '':
+                # 后面跟列表项
+                current_list_key = key
+                data[key] = []
+            else:
+                data[key] = val
+        elif stripped.startswith('- ') and current_list_key:
+            data[current_list_key].append(stripped[2:].strip())
+        else:
+            current_list_key = None
+    return data
+
+
+def _to_int(val, default=0):
+    """安全转换：'true'/'false'/数字字符串 → int"""
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str):
+        v = val.strip().lower()
+        if v == 'true':
+            return 1
+        if v == 'false':
+            return 0
+        try:
+            return int(v)
+        except ValueError:
+            return default
+    return default
+
+
+def _load_all_role_yamls():
+    """从 ROLES_DIR 加载所有 .yaml 文件，返回角色 dict 列表。"""
+    roles = []
+    if not os.path.isdir(ROLES_DIR):
+        return roles
+    for fname in sorted(os.listdir(ROLES_DIR)):
+        if not fname.endswith('.yaml') and not fname.endswith('.yml'):
+            continue
+        fpath = os.path.join(ROLES_DIR, fname)
+        try:
+            with open(fpath, 'r', encoding='utf-8') as f:
+                raw = _parse_role_yaml(f.read())
+            # 类型转换
+            raw['is_active'] = _to_int(raw.get('is_active', 1))
+            raw['is_system'] = _to_int(raw.get('is_system', 0))
+            raw['auto_approve'] = _to_int(raw.get('auto_approve', 0))
+            raw['managed_modules'] = json.dumps(raw.get('managed_modules', []))
+            raw['capabilities'] = json.dumps(raw.get('capabilities', []))
+            raw['allowed_tools'] = json.dumps(raw.get('allowed_tools', []))
+            roles.append(raw)
+        except Exception as e:
+            print(f'[RoleYAML] 跳过 {fname}: {e}')
+    return roles
 
 
 @contextmanager
@@ -77,6 +147,7 @@ def init_agent_matrix_tables():
             CREATE TABLE IF NOT EXISTS agent_matrix (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 name            TEXT NOT NULL,
+                slug            TEXT DEFAULT '',
                 role_type       TEXT NOT NULL DEFAULT 'sub'
                                 CHECK(role_type IN ('master','sub')),
                 description     TEXT DEFAULT '',
@@ -97,6 +168,7 @@ def init_agent_matrix_tables():
                 priority        INTEGER DEFAULT 5,
                 auto_approve    INTEGER DEFAULT 0,
                 is_active       INTEGER DEFAULT 1,
+                is_system       INTEGER DEFAULT 0,
                 tasks_total     INTEGER DEFAULT 0,
                 tasks_success   INTEGER DEFAULT 0,
                 tasks_failed    INTEGER DEFAULT 0,
@@ -264,116 +336,153 @@ def init_agent_matrix_tables():
             conn.commit()
             print('[Migration] Added agent_token_logs.dimension')
 
+    # ── Migration: add slug & is_system to agent_matrix ──
+    with get_db() as conn:
+        cols = [r['name'] for r in conn.execute("PRAGMA table_info(agent_matrix)").fetchall()]
+        if 'slug' not in cols:
+            conn.execute("ALTER TABLE agent_matrix ADD COLUMN slug TEXT DEFAULT ''")
+        if 'is_system' not in cols:
+            conn.execute("ALTER TABLE agent_matrix ADD COLUMN is_system INTEGER DEFAULT 0")
+        if 'slug' not in cols or 'is_system' not in cols:
+            conn.commit()
+            print('[Migration] Added agent_matrix.slug / is_system')
+
 
 # ============================================================
-# Seed 数据
+# Seed 数据（从 YAML 角色定义加载）
 # ============================================================
 
-DEFAULT_AGENTS = [
-    {
-        "name": "Athena", "role_type": "master",
-        "description": "主 Agent / Coordinator — 任务分解、协调、汇总报告",
-        "domain": "orchestration",
-        "managed_modules": '["all"]',
-        "provider": "openai", "model_name": "gpt-4o",
-        "system_prompt": "prompts/master_prompt.md",
-        "auto_approve": 0, "is_active": 1
-    },
-    {
-        "name": "CMS Agent", "role_type": "sub",
-        "description": "内容管理专家 — CMS文章、评论审核、内容工厂、图像生成",
-        "domain": "cms",
-        "managed_modules": '["cms","comments","contentfactory","image","cover"]',
-        "system_prompt": "prompts/sub_cms_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Finance Agent", "role_type": "sub",
-        "description": "财务专家 — 套餐、订阅、订单、优惠券、收入、扣款",
-        "domain": "finance",
-        "managed_modules": '["plans","subscriptions","sub_orders","coupons","sub_stats","sub_events"]',
-        "system_prompt": "prompts/sub_finance_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "User System Agent", "role_type": "sub",
-        "description": "用户与系统管理专家 — 用户、Agent、API Key、设置、日志",
-        "domain": "system",
-        "managed_modules": '["users","agents","keys","config","logs"]',
-        "system_prompt": "prompts/sub_user_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Automation Agent", "role_type": "sub",
-        "description": "自动化专家 — Cron任务、Workflow、DAG编排",
-        "domain": "automation",
-        "managed_modules": '["automation"]',
-        "system_prompt": "prompts/sub_automation_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Analytics Agent", "role_type": "sub",
-        "description": "数据分析师 — 统计分析、数据解读、报告生成",
-        "domain": "analytics",
-        "managed_modules": '["analytics"]',
-        "system_prompt": "prompts/sub_analytics_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Advisor Agent", "role_type": "sub",
-        "description": "智能客服机器人 — 全站FAQ问答、人工转接、工单创建、飞书通知",
-        "domain": "chatbot",
-        "managed_modules": '["chatbot","contacts"]',
-        "provider": "deepseek", "model_name": "deepseek-chat",
-        "system_prompt": "prompts/sub_chatbot_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Shop Agent", "role_type": "sub",
-        "description": "商城运营专家 — 商品管理、分类、SKU、订单、优惠券、AI 优化",
-        "domain": "shop",
-        "managed_modules": '["products","categories","skus","orders","coupons","cleaner"]',
-        "system_prompt": "prompts/sub_shop_prompt.md",
-        "is_active": 1
-    },
-    {
-        "name": "Health Check Agent", "role_type": "sub",
-        "description": "系统健康监控专家 — 服务监控、异常诊断、告警、修复建议",
-        "domain": "health_check",
-        "managed_modules": '["health_check","monitor","alerter"]',
-        "system_prompt": "prompts/sub_health_check_prompt.md",
-        "is_active": 1
-    }
-]
+def load_system_roles():
+    """从 YAML 文件加载系统角色定义列表。"""
+    return _load_all_role_yamls()
 
 
 def seed_default_agents():
-    """插入默认 Agent（幂等：已存在则跳过）"""
+    """YAML→DB 同步：从 YAML 角色定义文件同步到 agent_matrix 表。
+
+    同步规则：
+    1. YAML 中的角色，DB 中 slug 不存在 → INSERT（新系统角色）
+    2. YAML 中的角色，DB 中 slug 已存在 → UPDATE（同步 name/description/managed_modules 等）
+    3. DB 中 is_system=1 但 YAML 中已不存在 → DELETE（旧系统角色被删除/重命名）
+    4. DB 中 is_system=0 的角色 → 不处理（用户自定义/插件角色，不受 YAML 影响）
+    """
+    roles = load_system_roles()
+    if not roles:
+        print('[Seed] 未找到角色 YAML 文件，跳过种子数据')
+        return
+
+    yaml_slugs = set()
     with get_db() as conn:
-        for a in DEFAULT_AGENTS:
+        # ── Phase 1: UPSERT YAML-defined system roles ──
+        for a in roles:
+            slug = a.get('slug', '')
+            if not slug:
+                continue
+            yaml_slugs.add(slug)
+
             exists = conn.execute(
-                "SELECT id FROM agent_matrix WHERE name=? AND role_type=?",
-                (a['name'], a['role_type'])
+                "SELECT id FROM agent_matrix WHERE slug=?", (slug,)
             ).fetchone()
+
             if not exists:
+                # INSERT new system role
                 conn.execute("""
                     INSERT INTO agent_matrix
-                    (name, role_type, description, domain, managed_modules,
-                     provider, model_name, system_prompt, auto_approve, is_active)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                    (name, slug, role_type, description, domain, managed_modules,
+                     provider, model_name, system_prompt, auto_approve, is_active, is_system)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
-                    a['name'], a['role_type'], a['description'],
-                    a['domain'], a.get('managed_modules', '[]'),
+                    a.get('name', ''), slug, a.get('role_type', 'sub'),
+                    a.get('description', ''), a.get('domain', 'general'),
+                    a.get('managed_modules', '[]'),
                     a.get('provider', 'dashscope'), a.get('model_name', 'qwen-turbo'),
-                    a.get('system_prompt', ''), a.get('auto_approve', 0),
-                    a.get('is_active', 1)
+                    a.get('system_prompt', ''),
+                    a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1)
                 ))
+                print(f'[Seed] 插入系统角色: {slug}')
+            else:
+                # UPDATE existing system role — sync all fields from YAML
+                conn.execute("""
+                    UPDATE agent_matrix SET
+                        name=?, description=?, domain=?,
+                        managed_modules=?, provider=?, model_name=?,
+                        auto_approve=?, is_system=1,
+                        updated_at=datetime('now')
+                    WHERE slug=?
+                """, (
+                    a.get('name', ''), a.get('description', ''),
+                    a.get('domain', 'general'),
+                    a.get('managed_modules', '[]'),
+                    a.get('provider', 'dashscope'),
+                    a.get('model_name', 'qwen-turbo'),
+                    a.get('auto_approve', 0),
+                    slug
+                ))
+
+        # ── Phase 2: DELETE old system roles no longer in YAML ──
+        deleted = conn.execute("""
+            DELETE FROM agent_matrix
+            WHERE is_system=1 AND slug NOT IN ({})
+            AND slug != ''
+        """.format(','.join('?' * len(yaml_slugs))),
+            tuple(yaml_slugs)
+        ).rowcount
+        if deleted:
+            print(f'[Seed] 清理旧系统角色: {deleted} 个已删除')
+
         conn.commit()
 
 
 # ============================================================
 # Agent CRUD
 # ============================================================
+
+def register_plugin_roles(plugin_id, declare_roles_list):
+    """注册插件声明的角色到 agent_matrix（幂等）。
+    declare_roles_list: [ {name, slug, description, domain, managed_modules, ...} ]
+    返回注册数量。
+    """
+    count = 0
+    with get_db() as conn:
+        for r in declare_roles_list:
+            slug = r.get('slug') or r.get('name', '').lower().replace(' ', '-')
+            exists = conn.execute(
+                "SELECT id FROM agent_matrix WHERE slug=?", (slug,)
+            ).fetchone()
+            if not exists:
+                conn.execute("""
+                    INSERT INTO agent_matrix
+                    (name, slug, role_type, description, domain, managed_modules,
+                     provider, model_name, system_prompt, is_active, is_system)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,0)
+                """, (
+                    r.get('name', ''), slug, r.get('role_type', 'sub'),
+                    r.get('description', ''), r.get('domain', 'general'),
+                    json.dumps(r.get('managed_modules', [])),
+                    r.get('provider', 'dashscope'),
+                    r.get('model_name', 'qwen-turbo'),
+                    r.get('system_prompt', ''),
+                    r.get('is_active', 1),
+                ))
+                count += 1
+                print(f'[PluginRoles] 注册插件角色: {slug} (from {plugin_id})')
+        if count:
+            conn.commit()
+    return count
+
+
+def unregister_plugin_roles(plugin_id, declare_roles_list):
+    """卸载插件对应的角色。"""
+    slugs = [
+        r.get('slug') or r.get('name', '').lower().replace(' ', '-')
+        for r in declare_roles_list
+    ]
+    with get_db() as conn:
+        for slug in slugs:
+            conn.execute("DELETE FROM agent_matrix WHERE slug=? AND is_system=0", (slug,))
+            print(f'[PluginRoles] 卸载插件角色: {slug} (from {plugin_id})')
+        conn.commit()
+
 
 def list_agents(role_type=None, domain=None, active_only=False):
     """列出 Agent，支持筛选"""
@@ -404,6 +513,14 @@ def get_agent_by_name(name, role_type='sub'):
         row = conn.execute(
             "SELECT * FROM agent_matrix WHERE name=? AND role_type=?",
             (name, role_type)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_agent_by_slug(slug):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM agent_matrix WHERE slug=?", (slug,)
         ).fetchone()
         return dict(row) if row else None
 
@@ -471,9 +588,18 @@ def update_agent(agent_id, data):
 
 
 def delete_agent(agent_id):
+    """删除 Agent。系统角色（is_system=1）不可删除。"""
     with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_system FROM agent_matrix WHERE id=?", (agent_id,)
+        ).fetchone()
+        if not row:
+            return False
+        if row['is_system']:
+            raise PermissionError("系统角色不可删除，仅允许禁用")
         conn.execute("DELETE FROM agent_matrix WHERE id=?", (agent_id,))
         conn.commit()
+        return True
 
 
 def toggle_agent(agent_id):

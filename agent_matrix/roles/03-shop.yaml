@@ -1,0 +1,21 @@
+name: Shop
+slug: shop
+role_type: sub
+description: Shop manager — products, orders, supply chain, logistics, reviews, wishlist
+domain: shop
+managed_modules:
+  - products
+  - categories
+  - skus
+  - orders
+  - coupons
+  - ali_api
+  - logistics
+  - reviews
+  - wishlist
+  - currency_converter
+provider: openai
+model_name: gpt-4o
+system_prompt: prompts/sub_shop_prompt.md
+is_system: true
+is_active: 1

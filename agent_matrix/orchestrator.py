@@ -272,36 +272,44 @@ class AgentOrchestrator:
         return result if result else self._template_decompose(instruction, sub_agents)
 
     def _template_decompose(self, instruction, sub_agents):
-        """模板分解：AI 不可用时，根据关键词匹配"""
+        """模板分解：AI 不可用时，根据关键词匹配。
+        关键词自动从每个角色的 domain + managed_modules 动态生成。
+        """
         instruction_lower = instruction.lower()
         matched = []
 
-        agent_keywords = {
-            'CMS Agent': ['cms', '文章', '发布', '内容', '排版', '配图', '博客', '栏目',
-                          '文案', '关于我们', '关于', '介绍页', '帮助', '页面', '写作', '撰写', '生成', 'about',
-                          '图片', '图像', '封面', '海报', '生成图片', '文生图',
-                          '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'],
-            'Finance Agent': ['套餐', '订阅', '订单', '优惠券', '收入', '支付', '扣款', '财务', '付费'],
-            'User System Agent': ['用户', 'agent管理', 'api key', '系统设置', '日志', '管理员', '账号'],
-            'Health Check Agent': ['健康', '检查', '监控', '告警', '状态', '服务', '运行', '服务器', '系统状态', 'health', 'uptime', '服务器状态'],
-            'Automation Agent': ['自动', 'cron', '调度', '定时', '工作流', 'workflow', 'dag'],
-            'Analytics Agent': ['统计', '分析', '报告', 'pv', 'uv', '流量', '数据', '趋势'],
-            'Advisor Agent': ['工单', '客服', '联系', '反馈', '投诉', '问题', '帮助', '求助'],
-            'Shop Agent': ['商品', '商城', '上架', '下架', '分类', '品类', '类目',
-                          '库存', '价格', 'SKU', '规格', '订单', '退款', '优惠券',
-                          '1688', '阿里巴巴', '采集', '供应链', '货源',
-                          '女装', '男装', '童装', '批发', '采购', '产品', '搜索商品',
-                          '优化标题', '标题优化', '发布商品', '选品',
-                          '店铺', '供应商', 'OAuth', '授权', 'token',
-                          '购买记录', '销量', '商品优化', 'AI优化',
-                          '云服务器', 'VPS', '开通', '云服务', '云主机', 'ECS',
-                          '容器', 'Docker', '部署', '建站', '初始化', 'setup',
-                          '对象存储', 'CDN', '云数据库', 'SSL证书', '域名'],
-        }
-
-        # 图像关键词集合：匹配时标记 target_module=image 以触发图像执行分支
+        # 图像关键词集合（始终匹配）
         _image_kw = {'图片', '图像', '配图', '封面', '海报', '生成图片', '文生图',
                      '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'}
+
+        # 从 sub_agents 动态构建关键词映射
+        agent_keywords = {}
+        for a in sub_agents:
+            name = a['name']
+            kws = set()
+            # 1. domain 关键词
+            domain = (a.get('domain') or '').lower()
+            if domain and domain != 'general':
+                kws.add(domain)
+            # 2. managed_modules 关键词
+            modules = []
+            try:
+                modules = json.loads(a.get('managed_modules') or '[]')
+            except (json.JSONDecodeError, TypeError):
+                pass
+            for mod in modules:
+                if isinstance(mod, str):
+                    kws.add(mod.lower())
+                    # 模块名拆分（site_builder → site, builder）
+                    for part in mod.replace('-', '_').split('_'):
+                        if len(part) > 2:
+                            kws.add(part)
+            # 3. name 拆分关键词
+            for part in name.replace('-', ' ').replace('_', ' ').split():
+                w = part.lower().strip()
+                if len(w) > 2:
+                    kws.add(w)
+            agent_keywords[name] = list(kws)
 
         agent_map = {a['name']: a for a in sub_agents}
         found_agents = set()
