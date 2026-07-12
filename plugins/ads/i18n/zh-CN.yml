@@ -1,83 +1,78 @@
 # Ad Management Plugin — 中文翻译
-广告管理: 广告管理
-新广告: 新广告
-编辑广告: 编辑广告
-广告列表: 广告列表
-全站: 全站
-广场: 广场
-营地: 营地
-辩论: 辩论
-提醒: 提醒
-排行榜: 排行榜
-竞技: 竞技
-认知地图: 认知地图
-侧边栏: 侧边栏
-图片广告: 图片广告
-广告代码: 广告代码
-图片: 图片
-代码: 代码
-启用: 启用
-禁用: 禁用
-排序: 排序
-操作: 操作
-搜索广告: 搜索广告
-无广告: 无广告
-保存: 保存
-取消: 取消
-删除: 删除
-编辑: 编辑
-已创建: 已创建
-已更新: 已更新
-已删除: 已删除
-保存失败: 保存失败
-操作失败: 操作失败
-请求失败: 请求失败
-输入广告名称: 输入广告名称
-删除此广告？: 删除此广告？
-粘贴: 粘贴
-或其他广告代码: 或其他广告代码
-重定向链接: 重定向链接
-图片URL: 图片URL
-类型: 类型
-页面: 页面
-位置: 位置
-名称: 名称
-状态: 状态
-加载中: 加载中...
-# v0.2.0 新增
-站点: 站点
-全部站点: 全部站点
-广告区域: 广告区域
-区域管理: 区域管理
-区域名称: 区域名称
-区域标识: 区域标识
-区域描述: 区域描述
-区域尺寸: 区域尺寸
-新增区域: 新增区域
-编辑区域: 编辑区域
-投放时间: 投放时间
-开始时间: 开始时间
-结束时间: 结束时间
-权重: 权重
-频次上限: 频次上限
-定向规则: 定向规则
-展示量: 展示量
-点击量: 点击量
-点击率: 点击率
-统计: 统计
-广告统计: 广告统计
-广告分析: 广告分析
-广告位: 广告位
-激活: 激活
-暂停: 暂停
-无数据: 无数据
-最近7天: 最近7天
-最近30天: 最近30天
-最近90天: 最近90天
-utm来源: utm来源
-追踪标记: 追踪标记
-全部广告: 全部广告
-无限制: 无限制
-日期: 日期
-宽度: 宽度
-高度: 高度
+
+"Ad Management": "广告管理"
+"Loading...": "加载中..."
+"Entire Site": "全站"
+"Plaza": "广场"
+"Camp": "营地"
+"Debate": "辩论"
+"Alert": "提醒"
+"Ranking": "排行榜"
+"Competitive": "竞技"
+"Cognitive Map": "认知地图"
+"Ad List": "广告列表"
+"Zone Management": "区域管理"
+"Ad Statistics": "广告统计"
+"Site": "站点"
+"Search Ads": "搜索广告"
+"New Ad": "新广告"
+"Name": "名称"
+"Zone": "广告区域"
+"Page": "页面"
+"Position": "位置"
+"Type": "类型"
+"Impressions": "展示量"
+"Clicks": "点击量"
+"CTR": "点击率"
+"Status": "状态"
+"Sort": "排序"
+"Actions": "操作"
+"No Ads": "无广告"
+"Enabled": "启用"
+"Disable": "禁用"
+"Image": "图片"
+"Code": "代码"
+"Edit": "编辑"
+"Delete": "删除"
+"Ad Zone": "广告位"
+"Image Ad": "图片广告"
+"Ad Code": "广告代码"
+"Image URL": "图片URL"
+"Redirect Link": "重定向链接"
+"Width": "宽度"
+"Height": "高度"
+"Paste": "粘贴"
+"Or Other Ad Code": "或其他广告代码"
+"Schedule": "投放时间"
+"Start Time": "开始时间"
+"End Time": "结束时间"
+"Weight": "权重"
+"Frequency Cap": "频次上限"
+"No limit": "无限制"
+"UTM Source": "utm来源"
+"Click Tag": "追踪标记"
+"Targeting Rules": "定向规则"
+"Save": "保存"
+"Cancel": "取消"
+"Edit Ad": "编辑广告"
+"Save failed": "保存失败"
+"Enter ad name": "输入广告名称"
+"Updated": "已更新"
+"Created": "已创建"
+"Request Failed": "请求失败"
+"Operation Failed": "操作失败"
+"Delete this ad?": "删除此广告？"
+"Deleted": "已删除"
+"Delete failed": "删除失败"
+"New Zone": "新增区域"
+"Zone Name": "区域名称"
+"Zone Identifier": "区域标识"
+"Zone Size": "区域尺寸"
+"Zone Description": "区域描述"
+"Edit Zone": "编辑区域"
+"All Ads": "全部广告"
+"Last 7 Days": "最近7天"
+"Last 30 Days": "最近30天"
+"Last 90 Days": "最近90天"
+"Date": "日期"
+"No Data": "无数据"
