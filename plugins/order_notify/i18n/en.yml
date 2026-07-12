@@ -1,14 +1,16 @@
-订单已创建: Order Created
-您的订单 %s 已创建，金额 ¥%.2f，请尽快完成支付。: Your order %s has been created (¥%.2f). Please complete payment soon.
-支付成功: Payment Successful
-您的订单 %s 已支付成功，我们会尽快为您发货！: Your order %s has been paid. We will ship it as soon as possible!
-已发货: Shipped
-您的订单 %s 已发货！: Your order %s has been shipped!
-快递: %s | 单号: %s: Courier: %s | Tracking: %s
-退款申请已提交: Refund Requested
-您的订单 %s 已收到退款申请: Your refund request for order %s has been received
-原因: %s: Reason: %s
-订单已取消: Order Cancelled
-您的订单 %s 已取消。: Your order %s has been cancelled.
-订单已完成: Order Completed
-您的订单 %s 已完成，欢迎再次光临！请给商品评价吧。: Your order %s is completed. Welcome back! Please leave a review.
+# Order Notify Plugin — English Translation
+
+"订单已创建": "Order Created"
+"您的订单 %s 已创建，金额 ¥%.2f，请尽快完成支付。": "Your order %s has been created (¥%.2f). Please complete payment soon."
+"支付成功": "Payment Successful"
+"您的订单 %s 已支付成功，我们会尽快为您发货！": "Your order %s has been paid. We will ship it as soon as possible!"
+"已发货": "Shipped"
+"您的订单 %s 已发货！": "Your order %s has been shipped!"
+"快递: %s | 单号: %s": "Courier: %s | Tracking: %s"
+"退款申请已提交": "Refund Requested"
+"您的订单 %s 已收到退款申请": "Your refund request for order %s has been received"
+"原因: %s": "Reason: %s"
+"订单已取消": "Order Cancelled"
+"您的订单 %s 已取消。": "Your order %s has been cancelled."
+"订单已完成": "Order Completed"
+"您的订单 %s 已完成，欢迎再次光临！请给商品评价吧。": "Your order %s is completed. Welcome back! Please leave a review."

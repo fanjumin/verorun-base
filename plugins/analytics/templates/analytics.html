@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ _('📊 统计仪表盘') }} · {{ brand.site_name_en if brand else '' }}</title>
+<title>{{ _('📊 Analytics Dashboard') }} · {{ brand.site_name_en if brand else '' }}</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
@@ -429,50 +429,50 @@ body {
   <!-- 页面标题 -->
   <div class="page-header">
     <div>
-      <h1>📊 <span>{{ _('站点统计') }}</span></h1>
-      <div class="subtitle">{{ _('实时数据 · 隐私友好 · 无 Cookie 追踪') }}</div>
+      <h1>📊 <span>{{ _('Site Statistics') }}</span></h1>
+      <div class="subtitle">{{ _('Real-time Data · Privacy-friendly · No Cookie Tracking') }}</div>
     </div>
     <div>
       <span class="online-badge" id="onlineBadge">
         <span class="pulse"></span>
-        <span id="onlineCount">--</span> {{ _('在线') }}
+        <span id="onlineCount">--</span> {{ _('Online') }}
       </span>
     </div>
   </div>
 
   <!-- 统计卡片 -->
   <div class="stats-grid" id="statCards">
-    <div class="glass-card"><div class="label">{{ _('今日浏览量 (PV)') }}</div><div class="value" id="todayPV">--</div></div>
-    <div class="glass-card"><div class="label">{{ _('独立访客 (UV)') }}</div><div class="value" id="todayUV">--</div></div>
-    <div class="glass-card"><div class="label">{{ _('总会话') }}</div><div class="value" id="todaySessions">--</div></div>
-    <div class="glass-card"><div class="label">{{ _('平均响应') }}</div><div class="value" id="todayAvgResp" style="font-size:24px">-- ms</div></div>
+    <div class="glass-card"><div class="label">{{ _('Today Page Views (PV)') }}</div><div class="value" id="todayPV">--</div></div>
+    <div class="glass-card"><div class="label">{{ _('Unique Visitors (UV)') }}</div><div class="value" id="todayUV">--</div></div>
+    <div class="glass-card"><div class="label">{{ _('Total Sessions') }}</div><div class="value" id="todaySessions">--</div></div>
+    <div class="glass-card"><div class="label">{{ _('Avg Response') }}</div><div class="value" id="todayAvgResp" style="font-size:24px">-- ms</div></div>
   </div>
 
-  <!-- {{ _('标签页') }} -->
+  <!-- {{ _('Tabs') }} -->
   <div class="tabs">
-    <button class="tab-btn active" data-tab="overview">{{ _('趋势') }}</button>
+    <button class="tab-btn active" data-tab="overview">{{ _('Trend') }}</button>
     <button class="tab-btn" data-tab="pages">{{ _('Page') }}</button>
     <button class="tab-btn" data-tab="sources">{{ _('Source') }}</button>
-    <button class="tab-btn" data-tab="geo">{{ _('地区') }}</button>
-    <button class="tab-btn" data-tab="devices">{{ _('设备') }}</button>
+    <button class="tab-btn" data-tab="geo">{{ _('Region') }}</button>
+    <button class="tab-btn" data-tab="devices">{{ _('Devices') }}</button>
     <button class="tab-btn" data-tab="events">{{ _('Event') }}</button>
-    <button class="tab-btn" data-tab="alerts">{{ _('告警') }}</button>
+    <button class="tab-btn" data-tab="alerts">{{ _('Alerts') }}</button>
   </div>
 
   <!-- Tab: 趋势概览 -->
   <div class="tab-content active" id="tab-overview">
     <div class="dashboard-grid">
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('流量趋势') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Traffic Trend') }}</div>
         <div class="chart-container"><canvas id="trendChart"></canvas></div>
       </div>
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('小时级分布 (今天)') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Hourly Distribution (Today)') }}</div>
         <div class="chart-container"><canvas id="hourlyChart"></canvas></div>
       </div>
     </div>
     <div class="glass-card" style="margin-top:20px">
-      <div class="label" style="margin-bottom:12px">{{ _('详细数据') }}</div>
+      <div class="label" style="margin-bottom:12px">{{ _('Details') }}</div>
       <div id="trendTable"><div class="loading"><div class="spinner"></div></div></div>
     </div>
   </div>
@@ -480,7 +480,7 @@ body {
   <!-- Tab: 页面排行 -->
   <div class="tab-content" id="tab-pages">
     <div class="glass-card">
-      <div class="label" style="margin-bottom:12px">{{ _('热门页面 (30天)') }}</div>
+      <div class="label" style="margin-bottom:12px">{{ _('Top Pages (30d)') }}</div>
       <div id="pagesContent"><div class="loading"><div class="spinner"></div></div></div>
     </div>
   </div>
@@ -489,11 +489,11 @@ body {
   <div class="tab-content" id="tab-sources">
     <div class="dashboard-grid">
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('来源分布') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Source Distribution') }}</div>
         <div class="chart-container"><canvas id="sourcesChart"></canvas></div>
       </div>
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('来源明细') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Source Details') }}</div>
         <div id="sourcesContent"><div class="loading"><div class="spinner"></div></div></div>
       </div>
     </div>
@@ -504,24 +504,24 @@ body {
     <!-- 主视图：中国城市 -->
     <div class="dashboard-grid" style="margin-bottom:16px">
       <div class="glass-card" style="grid-column: 1 / -1;">
-        <div class="label" style="margin-bottom:12px">{{ _('🇨🇳 访问分布图') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('🇨🇳 China Access Map') }}</div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
       </div>
     </div>
     <div class="dashboard-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr">
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('省份排行') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Province Ranking') }}</div>
         <div id="chinaProvinceContent"><div class="loading"><div class="spinner"></div></div></div>
       </div>
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('城市明细') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('City Details') }}</div>
         <div id="chinaCityContent"><div class="loading"><div class="spinner"></div></div></div>
       </div>
     </div>
     <!-- 次要：国家/地区（可折叠） -->
     <div class="glass-card">
       <div class="label" style="cursor:pointer;user-select:none;margin-bottom:0;padding:8px 0" onclick="toggleCountrySection()">
-        <span id="countryToggleIcon">▶</span> {{ _('🌍 国家/地区分布') }}
+        <span id="countryToggleIcon">▶</span> {{ _('🌍 Country/Region Distribution') }}
       </div>
       <div id="countrySection" style="display:none;margin-top:12px">
         <div class="dashboard-grid">
@@ -540,11 +540,11 @@ body {
   <div class="tab-content" id="tab-devices">
     <div class="dashboard-grid">
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('设备类型') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Device Type') }}</div>
         <div class="chart-container"><canvas id="deviceChart"></canvas></div>
       </div>
       <div class="glass-card">
-        <div class="label" style="margin-bottom:12px">{{ _('浏览器 & OS') }}</div>
+        <div class="label" style="margin-bottom:12px">{{ _('Browser & OS') }}</div>
         <div id="deviceContent"><div class="loading"><div class="spinner"></div></div></div>
       </div>
     </div>
@@ -553,7 +553,7 @@ body {
   <!-- Tab: 事件 -->
   <div class="tab-content" id="tab-events">
     <div class="glass-card">
-      <div class="label" style="margin-bottom:12px">{{ _('自定义事件 (30天)') }}</div>
+      <div class="label" style="margin-bottom:12px">{{ _('Custom Events (30d)') }}</div>
       <div id="eventsContent"><div class="loading"><div class="spinner"></div></div></div>
     </div>
   </div>
@@ -561,33 +561,33 @@ body {
   <!-- Tab: 告警 -->
   <div class="tab-content" id="tab-alerts">
     <div class="glass-card" style="margin-bottom:20px">
-      <div class="label" style="margin-bottom:12px">{{ _('告警规则') }}</div>
+      <div class="label" style="margin-bottom:12px">{{ _('Alert Rules') }}</div>
       <div id="alertsList"><div class="loading"><div class="spinner"></div></div></div>
     </div>
     <div class="glass-card">
-      <div class="label" style="margin-bottom:12px">{{ _('📋 添加告警规则') }}</div>
+      <div class="label" style="margin-bottom:12px">{{ _('📋 Add Alert Rule') }}</div>
       <form id="alertForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
         <input name="name" placeholder="{{ _('Name') }}" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:inherit">
         <select name="metric" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:inherit">
-          <option value="uv">{{ _('UV (独立访客)') }}</option>
-          <option value="pv">{{ _('PV (浏览量)') }}</option>
-          <option value="bounce_rate">{{ _('跳出率 (%)') }}</option>
-          <option value="error_rate">{{ _('错误率 (%)') }}</option>
-          <option value="avg_response_time">{{ _('平均响应时间 (ms)') }}</option>
+          <option value="uv">{{ _('UV (Unique Visitors)') }}</option>
+          <option value="pv">{{ _('PV (Page Views)') }}</option>
+          <option value="bounce_rate">{{ _('Bounce Rate (%)') }}</option>
+          <option value="error_rate">{{ _('Error Rate (%)') }}</option>
+          <option value="avg_response_time">{{ _('Avg Response Time (ms)') }}</option>
         </select>
         <select name="operator" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:inherit">
-          <option value="gt">&gt; {{ _('(大于)') }}</option>
-          <option value="lt">&lt; {{ _('(小于)') }}</option>
-          <option value="gte">&ge; {{ _('(大于等于)') }}</option>
-          <option value="lte">&le; {{ _('(小于等于)') }}</option>
+          <option value="gt">&gt; {{ _('(Greater Than)') }}</option>
+          <option value="lt">&lt; {{ _('(Less Than)') }}</option>
+          <option value="gte">&ge; {{ _('(Greater or Equal)') }}</option>
+          <option value="lte">&le; {{ _('(Less or Equal)') }}</option>
         </select>
-        <input name="threshold" type="number" step="0.1" placeholder="{{ _('阈值') }}" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:inherit">
+        <input name="threshold" type="number" step="0.1" placeholder="{{ _('Threshold') }}" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:inherit">
         <select name="time_window" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:inherit">
-          <option value="1h">{{ _('1 小时') }}</option>
-          <option value="24h">{{ _('24 小时') }}</option>
-          <option value="7d">{{ _('7 天') }}</option>
+          <option value="1h">{{ _('1 Hour') }}</option>
+          <option value="24h">{{ _('24 Hours') }}</option>
+          <option value="7d">{{ _('7 Days') }}</option>
         </select>
-        <button type="submit" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:10px 14px;color:white;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600">{{ _('➕ 添加') }}</button>
+        <button type="submit" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:10px 14px;color:white;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600">{{ _('➕ Add') }}</button>
       </form>
     </div>
   </div>
@@ -596,7 +596,7 @@ body {
 </div><!-- /app -->
 
 <!-- 刷新按钮 -->
-<button class="refresh-btn" onclick="refreshAll()" title="{{ _('刷新数据') }}">⟳</button>
+<button class="refresh-btn" onclick="refreshAll()" title="{{ _('Refresh') }}">⟳</button>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
@@ -831,7 +831,7 @@ function renderTrendChart(data) {
 }
 
 function renderTrendTable(data) {
-  var html = '<table class="data-table"><thead><tr><th>{{ _('日期') }}</th><th>PV</th><th>UV</th><th>{{ _('Session') }}</th><th>{{ _('跳出率') }}</th><th>{{ _('平均时长') }}</th></tr></thead><tbody>';
+  var html = '<table class="data-table"><thead><tr><th>{{ _('Date') }}</th><th>PV</th><th>UV</th><th>{{ _('Session') }}</th><th>{{ _('Bounce Rate') }}</th><th>{{ _('Avg Duration') }}</th></tr></thead><tbody>';
   data.forEach(function(d, i){
     html += '<tr>' +
       '<td>' + d.date + '</td>' +
@@ -920,10 +920,10 @@ function loadPages() {
   api('/pages?days=30&limit=20').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('pagesContent').innerHTML =
-        '<div class="empty-state"><div class="icon">📄</div><div class="text">{{ _('暂无页面数据') }}</div></div>';
+        '<div class="empty-state"><div class="icon">📄</div><div class="text">{{ _('No page data') }}</div></div>';
       return;
     }
-    var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('路径') }}</th><th>PV</th><th>UV</th><th>{{ _('平均响应') }}</th></tr></thead><tbody>';
+    var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('Path') }}</th><th>PV</th><th>UV</th><th>{{ _('Avg Response') }}</th></tr></thead><tbody>';
     res.data.forEach(function(d, i){
       html += '<tr>' +
         '<td class="rank-num">#' + (i+1) + '</td>' +
@@ -1056,11 +1056,11 @@ function loadChinaCities() {
   api('/geo/china-cities?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('chinaMapChart').innerHTML =
-        '<div class="empty-state" style="padding:60px 0"><div class="icon">🇨🇳</div><div class="text">{{ _('暂无中国城市数据') }}</div></div>';
+        '<div class="empty-state" style="padding:60px 0"><div class="icon">🇨🇳</div><div class="text">{{ _('No China city data') }}</div></div>';
       document.getElementById('chinaCityContent').innerHTML =
-        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('暂无中国城市数据') }}</div></div>';
+        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('No China city data') }}</div></div>';
       document.getElementById('chinaProvinceContent').innerHTML =
-        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('暂无省份数据') }}</div></div>';
+        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('No province data') }}</div></div>';
       return;
     }
     // 聚合省份数据（未匹配的归入「其他地区」，避免地级市混入省列表）
@@ -1071,7 +1071,7 @@ function loadChinaCities() {
       if (!prov) {
         // 不含中文 → 境外数据跳过
         if (!/[\u4e00-\u9fff]/.test(d.city||'')) return;
-        prov = "{{ _('其他地区') }}";  // 未识别的中文城市统一归类
+        prov = "{{ _('Other Regions') }}";  // 未识别的中文城市统一归类
       }
       if (!provMap[prov]) provMap[prov] = {pv:0, uv:0};
       provMap[prov].pv += (d.pv||0);
@@ -1124,7 +1124,7 @@ function renderChinaMap(provinces) {
           max: pvMax,
           left: 'left',
           bottom: 10,
-          text: ['{{ _('高') }}', '{{ _('低') }}'],
+          text: ['{{ _('High') }}', '{{ _('Low') }}'],
           textStyle: { color: '#6b7280' },
           inRange: {
             color: ['#0f1a2e', '#1a3860', '#2568a0', '#3d98d0', '#00f5ff']
@@ -1158,7 +1158,7 @@ function renderChinaMap(provinces) {
       charts.chinaMap.setOption(option);
     })
     .catch(function(){
-      dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('地图加载失败（网络问题），数据见下方表格') }}</div></div>';
+      dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('Map loading failed (network issue). See table below for data.') }}</div></div>';
     });
 }
 
@@ -1166,7 +1166,7 @@ function renderChinaMap(provinces) {
 function renderChinaProvinceTable(provinces) {
   var top10 = provinces.slice(0, 10);
   var totalPv = provinces.reduce(function(s,p){ return s + p.pv; }, 0) || 1;
-  var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('省份') }}</th><th>PV</th><th>{{ _('Percentage') }}</th></tr></thead><tbody>';
+  var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('Province') }}</th><th>PV</th><th>{{ _('Percentage') }}</th></tr></thead><tbody>';
   top10.forEach(function(d, i){
     var pct = (d.pv / totalPv * 100).toFixed(1);
     html += '<tr>' +
@@ -1183,7 +1183,7 @@ function renderChinaProvinceTable(provinces) {
 // 城市明细表
 function renderChinaCityTable(data) {
   var totalPv = data.reduce(function(s,d){ return s + (d.pv||0); }, 0) || 1;
-  var html = '<table class=\"data-table\"><thead><tr><th>#</th><th>{{ _('城市') }}</th><th>PV</th><th>UV</th><th>{{ _('Percentage') }}</th></tr></thead><tbody>';
+  var html = '<table class=\"data-table\"><thead><tr><th>#</th><th>{{ _('City') }}</th><th>PV</th><th>UV</th><th>{{ _('Percentage') }}</th></tr></thead><tbody>';
   data.forEach(function(d, i){
     var pct = ((d.pv||0) / totalPv * 100).toFixed(1);
     html += '<tr>' +
@@ -1269,7 +1269,7 @@ function renderGeoChart(data) {
 }
 
 function renderGeoTable(data) {
-  var html = '<table class="data-table"><thead><tr><th>{{ _('国家') }}</th><th>PV</th><th>UV</th></tr></thead><tbody>';
+  var html = '<table class="data-table"><thead><tr><th>{{ _('Country') }}</th><th>PV</th><th>UV</th></tr></thead><tbody>';
   data.forEach(function(d){
     var cc = d.country || '{{ _('Unknown') }}';
     html += '<tr>' +
@@ -1335,7 +1335,7 @@ function renderDeviceChart(data) {
 function renderDeviceDetail(browsers, osList) {
   var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">';
   html += '<div><div class="label" style="margin-bottom:8px">浏览器 Top 5</div>';
-  html += '<table class="data-table"><thead><tr><th>{{ _('浏览器') }}</th><th>PV</th></tr></thead><tbody>';
+  html += '<table class="data-table"><thead><tr><th>{{ _('Browser') }}</th><th>PV</th></tr></thead><tbody>';
   browsers.slice(0, 5).forEach(function(d){
     html += '<tr><td>' + d.browser + '</td><td style="color:var(--blue)">' + (d.pv||0).toLocaleString() + '</td></tr>';
   });
@@ -1360,7 +1360,7 @@ function loadEvents() {
         '<div class="empty-state"><div class="icon">🔔</div><div class="text">{{ _('No custom events. Automatically logged when users launch agents, view stocks, create workflows etc.') }}</div></div>';
       return;
     }
-    var html = '<table class="data-table"><thead><tr><th>{{ _('Event') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Count') }}</th><th>{{ _('总值') }}</th></tr></thead><tbody>';
+    var html = '<table class="data-table"><thead><tr><th>{{ _('Event') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Count') }}</th><th>{{ _('Total') }}</th></tr></thead><tbody>';
     res.data.forEach(function(d){
       html += '<tr>' +
         '<td style="font-weight:600">' + d.event_name + '</td>' +
@@ -1390,7 +1390,7 @@ function renderAlerts(alerts) {
       '<div class="empty-state"><div class="icon">🚨</div><div class="text">{{ _('No alert rules. System auto-notifies when metrics exceed thresholds after adding alerts.') }}</div></div>';
     return;
   }
-  var html = '<table class="data-table"><thead><tr><th>{{ _('Name') }}</th><th>{{ _('指标') }}</th><th>{{ _('条件') }}</th><th>{{ _('窗口') }}</th><th>{{ _('Status') }}</th><th>{{ _('最后触发') }}</th><th>{{ _('Actions') }}</th></tr></thead><tbody>';
+  var html = '<table class="data-table"><thead><tr><th>{{ _('Name') }}</th><th>{{ _('Metric') }}</th><th>{{ _('Condition') }}</th><th>{{ _('Window') }}</th><th>{{ _('Status') }}</th><th>{{ _('Last Triggered') }}</th><th>{{ _('Actions') }}</th></tr></thead><tbody>';
   alerts.forEach(function(d){
     var opMap = {'gt':'>','lt':'<','gte':'≥','lte':'≤','eq':'='};
     var enabled = d.enabled == 1;

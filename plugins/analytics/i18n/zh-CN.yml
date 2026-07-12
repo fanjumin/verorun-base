@@ -1,18 +1,89 @@
+📊 Analytics Dashboard: 📊 统计仪表盘
+Site Statistics: 站点统计
+Real-time Data · Privacy-friendly · No Cookie Tracking: 实时数据 · 隐私友好 · 无 Cookie 追踪
+Online: 在线
+Today Page Views (PV): 今日浏览量 (PV)
+Unique Visitors (UV): 独立访客 (UV)
+Total Sessions: 总会话
+Avg Response: 平均响应
+Tabs: 标签页
+Trend: 趋势
+Region: 地区
+Devices: 设备
+Alerts: 告警
+Traffic Trend: 流量趋势
+Hourly Distribution (Today): 小时级分布 (今天)
+Details: 详细数据
+Top Pages (30d): 热门页面 (30天)
+Source Distribution: 来源分布
+Source Details: 来源明细
+🇨🇳 China Access Map: 🇨🇳 访问分布图
+Province Ranking: 省份排行
+City Details: 城市明细
+🌍 Country/Region Distribution: 🌍 国家/地区分布
+Device Type: 设备类型
+Browser & OS: 浏览器 & OS
+Custom Events (30d): 自定义事件 (30天)
+Alert Rules: 告警规则
+📋 Add Alert Rule: 📋 添加告警规则
+UV (Unique Visitors): UV (独立访客)
+PV (Page Views): PV (浏览量)
+Bounce Rate (%): 跳出率 (%)
+Error Rate (%): 错误率 (%)
+Avg Response Time (ms): 平均响应时间 (ms)
+(Greater Than): (大于)
+(Less Than): (小于)
+(Greater or Equal): (大于等于)
+(Less or Equal): (小于等于)
+Threshold: 阈值
+1 Hour: 1 小时
+24 Hours: 24 小时
+7 Days: 7 天
+➕ Add: ➕ 添加
+Refresh: 刷新数据
+Date: 日期
+Bounce Rate: 跳出率
+Avg Duration: 平均时长
+No page data: 暂无页面数据
+Path: 路径
+No China city data: 暂无中国城市数据
+No province data: 暂无省份数据
+Other Regions: 其他地区
+High: 高
+Low: 低
+Map loading failed (network issue). See table below for data.: 地图加载失败（网络问题），数据见下方表格
+Province: 省份
+City: 城市
+Country: 国家
+Browser: 浏览器
+Total: 总值
+Metric: 指标
+Condition: 条件
+Window: 窗口
+Last Triggered: 最后触发
+Page: 页面
+Source: 来源
+Event: 事件
+Name: 名称
+Session: 会话
+Type: 类型
+Percentage: 占比
+No data: 暂无数据
+Unknown: 未知
+No trend data yet, will auto-generate after publishing: 暂无趋势数据，发布后将自动生成
+No geolocation data (GeoIP required): 暂无地理位置数据（需要 GeoIP）
+No device data: 暂无设备数据
+No custom events. Automatically logged when users launch agents, view stocks, create workflows etc.: 暂无自定义事件。用户启动智能体、查看股票、创建工作流等操作时会自动记录。
+No alert rules. System auto-notifies when metrics exceed thresholds after adding alerts.: 暂无告警规则。添加告警后，指标超过阈值时系统会自动通知。
+Categories: 分类
+Count: 次数
+Status: 状态
+Actions: 操作
+● Enabled: ● 已启用
+○ Disabled: ○ 已禁用
+Delete: 删除
+Delete this alert rule?: 删除此告警规则？
 Unauthorized: 未授权
 path required: 缺少 path 参数
 event_name required: 缺少 event_name 参数
 unknown type: 未知类型
-📊 统计仪表盘: 📊 统计仪表盘
-站点统计: 站点统计
-实时数据 · 隐私友好 · 无 Cookie 追踪: 实时数据 · 隐私友好 · 无 Cookie 追踪
-在线: 在线
-今日浏览量 (PV): 今日浏览量 (PV)
-独立访客 (UV): 独立访客 (UV)
-总会话: 总会话
-平均响应: 平均响应
-标签页: 标签页
-趋势: 趋势
-Page: Page
-Source: Source
-地区: 地区
-设备

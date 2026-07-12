@@ -1,4 +1,4 @@
-Unauthorized: Unauthorized
-path required: path required
-event_name required: event_name required
-unknown type: unknown type
+Unauthorized: 未授权
+path required: 缺少 path 参数
+event_name required: 缺少 event_name 参数
+unknown type: 未知类型

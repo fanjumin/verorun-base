@@ -94,11 +94,11 @@ function toggleContacts(){
   var t=document.getElementById("contactToggle");
   if(p.style.display==="none"||!p.style.display){
     p.style.display="block";
-    t.textContent="{{ _('[收起]') }}";
+    t.textContent="{{ _('[Collapse]') }}";
     renderContacts();
   }else{
     p.style.display="none";
-    t.textContent="{{ _('[展开]') }}";
+    t.textContent="{{ _('[Expand]') }}";
   }
 }
 function sendBulk(){

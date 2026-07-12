@@ -1,53 +1,120 @@
-场景券: Scene Coupon
-AI 智能推荐: AI Smart Recommend
-AI 为您推荐: AI Recommends
-预计节省: Est. Savings
-应用推荐: Apply
-自选: Manual
-已自动应用: Auto-applied
-优惠券: Coupon
-智能优惠券: Smart Coupon
-新客专享: New User Only
-满减券: Fixed Discount
-折扣券: Percentage Off
-免运费: Free Shipping
-首月特价: First Month Special
-场景优惠: Scene Discount
-通用券: General
-新人券: New User
-推广券: Promotion
-订阅联动: Subscription
-1688 采购: 1688 Purchase
-AI 内容生成: AI Content
-续费专享: Renewal
-升级优惠: Upgrade
-评价奖励: Review Reward
-推荐有礼: Referral
-无可用优惠券: No coupons available
-最少购买: Min. Purchase
-已领取: Claimed
-立即领取: Claim Now
-领取成功: Claimed Successfully
-领取失败: Failed to Claim
-# ── Response / Error Messages ──
-未登录: Not logged in
-Token 无效或已过期: Invalid or expired token
-无权限: No permission
-操作太频繁: Too many requests, please try again later
-缺少必填字段: Missing required fields
-请输入优惠码: Please enter a coupon code
-缺少参数: Missing parameters
-优惠券已创建: Coupon created
-优惠券已更新: Coupon updated
-优惠券已删除: Coupon deleted
-请指定优惠券ID: Please specify a coupon ID
-请指定用户: Please specify users
-已发给: Distributed to
-个用户: users
-优惠码不存在: Coupon code does not exist
-优惠码已过期: Coupon code has expired
-优惠码已被用完: Coupon code has been fully redeemed
-未达到最低消费: Minimum purchase amount not met
-优惠码不可用于该商品: Coupon code cannot be used for this product
-优惠码不可用于该场景: Coupon code cannot be used for this scenario
-您已使用过该优惠码: You have already used this coupon code
+# Coupons Plugin — English Translation
+
+"Smart Coupons": "Smart Coupons"
+"Loading...": "Loading..."
+"New Coupon": "New Coupon"
+"Statistics": "Statistics"
+"Search": "Search"
+"Code": "Code"
+"Name": "Name"
+"Summer Sale": "Summer Sale"
+"Category": "Category"
+"General": "General"
+"New User": "New User"
+"Fixed Discount": "Fixed Discount"
+"Promotion": "Promotion"
+"Type": "Type"
+"Fixed Amount": "Fixed Amount"
+"Percentage": "Percentage"
+"Free Shipping": "Free Shipping"
+"Value": "Value"
+"Min. Spend": "Min. Spend"
+"Scene": "Scene"
+"Per-user Limit": "Per-user Limit"
+"Total Limit": "Total Limit"
+"Expiry": "Expiry"
+"Description": "Description"
+"Optional": "Optional"
+"Applicable Products": "Applicable Products"
+"Comma-separated": "Comma-separated"
+"Save": "Save"
+"Cancel": "Cancel"
+"Coupon List": "Coupon List"
+"Min.": "Min."
+"Used/Total": "Used/Total"
+"Status": "Status"
+"Actions": "Actions"
+"No coupons": "No coupons"
+"Enabled": "Enabled"
+"Disabled": "Disabled"
+"Permanent": "Permanent"
+"Edit": "Edit"
+"Distribute": "Distribute"
+"Records": "Records"
+"Distribute Coupon": "Distribute Coupon"
+"Distribute to All": "Distribute to All"
+"Specific Users": "Specific Users"
+"One user per line": "One user per line"
+"Confirm Distribution": "Confirm Distribution"
+"Usage Records": "Usage Records"
+"Edit Coupon": "Edit Coupon"
+"Please enter a coupon code": "Please enter a coupon code"
+"Updated": "Updated"
+"Created": "Created"
+"Failed": "Failed"
+"Done": "Done"
+"Total Coupons": "Total Coupons"
+"Total Used": "Total Used"
+"Total Saved": "Total Saved"
+"Category Stats": "Category Stats"
+"Count": "Count"
+"Usage Ranking": "Usage Ranking"
+"Usage Count": "Usage Count"
+"Back to List": "Back to List"
+"Please enter users": "Please enter users"
+"Distributed": "Distributed"
+"Total": "Total"
+"records": "records"
+"User": "User"
+"Order No.": "Order No."
+"Discount": "Discount"
+"Time": "Time"
+"No usage records": "No usage records"
+"AI Analyzing...": "AI Analyzing..."
+"AI Recommended Coupon": "AI Recommended Coupon"
+"Est. Savings": "Est. Savings"
+"Auto-applied": "Auto-applied"
+"Apply": "Apply"
+"Coupon applied: ": "Coupon applied: "
+"场景券": "Scene Coupon"
+"AI 智能推荐": "AI Smart Recommend"
+"AI 为您推荐": "AI Recommends"
+"自选": "Manual"
+"优惠券": "Coupon"
+"新客专享": "New User Only"
+"折扣券": "Percentage Off"
+"首月特价": "First Month Special"
+"场景优惠": "Scene Discount"
+"订阅联动": "Subscription"
+"1688 采购": "1688 Purchase"
+"AI 内容生成": "AI Content"
+"续费专享": "Renewal"
+"升级优惠": "Upgrade"
+"评价奖励": "Review Reward"
+"推荐有礼": "Referral"
+"无可用优惠券": "No coupons available"
+"最少购买": "Min. Purchase"
+"已领取": "Claimed"
+"立即领取": "Claim Now"
+"领取成功": "Claimed Successfully"
+"领取失败": "Failed to Claim"
+"未登录": "Not logged in"
+"Token 无效或已过期": "Invalid or expired token"
+"无权限": "No permission"
+"操作太频繁": "Too many requests, please try again later"
+"缺少必填字段": "Missing required fields"
+"缺少参数": "Missing parameters"
+"优惠券已创建": "Coupon created"
+"优惠券已更新": "Coupon updated"
+"优惠券已删除": "Coupon deleted"
+"请指定优惠券ID": "Please specify a coupon ID"
+"请指定用户": "Please specify users"
+"已发给": "Distributed to"
+"个用户": "users"
+"优惠码不存在": "Coupon code does not exist"
+"优惠码已过期": "Coupon code has expired"
+"优惠码已被用完": "Coupon code has been fully redeemed"
+"未达到最低消费": "Minimum purchase amount not met"
+"优惠码不可用于该商品": "Coupon code cannot be used for this product"
+"优惠码不可用于该场景": "Coupon code cannot be used for this scenario"
+"您已使用过该优惠码": "You have already used this coupon code"
