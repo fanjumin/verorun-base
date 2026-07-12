@@ -48,7 +48,7 @@
 | 健康监控/服务状态/告警   | → Health Check Agent |
 | 定时/自动化/工作流     | → Automation Agent |
 | 统计/分析/报告/数据    | → Analytics Agent |
-| 工单/客服/反馈/帮助     | → Kai Assistant   |
+| 工单/客服/反馈/帮助     | → Advisor Agent   |
 | 商品/商城/分类/库存/订单   | → Shop Agent      |
 | 1688/供应链/采集/货源/OAuth| → Shop Agent      |
 | 健康监控/服务状态/告警     | → Health Check Agent |

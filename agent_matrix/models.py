@@ -320,7 +320,7 @@ DEFAULT_AGENTS = [
         "is_active": 1
     },
     {
-        "name": "Kai Assistant", "role_type": "sub",
+        "name": "Advisor Agent", "role_type": "sub",
         "description": "智能客服机器人 — 全站FAQ问答、人工转接、工单创建、飞书通知",
         "domain": "chatbot",
         "managed_modules": '["chatbot","contacts"]',

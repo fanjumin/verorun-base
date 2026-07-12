@@ -1181,7 +1181,7 @@ def chat_stream_sse():
     if agent_id:
         agent_config = _m().get_agent(agent_id)
     else:
-        # 默认用 Kai Assistant（chatbot 域）或第一个 sub agent
+        # 默认用 Advisor Agent（chatbot 域）或第一个 sub agent
         agents = _m().list_agents(role_type='sub', active_only=True)
         chatbot = [a for a in agents if a.get('domain') == 'chatbot']
         agent_config = chatbot[0] if chatbot else (agents[0] if agents else None)

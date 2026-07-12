@@ -29,7 +29,7 @@
     },
     "agents": [
         {
-            "name": "Kai Assistant",
+            "name": "Advisor Agent",
             "identifier": "kai_assistant",
             "role_type": "sub",
             "domain": "chatbot",

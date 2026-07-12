@@ -31,7 +31,7 @@ class ChatbotPlugin(BasePlugin):
         return [chatbot_bp, webhook_bp]
 
     def register_agents(self):
-        """Register Kai Assistant into agent_matrix table."""
+        """Register Advisor Agent into agent_matrix table."""
         try:
             from agent_matrix.models import get_db
 
