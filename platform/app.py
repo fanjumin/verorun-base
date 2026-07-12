@@ -189,6 +189,41 @@ def handle_oauth_callback(domain_config):
     return resp
 
 
+def _chatbot_context():
+    """读取 AI Advisor 插件配置，供模板渲染使用。"""
+    defaults = {
+        'chatbot_enabled': True,
+        'chatbot_title': 'AI Advisor',
+        'chatbot_subtitle': 'Powered by AI Engine',
+        'chatbot_welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
+        'chatbot_help_hint': 'Type help to see what I can do for you',
+        'chatbot_avatar_url': '/static/ai-chat.png',
+        'chatbot_agent_id': 'kai_assistant',
+        'chatbot_max_history': 20,
+        'chatbot_float_button_text': 'AI Advisor'
+    }
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot'"
+            ).fetchall()
+        cfg = {r['key']: r['value'] for r in rows}
+        return {
+            'chatbot_enabled': str(cfg.get('enabled', '1')).lower() in ('1', 'true', 'yes', 'on'),
+            'chatbot_title': cfg.get('title', defaults['chatbot_title']),
+            'chatbot_subtitle': cfg.get('subtitle', defaults['chatbot_subtitle']),
+            'chatbot_welcome_message': cfg.get('welcome_message', defaults['chatbot_welcome_message']),
+            'chatbot_help_hint': cfg.get('help_hint', defaults['chatbot_help_hint']),
+            'chatbot_avatar_url': cfg.get('avatar_url', defaults['chatbot_avatar_url']),
+            'chatbot_agent_id': cfg.get('agent_id', defaults['chatbot_agent_id']),
+            'chatbot_max_history': int(cfg.get('max_history', defaults['chatbot_max_history'])),
+            'chatbot_float_button_text': cfg.get('float_button_text', defaults['chatbot_float_button_text']),
+        }
+    except Exception as e:
+        print(f'[Platform] chatbot context failed: {e}')
+        return defaults
+
+
 def handle_platform_auth(domain_config):
     """处理平台域名认证，返回后台页面响应或重定向"""
     from services.jwt_service import validate_token
@@ -202,7 +237,8 @@ def handle_platform_auth(domain_config):
 
     resp = make_response(render_template('index.html',
                                          site_domain=domain_config['site_domain'],
-                                         server_token=token or ''))
+                                         server_token=token or '',
+                                         **_chatbot_context()))
     is_secure = request.scheme == 'https'
     resp.set_cookie('sso_token', token, domain=domain_config['cookie_domain'],
                     path='/', max_age=604800, samesite='Lax', secure=is_secure, httponly=True)
@@ -243,7 +279,7 @@ def index():
         if payload:
             from services.brand_service import get_brand_settings
             brand = get_brand_settings() or {}
-            resp = make_response(render_template('index.html', brand=brand, server_token=token))
+            resp = make_response(render_template('index.html', brand=brand, server_token=token, **_chatbot_context()))
             site_domain = brand.get('site_domain', '').strip()
             cd = ('.' + site_domain) if site_domain else ''
             if cd:

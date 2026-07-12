@@ -370,28 +370,85 @@ def chat_public():
     except Exception as e:
         return api_err(f'请求失败: {str(e)}', 500)
 
+def _get_chatbot_config():
+    """从 plugin_configs 表读取 AI Advisor 配置。"""
+    from models import get_db
+    defaults = {
+        'enabled': '1',
+        'title': 'AI Advisor',
+        'subtitle': 'Powered by AI Engine',
+        'welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
+        'help_hint': 'Type help to see what I can do for you',
+        'avatar_url': '/static/ai-chat.png',
+        'agent_id': 'kai_assistant',
+        'max_history': '20',
+        'float_button_text': 'AI Advisor'
+    }
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot'"
+            ).fetchall()
+        db_cfg = {r['key']: r['value'] for r in rows}
+        merged = {**defaults, **db_cfg}
+        return merged
+    except Exception as e:
+        import logging
+        logging.warning(f"[chatbot] 读取配置失败，使用默认值: {e}")
+        return defaults
+
+
+def _get_chatbot_agent(agent_id):
+    """从 agent_matrix 表读取绑定的 Agent 配置。"""
+    try:
+        from agent_matrix.models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT * FROM agent_matrix WHERE name=? OR identifier=? LIMIT 1",
+                (agent_id, agent_id)
+            ).fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        import logging
+        logging.warning(f"[chatbot] 读取 Agent 失败: {e}")
+        return None
+
+
 @api_v1_bp.route('/chat', methods=['POST'])
 def chat_stream():
     """流式AI对话接口（免登录）"""
     import logging
     logging.info(f"[DEBUG] chat_stream called, path={request.path}, method={request.method}")
-    
+
+    cfg = _get_chatbot_config()
+    if cfg.get('enabled') == '0':
+        def _disabled_stream():
+            yield 'data: {"type":"error","content":"AI Advisor is currently disabled"}\n\n'
+        return Response(stream_with_context(_disabled_stream()),
+                        mimetype='text/event-stream',
+                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
     data = request.get_json() or {}
+    # 兼容前端 {message, history} 与标准 {messages}
     messages = data.get('messages', [])
-    profile = data.get('profile', {})
-    visit_count = data.get('visitCount', 1)
-    three_ask_state = data.get('threeAskState', 0)
-    
+    if not messages and data.get('message'):
+        messages = [{'role': 'user', 'content': data.get('message')}]
+        for h in (data.get('history') or []):
+            if isinstance(h, dict) and 'role' in h and 'content' in h:
+                messages.append(h)
+            elif isinstance(h, list) and len(h) == 2:
+                messages.append({'role': h[0], 'content': h[1]})
+
     if not messages:
         return api_err('messages是必需的', 400)
-    
+
     def generate():
         import logging
         yield 'data: {"role":"assistant"}\n\n'
-        
+
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            
+
             # RAG检索
             retrieved_knowledge = []
             user_query = messages[-1]['content'] if messages else ''
@@ -402,14 +459,22 @@ def chat_stream():
                     retrieved_knowledge = search_knowledge(user_query, top_k=3)
                 except Exception as e:
                     logging.warning(f"RAG检索失败，使用默认回答: {e}")
-            
+
             # 构建系统提示词（包含检索到的知识）
             knowledge_context = ''
             if retrieved_knowledge:
                 knowledge_context = "参考知识：\n" + "\n".join([f"- {item.get('content', '')}" for item in retrieved_knowledge])
-            
-            system_prompt = f"""
-你是VeroRun的AI助手。请根据用户的问题，结合参考知识进行回答。
+
+            agent_id = cfg.get('agent_id', 'kai_assistant')
+            agent = _get_chatbot_agent(agent_id)
+
+            if agent and agent.get('system_prompt'):
+                system_prompt = agent['system_prompt']
+                provider = agent.get('provider') or cfg.get('provider', 'dashscope')
+                model_name = agent.get('model_name') or cfg.get('model_name', 'qwen-turbo')
+            else:
+                system_prompt = f"""
+你是 AI Advisor。请根据用户的问题，结合参考知识进行回答。
 
 {knowledge_context}
 
@@ -418,44 +483,49 @@ def chat_stream():
 2. 如果参考知识中没有相关内容，可以用你的通用知识回答
 3. 回答要友好、专业、简洁
 """
-            
+                provider = cfg.get('provider', 'dashscope')
+                model_name = cfg.get('model_name', 'qwen-turbo')
+
             # 构建消息
             chat_messages = [{"role": "system", "content": system_prompt}]
             for msg in messages:
                 chat_messages.append({"role": msg.get('role', 'user'), "content": msg.get('content', '')})
-            
+
             # 调用AI引擎
             from agent_matrix.engine import AIEngine
-            
+
             config = {
-                'provider': 'dashscope',
-                'model_name': 'qwen-turbo',
+                'provider': provider,
+                'model_name': model_name,
                 'system_prompt': system_prompt
             }
-            
+
             engine = AIEngine(config)
             full_reply = ''
-            
+
             def _sse_event(event_type, **kwargs):
                 """SSE data line with proper JSON encoding to prevent XSS/protocol injection."""
                 payload = {'type': event_type}
                 payload.update(kwargs)
                 return f'data: {json.dumps(payload, ensure_ascii=False)}\n\n'
-            
-            for token in engine.chat_stream(chat_messages, temperature=0.7, max_tokens=2048):
+
+            temperature = float(cfg.get('temperature', '0.7'))
+            max_tokens = int(cfg.get('max_tokens', '2048'))
+
+            for token in engine.chat_stream(chat_messages, temperature=temperature, max_tokens=max_tokens):
                 if token.startswith("Error:"):
                     yield _sse_event('error', content=token)
                     return
                 full_reply += token
                 yield _sse_event('token', content=token)
-            
+
             yield _sse_event('done', reply=full_reply, retrievedKnowledge=retrieved_knowledge)
-            
+
         except Exception as e:
             import logging
             logging.error(f"[API] 流式对话失败: {e}")
             yield _sse_event('error', content=f'对话失败: {str(e)}')
-    
+
     return Response(stream_with_context(generate()),
                    mimetype='text/event-stream',
                    headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'})

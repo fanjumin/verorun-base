@@ -1,0 +1,58 @@
+window.l_chatbot=function(){
+  document.getElementById("pt").textContent="{{ _('AI Advisor') }}";
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}</div>';
+  fetch("/admin/chatbot/settings",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){document.getElementById("mc").innerHTML='<div class="em">'+esc(d.error||"{{ _('Load failed') }}")+'</div>';return}
+    var c=d.data||{};
+    var h='<div class="cd">';
+    h+='<div class="st">{{ _('AI Advisor Settings') }}</div>';
+    h+='<div id="chatbot-form">';
+    h+=_chatbotRowToggle('enabled',"{{ _('Enable AI Advisor') }}",c.enabled==='1'||c.enabled===true||c.enabled==='true');
+    h+=_chatbotRow('title',"{{ _('Chat Window Title') }}",c.title||'AI Advisor');
+    h+=_chatbotRow('subtitle',"{{ _('Subtitle') }}",c.subtitle||'Powered by AI Engine');
+    h+=_chatbotRow('welcome_message',"{{ _('Welcome Message') }}",c.welcome_message||'');
+    h+=_chatbotRow('help_hint',"{{ _('Help Hint') }}",c.help_hint||'');
+    h+=_chatbotRow('avatar_url',"{{ _('Avatar URL') }}",c.avatar_url||'/static/ai-chat.png');
+    h+=_chatbotRow('agent_id',"{{ _('Bound Agent ID') }}",c.agent_id||'kai_assistant');
+    h+=_chatbotRow('max_history',"{{ _('Max History Rounds') }}",c.max_history||'20');
+    h+=_chatbotRow('float_button_text',"{{ _('Float Button Text') }}",c.float_button_text||'AI Advisor');
+    h+='</div>';
+    h+='<div style="margin-top:16px;display:flex;gap:8px"><button class="btn bp" onclick="saveChatbotSettings()">{{ _('Save') }}</button></div>';
+    h+='</div>';
+    document.getElementById("mc").innerHTML=h;
+  }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
+}
+
+function _chatbotRow(key,label,value){
+  var safe=(value||'').toString().replace(/"/g,'&quot;');
+  return '<div class="fl" style="align-items:flex-start;margin-bottom:10px">'+
+    '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+esc(label)+'</div></div>'+
+    '<input class="in" id="cb-'+key+'" value="'+safe+'" style="width:320px">'+
+    '</div>';
+}
+
+function _chatbotRowToggle(key,label,checked){
+  return '<div class="fl" style="align-items:center;margin-bottom:10px">'+
+    '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+esc(label)+'</div></div>'+
+    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="cb-'+key+'"'+(checked?' checked':'')+' style="width:18px;height:18px"><span>{{ _('Enabled') }}</span></label>'+
+    '</div>';
+}
+
+function saveChatbotSettings(){
+  var data={
+    enabled: document.getElementById('cb-enabled').checked?'1':'0',
+    title: document.getElementById('cb-title').value.trim(),
+    subtitle: document.getElementById('cb-subtitle').value.trim(),
+    welcome_message: document.getElementById('cb-welcome_message').value.trim(),
+    help_hint: document.getElementById('cb-help_hint').value.trim(),
+    avatar_url: document.getElementById('cb-avatar_url').value.trim(),
+    agent_id: document.getElementById('cb-agent_id').value.trim(),
+    max_history: document.getElementById('cb-max_history').value.trim(),
+    float_button_text: document.getElementById('cb-float_button_text').value.trim()
+  };
+  fetch("/admin/chatbot/settings",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.success){showToast("{{ _('Saved') }}","success")}
+      else showToast(d.error||"{{ _('Failed') }}","error");
+    }).catch(function(){showToast("{{ _('Failed') }}","error")});
+}

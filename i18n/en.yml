@@ -2542,6 +2542,28 @@ VeroRun: VeroRun
 插件加载成功: Plugin loaded successfully
 加载插件失败: Plugin load failed
 加载插件异常: Plugin load error
+"AI Advisor": "AI Advisor"
+"AI Advisor Settings": "AI Advisor Settings"
+"Enable AI Advisor": "Enable AI Advisor"
+"Chat Window Title": "Chat Window Title"
+"Subtitle": "Subtitle"
+"Welcome Message": "Welcome Message"
+"Help Hint": "Help Hint"
+"Avatar URL": "Avatar URL"
+"Bound Agent ID": "Bound Agent ID"
+"Max History Rounds": "Max History Rounds"
+"Float Button Text": "Float Button Text"
+"Powered by AI Engine": "Powered by AI Engine"
+"Hello! I am your AI advisor. How can I help you today?": "Hello! I am your AI advisor. How can I help you today?"
+"Type help to see what I can do for you": "Type help to see what I can do for you"
+"Thinking...": "Thinking..."
+"Request failed": "Request failed"
+"Network error": "Network error"
+"Smart Customer Service": "AI Advisor"
+"Customer Service Chat": "AI Advisor"
+"Online Support": "AI Advisor"
+"Chat with AI advisor in real time": "Chat with AI advisor in real time"
+"Enter your question... (Enter to send, Shift+Enter for new line)": "Enter your question... (Enter to send, Shift+Enter for new line)"
 依赖插件 {dep} 加载失败，无法启用: Dependency plugin {dep} load failed, cannot enable
 依赖插件 {dep} 启用失败: Dependency plugin {dep} enable failed
 on_enable 返回 False: on_enable returned False

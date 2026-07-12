@@ -914,7 +914,7 @@ function loadServices(){
       {icon:'🔔',cls:'blue',title:{{ _('Notifications') | tojson }},desc:'查看站内通知与系统消息',badge:notifUnread>0?notifUnread:null,badgeCls:'red',click:"loadSection('notifications-page')"},
       {icon:'🎫',cls:'green',title:{{ _('My Coupons') | tojson }},desc:couponCount+' 张可用优惠券',badge:couponCount>0?couponCount:null,badgeCls:'green',click:"loadSection('coupons')"},
       {icon:'📝',cls:'yellow',title:{{ _('My Tickets') | tojson }},desc:ticketCount+' 个进行中的工单',badge:ticketCount>0?ticketCount:null,badgeCls:'red',click:"loadSection('tickets')"},
-      {icon:'💬',cls:'cyan',title:{{ _('Customer Service Chat') | tojson }},desc:'与 AI 智能客服实时对话',badge:null,click:"loadSection('support-chat')"},
+      {icon:'💬',cls:'cyan',title:{{ _('Customer Service Chat') | tojson }},desc:{{ _('Chat with AI advisor in real time') | tojson }},badge:null,click:"loadSection('support-chat')"},
       {icon:'📖',cls:'purple',title:{{ _('Help Docs') | tojson }},desc:'使用指南、常见问题与 API 文档',badge:null,click:"loadSection('docs')"}
     ];
     var h='<div class="svc-grid">';
@@ -1251,20 +1251,24 @@ var chatHistory=[];
 var isChatStreaming=false;
 
 function loadSupportChat(){
+  var avatarUrl={{ chatbot_avatar_url | default('/static/ai-chat.png') | tojson }};
+  var title={{ chatbot_title | default('AI Advisor') | tojson }};
+  var subtitle={{ chatbot_subtitle | default(_('Powered by AI Engine')) | tojson }};
+  var welcome={{ chatbot_welcome_message | default(_('Hello! I am your AI advisor. How can I help you today?')) | tojson }};
   var h='<div id="chat-container" style="display:flex;flex-direction:column;height:calc(100vh - 160px);background:var(--card);border-radius:12px;overflow:hidden">';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg)">';
   h+='<div style="display:flex;align-items:center;gap:8px;color:var(--text);font-size:15px;font-weight:600">';
-  h+='<img src="/static/ai-chat.png" style="width:32px;height:32px;border-radius:50%;object-fit:cover">';
-  h+='AI \u667a\u80fd\u5ba2\u670d</div>';
-  h+='<span style="font-size:12px;color:#888">\u7531 DeepSeek \u9a71\u52a8</span>';
+  h+='<img src="'+esc(avatarUrl)+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover">';
+  h+=''+esc(title)+'</div>';
+  h+='<span style="font-size:12px;color:#888">'+esc(subtitle)+'</span>';
   h+='</div>';
   h+='<div id="chat-msgs" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px">';
   h+='<div style="max-width:86%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text);align-self:flex-start;border:1px solid var(--border);border-bottom-left-radius:4px">';
-  h+='\u4f60\u597d\uff01\u6211\u662f EasyKai \u667a\u80fd\u5ba2\u670d\u52a9\u624b\u3002<\/div>';
-  h+='<div style="max-width:86%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text);align-self:flex-start;border:1px solid var(--border);border-bottom-left-radius:4px;margin-top:-2px">\u8f93\u5165 <code style="background:#1a1a2e;padding:1px 6px;border-radius:3px;color:#e8bf6a">help<\/code> \u67e5\u770b\u6211\u80fd\u5e2e\u4f60\u4ec0\u4e48<\/div>';
+  h+=''+esc(welcome)+'<\/div>';
+  h+='<div style="max-width:86%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text);align-self:flex-start;border:1px solid var(--border);border-bottom-left-radius:4px;margin-top:-2px">{{ _('Type help to see what I can do for you') }}<\/div>';
   h+='<\/div>';
   h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--border);background:var(--bg)">';
-  h+='<textarea id="chat-input" rows="1" placeholder="\u8f93\u5165\u95ee\u9898...\uff08Enter \u53d1\u9001\uff0cShift+Enter \u6362\u884c\uff09" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:inherit;resize:none;outline:none;min-height:42px;max-height:120px;line-height:1.4" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();chatSend()}">';
+  h+='<textarea id="chat-input" rows="1" placeholder="{{ _('Enter your question... (Enter to send, Shift+Enter for new line)') }}" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:inherit;resize:none;outline:none;min-height:42px;max-height:120px;line-height:1.4" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();chatSend()}">';
   h+='<\/textarea>';
   h+='<button id="chat-send-btn" onclick="chatSend()" style="width:42px;height:42px;border-radius:8px;background:#00d4aa;border:none;color:#000;font-size:18px;cursor:pointer;flex-shrink:0">\u279c<\/button>';
   h+='<\/div>';
@@ -1316,13 +1320,13 @@ async function chatSend(){
   input.style.height='auto';
   chatAddMsg('user',text.replace(/</g,'<').replace(/>/g,'>'));
   chatHistory.push({role:'user',content:text});
-  var botDiv=chatAddMsg('bot','<span style="color:#888;font-size:12px">\ud83e\udd16 \u601d\u8003\u4e2d...<\/span>');
+  var botDiv=chatAddMsg('bot','<span style="color:#888;font-size:12px">\ud83e\udd16 {{ _('Thinking...') }}<\/span>');
   isChatStreaming=true;
   var btn=document.getElementById('chat-send-btn');
   if(btn)btn.disabled=true;
   try{
-    var resp=await fetch('/api/v1/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:chatHistory.slice(-20)})});
-    if(!resp.ok){botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 \u8bf7\u6c42\u5931\u8d25 ('+resp.status+')<\/span>';isChatStreaming=false;if(btn)btn.disabled=false;return;}
+    var resp=await fetch('/api/v1/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:chatHistory.slice(-{{ chatbot_max_history | default(20) | int }})})});
+    if(!resp.ok){botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 {{ _('Request failed') }} ('+resp.status+')<\/span>';isChatStreaming=false;if(btn)btn.disabled=false;return;}
     var reader=resp.body.getReader();
     var decoder=new TextDecoder();
     var fullText='';
@@ -1352,16 +1356,19 @@ async function chatSend(){
     }
     chatHistory.push({role:'assistant',content:fullText});
   }catch(e){
-    botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 \u7f51\u7edc\u9519\u8bef: '+e.message.replace(/</g,'<').replace(/>/g,'>')+'<\/span>';
+    botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 {{ _('Network error') }}: '+e.message.replace(/</g,'<').replace(/>/g,'>')+'<\/span>';
   }
   isChatStreaming=false;
   if(btn)btn.disabled=false;
 }
 
 (function(){
+  {% if chatbot_enabled | default(true) %}
+  var floatText={{ chatbot_float_button_text | default(_('AI Advisor')) | tojson }};
+  var floatAvatar={{ chatbot_avatar_url | default('/static/ai-chat.png') | tojson }};
   var btn=document.createElement('div');
   btn.id='float-chat-btn';
-  btn.innerHTML='<img src="/static/ai-chat.png" style="width:64px;height:64px;border-radius:50%;object-fit:cover"><span>\u667a\u80fd\u5ba2\u670d<\/span>';
+  btn.innerHTML='<img src="'+esc(floatAvatar)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover"><span>'+esc(floatText)+'<\/span>';
   btn.style.cssText='position:fixed;bottom:28px;right:28px;z-index:9990;display:flex;align-items:center;gap:8px;padding:12px 20px;background:#0d0d18;border:1px solid #00d4aa44;border-radius:28px;color:#e0e0e0;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 24px rgba(0,212,170,.15);transition:all .2s;font-family:inherit';
   btn.onmouseenter=function(){this.style.borderColor='#00d4aa';this.style.boxShadow='0 4px 32px rgba(0,212,170,.3)';this.style.transform='translateY(-2px)'};
   btn.onmouseleave=function(){this.style.borderColor='#00d4aa44';this.style.boxShadow='0 4px 24px rgba(0,212,170,.15)';this.style.transform='translateY(0)'};
@@ -1374,6 +1381,7 @@ async function chatSend(){
   document.head.appendChild(style);
   if(document.readyState!=='loading')document.body.appendChild(btn);
   else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(btn)});
+  {% endif %}
 })();
 
 // ============ 帮助文档 ============

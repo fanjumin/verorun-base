@@ -1,0 +1,61 @@
+{
+    "name": "AI Advisor",
+    "identifier": "chatbot",
+    "version": "0.1.0",
+    "category": "ai_agent",
+    "icon": "message-circle",
+    "tags": ["chatbot", "customer-service", "ai", "rag", "advisor"],
+    "description": "Site-wide AI advisor chatbot. Configuration and translations use the main system; data stays in the main database.",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "depends_on": {},
+    "enabled": true,
+    "config": {
+        "enabled": "1",
+        "title": "AI Advisor",
+        "subtitle": "Powered by AI Engine",
+        "welcome_message": "Hello! I am your AI advisor. How can I help you today?",
+        "help_hint": "Type help to see what I can do for you",
+        "avatar_url": "/static/ai-chat.png",
+        "agent_id": "kai_assistant",
+        "max_history": "20",
+        "float_button_text": "AI Advisor"
+    },
+    "permissions": ["api:read", "network:request"],
+    "hooks": {
+        "provides": ["chatbot/config", "chatbot/chat"],
+        "listens": []
+    },
+    "agents": [
+        {
+            "name": "Kai Assistant",
+            "identifier": "kai_assistant",
+            "role_type": "sub",
+            "domain": "chatbot",
+            "prompt_file": "prompts/sub_chatbot_prompt.md",
+            "model_policy": {"strategy": "tier", "tier": "standard", "allow_user_override": true, "fallback": "inherit"},
+            "capabilities": ["chatbot.faq", "chatbot.ticket", "chatbot.human_handoff"],
+            "enabled_by_default": true
+        }
+    ],
+    "menu": {
+        "group": "AI Chat",
+        "key": "chatbot",
+        "icon": "message-circle",
+        "label": "AI Advisor"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "enabled": {"title": "Enable AI Advisor", "type": "boolean", "default": true},
+            "title": {"title": "Chat Window Title", "type": "string"},
+            "subtitle": {"title": "Subtitle", "type": "string"},
+            "welcome_message": {"title": "Welcome Message", "type": "string"},
+            "help_hint": {"title": "Help Hint", "type": "string"},
+            "avatar_url": {"title": "Avatar URL", "type": "string"},
+            "agent_id": {"title": "Bound Agent ID", "type": "string", "description": "Agent identifier in agent_matrix table"},
+            "max_history": {"title": "Max History Rounds", "type": "integer", "default": 20, "minimum": 1, "maximum": 50},
+            "float_button_text": {"title": "Float Button Text", "type": "string"}
+        }
+    }
+}
