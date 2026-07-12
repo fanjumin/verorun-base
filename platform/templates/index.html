@@ -588,10 +588,16 @@ var selectedInterestIds={};     // {id: {id, name, ...}}
 var _customIdCounter=-1;
 
 function loadAvailableInterests(){
-  fetch('/api/interests').then(function(r){return r.json()}).then(function(d){
+  fetch('/user/interests').then(function(r){return r.json()}).then(function(d){
     if(d.success&&d.data){
-      allInterests=d.data;
-      allCategories=d.categories||Object.keys(d.data);
+      var grouped={};
+      d.data.forEach(function(item){
+        var cat=item.category||'Other';
+        if(!grouped[cat])grouped[cat]=[];
+        grouped[cat].push(item);
+      });
+      allInterests=grouped;
+      allCategories=Object.keys(grouped);
       renderInterestSelector();
     }
   });

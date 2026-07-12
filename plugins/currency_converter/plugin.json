@@ -1,0 +1,88 @@
+{
+    "name": "Currency Converter",
+    "identifier": "currency_converter",
+    "version": "0.1.0",
+    "description": "Currency Converter — Multi-currency display with real-time exchange rates, user preference, and automatic price conversion",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+
+    "category": "shop",
+    "icon": "currency",
+    "tags": ["currency", "exchange", "multi-currency", "price"],
+
+    "depends_on": {},
+
+    "enabled": false,
+
+    "config": {
+        "primary_api": "https://api.frankfurter.app/latest",
+        "fallback_api": "https://open.er-api.com/v6/latest",
+        "base_currency": "CNY",
+        "refresh_interval_minutes": 60,
+        "cache_ttl_minutes": 60,
+        "default_currency": "CNY",
+        "enable_geoip": true,
+        "enabled_currencies": ["CNY", "USD", "EUR", "JPY", "GBP", "HKD", "KRW", "AUD", "CAD", "SGD", "THB", "MYR", "PHP", "IDR", "VND"]
+    },
+
+    "permissions": [
+        "api:read",
+        "user:profile"
+    ],
+
+    "hooks": {
+        "provides": [
+            "currency/convert",
+            "currency/rates",
+            "currency/preference"
+        ],
+        "listens": [
+            "user/login",
+            "user/registered"
+        ]
+    },
+
+    "menu": {
+        "key": "currency_converter",
+        "group": "Operations",
+        "icon": "currency",
+        "label": "Currency Settings"
+    },
+
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "base_currency": {
+                "title": "Base Currency",
+                "type": "string",
+                "default": "CNY",
+                "description": "System base currency (the currency stored in database)"
+            },
+            "default_currency": {
+                "title": "Default Display Currency",
+                "type": "string",
+                "default": "CNY",
+                "description": "Default display currency for new visitors"
+            },
+            "refresh_interval_minutes": {
+                "title": "Refresh Interval (minutes)",
+                "type": "integer",
+                "default": 60,
+                "minimum": 15,
+                "description": "How often to sync exchange rates"
+            },
+            "enabled_currencies": {
+                "title": "Enabled Currencies",
+                "type": "string",
+                "default": "CNY,USD,EUR,JPY,GBP,HKD,KRW,AUD,CAD,SGD",
+                "description": "Comma-separated list of enabled currency codes"
+            },
+            "enable_geoip": {
+                "title": "Enable GeoIP Auto-Detect",
+                "type": "boolean",
+                "default": true,
+                "description": "Automatically suggest currency based on visitor IP location"
+            }
+        }
+    }
+}

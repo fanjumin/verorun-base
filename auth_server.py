@@ -18,7 +18,8 @@ AUTH_DIR = os.path.join(_SCRIPT_DIR, 'auth-center')
 sys.path.insert(0, AUTH_DIR)
 sys.path.append(_SCRIPT_DIR)
 
-from flask import Flask, render_template, make_response, request
+from flask import Flask, render_template, make_response, request, jsonify
+import urllib.request as _ur
 from auth_blueprint import register_auth
 
 app = Flask(__name__)
@@ -113,7 +114,43 @@ def site_contact():
 @app.route('/login')
 def login_page():
     """Unified SSO login page."""
-    return render_template('login.html', LANG='zh-CN')
+    from services.brand_service import get_brand_settings
+    brand = get_brand_settings() or {}
+    return render_template('login.html', LANG='zh-CN', brand=brand)
+
+
+# ══ Captcha proxy → admin:8084 ══
+def _proxy_captcha(path, data=None, method='GET'):
+    url = 'http://127.0.0.1:8084' + path
+    req = _ur.Request(url, data=data, method=method)
+    if data:
+        req.add_header('Content-Type', 'application/json')
+    resp = _ur.urlopen(req, timeout=5)
+    return resp.read(), resp.status, {'Content-Type': resp.headers.get('Content-Type', 'application/json')}
+
+
+@app.route('/api/captcha/generate', methods=['GET'])
+def captcha_generate():
+    try:
+        return _proxy_captcha('/api/captcha/generate')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@app.route('/api/captcha/verify', methods=['POST'])
+def captcha_verify():
+    try:
+        return _proxy_captcha('/api/captcha/verify', request.get_data())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@app.route('/api/captcha/consume', methods=['POST'])
+def captcha_consume():
+    try:
+        return _proxy_captcha('/api/captcha/consume', request.get_data())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
 
 
 @app.context_processor
