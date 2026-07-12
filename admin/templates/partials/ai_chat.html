@@ -51,6 +51,11 @@ window.l_ai_chat=function(){
   h+='<button class="btn bp" style="font-size:12px" onclick="sbPreview()">🎨 {{ _('Generate Plan') }}</button>';
   h+='<button class="btn bo bs" style="font-size:11px" onclick="sbModifyMode()">✏️ {{ _('Minimal Edit') }}</button>';
   h+='</div>';
+  // Action buttons: preview draft + publish (hidden until draft exists)
+  h+='<div id="sbActions" style="display:none;gap:6px;margin-top:8px">';
+  h+='<button class="btn bo bs" style="font-size:11px" onclick="sbPreviewSite()">🔍 {{ _('Preview Draft') }}</button>';
+  h+='<button class="btn bp" style="font-size:11px" onclick="sbPublishDraft()">🚀 {{ _('Publish to Production') }}</button>';
+  h+='</div>';
   h+='<div id="sbResult" style="margin-top:10px"></div>';
   h+='</div>';
 
@@ -223,10 +228,11 @@ function sbRenderPlan(data){
   res.innerHTML=h;
 }
 
-// 执行建站
+// 执行建站（写入草稿）
 function sbExecute(){
   if(!sbCurrentPlan){alert("{{ _('Please Generate a Plan First') }}");return}
   var res=document.getElementById("sbResult");
+  var actions=document.getElementById("sbActions");
   res.innerHTML='<div class="lo"><div class="s"></div>{{ _('Building your site, please wait...') }}</div>';
   fetch("/admin/site-builder/execute",{
     method:"POST",
@@ -234,23 +240,58 @@ function sbExecute(){
     body:JSON.stringify(sbCurrentPlan)
   }).then(function(r){return r.json()}).then(function(d){
     if(!d.success){
-      // 401/402 = 未订阅
       res.innerHTML='<div style="border:1px solid rgba(240,160,32,.4);border-radius:6px;padding:12px;background:rgba(240,160,32,.05)">'+
         '<div style="font-size:12px;color:#f0a020;margin-bottom:6px">🔒 '+esc(d.error||"{{ _('Build Failed') }}")+'</div></div>';
+      if(actions)actions.style.display="none";
       return;
     }
     var sm=d.data.summary||{};
     var h='<div style="border:1px solid rgba(0,212,170,.3);border-radius:6px;padding:12px;background:rgba(0,212,170,.05)">';
-    h+='<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:6px">🎉 {{ _('Site Built Successfully') }}</div>';
+    h+='<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:6px">📝 {{ _('Draft Generated') }}</div>';
     h+='<div style="font-size:11px;color:var(--muted);line-height:1.7">';
+    h+='<div style="margin-bottom:6px">✅ {{ _('Content written to draft (not yet published)') }}</div>';
     if(sm.pages!==undefined)h+='📄 {{ _('Pages') }}: '+sm.pages+'<br>';
     if(sm.documents!==undefined)h+='📋 {{ _('Documents') }}: '+sm.documents+'<br>';
-    if(sm.nav_items!==undefined)h+='🔗 {{ _('Nav Items') }}: '+sm.nav_items+'<br>';
+    if(sm.mode)h+='💡 {{ _('Mode') }}: '+sm.mode+'<br>';
     h+='</div>';
-    h+='<div style="font-size:11px;color:var(--dim);margin-top:8px">{{ _('You can fine-tune in Site Settings, or use Minimal Edit below.') }}</div>';
+    h+='<div style="font-size:11px;color:var(--dim);margin-top:8px">{{ _('Use the buttons above to Preview Draft or Publish to Production.') }}</div>';
     h+='</div>';
     res.innerHTML=h;
-  }).catch(function(){res.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+    if(actions)actions.style.display="flex";
+  }).catch(function(){
+    res.innerHTML='<div class="em">{{ _('Network error') }}</div>';
+    if(actions)actions.style.display="none";
+  });
+}
+
+// 预览草稿站点
+function sbPreviewSite(){
+  window.open('/admin/site-builder/preview-site', '_blank', 'width=1200,height=800,scrollbars=yes');
+}
+
+// 发布草稿到生产
+function sbPublishDraft(){
+  if(!confirm("{{ _('Publish this draft to production? This will overwrite the current live site.') }}")){return}
+  var res=document.getElementById("sbResult");
+  var actions=document.getElementById("sbActions");
+  res.innerHTML='<div class="lo"><div class="s"></div>{{ _('Publishing...') }}</div>';
+  fetch("/admin/site-builder/publish",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"}
+  }).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){
+      res.innerHTML='<div class="em">'+esc(d.error||"{{ _('Publish Failed') }}")+'</div>';
+      return;
+    }
+    var h='<div style="border:1px solid rgba(0,212,170,.3);border-radius:6px;padding:12px;background:rgba(0,212,170,.05)">';
+    h+='<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:4px">🎉 {{ _('Published Successfully') }}</div>';
+    h+='<div style="font-size:11px;color:var(--muted)">{{ _('Your AI-generated site is now live.') }}</div>';
+    h+='</div>';
+    res.innerHTML=h;
+    if(actions)actions.style.display="none";
+  }).catch(function(){
+    res.innerHTML='<div class="em">{{ _('Network error') }}</div>';
+  });
 }
 
 // 切换到最小化修改模式

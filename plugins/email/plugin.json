@@ -33,7 +33,7 @@
         "listens": []
     },
     "menu": {
-        "group": "RISK&AUDIT",
+        "group": "Messages & Support",
         "key": "email",
         "icon": "email",
         "label": "Email Management"

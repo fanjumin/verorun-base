@@ -585,9 +585,6 @@ CONFIG_SCHEMA = {
     'mp_ai_model':             {'label': '模型名称',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek-chat / qwen-turbo / gpt-4o-mini'},
     'mp_ai_base_url':          {'label': 'API 地址',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'https://api.deepseek.com'},
     'mp_ai_api_key':           {'label': 'API Key',            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': '输入 API Key'},
-    # ├─ 快递鸟物流配置 ─
-    'kdniao_eid':              {'label': '快递鸟商户ID',         'category': 'express', 'sensitive': False, 'placeholder': 'EBusinessID'},
-    'kdniao_api_key':          {'label': '快递鸟API Key',        'category': 'express', 'sensitive': True,  'placeholder': '输入 API Key'},
     # ├─ 支付配置（已迁移至 PaymentPlugin 插件管理） ─
     # ├─ 实名认证（已迁移至 VerificationPlugin 插件管理） ─
 }
@@ -595,7 +592,6 @@ CONFIG_SCHEMA = {
 CONFIG_CATEGORIES = [
     {'id': 'social', 'title': '社媒推送'},
     {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
-    {'id': 'express', 'title': '物流配送（快递鸟）'},
 ]
 
 

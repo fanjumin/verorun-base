@@ -35,6 +35,13 @@ Test Feishu Connection: Test Feishu Connection
 Test WeCom Connection: Test WeCom Connection
 Test Not Supported Yet: Test Not Supported Yet
 Current Channel Does Not Support Test: Current Channel Does Not Support Test
+Telegram: Telegram
+LINE: LINE
+Bot Token: Bot Token
+Webhook URL: Webhook URL
+Allow Group Chat: Allow Group Chat
+Channel Secret: Channel Secret
+Channel Access Token: Channel Access Token
 Saving: Saving
 Saved: Saved
 Save failed: Save failed

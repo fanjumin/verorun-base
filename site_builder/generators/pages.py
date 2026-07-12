@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-"""CMS 页面生成器 — 将 LLM 输出的页面内容写入 cms_blocks / cms_posts 表"""
+"""CMS Page Generator — Write LLM page content into cms_blocks / cms_posts tables"""
 
 import json
 from models import get_db
 
 
 class PageGenerator:
-    """CMS 页面区块生成器"""
+    """CMS page block generator"""
 
     @staticmethod
-    def apply_page_blocks(page: str, sections_data: list):
-        """将页面区块数据写入 cms_blocks 表（幂等：先清后写）
+    def apply_page_blocks(page: str, sections_data: list, draft=False):
+        """Write page block data into cms_blocks table (idempotent: clear then write)
 
-        page: 页面标识，如 'home', 'about', 'services'
-        sections_data: LLM 返回的 sections 列表
+        page: page identifier, e.g. 'home', 'about', 'services'
+        sections_data: list of sections returned by LLM
+        draft: if True, writes with is_published=0
         """
+        is_pub = 0 if draft else 1
         with get_db() as conn:
-            # 清空当前页面的所有区块
-            conn.execute("DELETE FROM cms_blocks WHERE page=?", (page,))
+            # Clear existing blocks for this page (draft mode: only clear draft blocks)
+            conn.execute("DELETE FROM cms_blocks WHERE page=? AND is_published=?", (page, is_pub))
 
             position = 0
             for section in sections_data:
@@ -27,16 +29,16 @@ class PageGenerator:
                 subtitle = section.get('subtitle', '')
                 section_name = section.get('section_name', block_type)
 
-                # 处理 items 列表（features, services 等区块）
+                # Handle items list (features, services blocks)
                 items = section.get('items', [])
                 if items:
-                    # 每个 item 作为独立区块
+                    # Each item as an independent block
                     for item in items:
                         position += 1
                         conn.execute(
                             """INSERT INTO cms_blocks
-                               (page, section, block_type, position, title, subtitle, content, link_text, link_url, icon)
-                               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                               (page, section, block_type, position, title, subtitle, content, link_text, link_url, icon, is_published)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                             (
                                 page,
                                 section_name,
@@ -45,17 +47,18 @@ class PageGenerator:
                                 item.get('title', ''),
                                 item.get('description', ''),
                                 item.get('description', ''),
-                                '了解更多',
+                                'Learn More',
                                 f"/{page}",
                                 item.get('icon', ''),
+                                is_pub,
                             )
                         )
                 else:
-                    # 单区块（hero, cta, text）
+                    # Single block (hero, cta, text)
                     conn.execute(
                         """INSERT INTO cms_blocks
-                           (page, section, block_type, position, title, subtitle, content, link_text, link_url)
-                           VALUES (?,?,?,?,?,?,?,?,?)""",
+                           (page, section, block_type, position, title, subtitle, content, link_text, link_url, is_published)
+                           VALUES (?,?,?,?,?,?,?,?,?,?)""",
                         (
                             page,
                             section_name,
@@ -66,43 +69,50 @@ class PageGenerator:
                             section.get('description', subtitle),
                             section.get('cta_text', ''),
                             section.get('cta_url', '/'),
+                            is_pub,
                         )
                     )
             conn.commit()
-        print(f'[SiteBuilder] ✅ Page "{page}" applied: {len(sections_data)} sections')
+        mode = 'draft' if draft else 'production'
+        print(f'[SiteBuilder] ✅ Page "{page}" applied ({mode}): {len(sections_data)} sections')
 
     @staticmethod
-    def apply_page_text(page: str, text_data: dict):
-        """写入简单文本页面（如关于我们、服务领域等非区块化页面）
+    def apply_page_text(page: str, text_data: dict, draft=False):
+        """Write simple text page (e.g. about us, service areas — non-block pages)
 
-        text_data: LLM 返回的 JSON（包含 content 或 sections 字段）
+        text_data: JSON returned by LLM (contains 'content' or 'sections' field)
+        draft: if True, writes with is_published=0
         """
-        # 尝试提取 sections
+        # Try to extract sections first
         sections = text_data.get('sections', [])
         if sections:
-            PageGenerator.apply_page_blocks(page, sections)
+            PageGenerator.apply_page_blocks(page, sections, draft=draft)
             return
 
-        # 纯文本页面：写入单个 text 区块
+        # Plain text page: write a single text block
+        is_pub = 0 if draft else 1
         content = text_data.get('content', '') or json.dumps(text_data, ensure_ascii=False)
         with get_db() as conn:
-            conn.execute("DELETE FROM cms_blocks WHERE page=?", (page,))
+            conn.execute("DELETE FROM cms_blocks WHERE page=? AND is_published=?", (page, is_pub))
             conn.execute(
-                """INSERT INTO cms_blocks (page, section, block_type, position, title, content)
-                   VALUES (?,?,?,?,?,?)""",
-                (page, 'main', 'text', 1, page, content)
+                """INSERT INTO cms_blocks (page, section, block_type, position, title, content, is_published)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (page, 'main', 'text', 1, page, content, is_pub)
             )
             conn.commit()
-        print(f'[SiteBuilder] ✅ Page "{page}" applied (text mode)')
+        mode = 'draft' if draft else 'production'
+        print(f'[SiteBuilder] ✅ Page "{page}" applied ({mode}, text mode)')
 
     @staticmethod
-    def apply_document(slug: str, title: str, html_content: str):
-        """写入法律文档到 cms_posts 表
+    def apply_document(slug: str, title: str, html_content: str, draft=False):
+        """Write legal document into cms_posts table
 
-        slug: 文档标识（如 privacy_policy, terms_of_service）
-        title: 文档标题
-        html_content: LLM 生成的 HTML 内容
+        slug: document identifier (e.g. privacy_policy, terms_of_service)
+        title: document title
+        html_content: HTML content generated by LLM
+        draft: if True, writes with is_published=0
         """
+        is_pub = 0 if draft else 1
         with get_db() as conn:
             # UPSERT
             existing = conn.execute(
@@ -110,23 +120,24 @@ class PageGenerator:
             ).fetchone()
             if existing:
                 conn.execute(
-                    "UPDATE cms_posts SET title=?, content=?, updated_at=datetime('now') WHERE slug=?",
-                    (title, html_content, slug)
+                    "UPDATE cms_posts SET title=?, content=?, is_published=?, updated_at=datetime('now') WHERE slug=?",
+                    (title, html_content, is_pub, slug)
                 )
             else:
                 conn.execute(
                     """INSERT INTO cms_posts (slug, title, content, category, status, is_published, created_at)
-                       VALUES (?,?,?,'legal','published',1,datetime('now'))""",
-                    (slug, title, html_content)
+                       VALUES (?,?,?,'legal','published',?,datetime('now'))""",
+                    (slug, title, html_content, is_pub)
                 )
             conn.commit()
-        print(f'[SiteBuilder] ✅ Document "{slug}" applied')
+        mode = 'draft' if draft else 'production'
+        print(f'[SiteBuilder] ✅ Document "{slug}" applied ({mode})')
 
     @staticmethod
     def modify_block(block_id: int, changes: dict):
-        """最小化修改：更新单个区块的指定字段
+        """Minimal edit: update specific fields of a single block
 
-        changes: {"title": "新标题", "content": "新内容", ...}
+        changes: {"title": "New Title", "content": "New Content", ...}
         """
         allowed_fields = ['title', 'subtitle', 'content', 'link_text', 'link_url', 'image_url', 'icon']
         fields = []
@@ -150,7 +161,7 @@ class PageGenerator:
 
     @staticmethod
     def get_page_summary(page: str) -> list:
-        """获取页面所有区块的摘要（用于 LLM 修改上下文）"""
+        """Get summary of all blocks for a page (used by LLM modification context)"""
         with get_db() as conn:
             rows = conn.execute(
                 "SELECT id, block_type, section, title, subtitle, content FROM cms_blocks WHERE page=? ORDER BY position",

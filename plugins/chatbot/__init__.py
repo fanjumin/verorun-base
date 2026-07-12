@@ -12,9 +12,10 @@ class ChatbotPlugin(BasePlugin):
     def setup(self):
         # 先执行父类 setup()，触发 on_install（建表/写种子）和 on_enable（注册Agent）
         super().setup()
-        # 然后注册管理后台路由
-        from .routes import chatbot_bp
+        # 注册管理后台路由 + 公开 Webhook
+        from .routes import chatbot_bp, webhook_bp
         self.app.register_blueprint(chatbot_bp, url_prefix='/admin/chatbot')
+        self.app.register_blueprint(webhook_bp)
 
     def on_install(self, registry=None) -> bool:
         self._ensure_config_table()
@@ -26,8 +27,8 @@ class ChatbotPlugin(BasePlugin):
         return True
 
     def register_routes(self):
-        from .routes import chatbot_bp
-        return [chatbot_bp]
+        from .routes import chatbot_bp, webhook_bp
+        return [chatbot_bp, webhook_bp]
 
     def register_agents(self):
         """Register Kai Assistant into agent_matrix table."""

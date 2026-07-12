@@ -8,12 +8,16 @@ from .feishu import FeishuAdapter
 from .wecom import WecomAdapter
 from .qq import QQAdapter
 from .dingtalk import DingTalkAdapter
+from .telegram import TelegramAdapter
+from .line import LINEAdapter
 
 _ADAPTERS = {
     'feishu': FeishuAdapter,
     'wecom': WecomAdapter,
     'qq': QQAdapter,
     'dingtalk': DingTalkAdapter,
+    'telegram': TelegramAdapter,
+    'line': LINEAdapter,
 }
 
 

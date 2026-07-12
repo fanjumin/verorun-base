@@ -12,6 +12,7 @@
     "enabled": true,
     "config": {
         "enabled": "1",
+        "auto_escalate": "1",
         "title": "AI Advisor",
         "subtitle": "Powered by AI Engine",
         "welcome_message": "Hello! I am your AI advisor. How can I help you today?",
@@ -48,6 +49,7 @@
         "type": "object",
         "properties": {
             "enabled": {"title": "Enable AI Advisor", "type": "boolean", "default": true},
+            "auto_escalate": {"title": "Auto-Create Ticket on Handoff", "type": "boolean", "default": true},
             "title": {"title": "Chat Window Title", "type": "string"},
             "subtitle": {"title": "Subtitle", "type": "string"},
             "welcome_message": {"title": "Welcome Message", "type": "string"},

@@ -375,6 +375,7 @@ def _get_chatbot_config():
     from models import get_db
     defaults = {
         'enabled': '1',
+        'auto_escalate': '1',
         'title': 'AI Advisor',
         'subtitle': 'Powered by AI Engine',
         'welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
@@ -411,6 +412,35 @@ def _get_chatbot_agent(agent_id):
     except Exception as e:
         import logging
         logging.warning(f"[chatbot] 读取 Agent 失败: {e}")
+        return None
+
+
+def _route_agent_by_intent(intent):
+    """根据意图分类，从 agent_matrix 中路由到最匹配的子 Agent。
+    
+    返回 agent dict 或 None（走默认）。
+    """
+    intent_domain_map = {
+        'purchase':  'sales',
+        'aftersale': 'aftersale',
+        'complaint': 'support',
+        'consult':   'general',
+        'technical': 'technical',
+    }
+    domain = intent_domain_map.get(intent, '')
+    if not domain:
+        return None
+    try:
+        from agent_matrix.models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT * FROM agent_matrix WHERE domain=? AND role_type='sub' AND is_active=1 LIMIT 1",
+                (domain,)
+            ).fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        import logging
+        logging.warning(f"[chatbot] 意图路由失败: {e}")
         return None
 
 
@@ -465,11 +495,51 @@ def chat_stream():
             if retrieved_knowledge:
                 knowledge_context = "参考知识：\n" + "\n".join([f"- {item.get('content', '')}" for item in retrieved_knowledge])
 
+            # 读取转人工规则配置
+            handoff_keywords = "人工, 客服, 转人工, 联系真人, 联系工作人员, 商务, 合作, 投诉, 定制, 开发"
+            handoff_max_fails = "3"
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+                from models import get_db
+                with get_db() as conn:
+                    rows = conn.execute(
+                        "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot' "
+                        "AND key IN ('handoff_keywords', 'handoff_max_fails')"
+                    ).fetchall()
+                for r in rows:
+                    if r['key'] == 'handoff_keywords':
+                        kw = json.loads(r['value'])
+                        handoff_keywords = ', '.join(kw)
+                    elif r['key'] == 'handoff_max_fails':
+                        handoff_max_fails = r['value']
+            except Exception as e:
+                logging.warning(f"[Chatbot] Failed to load handoff rules: {e}")
+
+            handoff_rules_text = f"""
+转人工触发规则（当消息包含以下关键词时，必须输出转人工提示）：
+{handoff_keywords}
+
+如果连续 {handoff_max_fails} 次无法回答用户问题，也必须转人工。
+"""
+
+            # ── 意图分类 + 多 Agent 路由 ──
+            route_intent = 'other'
+            route_sentiment = 'neutral'
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'plugins', 'chatbot'))
+                from stats import classify_intent
+                route_intent, route_sentiment = classify_intent(user_query)
+            except Exception:
+                pass
+
             agent_id = cfg.get('agent_id', 'kai_assistant')
-            agent = _get_chatbot_agent(agent_id)
+            agent = _route_agent_by_intent(route_intent) or _get_chatbot_agent(agent_id)
 
             if agent and agent.get('system_prompt'):
                 system_prompt = agent['system_prompt']
+                # 将转人工规则注入到 agent prompt 末尾
+                if '[TICKET_CREATE]' in system_prompt:
+                    system_prompt += handoff_rules_text
                 provider = agent.get('provider') or cfg.get('provider', 'dashscope')
                 model_name = agent.get('model_name') or cfg.get('model_name', 'qwen-turbo')
             else:
@@ -482,6 +552,11 @@ def chat_stream():
 1. 优先使用参考知识中的信息
 2. 如果参考知识中没有相关内容，可以用你的通用知识回答
 3. 回答要友好、专业、简洁
+
+转人工触发规则（当消息包含以下关键词时，必须输出转人工提示）：
+{handoff_keywords}
+
+如果连续 {handoff_max_fails} 次无法回答用户问题，也必须转人工。
 """
                 provider = cfg.get('provider', 'dashscope')
                 model_name = cfg.get('model_name', 'qwen-turbo')
@@ -519,7 +594,48 @@ def chat_stream():
                 full_reply += token
                 yield _sse_event('token', content=token)
 
-            yield _sse_event('done', reply=full_reply, retrievedKnowledge=retrieved_knowledge)
+            # ── 转人工检测 ──
+            cleaned_reply = full_reply
+            was_escalated = False
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'plugins', 'chatbot'))
+                from routes import parse_escalation_from_reply, create_ticket_from_chat
+                cleaned_reply, ticket_data = parse_escalation_from_reply(full_reply)
+                if ticket_data and cfg.get('auto_escalate', '1') != '0':
+                    was_escalated = True
+                    result = create_ticket_from_chat(
+                        title=ticket_data['title'],
+                        content=ticket_data['content'],
+                        contact=ticket_data['contact'],
+                    )
+                    if result['success']:
+                        yield _sse_event('escalated',
+                                         ticket_id=result['ticket_id'],
+                                         message='已为您创建工单，客服将尽快联系您')
+                        logging.info(f'[Chatbot] Escalation auto-ticket #{result["ticket_id"]} created')
+                    else:
+                        logging.warning(f'[Chatbot] Escalation auto-ticket failed: {result.get("error")}')
+            except Exception as e:
+                logging.warning(f'[Chatbot] Escalation detection failed (non-critical): {e}')
+
+            # ── 对话落库（含意图+情绪分类）──
+            session_id = data.get('session_id', '')
+            try:
+                import hashlib
+                if not session_id:
+                    session_id = hashlib.md5(
+                        (user_query + str(datetime.now().timestamp())).encode()
+                    ).hexdigest()[:16]
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'plugins', 'chatbot'))
+                from stats import log_session
+                log_session(session_id, user_query=user_query,
+                            ai_reply=cleaned_reply, escalated=was_escalated,
+                            intent=route_intent, sentiment=route_sentiment)
+            except Exception as e:
+                logging.warning(f'[Chatbot] Log session failed (non-critical): {e}')
+
+            yield _sse_event('done', reply=cleaned_reply, session_id=session_id,
+                             retrievedKnowledge=retrieved_knowledge)
 
         except Exception as e:
             import logging

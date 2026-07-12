@@ -12,6 +12,8 @@ window.l_channels=function(){
     ['wecom','{{ _('WeCom') }}',true],
     ['qq','QQ',true],
     ['dingtalk','{{ _('DingTalk') }}',true],
+    ['telegram','{{ _('Telegram') }}',true],
+    ['line','{{ _('LINE') }}',true],
   ];
   var h='<div class="cd"><div class="st">{{ _('Channel Management') }}</div>';
   h+='<div style="display:flex;gap:4px;margin-bottom:20px;overflow-x:auto">';
@@ -108,7 +110,17 @@ function _chLoadGenericTab(ch){
         ['app_secret','AppSecret','password',cfg.app_secret||''],
         ['agent_id','AgentId','text',cfg.agent_id||env.agent_id||''],
         ['corp_id','CorpId','text',cfg.corp_id||env.corp_id||''],
-      ]
+      ],
+      telegram:[
+        ['bot_token','{{ _('Bot Token') }}','password',cfg.bot_token||''],
+        ['webhook_url','{{ _('Webhook URL') }}','text',cfg.webhook_url||env.webhook_url||''],
+        ['allow_groups','{{ _('Allow Group Chat') }}','text',cfg.allow_groups||'false'],
+      ],
+      line:[
+        ['channel_secret','{{ _('Channel Secret') }}','password',cfg.channel_secret||''],
+        ['access_token','{{ _('Channel Access Token') }}','password',cfg.access_token||''],
+        ['webhook_url','{{ _('Webhook URL') }}','text',cfg.webhook_url||env.webhook_url||''],
+      ],
     };
     var fields=fieldsMap[ch]||[
       ['app_id','App ID','text',cfg.app_id||env.app_id||''],
@@ -158,7 +170,15 @@ function _chGetValue(key){
 function _chSave(){
   if(_chCurrentTab==='wecom'){ _wcSave(); return; }
   var config={};
-  ['app_id','app_secret','admin_open_id','verification_token','encrypt_key'].forEach(function(k){
+  var fieldKeys={
+    feishu:['app_id','app_secret','admin_open_id','verification_token','encrypt_key'],
+    qq:['app_id','app_key','admin_uin'],
+    dingtalk:['app_key','app_secret','agent_id','corp_id'],
+    telegram:['bot_token','webhook_url','allow_groups'],
+    line:['channel_secret','access_token','webhook_url'],
+  };
+  var keys=fieldKeys[_chCurrentTab]||['app_id','app_secret'];
+  keys.forEach(function(k){
     var v=_chGetValue(k);
     if(v.indexOf('●')>=0){
       if(_chSecrets[_chCurrentTab]&&_chSecrets[_chCurrentTab][k])v=_chSecrets[_chCurrentTab][k];
@@ -180,7 +200,8 @@ function _chSave(){
     if(d.success){
       msg.innerHTML='<span style="color:var(--green)">'+esc(d.message||'{{ _('Saved') }}')+'</span>';
       _chSecrets[_chCurrentTab]={};
-      ['app_secret','verification_token'].forEach(function(k){
+      var secretKeys=fieldKeys[_chCurrentTab]||[];
+      secretKeys.forEach(function(k){
         var v=_chGetValue(k);
         if(v&&v.indexOf('●')<0)_chSecrets[_chCurrentTab][k]=v;
       });

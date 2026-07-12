@@ -1,21 +1,32 @@
 #!/usr/bin/env python3
-"""品牌/视觉生成器 — 将 LLM 输出的品牌数据写入统一 design_tokens"""
+"""Brand/Visual Generator — Write LLM brand data into unified design_tokens"""
 
 from site_builder.site_settings.models import get_tokens, save_tokens
 
 
 class BrandGenerator:
-    """品牌设置生成器（统一令牌版）"""
+    """Brand settings generator (unified token version)"""
 
     @staticmethod
-    def apply(brand_data: dict, site_key='platform'):
-        """将品牌数据写入 design_tokens.brand
+    def apply(brand_data: dict, site_key='platform', draft=False):
+        """Write brand data into design_tokens.brand
 
-        brand_data 期望字段：
+        Expected brand_data fields:
             site_name, slogan, industry, brand_story, company_name, contact_email
+        draft: if True, writes to draft_json instead of production
         """
-        tokens = get_tokens(site_key)
-        current = tokens['token_json']
+        from site_builder.site_settings.models import save_draft_tokens
+
+        if draft:
+            # Read current draft as base, update, save back to draft_json
+            from site_builder.site_settings.models import get_draft_tokens
+            current = get_draft_tokens(site_key)
+            if current is None:
+                from site_builder.site_settings.models import DEFAULT_TOKENS
+                current = dict(DEFAULT_TOKENS)
+        else:
+            tokens = get_tokens(site_key)
+            current = tokens['token_json']
 
         current['brand'].update({
             'site_name': brand_data.get('site_name', ''),
@@ -35,14 +46,27 @@ class BrandGenerator:
             'security_number': brand_data.get('security_number', ''),
         })
 
-        save_tokens(site_key, current, generated_by='ai', prompt_id=None)
-        print(f'[SiteBuilder] ✅ Brand settings applied via design_tokens')
+        if draft:
+            save_draft_tokens(site_key, current)
+            print(f'[SiteBuilder] ✅ Brand settings saved to draft')
+        else:
+            save_tokens(site_key, current, generated_by='ai', prompt_id=None)
+            print(f'[SiteBuilder] ✅ Brand settings applied via design_tokens')
 
     @staticmethod
-    def apply_colors(colors_data: dict, site_key='platform'):
-        """写入品牌配色到 design_tokens.colors"""
-        tokens = get_tokens(site_key)
-        current = tokens['token_json']
+    def apply_colors(colors_data: dict, site_key='platform', draft=False):
+        """Write color scheme to design_tokens.colors"""
+        from site_builder.site_settings.models import save_draft_tokens
+
+        if draft:
+            from site_builder.site_settings.models import get_draft_tokens
+            current = get_draft_tokens(site_key)
+            if current is None:
+                from site_builder.site_settings.models import DEFAULT_TOKENS
+                current = dict(DEFAULT_TOKENS)
+        else:
+            tokens = get_tokens(site_key)
+            current = tokens['token_json']
 
         color_map = {
             'primary': 'primary', 'secondary': 'secondary', 'accent': 'accent',
@@ -54,5 +78,8 @@ class BrandGenerator:
             if mapped in current['colors']:
                 current['colors'][mapped] = v
 
-        save_tokens(site_key, current, generated_by='ai', prompt_id=None)
+        if draft:
+            save_draft_tokens(site_key, current)
+        else:
+            save_tokens(site_key, current, generated_by='ai', prompt_id=None)
         print(f'[SiteBuilder] ✅ Colors applied via design_tokens')

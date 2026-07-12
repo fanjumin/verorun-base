@@ -1337,6 +1337,8 @@ async function chatSend(){
     var reader=resp.body.getReader();
     var decoder=new TextDecoder();
     var fullText='';
+    var ticketId=null;
+    var sessionId=null;
     botDiv.innerHTML='';
     while(true){
       var r2=await reader.read();
@@ -1345,28 +1347,72 @@ async function chatSend(){
       var lines=chunk.split('\n');
       for(var i=0;i<lines.length;i++){
         var line=lines[i].trim();
-        if(line.startsWith('data: ')){
-          var raw=line.slice(6);
-          if(raw==='[DONE]')continue;
-          if(raw.startsWith('{'))continue;
-          try{var parsed=JSON.parse(raw);if(typeof parsed==='string')fullText+=parsed}catch(e){fullText+=raw}
+        if(!line.startsWith('data: '))continue;
+        var raw=line.slice(6);
+        if(raw==='[DONE]')continue;
+        // Try parsing as JSON event
+        if(raw.startsWith('{')){
+          try{
+            var ev=JSON.parse(raw);
+            if(ev.type==='token'){fullText+=ev.content||''}
+            else if(ev.type==='error'){botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 '+esc(ev.content||'{{ _('Request failed') }}')+'<\/span>';isChatStreaming=false;if(btn)btn.disabled=false;return;}
+            else if(ev.type==='escalated'){ticketId=ev.ticket_id;var emsg=ev.message||'已为您创建工单';continue}
+            else if(ev.type==='done'&&ev.reply){fullText=ev.reply;sessionId=ev.session_id||null}
+          }catch(e){}
+          continue;
         }
+        // Plain text token (legacy)
+        fullText+=raw;
       }
       var disp=fullText.replace(/&/g,'&amp;').replace(/</g,'<').replace(/>/g,'>');
       disp=disp.replace(/```[\s\S]*?```/g,function(m){return '<pre style="background:#0a0a0f;border:1px solid #1a1a2e;border-radius:6px;padding:10px;margin:4px 0;font-size:12px"><code>'+m.slice(3,-3).trim()+'</code></pre>'});
       disp=disp.replace(/`([^`]+)`/g,'<code style="background:#1a1a2e;padding:1px 5px;border-radius:3px;font-size:12px;color:#e8bf6a">$1</code>');
       disp=disp.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
       disp=disp.replace(/\n/g,'<br>');
+      // Append ticket banner if escalated
+      if(ticketId){disp+='<div style="margin-top:12px;padding:10px 14px;background:rgba(0,212,170,.1);border:1px solid #00d4aa44;border-radius:8px;font-size:12px;color:#00d4aa"><span>\ud83c\udfaa {{ _('Ticket') }} #'+ticketId+'</span><br><span style="color:var(--muted)">'+esc(ev&&ev.message||'{{ _('Customer service will contact you soon') }}')+'</span></div>'}
       botDiv.innerHTML=disp;
       var msgs=document.getElementById('chat-msgs');
       if(msgs)msgs.scrollTop=msgs.scrollHeight;
     }
     chatHistory.push({role:'assistant',content:fullText});
+    // CSAT 评分
+    if(sessionId&&botDiv){
+      var csatHtml='<div style="margin-top:12px;padding:8px 12px;border-top:1px solid var(--bd);font-size:12px;color:var(--muted)">'+
+        '{{ _('Rate this reply') }}:'+
+        '<span style="display:inline-flex;gap:2px;margin-left:6px;vertical-align:middle">';
+      for(var si=1;si<=5;si++){
+        csatHtml+='<span class="csat-star" data-sid="'+esc(sessionId)+'" data-score="'+si+'" '+
+          'style="cursor:pointer;font-size:16px;color:#555;transition:color .15s" '+
+          'onmouseenter="this.style.color=\\'#f0c040\\'" onmouseleave="this.style.color=\\'#555\\'" '+
+          'onclick="submitCSAT(this.dataset.sid,'+si+',this)">\\u2605</span>';
+      }
+      csatHtml+='</span></div>';
+      botDiv.insertAdjacentHTML('beforeend',csatHtml);
+    }
   }catch(e){
     botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 {{ _('Network error') }}: '+e.message.replace(/</g,'<').replace(/>/g,'>')+'<\/span>';
   }
   isChatStreaming=false;
   if(btn)btn.disabled=false;
+}
+
+// CSAT 评分提交
+function submitCSAT(sid,score,el){
+  fetch('/admin/chatbot/csat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,score:score})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.success){
+        var parent=el.parentNode;
+        var stars=parent.querySelectorAll('.csat-star');
+        for(var i=0;i<stars.length;i++){
+          stars[i].style.color=(i<score)?'#f0c040':'#333';
+          stars[i].style.cursor='default';
+          stars[i].onmouseenter=null;
+          stars[i].onmouseleave=null;
+        }
+        showToast('{{ _('Thanks for your rating') }}','success');
+      }
+    }).catch(function(){});
 }
 
 (function(){

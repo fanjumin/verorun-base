@@ -2019,6 +2019,56 @@ def init_db():
                     print(f'[Migration] {table}.user_deleted skipped: {e}')
         m.commit()
 
+    # ── Migration: chatbot_sessions AI 顾问对话元数据 (2026-07-12) ──
+    with get_db() as m:
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS chatbot_sessions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id  TEXT NOT NULL,
+                user_query  TEXT DEFAULT '',
+                ai_reply    TEXT DEFAULT '',
+                escalated   INTEGER DEFAULT 0,
+                csat_score  INTEGER DEFAULT 0,
+                source      TEXT DEFAULT 'chatbot',
+                created_at  TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        m.execute('CREATE INDEX IF NOT EXISTS idx_cs_created ON chatbot_sessions(created_at)')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_cs_session ON chatbot_sessions(session_id)')
+        m.commit()
+        print('[Migration] chatbot_sessions table created')
+
+    # ── Migration: chatbot_sessions intent/sentiment 字段 (2026-07-12) ──
+    with get_db() as m:
+        existing = [r['name'] for r in m.execute('PRAGMA table_info(chatbot_sessions)').fetchall()]
+        for col, col_def in {'intent': "intent TEXT DEFAULT ''",
+                             'sentiment': "sentiment TEXT DEFAULT ''"}.items():
+            if col not in existing:
+                try:
+                    m.execute(f"ALTER TABLE chatbot_sessions ADD COLUMN {col_def}")
+                    print(f'[Migration] chatbot_sessions.{col} added')
+                except Exception as e:
+                    print(f'[Migration] chatbot_sessions.{col} skipped: {e}')
+        m.commit()
+
+
+    # ── Migration: user_tickets.assigned_to 座席字段 (2026-07-12) ──
+    with get_db() as m:
+        cols_t = [r['name'] for r in m.execute('PRAGMA table_info(user_tickets)').fetchall()]
+        if 'assigned_to' not in cols_t:
+            try:
+                m.execute("ALTER TABLE user_tickets ADD COLUMN assigned_to INTEGER DEFAULT 0 REFERENCES users(id)")
+                print('[Migration] user_tickets.assigned_to added')
+            except Exception as e:
+                print(f'[Migration] user_tickets.assigned_to skipped: {e}')
+        if 'assigned_name' not in cols_t:
+            try:
+                m.execute("ALTER TABLE user_tickets ADD COLUMN assigned_name TEXT DEFAULT ''")
+                print('[Migration] user_tickets.assigned_name added')
+            except Exception as e:
+                print(f'[Migration] user_tickets.assigned_name skipped: {e}')
+        m.commit()
+
 
 def _get_default_interests():
     """6 大类 ~35 个兴趣标签"""

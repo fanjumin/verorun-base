@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Site Builder — 核心引擎
+"""Site Builder — Core Engine
 
-职责：
-1. 解析用户需求 → 结构化方案
-2. 逐步执行建站 DAG（品牌→主题→导航→页面→文档）
-3. 支持最小化修改（增量更新单个区块）
+Responsibilities:
+1. Parse user requirements → structured plan
+2. Execute build DAG (brand → theme → nav → pages → documents)
+3. Support minimal modification (incremental update of individual blocks)
 """
 
 import os, json, re, logging
@@ -14,29 +14,29 @@ logger = logging.getLogger(__name__)
 
 
 class SiteBuilderEngine:
-    """建站核心引擎"""
+    """Site building core engine"""
 
     def __init__(self, models_module=None):
         self._models = models_module
 
-    # ── LLM 调用 ──────────────────────────────────────
+    # ── LLM Calls ──────────────────────────────────────
 
     def _get_master_agent(self):
-        """获取 Master Agent 配置"""
+        """Get Master Agent configuration"""
         from agent_matrix import models as m
         agents = m.list_agents(role_type='master', active_only=True)
         if not agents:
-            raise RuntimeError('没有可用的 Master Agent')
+            raise RuntimeError('No available Master Agent')
         return agents[0]
 
     def _get_ai_engine(self):
-        """获取 AIEngine 实例"""
+        """Get AIEngine instance"""
         from agent_matrix.engine import AIEngine
         master = self._get_master_agent()
         return AIEngine(master)
 
     def _call_llm(self, system_prompt: str, user_message: str, temperature: float = 0.3, max_tokens: int = 2000) -> str:
-        """调用 LLM，返回原始文本"""
+        """Call LLM, return raw text"""
         engine = self._get_ai_engine()
         return engine.chat(
             [
@@ -48,16 +48,16 @@ class SiteBuilderEngine:
         )
 
     def _call_llm_json(self, system_prompt: str, user_message: str) -> dict:
-        """调用 LLM 并解析 JSON 返回"""
+        """Call LLM and parse JSON response"""
         raw = self._call_llm(system_prompt, user_message, temperature=0.3)
-        # 提取 JSON
+        # Extract JSON
         match = re.search(r'\{[\s\S]*\}', raw)
         if match:
             try:
                 return json.loads(match.group(0))
             except json.JSONDecodeError:
                 pass
-        # 尝试提取 markdown 代码块
+        # Try markdown code block
         match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw)
         if match:
             try:
@@ -65,12 +65,12 @@ class SiteBuilderEngine:
             except json.JSONDecodeError:
                 pass
         logger.warning(f'Failed to parse LLM JSON: {raw[:200]}')
-        raise ValueError('LLM 返回格式无法解析为 JSON')
+        raise ValueError('LLM response could not be parsed as JSON')
 
-    # ── 关键字替换 ────────────────────────────────────
+    # ── Keyword Replacement ────────────────────────────
 
     def _fill_prompt(self, template: str, **kwargs) -> str:
-        """将提示词模板中的 {关键字} 替换为实际值"""
+        """Replace {keywords} in prompt template with actual values"""
         result = template
         for key, val in kwargs.items():
             if isinstance(val, list):
@@ -78,10 +78,10 @@ class SiteBuilderEngine:
             result = result.replace('{' + key + '}', str(val))
         return result
 
-    # ── 阶段 1: 解析用户需求 ──────────────────────────
+    # ── Phase 1: Parse User Requirement ────────────────
 
     def parse_requirement(self, prompt_template: dict, user_input: str) -> dict:
-        """解析用户输入，提取结构化信息
+        """Parse user input, extract structured information
 
         Returns:
             {
@@ -97,20 +97,20 @@ class SiteBuilderEngine:
         prompts = prompt_template.get('prompts', {})
         parse_prompt = prompts.get('parse', '')
 
-        # 用关键字替换生成最终提示词
+        # Use keyword replacement to build final prompt
         filled_prompt = self._fill_prompt(
             parse_prompt,
-            行业=defaults.get('industry', '通用'),
+            行业=defaults.get('industry', 'General'),
             用户输入=user_input,
         )
 
         result = self._call_llm_json(filled_prompt, user_input)
         return result
 
-    # ── 阶段 2: 生成方案预览 ──────────────────────────
+    # ── Phase 2: Generate Plan Preview ─────────────────
 
     def generate_plan(self, prompt_template: dict, parsed: dict, user_input: str) -> dict:
-        """生成完整的建站方案（不执行，仅预览）
+        """Generate complete site build plan (preview only, no execution)
 
         Returns:
             {
@@ -120,7 +120,7 @@ class SiteBuilderEngine:
                 "footer": {...},
                 "pages": {"home": [...], "about": [...], ...},
                 "documents": [{"slug": "...", "title": "...", "content": "..."}],
-                "summary": "方案摘要文本"
+                "summary": "Plan summary text"
             }
         """
         defaults = prompt_template.get('defaults', {})
@@ -128,17 +128,17 @@ class SiteBuilderEngine:
         pages = prompt_template.get('pages', [])
         documents = prompt_template.get('documents', [])
 
-        # 提取关键字值
-        brand_name = parsed.get('brand_name', '我的网站')
-        industry = defaults.get('industry', '通用')
-        target_audience = parsed.get('target_audience', defaults.get('target_audience', '访客'))
-        style = parsed.get('style_preference', defaults.get('style', '现代'))
+        # Extract keyword values
+        brand_name = parsed.get('brand_name', 'My Website')
+        industry = defaults.get('industry', 'General')
+        target_audience = parsed.get('target_audience', defaults.get('target_audience', 'Visitors'))
+        style = parsed.get('style_preference', defaults.get('style', 'Modern'))
         page_names = [p['name'] for p in pages]
         doc_names = [d['name'] for d in documents]
 
         plan = {'summary': ''}
 
-        # 1. 品牌
+        # 1. Brand
         brand_prompt = self._fill_prompt(
             prompts.get('brand', ''),
             品牌名称=brand_name,
@@ -147,12 +147,12 @@ class SiteBuilderEngine:
             风格偏好=style,
         )
         try:
-            plan['brand'] = self._call_llm_json(brand_prompt, f'品牌名称：{brand_name}')
+            plan['brand'] = self._call_llm_json(brand_prompt, f'Brand name: {brand_name}')
         except Exception as e:
             logger.warning(f'Brand generation failed: {e}')
             plan['brand'] = {'site_name': brand_name, 'tagline': '', 'brand_story': ''}
 
-        # 2. 导航
+        # 2. Navigation
         nav_prompt = self._fill_prompt(
             prompts.get('navigation', ''),
             品牌名称=brand_name,
@@ -161,12 +161,12 @@ class SiteBuilderEngine:
             页面列表=page_names,
         )
         try:
-            plan['navigation'] = self._call_llm_json(nav_prompt, f'页面列表：{page_names}')
+            plan['navigation'] = self._call_llm_json(nav_prompt, f'Pages list: {page_names}')
         except Exception as e:
             logger.warning(f'Navigation generation failed: {e}')
             plan['navigation'] = {'nav_items': []}
 
-        # 3. 页脚
+        # 3. Footer
         footer_prompt = self._fill_prompt(
             prompts.get('footer', ''),
             品牌名称=brand_name,
@@ -174,12 +174,12 @@ class SiteBuilderEngine:
             文档列表=doc_names,
         )
         try:
-            plan['footer'] = self._call_llm_json(footer_prompt, f'文档列表：{doc_names}')
+            plan['footer'] = self._call_llm_json(footer_prompt, f'Documents list: {doc_names}')
         except Exception as e:
             logger.warning(f'Footer generation failed: {e}')
             plan['footer'] = {'footer_groups': []}
 
-        # 4. 各页面内容
+        # 4. Page content
         plan['pages'] = {}
         for page in pages:
             page_id = page['id']
@@ -198,13 +198,13 @@ class SiteBuilderEngine:
                 风格偏好=style,
             )
             try:
-                result = self._call_llm_json(filled, f'生成页面：{page_name}')
+                result = self._call_llm_json(filled, f'Generate page: {page_name}')
                 plan['pages'][page_id] = result
             except Exception as e:
                 logger.warning(f'Page {page_id} generation failed: {e}')
                 plan['pages'][page_id] = {'sections': []}
 
-        # 5. 法律文档
+        # 5. Legal documents
         plan['documents'] = []
         for doc in documents:
             doc_id = doc['id']
@@ -221,7 +221,7 @@ class SiteBuilderEngine:
                 行业=industry,
             )
             try:
-                html_content = self._call_llm(filled, f'生成文档：{doc_name}', temperature=0.3, max_tokens=3000)
+                html_content = self._call_llm(filled, f'Generate document: {doc_name}', temperature=0.3, max_tokens=3000)
                 plan['documents'].append({
                     'slug': doc_id,
                     'title': doc_name,
@@ -230,44 +230,46 @@ class SiteBuilderEngine:
             except Exception as e:
                 logger.warning(f'Document {doc_id} generation failed: {e}')
 
-        # 构建摘要
+        # Build summary
         plan['summary'] = self._build_summary(brand_name, pages, plan)
         return plan
 
     def _build_summary(self, brand_name: str, pages: list, plan: dict) -> str:
-        """构建方案摘要文本"""
+        """Build plan summary text"""
         lines = [
-            f'🏷️ 品牌：{brand_name}',
+            f'Brand: {brand_name}',
             '',
-            '📄 页面结构：',
+            'Page Structure:',
         ]
         for page in pages:
             page_id = page['id']
             page_data = plan.get('pages', {}).get(page_id, {})
             section_count = len(page_data.get('sections', []))
-            lines.append(f'  ├─ {page["name"]}（{section_count} 个区块）')
+            lines.append(f'  - {page["name"]} ({section_count} sections)')
 
         lines.append('')
-        lines.append('📋 法律文档：')
+        lines.append('Legal Documents:')
         for doc in plan.get('documents', []):
-            lines.append(f'  ├─ {doc["title"]}')
+            lines.append(f'  - {doc["title"]}')
 
         lines.append('')
-        lines.append('⚠️ 请确认以上方案，或告诉我需要调整的地方。')
-        lines.append('回复「确认执行」开始建站，或描述需要修改的内容。')
+        lines.append('Please confirm the above plan, or tell me what needs to be adjusted.')
+        lines.append('Reply "execute" to start building, or describe the changes needed.')
         return '\n'.join(lines)
 
-    # ── 阶段 3: 执行建站 ──────────────────────────────
+    # ── Phase 3: Execute Build ─────────────────────────
 
-    def execute_plan(self, plan: dict, prompt_template: dict) -> dict:
-        """执行建站方案，逐步写入数据库
+    def execute_plan(self, plan: dict, prompt_template: dict, draft=False) -> dict:
+        """Execute build plan, write to database step by step
 
-        DAG 流程：
-        1. 品牌设置
-        2. 主题配置（依赖品牌配色）
-        3. 导航结构 + 页脚
-        4. 页面内容（并行生成各页面）
-        5. 法律文档
+        DAG flow:
+        1. Brand settings
+        2. Theme configuration (depends on brand colors)
+        3. Navigation + Footer
+        4. Page content (parallel generation per page)
+        5. Legal documents
+
+        draft: if True, writes to draft area (is_published=0 / draft_json)
         """
         from site_builder.generators.brand import BrandGenerator
         from site_builder.generators.navigation import NavigationGenerator
@@ -278,45 +280,45 @@ class SiteBuilderEngine:
         pages = prompt_template.get('pages', [])
         documents = prompt_template.get('documents', [])
 
-        # Step 1: 品牌设置
+        # Step 1: Brand settings
         try:
-            BrandGenerator.apply(plan.get('brand', {}))
+            BrandGenerator.apply(plan.get('brand', {}), draft=draft)
             results['brand'] = 'ok'
         except Exception as e:
             results['brand'] = str(e)
             logger.error(f'Brand apply failed: {e}')
 
-        # Step 2: 主题配置
+        # Step 2: Theme configuration
         try:
-            ThemeGenerator.apply_theme(plan.get('brand', {}))
+            ThemeGenerator.apply_theme(plan.get('brand', {}), draft=draft)
             results['theme'] = 'ok'
         except Exception as e:
             results['theme'] = str(e)
             logger.error(f'Theme apply failed: {e}')
 
-        # Step 3: 导航 + 页脚
+        # Step 3: Navigation + Footer
         try:
-            NavigationGenerator.apply_nav(plan.get('navigation', {}))
+            NavigationGenerator.apply_nav(plan.get('navigation', {}), draft=draft)
             results['navigation'] = 'ok'
         except Exception as e:
             results['navigation'] = str(e)
             logger.error(f'Navigation apply failed: {e}')
 
         try:
-            NavigationGenerator.apply_footer(plan.get('footer', {}))
+            NavigationGenerator.apply_footer(plan.get('footer', {}), draft=draft)
             results['footer'] = 'ok'
         except Exception as e:
             results['footer'] = str(e)
             logger.error(f'Footer apply failed: {e}')
 
         try:
-            NavigationGenerator.apply_footer_articles(documents)
+            NavigationGenerator.apply_footer_articles(documents, draft=draft)
             results['footer_articles'] = 'ok'
         except Exception as e:
             results['footer_articles'] = str(e)
             logger.error(f'Footer articles apply failed: {e}')
 
-        # Step 4: 页面内容
+        # Step 4: Page content
         results['pages'] = {}
         for page in pages:
             page_id = page['id']
@@ -326,29 +328,30 @@ class SiteBuilderEngine:
             try:
                 sections = page_data.get('sections', [])
                 if sections:
-                    PageGenerator.apply_page_blocks(page_id, sections)
+                    PageGenerator.apply_page_blocks(page_id, sections, draft=draft)
                 else:
-                    PageGenerator.apply_page_text(page_id, page_data)
+                    PageGenerator.apply_page_text(page_id, page_data, draft=draft)
                 results['pages'][page_id] = 'ok'
             except Exception as e:
                 results['pages'][page_id] = str(e)
                 logger.error(f'Page {page_id} apply failed: {e}')
 
-        # Step 5: 法律文档
+        # Step 5: Legal documents
         results['documents'] = {}
         for doc in plan.get('documents', []):
             try:
                 PageGenerator.apply_document(
                     doc['slug'],
                     doc['title'],
-                    doc['content']
+                    doc['content'],
+                    draft=draft
                 )
                 results['documents'][doc['slug']] = 'ok'
             except Exception as e:
                 results['documents'][doc['slug']] = str(e)
                 logger.error(f'Document {doc["slug"]} apply failed: {e}')
 
-        # 统计
+        # Stats
         total_ok = sum(
             1 for v in results.values()
             if v == 'ok' or (isinstance(v, dict) and all(vv == 'ok' for vv in v.values()))
@@ -358,13 +361,14 @@ class SiteBuilderEngine:
             'succeeded': total_ok,
             'pages_count': len(pages),
             'docs_count': len(documents),
+            'mode': 'draft' if draft else 'production',
         }
         return results
 
-    # ── 最小化修改 ────────────────────────────────────
+    # ── Minimal Modification ───────────────────────────
 
     def modify_block(self, user_message: str, page: str = 'home') -> dict:
-        """最小化修改：分析用户意图，定位具体区块，执行修改
+        """Minimal edit: analyze user intent, locate specific block, execute modification
 
         Returns:
             {
@@ -377,29 +381,29 @@ class SiteBuilderEngine:
         """
         from site_builder.generators.pages import PageGenerator
 
-        # 获取当前页面摘要
+        # Get current page summary
         page_summary = PageGenerator.get_page_summary(page)
         if not page_summary:
-            return {'action': 'unknown', 'error': '页面没有区块'}
+            return {'action': 'unknown', 'error': 'Page has no blocks'}
 
-        # 构建修改上下文
-        modify_prompt = f"""你是一个网站内容编辑器。当前页面 [{page}] 的区块如下：
+        # Build modification context
+        modify_prompt = f"""You are a website content editor. The current page [{page}] has the following blocks:
 
 {json.dumps(page_summary, ensure_ascii=False, indent=2)}
 
-用户要求：{user_message}
+User request: {user_message}
 
-请判断用户想要修改哪个区块，只返回需要修改的字段。
-**不要重新生成整个页面，只输出需要变更的部分。**
+Determine which block the user wants to modify. Only output the fields that need to be changed.
+**Do NOT regenerate the entire page, only output the delta.**
 
-返回 JSON：
+Return JSON:
 {{
   "action": "modify_block" | "add_block" | "delete_block" | "reorder" | "unknown",
-  "block_id": 数字（仅 modify_block/delete_block 时需要）,
-  "changes": {{"title": "新标题", "content": "新内容"}}（仅 modify_block 时需要，只包含要修改的字段）
+  "block_id": number (required for modify_block/delete_block),
+  "changes": {{"title": "New Title", "content": "New Content"}} (only for modify_block, include only changed fields)
 }}
 
-如果用户的要求无法定位到具体区块，action 返回 "unknown" 并说明原因。"""
+If the user's request cannot be mapped to a specific block, set action to "unknown" and explain why."""
 
         try:
             result = self._call_llm_json(modify_prompt, user_message)
@@ -412,7 +416,7 @@ class SiteBuilderEngine:
             block_id = result.get('block_id')
             changes = result.get('changes', {})
             if block_id and changes:
-                # 获取旧值
+                # Get old value
                 old = None
                 from models import get_db
                 with get_db() as conn:
@@ -446,18 +450,18 @@ class SiteBuilderEngine:
                     'success': True,
                 }
 
-        return {'action': action, 'error': result.get('reason', '无法定位需要修改的区块')}
+        return {'action': action, 'error': result.get('reason', 'Could not locate block to modify')}
 
-    # ── 订阅检查 ──────────────────────────────────────
+    # ── Subscription Check ─────────────────────────────
 
     @staticmethod
     def check_access(user_id: int = None) -> tuple:
-        """检查用户是否有建站权限
+        """Check if user has site building access
 
         Returns:
             (allowed: bool, message: str)
         """
-        # AI 底座永久免费，不检查
-        # 建站功能的具体执行权限由 subscription 模块控制
-        # 这里保持开放，实际限制在 routes 层处理
+        # AI base is always free, no check needed
+        # Build execution is controlled by subscription module
+        # Keep open; actual restrictions handled at routes layer
         return True, ''

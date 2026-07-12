@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""主题/视觉系统生成器 — 将 LLM 输出的配色方案写入统一 design_tokens"""
+"""Theme / Visual System Generator — Write LLM color schemes into unified design_tokens"""
 
 import os
 import json
@@ -8,15 +8,15 @@ from site_builder.site_settings.token_renderer import render_css_variables
 
 
 class ThemeGenerator:
-    """主题生成器（统一令牌版）"""
+    """Theme generator (unified token version)"""
 
     THEMES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'themes')
 
     @staticmethod
     def apply_theme(theme_data: dict, site_key='platform'):
-        """根据品牌数据生成主题配色，写入 design_tokens
+        """Generate theme colors from brand data, write to design_tokens
 
-        theme_data 期望字段：
+        Expected theme_data fields:
             site_name, primary_color, secondary_color, accent_color, font_preference, tone
         """
         primary = theme_data.get('primary_color', '#2563eb')
@@ -25,9 +25,9 @@ class ThemeGenerator:
         font = theme_data.get('font_preference', 'sans-serif')
         site_name = theme_data.get('site_name', '')
 
-        # 根据风格偏好推断配色方案
+        # Infer color scheme from style preference
         tone = theme_data.get('tone', '')
-        is_dark = 'dark' in tone.lower() or '深色' in tone
+        is_dark = 'dark' in tone.lower()
 
         tokens = get_tokens(site_key)
         current = tokens['token_json']
@@ -55,7 +55,7 @@ class ThemeGenerator:
                 'border': '#e2e8f0',
             })
 
-        # 字体
+        # Font
         font_map = {
             'serif': "'Noto Serif SC', 'Georgia', serif",
             'sans-serif': "'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif",
@@ -67,10 +67,13 @@ class ThemeGenerator:
             'body_font': heading_font,
         })
 
-        save_tokens(site_key, current, generated_by='ai', prompt_id=None)
+        if draft:
+            save_draft_tokens(site_key, current)
+        else:
+            save_tokens(site_key, current, generated_by='ai', prompt_id=None)
         print(f'[SiteBuilder] ✅ Theme applied via design_tokens ({"dark" if is_dark else "light"})')
 
-        # 同时生成 CSS 文件到 themes 目录（兼容现有主题系统）
+        # Also write CSS file to themes/ directory (compatibility with legacy theme system)
         try:
             theme_slug = 'ai_generated'
             theme_dir = os.path.join(ThemeGenerator.THEMES_DIR, theme_slug)

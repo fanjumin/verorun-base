@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Site Preview — {{ draft_tokens.brand.site_name or 'Untitled' }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:{{ draft_tokens.colors.background or '#ffffff' }};color:{{ draft_tokens.colors.text_primary or '#1a202c' }};line-height:1.6}
+.preview-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:#f0a020;color:#000;text-align:center;padding:6px;font-size:12px;font-weight:600}
+.preview-banner a{color:#000;text-decoration:underline;margin-left:8px}
+.preview-content{padding-top:32px}
+
+/* ── Navigation ── */
+.navbar{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid {{ draft_tokens.colors.border or '#e2e8f0' }};background:{{ draft_tokens.colors.surface or '#f7fafc' }}}
+.navbar .logo{font-size:20px;font-weight:700;color:{{ draft_tokens.colors.primary or '#6366f1' }}}
+.navbar nav{display:flex;gap:20px}
+.navbar nav a{text-decoration:none;color:{{ draft_tokens.colors.text_primary or '#1a202c' }};font-size:14px;font-weight:500}
+.navbar nav a:hover{color:{{ draft_tokens.colors.primary or '#6366f1' }}}
+
+/* ── Hero Block ── */
+.hero-block{text-align:center;padding:80px 32px 60px;background:{{ draft_tokens.colors.surface or '#f7fafc' }}}
+.hero-block h1{font-size:48px;font-weight:800;margin-bottom:16px;color:{{ draft_tokens.colors.text_primary or '#1a202c' }}}
+.hero-block p{font-size:18px;color:{{ draft_tokens.colors.text_secondary or '#718096' }};margin-bottom:24px;max-width:600px;margin-left:auto;margin-right:auto}
+.hero-block .cta{display:inline-block;padding:12px 32px;background:{{ draft_tokens.colors.primary or '#6366f1' }};color:#fff;border-radius:8px;text-decoration:none;font-weight:600}
+
+/* ── Section Blocks ── */
+.section-block{padding:60px 32px;max-width:960px;margin:0 auto}
+.section-block h2{font-size:28px;font-weight:700;margin-bottom:24px;text-align:center}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.feature-card{background:{{ draft_tokens.colors.surface or '#f7fafc' }};padding:24px;border-radius:12px;border:1px solid {{ draft_tokens.colors.border or '#e2e8f0' }}}
+.feature-card h3{font-size:16px;font-weight:600;margin-bottom:8px}
+.feature-card p{font-size:13px;color:{{ draft_tokens.colors.text_secondary or '#718096' }}}
+
+/* ── Footer ── */
+.footer{text-align:center;padding:32px;border-top:1px solid {{ draft_tokens.colors.border or '#e2e8f0' }};font-size:13px;color:{{ draft_tokens.colors.text_secondary or '#718096' }};background:{{ draft_tokens.colors.surface or '#f7fafc' }}}
+
+/* ── Documents ── */
+.doc-section{padding:40px 32px;max-width:760px;margin:0 auto}
+.doc-section h2{font-size:22px;margin-bottom:16px;border-bottom:1px solid {{ draft_tokens.colors.border or '#e2e8f0' }};padding-bottom:8px}
+.doc-card{background:{{ draft_tokens.colors.surface or '#f7fafc' }};padding:16px;border-radius:8px;margin-bottom:12px;border:1px solid {{ draft_tokens.colors.border or '#e2e8f0' }}}
+.doc-card h3{font-size:14px;font-weight:600;margin-bottom:4px}
+.doc-card .doc-content{font-size:12px;color:{{ draft_tokens.colors.text_secondary or '#718096' }};max-height:120px;overflow:hidden}
+
+@media(max-width:640px){
+  .navbar{flex-direction:column;gap:12px;padding:12px 16px}
+  .hero-block{padding:40px 16px 30px}
+  .hero-block h1{font-size:28px}
+  .section-block{padding:30px 16px}
+}
+</style>
+</head>
+<body>
+<div class="preview-banner">
+  🔍 AI Site Builder Preview — {{ draft_tokens.brand.site_name or 'Draft' }}
+  <a href="javascript:window.close()">Close Preview</a>
+</div>
+
+<div class="preview-content">
+  {% if draft_tokens.navigation and draft_tokens.navigation.items %}
+  <div class="navbar">
+    <div class="logo">{{ draft_tokens.brand.site_name or 'Site Name' }}</div>
+    <nav>
+      {% for item in draft_tokens.navigation.items %}
+      <a href="{{ item.url }}">{{ item.title }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+  {% endif %}
+
+  <div class="hero-block">
+    <h1>{{ draft_tokens.brand.slogan or draft_tokens.brand.site_name or 'Welcome' }}</h1>
+    <p>{{ draft_tokens.brand.brand_story[:200] if draft_tokens.brand.brand_story else 'AI-generated website preview.' }}</p>
+    <a class="cta" href="#">{{ draft_tokens.brand.site_name or 'Get Started' }}</a>
+  </div>
+
+  {% for page_id, blocks in draft_blocks.items() %}
+  <div class="section-block" id="page-{{ page_id }}">
+    <h2>{{ page_id|capitalize }}</h2>
+    <div class="features-grid">
+      {% for block in blocks %}
+      <div class="feature-card">
+        {% if block.icon %}<div style="font-size:24px;margin-bottom:8px">{{ block.icon }}</div>{% endif %}
+        <h3>{{ block.title or 'Section Title' }}</h3>
+        <p>{{ block.content or block.subtitle or 'Section description text.' }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if draft_docs %}
+  <div class="doc-section">
+    <h2>Documents</h2>
+    {% for doc in draft_docs %}
+    <div class="doc-card">
+      <h3>{{ doc.title }}</h3>
+      <div class="doc-content">{{ doc.content[:300]|safe if doc.content else '...' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    <p>{{ draft_tokens.footer.copyright if draft_tokens.footer and draft_tokens.footer.copyright else '© AI Generated Preview' }}</p>
+    <p style="margin-top:4px;font-size:11px">This is a draft preview. Publish from the admin panel to make it live.</p>
+  </div>
+</div>
+</body>
+</html>

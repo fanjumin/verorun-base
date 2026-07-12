@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Site Builder — 数据模型 & CRUD"""
+"""Site Builder — Data Models & CRUD"""
 
 import os, json, yaml
 from models import get_db
 
-# ── 表名常量 ──
+# ── Table Name Constants ──
 TABLE_PROMPTS = 'site_builder_prompts'
 TABLE_TASKS = 'site_builder_tasks'
 
 
 def init_tables():
-    """创建 site_builder 所需的数据库表（幂等）"""
+    """Create site_builder DB tables (idempotent)"""
     with get_db() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS site_builder_prompts (
@@ -59,7 +59,7 @@ def init_tables():
 
 
 def seed_default_prompts():
-    """播种内置行业提示词模板（幂等，已存在则跳过）"""
+    """Seed built-in industry prompt templates (idempotent, skip if exists)"""
     prompts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prompts')
     if not os.path.isdir(prompts_dir):
         return 0
@@ -73,7 +73,7 @@ def seed_default_prompts():
             with open(fpath, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
         except Exception as e:
-            print(f'[SiteBuilder] ⚠️ 加载提示词模板失败 {fname}: {e}')
+            print(f'[SiteBuilder] Failed to load prompt template {fname}: {e}')
             continue
 
         identifier = data.get('identifier', fname.replace('.yml', ''))
@@ -110,10 +110,10 @@ def seed_default_prompts():
     return count
 
 
-# ── CRUD 辅助函数 ──
+# ── CRUD Helpers ──
 
 def get_prompt(identifier_or_id):
-    """获取单个提示词模板"""
+    """Get a single prompt template"""
     with get_db() as conn:
         if isinstance(identifier_or_id, int):
             row = conn.execute(
@@ -129,7 +129,7 @@ def get_prompt(identifier_or_id):
 
 
 def list_prompts(active_only=False, industry=None):
-    """列出所有提示词模板"""
+    """List all prompt templates"""
     with get_db() as conn:
         conditions = []
         params = []
@@ -147,7 +147,7 @@ def list_prompts(active_only=False, industry=None):
 
 
 def create_prompt(data: dict) -> int:
-    """创建自定义提示词模板，返回新 ID"""
+    """Create a custom prompt template, return new ID"""
     identifier = data.get('identifier', '').strip()
     if not identifier:
         identifier = 'custom_' + _short_id()
@@ -177,7 +177,7 @@ def create_prompt(data: dict) -> int:
 
 
 def update_prompt(prompt_id: int, data: dict):
-    """更新提示词模板"""
+    """Update prompt template"""
     fields = []
     params = []
     for key in ['name', 'description', 'icon', 'industry', 'is_active']:
@@ -200,7 +200,7 @@ def update_prompt(prompt_id: int, data: dict):
 
 
 def delete_prompt(prompt_id: int):
-    """删除提示词模板（仅允许删除用户创建的）"""
+    """Delete prompt template (only user-created)"""
     with get_db() as conn:
         conn.execute(
             f"DELETE FROM {TABLE_PROMPTS} WHERE id=? AND is_builtin=0",
@@ -209,10 +209,10 @@ def delete_prompt(prompt_id: int):
         conn.commit()
 
 
-# ── 任务管理 ──
+# ── Task Management ──
 
 def create_task(user_id: int, prompt_id: int, user_input: str, site_config_id: int = 1) -> str:
-    """创建建站任务，返回 task_id"""
+    """Create a build task, return task_id"""
     import datetime, secrets
     task_id = f"SB-{datetime.datetime.now().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
     with get_db() as conn:
@@ -227,7 +227,7 @@ def create_task(user_id: int, prompt_id: int, user_input: str, site_config_id: i
 
 
 def update_task(task_id: str, **kwargs):
-    """更新任务状态"""
+    """Update task status"""
     allowed = ['status', 'plan_json', 'result_json', 'current_step', 'error_message']
     fields = []
     params = []
@@ -251,7 +251,7 @@ def update_task(task_id: str, **kwargs):
 
 
 def get_task(task_id: str):
-    """获取任务详情"""
+    """Get task details"""
     with get_db() as conn:
         row = conn.execute(
             f"SELECT * FROM {TABLE_TASKS} WHERE task_id=?", (task_id,)
@@ -269,7 +269,7 @@ def get_task(task_id: str):
 
 
 def list_tasks(user_id=None, limit=20):
-    """列出任务"""
+    """List tasks"""
     with get_db() as conn:
         if user_id:
             rows = conn.execute(
@@ -284,10 +284,10 @@ def list_tasks(user_id=None, limit=20):
     return [dict(r) for r in rows]
 
 
-# ── 内部辅助 ──
+# ── Internal Helpers ──
 
 def _parse_prompt_row(row):
-    """将数据库行转为字典，解析 JSON 字段"""
+    """Convert DB row to dict, parse JSON fields"""
     d = dict(row)
     for key in ('tags_json', 'defaults_json', 'pages_json', 'documents_json', 'prompts_json'):
         if d.get(key):

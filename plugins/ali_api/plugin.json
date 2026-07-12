@@ -19,7 +19,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Plugins",
+        "group": "Operations",
         "key": "ali_api",
         "icon": "plugins",
         "label": "1688 供应链采集",
