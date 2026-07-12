@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any
 
@@ -8,9 +9,12 @@ class ChatbotPlugin(BasePlugin):
     name = 'AI Advisor'
     identifier = 'chatbot'
 
-    def setup(self, app):
+    def setup(self):
+        # 先执行父类 setup()，触发 on_install（建表/写种子）和 on_enable（注册Agent）
+        super().setup()
+        # 然后注册管理后台路由
         from .routes import chatbot_bp
-        app.register_blueprint(chatbot_bp, url_prefix='/admin/chatbot')
+        self.app.register_blueprint(chatbot_bp, url_prefix='/admin/chatbot')
 
     def on_install(self, registry=None) -> bool:
         self._ensure_config_table()
@@ -52,8 +56,7 @@ class ChatbotPlugin(BasePlugin):
                     conn.execute("""
                         UPDATE agent_matrix
                         SET description=?, domain=?, managed_modules=?,
-                            system_prompt=?, capabilities=?, source='plugin',
-                            source_plugin=?, is_active=?
+                            system_prompt=?, capabilities=?, is_active=?
                         WHERE id=?
                     """, (
                         f"AI Advisor Agent — {agent['domain']}",
@@ -61,7 +64,6 @@ class ChatbotPlugin(BasePlugin):
                         '["chatbot"]',
                         system_prompt,
                         json.dumps(agent.get('capabilities', [])),
-                        self.identifier,
                         1 if agent.get('enabled_by_default', True) else 0,
                         exists['id']
                     ))
@@ -70,8 +72,8 @@ class ChatbotPlugin(BasePlugin):
                         INSERT INTO agent_matrix
                         (name, role_type, description, domain, managed_modules,
                          provider, model_name, system_prompt, capabilities,
-                         source, source_plugin, is_active, auto_approve)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                         is_active, auto_approve)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     """, (
                         agent['name'], agent['role_type'],
                         f"AI Advisor Agent — {agent['domain']}",
@@ -80,7 +82,6 @@ class ChatbotPlugin(BasePlugin):
                         'dashscope', 'qwen-turbo',
                         system_prompt,
                         json.dumps(agent.get('capabilities', [])),
-                        'plugin', self.identifier,
                         1 if agent.get('enabled_by_default', True) else 0,
                         0
                     ))
@@ -138,10 +139,21 @@ class ChatbotPlugin(BasePlugin):
             self.log(f'Create plugin_configs table failed: {e}', 'error')
 
     def _seed_default_config(self):
+        """仅当 DB 中无该配置行时写入默认值。"""
         defaults = self._config or {}
         if not defaults:
             return
-        for key, value in defaults.items():
-            existing = self.get_config_value(key)
-            if existing is None:
-                self.set_config_value(key, value)
+        try:
+            from models import get_db
+            with get_db() as conn:
+                existing_keys = {
+                    r['key'] for r in conn.execute(
+                        "SELECT key FROM plugin_configs WHERE plugin_name=?",
+                        (self.identifier,)
+                    ).fetchall()
+                }
+            for key, value in defaults.items():
+                if key not in existing_keys:
+                    self.set_config_value(key, value)
+        except Exception as e:
+            self.log(f'Seed default config failed: {e}', 'warning')
