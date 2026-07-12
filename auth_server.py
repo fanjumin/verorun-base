@@ -167,6 +167,12 @@ def inject_globals():
     return dict(_=_t)
 
 
+@app.route('/health')
+def health():
+    """Liveness probe — 供健康检查/看门狗探测 8081 主站服务存活。"""
+    return jsonify({'status': 'ok', 'service': 'auth-center+site'})
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8081))
     print(f'[Auth-Center+Site] starting on port {port}')

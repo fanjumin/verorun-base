@@ -1106,9 +1106,10 @@ class MediaIntegrityChecker(BaseHealthCheck):
 
             # ── 1. media_files table ──
             if 'media_files' in tables_found:
+                # 注：media_files 表无软删除 status 列（其推送态字段为 push_status），
+                # 因此直接扫描全部记录校验文件是否存在。
                 rows = conn.execute(
-                    "SELECT id, file_path, thumb_path, original_name FROM media_files "
-                    "WHERE status IS NULL OR status!='deleted'"
+                    "SELECT id, file_path, thumb_path, original_name FROM media_files"
                 ).fetchall()
                 for field in ('file_path', 'thumb_path'):
                     missing_all.extend(self._check_paths(
