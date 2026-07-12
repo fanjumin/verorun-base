@@ -238,7 +238,7 @@ Master Agent（AIEngine）解析 → 结构化建站方案
 | **订单管理** | 发货/退款/物流查询 | 下单/取消/确认收货 | 幂等性 + 限流 |
 | **优惠券** | 创建/发放/核销/统计/批量发放 | 下单时使用 | 固定减/百分比减，限定商品 |
 | **支付** | — | 支付宝 | RSA2 签名 + 桩模式降级 |
-| **物流** | — | 快递鸟查询 | kdniao_service.py |
+| **物流**（插件） | — | 快递鸟查询 | `plugins/logistics/` |
 | **AI 优化** | 标题多版本/描述重写/卖点/标签/批量 | — | ShopAIProcessor → AIEngine |
 | **商品评价**（插件） | 回复/删除/审核 | 列表/统计 | `plugins/reviews/` 5 星评分 + 晒图 + 匿名 |
 | **收藏心愿单**（插件） | — | 收藏/取消/检查/数量 | `plugins/wishlist/` |
@@ -418,7 +418,7 @@ Cron Scheduler ──→ Workflow Engine ──→ Worker Pool
 | **AI** | `agent_engine.py`, `ai_content_generator.py`, `avatar_service.py` | Agent 引擎、AI 内容生成、头像 |
 | **通讯** | `email_client.py`, `mail_service.py`, `sms_service.py`, `notification_service.py` | 邮件、短信、通知 |
 | **安全** | `crypto.py`, `password_validator.py`, `name_validator.py`, `sensitive_words.py` | 加密、验证、敏感词 |
-| **业务** | `kdniao_service.py`, `license_service.py`, `brand_service.py`, `renewal_reminder.py`, `captcha_service.py`, `comment_review.py`, `deployment_config.py` | 物流、许可、续费、验证码、评论审核、部署 |
+| **业务** | `license_service.py`, `brand_service.py`, `renewal_reminder.py`, `captcha_service.py`, `comment_review.py`, `deployment_config.py` | 许可、续费、验证码、评论审核、部署 |
 | **媒体** | `volcengine_client.py` | 火山引擎语音/视频 |
 
 ---
@@ -804,7 +804,7 @@ VeroRunSystem/
 │       ├── payment_service.py
 │       ├── jwt_service.py
 │       ├── agent_engine.py
-│       ├── kdniao_service.py
+│       ├── (物流已迁移至 plugins/logistics/)
 │       ├── volcengine_client.py
 │       └── ...（共 30 个）
 │

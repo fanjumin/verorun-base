@@ -468,7 +468,7 @@ CREATE TABLE user_purchases (
 | `platform/templates/shop_detail.html` | 商品详情页模板 |
 | `platform/templates/cart.html` | 购物车页模板 |
 | `platform/templates/cloud_instances.html` | 云服务管理页模板 |
-| `auth-center/services/kdniao_service.py` | 快递鸟物流查询服务 |
+| `plugins/logistics/services.py` | 快递鸟物流查询服务（已解耦为插件） |
 | `auth-center/routes/subscription/gateway/alipay.py` | 支付宝底层签名/验签 |
 | `auth-center/routes/subscription/gateway/wechat.py` | 微信支付底层 API |
 | `agent_matrix/engine.py` | AI 引擎（Shop Agent 调用） |

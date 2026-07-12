@@ -1160,9 +1160,9 @@ def init_db():
             ('wechat_api_v3_key',             '',    '微信支付 API v3 密钥'),
             ('wechat_cert_serial',            '',    '微信支付证书序列号'),
             ('wechat_plan_id',                '',    '微信支付扣费计划ID'),
-            # 快递鸟物流（kdniao_service.py 读取）
-            ('kdniao_eid',                    '',    '快递鸟商户ID (EBusinessID)'),
-            ('kdniao_api_key',                '',    '快递鸟 API Key'),
+            # 快递鸟物流（已由 plugins/logistics 插件独立管理，保留 key 仅供历史兼容）
+            ('kdniao_eid',                    '',    '【已迁移至插件】快递鸟商户ID'),
+            ('kdniao_api_key',                '',    '【已迁移至插件】快递鸟 API Key'),
         ]
         for key, value, desc in payment_seeds:
             m.execute(

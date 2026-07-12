@@ -44,8 +44,21 @@ class LogisticsPlugin(BasePlugin):
 
     # ── 对外接口 ──
 
+    def get_kdniao_config(self):
+        """从插件配置读取快递鸟商户ID和API Key（环境变量可覆盖）"""
+        import os
+        eid = os.environ.get('KDNIAO_EBUSINESS_ID', '').strip()
+        api_key = os.environ.get('KDNIAO_API_KEY', '').strip()
+        if not eid:
+            eid = self.get_config_value('kdniao_eid', '').strip()
+        if not api_key:
+            api_key = self.get_config_value('kdniao_api_key', '').strip()
+        return eid, api_key
+
     def query_track(self, shipper_code, logistic_code, order_code='', customer_name='', eid='', api_key=''):
         from .services import query_track as _q
+        if not eid or not api_key:
+            eid, api_key = self.get_kdniao_config()
         return _q(shipper_code, logistic_code, order_code, customer_name, eid, api_key)
 
     def get_shipping_status_text(self, shipping_status):

@@ -134,6 +134,15 @@ def handle_500(e):
     app.logger.error('Traceback:\n%s', ''.join(_tb.format_exc()))
     return "500 Error: " + str(e) + "\n\n" + ''.join(_tb.format_exc()), 500
 
+# ── PluginManager ──
+try:
+    from plugin_manager.manager import PluginManager
+    app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
+    PluginManager(app)
+    print('[PluginManager] ✅ Site 服务插件管理器已初始化')
+except Exception as e:
+    print(f'[PluginManager] ⚠️ Site 服务初始化失败: {e}')
+
 # ── Blueprint 注册 ──
 register_auth(app, exclude_blueprints=['admin', 'cms_admin'])
 app.register_blueprint(cms_bp)

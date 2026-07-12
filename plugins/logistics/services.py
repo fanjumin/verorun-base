@@ -2,8 +2,7 @@
 """
 Logistics Plugin Services — 物流查询核心逻辑
 ==============================================
-封装快递鸟 Kdniao API 客户端，从 system_config 读取配置。
-与旧 auth-center/services/kdniao_service.py 兼容。
+封装快递鸟 Kdniao API 客户端，从插件配置读取。
 """
 import hashlib
 import json
@@ -23,23 +22,20 @@ KDNIAO_API_URL = os.environ.get('KDNIAO_API_URL',
 
 
 def _get_kdniao_config() -> Tuple[str, str]:
-    """从 system_config 表读取快递鸟配置（主库只读）"""
-    import sys
-    _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
-    if _auth_dir not in sys.path:
-        sys.path.insert(0, _auth_dir)
+    """读取快递鸟配置：优先环境变量，其次插件配置（完全独立）"""
+    eid = os.environ.get('KDNIAO_EBUSINESS_ID', '').strip()
+    api_key = os.environ.get('KDNIAO_API_KEY', '').strip()
+    if eid and api_key:
+        return eid, api_key
 
-    eid = os.environ.get('KDNIAO_EBUSINESS_ID', '')
-    api_key = os.environ.get('KDNIAO_API_KEY', '')
     try:
-        from models import get_db
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT key, value FROM system_config WHERE key IN ('kdniao_eid', 'kdniao_api_key')"
-            ).fetchall()
-        cfg = {r['key']: r['value'] for r in rows}
-        eid = cfg.get('kdniao_eid', '').strip() or eid
-        api_key = cfg.get('kdniao_api_key', '').strip() or api_key
+        import flask
+        pm = flask.current_app.extensions.get('plugin_manager')
+        plugin = pm.get_instance('logistics') if (pm and pm.is_enabled('logistics')) else None
+        if plugin:
+            peid, pkey = plugin.get_kdniao_config()
+            eid = eid or peid
+            api_key = api_key or pkey
     except Exception:
         pass
     return eid, api_key

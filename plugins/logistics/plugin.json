@@ -1,8 +1,8 @@
 {
     "name": "Logistics Express",
     "identifier": "logistics",
-    "version": "0.1.0",
-    "category": "Shop",
+    "version": "0.2.0",
+    "category": "shop",
     "tags": ["logistics", "express", "kdniao", "shipping"],
     "icon": "plugins",
     "description": "Logistics Express — shipment tracking via Kdniao API with 600+ carriers",
@@ -10,7 +10,10 @@
     "min_app_version": "0.10.0",
     "depends_on": {},
     "enabled": true,
-    "config": {},
+    "config": {
+        "kdniao_eid": "",
+        "kdniao_api_key": ""
+    },
     "permissions": [
         "logistics.query"
     ],
@@ -29,6 +32,17 @@
     },
     "settings_schema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+            "kdniao_eid": {
+                "title": "Kdniao EBusiness ID",
+                "type": "string",
+                "description": "快递鸟商户ID (EBusinessID)"
+            },
+            "kdniao_api_key": {
+                "title": "Kdniao API Key",
+                "type": "string",
+                "description": "快递鸟 API Key"
+            }
+        }
     }
 }

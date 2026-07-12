@@ -626,37 +626,24 @@ def track_order_user(oid):
         shipper_code = row['kdniao_code'] or row['tracking_company']
         logistic_code = row['tracking_number']
 
-    try:
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
-        # Try LogisticsPlugin first
-        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-        _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
-        if _logistics:
-            success, data, err_msg = _logistics.query_track(shipper_code, logistic_code)
-        else:
-            from services.kdniao_service import query_track
-            success, data, err_msg = query_track(shipper_code, logistic_code)
-        return jsonify({
-            'success': True,
-            'data': {
-                'tracking_company': row['tracking_company'],
-                'tracking_number': row['tracking_number'],
-                'shipped_at': row.get('shipped_at', ''),
-                'shipping_status': row.get('shipping_status', ''),
-                'traces': data.get('traces', []) if success else [],
-                'state_text': data.get('state_text', '') if success else '',
-                'track_error': err_msg if not success else '',
-            }
-        })
-    except ImportError:
-        return jsonify({'success': True, 'data': {
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
+    success, data, err_msg = False, {}, '物流插件未启用'
+    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
+    _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+    if _logistics:
+        success, data, err_msg = _logistics.query_track(shipper_code, logistic_code)
+    return jsonify({
+        'success': True,
+        'data': {
             'tracking_company': row['tracking_company'],
             'tracking_number': row['tracking_number'],
             'shipped_at': row.get('shipped_at', ''),
             'shipping_status': row.get('shipping_status', ''),
-            'traces': [],
-            'track_error': '物流服务未配置',
-        }})
+            'traces': data.get('traces', []) if success else [],
+            'state_text': data.get('state_text', '') if success else '',
+            'track_error': err_msg if not success else '',
+        }
+    })
 
 
 # =============================================

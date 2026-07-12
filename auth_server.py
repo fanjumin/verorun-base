@@ -42,6 +42,15 @@ try:
 except Exception:
     _t = lambda s: s
 
+# ── PluginManager ──
+try:
+    from plugin_manager.manager import PluginManager
+    app.plugins_dir = os.path.join(_SCRIPT_DIR, 'plugins')
+    PluginManager(app)
+    print('[PluginManager] ✅ Auth 服务插件管理器已初始化')
+except Exception as e:
+    print(f'[PluginManager] ⚠️ Auth 服务初始化失败: {e}')
+
 register_auth(app)
 
 try:

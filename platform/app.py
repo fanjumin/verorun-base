@@ -99,6 +99,15 @@ app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..')),
 ])
 
+# ── PluginManager ──
+try:
+    from plugin_manager.manager import PluginManager
+    app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
+    PluginManager(app)
+    print('[PluginManager] ✅ Platform 服务插件管理器已初始化')
+except Exception as e:
+    print(f'[PluginManager] ⚠️ Platform 服务初始化失败: {e}')
+
 # ── Blueprint 注册 ──
 register_auth(app, exclude_blueprints=['admin', 'cms_admin'])
 app.register_blueprint(sub_bp, name='platform_subscription')
