@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Admin Routes -- site management panel"""
 import sys, os, json, socket
-from datetime import datetime
+from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify
 from i18n import _
@@ -175,7 +175,7 @@ def _revenue_dashboard_data():
             WHERE status='paid' AND date(paid_at)=date('now')
         """).fetchone()['rev'] or 0)
         today += (conn.execute("""
-            SELECT COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND date(paid_at)=date('now')
         """).fetchone()['rev'] or 0)
 
@@ -188,7 +188,7 @@ def _revenue_dashboard_data():
             WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now')
         """).fetchone()['rev'] or 0)
         this_month += (conn.execute("""
-            SELECT COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now')
         """).fetchone()['rev'] or 0)
 
@@ -201,7 +201,7 @@ def _revenue_dashboard_data():
             WHERE status='paid' AND strftime('%Y',paid_at)=strftime('%Y','now')
         """).fetchone()['rev'] or 0)
         this_year += (conn.execute("""
-            SELECT COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND strftime('%Y',paid_at)=strftime('%Y','now')
         """).fetchone()['rev'] or 0)
 
@@ -215,7 +215,7 @@ def _revenue_dashboard_data():
             WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now','-1 month')
         """).fetchone()['rev'] or 0)
         last_month += (conn.execute("""
-            SELECT COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now','-1 month')
         """).fetchone()['rev'] or 0)
 
@@ -236,7 +236,7 @@ def _revenue_dashboard_data():
             trend_map[r['day']] = trend_map.get(r['day'], 0) + r['rev']
         # Add shop orders
         shop_trend = conn.execute("""
-            SELECT date(paid_at) as day, COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT date(paid_at) as day, COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND paid_at>=datetime('now','-30 days')
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
@@ -258,7 +258,7 @@ def _revenue_dashboard_data():
         for r in sub_monthly:
             monthly_map[r['ym']] = monthly_map.get(r['ym'], 0) + r['rev']
         shop_monthly = conn.execute("""
-            SELECT strftime('%Y-%m',paid_at) as ym, COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT strftime('%Y-%m',paid_at) as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND paid_at>=datetime('now','-12 months')
             GROUP BY ym ORDER BY ym
         """).fetchall()
@@ -280,7 +280,7 @@ def _revenue_dashboard_data():
         for r in sub_raw:
             by_type[r['item_type']] = by_type.get(r['item_type'], 0) + r['rev']
         shop_raw = conn.execute("""
-            SELECT 'shop' as item_type, COALESCE(SUM(total_amount),0) as rev FROM order_items
+            SELECT 'shop' as item_type, COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid'
         """).fetchall()
         for r in shop_raw:
@@ -321,7 +321,7 @@ def _revenue_dashboard_data():
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders WHERE status='paid'
         """).fetchone()['rev'] or 0)
         total_revenue += (conn.execute("""
-            SELECT COALESCE(SUM(total_amount),0) as rev FROM order_items WHERE status='paid'
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items WHERE status='paid'
         """).fetchone()['rev'] or 0)
 
         # ── 待处理退款 ──
@@ -332,6 +332,12 @@ def _revenue_dashboard_data():
 
         # ── 流失率计算 ──
         # 本月流失率 = 本月取消数 / 月初活跃数
+        # 本月取消数
+        canceled = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE status='canceled'
+              AND strftime('%Y-%m',canceled_at)=strftime('%Y-%m','now')
+        """).fetchone()
         active_start_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status IN ('active','trialing')
@@ -352,7 +358,7 @@ def _revenue_dashboard_data():
               AND canceled_at >= date('now','start of month','-1 month')
               AND created_at < date('now','start of month','-1 month')
         """).fetchone()['c'] or 1
-        last_churn_rate = round((last_month_canceled['c'] / last_month_active_start) * 100, 2) if last_month_active_start > 0 else 0
+        last_churn_rate = round((last_month_canceled / last_month_active_start) * 100, 2) if last_month_active_start > 0 else 0
 
         # ── 近12月月度流失率趋势 ──
         churn_trend = []

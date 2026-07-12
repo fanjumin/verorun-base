@@ -45,16 +45,19 @@ function acLoadPosts(){
   if(acSourceFilter&&acSourceFilter!=='all')url+="&source="+acSourceFilter;
   if(acStatusFilter&&acStatusFilter!=='all')url+="&status="+acStatusFilter;
   fetch(url,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    var _body=document.getElementById("acPostBody");
+    if(!_body)return;  // 容器已卸载（快速切换 tab），放弃本次渲染
+    var _cnt=document.getElementById("acCount");
     if(!d.success||!d.data){
-      document.getElementById("acPostBody").innerHTML='<tr><td colspan="9" class="em">{{ _("None") }}</td></tr>';
-      document.getElementById("acCount").textContent='0';
+      _body.innerHTML='<tr><td colspan="9" class="em">{{ _("None") }}</td></tr>';
+      if(_cnt)_cnt.textContent='0';
       return;
     }
     acPosts=d.data;
     var count=acPosts.length;
-    document.getElementById("acCount").textContent=count;
+    if(_cnt)_cnt.textContent=count;
     if(!count){
-      document.getElementById("acPostBody").innerHTML='<tr><td colspan="9" class="em">{{ _("No Content") }}</td></tr>';
+      _body.innerHTML='<tr><td colspan="9" class="em">{{ _("No Content") }}</td></tr>';
       return;
     }
     var h='';
@@ -78,9 +81,10 @@ function acLoadPosts(){
       h+='<button class="btn bo bs" onclick="acDelPost('+p.id+')">🗑️</button>';
       h+='</td></tr>';
     });
-    document.getElementById("acPostBody").innerHTML=h;
+    _body.innerHTML=h;
   }).catch(function(){
-    document.getElementById("acPostBody").innerHTML='<tr><td colspan="9" class="em">{{ _("Request Failed") }}</td></tr>';
+    var _body=document.getElementById("acPostBody");
+    if(_body)_body.innerHTML='<tr><td colspan="9" class="em">{{ _("Request Failed") }}</td></tr>';
   });
 }
 

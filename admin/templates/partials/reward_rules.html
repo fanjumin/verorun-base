@@ -49,9 +49,11 @@ function rrLoadList(){
   fetch("/admin/reward-rules",{headers:{"Authorization":"Bearer "+T}})
   .then(function(r){return r.json()})
   .then(function(d){
-    if(!d.success||!d.data){document.getElementById("rrList").innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var _list=document.getElementById("rrList");
+    if(!_list)return;  // 容器已卸载，放弃本次渲染
+    if(!d.success||!d.data){_list.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var rules=d.data;
-    if(rules.length===0){document.getElementById("rrList").innerHTML='<div class="em" style="padding:40px;text-align:center;color:var(--muted)">{{ _('No Reward Rules') }} — {{ _('Click') }}"{{ _('New Rule') }}"{{ _('Add') }}</div>';return}
+    if(rules.length===0){_list.innerHTML='<div class="em" style="padding:40px;text-align:center;color:var(--muted)">{{ _('No Reward Rules') }} — {{ _('Click') }}"{{ _('New Rule') }}"{{ _('Add') }}</div>';return}
     var h='<table class="t"><thead><tr><th>{{ _('Name') }}</th><th>{{ _('Trigger Condition') }}</th><th>{{ _('Reward') }}</th><th>{{ _('Sort') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr></thead><tbody>';
     var condNames={'completion_percentage|100':'{{ _('Progress') }}100%','completion_percentage|50':'{{ _('Progress') }}≥50%','phone_verified|1':'{{ _('Phone Verification') }}','email_verified|1':'{{ _('Email Verification') }}','has_profile|1':'{{ _('Fill in Details') }}','avatar_set|1':'{{ _('Set Avatar') }}'};
     rules.forEach(function(r){
@@ -61,8 +63,8 @@ function rrLoadList(){
       h+='<td><button class="btn btn-sm" onclick="rrShowForm('+JSON.stringify(r).replace(/"/g,"'")+')">{{ _('Edit') }}</button> <button class="btn btn-sm btn-danger" onclick="rrDelete('+r.id+',\''+esc(r.name)+'\')">{{ _('Delete') }}</button></td></tr>';
     });
     h+='</tbody></table>';
-    document.getElementById("rrList").innerHTML=h;
-  }).catch(function(){document.getElementById("rrList").innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
+    _list.innerHTML=h;
+  }).catch(function(){var _l=document.getElementById("rrList");if(_l)_l.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
 }
 
 function rrLoadCoupons(selectedId){

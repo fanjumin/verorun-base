@@ -44,9 +44,12 @@ function cfRenderSources(){
 
 function cfLoadSources(){
   fetch("/admin/content-factory/sources",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){document.getElementById("cfStbody").innerHTML='<tr><td colspan="7"><div class="em">{{ _('Load failed') }}</div></td></tr>';return}
+    var _body=document.getElementById("cfStbody");
+    if(!_body)return;  // 容器已卸载，放弃本次渲染
+    var _cnt=document.getElementById("cfScnt");
+    if(!d.success){_body.innerHTML='<tr><td colspan="7"><div class="em">{{ _('Load failed') }}</div></td></tr>';return}
     cfSources=d.data||[];
-    document.getElementById("cfScnt").textContent=cfSources.length;
+    if(_cnt)_cnt.textContent=cfSources.length;
     var h='';
     if(!cfSources.length){h='<tr><td colspan="7"><div class="em">{{ _('No Source') }}</div></td></tr>'}
     else{cfSources.forEach(function(s){
@@ -59,8 +62,8 @@ function cfLoadSources(){
       h+='<button class="btn bo bs" onclick="cfEditSource('+s.id+')">{{ _('Edit') }}</button> ';
       h+='<button class="btn bo bs" onclick="cfDelSource('+s.id+')">{{ _('Delete') }}</button></td></tr>';
     })}
-    document.getElementById("cfStbody").innerHTML=h;
-  }).catch(function(){document.getElementById("cfStbody").innerHTML='<tr><td colspan="7"><div class="em">{{ _('Request Failed') }}</div></td></tr>'});
+    _body.innerHTML=h;
+  }).catch(function(){var _b=document.getElementById("cfStbody");if(_b)_b.innerHTML='<tr><td colspan="7"><div class="em">{{ _('Request Failed') }}</div></td></tr>'});
 }
 
 function cfShowSourceForm(){

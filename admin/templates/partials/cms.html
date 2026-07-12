@@ -131,7 +131,9 @@ function cmsLoadPosts(){
   var url="/admin/cms/posts?limit=50";
   if(cmsStatusFilter&&cmsStatusFilter!=='all')url+="&status="+cmsStatusFilter;
   fetch(url,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data){document.getElementById("cmsPostBody").innerHTML='<tr><td colspan="9"><div class="em">{{ _('None') }}</div></td></tr>';return}
+    var _body=document.getElementById("cmsPostBody");
+    if(!_body)return;  // 容器已卸载，放弃本次渲染
+    if(!d.success||!d.data){_body.innerHTML='<tr><td colspan="9"><div class="em">{{ _('None') }}</div></td></tr>';return}
     cmsPosts=d.data||[];
     var h='';
     if(!cmsPosts.length){h='<tr><td colspan="9"><div class="em">{{ _('No Articles Yet') }}</div></td></tr>'}
@@ -157,7 +159,7 @@ function cmsLoadPosts(){
       h+='<button class="btn bo bs" onclick="cmsDelPost('+p.id+')">{{ _('Delete') }}</button></td></tr>';
     })}
     document.getElementById("cmsPostBody").innerHTML=h;
-  }).catch(function(){document.getElementById("cmsPostBody").innerHTML='<tr><td colspan="9"><div class="em">{{ _('Request Failed') }}</div></td></tr>'});
+  }).catch(function(){var _b=document.getElementById("cmsPostBody");if(_b)_b.innerHTML='<tr><td colspan="9"><div class="em">{{ _('Request Failed') }}</div></td></tr>'});
 }
 
 // ── New / Edit / Close ──

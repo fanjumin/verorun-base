@@ -55,7 +55,7 @@ GITHUB_RAW_BASE = os.getenv('GUARDIAN_GITHUB_RAW',
 # 各端点 → systemd service 名称映射
 SERVICE_MAP = {
     "http://127.0.0.1:8085/health": "health",
-    "http://127.0.0.1:8081/health": "easykai",
+    "http://127.0.0.1:8081/health": "auth-center",
     "http://127.0.0.1:8084/health": "admin",
     "http://127.0.0.1:8083/health": "platform",
 }
