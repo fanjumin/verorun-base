@@ -254,7 +254,7 @@ else:
 
 @app.route('/')
 def index():
-    return redirect('/admin')
+    return redirect('/admin/login')
 
 
 @app.route('/admin', strict_slashes=False)
