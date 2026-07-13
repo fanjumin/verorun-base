@@ -19,6 +19,7 @@ class TelegramGenerator(BaseMiniAppGenerator):
 
         brand_ctx = self._get_brand_context(brand)
         api_ctx = self._get_api_context(options)
+        render_ctx = {**brand_ctx, **api_ctx, 'deploy_url': options.get('deploy_url', '')}
 
         # Render main HTML files
         for html_file in ['index.html', 'chat.html']:
@@ -26,7 +27,7 @@ class TelegramGenerator(BaseMiniAppGenerator):
             if os.path.exists(template_path):
                 self._write_file(
                     os.path.join(output_dir, html_file),
-                    self._render_template(template_path, {**brand_ctx, **api_ctx})
+                    self._render_template(template_path, render_ctx)
                 )
 
         # Render app.js
@@ -34,7 +35,15 @@ class TelegramGenerator(BaseMiniAppGenerator):
         if os.path.exists(app_js_path):
             self._write_file(
                 os.path.join(output_dir, 'js', 'app.js'),
-                self._render_template(app_js_path, {**brand_ctx, **api_ctx})
+                self._render_template(app_js_path, render_ctx)
+            )
+
+        # Render stylesheet
+        css_path = os.path.join(self.template_dir, 'css', 'style.css')
+        if os.path.exists(css_path):
+            self._write_file(
+                os.path.join(output_dir, 'css', 'style.css'),
+                self._render_template(css_path, render_ctx)
             )
 
         # Write manifest.json

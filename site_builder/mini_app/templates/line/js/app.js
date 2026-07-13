@@ -1,7 +1,7 @@
 /**
  * LINE MINI App — Application Logic
  * 
- * Rendered with {{ variable }} substitution from Site_builder generator.
+ * Rendered with brand and API context substitution from Site_builder generator.
  */
 
 class VeroChat {

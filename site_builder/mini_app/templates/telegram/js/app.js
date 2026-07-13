@@ -1,7 +1,7 @@
 /**
  * Telegram Mini App — Application Logic
  * 
- * This file is rendered with {{ variable }} substitution
+ * This file is rendered with brand and API context substitution
  * from the Site_builder generator.
  */
 

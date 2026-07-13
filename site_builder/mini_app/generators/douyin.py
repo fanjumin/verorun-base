@@ -51,6 +51,14 @@ class DouyinGenerator(BaseMiniAppGenerator):
                 self._render_template(app_js_path, app_js_context)
             )
 
+        # Render global stylesheet (app.ttss) with brand context
+        app_ttss_path = os.path.join(self.template_dir, 'app.ttss')
+        if os.path.exists(app_ttss_path):
+            self._write_file(
+                os.path.join(output_dir, 'app.ttss'),
+                self._render_template(app_ttss_path, {**brand_ctx, **api_ctx})
+            )
+
         # Write project.config.json
         project_config = {
             'appid': options.get('app_id', {}).get('douyin', ''),

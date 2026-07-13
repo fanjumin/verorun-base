@@ -46,6 +46,14 @@ class WechatGenerator(BaseMiniAppGenerator):
                 self._render_template(app_js_path, app_js_context)
             )
 
+        # Render global stylesheet (app.wxss) with brand context
+        app_wxss_path = os.path.join(self.template_dir, 'app.wxss')
+        if os.path.exists(app_wxss_path):
+            self._write_file(
+                os.path.join(output_dir, 'app.wxss'),
+                self._render_template(app_wxss_path, {**brand_ctx, **api_ctx})
+            )
+
         # Write project.config.json
         project_config = {
             'appid': options.get('app_id', {}).get('wechat', ''),
