@@ -442,6 +442,9 @@ from datetime import datetime
 _mini_app_tasks = {}
 _MINI_APP_TASK_TTL = 3600
 
+# Workspace root — generated projects/versions are cached here
+MINIAPP_WORKSPACE = os.path.join(BASE_DIR, 'mini_app', 'workspace')
+
 
 def _cleanup_old_tasks():
     now = datetime.now().timestamp()
@@ -449,6 +452,127 @@ def _cleanup_old_tasks():
                if now - v.get('created_at', 0) > _MINI_APP_TASK_TTL]
     for k in expired:
         _mini_app_tasks.pop(k, None)
+
+
+def _project_version_dir(slug: str, version_no: int) -> str:
+    """Return the absolute output dir for a project version."""
+    return os.path.join(MINIAPP_WORKSPACE, slug, f'v{version_no}')
+
+
+# ── Mini-App Project Management ────────────────────────
+
+@site_builder_bp.route('/mini-app/projects', methods=['GET'])
+def mini_app_list_projects():
+    """List all mini-app projects."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import list_projects
+    return _success(list_projects())
+
+
+@site_builder_bp.route('/mini-app/projects', methods=['POST'])
+def mini_app_create_project():
+    """Create a new mini-app project."""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return _error('Project name is required')
+
+    from site_builder.models import create_project
+    project = create_project(
+        name=name,
+        description=data.get('description', ''),
+        created_by=admin.get('user_id', 0),
+    )
+    return _success(project, _('Project created'))
+
+
+@site_builder_bp.route('/mini-app/projects/<int:project_id>', methods=['GET'])
+def mini_app_get_project(project_id):
+    """Get a project with its version history."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import get_project, list_versions
+    project = get_project(project_id)
+    if not project:
+        return _error('Project not found', 404)
+    project['versions'] = list_versions(project_id)
+    return _success(project)
+
+
+@site_builder_bp.route('/mini-app/projects/<int:project_id>', methods=['DELETE'])
+def mini_app_delete_project(project_id):
+    """Delete a project (DB records + workspace files)."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import get_project, delete_project
+    project = get_project(project_id)
+    if not project:
+        return _error('Project not found', 404)
+
+    # Remove workspace directory for this project
+    proj_dir = os.path.join(MINIAPP_WORKSPACE, project['slug'])
+    if os.path.isdir(proj_dir):
+        shutil.rmtree(proj_dir, ignore_errors=True)
+
+    delete_project(project_id)
+    return _success(None, _('Project deleted'))
+
+
+@site_builder_bp.route('/mini-app/projects/<int:project_id>/versions', methods=['GET'])
+def mini_app_list_versions(project_id):
+    """List all versions of a project."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import get_project, list_versions
+    if not get_project(project_id):
+        return _error('Project not found', 404)
+    return _success(list_versions(project_id))
+
+
+@site_builder_bp.route('/mini-app/versions/<int:version_id>/download/<platform>', methods=['GET'])
+def mini_app_download_version(version_id, platform):
+    """Download a specific version's platform output as .zip (from workspace)."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import get_version
+    version = get_version(version_id)
+    if not version:
+        return _error('Version not found', 404)
+
+    result = (version.get('result') or {}).get(platform)
+    if not result or result.get('status') != 'completed':
+        return _error(f'No completed output for platform: {platform}', 404)
+
+    output_dir = result.get('output_dir', '')
+    if not output_dir or not os.path.isdir(output_dir):
+        return _error('Version output directory not found (may have been cleaned)', 404)
+
+    try:
+        from site_builder.mini_app.packager import MiniAppPackager
+        # Package into the version's own directory to keep artifacts together
+        pkg_base = os.path.join(os.path.dirname(output_dir), 'packages')
+        os.makedirs(pkg_base, exist_ok=True)
+        packager = MiniAppPackager(output_base=pkg_base)
+        zip_path = packager.package(platform, output_dir)
+
+        from flask import send_file
+        return send_file(
+            zip_path,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'{platform}-v{version["version_no"]}.zip'
+        )
+    except Exception as e:
+        return _error(str(e), 500)
 
 
 @site_builder_bp.route('/mini-app/platforms', methods=['GET'])
@@ -534,7 +658,16 @@ def mini_app_update_platform(platform):
 
 @site_builder_bp.route('/mini-app/generate', methods=['POST'])
 def mini_app_generate():
-    """Trigger mini-app generation for specified platforms"""
+    """Trigger mini-app generation for specified platforms.
+
+    Optional project binding:
+        - project_id: generate a new version under an existing project
+        - project_name: create a new project (if project_id not given) and
+                        generate its first version
+    When bound to a project, output is written to a versioned workspace dir
+    (mini_app/workspace/<slug>/v<N>/) and recorded in the DB (version history).
+    Without a project, falls back to the legacy ephemeral 'dist/' behavior.
+    """
     admin, err = _require_admin()
     if err: return err
 
@@ -543,9 +676,28 @@ def mini_app_generate():
     data = request.get_json(force=True, silent=True) or {}
     platforms = data.get('platforms', ['telegram'])
     options = data.get('options', {})
+    project_id = data.get('project_id')
+    project_name = (data.get('project_name') or '').strip()
 
     if not isinstance(platforms, list) or not platforms:
         return _error('platforms must be a non-empty list')
+
+    # Resolve or create the bound project (optional)
+    from site_builder.models import (get_project, create_project,
+                                      next_version_no, create_version)
+    project = None
+    if project_id:
+        project = get_project(project_id)
+        if not project:
+            return _error('Project not found', 404)
+    elif project_name:
+        project = create_project(name=project_name, created_by=admin.get('user_id', 0))
+
+    version_no = None
+    output_base = None
+    if project:
+        version_no = next_version_no(project['id'])
+        output_base = _project_version_dir(project['slug'], version_no)
 
     task_id = str(uuid.uuid4())[:8]
     _mini_app_tasks[task_id] = {
@@ -554,6 +706,9 @@ def mini_app_generate():
         'platforms': platforms,
         'created_at': datetime.now().timestamp(),
         'results': {},
+        'project_id': project['id'] if project else None,
+        'project_slug': project['slug'] if project else None,
+        'version_no': version_no,
     }
 
     def _run_generation():
@@ -569,10 +724,27 @@ def mini_app_generate():
             site_config = {'draft_tokens': draft_tokens}
 
             engine = MiniAppEngine(site_config=site_config, brand_settings=brand)
-            results = engine.generate(platforms, options)
+            results = engine.generate(platforms, options, output_base=output_base)
 
             _mini_app_tasks[task_id]['results'] = results
             _mini_app_tasks[task_id]['status'] = 'completed'
+
+            # Persist version record when bound to a project
+            if project and version_no:
+                try:
+                    create_version(
+                        project_id=project['id'],
+                        version_no=version_no,
+                        platforms=platforms,
+                        options=options,
+                        result=results,
+                        output_path=output_base,
+                        status='completed',
+                    )
+                except Exception as ve:
+                    import traceback
+                    print(f'[MiniApp] version persist failed: {ve}')
+                    traceback.print_exc()
         except Exception as e:
             import traceback
             _mini_app_tasks[task_id]['status'] = 'failed'
@@ -582,7 +754,13 @@ def mini_app_generate():
     thread = threading.Thread(target=_run_generation, daemon=True)
     thread.start()
 
-    return _success({'task_id': task_id, 'status': 'pending'})
+    return _success({
+        'task_id': task_id,
+        'status': 'pending',
+        'project_id': project['id'] if project else None,
+        'project_slug': project['slug'] if project else None,
+        'version_no': version_no,
+    })
 
 
 @site_builder_bp.route('/mini-app/status/<task_id>', methods=['GET'])
@@ -602,6 +780,9 @@ def mini_app_status(task_id):
         'platforms': task['platforms'],
         'results': task.get('results', {}),
         'error': task.get('error', ''),
+        'project_id': task.get('project_id'),
+        'project_slug': task.get('project_slug'),
+        'version_no': task.get('version_no'),
     })
 
 

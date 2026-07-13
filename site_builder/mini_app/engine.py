@@ -30,7 +30,7 @@ class MiniAppEngine:
         self.site_config = site_config or {}
         self.brand = brand_settings or {}
 
-    def generate(self, platforms: list, options: dict = None) -> dict:
+    def generate(self, platforms: list, options: dict = None, output_base: str = None) -> dict:
         """Generate mini-programs for the specified platforms.
 
         Args:
@@ -38,6 +38,9 @@ class MiniAppEngine:
                        ['douyin', 'wechat', 'telegram', 'line']
                        'toutiao' is also supported (maps to DouyinGenerator)
             options: Generation options (see _get_generator for details)
+            output_base: Base output directory for generated files. When set
+                       (e.g. a project/version workspace path), generators write
+                       under it instead of the default 'dist/'.
 
         Returns:
             {
@@ -62,7 +65,7 @@ class MiniAppEngine:
 
         for platform in platforms:
             try:
-                generator = self._get_generator(platform)
+                generator = self._get_generator(platform, output_base)
                 result = generator.generate(self.site_config, self.brand, options)
                 results[platform] = {'status': 'completed', **result}
                 logger.info(f'[MiniAppEngine] {platform} generation completed: {len(result.get("files", []))} files')
@@ -74,11 +77,12 @@ class MiniAppEngine:
 
         return results
 
-    def _get_generator(self, platform: str):
+    def _get_generator(self, platform: str, output_base: str = None):
         """Factory: return the appropriate generator for the platform.
 
         Args:
             platform: 'douyin' | 'toutiao' | 'wechat' | 'telegram' | 'line'
+            output_base: Optional base output directory passed to the generator
 
         Returns:
             BaseMiniAppGenerator subclass instance
@@ -103,4 +107,4 @@ class MiniAppEngine:
         if not generator_cls:
             raise ValueError(f'Unsupported platform: {platform}. Supported: {list(generators.keys())}')
 
-        return generator_cls()
+        return generator_cls(output_base=output_base) if output_base else generator_cls()
