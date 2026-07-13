@@ -405,7 +405,7 @@ def _get_chatbot_agent(agent_id):
         from agent_matrix.models import get_db
         with get_db() as conn:
             row = conn.execute(
-                "SELECT * FROM agent_matrix WHERE name=? OR identifier=? LIMIT 1",
+                "SELECT * FROM agent_matrix WHERE name=? OR slug=? LIMIT 1",
                 (agent_id, agent_id)
             ).fetchone()
         return dict(row) if row else None
