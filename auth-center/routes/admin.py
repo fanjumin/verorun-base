@@ -26,11 +26,14 @@ def _cached_get(ttl=5):
             now = time.time()
             entry = _get_cache.get(key)
             if entry and (now - entry['ts']) < ttl:
-                return entry['resp']
+                from flask import make_response
+                return make_response((entry['body'], entry['status']))
             resp = fn(*a, **kw)
-            # 只缓存成功的 jsonify 响应
-            if resp.status_code == 200:
-                _get_cache[key] = {'resp': resp, 'ts': now}
+            # 提取状态码和 body，重建 Response 缓存
+            if hasattr(resp, 'status_code') and resp.status_code == 200:
+                _get_cache[key] = {'body': resp.get_data(as_text=True), 'status': 200, 'ts': now}
+            elif isinstance(resp, tuple) and len(resp) == 2 and getattr(resp[0], 'status_code', None) == 200:
+                _get_cache[key] = {'body': resp[0].get_data(as_text=True), 'status': 200, 'ts': now}
             return resp
         return wrapper
     return deco
