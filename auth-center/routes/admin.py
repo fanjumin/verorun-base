@@ -11,6 +11,29 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
 _dash_cache = {'data': None, 'ts': 0, 'ttl': 10}
+# 通用 GET 请求内存缓存（5 秒 TTL），消除重复点击同一模块的等待感
+_get_cache = {}
+
+def _cached_get(ttl=5):
+    """装饰器：对 GET 请求做内存缓存"""
+    from functools import wraps
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*a, **kw):
+            if request.method != 'GET':
+                return fn(*a, **kw)
+            key = request.path + '?' + request.query_string.decode()
+            now = time.time()
+            entry = _get_cache.get(key)
+            if entry and (now - entry['ts']) < ttl:
+                return entry['resp']
+            resp = fn(*a, **kw)
+            # 只缓存成功的 jsonify 响应
+            if resp.status_code == 200:
+                _get_cache[key] = {'resp': resp, 'ts': now}
+            return resp
+        return wrapper
+    return deco
 
 def _require_admin():
     """鉴权守卫 — 与 agent_matrix/site_builder 版本对齐：
@@ -453,6 +476,7 @@ def _revenue_dashboard_data():
 
 
 @admin_bp.route('/users', methods=['GET'])
+@_cached_get(ttl=3)
 def user_list():
     admin, err = _require_admin()
     if err:
@@ -631,6 +655,7 @@ def user_profile_admin(uid):
 
 # GET /admin/users/export — 脱敏导出用户列表
 @admin_bp.route('/agents', methods=['GET'])
+@_cached_get(ttl=3)
 def agent_list():
     """Legacy endpoint — delegates to new user_agents query (2026-05-10)"""
     admin, err = _require_admin()
@@ -662,6 +687,7 @@ def agent_list():
 
 
 @admin_bp.route('/posts', methods=['GET'])
+@_cached_get(ttl=3)
 def post_list():
     admin, err = _require_admin()
     if err:
@@ -699,6 +725,7 @@ def review_post(pid):
 
 
 @admin_bp.route('/contacts', methods=['GET'])
+@_cached_get(ttl=3)
 def contact_list():
     admin, err = _require_admin()
     if err:
@@ -713,6 +740,7 @@ def contact_list():
 
 
 @admin_bp.route('/api-keys', methods=['GET'])
+@_cached_get(ttl=3)
 def api_key_list():
     admin, err = _require_admin()
     if err:
@@ -739,6 +767,7 @@ def revoke_key(kid):
 
 
 @admin_bp.route('/logs', methods=['GET'])
+@_cached_get(ttl=3)
 def admin_logs():
     admin, err = _require_admin()
     if err:
@@ -2580,6 +2609,7 @@ def public_interests():
 # =============================================
 
 @admin_bp.route('/downloads', methods=['GET'])
+@_cached_get(ttl=3)
 def admin_downloads_list():
     admin, err = _require_admin()
     if err:
