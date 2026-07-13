@@ -293,7 +293,7 @@ tr:hover td{background:rgba(108,108,240,0.04)}
 </div>
 
 <script>
-var T = localStorage.getItem("sso_token") || localStorage.getItem("tm_token") || localStorage.getItem("token");
+var T = {{ sso_token | tojson }} || localStorage.getItem("sso_token") || localStorage.getItem("tm_token") || localStorage.getItem("token");
 var API = '/admin/health/api';
 var _token = T;
 var _dataCache = {};

@@ -226,7 +226,10 @@ def health_page():
     admin = _require_admin()
     if not admin:
         return '', 401
-    return render_template('health.html')
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = request.cookies.get('sso_token') or request.headers.get('X-Token') or ''
+    return render_template('health.html', sso_token=token)
 
 
 @health_bp.route('/api/status')
