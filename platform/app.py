@@ -428,7 +428,12 @@ def static_media(filename):
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), filename)
+    plat_path = os.path.join(os.path.dirname(__file__), 'static', filename)
+    if os.path.isfile(plat_path):
+        return send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), filename)
+    # 回退查 admin/static（处理 brand/ 等跨服务共享文件）
+    admin_static = os.path.join(os.path.dirname(__file__), '..', 'admin', 'static')
+    return send_from_directory(admin_static, filename)
 
 
 # ══ 主题系统 ══
