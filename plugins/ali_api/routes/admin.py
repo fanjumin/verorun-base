@@ -155,7 +155,7 @@ def index():
                         max_age=3600, httponly=False, samesite='Lax', secure=True)
     # 添加安全响应头
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'same-origin'
     return response

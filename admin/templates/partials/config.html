@@ -44,8 +44,8 @@ function loadSystemConfig(){
       });
       c+='</div></div>';
     });
-    document.getElementById("config-tab-content").innerHTML=c||'<div class="em">{{ _('No Config Item') }}</div>';
-  }).catch(function(){document.getElementById("config-tab-content").innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
+    var ct=document.getElementById("config-tab-content");if(ct)ct.innerHTML=c||'<div class="em">{{ _('No Config Item') }}</div>';
+  }).catch(function(){var ct=document.getElementById("config-tab-content");if(ct)ct.innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
 }
 function toggleCat(catId){
   var sec=document.getElementById('cfg-cat-'+catId);
