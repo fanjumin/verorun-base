@@ -1,0 +1,63 @@
+{
+    "name": "Subscription",
+    "identifier": "subscription",
+    "version": "1.0.0",
+    "description": "Unified Subscription Management — Pay-as-you-go feature marketplace with dual-environment payment routing (cn: Alipay/WeChat, intl: Stripe/PayPal)",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "category": "Core",
+    "tags": ["subscription", "payment", "billing"],
+    "depends_on": {},
+    "enabled": true,
+    "config": {
+        "trial_days": 0,
+        "grace_days": 3,
+        "auto_renew_default": true
+    },
+    "permissions": [
+        "subscription.read",
+        "subscription.write",
+        "subscription.admin"
+    ],
+    "hooks": {
+        "provides": [
+            "subscription/has",
+            "subscription/list",
+            "subscription/subscribe",
+            "subscription/cancel",
+            "subscription/renew"
+        ],
+        "listens": [
+            "user/registered"
+        ]
+    },
+    "menu": {
+        "group": "System",
+        "key": "subscription",
+        "icon": "subscriptions",
+        "label": "Subscriptions",
+        "embed_url": "/admin/subscription/"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "trial_days": {
+                "type": "integer",
+                "default": 0,
+                "minimum": 0,
+                "description": "Free trial period in days (0 = no trial)"
+            },
+            "grace_days": {
+                "type": "integer",
+                "default": 3,
+                "minimum": 0,
+                "description": "Grace period after expiration before disabling"
+            },
+            "auto_renew_default": {
+                "type": "boolean",
+                "default": true,
+                "description": "Default auto-renew for new subscriptions"
+            }
+        }
+    }
+}

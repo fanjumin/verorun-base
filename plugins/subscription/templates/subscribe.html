@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Management — VeroRun</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface-hover: #242836;
+            --border: #2a2d3a;
+            --text: #e1e4eb;
+            --text-secondary: #8b8fa3;
+            --primary: #4f8cff;
+            --primary-hover: #3d7af0;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+        /* Header */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 32px; flex-wrap: wrap; gap: 16px;
+        }
+        .header h1 { font-size: 24px; font-weight: 700; }
+        .header .market-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 12px; font-weight: 600;
+            background: #1e293b; color: #94a3b8;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 4px; margin-bottom: 24px;
+            background: var(--surface); border-radius: var(--radius);
+            padding: 4px; overflow-x: auto;
+        }
+        .tab {
+            padding: 10px 20px; border-radius: var(--radius-sm);
+            cursor: pointer; font-size: 14px; font-weight: 500;
+            white-space: nowrap; color: var(--text-secondary);
+            background: transparent; border: none; transition: all 0.2s;
+        }
+        .tab.active { background: var(--primary); color: #fff; }
+        .tab:hover:not(.active) { background: var(--surface-hover); color: var(--text); }
+
+        /* Section */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px; transition: border-color 0.2s;
+        }
+        .card:hover { border-color: #3d4560; }
+        .card-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .card-title { font-size: 16px; font-weight: 600; }
+        .card-category {
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+            padding: 2px 8px; border-radius: 4px;
+            background: #1e293b; color: #64748b;
+        }
+        .card-desc {
+            font-size: 13px; color: var(--text-secondary);
+            margin-bottom: 16px; line-height: 1.5;
+        }
+        .card-pricing {
+            display: flex; gap: 16px; margin-bottom: 16px;
+        }
+        .price-option {
+            flex: 1; text-align: center; padding: 10px 8px;
+            background: #13151d; border-radius: var(--radius-sm);
+            cursor: pointer; border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .price-option:hover { border-color: var(--primary); }
+        .price-option.selected { border-color: var(--primary); background: #1a2040; }
+        .price-amount { font-size: 18px; font-weight: 700; color: var(--primary); }
+        .price-label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 6px; padding: 10px 20px; border-radius: var(--radius-sm);
+            font-size: 14px; font-weight: 600; cursor: pointer; border: none;
+            transition: all 0.2s; text-decoration: none;
+        }
+        .btn-primary {
+            background: var(--primary); color: #fff; width: 100%;
+        }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-subscribed {
+            background: #1a2e1a; color: var(--success); width: 100%; cursor: default;
+        }
+        .btn-danger {
+            background: transparent; color: var(--danger); border: 1px solid var(--danger);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.1); }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+        /* My Subscriptions */
+        .sub-list { display: flex; flex-direction: column; gap: 12px; }
+        .sub-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; background: var(--surface);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            flex-wrap: wrap; gap: 12px;
+        }
+        .sub-info { display: flex; flex-direction: column; gap: 4px; }
+        .sub-name { font-weight: 600; font-size: 15px; }
+        .sub-meta { font-size: 12px; color: var(--text-secondary); }
+        .sub-actions { display: flex; gap: 8px; align-items: center; }
+        .status-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600;
+        }
+        .status-active { background: #1a2e1a; color: var(--success); }
+        .status-expired { background: #2e1a1a; color: var(--danger); }
+        .status-canceled { background: #2e2a1a; color: var(--warning); }
+        .status-suspended { background: #1a1a2e; color: #6366f1; }
+
+        /* Orders */
+        .order-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .order-table th, .order-table td {
+            padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border);
+        }
+        .order-table th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+        .empty { text-align: center; padding: 40px; color: var(--text-secondary); }
+
+        /* Payment Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); z-index: 100;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 28px; max-width: 400px;
+            width: 90%; text-align: center;
+        }
+        .modal h3 { margin-bottom: 16px; font-size: 18px; }
+        .modal .qr-code { margin: 16px 0; }
+        .modal .qr-code img { max-width: 200px; border-radius: 8px; }
+        .modal .amount-display { font-size: 28px; font-weight: 700; color: var(--primary); margin: 12px 0; }
+        .modal .close-btn {
+            margin-top: 16px; color: var(--text-secondary); cursor: pointer;
+            font-size: 13px; background: none; border: none;
+        }
+        .modal .pay-link {
+            display: inline-block; margin-top: 12px; padding: 10px 24px;
+            background: var(--primary); color: #fff; border-radius: var(--radius-sm);
+            font-weight: 600; cursor: pointer;
+        }
+
+        /* Channel Picker */
+        .channel-picker { display: flex; gap: 8px; margin-top: 8px; }
+        .channel-btn {
+            flex: 1; padding: 8px; border-radius: 6px; cursor: pointer;
+            font-size: 12px; font-weight: 500; border: 1px solid var(--border);
+            background: transparent; color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+        .channel-btn.selected { border-color: var(--primary); color: var(--primary); background: #1a2040; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Subscription</h1>
+            <span class="market-badge" id="marketBadge">Market</span>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="market">Available</button>
+            <button class="tab" data-tab="my-subs">My Subscriptions</button>
+            <button class="tab" data-tab="orders">Orders</button>
+        </div>
+
+        <!-- Available Items -->
+        <div class="section active" id="tab-market">
+            <div class="card-grid" id="itemsGrid"></div>
+        </div>
+
+        <!-- My Subscriptions -->
+        <div class="section" id="tab-my-subs">
+            <div class="sub-list" id="mySubsList"></div>
+        </div>
+
+        <!-- Orders -->
+        <div class="section" id="tab-orders">
+            <table class="order-table">
+                <thead>
+                    <tr>
+                        <th>Order No.</th>
+                        <th>Item</th>
+                        <th>Amount</th>
+                        <th>Channel</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal">
+            <h3 id="modalTitle">Pay</h3>
+            <div class="amount-display" id="modalAmount"></div>
+            <div class="qr-code" id="modalQR">
+                <img id="modalQRImg" src="" alt="QR Code" style="max-width:200px;display:none;">
+            </div>
+            <a class="pay-link" id="modalLink" href="#" target="_blank" style="display:none;">Proceed to Pay</a>
+            <button class="close-btn" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // ── State ────────────────────────────────────────────────────────────
+        let state = {
+            items: [],
+            mySubs: [],
+            orders: [],
+            pendingItem: null,
+        };
+
+        // ── Init ─────────────────────────────────────────────────────────────
+        async function init() {
+            await Promise.all([loadItems(), loadMySubs(), loadOrders()]);
+            bindTabs();
+            document.getElementById('marketBadge').textContent =
+                document.querySelector('meta[name="deploy-market"]')?.content || 'Market';
+        }
+
+        // ── Load Data ────────────────────────────────────────────────────────
+        async function loadItems() {
+            const res = await fetch('/api/subscription/items');
+            if (res.ok) {
+                const data = await res.json();
+                state.items = data.items || [];
+            }
+            renderItems();
+        }
+
+        async function loadMySubs() {
+            try {
+                const res = await fetch('/api/subscription/my');
+                if (res.ok) {
+                    const data = await res.json();
+                    state.mySubs = data.subscriptions || [];
+                }
+            } catch(e) {}
+            renderMySubs();
+        }
+
+        async function loadOrders() {
+            try {
+                const res = await fetch('/api/subscription/orders');
+                if (res.ok) {
+                    const data = await res.json();
+                    state.orders = data.orders || [];
+                }
+            } catch(e) {}
+            renderOrders();
+        }
+
+        // ── Render ───────────────────────────────────────────────────────────
+        function renderItems() {
+            const grid = document.getElementById('itemsGrid');
+            let active = new Set(state.mySubs.filter(s => s.status === 'active').map(s => s.item_key));
+
+            grid.innerHTML = state.items.map(item => {
+                let isSubscribed = active.has(item.item_key);
+                let ym = (item.price_month / 100).toFixed(2);
+                let yy = (item.price_year / 100).toFixed(2);
+
+                return `
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">${item.name}</span>
+                        <span class="card-category">${item.category}</span>
+                    </div>
+                    <div class="card-desc">${item.description || ''}</div>
+                    ${isSubscribed ? `
+                        <button class="btn btn-subscribed">&#10003; Subscribed</button>
+                    ` : `
+                        <div class="card-pricing">
+                            <div class="price-option selected" data-interval="month" data-item="${item.item_key}">
+                                <div class="price-amount">&yen;${ym}</div>
+                                <div class="price-label">Monthly</div>
+                            </div>
+                            <div class="price-option" data-interval="year" data-item="${item.item_key}">
+                                <div class="price-amount">&yen;${yy}</div>
+                                <div class="price-label">Yearly</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="onSubscribe('${item.item_key}')">Subscribe</button>
+                    `}
+                </div>`;
+            }).join('');
+
+            // Bind pricing selector
+            grid.querySelectorAll('.price-option').forEach(el => {
+                el.addEventListener('click', function() {
+                    let card = this.closest('.card');
+                    card.querySelectorAll('.price-option').forEach(o => o.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+            });
+        }
+
+        function renderMySubs() {
+            const list = document.getElementById('mySubsList');
+            if (state.mySubs.length === 0) {
+                list.innerHTML = '<div class="empty">No subscriptions yet. Browse available items to subscribe.</div>';
+                return;
+            }
+            list.innerHTML = state.mySubs.map(sub => `
+                <div class="sub-row">
+                    <div class="sub-info">
+                        <span class="sub-name">${sub.name || sub.item_key}</span>
+                        <span class="sub-meta">
+                            ${sub.interval_type === 'month' ? 'Monthly' : 'Yearly'} &mdash;
+                            ${sub.amount_yuan} &mdash;
+                            Expires: ${sub.period_end ? sub.period_end.slice(0,10) : '-'}
+                            ${sub.auto_renew ? ' (Auto-renew)' : ''}
+                        </span>
+                    </div>
+                    <div class="sub-actions">
+                        <span class="status-badge status-${sub.status}">${sub.status}</span>
+                        ${sub.status === 'active' ? `
+                            <button class="btn btn-sm btn-danger" onclick="onCancel('${sub.item_key}')">Cancel</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderOrders() {
+            const tbody = document.getElementById('ordersBody');
+            if (state.orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty">No orders yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = state.orders.map(o => `
+                <tr>
+                    <td style="font-family:monospace;font-size:11px;">${o.order_no}</td>
+                    <td>${o.item_key}</td>
+                    <td>&yen;${o.amount_yuan}</td>
+                    <td>${o.channel}</td>
+                    <td><span class="status-badge status-${o.status === 'paid' ? 'active' : o.status}">${o.status}</span></td>
+                    <td>${o.created_at ? o.created_at.slice(0,10) : '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ── Actions ──────────────────────────────────────────────────────────
+        function getSelectedInterval(cardEl) {
+            let sel = cardEl.querySelector('.price-option.selected');
+            return sel ? sel.dataset.interval : 'month';
+        }
+
+        async function onSubscribe(itemKey) {
+            let card = document.querySelector(`.card [data-item="${itemKey}"]`).closest('.card');
+            let interval = getSelectedInterval(card);
+
+            try {
+                let item = state.items.find(i => i.item_key === itemKey);
+                let res = await fetch('/api/subscription/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_key: itemKey, interval_type: interval }),
+                });
+                let data = await res.json();
+
+                if (res.ok && data.order) {
+                    state.pendingItem = { ...data.order, itemName: item?.name || itemKey };
+                    showPaymentModal(state.pendingItem);
+                } else {
+                    alert(data.error || 'Subscribe failed');
+                }
+            } catch(e) {
+                alert('Network error');
+            }
+        }
+
+        async function onCancel(itemKey) {
+            if (!confirm('Cancel this subscription?')) return;
+            try {
+                let res = await fetch('/api/subscription/cancel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_key: itemKey }),
+                });
+                if (res.ok) {
+                    await loadMySubs();
+                    await loadItems();
+                }
+            } catch(e) {
+                alert('Network error');
+            }
+        }
+
+        // ── Modal ────────────────────────────────────────────────────────────
+        function showPaymentModal(order) {
+            document.getElementById('modalTitle').textContent = `Pay — ${order.itemName || order.item_key}`;
+            document.getElementById('modalAmount').textContent = `¥${order.amount_yuan}`;
+
+            let qrImg = document.getElementById('modalQRImg');
+            let payLink = document.getElementById('modalLink');
+
+            if (order.qr_code) {
+                qrImg.src = order.qr_code;
+                qrImg.style.display = 'block';
+                payLink.style.display = 'none';
+            } else if (order.redirect_url) {
+                qrImg.style.display = 'none';
+                payLink.href = order.redirect_url;
+                payLink.style.display = 'inline-block';
+            } else {
+                qrImg.style.display = 'none';
+                payLink.style.display = 'none';
+            }
+
+            document.getElementById('paymentModal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('paymentModal').classList.remove('open');
+            loadMySubs();
+            loadItems();
+            loadOrders();
+        }
+
+        // ── Tabs ─────────────────────────────────────────────────────────────
+        function bindTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+                });
+            });
+        }
+
+        // ── Start ────────────────────────────────────────────────────────────
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""
+Subscription Plugin — API 路由
+================================
+用户端:  /api/subscription/*
+管理端:  /admin/subscription/*
+回调:    /api/subscription/notify/*
+"""
+
+import os
+import json
+from flask import Blueprint, request, jsonify, render_template, current_app
+
+from .services import (
+    SubscriptionService, get_subscription_service,
+    has_subscription, get_active_features,
+)
+from .models import SubItem, UserSubscription, SubOrder, OrderStatus
+
+# ── i18n ─────────────────────────────────────────────────────────────────
+
+_t = lambda text, **kwargs: text
+
+
+def init_i18n(t_func):
+    global _t
+    _t = t_func
+
+
+# ── Blueprint ────────────────────────────────────────────────────────────
+
+sub_bp = Blueprint('subscription', __name__, url_prefix='')
+
+
+# ── 辅助 ─────────────────────────────────────────────────────────────────
+
+def _get_user_id():
+    """从 JWT/session 获取当前用户 ID"""
+    # 尝试从 request 属性获取（由 auth middleware 注入）
+    uid = getattr(request, 'user_id', None)
+    if uid:
+        return uid
+    # 尝试从 Authorization header 解析
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        try:
+            import jwt
+            payload = jwt.decode(auth[7:], options={"verify_signature": False})
+            return payload.get('user_id') or payload.get('sub')
+        except Exception:
+            pass
+    return None
+
+
+def _login_required(f):
+    """简易登录检查装饰器"""
+    from functools import wraps
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        uid = _get_user_id()
+        if not uid:
+            return jsonify({'error': 'Authentication required', 'code': 'AUTH_REQUIRED'}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _admin_required(f):
+    """管理员检查装饰器"""
+    from functools import wraps
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        uid = _get_user_id()
+        if not uid:
+            return jsonify({'error': 'Authentication required', 'code': 'AUTH_REQUIRED'}), 401
+        role = getattr(request, 'user_role', '')
+        if role != 'admin':
+            return jsonify({'error': 'Admin required', 'code': 'FORBIDDEN'}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 用户端 API
+# ═══════════════════════════════════════════════════════════════════════════
+
+@sub_bp.route('/api/subscription/items', methods=['GET'])
+def list_items():
+    """获取所有可订阅项（公开接口）"""
+    svc = get_subscription_service()
+    locale = request.args.get('lang', os.environ.get('DEPLOY_LANG', 'zh-CN'))
+    items = svc.list_items(locale=locale)
+
+    # 如果用户已登录，附带订阅状态
+    uid = _get_user_id()
+    if uid:
+        active = get_active_features(uid)
+        for item in items:
+            item['subscribed'] = item['item_key'] in active
+
+    return jsonify({'items': items, 'market': os.environ.get('DEPLOY_MARKET', 'cn')})
+
+
+@sub_bp.route('/api/subscription/my', methods=['GET'])
+@_login_required
+def my_subscriptions():
+    """我的订阅列表"""
+    uid = _get_user_id()
+    svc = get_subscription_service()
+    subs = svc.get_user_subscriptions(uid)
+    locale = request.args.get('lang', os.environ.get('DEPLOY_LANG', 'zh-CN'))
+
+    result = []
+    for s in subs:
+        item = svc.get_item(s.item_key)
+        d = s.to_dict()
+        if item:
+            d['name'] = item.name_zh if locale == 'zh-CN' else item.name_en
+            d['category'] = item.category
+        result.append(d)
+
+    return jsonify({'subscriptions': result})
+
+
+@sub_bp.route('/api/subscription/check/<item_key>', methods=['GET'])
+@_login_required
+def check_subscription(item_key):
+    """检查是否有某个订阅"""
+    uid = _get_user_id()
+    ok = has_subscription(uid, item_key)
+    return jsonify({'has_subscription': ok, 'item_key': item_key})
+
+
+@sub_bp.route('/api/subscription/subscribe', methods=['POST'])
+@_login_required
+def subscribe():
+    """创建订阅订单"""
+    uid = _get_user_id()
+    data = request.get_json(silent=True) or {}
+
+    item_key = data.get('item_key', '')
+    interval_type = data.get('interval_type', 'month')
+    channel = data.get('channel', None)
+
+    if not item_key:
+        return jsonify({'error': 'item_key is required', 'code': 'INVALID_PARAMS'}), 400
+    if interval_type not in ('month', 'year'):
+        return jsonify({'error': 'interval_type must be month or year', 'code': 'INVALID_PARAMS'}), 400
+
+    svc = get_subscription_service()
+    success, msg, order_data = svc.subscribe(uid, item_key, interval_type, channel)
+
+    if not success:
+        return jsonify({'error': msg, 'code': 'SUBSCRIPTION_FAILED'}), 400
+
+    return jsonify({'message': msg, 'order': order_data})
+
+
+@sub_bp.route('/api/subscription/cancel', methods=['POST'])
+@_login_required
+def cancel_subscription():
+    """取消订阅"""
+    uid = _get_user_id()
+    data = request.get_json(silent=True) or {}
+
+    item_key = data.get('item_key', '')
+    immediate = data.get('immediate', False)
+
+    if not item_key:
+        return jsonify({'error': 'item_key is required', 'code': 'INVALID_PARAMS'}), 400
+
+    svc = get_subscription_service()
+    success, msg = svc.cancel(uid, item_key, immediate)
+
+    if not success:
+        return jsonify({'error': msg, 'code': 'CANCEL_FAILED'}), 400
+
+    return jsonify({'message': msg})
+
+
+@sub_bp.route('/api/subscription/renew', methods=['POST'])
+@_login_required
+def renew_subscription():
+    """手动续费"""
+    uid = _get_user_id()
+    data = request.get_json(silent=True) or {}
+
+    item_key = data.get('item_key', '')
+    channel = data.get('channel', None)
+
+    if not item_key:
+        return jsonify({'error': 'item_key is required', 'code': 'INVALID_PARAMS'}), 400
+
+    svc = get_subscription_service()
+    success, msg, order_data = svc.renew(uid, item_key, channel)
+
+    if not success:
+        return jsonify({'error': msg, 'code': 'RENEW_FAILED'}), 400
+
+    return jsonify({'message': msg, 'order': order_data})
+
+
+@sub_bp.route('/api/subscription/orders', methods=['GET'])
+@_login_required
+def my_orders():
+    """我的订单列表"""
+    uid = _get_user_id()
+    limit = request.args.get('limit', 50, type=int)
+    svc = get_subscription_service()
+    orders = svc.list_orders(uid, limit)
+    return jsonify({'orders': [o.to_dict() for o in orders]})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 支付回调
+# ═══════════════════════════════════════════════════════════════════════════
+
+@sub_bp.route('/api/subscription/notify/alipay', methods=['POST'])
+def notify_alipay():
+    """支付宝异步通知"""
+    raw_data = dict(request.form) if request.form else request.get_json(silent=True) or {}
+    from .gateways import verify_notify
+    is_valid, parsed = verify_notify('alipay', raw_data, dict(request.headers))
+
+    if not is_valid:
+        return 'FAIL', 400
+
+    order_no = parsed.get('order_no', '')
+    trade_no = parsed.get('trade_no', '')
+
+    if order_no:
+        svc = get_subscription_service()
+        svc.on_payment_success(order_no, trade_no)
+
+    return 'SUCCESS'
+
+
+@sub_bp.route('/api/subscription/notify/wechat', methods=['POST'])
+def notify_wechat():
+    """微信支付异步通知"""
+    raw_data = {}
+    if request.data:
+        try:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(request.data.decode())
+            raw_data = {child.tag: child.text for child in root}
+        except Exception:
+            raw_data = request.get_json(silent=True) or {}
+
+    from .gateways import verify_notify
+    is_valid, parsed = verify_notify('wechat', raw_data, dict(request.headers))
+
+    if not is_valid:
+        return '<xml><return_code><![CDATA[FAIL]]></return_code></xml>'
+
+    order_no = parsed.get('order_no', '')
+    trade_no = parsed.get('trade_no', '')
+
+    if order_no:
+        svc = get_subscription_service()
+        svc.on_payment_success(order_no, trade_no)
+
+    return '<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>'
+
+
+@sub_bp.route('/api/subscription/notify/stripe', methods=['POST'])
+def notify_stripe():
+    """Stripe Webhook"""
+    raw_data = request.get_json(silent=True) or {}
+    raw_data['_raw_payload'] = request.data.decode() if request.data else ''
+
+    from .gateways import verify_notify
+    is_valid, parsed = verify_notify('stripe', raw_data, dict(request.headers))
+
+    if not is_valid:
+        return jsonify({'error': 'Invalid webhook'}), 400
+
+    order_no = parsed.get('order_no', '')
+    trade_no = parsed.get('trade_no', '')
+
+    if order_no:
+        svc = get_subscription_service()
+        svc.on_payment_success(order_no, trade_no)
+
+    return jsonify({'received': True})
+
+
+@sub_bp.route('/api/subscription/notify/paypal', methods=['POST'])
+def notify_paypal():
+    """PayPal Webhook"""
+    raw_data = request.get_json(silent=True) or {}
+
+    from .gateways import verify_notify
+    is_valid, parsed = verify_notify('paypal', raw_data, dict(request.headers))
+
+    if not is_valid:
+        return jsonify({'error': 'Invalid webhook'}), 400
+
+    order_no = parsed.get('order_no', '')
+    trade_no = parsed.get('trade_no', '')
+
+    if order_no:
+        svc = get_subscription_service()
+        svc.on_payment_success(order_no, trade_no)
+
+    return jsonify({'received': True})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 管理端 API
+# ═══════════════════════════════════════════════════════════════════════════
+
+@sub_bp.route('/admin/subscription/items', methods=['GET'])
+def admin_list_items():
+    """管理员：列出所有 SKU"""
+    svc = get_subscription_service()
+    items = svc.list_items(locale='zh-CN', active_only=False)
+    return jsonify({'items': items})
+
+
+@sub_bp.route('/admin/subscription/items', methods=['POST'])
+def admin_save_item():
+    """管理员：新增/更新 SKU"""
+    data = request.get_json(silent=True) or {}
+    if not data.get('item_key'):
+        return jsonify({'error': 'item_key required'}), 400
+
+    svc = get_subscription_service()
+    svc.upsert_item(data)
+    return jsonify({'message': 'ok'})
+
+
+@sub_bp.route('/admin/subscription/items/<item_key>', methods=['DELETE'])
+def admin_delete_item(item_key):
+    """管理员：停用 SKU"""
+    svc = get_subscription_service()
+    item = svc.get_item(item_key)
+    if not item:
+        return jsonify({'error': 'Not found'}), 404
+    svc.upsert_item({
+        'item_key': item_key,
+        'category': item.category,
+        'name_zh': item.name_zh,
+        'name_en': item.name_en,
+        'description_zh': item.description_zh,
+        'description_en': item.description_en,
+        'price_month': item.price_month,
+        'price_year': item.price_year,
+        'is_active': 0,
+        'auto_activate': item.auto_activate,
+        'sort_order': item.sort_order,
+    })
+    return jsonify({'message': 'ok'})
+
+
+@sub_bp.route('/admin/subscription/users', methods=['GET'])
+def admin_list_users():
+    """管理员：查看用户订阅列表"""
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
+
+    svc = get_subscription_service()
+    subs = svc.get_user_subscriptions(user_id)
+    return jsonify({'subscriptions': [s.to_dict() for s in subs]})
+
+
+@sub_bp.route('/admin/subscription/orders', methods=['GET'])
+def admin_list_orders():
+    """管理员：订单列表"""
+    limit = request.args.get('limit', 100, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    svc = get_subscription_service()
+    orders = svc.list_all_orders(limit, offset)
+    return jsonify({'orders': [o.to_dict() for o in orders]})
+
+
+@sub_bp.route('/admin/subscription/', methods=['GET'])
+def admin_panel():
+    """管理后台订阅面板"""
+    return render_template('subscribe_admin.html')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门户页面
+# ═══════════════════════════════════════════════════════════════════════════
+
+@sub_bp.route('/subscribe', methods=['GET'])
+def subscribe_portal():
+    """用户订阅管理门户"""
+    return render_template('subscribe.html')
