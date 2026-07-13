@@ -32,11 +32,11 @@
         ]
     },
     "menu": {
-        "group": "System",
+        "group": "Subscription",
         "key": "subscription",
         "icon": "subscriptions",
         "label": "Subscriptions",
-        "embed_url": "/admin/subscription/"
+        "embed_url": "/plugin/subscription/admin/subscription/"
     },
     "settings_schema": {
         "type": "object",

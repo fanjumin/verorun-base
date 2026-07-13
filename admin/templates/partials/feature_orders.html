@@ -1,0 +1,19 @@
+window.l_feature_orders=function(){
+  document.getElementById("pt").textContent="{{ _('Feature Orders') }}";
+  var h='<div id="featureOrderList"><div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div></div>';
+  document.getElementById("mc").innerHTML=h;
+  fetch("/plugin/subscription/admin/subscription/orders?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    var orders=d.orders||[];
+    var h='<div class="cd"><div class="st">{{ _('Feature Orders') }} ('+orders.length+')</div><table><tr><th>{{ _('Order No.') }}</th><th>{{ _('User') }}</th><th>{{ _('Item') }}</th><th>{{ _('Interval') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Channel') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>';
+    if(!orders.length)h+='<tr><td colspan="8"><div class="em">{{ _('No orders yet') }}</div></td></tr>';
+    else orders.forEach(function(o){
+      var st=o.status==='paid'?'<span class="bdg on">{{ _('Paid') }}</span>':(o.status==='refunded'?'<span class="bdg off">{{ _('Refunded') }}</span>':(o.status==='failed'?'<span class="bdg err">{{ _('Failed') }}</span>':'<span class="bdg pd">'+esc(o.status)+'</span>'));
+      h+='<tr><td style="font-size:11px">'+esc(o.order_no)+'</td><td>#'+o.user_id+'</td>';
+      h+='<td>'+esc(o.item_key)+'</td><td>'+esc(o.interval_type)+'</td>';
+      h+='<td>¥'+esc(o.amount_yuan)+'</td><td>'+esc(o.channel)+'</td>';
+      h+='<td>'+st+'</td><td style="font-size:11px">'+(o.paid_at||'').slice(0,16)+'</td></tr>';
+    });
+    h+='</table></div>';
+    document.getElementById("featureOrderList").innerHTML=h;
+  }).catch(function(e){document.getElementById("featureOrderList").innerHTML='<div class="cd"><div class="em">{{ _('Failed to load orders') }}</div></div>';});
+};

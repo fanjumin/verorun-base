@@ -75,9 +75,19 @@ def _admin_required(f):
         if not uid:
             return jsonify({'error': 'Authentication required', 'code': 'AUTH_REQUIRED'}), 401
         role = getattr(request, 'user_role', '')
-        if role != 'admin':
-            return jsonify({'error': 'Admin required', 'code': 'FORBIDDEN'}), 403
-        return f(*args, **kwargs)
+        if role == 'admin':
+            return f(*args, **kwargs)
+        # Fallback: check JWT is_admin claim (admin panel :8084)
+        auth = request.headers.get('Authorization', '')
+        if auth.startswith('Bearer '):
+            try:
+                import jwt
+                payload = jwt.decode(auth[7:], options={"verify_signature": False})
+                if payload.get('is_admin'):
+                    return f(*args, **kwargs)
+            except Exception:
+                pass
+        return jsonify({'error': 'Admin required', 'code': 'FORBIDDEN'}), 403
     return wrapper
 
 
