@@ -3,7 +3,7 @@
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """Admin Panel — 管理后台 (独立端口 8084)"""
-"""VeroRon v0.11.1 — Multi-agent AI Content & Commerce Hub"""
+"""VeroRon v0.12.0 — Multi-agent AI Content & Commerce Hub"""
 
 import sys, os, secrets
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
@@ -148,7 +148,7 @@ init_cms_tables()
 
 # ===== PluginManager（新插件系统）=====
 try:
-    app.version = '0.10.4'
+    app.version = '0.12.0'
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
@@ -294,6 +294,16 @@ def admin_login_page():
     if payload and payload.get('is_admin'):
         return redirect('/admin')
     return render_template('admin_login.html')
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    """退出登录 — 清除服务端 HttpOnly cookie 后跳转登录页"""
+    from flask import make_response
+    resp = make_response(redirect('/admin/login'))
+    for cn in ('sso_token', 'tm_token', 'token'):
+        resp.set_cookie(cn, '', path='/', max_age=0)
+    return resp
 
 
 @app.route('/admin/login', methods=['POST'])

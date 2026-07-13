@@ -20,7 +20,6 @@ managed_modules:
   - content_factory
   - ai_tools
   - social_push
-  - content_factory
 provider: openai
 model_name: gpt-4o
 system_prompt: prompts/sub_content_prompt.md

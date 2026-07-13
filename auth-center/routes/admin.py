@@ -124,19 +124,23 @@ def dashboard():
                 "GROUP BY t.agent_id ORDER BY total DESC LIMIT 3"
             )]
 
-        # --- Service health (outside DB) ---
+        # --- Service health (outside DB, parallel) ---
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         services = [('Platform',8081),('Platform',8083),('Admin',8084)]
         data['services'] = []
-        for name, port in services:
-            alive = False
+        def _check_service(name, port):
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.3)
-                alive = s.connect_ex(('127.0.0.1', port)) == 0
+                s.settimeout(0.15)
+                result = s.connect_ex(('127.0.0.1', port))
                 s.close()
+                return {'name': name, 'port': port, 'alive': result == 0}
             except:
-                pass
-            data['services'].append({'name':name,'port':port,'alive':alive})
+                return {'name': name, 'port': port, 'alive': False}
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futures = {ex.submit(_check_service, n, p): (n, p) for n, p in services}
+            for f in as_completed(futures):
+                data['services'].append(f.result())
 
         return jsonify({"success": True, "data": data})
     except Exception as e:

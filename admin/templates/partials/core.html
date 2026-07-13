@@ -4,7 +4,7 @@ if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }
 
 function init(){
   var c=document.getElementById("mc");
-  var to=setTimeout(function(){c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px;margin-bottom:8px">{{ _('Connection Timeout') }}，{{ _('Check Network or') }} <a href="/admin/login">{{ _('Re-login') }}</a></div></div>'},8000);
+  var to=setTimeout(function(){c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px;margin-bottom:8px">{{ _('Connection Timeout') }}，{{ _('Check Network or') }} <a href="/admin/login">{{ _('Re-login') }}</a></div></div>'},15000);
   fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
     clearTimeout(to);
     if(r.status===403){c.innerHTML='<div class="em">{{ _('Admin Only') }}</div>';return Promise.reject()}
@@ -14,13 +14,12 @@ function init(){
 }
 
 function logout(){
-  fetch("/admin/logout",{method:"POST",headers:{"Authorization":"Bearer "+T}}).catch(function(){});
   localStorage.removeItem("sso_token");
   localStorage.removeItem("tm_token");
   localStorage.removeItem("token");
-  document.cookie="sso_token=; path=/; max-age=0";
-  showToast("{{ _('Logged out') }}","success");
-  setTimeout(function(){window.location.href="/admin/login"},800);
+  localStorage.removeItem("admin_token");
+  localStorage.removeItem("admin_user");
+  window.location.href="/admin/logout";
 }
 
 function go(s){

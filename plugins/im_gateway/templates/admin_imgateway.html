@@ -40,6 +40,7 @@ window.l_channels=function(){
 var _chCurrentTab='feishu';
 var _chSecrets={}; // {feishu: {app_secret: 'real', ...}}
 var _wcSecrets={}; // {wecom: {secret: 'real', ...}}
+function _chBody(){return document.getElementById('ch-body');}
 
 function _chToggleSecret(ch, key){
   var el=document.getElementById('ch-f-'+ch+'-'+key);
@@ -64,10 +65,11 @@ function _chLoadTab(ch){
 function _chLoadGenericTab(ch){
   var labelMap={feishu:'{{ _('Feishu') }}',qq:'QQ',dingtalk:'{{ _('DingTalk') }}'};
   var channelLabel=labelMap[ch]||ch;
-  document.getElementById('ch-body').innerHTML='<div class="lo">'+esc(channelLabel)+'{{ _('Config Loading') }}...</div>';
+  var b=_chBody(); if(!b)return;
+  b.innerHTML='<div class="lo">'+esc(channelLabel)+'{{ _('Config Loading') }}...</div>';
   fetch('/admin/channels/'+ch,{headers:{'Authorization':'Bearer '+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data){
-      document.getElementById('ch-body').innerHTML='<div class="cd"><div class="em">{{ _('Load failed') }}: '+(d.error||'{{ _('Unknown Error') }}')+'</div></div>';
+      var b=_chBody(); if(b)b.innerHTML='<div class="cd"><div class="em">{{ _('Load failed') }}: '+(d.error||'{{ _('Unknown Error') }}')+'</div></div>';
       return;
     }
     var cfg=d.data.config||{};
@@ -149,12 +151,12 @@ function _chLoadGenericTab(ch){
     h+='</div>';
     h+='<div id="ch-msg" style="margin-top:12px"></div>';
 
-    document.getElementById('ch-body').innerHTML=h;
+    var b=_chBody(); if(b)b.innerHTML=h;
     _chSecrets[ch]=_chSecrets[ch]||{};
     if(cfg.app_secret)_chSecrets[ch].app_secret=cfg.app_secret;
     if(cfg.verification_token)_chSecrets[ch].verification_token=cfg.verification_token;
   }).catch(function(){
-    document.getElementById('ch-body').innerHTML='<div class="cd"><div class="em">{{ _('Request Failed') }}</div></div>';
+    var b=_chBody(); if(b)b.innerHTML='<div class="cd"><div class="em">{{ _('Request Failed') }}</div></div>';
   })
 }
 
@@ -256,10 +258,11 @@ function _wcToggleSecret(key){
 }
 
 function _wcLoadTab(){
-  document.getElementById('ch-body').innerHTML='<div class="lo">{{ _('WeCom Config Loading') }}...</div>';
+  var b=_chBody(); if(!b)return;
+  b.innerHTML='<div class="lo">{{ _('WeCom Config Loading') }}...</div>';
   fetch('/admin/channels/wecom',{headers:{'Authorization':'Bearer '+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data){
-      document.getElementById('ch-body').innerHTML='<div class="cd"><div class="em">{{ _('Load failed') }}: '+(d.error||'{{ _('Unknown Error') }}')+'</div></div>';
+      var b=_chBody(); if(b)b.innerHTML='<div class="cd"><div class="em">{{ _('Load failed') }}: '+(d.error||'{{ _('Unknown Error') }}')+'</div></div>';
       return;
     }
     var cfg=d.data.config||{};
@@ -310,7 +313,7 @@ function _wcLoadTab(){
     h+='</div>';
     h+='<div id="wc-msg" style="margin-top:12px"></div>';
 
-    document.getElementById('ch-body').innerHTML=h;
+    var b=_chBody(); if(b)b.innerHTML=h;
 
     if(cfg.secret)_wcSecrets.wecom={secret:cfg.secret};
     if(cfg.token)_wcSecrets.wecom=_wcSecrets.wecom||{};
@@ -318,7 +321,7 @@ function _wcLoadTab(){
     if(cfg.encoding_aes_key)_wcSecrets.wecom=_wcSecrets.wecom||{};
     if(cfg.encoding_aes_key)_wcSecrets.wecom.encoding_aes_key=cfg.encoding_aes_key;
   }).catch(function(e){
-    document.getElementById('ch-body').innerHTML='<div class="cd"><div class="em">{{ _('Network error') }}: '+e.message+'</div></div>';
+    var b=_chBody(); if(b)b.innerHTML='<div class="cd"><div class="em">{{ _('Network error') }}: '+e.message+'</div></div>';
   })
 }
 

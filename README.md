@@ -1071,6 +1071,6 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
 
 ---
 
-> VeroRunSystem v0.11.1 — Multi-Agent AI Operating System  
+> VeroRunSystem v0.12.0 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
 > © 2026 VeroRunSystem 版权所有
