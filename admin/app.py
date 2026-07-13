@@ -751,6 +751,9 @@ def inject_theme():
     try:
         from services.brand_service import get_brand_settings
         result['brand'] = get_brand_settings()
+        if result['brand']:
+            from i18n import _ as _i18n
+            result['brand']['software_name'] = _i18n('app_name')
     except:
         result['brand'] = None
     return result

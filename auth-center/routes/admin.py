@@ -1776,8 +1776,7 @@ def update_brand_settings():
     data = request.get_json(silent=True) or {}
     allowed = ['company_name', 'site_name_cn', 'site_name_en', 'slogan', 'tagline',
                'description', 'copyright', 'seo_title', 'seo_desc', 'logo_full_url',
-               'logo_icon_url', 'icp_number', 'security_number', 'contact_email',
-               'software_name']
+               'logo_icon_url', 'icp_number', 'security_number', 'contact_email']
     updates = {k: data[k] for k in allowed if k in data}
     if not updates:
         return jsonify({'success': False, 'error': '无有效更新字段'}), 400
