@@ -3,14 +3,8 @@ function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;
 if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>'}else{init()}
 
 function init(){
-  var c=document.getElementById("mc");
-  var to=setTimeout(function(){c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px;margin-bottom:8px">{{ _('Connection Timeout') }}，{{ _('Check Network or') }} <a href="/admin/login">{{ _('Re-login') }}</a></div></div>'},15000);
-  fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
-    clearTimeout(to);
-    if(r.status===403){c.innerHTML='<div class="em">{{ _('Admin Only') }}</div>';return Promise.reject()}
-    if(r.status===401){c.innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>';return Promise.reject()}
-    return r.json()
-  }).then(function(d){if(d.success){document.getElementById("an").textContent="{{ _('Admin') }}";go("dashboard")}else{c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px">'+esc(d.error||"{{ _('Load failed') }}")+' <a href="/admin/login">{{ _("Please Re-login") }}</a></div></div>'}}).catch(function(){clearTimeout(to);c.innerHTML='<div class="em"><div style="color:var(--dim);font-size:12px">{{ _("Connection Failed") }}：<a href="/admin/login">{{ _("Please Re-login") }}</a></div></div>'})
+  document.getElementById("an").textContent="{{ _('Admin') }}";
+  go("dashboard");
 }
 
 function logout(){
