@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Admin Routes -- site management panel"""
-import sys, os, json, socket
+import sys, os, json, socket, time
 from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify
@@ -8,6 +8,9 @@ from i18n import _
 from models import get_db
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
+_dash_cache = {'data': None, 'ts': 0, 'ttl': 10}
 
 def _require_admin():
     """鉴权守卫 — 与 agent_matrix/site_builder 版本对齐：
@@ -51,6 +54,11 @@ def dashboard():
     admin, err = _require_admin()
     if err:
         return err
+
+    # 内存缓存：避免 SQLite 锁竞争导致 60s+ 超时
+    now = time.time()
+    if _dash_cache['data'] is not None and (now - _dash_cache['ts']) < _dash_cache['ttl']:
+        return jsonify({"success": True, "data": _dash_cache['data']})
 
     def _safe(sql, params=()):
         try:
@@ -142,6 +150,8 @@ def dashboard():
             for f in as_completed(futures):
                 data['services'].append(f.result())
 
+        _dash_cache['data'] = data
+        _dash_cache['ts'] = time.time()
         return jsonify({"success": True, "data": data})
     except Exception as e:
         import traceback; traceback.print_exc()

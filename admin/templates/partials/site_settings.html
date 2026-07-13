@@ -283,4 +283,4 @@ function stToast(type,msg){
   setTimeout(function(){t.remove()},2500);
 }
 
-function stShowError(msg){document.getElementById('stContent').innerHTML='<div class="em">'+stEsc(msg)+'</div>'}
+function stShowError(msg){var el=document.getElementById('stContent');if(el)el.innerHTML='<div class="em">'+stEsc(msg)+'</div>'}
