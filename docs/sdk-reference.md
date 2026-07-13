@@ -1176,6 +1176,176 @@ if __name__ == "__main__":
 
 ---
 
+## 8. Social Media Mini-Program SDKs
+
+> New in v2026.07 — SDKs for building mini-programs that integrate with AI Advisor.
+
+### 8.1 VeroChat (sdks/common/chat.js)
+
+Unified chat SDK for all mini-program platforms.
+
+```javascript
+class VeroChat {
+    constructor(config) {
+        // config: { baseURL, token, platform }
+    }
+
+    /**
+     * Send a message and get streaming response via SSE.
+     * @param {string} message - User message text
+     * @param {Array} history - Previous messages [{role, content}, ...]
+     * @param {Function} onToken - Called for each token: (token: string) => void
+     * @param {Function} onDone - Called when complete: (result: {reply, retrievedKnowledge}) => void
+     */
+    async streamChat(message, history, onToken, onDone) { ... }
+
+    /**
+     * Send a message and get non-streaming response.
+     * @returns {Promise<{reply: string, retrievedKnowledge: Array}>}
+     */
+    async send(message, history) { ... }
+
+    /**
+     * Search knowledge base.
+     * @returns {Promise<Array>} Knowledge items with scores
+     */
+    async searchKnowledge(query, topK = 5) { ... }
+}
+```
+
+**Usage Example:**
+
+```javascript
+const chat = new VeroChat({
+    baseURL: 'https://platform.easykai.cn',
+    token: 'eyJ...',
+    platform: 'telegram'
+});
+
+await chat.streamChat(
+    'What is your return policy?',
+    history,
+    (token) => { console.log(token); },
+    (result) => { console.log('Done:', result.reply); }
+);
+```
+
+### 8.2 VeroAuth (sdks/common/auth.js)
+
+Unified authentication SDK.
+
+```javascript
+class VeroAuth {
+    constructor(config) {
+        // config: { baseURL, platform }
+    }
+
+    /**
+     * Login with platform credentials.
+     * @param {Object} credentials - { code, initData, accessToken, userId }
+     * @returns {Promise<{token: string, user: Object}>}
+     */
+    async login(credentials) { ... }
+}
+```
+
+### 8.3 VeroRAG (sdks/common/rag.js)
+
+Knowledge base search SDK.
+
+```javascript
+class VeroRAG {
+    constructor(config) {
+        // config: { baseURL, token }
+    }
+
+    /**
+     * Search knowledge base.
+     * @param {string} query - Search query
+     * @param {number} topK - Results count (default 5)
+     * @param {string} category - Optional category filter
+     * @returns {Promise<Array>} Knowledge items [{title, content, category, score}, ...]
+     */
+    async search(query, topK = 5, category = null) { ... }
+}
+```
+
+### 8.4 DouyinMP (sdks/douyin/api.js)
+
+Douyin/Toutiao mini-program SDK.
+
+```javascript
+const DouyinMP = {
+    baseURL: 'https://platform.easykai.cn',
+    token: null,
+
+    // Initialize: login → get JWT → store token
+    async init() { ... },
+
+    // Restore saved token from tt.getStorageSync()
+    restoreToken() { ... },
+
+    // Authenticated request wrapper
+    async request(url, options) { ... },
+
+    // Get user profile
+    async getUserProfile() { ... },
+};
+```
+
+### 8.5 WechatMP (sdks/wechat/api.js)
+
+WeChat mini-program SDK.
+
+```javascript
+const WechatMP = {
+    baseURL: 'https://platform.easykai.cn',
+    token: null,
+
+    async init() { ... },
+    restoreToken() { ... },
+    async request(url, options) { ... },
+};
+```
+
+### 8.6 TelegramMiniApp (sdks/telegram/webapp.js)
+
+Telegram WebApp SDK.
+
+```javascript
+const TelegramMiniApp = {
+    baseURL: 'https://platform.easykai.cn',
+    token: null,
+    tg: null,  // window.Telegram.WebApp instance
+
+    init() { ... },
+    async authenticate() { ... },
+    restoreToken() { ... },
+    showPopup(message, callback) { ... },
+    showBackButton(callback) { ... },
+    hideBackButton() { ... },
+};
+```
+
+### 8.7 LineMiniApp (sdks/line/liff.js)
+
+LINE LIFF SDK.
+
+```javascript
+const LineMiniApp = {
+    baseURL: 'https://platform.easykai.cn',
+    token: null,
+    liff: null,  // LIFF SDK instance
+
+    async init(liffId) { ... },
+    async authenticate() { ... },
+    restoreToken() { ... },
+    close() { ... },
+};
+```
+
+---
+
 > **文档维护说明**  
 > 本文档基于 v2026.07 代码生成。SDK 客户端代码是参考实现，实际使用时可根据项目需求调整。  
 > 所有方法签名和响应格式以 [API 参考文档](./api-reference.md) 为准。

@@ -1,0 +1,39 @@
+<view class="profile-page">
+    <view class="loading-container" wx:if="{{ loading }}">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">Loading...</text>
+    </view>
+
+    <view class="profile-content" wx:if="{{ !loading && user }}">
+        <view class="avatar-section" style="background-color: {{ primary_color }}">
+            <image class="avatar" src="{{ user.avatar }}" mode="aspectFill" />
+            <text class="display-name">{{ user.display_name || user.username }}</text>
+            <text class="username">@{{ user.username }}</text>
+        </view>
+
+        <view class="info-cards">
+            <view class="info-card">
+                <text class="info-label">Email</text>
+                <text class="info-value">{{ user.email || 'Not set' }}</text>
+            </view>
+            <view class="info-card">
+                <text class="info-label">Platform</text>
+                <text class="info-value">WeChat</text>
+            </view>
+            <view class="info-card">
+                <text class="info-label">App</text>
+                <text class="info-value">{{ appName }}</text>
+            </view>
+        </view>
+
+        <view class="actions">
+            <button class="action-btn" bindtap="onNavigateToChat">Chat with AI</button>
+            <button class="action-btn logout-btn" bindtap="onLogout">Logout</button>
+        </view>
+    </view>
+
+    <view class="empty-state" wx:if="{{ !loading && !user }}">
+        <text class="empty-text">Please login first</text>
+        <button class="action-btn" bindtap="onNavigateToChat">Go to Chat</button>
+    </view>
+</view>

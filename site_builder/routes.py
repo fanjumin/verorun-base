@@ -427,3 +427,279 @@ def page_summary(page):
     from site_builder.generators.pages import PageGenerator
     summary = PageGenerator.get_page_summary(page)
     return _success(summary)
+
+
+# ══════════════════════════════════════════════════════════════
+# ── Mini-App Generation & Deployment ─────────────────────────
+# ══════════════════════════════════════════════════════════════
+
+import uuid
+import threading
+import shutil
+from datetime import datetime
+
+# In-memory task store (tasks persist for 1 hour)
+_mini_app_tasks = {}
+_MINI_APP_TASK_TTL = 3600
+
+
+def _cleanup_old_tasks():
+    now = datetime.now().timestamp()
+    expired = [k for k, v in _mini_app_tasks.items()
+               if now - v.get('created_at', 0) > _MINI_APP_TASK_TTL]
+    for k in expired:
+        _mini_app_tasks.pop(k, None)
+
+
+@site_builder_bp.route('/mini-app/platforms', methods=['GET'])
+def mini_app_platforms():
+    """List supported platforms with their status"""
+    admin, err = _require_admin()
+    if err: return err
+
+    platforms = [
+        {
+            'id': 'douyin',
+            'name': 'Douyin / TikTok China',
+            'type': 'native',
+            'icon': 'douyin',
+            'compatible_with': ['toutiao'],
+            'description': 'ByteDance mini-program ecosystem (Douyin, Toutiao)',
+        },
+        {
+            'id': 'wechat',
+            'name': 'WeChat',
+            'type': 'native',
+            'icon': 'wechat',
+            'compatible_with': [],
+            'description': 'WeChat Mini Program ecosystem',
+        },
+        {
+            'id': 'telegram',
+            'name': 'Telegram',
+            'type': 'webview',
+            'icon': 'telegram',
+            'compatible_with': [],
+            'description': 'Telegram Mini App (WebView-based)',
+        },
+        {
+            'id': 'line',
+            'name': 'LINE',
+            'type': 'webview',
+            'icon': 'line',
+            'compatible_with': [],
+            'description': 'LINE MINI App (LIFF-based)',
+        },
+    ]
+
+    # Check dev_accounts for configured platforms
+    try:
+        from plugins.dev_accounts.models import get_all
+        accounts = get_all()
+        configured = {a['platform']: a['is_active'] for a in accounts}
+    except Exception:
+        configured = {}
+
+    for p in platforms:
+        p['configured'] = bool(configured.get(p['id'], False))
+
+    return _success(platforms)
+
+
+@site_builder_bp.route('/mini-app/platforms/<platform>', methods=['PUT'])
+def mini_app_update_platform(platform):
+    """Update platform configuration (app_id, etc.)"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    allowed = ['douyin', 'wechat', 'telegram', 'line', 'toutiao']
+    if platform not in allowed:
+        return _error(f'Unsupported platform: {platform}', 400)
+
+    try:
+        from plugins.dev_accounts.models import get_all, update
+        accounts = get_all()
+        match = next((a for a in accounts if a['platform'] == platform), None)
+
+        if match:
+            update(match['id'], **data)
+        else:
+            return _error('Platform not configured in dev_accounts', 404)
+
+        return _success(None, 'Platform updated')
+    except Exception as e:
+        return _error(str(e), 500)
+
+
+@site_builder_bp.route('/mini-app/generate', methods=['POST'])
+def mini_app_generate():
+    """Trigger mini-app generation for specified platforms"""
+    admin, err = _require_admin()
+    if err: return err
+
+    _cleanup_old_tasks()
+
+    data = request.get_json(force=True, silent=True) or {}
+    platforms = data.get('platforms', ['telegram'])
+    options = data.get('options', {})
+
+    if not isinstance(platforms, list) or not platforms:
+        return _error('platforms must be a non-empty list')
+
+    task_id = str(uuid.uuid4())[:8]
+    _mini_app_tasks[task_id] = {
+        'id': task_id,
+        'status': 'pending',
+        'platforms': platforms,
+        'created_at': datetime.now().timestamp(),
+        'results': {},
+    }
+
+    def _run_generation():
+        try:
+            _mini_app_tasks[task_id]['status'] = 'running'
+
+            from services.brand_service import get_brand_settings
+            from site_builder.site_settings.models import get_draft_tokens
+            from site_builder.mini_app.engine import MiniAppEngine
+
+            brand = get_brand_settings() or {}
+            draft_tokens = get_draft_tokens() or {}
+            site_config = {'draft_tokens': draft_tokens}
+
+            engine = MiniAppEngine(site_config=site_config, brand_settings=brand)
+            results = engine.generate(platforms, options)
+
+            _mini_app_tasks[task_id]['results'] = results
+            _mini_app_tasks[task_id]['status'] = 'completed'
+        except Exception as e:
+            import traceback
+            _mini_app_tasks[task_id]['status'] = 'failed'
+            _mini_app_tasks[task_id]['error'] = str(e)
+            _mini_app_tasks[task_id]['traceback'] = traceback.format_exc()
+
+    thread = threading.Thread(target=_run_generation, daemon=True)
+    thread.start()
+
+    return _success({'task_id': task_id, 'status': 'pending'})
+
+
+@site_builder_bp.route('/mini-app/status/<task_id>', methods=['GET'])
+def mini_app_status(task_id):
+    """Query mini-app generation task status"""
+    admin, err = _require_admin()
+    if err: return err
+
+    _cleanup_old_tasks()
+    task = _mini_app_tasks.get(task_id)
+    if not task:
+        return _error('Task not found or expired', 404)
+
+    return _success({
+        'id': task['id'],
+        'status': task['status'],
+        'platforms': task['platforms'],
+        'results': task.get('results', {}),
+        'error': task.get('error', ''),
+    })
+
+
+@site_builder_bp.route('/mini-app/download/<platform>/<task_id>', methods=['GET'])
+def mini_app_download(platform, task_id):
+    """Download generated mini-app as .zip file"""
+    admin, err = _require_admin()
+    if err: return err
+
+    task = _mini_app_tasks.get(task_id)
+    if not task:
+        return _error('Task not found or expired', 404)
+
+    if task['status'] != 'completed':
+        return _error('Generation not completed yet', 400)
+
+    result = task.get('results', {}).get(platform)
+    if not result or result.get('status') != 'completed':
+        return _error(f'No completed output for platform: {platform}', 404)
+
+    output_dir = result.get('output_dir', '')
+    if not output_dir or not os.path.isdir(output_dir):
+        return _error('Output directory not found', 404)
+
+    try:
+        from site_builder.mini_app.packager import MiniAppPackager
+        packager = MiniAppPackager()
+        zip_path = packager.package(platform, output_dir)
+
+        from flask import send_file
+        return send_file(
+            zip_path,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'{platform}-mini-app-{task_id}.zip'
+        )
+    except Exception as e:
+        return _error(str(e), 500)
+
+
+@site_builder_bp.route('/mini-app/deploy/<platform>', methods=['POST'])
+def mini_app_deploy(platform):
+    """Deploy mini-app to target platform"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    task_id = data.get('task_id', '')
+
+    allowed = ['telegram', 'line']
+    if platform not in allowed:
+        return _success({
+            'platform': platform,
+            'deployed': False,
+            'auto_deploy': False,
+            'hint': f'For {platform}, manual deployment is required. Download the .zip and upload via the platform developer console.',
+        })
+
+    if not task_id:
+        return _error('task_id is required')
+
+    task = _mini_app_tasks.get(task_id)
+    if not task:
+        return _error('Task not found or expired', 404)
+
+    if task['status'] != 'completed':
+        return _error('Generation not completed yet', 400)
+
+    result = task.get('results', {}).get(platform)
+    if not result:
+        return _error(f'No output for platform: {platform}', 404)
+
+    try:
+        from plugins.dev_accounts.models import get_all
+        accounts = get_all()
+        match = next((a for a in accounts if a['platform'] == platform and a['is_active']), None)
+
+        if not match:
+            return _error(f'No active dev_account found for {platform}', 404)
+
+        from site_builder.mini_app.deployer import MiniAppDeployer
+        deployer = MiniAppDeployer(dev_accounts=match)
+
+        deploy_url = data.get('deploy_url', '')
+        if platform == 'telegram':
+            res = deployer.deploy_telegram(
+                webapp_url=deploy_url or result.get('output_dir', ''),
+                bot_token=match.get('bot_token', '')
+            )
+        elif platform == 'line':
+            res = deployer.deploy_line(
+                liff_id=match.get('channel_id', ''),
+                endpoint_url=deploy_url or result.get('output_dir', ''),
+                channel_token=match.get('access_token', '')
+            )
+        else:
+            res = {'success': False, 'error': 'Unsupported platform'}
+
+        return _success(res)
+    except Exception as e:
+        return _error(str(e), 500)

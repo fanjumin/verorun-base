@@ -5,12 +5,11 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>AI Site Preview — {{ draft_tokens.brand.site_name or 'Untitled' }}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="/static/css/preview.css" rel="stylesheet"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:{{ draft_tokens.colors.background or '#ffffff' }};color:{{ draft_tokens.colors.text_primary or '#1a202c' }};line-height:1.6}
-.preview-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:#f0a020;color:#000;text-align:center;padding:6px;font-size:12px;font-weight:600}
-.preview-banner a{color:#000;text-decoration:underline;margin-left:8px}
-.preview-content{padding-top:32px}
+.preview-content{padding-top:0}
 
 /* ── Navigation ── */
 .navbar{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid {{ draft_tokens.colors.border or '#e2e8f0' }};background:{{ draft_tokens.colors.surface or '#f7fafc' }}}
@@ -52,12 +51,27 @@ body{font-family:'Inter',sans-serif;background:{{ draft_tokens.colors.background
 </style>
 </head>
 <body>
-<div class="preview-banner">
-  🔍 AI Site Builder Preview — {{ draft_tokens.brand.site_name or 'Draft' }}
-  <a href="javascript:window.close()">Close Preview</a>
+<!-- Device Simulator Toolbar -->
+<div class="preview-toolbar">
+  <label>Device:</label>
+  <select id="deviceSelector">
+    <option value="h5">Desktop (H5)</option>
+    <option value="iphone-se">iPhone SE (375x667)</option>
+    <option value="iphone-12" selected>iPhone 12/13/14 (390x844)</option>
+    <option value="iphone-pro-max">iPhone 12/13 Pro Max (428x926)</option>
+    <option value="iphone-14-pro">iPhone 14 Pro (393x852)</option>
+    <option value="iphone-15-pro-max">iPhone 15 Pro Max (430x932)</option>
+  </select>
+  <span class="device-info" id="deviceInfo">390 x 844</span>
+  <a href="javascript:window.close()" style="color:#f0a020;text-decoration:none;margin-left:auto;font-weight:600">Close Preview</a>
 </div>
 
-<div class="preview-content">
+<!-- Device Frame -->
+<div class="device-wrapper">
+  <div class="device-frame iphone-12" id="deviceFrame">
+    <div class="notch"></div>
+    <div class="device-screen">
+      <div class="preview-content">
   {% if draft_tokens.navigation and draft_tokens.navigation.items %}
   <div class="navbar">
     <div class="logo">{{ draft_tokens.brand.site_name or 'Site Name' }}</div>
@@ -107,5 +121,48 @@ body{font-family:'Inter',sans-serif;background:{{ draft_tokens.colors.background
     <p style="margin-top:4px;font-size:11px">This is a draft preview. Publish from the admin panel to make it live.</p>
   </div>
 </div>
+    </div><!-- /.device-screen -->
+    <div class="home-bar"></div>
+  </div><!-- /.device-frame -->
+</div><!-- /.device-wrapper -->
+
+<script>
+(function() {
+    const frame = document.getElementById('deviceFrame');
+    const selector = document.getElementById('deviceSelector');
+    const info = document.getElementById('deviceInfo');
+
+    const sizes = {
+        'h5': { w: '100%', h: 'auto', info: 'Full width' },
+        'iphone-se': { w: '375px', h: '667px', info: '375 x 667' },
+        'iphone-12': { w: '390px', h: '844px', info: '390 x 844' },
+        'iphone-pro-max': { w: '428px', h: '926px', info: '428 x 926' },
+        'iphone-14-pro': { w: '393px', h: '852px', info: '393 x 852' },
+        'iphone-15-pro-max': { w: '430px', h: '932px', info: '430 x 932' },
+    };
+
+    function applyDevice(device) {
+        // Remove all device classes
+        frame.className = 'device-frame ' + device;
+        const s = sizes[device] || sizes['iphone-12'];
+        frame.style.width = s.w;
+        frame.style.height = s.h;
+        info.textContent = s.info;
+        // Store preference
+        localStorage.setItem('preview_device', device);
+    }
+
+    selector.addEventListener('change', function() {
+        applyDevice(this.value);
+    });
+
+    // Restore saved preference
+    const saved = localStorage.getItem('preview_device');
+    if (saved && sizes[saved]) {
+        selector.value = saved;
+        applyDevice(saved);
+    }
+})();
+</script>
 </body>
 </html>

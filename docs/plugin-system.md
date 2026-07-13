@@ -525,3 +525,160 @@ registry = get_plugin_registry()
 for info in registry.list_all():
     print(f"  - {info['name']} v{info['version']} [{info['status']}]")
 ```
+
+---
+
+## 9. Social Media Mini-Program Plugin Standard
+
+> New in v2026.07 — Standard for plugins that generate social media mini-programs.
+
+### 9.1 Directory Structure
+
+```
+plugins/dev_accounts/
+├── __init__.py       # DevAccountsPlugin(BasePlugin)
+├── plugin.json       # Metadata
+├── routes.py         # Admin CRUD endpoints
+├── models.py         # Database operations
+├── crypto.py         # AES-256 credential encryption
+├── i18n/             # Internationalization
+│   ├── zh-CN.yml
+│   └── en.yml
+└── README.md
+```
+
+### 9.2 plugin.json Fields
+
+```json
+{
+    "name": "Developer Accounts",
+    "identifier": "dev_accounts",
+    "version": "1.0.0",
+    "description": "Manage developer accounts for social media platforms",
+    "author": "VeroRun",
+    "category": "admin",
+    "permissions": ["admin"],
+    "admin": {
+        "menu": {
+            "title": "Developer Accounts",
+            "icon": "key",
+            "url": "/admin/dev-accounts"
+        }
+    }
+}
+```
+
+### 9.3 Plugin Class
+
+```python
+from plugins.base import BasePlugin
+
+class DevAccountsPlugin(BasePlugin):
+    """Developer accounts management plugin."""
+
+    def on_install(self, registry):
+        """Create dev_accounts table on first install."""
+        self._create_table()
+
+    def on_enable(self, registry):
+        """Register admin routes."""
+        from .routes import dev_accounts_bp
+        registry.app.register_blueprint(dev_accounts_bp)
+
+    def _create_table(self):
+        """Create the encrypted credentials table."""
+        with self._get_db() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS dev_accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    platform TEXT NOT NULL,
+                    account_name TEXT NOT NULL,
+                    app_id TEXT DEFAULT '',
+                    app_secret TEXT DEFAULT '',
+                    bot_token TEXT DEFAULT '',
+                    channel_id TEXT DEFAULT '',
+                    channel_secret TEXT DEFAULT '',
+                    access_token TEXT DEFAULT '',
+                    extra_config TEXT DEFAULT '{}',
+                    is_active INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dev_accounts_platform
+                ON dev_accounts(platform)
+            """)
+            conn.commit()
+```
+
+### 9.4 Security: Credential Encryption
+
+```python
+# plugins/dev_accounts/crypto.py
+from cryptography.fernet import Fernet
+import os
+
+def _get_key():
+    key = os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY', '')
+    if not key:
+        raise RuntimeError('DEV_ACCOUNTS_ENCRYPTION_KEY not set')
+    return key.encode() if isinstance(key, str) else key
+
+def encrypt(value):
+    if not value:
+        return ''
+    f = Fernet(_get_key())
+    return f.encrypt(value.encode()).decode()
+
+def decrypt(value):
+    if not value:
+        return ''
+    f = Fernet(_get_key())
+    return f.decrypt(value.encode()).decode()
+
+def mask(value):
+    """Show only last 4 characters for display."""
+    if not value or len(value) <= 4:
+        return '****'
+    return '****' + value[-4:]
+```
+
+### 9.5 Mini-App Generator Plugin Interface
+
+For plugins that generate mini-program code:
+
+```python
+class MiniAppGeneratorPlugin(BasePlugin):
+    """Base class for mini-app generator plugins."""
+
+    def register_mini_apps(self):
+        """Return list of supported platforms."""
+        return [
+            {
+                'platform': 'douyin',
+                'name': 'Douyin / Toutiao',
+                'type': 'native',
+                'generator': 'site_builder.mini_app.generators.douyin.DouyinGenerator',
+            },
+        ]
+
+    def on_enable(self, registry):
+        """Register mini-app platforms with Site_builder."""
+        platforms = self.register_mini_apps()
+        for p in platforms:
+            registry.register_mini_app_platform(p)
+```
+
+### 9.6 Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DEV_ACCOUNTS_ENCRYPTION_KEY` | Yes | 32-byte Fernet key for credential encryption |
+| `DEPLOY_DOMAIN` | Yes | System domain for API URLs |
+| `DEPLOY_MARKET` | Yes | Market identifier (cn/international) |
+
+Generate a key:
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
