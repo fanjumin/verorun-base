@@ -43,6 +43,7 @@ sys.modules.pop('routes', None)
 
 from routes.api_v1 import api_v1_bp
 from routes.shop_public import shop_public_bp
+from routes.mini_program import mini_program_bp
 
 from flask import (Flask, request, jsonify, render_template,
                    send_from_directory, redirect, Blueprint, Response, make_response)
@@ -114,6 +115,7 @@ app.register_blueprint(sub_bp, name='platform_subscription')
 app.register_blueprint(api_v1_bp)
 app.register_blueprint(douyin_mp_bp)
 app.register_blueprint(shop_public_bp)
+app.register_blueprint(mini_program_bp)
 # 独立部署API — 仅主服务器模式注册
 if _HAS_DEPLOY_API:
     _MODE = os.environ.get('EASYKAI_MODE', 'main')

@@ -1728,6 +1728,26 @@ def init_db():
         import logging
         logging.debug(f"[Migration] mp_profiles visit_count column may already exist: {e}")
 
+    # 迁移：为 chat_messages 表添加 platform + platform_user_id 字段 (2026-07-13)
+    try:
+        with get_db() as m:
+            m.execute("ALTER TABLE chat_messages ADD COLUMN platform TEXT DEFAULT 'website'")
+    except Exception as e:
+        import logging
+        logging.debug(f"[Migration] chat_messages platform column may already exist: {e}")
+    try:
+        with get_db() as m:
+            m.execute("ALTER TABLE chat_messages ADD COLUMN platform_user_id TEXT DEFAULT ''")
+    except Exception as e:
+        import logging
+        logging.debug(f"[Migration] chat_messages platform_user_id column may already exist: {e}")
+    try:
+        with get_db() as m:
+            m.execute("CREATE INDEX IF NOT EXISTS idx_chat_platform ON chat_messages(platform, platform_user_id)")
+    except Exception as e:
+        import logging
+        logging.debug(f"[Migration] chat_messages platform index may already exist: {e}")
+
     # ── 多租户 OAuth 配置表 (2026-06-11) ──
     with get_db() as m:
         m.execute("""
