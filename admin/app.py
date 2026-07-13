@@ -10,7 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
-from models import init_db
+from models import init_db, init_shop_db
 from services.deployment_config import DeployConfig, deploy
 from routes.auth import auth_bp
 from routes.admin import admin_bp
@@ -104,6 +104,7 @@ app.jinja_loader = jinja2.ChoiceLoader([
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 try:
+    init_shop_db()
     init_db()
 except Exception as e:
     print(f'[DB] init_db warning: {e}')

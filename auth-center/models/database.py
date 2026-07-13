@@ -7,10 +7,18 @@ from contextlib import contextmanager
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, '..', '..', 'data')
 DB_PATH = os.environ.get('DB_PATH', os.path.join(DATA_DIR, 'x7k2m9a4.db'))
+SHOP_DB_PATH = os.path.join(DATA_DIR, 'shop.db')
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # 国际化：当前市场
 MARKET = os.environ.get('DEPLOY_MARKET', 'cn')
+
+# ── Shop 表名列表（用于 init_shop_db 和 ATTACH 场景判断）──
+SHOP_TABLES = [
+    'products', 'categories', 'carts', 'user_purchases', 'order_items',
+    'product_specs', 'product_spec_values', 'product_skus',
+    'pricing_rules', 'express_companies', 'order_shipping',
+]
 
 
 @contextmanager
@@ -20,10 +28,188 @@ def get_db():
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=1000")
+    # ATTACH shop database (allows cross-DB JOINs with main DB)
+    if os.path.exists(SHOP_DB_PATH):
+        try:
+            conn.execute(f"ATTACH DATABASE '{SHOP_DB_PATH}' AS shop")
+        except sqlite3.OperationalError:
+            pass  # already attached
     try:
         yield conn
     finally:
         conn.close()
+
+
+def init_shop_db():
+    """Create shop tables in separate shop.db"""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    conn = sqlite3.connect(SHOP_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS products (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            title           TEXT NOT NULL,
+            subtitle        TEXT DEFAULT '',
+            product_type    TEXT NOT NULL DEFAULT 'service',
+            category        TEXT DEFAULT '',
+            price           REAL NOT NULL DEFAULT 0,
+            original_price  REAL DEFAULT 0,
+            stock           INTEGER DEFAULT 0,
+            sales_count     INTEGER DEFAULT 0,
+            thumbnail       TEXT DEFAULT '',
+            description     TEXT DEFAULT '',
+            features        TEXT DEFAULT '[]',
+            ai_config       TEXT DEFAULT '{}',
+            sort_order      INTEGER DEFAULT 0,
+            is_active       INTEGER DEFAULT 1,
+            created_at      TEXT DEFAULT (datetime('now','localtime')),
+            updated_at      TEXT DEFAULT (datetime('now','localtime')),
+            images          TEXT DEFAULT '[]',
+            category_id     INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);
+        CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
+
+        CREATE TABLE IF NOT EXISTS categories (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            slug        TEXT UNIQUE,
+            parent_id   INTEGER DEFAULT 0,
+            level       INTEGER DEFAULT 0,
+            icon        TEXT DEFAULT '',
+            sort_order  INTEGER DEFAULT 0,
+            is_active   INTEGER DEFAULT 1,
+            created_at  TEXT DEFAULT (datetime('now','localtime')),
+            updated_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id);
+        CREATE INDEX IF NOT EXISTS idx_cat_level ON categories(level);
+
+        CREATE TABLE IF NOT EXISTS carts (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER NOT NULL,
+            product_id      INTEGER NOT NULL,
+            sku_id          INTEGER DEFAULT 0,
+            quantity        INTEGER DEFAULT 1,
+            created_at      TEXT DEFAULT (datetime('now','localtime')),
+            UNIQUE(user_id, product_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_carts_user ON carts(user_id);
+
+        CREATE TABLE IF NOT EXISTS user_purchases (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER NOT NULL,
+            product_id      INTEGER NOT NULL,
+            order_id        TEXT DEFAULT '',
+            purchase_type   TEXT NOT NULL DEFAULT 'once',
+            expire_at       TEXT,
+            status          TEXT DEFAULT 'active',
+            created_at      TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_up_user ON user_purchases(user_id);
+        CREATE INDEX IF NOT EXISTS idx_up_status ON user_purchases(status);
+
+        CREATE TABLE IF NOT EXISTS order_items (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id        TEXT NOT NULL,
+            user_id         INTEGER NOT NULL,
+            product_id      INTEGER NOT NULL,
+            product_title   TEXT NOT NULL DEFAULT '',
+            quantity        INTEGER DEFAULT 1,
+            unit_price      REAL NOT NULL DEFAULT 0,
+            subtotal        REAL NOT NULL DEFAULT 0,
+            coupon_id       INTEGER DEFAULT NULL,
+            discount        REAL DEFAULT 0,
+            status          TEXT DEFAULT 'pending',
+            created_at      TEXT DEFAULT (datetime('now','localtime')),
+            paid_at         TEXT,
+            idempotency_key TEXT DEFAULT '',
+            payment_method  TEXT DEFAULT '',
+            payment_trade_no TEXT DEFAULT '',
+            tracking_company TEXT DEFAULT '',
+            tracking_number  TEXT DEFAULT '',
+            shipping_status  TEXT DEFAULT '',
+            shipped_at       TEXT,
+            completed_at     TEXT,
+            refund_reason    TEXT DEFAULT '',
+            refund_requested_at TEXT,
+            refunded_at      TEXT,
+            user_deleted     INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_oi_order ON order_items(order_id);
+        CREATE INDEX IF NOT EXISTS idx_oi_user ON order_items(user_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_oi_idempotency ON order_items(idempotency_key) WHERE idempotency_key != '';
+
+        CREATE TABLE IF NOT EXISTS order_shipping (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_item_id   INTEGER NOT NULL,
+            tracking_company TEXT DEFAULT '',
+            tracking_number  TEXT DEFAULT '',
+            shipping_status  TEXT DEFAULT '',
+            shipped_at       TEXT,
+            created_at      TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_os_orderitem ON order_shipping(order_item_id);
+
+        CREATE TABLE IF NOT EXISTS product_specs (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id  INTEGER NOT NULL,
+            spec_name   TEXT NOT NULL,
+            sort_order  INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ps_product ON product_specs(product_id);
+
+        CREATE TABLE IF NOT EXISTS product_spec_values (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            spec_id     INTEGER NOT NULL,
+            spec_value  TEXT NOT NULL,
+            sort_order  INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_psv_spec ON product_spec_values(spec_id);
+
+        CREATE TABLE IF NOT EXISTS product_skus (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id  INTEGER NOT NULL,
+            sku_code    TEXT NOT NULL,
+            spec_path   TEXT NOT NULL DEFAULT '{}',
+            price       REAL NOT NULL DEFAULT 0,
+            stock       INTEGER DEFAULT 0,
+            image       TEXT DEFAULT '',
+            is_active   INTEGER DEFAULT 1,
+            created_at  TEXT DEFAULT (datetime('now','localtime')),
+            updated_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_psk_product ON product_skus(product_id);
+        CREATE INDEX IF NOT EXISTS idx_psk_code ON product_skus(sku_code);
+
+        CREATE TABLE IF NOT EXISTS pricing_rules (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_key    TEXT UNIQUE NOT NULL,
+            label       TEXT NOT NULL,
+            rule_type   TEXT NOT NULL DEFAULT 'radio',
+            options_json TEXT NOT NULL DEFAULT '[]',
+            sort_order  INTEGER DEFAULT 0,
+            is_active   INTEGER DEFAULT 1,
+            created_at  TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS express_companies (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            code        TEXT NOT NULL UNIQUE,
+            name        TEXT NOT NULL,
+            kdniao_code TEXT DEFAULT '',
+            is_active   INTEGER DEFAULT 1,
+            sort_order  INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+    """)
+    conn.commit()
+    conn.close()
+    print(f'[ShopDB] shop.db initialized at {SHOP_DB_PATH}')
 
 
 def init_db():
@@ -1493,86 +1679,11 @@ def init_db():
         m.commit()
         print('[Migration] knowledge_queue table created')
 
-    # ── Migration: shop tables（商城 — 2026-06-10）──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS products (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            title           TEXT NOT NULL,
-            subtitle        TEXT DEFAULT '',
-            product_type    TEXT NOT NULL DEFAULT 'service',
-                        -- vip/template/token/service/plugin
-            category        TEXT DEFAULT '',
-            price           REAL NOT NULL DEFAULT 0,
-            original_price  REAL DEFAULT 0,
-            stock           INTEGER DEFAULT 0,
-            sales_count     INTEGER DEFAULT 0,
-            thumbnail       TEXT DEFAULT '',
-            description     TEXT DEFAULT '',
-            features        TEXT DEFAULT '[]',
-            ai_config       TEXT DEFAULT '{}',
-            sort_order      INTEGER DEFAULT 0,
-            is_active       INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now','localtime')),
-            updated_at      TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active)')
-        m.execute('''CREATE TABLE IF NOT EXISTS carts (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id         INTEGER NOT NULL REFERENCES users(id),
-            product_id      INTEGER NOT NULL REFERENCES products(id),
-            quantity        INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now','localtime')),
-            UNIQUE(user_id, product_id)
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_carts_user ON carts(user_id)')
-        m.execute('''CREATE TABLE IF NOT EXISTS user_purchases (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id         INTEGER NOT NULL REFERENCES users(id),
-            product_id      INTEGER NOT NULL REFERENCES products(id),
-            order_id        TEXT DEFAULT '',
-            purchase_type   TEXT NOT NULL DEFAULT 'once',
-                        -- once / subscription
-            expire_at       TEXT,
-            status          TEXT DEFAULT 'active',
-                        -- active / expired / cancelled
-            created_at      TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_up_user ON user_purchases(user_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_up_status ON user_purchases(status)')
+    # ── shop tables 已迁移至独立 shop.db（init_shop_db）──
 
-        m.execute('''CREATE TABLE IF NOT EXISTS order_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id        TEXT NOT NULL,
-            user_id         INTEGER NOT NULL REFERENCES users(id),
-            product_id      INTEGER NOT NULL REFERENCES products(id),
-            product_title   TEXT NOT NULL DEFAULT '',
-            quantity        INTEGER DEFAULT 1,
-            unit_price      REAL NOT NULL DEFAULT 0,
-            subtotal        REAL NOT NULL DEFAULT 0,
-            coupon_id       INTEGER DEFAULT NULL,
-            discount        REAL DEFAULT 0,
-            status          TEXT DEFAULT 'pending',
-                        -- pending / paid / refunded
-            created_at      TEXT DEFAULT (datetime('now','localtime')),
-            paid_at         TEXT
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_oi_order ON order_items(order_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_oi_user ON order_items(user_id)')
-        m.commit()
-        print('[Migration] shop tables created (products/carts/user_purchases/coupons/order_items)')
-
-    # ── Migration: order_items idempotency_key ──
-    with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(order_items)').fetchall()]
-        if 'idempotency_key' not in cols:
-            try:
-                m.execute("ALTER TABLE order_items ADD COLUMN idempotency_key TEXT DEFAULT ''")
-                m.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_oi_idempotency ON order_items(idempotency_key) WHERE idempotency_key != \'\'')
-                m.commit()
-                print('[Migration] order_items.idempotency_key added')
-            except Exception as e:
-                print(f'[Migration] idempotency_key migration skipped: {e}')
+    # ── Migration: order_items column additions (now in shop.db) ──
+    # All order_items column migrations are handled by init_shop_db() DDL.
+    # If any column is missing (production DB layout differs), run via shop. prefix.
 
     # ── Migration: seed extra themes (light/nature/warm/ocean) ──
     with get_db() as m:
@@ -1766,94 +1877,10 @@ def init_db():
         m.commit()
         print('[Migration] oauth_providers 表已创建')
 
-    # ── Migration: products.images 多图片字段 (2026-06-19) ──
-    with get_db() as m:
-        cols_p = [r['name'] for r in m.execute('PRAGMA table_info(products)').fetchall()]
-        if 'images' not in cols_p:
-            try:
-                m.execute("ALTER TABLE products ADD COLUMN images TEXT DEFAULT '[]'")
-                m.commit()
-                print('[Migration] products.images column added')
-            except Exception as e:
-                print(f'[Migration] products.images skipped: {e}')
+    # ── products.images / categories / product_specs / product_skus / carts.sku_id ──
+    # All handled by init_shop_db() with full column set.
 
-    # ── Migration: categories 商品分类表 (2026-06-19) ──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS categories (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            slug        TEXT UNIQUE,
-            parent_id   INTEGER DEFAULT 0,
-            level       INTEGER DEFAULT 0,
-            icon        TEXT DEFAULT '',
-            sort_order  INTEGER DEFAULT 0,
-            is_active   INTEGER DEFAULT 1,
-            created_at  TEXT DEFAULT (datetime('now','localtime')),
-            updated_at  TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_cat_level ON categories(level)')
-
-        # 检查是否需要补充 products.category_id
-        cols_p2 = [r['name'] for r in m.execute('PRAGMA table_info(products)').fetchall()]
-        if 'category_id' not in cols_p2:
-            try:
-                m.execute("ALTER TABLE products ADD COLUMN category_id INTEGER DEFAULT 0")
-                m.commit()
-                print('[Migration] products.category_id column added')
-            except Exception as e:
-                print(f'[Migration] products.category_id skipped: {e}')
-
-        m.commit()
-        print('[Migration] categories table created')
-
-    # ── Migration: product_specs / product_spec_values / product_skus (2026-06-19) ──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS product_specs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id  INTEGER NOT NULL REFERENCES products(id),
-            spec_name   TEXT NOT NULL,
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_ps_product ON product_specs(product_id)')
-
-        m.execute('''CREATE TABLE IF NOT EXISTS product_spec_values (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            spec_id     INTEGER NOT NULL REFERENCES product_specs(id),
-            spec_value  TEXT NOT NULL,
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_psv_spec ON product_spec_values(spec_id)')
-
-        m.execute('''CREATE TABLE IF NOT EXISTS product_skus (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id  INTEGER NOT NULL REFERENCES products(id),
-            sku_code    TEXT NOT NULL,
-            spec_path   TEXT NOT NULL DEFAULT '{}',
-            price       REAL NOT NULL DEFAULT 0,
-            stock       INTEGER DEFAULT 0,
-            image       TEXT DEFAULT '',
-            is_active   INTEGER DEFAULT 1,
-            created_at  TEXT DEFAULT (datetime('now','localtime')),
-            updated_at  TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_psk_product ON product_skus(product_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_psk_code ON product_skus(sku_code)')
-        m.commit()
-        print('[Migration] product_specs / product_spec_values / product_skus tables created')
-
-    # ── Migration: carts.sku_id (2026-06-19) ──
-    with get_db() as m:
-        cols_c2 = [r['name'] for r in m.execute('PRAGMA table_info(carts)').fetchall()]
-        if 'sku_id' not in cols_c2:
-            try:
-                m.execute("ALTER TABLE carts ADD COLUMN sku_id INTEGER DEFAULT 0 REFERENCES product_skus(id)")
-                m.commit()
-                print('[Migration] carts.sku_id added')
-            except Exception as e:
-                print(f'[Migration] carts.sku_id skipped: {e}')
+    # ── Migration: 独立部署套餐 subscription_plans (2026-06-27) ──
 
     # ── Migration: 独立部署套餐 subscription_plans (2026-06-27) ──
     with get_db() as m:
@@ -1884,125 +1911,8 @@ def init_db():
         m.commit()
         print(f'[Migration] 独立部署套餐 subscription_plans 已更新')
 
-    # ── Migration: pricing_rules 价格计算器配置表 (2026-06-20) ──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS pricing_rules (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            rule_key    TEXT UNIQUE NOT NULL,
-            label       TEXT NOT NULL,
-            rule_type   TEXT NOT NULL DEFAULT 'radio',
-            options_json TEXT NOT NULL DEFAULT '[]',
-            sort_order  INTEGER DEFAULT 0,
-            is_active   INTEGER DEFAULT 1,
-            created_at  TEXT DEFAULT CURRENT_TIMESTAMP
-        )''')
-        # Seed default calculator rules
-        rules = [
-            ('pages', '页面数量', 'radio',
-             '[{"value":"5","label":"5 页面","price":0,"desc":"适合展示型官网"},{"value":"10","label":"10 页面","price":260000,"desc":"适合功能型网站"},{"value":"20","label":"20 页面","price":740000,"desc":"适合大型企业站"}]', 1),
-            ('service', 'AI智能客服', 'radio',
-             '[{"value":"basic","label":"基础问答","price":0,"desc":"常见问题自动回复"},{"value":"rag","label":"RAG知识库","price":100000,"desc":"基于文档智能问答+意向识别"},{"value":"pro","label":"高级多轮对话","price":480000,"desc":"多轮对话+飞书通知+CRM对接"}]', 2),
-            ('miniapp', '小程序', 'radio',
-             '[{"value":"none","label":"不需要","price":0,"desc":""},{"value":"wechat","label":"微信小程序","price":200000,"desc":""},{"value":"both","label":"微信+抖音小程序","price":400000,"desc":""}]', 3),
-            ('content', 'AI内容生成', 'radio',
-             '[{"value":"basic","label":"基础版","price":0,"desc":"AI文案生成(需自行配置API)"},{"value":"pro","label":"专业版","price":200000,"desc":"含AI配置+培训+持续优化"}]', 4),
-            ('seo', 'SEO优化', 'radio',
-             '[{"value":"basic","label":"基础SEO","price":0,"desc":"标题/描述/结构化数据"},{"value":"ai","label":"AI持续SEO","price":200000,"desc":"AI监控+关键词建议+排名跟踪"}]', 5),
-        ]
-        for rk, lbl, rt, opts, so in rules:
-            exists = m.execute("SELECT id FROM pricing_rules WHERE rule_key=?", (rk,)).fetchone()
-            if not exists:
-                m.execute(
-                    "INSERT INTO pricing_rules (rule_key, label, rule_type, options_json, sort_order) VALUES (?,?,?,?,?)",
-                    (rk, lbl, rt, opts, so))
-        m.commit()
-        print(f'[Migration] pricing_rules seed complete')
-
-    # ── Migration: order_items 物流字段 (2026-06-21) ──
-    with get_db() as m:
-        shipping_cols = [r['name'] for r in m.execute('PRAGMA table_info(order_items)').fetchall()]
-        migration_cols = {
-            'tracking_company': "tracking_company TEXT DEFAULT ''",
-            'tracking_number': "tracking_number TEXT DEFAULT ''",
-            'shipping_status': "shipping_status TEXT DEFAULT ''",
-            'shipped_at': "shipped_at TEXT",
-        }
-        for col_name, col_def in migration_cols.items():
-            if col_name not in shipping_cols:
-                try:
-                    m.execute(f"ALTER TABLE order_items ADD COLUMN {col_def}")
-                    print(f'[Migration] order_items.{col_name} added')
-                except Exception as e:
-                    print(f'[Migration] order_items.{col_name} skipped: {e}')
-
-    # ── Migration: express_companies 快递公司字典 (2026-06-21) ──
-    with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS express_companies (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            code        TEXT NOT NULL UNIQUE,
-            name        TEXT NOT NULL,
-            kdniao_code TEXT DEFAULT '',
-            is_active   INTEGER DEFAULT 1,
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        )''')
-        # 常用快递公司种子数据
-        companies = [
-            ('shunfeng', '顺丰速运', 'SF', 1),
-            ('zhongtong', '中通快递', 'ZTO', 2),
-            ('yuantong', '圆通速递', 'YTO', 3),
-            ('yunda', '韵达快递', 'YD', 4),
-            ('shentong', '申通快递', 'STO', 5),
-            ('jd', '京东物流', 'JD', 6),
-            ('ems', 'EMS', 'EMS', 7),
-            ('debang', '德邦快递', 'DBL', 8),
-            ('huitongkuaidi', '百世快递', 'HTKY', 9),
-            ('youzhengguonei', '中国邮政', 'YZGN', 10),
-            ('zhaijisong', '宅急送', 'ZJS', 11),
-            ('youshuwuliu', '优速物流', 'UC', 12),
-            ('tiantian', '天天快递', 'TTKD', 13),
-            ('kuaijie', '快捷快递', 'KJKD', 14),
-            ('quanfengkuaidi', '全峰快递', 'QFKD', 15),
-            ('suer', '速尔快递', 'SUER', 16),
-        ]
-        for code, name, kdn, so in companies:
-            exists = m.execute("SELECT id FROM express_companies WHERE code=?", (code,)).fetchone()
-            if not exists:
-                m.execute(
-                    "INSERT INTO express_companies (code, name, kdniao_code, sort_order) VALUES (?,?,?,?)",
-                    (code, name, kdn, so))
-        m.commit()
-        print(f'[Migration] express_companies seed complete ({len(companies)} companies)')
-
-    # ── Migration: order_items 支付字段 (2026-06-21) ──
-    with get_db() as m:
-        payment_cols = [r['name'] for r in m.execute('PRAGMA table_info(order_items)').fetchall()]
-        for col_name, col_def in {
-            'payment_method': "payment_method TEXT DEFAULT ''",
-            'payment_trade_no': "payment_trade_no TEXT DEFAULT ''",
-        }.items():
-            if col_name not in payment_cols:
-                try:
-                    m.execute(f"ALTER TABLE order_items ADD COLUMN {col_def}")
-                    print(f'[Migration] order_items.{col_name} added')
-                except Exception as e:
-                    print(f'[Migration] order_items.{col_name} skipped: {e}')
-
-    # ── Migration: order_items completed_at / 退款字段 (2026-06-21) ──
-    with get_db() as m:
-        status_cols = [r['name'] for r in m.execute('PRAGMA table_info(order_items)').fetchall()]
-        for col_name, col_def in {
-            'completed_at': "completed_at TEXT",
-            'refund_reason': "refund_reason TEXT DEFAULT ''",
-            'refund_requested_at': "refund_requested_at TEXT",
-            'refunded_at': "refunded_at TEXT",
-        }.items():
-            if col_name not in status_cols:
-                try:
-                    m.execute(f"ALTER TABLE order_items ADD COLUMN {col_def}")
-                    print(f'[Migration] order_items.{col_name} added')
-                except Exception as e:
-                    print(f'[Migration] order_items.{col_name} skipped: {e}')
+    # ── pricing_rules / order_items payment+shipping / express_companies ──
+    # All handled by init_shop_db() with full column set.
 
     # ── Migration: invoices 发票系统 ──
     with get_db() as m:
@@ -2029,7 +1939,7 @@ def init_db():
 
     # ── Migration: orders user_deleted soft-delete ──
     with get_db() as m:
-        for table in ['subscription_orders', 'order_items']:
+        for table in ['subscription_orders']:  # order_items user_deleted handled by init_shop_db()
             cols = [r['name'] for r in m.execute(f'PRAGMA table_info({table})').fetchall()]
             if 'user_deleted' not in cols:
                 try:

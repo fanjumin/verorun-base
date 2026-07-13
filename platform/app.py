@@ -47,7 +47,7 @@ from routes.mini_program import mini_program_bp
 
 from flask import (Flask, request, jsonify, render_template,
                    send_from_directory, redirect, Blueprint, Response, make_response)
-from models import get_db
+from models import get_db, init_shop_db
 import json
 import secrets
 
@@ -55,6 +55,12 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
+
+# 初始化商城独立数据库
+try:
+    init_shop_db()
+except Exception as e:
+    print(f'[Platform] init_shop_db warning: {e}')
 
 
 @app.context_processor
