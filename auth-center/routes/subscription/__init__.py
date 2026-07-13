@@ -949,6 +949,55 @@ def admin_order_list():
             (limit, offset)).fetchall()
     return api_res({'total': total['c'], 'page': page, 'orders': [dict(r) for r in rows]})
 
+@sub_bp.route('/admin/orders/<order_no>/refund', methods=['POST'])
+def admin_refund_order(order_no):
+    """管理员：退款订阅订单"""
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM subscription_orders WHERE order_no=? AND status='paid'",
+            (order_no,)
+        ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Order not found or already refunded'}), 404
+
+        payment_method = row['payment_method'] or ''
+        channel_order_id = row['channel_order_id'] or ''
+        amount_fen = row['amount_fen']
+
+    # 调用网关退款
+    refund_result = {'success': False, 'refund_no': '', 'error': 'Unknown payment method'}
+    if payment_method == 'alipay':
+        from .gateway.alipay import refund_order as _alipay_refund
+        refund_result = _alipay_refund(order_no, amount_fen)
+    elif payment_method == 'wechat':
+        from .gateway.wechat import refund_order as _wechat_refund
+        refund_result = _wechat_refund(order_no, amount_fen)
+    elif payment_method == 'stripe':
+        from .gateway.stripe import refund_order as _stripe_refund
+        refund_result = _stripe_refund(channel_order_id, amount_fen)
+    elif payment_method == 'paypal':
+        from .gateway.paypal import refund_order as _paypal_refund
+        refund_result = _paypal_refund(channel_order_id, amount_fen)
+
+    if not refund_result.get('success'):
+        return jsonify({'success': False, 'error': refund_result.get('error', 'Refund failed')}), 400
+
+    # 更新订单状态 + 取消订阅
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE subscription_orders SET status='refunded', updated_at=datetime('now') WHERE order_no=?",
+            (order_no,)
+        )
+        conn.execute(
+            "UPDATE subscriptions SET status='canceled', updated_at=datetime('now') WHERE id=?",
+            (row['sub_id'],)
+        )
+        conn.commit()
+
+    return jsonify({'success': True, 'message': 'Refunded'})
+
 @sub_bp.route('/admin/stats', methods=['GET'])
 def admin_stats():
     """数据看板：MRR、续费率、churn"""

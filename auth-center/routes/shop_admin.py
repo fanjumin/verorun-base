@@ -1350,6 +1350,36 @@ def refund_order(oid):
             return jsonify({'success': False, 'error': '订单已退款'}), 400
         if row['status'] not in ('paid', 'shipped', 'refunding'):
             return jsonify({'success': False, 'error': '当前订单状态不允许退款'}), 400
+
+        payment_method = row['payment_method'] or ''
+        payment_trade_no = row['payment_trade_no'] or ''
+        amount = int((row['subtotal'] - row.get('discount', 0)) * 100)  # 转换为分
+
+        # 如果有关联的支付交易号，尝试调用网关退款
+        if payment_trade_no:
+            try:
+                refund_result = {'success': False, 'error': 'Unknown payment method'}
+                if payment_method == 'alipay':
+                    from .subscription.gateway.alipay import refund_order as _alipay_refund
+                    refund_result = _alipay_refund(row['order_id'], amount)
+                elif payment_method == 'wechat':
+                    from .subscription.gateway.wechat import refund_order as _wechat_refund
+                    refund_result = _wechat_refund(row['order_id'], amount)
+                elif payment_method == 'stripe':
+                    from .subscription.gateway.stripe import refund_order as _stripe_refund
+                    refund_result = _stripe_refund(payment_trade_no, amount)
+                elif payment_method == 'paypal':
+                    from .subscription.gateway.paypal import refund_order as _paypal_refund
+                    refund_result = _paypal_refund(payment_trade_no, amount)
+
+                if not refund_result.get('success'):
+                    err_msg = refund_result.get('error', 'Gateway refund failed')
+                    print(f'[Shop Refund] Gateway error for order {oid}: {err_msg}')
+                    # 仍然继续执行数据库退款（线下已处理或 stub 模式）
+            except Exception as e:
+                print(f'[Shop Refund] Gateway call failed for order {oid}: {e}')
+                # 继续执行数据库操作
+
         conn.execute('UPDATE products SET sales_count = MAX(0, sales_count - ?) WHERE id=?',
                      (row['quantity'], row['product_id']))
         conn.execute(

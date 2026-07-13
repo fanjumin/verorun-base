@@ -98,3 +98,38 @@ def handle_webhook() -> tuple:
         )
 
     return jsonify({'status': 'ok'}), 200
+
+
+def refund_order(trade_no: str, amount_fen: int = 0):
+    """Stripe 退款
+
+    Args:
+        trade_no: Stripe PaymentIntent ID 或 Checkout Session ID
+        amount_fen: 退款金额（cents）
+
+    Returns:
+        {'success': bool, 'refund_no': str, 'error': str}
+    """
+    if _is_stub():
+        print('[Stripe Refund] Stub mode')
+        return {'success': True, 'refund_no': f'STRIPEREFUND{trade_no}', 'error': ''}
+
+    try:
+        import stripe
+        stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
+
+        pi_id = trade_no
+        if trade_no.startswith('cs_'):
+            session = stripe.checkout.Session.retrieve(trade_no)
+            pi_id = session.payment_intent or trade_no
+
+        refund_params = {'payment_intent': pi_id}
+        if amount_fen > 0:
+            refund_params['amount'] = amount_fen
+
+        refund = stripe.Refund.create(**refund_params)
+        return {'success': True, 'refund_no': refund.id, 'error': ''}
+
+    except Exception as e:
+        print(f'[Stripe Refund] Error: {e}')
+        return {'success': False, 'refund_no': '', 'error': str(e)}

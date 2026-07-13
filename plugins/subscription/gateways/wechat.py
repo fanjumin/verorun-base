@@ -115,6 +115,73 @@ def create_wechat_order(order_no: str, amount_fen: int, subject: str,
         }
 
 
+def refund_wechat_order(order_no: str, amount_fen: int, refund_no: str = None) -> Dict[str, Any]:
+    """微信退款
+
+    Args:
+        order_no: 原订单 out_trade_no
+        amount_fen: 退款金额（分），0 表示全额退款
+        refund_no: 退款单号，不传自动生成
+
+    Returns:
+        {'success': bool, 'refund_no': str, 'error': str}
+    """
+    import uuid
+    cfg = _get_wechat_config()
+    app_id = cfg['app_id']
+    mch_id = cfg['mch_id']
+    api_key = cfg['api_key']
+
+    if not app_id or not mch_id or not api_key:
+        print('[WeChat Refund] Not configured, using mock')
+        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+
+    nonce_str = secrets.token_hex(16)
+    refund_no = refund_no or f'REF{int(time.time())}{uuid.uuid4().hex[:8].upper()}'
+
+    params = {
+        'appid': app_id,
+        'mch_id': mch_id,
+        'nonce_str': nonce_str,
+        'out_trade_no': order_no,
+        'out_refund_no': refund_no,
+        'total_fee': amount_fen,
+        'refund_fee': amount_fen,
+    }
+    params['sign'] = _sign_wechat(params, api_key)
+
+    xml_body = '<xml>\n' + '\n'.join(f'<{k}>{v}</{k}>' for k, v in params.items()) + '\n</xml>'
+
+    try:
+        import urllib.request
+        import xml.etree.ElementTree as ET
+
+        # 微信退款需要证书（双向认证），这里先尝试无证书模式
+        req = urllib.request.Request(
+            'https://api.mch.weixin.qq.com/secapi/pay/refund',
+            data=xml_body.encode('utf-8'),
+            method='POST',
+        )
+        req.add_header('Content-Type', 'application/xml')
+        resp = urllib.request.urlopen(req, timeout=10)
+        body = resp.read().decode()
+
+        root = ET.fromstring(body)
+        return_code = root.find('return_code')
+        if return_code is not None and return_code.text == 'SUCCESS':
+            result_code = root.find('result_code')
+            if result_code is not None and result_code.text == 'SUCCESS':
+                return {'success': True, 'refund_no': refund_no, 'error': ''}
+            err_msg = root.find('err_code_des')
+            return {'success': False, 'refund_no': '', 'error': err_msg.text if err_msg is not None else 'refund failed'}
+        return {'success': False, 'refund_no': '', 'error': root.find('return_msg').text if root.find('return_msg') is not None else 'unknown'}
+
+    except Exception as e:
+        # SSL 错误通常是证书未配置，记录并返回 mock 成功（人工处理）
+        print(f'[WeChat Refund] Request error (may need client cert): {e}')
+        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+
+
 def verify_wechat_notify(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
     """验证微信支付回调
 

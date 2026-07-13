@@ -71,3 +71,35 @@ def verify_notify(channel: str, raw_data: dict, headers: dict = None) -> tuple:
 
     else:
         return False, {'error': f'Unknown channel: {channel}'}
+
+
+def process_refund(order_no: str, amount_fen: int, channel: str, trade_no: str = '') -> Dict[str, Any]:
+    """统一退款入口：根据 channel 路由到对应网关
+
+    Args:
+        order_no: 原订单号
+        amount_fen: 退款金额（分）
+        channel: 支付渠道
+        trade_no: 网关交易号
+
+    Returns:
+        Dict with keys: success, refund_no, error
+    """
+    if channel == 'alipay':
+        from .alipay import refund_alipay_order
+        return refund_alipay_order(order_no, amount_fen)
+
+    elif channel == 'wechat':
+        from .wechat import refund_wechat_order
+        return refund_wechat_order(order_no, amount_fen)
+
+    elif channel == 'stripe':
+        from .stripe import refund_stripe_session
+        return refund_stripe_session(trade_no, amount_fen)
+
+    elif channel == 'paypal':
+        from .paypal import refund_paypal_order
+        return refund_paypal_order(trade_no, amount_fen)
+
+    else:
+        return {'success': False, 'refund_no': '', 'error': f'Unknown channel: {channel}'}

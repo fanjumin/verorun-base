@@ -386,6 +386,17 @@ def admin_list_orders():
     return jsonify({'orders': [o.to_dict() for o in orders]})
 
 
+@sub_bp.route('/admin/subscription/orders/<order_no>/refund', methods=['POST'])
+@_admin_required
+def admin_refund_order(order_no):
+    """管理员：退款订单"""
+    svc = get_subscription_service()
+    success, msg = svc.refund_order(order_no)
+    if success:
+        return jsonify({'success': True, 'message': 'Refunded'})
+    return jsonify({'success': False, 'error': msg}), 400
+
+
 @sub_bp.route('/admin/subscription/', methods=['GET'])
 def admin_panel():
     """管理后台订阅面板"""

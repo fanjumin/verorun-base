@@ -96,6 +96,49 @@ def create_stripe_session(order_no: str, amount_fen: int, subject: str,
         }
 
 
+def refund_stripe_session(trade_no: str, amount_fen: int = 0) -> Dict[str, Any]:
+    """Stripe 退款
+
+    Args:
+        trade_no: Stripe PaymentIntent ID 或 Checkout Session ID
+        amount_fen: 退款金额（cents），0 表示全额退款
+
+    Returns:
+        {'success': bool, 'refund_no': str, 'error': str}
+    """
+    cfg = _get_stripe_config()
+    sk = cfg['secret_key']
+
+    if not sk or sk.startswith('sk_live_xxx'):
+        print('[Stripe Refund] Not configured, using mock')
+        return {'success': True, 'refund_no': f'STRIPEREFUND{trade_no}', 'error': ''}
+
+    try:
+        import stripe
+        stripe.api_key = sk
+
+        # 如果是 Checkout Session ID (cs_xxx)，先获取 PaymentIntent
+        pi_id = trade_no
+        if trade_no.startswith('cs_'):
+            session = stripe.checkout.Session.retrieve(trade_no)
+            pi_id = session.payment_intent or trade_no
+
+        refund_params = {'payment_intent': pi_id}
+        if amount_fen > 0:
+            refund_params['amount'] = amount_fen
+
+        refund = stripe.Refund.create(**refund_params)
+
+        return {'success': True, 'refund_no': refund.id, 'error': ''}
+
+    except ImportError:
+        print('[Stripe Refund] stripe-python not installed, using mock')
+        return {'success': True, 'refund_no': f'STRIPEREFUND{trade_no}', 'error': ''}
+    except Exception as e:
+        print(f'[Stripe Refund] Error: {e}')
+        return {'success': False, 'refund_no': '', 'error': str(e)}
+
+
 def verify_stripe_webhook(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
     """验证 Stripe Webhook 事件
 

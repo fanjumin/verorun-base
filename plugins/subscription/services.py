@@ -495,6 +495,54 @@ class SubscriptionService:
             ).fetchall()
             return [SubOrder.from_row(dict(r)) for r in rows]
 
+    # ── 退款 ──────────────────────────────────────────────────────
+
+    def refund_order(self, order_no: str) -> Tuple[bool, str]:
+        """管理员：退款订单
+        1. 查订单确认状态为 paid
+        2. 调用支付网关退款
+        3. 更新订单状态为 refunded
+        4. 取消对应用户订阅
+        """
+        order = self.get_order(order_no)
+        if not order:
+            return False, _t('Order not found')
+        if order.status != OrderStatus.PAID:
+            return False, _t('Order cannot be refunded (current status: {status})').format(status=order.status.value)
+
+        # 调用支付网关退款
+        from .gateways import process_refund
+        refund_result = process_refund(
+            order_no=order.order_no,
+            amount_fen=order.amount_fen,
+            channel=order.channel,
+            trade_no=order.trade_no,
+        )
+
+        if not refund_result.get('success'):
+            error_msg = refund_result.get('error', 'Unknown error')
+            print(f'[Subscription Refund] Gateway refund failed for {order_no}: {error_msg}')
+            return False, _t('Refund failed: {error}').format(error=error_msg)
+
+        # 更新订单
+        with self._get_conn() as conn:
+            conn.execute("""
+                UPDATE sub_orders SET
+                    status='refunded', updated_at=datetime('now')
+                WHERE order_no=?
+            """, (order_no,))
+
+            # 取消用户订阅
+            conn.execute("""
+                UPDATE user_subscriptions SET
+                    status='canceled', auto_renew=0, updated_at=datetime('now')
+                WHERE user_id=? AND item_key=?
+            """, (order.user_id, order.item_key))
+
+            conn.commit()
+
+        return True, 'ok'
+
     # ── 内部工具 ──────────────────────────────────────────────────
 
     def _calc_period_end(self, start: datetime, interval: str) -> datetime:

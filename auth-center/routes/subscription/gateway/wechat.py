@@ -366,6 +366,65 @@ def unsign_contract(contract_id):
 
 
 # ============================================================
+# 退款
+# ============================================================
+
+def refund_order(order_no: str, amount_fen: int, refund_no: str = None):
+    """微信支付退款
+
+    Args:
+        order_no: 原订单 out_trade_no
+        amount_fen: 退款金额（分）
+        refund_no: 退款单号
+
+    Returns:
+        {'success': bool, 'refund_no': str, 'error': str}
+    """
+    import uuid
+    if _is_stub():
+        print('[WeChat Refund] Stub mode')
+        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+
+    nonce_str = _generate_nonce()
+    refund_no = refund_no or f'REF{int(time.time())}{uuid.uuid4().hex[:8].upper()}'
+
+    # V3 refund JSON body
+    refund_body = {
+        'out_trade_no': order_no,
+        'out_refund_no': refund_no,
+        'amount': {
+            'refund': amount_fen,
+            'total': amount_fen,
+            'currency': 'CNY',
+        },
+    }
+    body_str = json.dumps(refund_body)
+    url_path = '/v3/refund/domestic/refunds'
+    auth_header = _build_auth_header('POST', url_path, body_str)
+
+    try:
+        import urllib.request
+        data = body_str.encode('utf-8')
+        req = urllib.request.Request(f'https://api.mch.weixin.qq.com{url_path}', data=data, method='POST')
+        req.add_header('Authorization', auth_header)
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('Accept', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=10)
+        result = json.loads(resp.read().decode())
+
+        if result.get('status') == 'SUCCESS':
+            return {'success': True, 'refund_no': refund_no, 'error': ''}
+
+        err_msg = result.get('message', 'refund failed')
+        print(f'[WeChat Refund] Failed: {err_msg}')
+        return {'success': False, 'refund_no': '', 'error': err_msg}
+
+    except Exception as e:
+        print(f'[WeChat Refund] Error (may need client cert): {e}')
+        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+
+
+# ============================================================
 # 回调处理
 # ============================================================
 

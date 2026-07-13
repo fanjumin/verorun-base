@@ -358,6 +358,70 @@ def unsign_agreement(agreement_id):
 
 
 # ============================================================
+# 退款
+# ============================================================
+
+def refund_order(order_no: str, amount_fen: int, refund_no: str = None):
+    """支付宝退款 — alipay.trade.refund
+
+    Args:
+        order_no: 原订单 out_trade_no
+        amount_fen: 退款金额（分）
+        refund_no: 退款请求号
+
+    Returns:
+        {'success': bool, 'refund_no': str, 'error': str}
+    """
+    import uuid
+    if _is_stub():
+        print('[Alipay Refund] Stub mode')
+        return {'success': True, 'refund_no': f'ALIREFUND{order_no}', 'error': ''}
+
+    private_key = _get_private_key()
+    if not private_key:
+        return {'success': False, 'refund_no': '', 'error': 'Alipay private key not configured'}
+
+    amount_yuan = f'{amount_fen / 100:.2f}'
+    refund_no = refund_no or f'REF{int(time.time())}{uuid.uuid4().hex[:8].upper()}'
+
+    params = {
+        'app_id': ALIPAY_APP_ID,
+        'method': 'alipay.trade.refund',
+        'format': 'JSON',
+        'charset': 'utf-8',
+        'sign_type': 'RSA2',
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'version': '1.0',
+        'biz_content': json.dumps({
+            'out_trade_no': order_no,
+            'refund_amount': amount_yuan,
+            'out_request_no': refund_no,
+        }, ensure_ascii=False),
+    }
+    params['sign'] = _sign(params, private_key)
+
+    try:
+        import urllib.request, urllib.parse
+        data = urllib.parse.urlencode(params).encode()
+        req = urllib.request.Request(ALIPAY_GATEWAY, data=data)
+        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        resp = urllib.request.urlopen(req, timeout=10)
+        body = resp.read().decode()
+        result = json.loads(body)
+        response = result.get('alipay_trade_refund_response', {})
+
+        if response.get('code') == '10000':
+            return {'success': True, 'refund_no': refund_no, 'error': ''}
+
+        err_msg = response.get('sub_msg', response.get('msg', 'unknown'))
+        print(f'[Alipay Refund] Failed: {err_msg}')
+        return {'success': False, 'refund_no': '', 'error': err_msg}
+    except Exception as e:
+        print(f'[Alipay Refund] Error: {e}')
+        return {'success': False, 'refund_no': '', 'error': str(e)}
+
+
+# ============================================================
 # 回调处理
 # ============================================================
 

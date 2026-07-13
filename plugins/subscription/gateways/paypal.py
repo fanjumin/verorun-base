@@ -134,6 +134,80 @@ def create_paypal_order(order_no: str, amount_fen: int, subject: str,
         }
 
 
+def refund_paypal_order(trade_no: str, amount_fen: int = 0) -> Dict[str, Any]:
+    """PayPal 退款
+
+    Args:
+        trade_no: PayPal Order ID
+        amount_fen: 退款金额（分），0 表示全额退款
+
+    Returns:
+        {'success': bool, 'refund_no': str, 'error': str}
+    """
+    cfg = _get_paypal_config()
+    if not cfg['client_id'] or cfg['client_id'].startswith('xxxx'):
+        print('[PayPal Refund] Not configured, using mock')
+        return {'success': True, 'refund_no': f'PPREFUND{trade_no}', 'error': ''}
+
+    token = _get_access_token()
+    if not token:
+        return {'success': False, 'refund_no': '', 'error': 'Failed to get access token'}
+
+    api_base = _get_api_base()
+    amount_usd = f'{amount_fen / 100:.2f}'
+
+    # 先捕获订单的 capture ID
+    try:
+        import urllib.request
+        # 获取订单详情
+        req = urllib.request.Request(f'{api_base}/v2/checkout/orders/{trade_no}', method='GET')
+        req.add_header('Authorization', f'Bearer {token}')
+        resp = urllib.request.urlopen(req, timeout=10)
+        order_data = json.loads(resp.read().decode())
+
+        # 找到 capture ID
+        capture_id = ''
+        for pu in order_data.get('purchase_units', []):
+            for cap in pu.get('payments', {}).get('captures', []):
+                capture_id = cap.get('id', '')
+                break
+            if capture_id:
+                break
+
+        if not capture_id:
+            return {'success': False, 'refund_no': '', 'error': 'No capture found for this order'}
+
+        # 执行退款
+        refund_data = {}
+        if amount_fen > 0:
+            refund_data = {
+                'amount': {
+                    'value': amount_usd,
+                    'currency_code': 'USD',
+                }
+            }
+
+        data = json.dumps(refund_data).encode() if refund_data else b''
+        req = urllib.request.Request(
+            f'{api_base}/v2/payments/captures/{capture_id}/refund',
+            data=data,
+            method='POST',
+        )
+        req.add_header('Authorization', f'Bearer {token}')
+        req.add_header('Content-Type', 'application/json')
+        resp = urllib.request.urlopen(req, timeout=15)
+        refund_result = json.loads(resp.read().decode())
+
+        if refund_result.get('status') == 'COMPLETED':
+            return {'success': True, 'refund_no': refund_result.get('id', ''), 'error': ''}
+
+        return {'success': False, 'refund_no': '', 'error': refund_result.get('status', 'refund failed')}
+
+    except Exception as e:
+        print(f'[PayPal Refund] Error: {e}')
+        return {'success': False, 'refund_no': '', 'error': str(e)}
+
+
 def verify_paypal_webhook(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
     """验证 PayPal Webhook / 支付回调
 
