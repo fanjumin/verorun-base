@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 from models import get_db, now_iso
 from services.jwt_service import validate_token, create_token
 from services.name_validator import sanitize_name
-from services.douyin_service import code2session, miniprogram_is_stub
+from plugins.oauth_config.services.douyin_service import code2session, miniprogram_is_stub
 
 douyin_mp_bp = Blueprint('douyin_mp', __name__, url_prefix='/douyin_mp')
 

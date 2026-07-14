@@ -53,6 +53,16 @@ except Exception as e:
 
 register_auth(app)
 
+# ── OAuth Plugin 第三方登录路由 ──
+try:
+    from plugins.oauth_config.routes.auth import oauth_bp
+    app.register_blueprint(oauth_bp)
+    print('[OAuth Plugin] ✅ 已注册第三方登录路由')
+except ImportError:
+    print('[OAuth Plugin] ⚠️ OAuth 插件未安装，第三方登录不可用')
+except Exception as e:
+    print(f'[OAuth Plugin] ⚠️ 加载失败: {e}')
+
 try:
     from flask_cors import CORS
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)

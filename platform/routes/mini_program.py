@@ -164,7 +164,7 @@ def _wechat_login(data):
     try:
         # Reuse WeChat code-to-session logic from auth-center
         from models import get_db
-        from services.wechat_service import exchange_code_for_session
+        from plugins.oauth_config.services.wechat_service import exchange_code_for_session
 
         session_info = exchange_code_for_session(code)
         if not session_info:

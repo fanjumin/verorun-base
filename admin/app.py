@@ -227,6 +227,7 @@ except Exception as e:
 PLATFORM_STATIC = os.path.join(os.path.dirname(__file__), '..', 'platform', 'static')
 ADMIN_STATIC = os.path.join(os.path.dirname(__file__), 'static')
 ADS_STATIC = os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'static')
+BRAND_STATIC = os.path.join(os.path.dirname(__file__), '..', 'static', 'brand')
 
 # ══ 独立部署：订阅过期锁定（客户端模式，仅锁定后台管理页面） ══
 if os.environ.get('EASYKAI_MODE', 'main') == 'client':
@@ -693,6 +694,12 @@ def static_files(filename):
     if os.path.isfile(local_path):
         return send_from_directory(ADMIN_STATIC, filename)
     return send_from_directory(PLATFORM_STATIC, filename)
+
+
+@app.route('/static/brand/<path:filename>')
+def brand_static_files(filename):
+    """品牌静态文件（favicon 等）"""
+    return send_from_directory(BRAND_STATIC, filename)
 
 
 @app.route('/static/ads/<path:filename>')

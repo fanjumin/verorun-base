@@ -20,7 +20,7 @@ function mlApplyFilter(){
   var grid=document.getElementById("mlGrid");
   if(!grid)return;
   var filtered=_mlAllItems.filter(function(f){
-    if(tp&&!f.mime_type.startsWith(tp+'/'))return false;
+    if(tp&&f.mime_type&&!f.mime_type.startsWith(tp+'/'))return false;
     if(txt&&f.original_name.toLowerCase().indexOf(txt)===-1)return false;
     return true;
   });
@@ -30,10 +30,12 @@ function mlApplyFilter(){
 function renderMediaGrid(grid,items){
   var h='';
   items.forEach(function(f){
-    var isV=f.mime_type&&f.mime_type.startsWith('video/'),isA=f.mime_type&&f.mime_type.startsWith('audio/'),isI=f.mime_type&&f.mime_type.startsWith('image/');
+    var mime=f.mime_type||'';
+    var isV=mime.startsWith('video/'),isA=mime.startsWith('audio/'),isI=mime.startsWith('image/');
     var icon=isV?'🎬':isA?'🎵':isI?'🖼️':'📄',thumb='';
-    var filePath=f.file_path.startsWith('static/')?f.file_path:'static/'+f.file_path;
-    var thumbPath=f.thumb_path?(f.thumb_path.startsWith('static/')?f.thumb_path:'static/'+f.thumb_path):'';
+    var fp=f.file_path||'',tp2=f.thumb_path||'';
+    var filePath=fp?(fp.startsWith('static/')?fp:'static/'+fp):'';
+    var thumbPath=tp2?(tp2.startsWith('static/')?tp2:'static/'+tp2):'';
     if(isI&&filePath)thumb='<img src="/'+esc(filePath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else if(thumbPath)thumb='<img src="/'+esc(thumbPath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else thumb='<div style="width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg);border-radius:6px 6px 0 0">'+icon+'</div>';
@@ -115,6 +117,46 @@ function mlShowPush(id,name){mlGetItem(id,function(f){
 })}
 function mlGetItem(id,cb){fetch("/admin/media-library/list",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){if(d.success){var f=d.data.find(function(x){return x.id===id});if(f)cb(f)}})}
 function mlDoPush(id,target){var st=document.getElementById("mlPushStatus");if(!st)return;st.innerHTML='{{ _('Pushing...') }}';fetch("/admin/media-library/"+id+"/push",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({target:target})}).then(function(r){return r.json()}).then(function(d){if(d.success){setTimeout(loadMediaLibrary,1500)}else st.innerHTML='❌ '+esc(d.error||'{{ _('Push Failed') }}')}).catch(function(){st.innerHTML='{{ _('❌ Push failed') }}'})}
-function mlDelete(id,name){if(!confirm('{{ _('Confirm Delete') }} "'+name+'" 吗？'))return;fetch("/admin/media-library/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){if(d.success){showToast("{{ _('Deleted') }}");loadMediaLibrary()}else showToast(d.error||"{{ _('Delete failed') }}","error")})}
+function mlDelete(id,name){
+  showConfirm("{{ _('Confirm Delete') }}","{{ _('Are you sure you want to delete') }}「"+esc(name)+"」？",function(){
+    fetch("/admin/media-library/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){if(d.success){showToast("{{ _('Deleted') }}");loadMediaLibrary()}else showToast(d.error||"{{ _('Delete failed') }}","error")})
+  });
+}
 
+// ── 自定义确认弹窗 ────────────────────────────────
+var _confirmCallback=null;
+function showConfirm(title,text,cb){
+  _confirmCallback=cb;
+  var overlay=document.getElementById("confirmOverlay");
+  if(!overlay){
+    var div=document.createElement("div");div.id="confirmOverlay";
+    div.innerHTML='<div id="confirmBox" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px)">'
+      +'<div style="background:var(--card,#fff);border:1px solid var(--border,#e0e0e0);border-radius:var(--radius,12px);padding:28px 32px;min-width:340px;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,0.18);animation:fadeIn .2s ease">'
+      +'<div id="confirmTitle" style="font-size:16px;font-weight:600;color:var(--text,#1a1a1a);margin-bottom:12px"></div>'
+      +'<div id="confirmText" style="font-size:14px;color:var(--dim,#666);margin-bottom:24px;line-height:1.5"></div>'
+      +'<div style="display:flex;gap:10px;justify-content:flex-end">'
+      +'<button id="confirmCancel" class="btn bo bs" style="padding:8px 20px">{{ _('Cancel') }}</button>'
+      +'<button id="confirmOk" style="padding:8px 20px;background:#f85149;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500">{{ _('Delete') }}</button>'
+      +'</div></div></div>';
+    document.body.appendChild(div);
+    document.getElementById("confirmCancel").onclick=function(){document.getElementById("confirmOverlay").style.display="none";_confirmCallback=null};
+    document.getElementById("confirmOverlay").onclick=function(e){if(e.target.id==="confirmOverlay"){document.getElementById("confirmOverlay").style.display="none";_confirmCallback=null}};
+    document.getElementById("confirmOk").onclick=function(){
+      document.getElementById("confirmOverlay").style.display="none";
+      if(_confirmCallback){_confirmCallback();_confirmCallback=null}
+    };
+    overlay=div;
+    // add animation keyframes once
+    if(!document.getElementById("_confirmStyle")){
+      var s=document.createElement("style");s.id="_confirmStyle";
+      s.textContent='@keyframes fadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}';
+      document.head.appendChild(s);
+    }
+  }
+  document.getElementById("confirmTitle").textContent=title;
+  document.getElementById("confirmText").innerHTML=text;
+  overlay.style.display="";
+}
 // 🧹 {{ _('Data Cleaning Agent') }}

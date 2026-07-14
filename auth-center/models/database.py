@@ -1865,23 +1865,7 @@ def init_db():
         import logging
         logging.debug(f"[Migration] chat_messages platform index may already exist: {e}")
 
-    # ── 多租户 OAuth 配置表 (2026-06-11) ──
-    with get_db() as m:
-        m.execute("""
-            CREATE TABLE IF NOT EXISTS oauth_providers (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                site_domain   TEXT NOT NULL,
-                provider      TEXT NOT NULL DEFAULT 'douyin',
-                client_key    TEXT NOT NULL DEFAULT '',
-                client_secret TEXT NOT NULL DEFAULT '',
-                is_active     INTEGER DEFAULT 1,
-                created_at    TEXT,
-                updated_at    TEXT,
-                UNIQUE(site_domain, provider)
-            )
-        """)
-        m.commit()
-        print('[Migration] oauth_providers 表已创建')
+    # ── oauth_providers 已迁移至 plugins/oauth_config/models.py（独立数据库） ──
 
     # ── products.images / categories / product_specs / product_skus / carts.sku_id ──
     # All handled by init_shop_db() with full column set.

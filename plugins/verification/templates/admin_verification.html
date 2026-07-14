@@ -22,7 +22,7 @@ function loadVerificationMain(){
 function loadVerificationConfig(){
   fetch("/user/config", {headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success) return;
-    var items = d.data.filter(function(k){return k.category=="verification"});
+    var items = d.data.filter(function(k){return k.key.indexOf('verification.alipay.')===0});
     var h='';
     items.forEach(function(k){
       var isSensitive = k.sensitive;

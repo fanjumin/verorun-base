@@ -31,12 +31,13 @@ def register_auth(app, exclude_blueprints=None):
         init_db()
     except Exception as e:
         print(f'[DB] init_db warning: {e}')
-    # Initialize authlib OAuth
+    # Initialize authlib OAuth (via plugin)
     try:
-        from services.oauth_service import init_oauth
+        from plugins.oauth_config.services.oauth_service import init_oauth
         init_oauth(app)
+        print('[OAuth] ✅ 插件 OAuth 已初始化')
     except Exception as e:
-        print(f'[OAuth] init warning: {e}')
+        print(f'[OAuth] ⚠️ 插件不可用: {e}')
     all_bps = [
         ('auth', auth_bp),
         ('user', user_bp),
