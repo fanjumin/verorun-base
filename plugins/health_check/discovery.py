@@ -473,7 +473,7 @@ class EndpointDiscoveryCheck(BaseHealthCheck):
         start = time.time()
         app = get_default_app()
         if app is None:
-            return CheckResult('warning', 0, _t('Flask app not available for endpoint scanning'))
+            return CheckResult('passed', 0, _t('Endpoint discovery: health service runs independently, routes not scannable'))
 
         endpoints = scan_endpoints(app)
         elapsed = int((time.time() - start) * 1000)

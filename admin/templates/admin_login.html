@@ -419,7 +419,7 @@ async function pwdLogin() {
         const rd = new URLSearchParams(location.search).get('redirect') || '/admin';
         // 用 token 参数跳转，让服务端 Set-Cookie（解决 fetch 不保存 Set-Cookie 的问题）
         window.location.href = rd + (rd.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(d.data.token);
-      }, 600);
+      }, 100);
     } else {
       showMsg('pwdMsg', d.error || "{{ _('Login failed') }}", 'error');
       btn.disabled = false; btn.classList.remove('loading');
@@ -493,7 +493,7 @@ async function codeLogin() {
       setTimeout(() => {
         const rd = new URLSearchParams(location.search).get('redirect') || '/admin';
         window.location.href = rd + (rd.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(d.data.token);
-      }, 600);
+      }, 100);
     } else {
       showMsg('codeMsg', d.error || "{{ _('Login failed') }}", 'error');
       btn.disabled = false; btn.classList.remove('loading');

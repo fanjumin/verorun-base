@@ -101,7 +101,13 @@ app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'templates')),
 ])
 
-app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['TEMPLATES_AUTO_RELOAD'] = False
+app.jinja_env.auto_reload = False
+# 文件系统模板字节码缓存 — worker 重启后无需重新编译模板
+import tempfile, os as _os
+_cache_dir = _os.path.join(tempfile.gettempdir(), 'jinja2_cache')
+_os.makedirs(_cache_dir, exist_ok=True)
+app.jinja_env.bytecode_cache = jinja2.FileSystemBytecodeCache(_cache_dir, '%s.cache')
 
 try:
     init_shop_db()
