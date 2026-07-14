@@ -13,7 +13,18 @@ window.l_chatbot=function(){
     h+=_chatbotRow('subtitle',"{{ _('Subtitle') }}",c.subtitle||'Powered by AI Engine');
     h+=_chatbotRow('welcome_message',"{{ _('Welcome Message') }}",c.welcome_message||'');
     h+=_chatbotRow('help_hint',"{{ _('Help Hint') }}",c.help_hint||'');
-    h+=_chatbotRow('avatar_url',"{{ _('Avatar URL') }}",c.avatar_url||'/static/ai-chat.png');
+    h+='<div class="fl" style="align-items:flex-start;margin-bottom:10px;flex-wrap:wrap">'+
+      '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">{{ _('Avatar URL') }}</div></div>'+
+      '<div style="width:320px">'+
+      '<input class="in" id="cb-avatar_url" value="'+esc(c.avatar_url||'/static/ai-chat.png')+'" style="width:100%">'+
+      '<div style="display:flex;gap:6px;margin-top:6px">'+
+      '<button class="btn bo bs" onclick="openChatbotMediaPicker()" title="{{ _('Choose from Library') }}">🖼 {{ _('Select Image') }}</button>'+
+      '<input type="file" id="cb-avatar_upload" accept="image/*" style="display:none" onchange="uploadChatbotAvatar()">'+
+      '<button class="btn bp bs" onclick="document.getElementById(\'cb-avatar_upload\').click()" title="{{ _('Upload') }}">📤 {{ _('Upload') }}</button>'+
+      '</div>'+
+      '<div id="cb-avatar-preview" style="margin-top:6px">';
+    if(c.avatar_url)h+='<img src="'+esc(c.avatar_url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
+    h+='</div></div></div>';
     h+=_chatbotRow('agent_id',"{{ _('Bound Agent ID') }}",c.agent_id||'kai_assistant');
     h+=_chatbotRow('max_history',"{{ _('Max History Rounds') }}",c.max_history||'20');
     h+=_chatbotRow('float_button_text',"{{ _('Float Button Text') }}",c.float_button_text||'AI Advisor');
@@ -210,4 +221,69 @@ function saveHandoffRules(){
       if(d.success)showToast("{{ _('Saved') }}","success");
       else showToast(d.error||"{{ _('Failed') }}","error");
     }).catch(function(){showToast("{{ _('Failed') }}","error")});
+}
+
+// ── 头像上传 + 媒体库选择 ──
+function openChatbotMediaPicker(){
+  var overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "chatbotMediaPickerOverlay";
+  overlay.innerHTML = '<div class="modal-box" style="width:800px;max-width:90vw;max-height:85vh">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<h3 style="margin:0">🖼 {{ _('Choose Avatar from Library') }}</h3>'+
+    '<button class="btn bo bs" onclick="document.getElementById(\'chatbotMediaPickerOverlay\').remove()">✕ {{ _('Close') }}</button></div>'+
+    '<div id="chatbotMediaPickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;max-height:60vh;overflow-y:auto;padding:4px"><div class="lo"><div class="s"></div></div></div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+
+  fetch("/admin/media-library/list", {headers:{"Authorization":"Bearer "+T}})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success){document.getElementById("chatbotMediaPickerGrid").innerHTML='<div style="color:#f85149">{{ _('Load failed') }}</div>';return}
+    var items = (d.data||[]).filter(function(f){return f.mime_type && f.mime_type.startsWith("image/")});
+    var grid = document.getElementById("chatbotMediaPickerGrid");
+    if(!grid) return;
+    var h = "";
+    if(!items.length){
+      h = '<div style="text-align:center;padding:40px;color:var(--dim);grid-column:1/-1">{{ _('No Images') }}，{{ _('Please Upload First') }}</div>';
+    } else {
+      items.forEach(function(f){
+        var src = "/admin/static/"+f.file_path;
+        h += '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer" onclick="selectChatbotAvatar(\''+esc(src)+'\')">'+
+          '<img src="'+esc(src)+'" style="width:100%;height:100px;object-fit:cover" onerror="this.style.display=\'none\'">'+
+          '<div style="padding:4px 6px;font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.original_name)+'</div>'+
+          '</div>';
+      });
+    }
+    grid.innerHTML = h;
+  }).catch(function(){
+    var grid = document.getElementById("chatbotMediaPickerGrid");
+    if(grid) grid.innerHTML = '<div style="color:#f85149">{{ _('Request Failed') }}</div>';
+  });
+}
+
+function selectChatbotAvatar(url){
+  document.getElementById('cb-avatar_url').value = url;
+  var preview = document.getElementById('cb-avatar-preview');
+  if(preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
+  var overlay = document.getElementById('chatbotMediaPickerOverlay');
+  if(overlay) overlay.remove();
+  showToast("{{ _('Avatar selected') }}","success");
+}
+
+function uploadChatbotAvatar(){
+  var file = document.getElementById('cb-avatar_upload').files[0];
+  if(!file) return;
+  var fd = new FormData();
+  fd.append('file', file);
+  fetch("/admin/media-library/upload", {method:"POST",headers:{"Authorization":"Bearer "+T},body:fd})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success){showToast(d.error||"{{ _('Upload failed') }}","error");return}
+    var url = "/admin/static/media/"+d.data.filename;
+    document.getElementById('cb-avatar_url').value = url;
+    var preview = document.getElementById('cb-avatar-preview');
+    if(preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
+    showToast("{{ _('Uploaded') }}","success");
+  }).catch(function(){showToast("{{ _('Upload failed') }}","error")});
 }
