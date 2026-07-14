@@ -3372,9 +3372,8 @@ def media_library_upload():
                    '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp'}
         mime = ext_map.get(ext, mime)
     # 缩略图：视频缩略图由本地 FFmpeg 预生成后一并上传，服务器仅存储分发
+    # 图片本身就是缩略图，不设 thumb_path，前端用 file_path 显示
     thumb_name = ''
-    if mime.startswith('image/'):
-        thumb_name = safe_name
 
     with get_db() as conn:
         cursor = conn.execute(
@@ -3406,7 +3405,7 @@ def media_library_list():
     with get_db() as conn:
         total = conn.execute("SELECT COUNT(*) as c FROM media_files").fetchone()['c']
         rows = conn.execute(
-            "SELECT id, filename, original_name, mime_type, file_size, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, filename, original_name, mime_type, file_size, file_path, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (limit, offset)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total, 'page': page, 'limit': limit})
