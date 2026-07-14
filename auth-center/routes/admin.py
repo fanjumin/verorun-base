@@ -10,7 +10,7 @@ from models import get_db
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
-_dash_cache = {'data': None, 'ts': 0, 'ttl': 10}
+_dash_cache = {'data': None, 'ts': 0, 'ttl': 60}
 # 通用 GET 请求内存缓存（5 秒 TTL），消除重复点击同一模块的等待感
 _get_cache = {}
 
@@ -102,9 +102,10 @@ def dashboard():
         data = {}
         with get_db() as conn:
             # --- Core metrics ---
-            data['total_users'] = conn.execute('SELECT COUNT(*) as c FROM users').fetchone()['c']
-            data['active_users'] = conn.execute('SELECT COUNT(*) as c FROM users WHERE active=1').fetchone()['c']
-            data['today_new_users'] = conn.execute("SELECT COUNT(*) as c FROM users WHERE created_at>=date('now')").fetchone()['c']
+            u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=date('now') THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
+            data['total_users'] = u['c']
+            data['active_users'] = u['a']
+            data['today_new_users'] = u['n']
 
             ta = conn.execute('SELECT COUNT(*) as c FROM user_agents').fetchone()
             data['total_agents'] = ta['c'] if ta else 0

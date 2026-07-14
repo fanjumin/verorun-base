@@ -27,7 +27,7 @@ def get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=1000")
+    conn.execute("PRAGMA busy_timeout=5000")
     # ATTACH shop database (allows cross-DB JOINs with main DB)
     if os.path.exists(SHOP_DB_PATH):
         try:
@@ -247,6 +247,8 @@ def init_db():
                 alipay_user_id          TEXT UNIQUE,
                 telegram_open_id        TEXT UNIQUE
             );
+            CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
+            CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id         INTEGER NOT NULL UNIQUE REFERENCES users(id),
@@ -531,6 +533,8 @@ def init_db():
                 created_at      TEXT DEFAULT (datetime('now')),
                 paid_at         TEXT
             );
+            CREATE INDEX IF NOT EXISTS idx_billing_orders_status ON billing_orders(status);
+            CREATE INDEX IF NOT EXISTS idx_billing_orders_paid ON billing_orders(status, paid_at);
 
 
             CREATE TABLE IF NOT EXISTS sms_codes (
@@ -962,6 +966,8 @@ def init_db():
                     created_at      TEXT DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_sub_audit_user ON subscription_audit_log(user_id);
+                CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status);
+                CREATE INDEX IF NOT EXISTS idx_subs_canceled_at ON subscriptions(status, canceled_at, created_at);
             ''')
             cs.commit()
         conn.commit()
