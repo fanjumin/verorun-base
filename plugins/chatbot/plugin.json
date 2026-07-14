@@ -20,7 +20,9 @@
         "avatar_url": "/static/ai-chat.png",
         "agent_id": "kai_assistant",
         "max_history": "20",
-        "float_button_text": "AI Advisor"
+        "float_button_text": "AI Advisor",
+        "handoff_keywords": "[\"人工\", \"客服\", \"转人工\", \"联系真人\", \"联系工作人员\", \"商务\", \"合作\", \"投诉\", \"定制\", \"开发\"]",
+        "handoff_max_fails": "3"
     },
     "permissions": ["api:read", "network:request"],
     "hooks": {
