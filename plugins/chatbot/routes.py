@@ -3,7 +3,7 @@ import sys
 import os
 import logging
 from datetime import datetime
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, current_app
 
 
 chatbot_bp = Blueprint('chatbot_admin', __name__)
@@ -107,7 +107,7 @@ def _require_admin():
 def _get_plugin_manager():
     pm = getattr(request, 'plugin_manager', None) or g.get('plugin_manager')
     if pm is None:
-        pm = request.app.extensions.get('plugin_manager')
+        pm = current_app.extensions.get('plugin_manager')
     return pm
 
 
