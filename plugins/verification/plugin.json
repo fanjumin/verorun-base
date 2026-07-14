@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Identity Verification",
     "identifier": "verification",
     "version": "0.1.0",
@@ -22,7 +22,7 @@
         "listens": []
     },
     "menu": {
-        "group": "System",
+        "group": "Security & Compliance",
         "key": "verification",
         "icon": "plugins",
         "label": "ID Verification"

@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Content Factory",
     "identifier": "content_factory",
     "version": "0.1.0",
@@ -31,7 +31,7 @@
         "listens": ["cron.tick"]
     },
     "menu": {
-        "group": "Content",
+        "group": "AI & Content",
         "key": "contentfactory",
         "icon": "contentfactory",
         "label": "Content Factory"

@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "AI Tools",
     "identifier": "ai_tools",
     "version": "0.1.0",
@@ -20,7 +20,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Content",
+        "group": "AI & Content",
         "key": "ai_tools",
         "icon": "media_video",
         "label": "AI Tools",

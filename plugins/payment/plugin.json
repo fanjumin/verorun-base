@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Payment Gateway",
     "identifier": "payment",
     "version": "0.1.0",
@@ -23,7 +23,7 @@
         "listens": []
     },
     "menu": {
-        "group": "System",
+        "group": "Payment & Operations",
         "key": "payment",
         "icon": "plugins",
         "label": "Payment Config"

@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Health Check",
     "identifier": "health_check",
     "version": "0.1.0",
@@ -21,7 +21,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Ops Data",
+        "group": "Monitoring & Data",
         "key": "health",
         "icon": "health",
         "label": "Health Check",

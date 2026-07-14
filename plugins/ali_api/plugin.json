@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "1688 供应链采集",
     "identifier": "ali_api",
     "version": "0.2.1",
@@ -19,7 +19,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Operations",
+        "group": "Payment & Operations",
         "key": "ali_api",
         "icon": "plugins",
         "label": "1688 供应链采集",

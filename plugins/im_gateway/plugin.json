@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "IM Gateway",
     "identifier": "im_gateway",
     "version": "0.1.0",
@@ -24,7 +24,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Strategy",
+        "group": "Agent Matrix",
         "key": "channels",
         "icon": "channels",
         "label": "IM Gateway"

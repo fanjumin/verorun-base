@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "AI Advisor",
     "identifier": "chatbot",
     "version": "0.1.0",
@@ -40,7 +40,7 @@
         }
     ],
     "menu": {
-        "group": "AI Chat",
+        "group": "AI & Content",
         "key": "chatbot",
         "icon": "message-circle",
         "label": "AI Advisor"

@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "SMS Service",
     "identifier": "sms",
     "version": "0.1.0",
@@ -29,7 +29,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Risk & Audit",
+        "group": "Security & Compliance",
         "key": "sms",
         "icon": "plugins",
         "label": "SMS Management"

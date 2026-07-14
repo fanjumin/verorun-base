@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Ad Management",
     "identifier": "ads",
     "version": "1.0.0",
@@ -30,7 +30,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Operations",
+        "group": "Payment & Operations",
         "key": "ads",
         "icon": "ads",
         "label": "Ad Management"

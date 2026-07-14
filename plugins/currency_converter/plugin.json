@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Currency Converter",
     "identifier": "currency_converter",
     "version": "0.1.0",
@@ -44,7 +44,7 @@
 
     "menu": {
         "key": "currency_converter",
-        "group": "Operations",
+        "group": "Payment & Operations",
         "icon": "currency",
         "label": "Currency Settings"
     },

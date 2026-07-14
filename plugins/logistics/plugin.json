@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Logistics Express",
     "identifier": "logistics",
     "version": "0.2.0",
@@ -25,7 +25,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Operations",
+        "group": "Payment & Operations",
         "key": "logistics",
         "icon": "plugins",
         "label": "Logistics Tracking"

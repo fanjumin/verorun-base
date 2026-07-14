@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "OAuth Login Config",
     "identifier": "oauth_config",
     "version": "0.1.0",
@@ -20,7 +20,7 @@
         "listens": []
     },
     "menu": {
-        "group": "System",
+        "group": "Security & Compliance",
         "key": "oauth",
         "icon": "social_media",
         "label": "OAuth Login"
