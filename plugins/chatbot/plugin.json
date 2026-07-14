@@ -5,7 +5,7 @@
     "category": "ai_agent",
     "icon": "message-circle",
     "tags": ["chatbot", "customer-service", "ai", "rag", "advisor"],
-    "description": "Site-wide AI advisor chatbot. Configuration and translations use the main system; data stays in the main database.",
+    "description": "Site-wide AI advisor chatbot. Uses independent database (chatbot.db) for configs, sessions, and agent registry. Cross-reads main DB for knowledge base and user tickets.",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "dependencies": {},

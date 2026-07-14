@@ -526,8 +526,7 @@ def chat_stream():
             route_intent = 'other'
             route_sentiment = 'neutral'
             try:
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'plugins', 'chatbot'))
-                from stats import classify_intent
+                from agent_matrix.intent import classify_intent
                 route_intent, route_sentiment = classify_intent(user_query)
             except Exception:
                 pass

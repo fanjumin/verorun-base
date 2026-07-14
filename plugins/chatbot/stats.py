@@ -7,6 +7,13 @@ logger = logging.getLogger(__name__)
 
 
 def _get_db():
+    """获取插件独立数据库连接"""
+    from .models import get_chatbot_db
+    return get_chatbot_db()
+
+
+def _get_main_db():
+    """获取主库连接（仅用于查询 user_tickets）"""
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
     from models import get_db
@@ -17,53 +24,18 @@ INTENT_CATEGORIES = ['purchase', 'aftersale', 'complaint', 'consult', 'technical
 SENTIMENT_LABELS = ['positive', 'neutral', 'negative', 'urgent']
 
 
+# classify_intent 已移至 agent_matrix.intent（消除 platform→plugin 反向依赖）
+# 保留此别名以兼容现有调用方
 def classify_intent(user_query):
-    """轻量级 LLM 调用，将用户消息分类为意图+情绪。
-    
-    返回 (intent, sentiment)
-    intent ∈ ['purchase','aftersale','complaint','consult','technical','other']
-    sentiment ∈ ['positive','neutral','negative','urgent']
-    """
-    if not user_query or not user_query.strip():
-        return 'other', 'neutral'
-    try:
-        import sys as _sys, os as _os
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..'))
-        from agent_matrix.engine import AIEngine
-
-        prompt = f"""分析以下用户消息，输出 JSON，不要多余文字：
-{{
-  "intent": "分类（purchase=购买意向, aftersale=售后, complaint=投诉, consult=咨询, technical=技术支持, other=其他）",
-  "sentiment": "情绪（positive=正面, neutral=中性, negative=负面, urgent=紧急）"
-}}
-
-消息：{user_query[:500]}"""
-
-        engine = AIEngine({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
-        reply = ''
-        for token in engine.chat_stream([
-            {'role': 'system', 'content': '你是一个精准的分类器。只输出 JSON。'},
-            {'role': 'user', 'content': prompt}
-        ], temperature=0.1, max_tokens=128):
-            if not token.startswith('Error:'):
-                reply += token
-
-        data = json.loads(reply.strip())
-        intent = data.get('intent', 'other')
-        sentiment = data.get('sentiment', 'neutral')
-        if intent not in INTENT_CATEGORIES:
-            intent = 'other'
-        if sentiment not in SENTIMENT_LABELS:
-            sentiment = 'neutral'
-        return intent, sentiment
-    except Exception as e:
-        logger.warning(f"[Chatbot] classify_intent failed, using defaults: {e}")
-        return 'other', 'neutral'
+    import sys as _s, os as _o
+    _s.path.insert(0, _o.path.join(_o.path.dirname(__file__), '..', '..'))
+    from agent_matrix.intent import classify_intent as _ci
+    return _ci(user_query)
 
 
 def log_session(session_id, user_query='', ai_reply='', escalated=False,
                 source='chatbot', intent='', sentiment=''):
-    """记录一次 AI 对话回合到 chatbot_sessions。"""
+    """记录一次 AI 对话回合到独立库 chatbot_sessions"""
     try:
         with _get_db() as conn:
             conn.execute(
@@ -82,7 +54,7 @@ def log_session(session_id, user_query='', ai_reply='', escalated=False,
 
 
 def get_today_stats():
-    """获取今日统计概览，含意图分布。"""
+    """获取今日统计概览，含意图分布"""
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         with _get_db() as conn:
@@ -98,19 +70,6 @@ def get_today_stats():
                 "SELECT COUNT(DISTINCT session_id) as cnt FROM chatbot_sessions "
                 "WHERE source='chatbot' AND escalated=1 AND date(created_at)=?",
                 (today,)
-            ).fetchone()['cnt'] or 0
-
-            # 今日工单数
-            tickets = conn.execute(
-                "SELECT COUNT(*) as cnt FROM user_tickets "
-                "WHERE category='chatbot_escalation' AND date(created_at)=date('now')"
-            ).fetchone()['cnt'] or 0
-
-            # 工单中已解决的
-            resolved = conn.execute(
-                "SELECT COUNT(*) as cnt FROM user_tickets "
-                "WHERE category='chatbot_escalation' AND status='closed' "
-                "AND date(created_at)=date('now')"
             ).fetchone()['cnt'] or 0
 
             # 今日 CSAT 平均分
@@ -138,13 +97,30 @@ def get_today_stats():
             ).fetchall()
             sentiment_dist = {r['sentiment']: r['cnt'] for r in sentiment_raw}
 
-            # 本周趋势（daily session count for last 7 days）
+            # 本周趋势
             trend_raw = conn.execute(
                 "SELECT date(created_at) as d, COUNT(DISTINCT session_id) as cnt "
                 "FROM chatbot_sessions WHERE source='chatbot' "
                 "AND created_at >= datetime('now', '-7 days') "
                 "GROUP BY d ORDER BY d"
             ).fetchall()
+
+        # 工单数据仍从主库读取（user_tickets 在主库）
+        tickets = 0
+        resolved = 0
+        try:
+            with _get_main_db() as mc:
+                tickets = mc.execute(
+                    "SELECT COUNT(*) as cnt FROM user_tickets "
+                    "WHERE category='chatbot_escalation' AND date(created_at)=date('now')"
+                ).fetchone()['cnt'] or 0
+                resolved = mc.execute(
+                    "SELECT COUNT(*) as cnt FROM user_tickets "
+                    "WHERE category='chatbot_escalation' AND status='closed' "
+                    "AND date(created_at)=date('now')"
+                ).fetchone()['cnt'] or 0
+        except Exception as e:
+            logger.warning(f"[Chatbot Stats] 读主库工单失败: {e}")
 
         handoff_rate = round(escalated / total * 100, 1) if total > 0 else 0
         resolve_rate = round(resolved / tickets * 100, 1) if tickets > 0 else 0
@@ -170,7 +146,7 @@ def get_today_stats():
 
 
 def record_csat(session_id, score):
-    """记录 CSAT 评分到会话记录。"""
+    """记录 CSAT 评分到独立库"""
     try:
         with _get_db() as conn:
             conn.execute(
@@ -185,7 +161,7 @@ def record_csat(session_id, score):
 
 
 def get_hot_topics(limit=10):
-    """热门问题分析：按 user_query 聚合，取最热门的前 N 条。"""
+    """热门问题分析"""
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         with _get_db() as conn:
@@ -203,9 +179,9 @@ def get_hot_topics(limit=10):
 
 
 def get_agent_performance():
-    """座席绩效：工单处理量、解决率。"""
+    """座席绩效：从主库 user_tickets 查询"""
     try:
-        with _get_db() as conn:
+        with _get_main_db() as conn:
             rows = conn.execute(
                 """SELECT
                     assigned_name,
@@ -241,10 +217,7 @@ def get_agent_performance():
 
 
 def qa_check_conversation(session_id, user_query, ai_reply):
-    """对话质检：用 LLM 分析一轮对话的质量。
-    
-    返回 {score, suggestion} 或 None
-    """
+    """对话质检：用 LLM 分析一轮对话的质量"""
     if not user_query or not ai_reply:
         return None
     try:

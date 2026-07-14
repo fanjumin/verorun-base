@@ -31,53 +31,23 @@ def _get_channel_config(channel):
 
 
 def _call_ai(user_query, session_id=''):
-    """调用 AIEngine，返回 (reply_text, session_id)"""
+    """调用 AIEngine，返回 (reply_text, session_id, intent, sentiment)"""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
     from agent_matrix.engine import AIEngine
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-    from stats import classify_intent
+    from agent_matrix.intent import classify_intent
 
     intent, sentiment = classify_intent(user_query)
 
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'platform'))
-    try:
-        from routes.api_v1 import _get_chatbot_config, _get_chatbot_agent, _route_agent_by_intent
-    except ImportError:
-        # fallback: direct DB read
-        def _get_chatbot_config():
-            from models import get_db
-            defaults = {
-                'enabled': '1', 'agent_id': 'kai_assistant',
-                'provider': 'dashscope', 'model_name': 'qwen-turbo'
-            }
-            try:
-                with get_db() as conn:
-                    rows = conn.execute(
-                        "SELECT key,value FROM plugin_configs WHERE plugin_name='chatbot'"
-                    ).fetchall()
-                merged = {**defaults, **{r['key']: r['value'] for r in rows}}
-                return merged
-            except Exception:
-                return defaults
+    # 从独立库读取 chatbot 配置
+    from ..models import get_all_configs, get_agent
+    cfg = get_all_configs('chatbot')
+    if not cfg:
+        cfg = {
+            'enabled': '1', 'agent_id': 'kai_assistant',
+            'provider': 'dashscope', 'model_name': 'qwen-turbo'
+        }
 
-        def _get_chatbot_agent(agent_id):
-            try:
-                from agent_matrix.models import get_db as am_db
-                with am_db() as conn:
-                    row = conn.execute(
-                        "SELECT * FROM agent_matrix WHERE name=? OR identifier=? LIMIT 1",
-                        (agent_id, agent_id)
-                    ).fetchone()
-                return dict(row) if row else None
-            except Exception:
-                return None
-
-        def _route_agent_by_intent(intent):
-            return None
-
-    cfg = _get_chatbot_config()
-    agent = _route_agent_by_intent(intent) or _get_chatbot_agent(cfg.get('agent_id', 'kai_assistant'))
+    agent = get_agent(cfg.get('agent_id', 'kai_assistant'))
 
     if agent and agent.get('system_prompt'):
         system_prompt = agent['system_prompt']
@@ -134,7 +104,7 @@ def telegram_handle_webhook(body):
     try:
         payload = json.dumps({
             'chat_id': chat_id,
-            'text': reply[:4096],  # Telegram 单条上限
+            'text': reply[:4096],
             'parse_mode': 'Markdown'
         }).encode()
         _ur.urlopen(
@@ -148,7 +118,7 @@ def telegram_handle_webhook(body):
     except Exception as e:
         logger.error(f'[Telegram] sendMessage 失败: {e}')
 
-    # 落库
+    # 落库到独立库
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
         from stats import log_session

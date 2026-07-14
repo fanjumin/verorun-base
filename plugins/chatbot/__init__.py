@@ -18,8 +18,12 @@ class ChatbotPlugin(BasePlugin):
         self.app.register_blueprint(webhook_bp)
 
     def on_install(self, registry=None) -> bool:
-        self._ensure_config_table()
+        from .models import init_chatbot_tables, seed_defaults, migrate_from_main
+        init_chatbot_tables()
         self._seed_default_config()
+        # 从主库迁移已有数据（幂等，首次运行自动执行）
+        self.log('正在从主库迁移数据...')
+        migrate_from_main()
         return True
 
     def on_enable(self, registry=None) -> bool:
@@ -31,9 +35,9 @@ class ChatbotPlugin(BasePlugin):
         return [chatbot_bp, webhook_bp]
 
     def register_agents(self):
-        """Register Advisor Agent into agent_matrix table."""
+        """注册 Advisor Agent 到独立库 agent_registry 表"""
         try:
-            from agent_matrix.models import get_db
+            from .models import upsert_agent
 
             plugin_info = getattr(self, 'plugin_info', None)
             metadata = plugin_info.metadata if plugin_info else {}
@@ -48,113 +52,49 @@ class ChatbotPlugin(BasePlugin):
                     system_prompt = f.read().strip()
 
             agent = agents[0]
-            with get_db() as conn:
-                exists = conn.execute(
-                    "SELECT id FROM agent_matrix WHERE name=? AND role_type=?",
-                    (agent['name'], agent['role_type'])
-                ).fetchone()
-                if exists:
-                    conn.execute("""
-                        UPDATE agent_matrix
-                        SET description=?, domain=?, managed_modules=?,
-                            system_prompt=?, capabilities=?, is_active=?
-                        WHERE id=?
-                    """, (
-                        f"AI Advisor Agent — {agent['domain']}",
-                        agent.get('domain', 'chatbot'),
-                        '["chatbot"]',
-                        system_prompt,
-                        json.dumps(agent.get('capabilities', [])),
-                        1 if agent.get('enabled_by_default', True) else 0,
-                        exists['id']
-                    ))
-                else:
-                    conn.execute("""
-                        INSERT INTO agent_matrix
-                        (name, role_type, description, domain, managed_modules,
-                         provider, model_name, system_prompt, capabilities,
-                         is_active, auto_approve)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                    """, (
-                        agent['name'], agent['role_type'],
-                        f"AI Advisor Agent — {agent['domain']}",
-                        agent.get('domain', 'chatbot'),
-                        '["chatbot"]',
-                        'dashscope', 'qwen-turbo',
-                        system_prompt,
-                        json.dumps(agent.get('capabilities', [])),
-                        1 if agent.get('enabled_by_default', True) else 0,
-                        0
-                    ))
-                conn.commit()
+            upsert_agent(
+                name=agent['name'],
+                role_type=agent['role_type'],
+                description=f"AI Advisor Agent — {agent['domain']}",
+                domain=agent.get('domain', 'chatbot'),
+                provider='dashscope',
+                model_name='qwen-turbo',
+                system_prompt=system_prompt,
+                capabilities=json.dumps(agent.get('capabilities', [])),
+                is_active=1 if agent.get('enabled_by_default', True) else 0
+            )
         except Exception as e:
             self.log(f'Register agents failed: {e}', 'warning')
 
     def get_config_value(self, key: str, default: Any = None) -> Any:
-        """Read from plugin_configs table; fallback to plugin.json defaults."""
+        """从独立库 plugin_configs 读取；fallback 到 plugin.json 默认值"""
         try:
-            from models import get_db
-            with get_db() as conn:
-                row = conn.execute(
-                    "SELECT value FROM plugin_configs WHERE plugin_name=? AND key=?",
-                    (self.identifier, key)
-                ).fetchone()
-            if row and row['value'] is not None:
-                return row['value']
+            from .models import get_config
+            val = get_config(self.identifier, key)
+            if val:
+                return val
         except Exception:
             pass
         return self._config.get(key, default)
 
     def set_config_value(self, key: str, value: Any) -> bool:
-        """Persist to plugin_configs table."""
+        """持久化到独立库 plugin_configs"""
         try:
-            from models import get_db
-            with get_db() as conn:
-                conn.execute("""
-                    INSERT INTO plugin_configs (plugin_name, key, value, updated_at)
-                    VALUES (?, ?, ?, datetime('now'))
-                    ON CONFLICT(plugin_name, key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
-                """, (self.identifier, key, str(value)))
-                conn.commit()
+            from .models import set_config
+            set_config(self.identifier, key, str(value))
             self._config[key] = value
             return True
         except Exception as e:
             self.log(f'Set config failed: {e}', 'error')
             return False
 
-    def _ensure_config_table(self):
-        try:
-            from models import get_db
-            with get_db() as conn:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS plugin_configs (
-                        plugin_name TEXT NOT NULL,
-                        key         TEXT NOT NULL,
-                        value       TEXT DEFAULT '',
-                        updated_at  TEXT DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (plugin_name, key)
-                    )
-                """)
-                conn.commit()
-        except Exception as e:
-            self.log(f'Create plugin_configs table failed: {e}', 'error')
-
     def _seed_default_config(self):
-        """仅当 DB 中无该配置行时写入默认值。"""
+        """仅当独立库中无该配置行时写入默认值"""
         defaults = self._config or {}
         if not defaults:
             return
         try:
-            from models import get_db
-            with get_db() as conn:
-                existing_keys = {
-                    r['key'] for r in conn.execute(
-                        "SELECT key FROM plugin_configs WHERE plugin_name=?",
-                        (self.identifier,)
-                    ).fetchall()
-                }
-            for key, value in defaults.items():
-                if key not in existing_keys:
-                    self.set_config_value(key, value)
+            from .models import seed_defaults
+            seed_defaults(self.identifier, defaults)
         except Exception as e:
             self.log(f'Seed default config failed: {e}', 'warning')
