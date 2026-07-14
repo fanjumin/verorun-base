@@ -1,46 +1,249 @@
-// Payment Management — 支付管理插件面板
-// 无 <script> 标签，遵循插件模板铁律 §12.11
+<div id="payment-plugin-container">
+<style>
+.pay-header { display:flex; align-items:center; gap:12px; margin-bottom:24px; flex-wrap:wrap }
+.pay-header h2 { margin:0; font-size:20px; font-weight:600 }
+.pay-market-tag { font-size:12px; padding:2px 10px; border-radius:10px; font-weight:500 }
+.pay-market-tag.cn { background:#ddf4ff; color:#0969da }
+.pay-market-tag.intl { background:#f3e8ff; color:#8250df }
+.pay-provider-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:20px }
+.pay-card { background:#fff; border:1px solid #d0d7de; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.04) }
+.pay-card-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:#f6f8fa; border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none }
+.pay-card-header:hover { background:#f0f2f5 }
+.pay-card-title { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px }
+.pay-card-badge { font-size:11px; padding:1px 8px; border-radius:8px; background:#e6e6e6; color:#656d76 }
+.pay-card-badge.ok { background:#dafbe1; color:#1a7f37 }
+.pay-card-body { padding:18px; display:none }
+.pay-card.open .pay-card-body { display:block }
+.pay-field { margin-bottom:14px }
+.pay-field label { display:block; font-size:13px; font-weight:500; color:#24292f; margin-bottom:4px }
+.pay-field input, .pay-field textarea { width:100%; padding:8px 10px; border:1px solid #d0d7de; border-radius:6px; font-size:13px; box-sizing:border-box; outline:none; transition:border-color .15s }
+.pay-field input:focus, .pay-field textarea:focus { border-color:#0969da; box-shadow:0 0 0 2px rgba(9,105,218,.2) }
+.pay-field textarea { min-height:60px; font-family:monospace; font-size:12px }
+.pay-field .pay-hint { font-size:11px; color:#656d76; margin-top:3px }
+.pay-save-btn { padding:8px 20px; border:none; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; background:#0969da; color:#fff; transition:background .15s }
+.pay-save-btn:hover { background:#0550ae }
+.pay-save-btn:disabled { opacity:.5; cursor:not-allowed }
+.pay-save-btn.saving { background:#6e7681 }
+.pay-header-actions { display:flex; align-items:center; gap:8px }
+.pay-delete-btn { padding:4px 10px; border:1px solid #d0d7de; border-radius:6px; font-size:12px; cursor:pointer; background:transparent; color:#656d76; transition:all .15s }
+.pay-delete-btn:hover { border-color:#f85149; color:#f85149; background:#fff0ee }
+.pay-status-dot { width:8px; height:8px; border-radius:50%; display:inline-block }
+.pay-status-dot.green { background:#1a7f37 }
+.pay-status-dot.gray { background:#8b949e }
+.pay-toast { position:fixed; bottom:24px; right:24px; padding:12px 24px; border-radius:8px; color:#fff; font-size:14px; z-index:9999; opacity:0; transform:translateY(10px); transition:all .25s }
+.pay-toast.show { opacity:1; transform:translateY(0) }
+.pay-toast.success { background:#1a7f37 }
+.pay-toast.error { background:#cf222e }
+.pay-no-config { text-align:center; padding:40px; color:#656d76; font-size:14px }
+</style>
 
-window.l_payment = function(){
-  document.getElementById("pt").textContent = "{{ _('payment_management') }}";
-  var h='<div class="cd"><div id="payment-content"></div></div>';
-  document.getElementById("mc").innerHTML = h;
-  loadPaymentMain();
-};
+<div class="pay-header">
+  <h2>⚙️ {{ _('payment_config') }}</h2>
+  <span class="pay-market-tag cn" id="payMarketTag">CN</span>
+</div>
 
-function loadPaymentMain(){
-  var ct = document.getElementById("payment-content");
-  ct.innerHTML =
-    '<div class="cd" style="margin-bottom:12px"><div class="st">{{ _('alipay_config') }}</div>'+
-    '<div id="alipay-config-form"></div></div>'+
-    '<div class="cd"><div class="st">{{ _('wechat_config') }}</div>'+
-    '<div id="wechat-config-form"></div></div>';
-  loadPaymentConfig();
-}
+<div id="payProviderGrid" class="pay-provider-grid">
+  <div class="pay-no-config">{{ _('Loading...') }}</div>
+</div>
 
-function loadPaymentConfig(){
-  fetch("/user/config", {headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success) return;
-    var items = d.data.filter(function(k){return k.category=="payment"});
-    var alipayH = '', wechatH = '';
-    items.forEach(function(k){
-      var isSensitive = k.sensitive;
-      var safeVal = (k.value||"").replace(/"/g,"&quot;");
-      var safeMasked = (k.masked_value||"").replace(/"/g,"&quot;");
-      var ph = k.placeholder||"";
-      var inputId = 'cf-'+k.key;
-      var inputHtml = isSensitive
-        ? '<input class="in" id="'+inputId+'" type="password" value="'+safeMasked+'" placeholder="'+ph+'" style="width:200px" onfocus="this.value=\'\'" onblur="if(!this.value)this.value=\''+safeMasked+'\'">'
-        : '<input class="in" id="'+inputId+'" value="'+safeVal+'" placeholder="'+ph+'" style="width:200px">';
-      var row = '<div class="fl"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+(k.label||k.key)+'</div></div>'+
-        inputHtml+'<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('save') }}</button></div>';
-      if(k.key.indexOf('alipay')===0||k.key==='payment.notify_base'){
-        alipayH += row;
-      }else if(k.key.indexOf('wechat')===0){
-        wechatH += row;
+<div id="payToast" class="pay-toast"></div>
+
+<script>
+(function(){
+  var PAY_PROVIDERS = {};
+  var PAY_CONFIGS = {};
+  var T = window.TOKEN || localStorage.getItem('token') || '';
+  var market = 'cn';
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;') }
+  function _t(s){ return window._t?.(s) || s }
+
+  function toast(msg, type){
+    var el = document.getElementById('payToast');
+    el.textContent = msg;
+    el.className = 'pay-toast ' + type + ' show';
+    clearTimeout(el._toastTimer);
+    el._toastTimer = setTimeout(function(){ el.className = 'pay-toast' }, 3000);
+  }
+
+  function loadProviders(){
+    var url = '/admin/payment/providers?market=' + market;
+    fetch(url, {headers:{'Authorization':'Bearer '+T}})
+      .then(function(r){ return r.json() })
+      .then(function(d){
+        if(!d.success){ toast(d.error||'Failed to load', 'error'); return }
+        PAY_PROVIDERS = d.data || {};
+        loadConfigs();
+      })
+      .catch(function(err){ toast('Request Failed: '+err, 'error') });
+  }
+
+  function loadConfigs(){
+    fetch('/admin/payment/configs', {headers:{'Authorization':'Bearer '+T}})
+      .then(function(r){ return r.json() })
+      .then(function(d){
+        if(!d.success){ toast(d.error||'Failed to load configs', 'error'); return }
+        // Convert array to map
+        var map = {};
+        (d.data||[]).forEach(function(item){ map[item.provider] = item.configs || {} });
+        PAY_CONFIGS = map;
+        renderCards();
+      })
+      .catch(function(err){ toast('Request Failed: '+err, 'error') });
+  }
+
+  function renderCards(){
+    var grid = document.getElementById('payProviderGrid');
+    var keys = Object.keys(PAY_PROVIDERS);
+    if(!keys.length){
+      grid.innerHTML = '<div class="pay-no-config">' + _t('No payment providers available') + '</div>';
+      return;
+    }
+
+    var h = '';
+    keys.forEach(function(provider){
+      var info = PAY_PROVIDERS[provider];
+      var cfg = PAY_CONFIGS[provider] || {};
+      var label = market === 'cn' ? (info.label_zh || info.label) : info.label;
+      var fields = info.fields || [];
+      var configured = fields.filter(function(f){ return f.type==='password' || f.type==='text' }).every(function(f){ return cfg[f.key] && cfg[f.key].length > 0 });
+      var fieldCount = fields.filter(function(f){ return cfg[f.key] && cfg[f.key].length > 0 }).length;
+
+      h += '<div class="pay-card" data-provider="' + provider + '">';
+      h += '<div class="pay-card-header" onclick="payToggleCard(this)">';
+      h += '<div class="pay-card-title"><span class="pay-status-dot ' + (configured ? 'green' : 'gray') + '"></span>' + esc(label) + '<span class="pay-card-badge ' + (configured ? 'ok' : '') + '">' + fieldCount + '/' + fields.length + '</span></div>';
+      h += '<div class="pay-header-actions">';
+      h += '<button class="pay-delete-btn" onclick="event.stopPropagation();payClearConfig(\'' + provider + '\')">🗑️ ' + _t('Clear') + '</button>';
+      h += '<span style="color:#8b949e;font-size:16px">▾</span>';
+      h += '</div></div>';
+      h += '<div class="pay-card-body">';
+
+      fields.forEach(function(f){
+        var val = cfg[f.key] || '';
+        var fLabel = market === 'cn' ? (f.label_zh || f.label) : f.label;
+        h += '<div class="pay-field">';
+        h += '<label for="pf-' + provider + '-' + f.key + '">' + esc(fLabel) + '</label>';
+        if(f.type === 'password'){
+          h += '<input id="pf-' + provider + '-' + f.key + '" type="password" value="' + esc(val) + '" placeholder="' + (val ? 'Configured, leave empty to keep' : 'Required') + '" style="width:100%" />';
+        } else if(f.type === 'textarea'){
+          h += '<textarea id="pf-' + provider + '-' + f.key + '" placeholder="' + esc(fLabel) + '">' + esc(val) + '</textarea>';
+        } else if(f.type === 'checkbox'){
+          h += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="pf-' + provider + '-' + f.key + '" type="checkbox" ' + (val === 'true' || val === '1' ? 'checked' : '') + ' style="width:auto" /> ' + (market==='cn' ? (f.label_zh||f.label) : f.label) + '</label>';
+        } else if(f.type === 'select' && f.options){
+          h += '<select id="pf-' + provider + '-' + f.key + '" style="width:100%;padding:8px 10px;border:1px solid #d0d7de;border-radius:6px;font-size:13px;box-sizing:border-box">';
+          f.options.forEach(function(opt){
+            var optLabel = market==='cn' ? (opt.label_zh||opt.label) : opt.label;
+            h += '<option value="' + esc(opt.value) + '" ' + ((val||f.default) === opt.value ? 'selected' : '') + '>' + esc(optLabel) + '</option>';
+          });
+          h += '</select>';
+        } else {
+          h += '<input id="pf-' + provider + '-' + f.key + '" type="text" value="' + esc(val) + '" placeholder="' + esc(fLabel) + '" style="width:100%" />';
+        }
+        if(f.hint) {
+          var hintTxt = market === 'cn' ? (f.hint_zh || f.hint) : f.hint;
+          if(hintTxt) { h += '<div class="pay-hint">' + esc(hintTxt) + '</div>'; }
+        }
+        h += '</div>';
+      });
+
+      h += '<button class="pay-save-btn" onclick="paySaveConfig(\'' + provider + '\')" id="paySaveBtn-' + provider + '">' + _t('save') + '</button>';
+      h += '</div></div>';
+    });
+
+    grid.innerHTML = h;
+    document.getElementById('payMarketTag').textContent = market.toUpperCase();
+  }
+
+  window.payToggleCard = function(header){
+    header.parentNode.classList.toggle('open');
+  };
+
+  window.paySaveConfig = function(provider){
+    var btn = document.getElementById('paySaveBtn-' + provider);
+    if(!btn) return;
+    btn.disabled = true; btn.textContent = 'Saving...'; btn.className = 'pay-save-btn saving';
+
+    var info = PAY_PROVIDERS[provider];
+    if(!info) return;
+    var configs = {};
+    (info.fields||[]).forEach(function(f){
+      var el = document.getElementById('pf-' + provider + '-' + f.key);
+      if(el) {
+        var val;
+        if(f.type === 'checkbox') {
+          val = el.checked ? 'true' : '';
+        } else {
+          val = el.value.trim();
+        }
+        if(val) configs[f.key] = val;
       }
     });
-    document.getElementById("alipay-config-form").innerHTML = alipayH||'<div class="em">{{ _('No Config') }}</div>';
-    document.getElementById("wechat-config-form").innerHTML = wechatH||'<div class="em">{{ _('No Config') }}</div>';
-  }).catch(function(){});
-}
+
+    fetch('/admin/payment/configs/' + provider, {
+      method: 'PUT',
+      headers: {'Authorization':'Bearer '+T, 'Content-Type':'application/json'},
+      body: JSON.stringify({configs: configs})
+    }).then(function(r){ return r.json() }).then(function(d){
+      if(d.success){ toast(_t('save_success'), 'success'); loadConfigs() }
+      else { toast(d.error||_t('save_failed'), 'error'); btn.disabled = false; btn.textContent = _t('save'); btn.className = 'pay-save-btn' }
+    }).catch(function(){
+      toast(_t('save_failed'), 'error');
+      btn.disabled = false; btn.textContent = _t('save'); btn.className = 'pay-save-btn';
+    });
+  };
+
+  window.payClearConfig = function(provider){
+    if(!confirm('Clear all ' + provider + ' configuration?')) return;
+    fetch('/admin/payment/configs/' + provider, {
+      method: 'DELETE',
+      headers: {'Authorization':'Bearer '+T}
+    }).then(function(r){ return r.json() }).then(function(d){
+      if(d.success){ toast('Cleared', 'success'); loadConfigs() }
+      else { toast(d.error||'Failed', 'error') }
+    });
+  };
+
+  // Detect market — check configs have intl providers configured
+  function detectMarket(){
+    // Simple: check if any intl provider has configs
+    var hasIntl = false;
+    Object.keys(PAY_CONFIGS).forEach(function(p){
+      if(PAY_PROVIDERS[p] && PAY_PROVIDERS[p].market === 'intl' && Object.keys(PAY_CONFIGS[p]).length > 0)
+        hasIntl = true;
+    });
+    market = hasIntl ? 'intl' : 'cn';
+    // Also reload providers if needed since market changed
+  }
+
+  // Override loadConfigs to detect market
+  var _origLoad = loadConfigs;
+  loadConfigs = function(){
+    fetch('/admin/payment/configs', {headers:{'Authorization':'Bearer '+T}})
+      .then(function(r){ return r.json() })
+      .then(function(d){
+        if(!d.success){ toast(d.error||'Failed', 'error'); return }
+        var map = {};
+        (d.data||[]).forEach(function(item){ map[item.provider] = item.configs || {} });
+        PAY_CONFIGS = map;
+        // Detect market
+        market = 'cn';
+        Object.keys(map).forEach(function(p){
+          if(PAY_PROVIDERS[p] && PAY_PROVIDERS[p].market === 'intl' && Object.keys(map[p]||{}).length > 0)
+            market = 'intl';
+        });
+        // Load providers for this market
+        fetch('/admin/payment/providers?market=' + market, {headers:{'Authorization':'Bearer '+T}})
+          .then(function(r){ return r.json() })
+          .then(function(d2){
+            if(d2.success) PAY_PROVIDERS = d2.data || {};
+            renderCards();
+          });
+      })
+      .catch(function(err){ toast('Request Failed: '+err, 'error') });
+  };
+
+  // Start
+  loadProviders();
+})();
+</script>
+</div>

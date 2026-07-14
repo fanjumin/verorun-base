@@ -1,11 +1,11 @@
 {
     "name": "OAuth Login Config",
     "identifier": "oauth_config",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "category": "System",
-    "tags": ["oauth", "login", "sso", "douyin", "wechat", "alipay", "config"],
+    "tags": ["oauth", "login", "sso", "douyin", "wechat", "alipay", "google", "github", "facebook", "telegram"],
     "icon": "social_media",
-    "description": "OAuth Login Config — 后台管理多站点第三方登录凭据（抖音/微信/支付宝）。仅配置管理，登录回调链路仍在 auth-center 核心。",
+    "description": "OAuth 第三方登录完整插件 — 登录/回调/配置管理。禁用后第三方登录功能完全消失。",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "dependencies": {},
@@ -16,7 +16,11 @@
         "oauth_config.write"
     ],
     "hooks": {
-        "provides": [],
+        "provides": [
+            "oauth/provider_list",
+            "oauth/login",
+            "oauth/callback"
+        ],
         "listens": []
     },
     "menu": {

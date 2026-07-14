@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Payment Gateway Plugin — 支付配置插件
-======================================
-提供支付宝/微信支付的配置管理面板。
-支付流程委托给 auth-center/services/payment_service.py。
-- 独立数据库：payment.db（交易日志）
+Payment Gateway Plugin — 支付配置插件（完全独立）
+==================================================
+- 独立数据库：data/payment.db（payment_logs + payment_configs）
+- 独立路由：/admin/payment/configs/*（替代主库 /user/config）
+- 支持：支付宝、微信支付、Stripe、PayPal
+- 市场自动检测：CN 显示支付宝/微信，INTL 显示 Stripe/PayPal
 """
 import os
 import sys
@@ -16,26 +17,32 @@ from plugin_manager.base import BasePlugin
 
 class PaymentPlugin(BasePlugin):
     name = 'payment'
-    version = '0.1.0'
-    description = 'Payment Gateway — Alipay/WeChat Pay configuration management'
+    version = '1.0.0'
+    description = 'Payment Gateway — Alipay/WeChat/Stripe/PayPal configuration management'
     author = 'VeroRun'
 
     def on_install(self, registry):
-        from .models import init_payment_db
-        init_payment_db()
+        self._init_db()
         return True
 
     def on_enable(self, registry):
-        from .models import init_payment_db
-        init_payment_db()
-        print('[PaymentPlugin] ✅ 支付配置插件已启用 (payment.db)')
+        self._init_db()
+        print('[PaymentPlugin] ✅ 支付插件已启用（独立数据库）')
         return True
 
+    def _init_db(self):
+        from .models import init_payment_tables, migrate_from_main_db
+        init_payment_tables()
+        migrate_from_main_db()
+
     def register_routes(self):
-        return []
+        """注册插件独立路由"""
+        from .routes.admin import payment_admin_bp
+        print('[PaymentPlugin] ✅ /admin/payment/* 路由已注册')
+        return [payment_admin_bp]
 
     def on_disable(self, registry):
-        print('[PaymentPlugin] ⚠️  支付配置插件已禁用')
+        print('[PaymentPlugin] ⚠️ 支付插件已禁用')
         return True
 
     # ── 对外接口 ──

@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """OAuth Login Config Plugin — /admin/oauth/configs 配置管理路由
 
-迁移自 auth-center/routes/admin.py（Phase 4A 逻辑解耦）。
-- oauth_providers 表留在【主库】，本插件用 get_main_db() 直接读写（不依赖 douyin_service）
-- 登录回调链路不涉及；本插件只管配置的增删改查
+oauth_providers 表在插件独立数据库 oauth.db 中，通过 models.get_db() 读写。
 """
 
 import sys, os
 from datetime import datetime
 
-_auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
-if _auth_dir not in sys.path:
-    sys.path.insert(0, _auth_dir)
-
 from flask import Blueprint, request, jsonify
+
+# ── 首次导入时自动初始化独立数据库（不依赖插件生命周期）──
+from plugins.oauth_config.models import init_oauth_tables
+init_oauth_tables()
 
 oauth_cfg_bp = Blueprint('oauth_config', __name__, url_prefix='/admin/oauth')
 
@@ -37,9 +35,9 @@ def _log(admin_id, action, target_type='', target_id='', detail=''):
     _l(admin_id, action, target_type, target_id, detail)
 
 
-def _get_main_db():
-    """主库连接（oauth_providers 留主库，供登录链路共享读取）"""
-    from models import get_db
+def _get_oauth_db():
+    """插件独立数据库连接（oauth_providers 表）"""
+    from plugins.oauth_config.models import get_db
     return get_db()
 
 
@@ -50,7 +48,7 @@ def admin_oauth_configs():
     if e:
         return e
     provider = request.args.get('provider', 'all')
-    with _get_main_db() as conn:
+    with _get_oauth_db() as conn:
         if provider == 'all':
             rows = conn.execute(
                 'SELECT id, site_domain, provider, client_key, client_secret, is_active, created_at, updated_at '
@@ -98,7 +96,7 @@ def admin_oauth_save():
         return jsonify({'success': False, 'error': '域名和 Client Key 不能为空'}), 400
 
     # 检查该站点已启用的第三方登录数量（最多 2 个）
-    with _get_main_db() as conn:
+    with _get_oauth_db() as conn:
         existing_for_domain = conn.execute(
             'SELECT provider FROM oauth_providers WHERE site_domain=? AND is_active=1',
             (domain,)
@@ -111,7 +109,7 @@ def admin_oauth_save():
             }), 400
 
     # secret 为空时保留原有（编辑不改密钥场景）
-    with _get_main_db() as conn:
+    with _get_oauth_db() as conn:
         if not secret:
             existing = conn.execute(
                 'SELECT client_secret FROM oauth_providers WHERE site_domain=? AND provider=?',
@@ -152,7 +150,7 @@ def admin_oauth_delete(cfg_id):
     a, e = _require_admin()
     if e:
         return e
-    with _get_main_db() as conn:
+    with _get_oauth_db() as conn:
         conn.execute('DELETE FROM oauth_providers WHERE id=?', (cfg_id,))
         conn.commit()
     _log(a['user_id'], 'delete_oauth', 'oauth', str(cfg_id), 'oauth config deleted')
