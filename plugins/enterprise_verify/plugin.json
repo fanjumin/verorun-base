@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Enterprise Verification",
     "identifier": "enterprise_verify",
     "version": "0.1.0",
@@ -28,7 +28,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Customer Management",
+        "group": "Users & Support",
         "key": "enterprise_verify",
         "icon": "enterprise_verify",
         "label": "Enterprise Verification"

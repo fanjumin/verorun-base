@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Email Service",
     "identifier": "email",
     "version": "0.1.0",
@@ -33,7 +33,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Messages & Support",
+        "group": "Users & Support",
         "key": "email",
         "icon": "email",
         "label": "Email Management"
