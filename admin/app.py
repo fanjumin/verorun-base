@@ -13,7 +13,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 from models import init_db, init_shop_db
 from services.deployment_config import DeployConfig, deploy
 from routes.auth import auth_bp
-from routes.admin import admin_bp
+from routes.admin import admin_bp, _build_dashboard_data
 from routes.cms_admin import cms_admin_bp
 from routes.user import user_bp
 # social_bp（社媒推广）已解耦为 plugins/social_push/，由 PluginManager 挂载
@@ -268,7 +268,17 @@ def admin_page():
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
         return redirect('/admin/login')
-    resp = make_response(render_template('admin.html', sso_token=token))
+    # 预加载 Dashboard 数据并嵌入模板，消除浏览器端额外 fetch 往返
+    dash_data = None
+    try:
+        from models import get_db
+        with get_db() as conn:
+            d = _build_dashboard_data(conn)
+            if any(k in d for k in ('total_users','total_agents','active_subscriptions')):
+                dash_data = d
+    except Exception as e:
+        print(f'[AdminPage] dashboard preload failed: {e}')
+    resp = make_response(render_template('admin.html', sso_token=token, dash_data=dash_data or {}))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
