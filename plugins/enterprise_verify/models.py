@@ -38,5 +38,6 @@ def init_ev_db():
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ev_user ON enterprise_verifications(user_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ev_status ON enterprise_verifications(status)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_ev_status_created ON enterprise_verifications(status, created_at)')
     conn.commit()
     print('[EnterpriseVerifyPlugin] enterprise_verify.db 已初始化')

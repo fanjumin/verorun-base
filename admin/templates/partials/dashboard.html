@@ -1,7 +1,10 @@
 window.l_dashboard=function(){
   document.getElementById("pt").textContent="{{ _('Overview') }}";
   fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success)return;
+    if(!d.success){
+      document.getElementById("mc").innerHTML='<div class="em">{{ _('Load failed') }}: '+(d.error||'{{ _('Unknown error') }}')+' <button class="btn bp" onclick="go(\'dashboard\')">{{ _('Retry') }}</button></div>';
+      return;
+    }
     var ds=d.data, h="";
     h+='<div class="cd"><div class="st">{{ _('Core Metrics') }}</div></div>';
     h+='<div class="gr">';

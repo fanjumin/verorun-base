@@ -10,7 +10,9 @@ from models import get_db
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
-_dash_cache = {'data': None, 'ts': 0, 'ttl': 60}
+_dash_cache = {'data': None, 'ts': 0, 'ttl': 30}
+# 各查询组独立缓存（按 key 单独刷新，不互相影响）
+_query_cache = {}
 # 通用 GET 请求内存缓存（5 秒 TTL），消除重复点击同一模块的等待感
 _get_cache = {}
 
@@ -75,6 +77,21 @@ def admin_logout():
     return jsonify({'success': True})
 
 
+def _qcached(key, ttl=10):
+    """查询级缓存装饰器（防重复计算，只缓存非 None/非 [] 的结果）"""
+    def deco(fn):
+        def wrapper(*a, **kw):
+            now = time.time()
+            entry = _query_cache.get(key)
+            if entry and (now - entry['ts']) < ttl:
+                return entry['val']
+            val = fn(*a, **kw)
+            if val is not None and val != []:
+                _query_cache[key] = {'val': val, 'ts': now}
+            return val
+        return wrapper
+    return deco
+
 @admin_bp.route('/dashboard', methods=['GET'])
 def dashboard():
     admin, err = _require_admin()
@@ -98,66 +115,98 @@ def dashboard():
         except:
             return []
 
+    data = {}
     try:
-        data = {}
         with get_db() as conn:
-            # --- Core metrics ---
-            u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=date('now') THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
-            data['total_users'] = u['c']
-            data['active_users'] = u['a']
-            data['today_new_users'] = u['n']
+            # --- Core metrics（不缓存，近乎瞬时） ---
+            try:
+                u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=date('now') THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
+                data['total_users'] = u['c']; data['active_users'] = u['a']; data['today_new_users'] = u['n']
+            except: pass
+            try:
+                ta = conn.execute('SELECT COUNT(*) as c FROM user_agents').fetchone()
+                data['total_agents'] = ta['c'] if ta else 0
+                aa = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE status='active'").fetchone()
+                data['active_agents'] = aa['c'] if aa else 0
+            except: pass
 
-            ta = conn.execute('SELECT COUNT(*) as c FROM user_agents').fetchone()
-            data['total_agents'] = ta['c'] if ta else 0
-            aa = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE status='active'").fetchone()
-            data['active_agents'] = aa['c'] if aa else 0
+            try:
+                tdc_old = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=date('now')")
+                tdc_new = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE last_reset=date('now')")
+                data['today_calls'] = (tdc_old['c'] if tdc_old else 0) + (tdc_new['c'] if tdc_new else 0)
+                tc_old = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM api_keys')
+                tc_new = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys')
+                data['total_calls'] = (tc_old['c'] if tc_old else 0) + (tc_new['c'] if tc_new else 0)
+            except: pass
 
-            tdc_old = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=date('now')")
-            tdc_new = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE last_reset=date('now')")
-            data['today_calls'] = (tdc_old['c'] if tdc_old else 0) + (tdc_new['c'] if tdc_new else 0)
-            tc_old = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM api_keys')
-            tc_new = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys')
-            data['total_calls'] = (tc_old['c'] if tc_old else 0) + (tc_new['c'] if tc_new else 0)
+            try:
+                sub = _safe("SELECT COUNT(*) as c FROM subscriptions WHERE status='active'")
+                data['active_subscriptions'] = sub['c'] if sub else 0
+            except: pass
 
-            sub = _safe("SELECT COUNT(*) as c FROM subscriptions WHERE status='active'")
-            data['active_subscriptions'] = sub['c'] if sub else 0
-
-            data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
-            mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=datetime('now','-30 days')").fetchone()
-            data['monthly_revenue'] = mr['c'] if mr else 0
+            try:
+                data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
+                mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=datetime('now','-30 days')").fetchone()
+                data['monthly_revenue'] = mr['c'] if mr else 0
+            except: pass
 
             # --- Action items ---
-            data['pending_posts'] = conn.execute("SELECT COUNT(*) as c FROM agent_experiences WHERE status='pending' OR is_published=0").fetchone()['c']
-            data['pending_reviews'] = (_safe("SELECT COUNT(*) as c FROM processed_contents WHERE status='review'") or {'c':0})['c']
-            data['pending_contacts'] = conn.execute("SELECT COUNT(*) as c FROM contact_messages WHERE status='unread'").fetchone()['c']
-            data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=date('now')") or {'c':0})['c']
+            try:
+                data['pending_posts'] = conn.execute("SELECT COUNT(*) as c FROM agent_experiences WHERE status='pending' OR is_published=0").fetchone()['c']
+            except: pass
+            try:
+                data['pending_reviews'] = (_safe("SELECT COUNT(*) as c FROM processed_contents WHERE status='review'") or {'c':0})['c']
+            except: pass
+            try:
+                data['pending_contacts'] = conn.execute("SELECT COUNT(*) as c FROM contact_messages WHERE status='unread'").fetchone()['c']
+            except: pass
+            try:
+                data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=date('now')") or {'c':0})['c']
+            except: pass
 
             # --- Recent data ---
-            data['recent_users'] = [dict(r) for r in conn.execute(
-                "SELECT id, COALESCE(display_name, username, '') as nickname, phone, created_at FROM users ORDER BY created_at DESC LIMIT 5"
-            ).fetchall()]
-            data['recent_orders'] = [dict(r) for r in conn.execute(
-                "SELECT id, user_id, item_desc, amount, status, paid_at FROM billing_orders ORDER BY created_at DESC LIMIT 5"
-            ).fetchall()]
+            try:
+                data['recent_users'] = [dict(r) for r in conn.execute(
+                    "SELECT id, COALESCE(display_name, username, '') as nickname, phone, created_at FROM users ORDER BY created_at DESC LIMIT 5"
+                ).fetchall()]
+            except: pass
+            try:
+                data['recent_orders'] = [dict(r) for r in conn.execute(
+                    "SELECT id, user_id, item_desc, amount, status, paid_at FROM billing_orders ORDER BY created_at DESC LIMIT 5"
+                ).fetchall()]
+            except: pass
 
-            # --- Analytics snapshot ---
-            pvuv = _safe("SELECT pv, uv FROM analytics_daily_stats WHERE date=date('now')")
+            # --- Analytics snapshot（10s 查询缓存） ---
+            @_qcached('dash_pvuv', ttl=10)
+            def _qpvuv(): return _safe("SELECT pv, uv FROM analytics_daily_stats WHERE date=date('now')")
+            pvuv = _qpvuv()
             data['today_pv'] = pvuv['pv'] if pvuv else 0
             data['today_uv'] = pvuv['uv'] if pvuv else 0
-            online = _safe("SELECT COUNT(DISTINCT visitor_hash) as c FROM analytics_visitor_sessions WHERE last_active_at>=datetime('now','-5 minutes')")
-            data['online_now'] = online['c'] if online else 0
-            data['top_pages'] = [{'path': r['path'], 'pv': r['pv']} for r in _safe_all(
-                "SELECT path, pv FROM analytics_page_stats WHERE date=date('now') ORDER BY pv DESC LIMIT 3"
-            )]
 
-            # --- Token 用量快照 (2026-05-16) ---
-            tt = _safe("SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_logs WHERE date(created_at)=date('now')")
-            data['today_tokens'] = tt['c'] if tt else 0
-            data['top_token_agents'] = [dict(r) for r in _safe_all(
-                "SELECT t.agent_id, t.agent_name, COALESCE(SUM(t.total_tokens),0) as total "
-                "FROM agent_token_logs t WHERE date(t.created_at)=date('now') "
-                "GROUP BY t.agent_id ORDER BY total DESC LIMIT 3"
-            )]
+            @_qcached('dash_online', ttl=5)
+            def _qonline(): return _safe("SELECT COUNT(DISTINCT visitor_hash) as c FROM analytics_visitor_sessions WHERE last_active_at>=datetime('now','-5 minutes')")
+            online = _qonline()
+            data['online_now'] = online['c'] if online else 0
+
+            @_qcached('dash_toppages', ttl=10)
+            def _qpages(): return _safe_all("SELECT path, pv FROM analytics_page_stats WHERE date=date('now') ORDER BY pv DESC LIMIT 3")
+            data['top_pages'] = [{'path': r['path'], 'pv': r['pv']} for r in _qpages()]
+
+            # --- Token 用量（改用 agent_token_daily 预汇总表，15s 缓存） ---
+            @_qcached('dash_tokens', ttl=15)
+            def _qtokens():
+                r = _safe("SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=date('now')")
+                return r['c'] if r else 0
+            data['today_tokens'] = _qtokens()
+
+            @_qcached('dash_topagents', ttl=15)
+            def _qtopagents():
+                return [dict(r) for r in _safe_all(
+                    "SELECT t.agent_id, t.agent_name, t.total_tokens as total "
+                    "FROM agent_token_daily t WHERE t.stat_date=date('now') "
+                    "ORDER BY t.total_tokens DESC LIMIT 3"
+                )]
+            data['top_token_agents'] = _qtopagents()
 
         # --- Service health (outside DB, parallel) ---
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -176,6 +225,10 @@ def dashboard():
             futures = {ex.submit(_check_service, n, p): (n, p) for n, p in services}
             for f in as_completed(futures):
                 data['services'].append(f.result())
+
+        # 只有 Core metrics 全部失败才算失败
+        if not any(k in data for k in ('total_users','total_agents','active_subscriptions')):
+            raise Exception('Core metrics all failed')
 
         _dash_cache['data'] = data
         _dash_cache['ts'] = time.time()
@@ -3346,11 +3399,17 @@ def media_library_list():
     admin, err = _require_admin()
     if err:
         return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 50, type=int)
+    if limit > 500: limit = 500
+    offset = (page - 1) * limit
     with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) as c FROM media_files").fetchone()['c']
         rows = conn.execute(
-            "SELECT * FROM media_files ORDER BY created_at DESC"
+            "SELECT id, filename, original_name, mime_type, file_size, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset)
         ).fetchall()
-    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+    return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total, 'page': page, 'limit': limit})
 
 @admin_bp.route('/media-library/<int:fid>', methods=['DELETE'])
 def media_library_delete(fid):

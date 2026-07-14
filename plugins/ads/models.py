@@ -78,6 +78,7 @@ def init_ad_db():
 
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ad_page ON ad_placements(page, position)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ad_site_zone ON ad_placements(site_key, zone_id, is_active)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_ad_render ON ad_placements(is_active, site_key, zone_id, position, page, sort_order, id)')
 
     # ── 广告位区域表 ──
     conn.execute('''CREATE TABLE IF NOT EXISTS ad_zones (

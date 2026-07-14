@@ -941,12 +941,19 @@ def admin_order_list():
     if err: return err
     page = int(request.args.get('page', 1))
     limit = int(request.args.get('limit', 20))
+    status = request.args.get('status', '').strip()
     offset = (page - 1) * limit
     with get_db() as conn:
-        total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders').fetchone()
-        rows = conn.execute(
-            'SELECT o.*, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT ? OFFSET ?',
-            (limit, offset)).fetchall()
+        if status:
+            total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders WHERE status=?', (status,)).fetchone()
+            rows = conn.execute(
+                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.status=? ORDER BY o.created_at DESC LIMIT ? OFFSET ?',
+                (status, limit, offset)).fetchall()
+        else:
+            total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders').fetchone()
+            rows = conn.execute(
+                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT ? OFFSET ?',
+                (limit, offset)).fetchall()
     return api_res({'total': total['c'], 'page': page, 'orders': [dict(r) for r in rows]})
 
 @sub_bp.route('/admin/orders/<order_no>/refund', methods=['POST'])
@@ -1012,29 +1019,36 @@ def admin_stats():
             JOIN subscription_plans sp ON sp.plan_key=s.plan_key
             WHERE s.status IN ('active','trialing')
         """).fetchone()
-        # 本月新增
+        # 本月新增（范围查询，避免 strftime 函数包裹索引列）
         new = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
-            WHERE strftime('%Y-%m',created_at)=strftime('%Y-%m','now')
+            WHERE created_at >= datetime('now','start of month','localtime')
+              AND created_at < datetime('now','start of month','+1 month','localtime')
         """).fetchone()
         # 本月取消
         canceled = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
-            WHERE status='canceled' AND strftime('%Y-%m',canceled_at)=strftime('%Y-%m','now')
+            WHERE status='canceled'
+              AND canceled_at >= datetime('now','start of month','localtime')
+              AND canceled_at < datetime('now','start of month','+1 month','localtime')
         """).fetchone()
         # 总活跃
         active = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions WHERE status='active'
         """).fetchone()
-        # 今日收入
+        # 今日收入（范围查询，避免 date() 函数包裹索引列）
         today_revenue = conn.execute("""
             SELECT COALESCE(SUM(amount_fen),0) as rev FROM subscription_orders
-            WHERE status='paid' AND date(paid_at)=date('now')
+            WHERE status='paid'
+              AND paid_at >= datetime('now','start of day','localtime')
+              AND paid_at < datetime('now','start of day','+1 day','localtime')
         """).fetchone()
         # 本月收入
         month_revenue = conn.execute("""
             SELECT COALESCE(SUM(amount_fen),0) as rev FROM subscription_orders
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now')
+            WHERE status='paid'
+              AND paid_at >= datetime('now','start of month','localtime')
+              AND paid_at < datetime('now','start of month','+1 month','localtime')
         """).fetchone()
         # 各套餐分布
         dist = conn.execute("""

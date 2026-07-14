@@ -53,9 +53,10 @@ def enterprise_verification_list():
         (status,)
     ).fetchone()['c']
 
-    # 1) 插件库查认证记录（不跨库 JOIN）
+    # 1) 插件库查认证记录（不跨库 JOIN，只取必要列）
     ev_rows = ev_conn.execute("""
-        SELECT * FROM enterprise_verifications
+        SELECT id, user_id, enterprise_name, tax_id, license_url, status, review_notes, reviewed_by, reviewed_at, created_at
+        FROM enterprise_verifications
         WHERE status = ?
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?

@@ -1,11 +1,15 @@
 function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 
-if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>'}else{init()}
+if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>'}
 
-function init(){
+function init(){try{
   document.getElementById("an").textContent="{{ _('Admin') }}";
   go("dashboard");
-}
+}catch(e){console.error('init:',e)}}
+setTimeout(function(){
+  var mc=document.getElementById("mc");
+  if(mc&&mc.innerHTML.indexOf('lo')>-1)try{go("dashboard")}catch(e){console.error('init_deferred:',e)}
+},100);
 
 function logout(){
   localStorage.removeItem("sso_token");
@@ -20,7 +24,7 @@ function go(s){
   document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
   var el=document.getElementById("n-"+s);if(el)el.classList.add("sel");
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
-  if(typeof window["l_"+s]=="function")window["l_"+s]();
+  (function _try(){if(typeof window["l_"+s]=="function")window["l_"+s]();else setTimeout(_try,50)})();
 }
 
 function goPlugin(key,embedUrl){
