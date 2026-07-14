@@ -34,8 +34,8 @@ function renderMediaGrid(grid,items){
     var isV=mime.startsWith('video/'),isA=mime.startsWith('audio/'),isI=mime.startsWith('image/');
     var icon=isV?'🎬':isA?'🎵':isI?'🖼️':'📄',thumb='';
     var fp=f.file_path||'',tp2=f.thumb_path||'';
-    var filePath=fp?(fp.startsWith('static/')?fp:'static/'+fp):'';
-    var thumbPath=tp2?(tp2.startsWith('static/')?tp2:'static/'+tp2):'';
+    var filePath=fp?(fp.startsWith('admin/static/')?fp:'admin/static/'+fp):'';
+    var thumbPath=tp2?(tp2.startsWith('admin/static/')?tp2:'admin/static/'+tp2):'';
     if(isI&&filePath)thumb='<img src="/'+esc(filePath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else if(thumbPath)thumb='<img src="/'+esc(thumbPath)+'" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0">';
     else thumb='<div style="width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg);border-radius:6px 6px 0 0">'+icon+'</div>';

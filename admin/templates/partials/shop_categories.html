@@ -448,7 +448,7 @@ function openMediaPicker(){
       h = '<div style="text-align:center;padding:40px;color:var(--dim);grid-column:1/-1">{{ _('Media LibraryNo Images') }}，{{ _('Please Upload First') }}</div>';
     } else {
       items.forEach(function(f){
-        var src = "/static/"+f.file_path;
+        var src = "/admin/static/"+f.file_path;
         h += '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer" onclick="selectMediaImage(\''+esc(src)+'\')">';
         h += '<img src="'+esc(src)+'" style="width:100%;height:100px;object-fit:cover" onerror="this.style.display=\'none\'">';
         h += '<div style="padding:4px 6px;font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.original_name)+'</div>';
@@ -500,7 +500,7 @@ function openMediaPickerForQuill(quill){
       h = '<div style="text-align:center;padding:40px;color:var(--dim);grid-column:1/-1">{{ _('Media LibraryNo Images') }}，{{ _('Please Upload First') }}</div>';
     } else {
       items.forEach(function(f){
-        var src = "/static/"+f.file_path;
+        var src = "/admin/static/"+f.file_path;
         h += '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer" onclick="insertToQuill(\''+esc(src)+'\')">';
         h += '<img src="'+esc(src)+'" style="width:100%;height:100px;object-fit:cover" onerror="this.style.display=\'none\'">';
         h += '<div style="padding:4px 6px;font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.original_name)+'</div>';
