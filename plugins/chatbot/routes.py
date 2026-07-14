@@ -315,14 +315,21 @@ def get_handoff_rules():
     if err:
         return err
     try:
-        pm = _get_plugin_manager()
-        inst = pm.get_instance('chatbot') if pm else None
-        keywords_raw = inst.get_config_value('handoff_keywords') if inst else ''
-        max_fails = inst.get_config_value('handoff_max_fails') if inst else '3'
-        keywords = json.loads(keywords_raw) if keywords_raw else DEFAULT_HANDOFF_KEYWORDS
+        keywords = DEFAULT_HANDOFF_KEYWORDS
+        max_fails = 3
+        try:
+            from .models import get_config as _gc
+            kw_raw = _gc('chatbot', 'handoff_keywords')
+            if kw_raw:
+                keywords = json.loads(kw_raw)
+            mf_raw = _gc('chatbot', 'handoff_max_fails')
+            if mf_raw:
+                max_fails = int(mf_raw)
+        except Exception:
+            pass
         return jsonify({'success': True, 'data': {
             'keywords': keywords,
-            'max_fails': int(max_fails),
+            'max_fails': max_fails,
         }})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -338,12 +345,9 @@ def save_handoff_rules():
     keywords = data.get('keywords', DEFAULT_HANDOFF_KEYWORDS)
     max_fails = data.get('max_fails', 3)
     try:
-        pm = _get_plugin_manager()
-        inst = pm.get_instance('chatbot') if pm else None
-        if not inst:
-            return jsonify({'success': False, 'error': 'Plugin not loaded'}), 500
-        inst.set_config_value('handoff_keywords', json.dumps(keywords, ensure_ascii=False))
-        inst.set_config_value('handoff_max_fails', str(max_fails))
+        from .models import set_config as _sc
+        _sc('chatbot', 'handoff_keywords', json.dumps(keywords, ensure_ascii=False))
+        _sc('chatbot', 'handoff_max_fails', str(max_fails))
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
