@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "IM Gateway",
     "identifier": "im_gateway",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "IM Gateway — Unified instant-messaging channel gateway (Feishu / WeCom / QQ / DingTalk), extensible to Telegram / LINE",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {},
     "permissions": [

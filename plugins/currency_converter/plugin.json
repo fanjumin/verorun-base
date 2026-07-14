@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Currency Converter",
     "identifier": "currency_converter",
     "version": "0.1.0",
@@ -10,7 +10,7 @@
     "icon": "currency",
     "tags": ["currency", "exchange", "multi-currency", "price"],
 
-    "depends_on": {},
+    "dependencies": {},
 
     "enabled": false,
 

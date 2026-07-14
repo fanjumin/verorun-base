@@ -1604,6 +1604,142 @@ IP 限流: 每 IP 每分钟 10 次。
 
 ---
 
+## 7. Social Media Mini-Program API
+
+> New in v2026.07 — Endpoints used by platform-specific mini-programs (Douyin, WeChat, Telegram, LINE).
+
+前缀: `/api/v1/mini-program/`
+
+### 7.1 认证
+
+#### `POST /api/v1/mini-program/auth/login` — 小程序登录
+
+平台通过 `code` / `initData` / `accessToken` 换系统 JWT。
+
+**请求体示例**（微信/抖音）:
+```json
+{
+  "platform": "wechat",
+  "code": "wx_code_from_login"
+}
+```
+
+**请求体示例**（Telegram）:
+```json
+{
+  "platform": "telegram",
+  "initData": "tg_init_data_string"
+}
+```
+
+**请求体示例**（LINE）:
+```json
+{
+  "platform": "line",
+  "accessToken": "line_access_token",
+  "userId": "line_user_id",
+  "displayName": "User Name"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "data": {
+    "token": "jwt_token_string",
+    "user": { "id": 1, "username": "wx_xxx", "display_name": "User" }
+  }
+}
+```
+
+#### `POST /api/v1/mini-program/auth/validate` — 验证 JWT 有效性
+
+**请求体**:
+```json
+{ "token": "jwt_token_string" }
+```
+
+**响应**:
+```json
+{ "success": true, "data": { "valid": true, "user": { ... } } }
+```
+
+### 7.2 聊天
+
+#### `POST /api/v1/mini-program/chat/send` — 非流式 AI 对话
+
+**请求体**:
+```json
+{
+  "message": "你好",
+  "history": [],
+  "platform": "telegram"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "data": {
+    "reply": "你好！有什么可以帮助你的？",
+    "retrievedKnowledge": []
+  }
+}
+```
+
+#### `POST /api/v1/mini-program/chat/stream` — 流式 AI 对话（SSE）
+
+**请求体**: 同上 `send`。
+
+**响应**: SSE 流，事件类型：
+- `data: {"type":"token","content":"你好"}`
+- `data: {"type":"done","reply":"完整回复","retrievedKnowledge":[]}`
+- `data: {"type":"error","error":"错误信息"}`
+
+#### `GET /api/v1/mini-program/chat/history` — 获取聊天历史
+
+**响应**:
+```json
+{ "success": true, "data": { "messages": [{"role":"user","content":"你好"}, ...] } }
+```
+
+### 7.3 知识库
+
+#### `GET /api/v1/mini-program/knowledge/search` — 搜索知识库
+
+**参数**: `q` (查询关键词), `topK` (返回条数, 默认 5), `category` (可选分类过滤)
+
+**响应**:
+```json
+{ "success": true, "data": [{"id":"1","title":"退货政策","content":"...","score":0.95,"category":"policy"}] }
+```
+
+### 7.4 用户
+
+#### `GET /api/v1/mini-program/user/profile` — 获取用户资料
+
+**响应**:
+```json
+{ "success": true, "data": { "id":1, "username":"tg_xxx", "display_name":"用户" } }
+```
+
+### 7.5 站点信息
+
+#### `GET /api/v1/mini-program/site/info` — 获取站点品牌信息
+
+**响应**:
+```json
+{ "success": true, "data": { "site_name":"VeroRun","primary_color":"#4F46E5","logo_url":"..." } }
+```
+
+#### `GET /api/v1/mini-program/site/pages` — 获取已发布页面列表
+
+#### `GET /api/v1/mini-program/site/page/<slug>` — 获取指定页面内容
+
+---
+
 ## 附录：会话管理 API
 
 前缀: `/session`

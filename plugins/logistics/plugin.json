@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Logistics Express",
     "identifier": "logistics",
     "version": "0.2.0",
@@ -8,7 +8,7 @@
     "description": "Logistics Express — shipment tracking via Kdniao API with 600+ carriers",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "kdniao_eid": "",

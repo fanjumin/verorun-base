@@ -1,4 +1,4 @@
-# 插件标准 v1.1 — 完整规范
+﻿# 插件标准 v1.1 — 完整规范
 
 > 生成日期：2026-07-09（§9-11 于 07-09 追加）
 > 前置阅读：本规范假定已了解项目最高宪法 [AGENTS.md](../AGENTS.md) 和 `project_rules.md`。
@@ -37,7 +37,7 @@ plugin.json
 │   └── tags               string[]         标签数组
 │
 ├── 依赖与配置
-│   ├── depends_on         object           {identifier: version_spec}
+│   ├── dependencies         object           {identifier: version_spec}
 │   ├── config             object           默认配置
 │   ├── settings_schema    object           JSON Schema Draft-07（配置表单校验）
 │   ├── permissions        string[]         权限声明
@@ -77,7 +77,7 @@ plugin.json
   "icon": "package",
   "tags": ["电商", "采集", "AI"],
 
-  "depends_on": {},
+  "dependencies": {},
 
   "config": {
     "api_gateway": "https://gw.open.1688.com/openapi"
@@ -551,7 +551,7 @@ CREATE TABLE IF NOT EXISTS plugin_configs (
 
 ```json
 {
-  "depends_on": {
+  "dependencies": {
     "reviews": ">=1.0.0",
     "order_notify": "*"
   },
@@ -559,7 +559,7 @@ CREATE TABLE IF NOT EXISTS plugin_configs (
 }
 ```
 
-`depends_on` 值使用语义化版本范围：
+`dependencies` 值使用语义化版本范围：
 - `"*"` — 任意版本
 - `">=1.0.0"` — 大于等于 1.0.0
 - `"1.0.0"` — 精确匹配
@@ -579,7 +579,7 @@ def resolve_load_order(plugins: Dict[str, PluginMeta]) -> List[str]:
     """拓扑排序，按依赖顺序返回插件名列表"""
     graph = {}
     for name, meta in plugins.items():
-        graph[name] = set(meta.metadata.get('depends_on', {}).keys())
+        graph[name] = set(meta.metadata.get('dependencies', {}).keys())
     # Kahn 算法检测循环依赖
     # 返回排序后的列表
 ```
@@ -808,3 +808,4 @@ tail.html 统一闭合。插件模板**绝不能自带 `<script>...</script>`**�
 闭合标签会提前截断外层 script，导致其后所有 partial 的 JS 变成裸 HTML
 （表现为满屏 `Unexpected token '<'`、`xxx is not defined`、URL 片段被当资源 404）。
 插件前端模板首行应直接是 JS 或 `//` 注释，不加任何 HTML script 标签。
+

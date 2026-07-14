@@ -1,11 +1,11 @@
-{
+﻿{
     "name": "AI Tools",
     "identifier": "ai_tools",
     "version": "0.1.0",
     "description": "AI Tools — PPT Generation + Image Generation + Multimedia",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {},
     "permissions": [

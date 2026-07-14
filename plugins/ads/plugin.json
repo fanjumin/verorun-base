@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Ad Management",
     "identifier": "ads",
     "version": "1.0.0",
@@ -8,7 +8,7 @@
     "description": "Ad Management — Ad placements, zones, impressions/clicks stats, and AI-ready APIs",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "default_width": 320,

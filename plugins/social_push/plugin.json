@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Social Push",
     "identifier": "social_push",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "Social Push — Multi-platform social content publishing (WeChat OA / Weibo / Toutiao) with publish history",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {},
     "permissions": [

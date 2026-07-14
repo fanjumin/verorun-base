@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Payment Gateway",
     "identifier": "payment",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "Payment Gateway — Alipay/WeChat Pay configuration management",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {},
     "permissions": [

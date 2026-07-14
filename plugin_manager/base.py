@@ -63,7 +63,8 @@ class BasePlugin(ABC):
     version: str = '0.1.0'
     description: str = ''
     author: str = ''
-    depends_on: List[str] = []
+    dependencies: Dict[str, str] = {}
+    """依赖的其他插件 `{identifier: version_spec}`"""
     config_schema: Dict[str, Any] = {}
 
     # ── 运行时引用（由 PluginManager 注入） ──

@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "SMS Service",
     "identifier": "sms",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "SMS Service — phone verification code sending with Aliyun/Twilio providers",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "aliyun_sms_sign_name": "",

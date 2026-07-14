@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Subscription",
     "identifier": "subscription",
     "version": "1.0.0",
@@ -7,7 +7,7 @@
     "min_app_version": "0.10.0",
     "category": "Core",
     "tags": ["subscription", "payment", "billing"],
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "trial_days": 0,

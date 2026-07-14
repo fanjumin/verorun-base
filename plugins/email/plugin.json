@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Email Service",
     "identifier": "email",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "Email Service — SMTP/IMAP email client with inbox, compose, attachments, and contact management",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "smtp_host": "smtp.qiye.aliyun.com",

@@ -1,11 +1,11 @@
-{
+﻿{
     "name": "Captcha Service",
     "identifier": "captcha_embedded",
     "version": "0.1.0",
     "description": "Slider Captcha — Puzzle generation + behavior analysis + rate limiting",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {},
     "permissions": [

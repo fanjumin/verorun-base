@@ -1,7 +1,8 @@
 # 插件系统开发指南（Plugin System API Reference）
 
 > VeroRun 维洛智能建站系统通用插件框架  
-> 版本：v1.0 | 更新日期：2026-07-07
+> 版本：v1.1 | 更新日期：2026-07-14  
+> 字段规范已对齐 [plugin-standard-v1.1.md](plugin-standard-v1.1.md)
 
 ---
 
@@ -15,6 +16,9 @@
 6. [插件元数据](#6-插件元数据)
 7. [集成示例](#7-集成示例)
 8. [最佳实践](#8-最佳实践)
+9. [Social Media Mini-Program Plugin Standard](#9-social-media-mini-program-plugin-standard)
+
+> **ℹ️ 完整插件规范**：`plugin.json` 所有字段的完整 Schema、v1.1 新增字段（`identifier`、`category`、`icon`、`tags`、`agents`、`dashboard`、`settings_schema`）、生命周期、模型策略等详见 [plugin-standard-v1.1.md](plugin-standard-v1.1.md)。
 
 ---
 
@@ -101,7 +105,7 @@ class DemoHelloPlugin(BasePlugin):
     "version": "0.1.0",
     "description": "示例演示插件",
     "author": "EasyKai",
-    "depends_on": [],
+    "dependencies": {},
     "enabled": true,
     "config": {
         "greeting": "Hello World"
@@ -147,8 +151,10 @@ Platform/Admin 启动
 | `version` | str | 版本号，格式 `0.1.0` |
 | `description` | str | 插件功能描述 |
 | `author` | str | 插件作者 |
-| `depends_on` | list[str] | 依赖的其他插件 name 列表 |
+| `dependencies` | dict | 依赖的其他插件 `{identifier: version_spec}`，示例 `{"reviews": ">=1.0.0"}` |
 | `config_schema` | dict | 配置项定义（可选） |
+
+> 完整字段列表（含 `identifier`、`category`、`agents`、`dashboard` 等 v1.1 新增字段）见 [plugin-standard-v1.1.md](plugin-standard-v1.1.md)。
 
 #### 3.1.2 生命周期方法
 
@@ -337,7 +343,9 @@ from plugins import (
     "version": "0.1.0",
     "description": "插件功能描述（支持 i18n）",
     "author": "作者",
-    "depends_on": ["other_plugin"],
+    "dependencies": {
+        "reviews": ">=1.0.0"
+    },
     "enabled": true,
     "config": {
         "key": "value"
@@ -345,15 +353,17 @@ from plugins import (
 }
 ```
 
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `name` | 是 | 唯一标识，与目录名一致 |
-| `version` | 是 | 语义化版本号 |
-| `description` | 是 | 功能描述 |
-| `author` | 是 | 插件作者 |
-| `depends_on` | 否 | 依赖插件列表 |
-| `enabled` | 否 | 是否启用，默认 `true` |
-| `config` | 否 | 插件自定义配置 |
+| 字段 | 必填 | 类型 | 说明 |
+|------|------|------|------|
+| `name` | 是 | string | 唯一标识，与目录名一致 |
+| `version` | 是 | string | 语义化版本号 |
+| `description` | 是 | string | 功能描述 |
+| `author` | 是 | string | 插件作者 |
+| `dependencies` | 否 | object | 依赖插件映射 `{identifier: version_spec}` |
+| `enabled` | 否 | bool | 是否启用，默认 `true` |
+| `config` | 否 | object | 插件自定义配置 |
+
+> 完整 `plugin.json` Schema（含 `identifier`、`category`、`icons`、`tags`、`settings_schema`、`permissions`、`agents`、`dashboard` 等 v1.1 字段）详见 [plugin-standard-v1.1.md](plugin-standard-v1.1.md)。
 
 ### 6.2 i18n 要求
 

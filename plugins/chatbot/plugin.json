@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "AI Advisor",
     "identifier": "chatbot",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "Site-wide AI advisor chatbot. Configuration and translations use the main system; data stays in the main database.",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "enabled": "1",

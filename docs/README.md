@@ -44,7 +44,9 @@
 |---|------|------|
 | 5 | [CMS — 内容管理系统](cms.md) | 文章/栏目/页面块、预览路由、内容净化、社交推送 |
 | 6 | [Content Factory — 内容工厂](content-factory.md) | 信息捕获 Pipeline：RSS → 采集 → AI 加工 → 发布 |
-| 7 | [Knowledge — 知识库 & 数据清洗](knowledge.md) | Cleaner Agent 全局知识库，RAG 检索，3 条调用路径 |
+| 7 | [知识库 & 数据清洗](知识库.md) | Cleaner Agent 全局知识库，RAG 检索，3 条调用路径 |
+| 8 | [Site Builder — AI 一键建站](site-builder.md) | LLM 驱动建站引擎、25+ API、设计令牌系统、提示词模板 |
+| 9 | [Mini-App Generator — 小程序生成器标准](mini-app-generator-standard.md) | 跨平台小程序生成器接口、模板规范、扩展指南 |
 
 ### 🛒 电商与支付
 
@@ -67,18 +69,12 @@
 |---|------|------|
 | 13 | [Theme System — 主题系统](theme.md) | 多站点独立主题，CSS 变量，Header/Footer 管理，模板覆盖 |
 
-### ☁️ 云服务
-
-| # | 文档 | 说明 |
-|---|------|------|
-| 14 | [Cloud Provisioner — 云服务自动开通](cloud-provisioner.md) | 下单支付后自动开通云资源，Provider 适配器架构 |
-
 ### 📚 开发参考
 
 | # | 文档 | 说明 |
 |---|------|------|
-| 15 | [API 参考 — 接口文档](api-reference.md) | 全平台 ~380+ API 端点，认证方式、请求/响应格式、错误码 |
-| 16 | [SDK 参考 — 开发工具包](sdk-reference.md) | Python/JavaScript SDK，客户端封装，SSE 流式，最佳实践 |
+| 14 | [API 参考 — 接口文档](api-reference.md) | 全平台 ~380+ API 端点，认证方式、请求/响应格式、错误码 |
+| 15 | [SDK 参考 — 开发工具包](sdk-reference.md) | Python/JavaScript SDK，客户端封装，SSE 流式，最佳实践 |
 
 ---
 
@@ -93,9 +89,8 @@
 | AI Agent 怎么调？ | [Agent Matrix](agent-matrix.md) → API 参考 |
 | 套餐价格怎么改？ | [Payment](payment.md) → 套餐管理 |
 | 1688 商品怎么同步？ | [Alibaba Integration](alibaba-integration.md) → 管理后台接口 |
-| 云服务器自动开通？ | [Cloud Provisioner](cloud-provisioner.md) → 开通流程 |
 | 主题颜色怎么改？ | [Theme System](theme.md) → CSS 变量系统 |
-| 知识库数据怎么来？ | [Knowledge](knowledge.md) → 3 条调用路径 |
+| 知识库数据怎么来？ | [知识库](知识库.md) → 3 条调用路径 |
 
 ---
 

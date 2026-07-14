@@ -1,7 +1,7 @@
 # VeroRon 维洛智能 — SDK 使用参考文档
 
-> 版本: v1.0  
-> 最后更新: 2026-07-07  
+> 版本: v1.1  
+> 最后更新: 2026-07-14  
 > 适用平台: Python 3.10+, JavaScript (浏览器/Node.js)
 
 ---
@@ -22,7 +22,21 @@
 
 ### 1.1 什么是 SDK
 
-SDK（Software Development Kit）是为开发者提供的代码库封装，用于简化与 VeroRon 维洛智能 平台 API 的交互。当前系统**不提供独立安装的 SDK 包**，但提供了可直接集成到项目中的 Python 和 JavaScript 客户端示例代码。
+SDK（Software Development Kit）是为开发者提供的代码库封装，用于简化与 VeroRon 维洛智能 平台 API 的交互。
+
+**Python SDK**：可直接集成到项目中的客户端示例代码（见 §2）。
+
+**JavaScript / TypeScript SDK**：
+
+| 包名 | 目录 | 安装方式 |
+|------|------|----------|
+| `@verorun/sdk-common` | `sdks/common/` | `npm install @verorun/sdk-common` |
+| `@verorun/sdk-wechat` | `sdks/wechat/` | `npm install @verorun/sdk-wechat` |
+| `@verorun/sdk-douyin` | `sdks/douyin/` | `npm install @verorun/sdk-douyin` |
+| `@verorun/sdk-telegram` | `sdks/telegram/` | `npm install @verorun/sdk-telegram` |
+| `@verorun/sdk-line` | `sdks/line/` | `npm install @verorun/sdk-line` |
+
+各包附带 TypeScript 类型定义（`.d.ts`），在支持类型检查的 IDE 中获得自动补全和类型校验。
 
 ### 1.2 架构概览
 

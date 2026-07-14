@@ -1,4 +1,4 @@
-{
+﻿{
     "name": "Enterprise Verification",
     "identifier": "enterprise_verify",
     "version": "0.1.0",
@@ -8,7 +8,7 @@
     "description": "Enterprise Verification — OCR business license recognition + AI auto-audit",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "depends_on": {},
+    "dependencies": {},
     "enabled": true,
     "config": {
         "siliconflow_api_key": "",
