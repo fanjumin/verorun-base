@@ -15,15 +15,26 @@ _DB_PATH = os.path.join(_DATA_DIR, 'payment.db')
 os.makedirs(_DATA_DIR, exist_ok=True)
 
 _payment_conn = None
+_conn_lock = __import__('threading').Lock()
 
 
 def get_payment_db():
+    """获取支付数据库连接（线程安全，自动重连）"""
     global _payment_conn
-    if _payment_conn is None:
-        _payment_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-        _payment_conn.row_factory = sqlite3.Row
-        _payment_conn.execute("PRAGMA journal_mode=WAL")
-        _payment_conn.execute("PRAGMA busy_timeout=5000")
+    with _conn_lock:
+        if _payment_conn is None:
+            _payment_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+            _payment_conn.row_factory = sqlite3.Row
+            _payment_conn.execute("PRAGMA journal_mode=WAL")
+            _payment_conn.execute("PRAGMA busy_timeout=5000")
+        else:
+            try:
+                _payment_conn.execute("SELECT 1").fetchone()
+            except sqlite3.ProgrammingError:
+                _payment_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+                _payment_conn.row_factory = sqlite3.Row
+                _payment_conn.execute("PRAGMA journal_mode=WAL")
+                _payment_conn.execute("PRAGMA busy_timeout=5000")
     return _payment_conn
 
 

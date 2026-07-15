@@ -10,11 +10,6 @@ import sys
 
 from flask import Blueprint, request, jsonify
 
-# 首次导入时初始化独立数据库
-from plugins.payment.models import init_payment_tables, migrate_from_main_db
-init_payment_tables()
-migrate_from_main_db()
-
 payment_admin_bp = Blueprint('payment_admin', __name__, url_prefix='/admin/payment')
 
 # 支持的提供商及字段定义
@@ -113,10 +108,10 @@ def get_providers():
 @payment_admin_bp.route('/configs', methods=['GET'])
 def get_all_configs():
     """获取所有支付提供商当前配置"""
-    a, e = _require_admin()
-    if e:
-        return e
     try:
+        a, e = _require_admin()
+        if e:
+            return e
         from plugins.payment.models import get_all_providers_summary
         summary = get_all_providers_summary()
         return jsonify({'success': True, 'data': summary})
@@ -124,7 +119,7 @@ def get_all_configs():
         import traceback
         tb = traceback.format_exc()
         print(f'[PaymentPlugin] ERROR /admin/payment/configs: {ex}\n{tb}')
-        return jsonify({'success': False, 'error': repr(ex), 'traceback': tb.split(chr(10))}), 500
+        return jsonify({'success': False, 'error': repr(ex)})
 
 
 # ── API: 获取单个提供商配置 ──
