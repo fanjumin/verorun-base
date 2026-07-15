@@ -223,6 +223,22 @@ TOOL_SCHEMAS = {
             }
         }
     },
+    "generate_markdown": {
+        "type": "function",
+        "function": {
+            "name": "generate_markdown",
+            "description": "使用 AI 生成 Markdown 文档。根据用户提供主题和格式要求，生成可直接预览或下载的 .md 文件。支持文章、报告、技术文档、笔记等。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "文档主题（必填）"},
+                    "outline": {"type": "string", "description": "大纲要求，可选章节或要点"},
+                    "style": {"type": "string", "description": "风格，可选 technical/professional/creative/simple/list", "default": "technical"}
+                },
+                "required": ["topic"]
+            }
+        }
+    },
 }
 
 
@@ -535,6 +551,81 @@ def _tool_generate_image(args):
         return f'❌ 图像生成异常: {e}'
 
 
+def _tool_generate_markdown(args):
+    """使用 AI 生成 Markdown 文档"""
+    try:
+        topic = str(args.get('topic', '')).strip()
+        if not topic:
+            return '❌ 请提供文档主题'
+        outline = str(args.get('outline', ''))
+        style = str(args.get('style', 'technical'))
+
+        style_prompt = {
+            'technical': '技术文档风格，结构清晰、层次分明、专业术语使用英文',
+            'professional': '商务报告风格，语言正式、段落完整、结论明确',
+            'creative': '创意写作风格，语言生动、有感染力',
+            'simple': '简洁风格，要点式罗列，便于快速阅读',
+            'list': '清单/列表风格，以条目和子条目为主',
+        }.get(style, '技术文档风格')
+
+        prompt_text = f'请撰写一篇关于"{topic}"的Markdown文档。\n风格要求：{style_prompt}'
+        if outline:
+            prompt_text += f'\n大纲要求：{outline}'
+        prompt_text += '\n请直接输出Markdown格式内容，包含标题（#）、段落、列表、代码块等格式化元素。'
+
+        # 读取 SiliconFlow API Key（走硅基流动默认）
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM system_config WHERE key='siliconflow_api_key'").fetchone()
+        api_key = row['value'] if row else os.environ.get('SILICONFLOW_API_KEY', '')
+        if not api_key:
+            # 兜底 dashscope
+            with get_db() as conn:
+                row = conn.execute("SELECT value FROM system_config WHERE key='dashscope_text_key'").fetchone()
+            if row:
+                api_key = row['value']
+                base_url = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+                model = 'qwen-turbo'
+            else:
+                return '❌ API Key 未配置，请在系统设置中配置硅基流动或阿里云 API Key'
+        else:
+            base_url = 'https://api.siliconflow.cn/v1'
+            model = 'Qwen/Qwen2.5-14B-Instruct'
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {'role': 'system', 'content': '你是专业文档撰写助手。只输出 Markdown 内容，不包含多余说明。'},
+                {'role': 'user', 'content': prompt_text}
+            ],
+            temperature=0.5,
+            max_tokens=4096
+        )
+        content = resp.choices[0].message.content or ''
+        if not content.strip():
+            return '❌ AI 内容生成为空，请重试'
+
+        # 保存为 .md 文件
+        import uuid
+        media_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'media', 'temp')
+        os.makedirs(media_dir, exist_ok=True)
+        fn = f"md_{uuid.uuid4().hex[:8]}.md"
+        fp = os.path.join(media_dir, fn)
+        with open(fp, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        download_url = f'/admin/agent-matrix/media/download/{fn}'
+        preview_url = f'/admin/agent-matrix/md-preview/{fn}'
+        preview = content[:200].strip().replace('\n', ' ')
+        return f'✅ 文档已生成："{topic}"\n预览：{preview}...\n文件：{fn}\n预览链接：{preview_url}\n下载链接：{download_url}'
+
+    except Exception as e:
+        logger.warning(f"[tool:generate_markdown] 执行失败: {e}")
+        return f'❌ Markdown 生成异常: {e}'
+
+
 TOOL_EXECUTORS = {
     "get_system_health": _tool_get_system_health,
     "query_stats": _tool_query_stats,
@@ -548,6 +639,7 @@ TOOL_EXECUTORS = {
     "ads_render_snippet": _tool_ads_render_snippet,
     "generate_ppt": _tool_generate_ppt,
     "generate_image": _tool_generate_image,
+    "generate_markdown": _tool_generate_markdown,
 }
 
 

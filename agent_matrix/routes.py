@@ -805,6 +805,23 @@ def agent_media_download(filename):
     return send_from_directory(media_dir, filename, as_attachment=True, download_name=filename)
 
 
+@agent_matrix_bp.route('/md-preview/<filename>')
+def agent_md_preview(filename):
+    """渲染 Markdown 文件为 HTML 预览"""
+    import markdown as _md
+    media_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'media', 'temp')
+    fp = os.path.join(media_dir, filename)
+    if not os.path.exists(fp):
+        return jsonify({'success': False, 'error': '文件不存在'}), 404
+    try:
+        with open(fp, 'r', encoding='utf-8') as f:
+            md_content = f.read()
+        html = _md.markdown(md_content, extensions=['fenced_code', 'tables', 'nl2br'])
+        return jsonify({'success': True, 'html': html, 'filename': filename})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @agent_matrix_bp.route('/chat/history', methods=['GET'])
 def chat_history():
     admin, err = _require_admin()

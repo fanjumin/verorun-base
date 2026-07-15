@@ -4,6 +4,10 @@ window.l_ai_chat=function(){
   mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Load Chats') }}...</div>';
   var h='';
 
+  // ── Flex layout: left chat + right preview ──
+  h+='<div class="aiChatFlex" style="display:flex;gap:12px">';
+  h+='<div class="aiChatLeft" style="flex:1;min-width:0">';
+
   // Stats summary
   h+='<div class="cd" style="margin-bottom:12px;border-color:rgba(0,212,170,.3)">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center">';
@@ -69,7 +73,20 @@ window.l_ai_chat=function(){
   h+='<button class="btn bo bs" style="font-size:10px;padding:2px 6px;color:#f85149" onclick="aiBatchDelete()">🗑️ {{ _('Batch Delete') }}</button>';
   h+='</div>';
   h+='<div id="aiSessions"><div class="lo"><div class="s"></div></div></div>';
+  h+='</div>'; // end cd: Chat History
+
+  h+='</div>'; // end aiChatLeft
+
+  // ── Right preview panel ──
+  h+='<div id="aiPreviewPanel" style="width:380px;display:none;flex-shrink:0;background:rgba(0,0,0,.15);border-radius:8px;padding:12px;overflow-y:auto;max-height:620px;font-size:13px;line-height:1.7;position:sticky;top:4px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  h+='<div style="font-size:13px;font-weight:600">📄 {{ _('Preview') }}</div>';
+  h+='<button class="btn bo bs" style="font-size:10px;padding:2px 6px" onclick="aiClosePreview()">✕</button>';
   h+='</div>';
+  h+='<div id="aiPreviewContent" style="word-break:break-word"></div>';
+  h+='</div>'; // end aiPreviewPanel
+
+  h+='</div>'; // end aiChatFlex
 
   mc.innerHTML=h;
 
@@ -560,9 +577,38 @@ function aiSend(){
     }
     msgs.innerHTML+=block;
     msgs.scrollTop=msgs.scrollHeight;
+    // Auto-preview markdown if detected in summary
+    (function(){
+      var m=summary.match(/预览链接：([^\s\n]+)/);
+      if(m&&m[1]){ aiPreviewMd(m[1]); }
+    })();
   }).catch(function(){
     msgs.innerHTML=msgs.innerHTML.replace('{{ _('Thinking') }}...','<span style="color:#f85149">{{ _('Network error') }}</span>');
   });
+}
+
+function aiPreviewMd(url){
+  var panel=document.getElementById("aiPreviewPanel");
+  var content=document.getElementById("aiPreviewContent");
+  if(!panel||!content)return;
+  content.innerHTML='<div class="lo"><div class="s"></div></div>';
+  panel.style.display="block";
+  fetch(url,{headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success&&d.html){
+        content.innerHTML='<div style="max-width:100%;overflow-x:auto">'+d.html+'</div>';
+      }else{
+        content.innerHTML='<div style="color:#f85149">{{ _('Preview Failed') }}: '+esc(d.error||"")+'</div>';
+      }
+    }).catch(function(e){
+      content.innerHTML='<div style="color:#f85149">{{ _('Network error') }}</div>';
+    });
+}
+
+function aiClosePreview(){
+  var panel=document.getElementById("aiPreviewPanel");
+  if(panel)panel.style.display="none";
 }
 
 function aiLoadSession(sid){
