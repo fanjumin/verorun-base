@@ -452,7 +452,7 @@ def mp_chat_stream():
     try:
         from routes.api_v1 import _get_chatbot_config, _get_chatbot_agent, _route_agent_by_intent
         cfg = _get_chatbot_config()
-        agent = _route_agent_by_intent(intent) or _get_chatbot_agent(cfg.get('agent_id', 'kai_assistant'))
+        agent = _route_agent_by_intent(intent) or _get_chatbot_agent(cfg.get('agent_id', 'chat_assistant'))
     except Exception:
         cfg = {'provider': 'dashscope', 'model_name': 'qwen-turbo', 'max_history': '20'}
         agent = None
@@ -561,7 +561,7 @@ def mp_chat_send():
         rag_context = _build_rag_context(knowledge)
 
         cfg = _get_chatbot_config()
-        agent = _get_chatbot_agent(cfg.get('agent_id', 'kai_assistant'))
+        agent = _get_chatbot_agent(cfg.get('agent_id', 'chat_assistant'))
 
         system_prompt = agent.get('system_prompt', '') if agent else ''
         if rag_context:

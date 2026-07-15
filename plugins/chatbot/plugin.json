@@ -18,7 +18,7 @@
         "welcome_message": "Hello! I am your AI advisor. How can I help you today?",
         "help_hint": "Type help to see what I can do for you",
         "avatar_url": "",
-        "agent_id": "kai_assistant",
+        "agent_id": "chat_assistant",
         "max_history": "20",
         "float_button_text": "AI Advisor",
         "handoff_keywords": "[\"人工\", \"客服\", \"转人工\", \"联系真人\", \"联系工作人员\", \"商务\", \"合作\", \"投诉\", \"定制\", \"开发\"]",
@@ -32,7 +32,7 @@
     "agents": [
         {
             "name": "Advisor Agent",
-            "identifier": "kai_assistant",
+            "identifier": "chat_assistant",
             "role_type": "sub",
             "domain": "chatbot",
             "prompt_file": "prompts/sub_chatbot_prompt.md",

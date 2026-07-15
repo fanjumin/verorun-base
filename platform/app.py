@@ -204,7 +204,7 @@ def _chatbot_context():
         'chatbot_welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
         'chatbot_help_hint': 'Type help to see what I can do for you',
         'chatbot_avatar_url': '',
-        'chatbot_agent_id': 'kai_assistant',
+        'chatbot_agent_id': 'chat_assistant',
         'chatbot_max_history': 20,
         'chatbot_float_button_text': 'AI Advisor'
     }

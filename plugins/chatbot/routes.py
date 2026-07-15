@@ -127,7 +127,7 @@ def get_settings():
         'subtitle': 'Powered by AI Engine',
         'welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
         'help_hint': 'Type help to see what I can do for you',
-        'avatar_url': '', 'agent_id': 'kai_assistant', 'max_history': '20',
+        'avatar_url': '', 'agent_id': 'chat_assistant', 'max_history': '20',
         'float_button_text': 'AI Advisor'
     }
 

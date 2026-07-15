@@ -43,11 +43,11 @@ def _call_ai(user_query, session_id=''):
     cfg = get_all_configs('chatbot')
     if not cfg:
         cfg = {
-            'enabled': '1', 'agent_id': 'kai_assistant',
+            'enabled': '1', 'agent_id': 'chat_assistant',
             'provider': 'dashscope', 'model_name': 'qwen-turbo'
         }
 
-    agent = get_agent(cfg.get('agent_id', 'kai_assistant'))
+    agent = get_agent(cfg.get('agent_id', 'chat_assistant'))
 
     if agent and agent.get('system_prompt'):
         system_prompt = agent['system_prompt']

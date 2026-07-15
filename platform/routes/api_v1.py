@@ -380,7 +380,7 @@ def _get_chatbot_config():
         'welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
         'help_hint': 'Type help to see what I can do for you',
         'avatar_url': '',
-        'agent_id': 'kai_assistant',
+        'agent_id': 'chat_assistant',
         'max_history': '20',
         'float_button_text': 'AI Advisor'
     }
@@ -527,7 +527,7 @@ def chat_stream():
             except Exception:
                 pass
 
-            agent_id = cfg.get('agent_id', 'kai_assistant')
+            agent_id = cfg.get('agent_id', 'chat_assistant')
             agent = _route_agent_by_intent(route_intent) or _get_chatbot_agent(agent_id)
 
             if agent and agent.get('system_prompt'):

@@ -25,7 +25,7 @@ window.l_chatbot=function(){
       '<div id="cb-avatar-preview" style="margin-top:6px">';
     if(c.avatar_url)h+='<img src="'+esc(c.avatar_url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
     h+='</div></div></div>';
-    h+=_chatbotRow('agent_id',"{{ _('Bound Agent ID') }}",c.agent_id||'kai_assistant');
+    h+=_chatbotRow('agent_id',"{{ _('Bound Agent ID') }}",c.agent_id||'chat_assistant');
     h+=_chatbotRow('max_history',"{{ _('Max History Rounds') }}",c.max_history||'20');
     h+=_chatbotRow('float_button_text',"{{ _('Float Button Text') }}",c.float_button_text||'AI Advisor');
     h+='</div>';
