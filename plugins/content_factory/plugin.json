@@ -1,7 +1,7 @@
 {
     "name": "Content Factory",
     "identifier": "content_factory",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "category": "Content",
     "tags": ["content", "collection", "ai", "publishing", "rss", "skill"],
     "icon": "contentfactory",

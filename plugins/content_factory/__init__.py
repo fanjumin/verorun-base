@@ -26,9 +26,34 @@ def init_i18n(t_fn):
 
 class ContentFactoryPlugin(BasePlugin):
     name = 'content_factory'
-    version = '0.1.0'
+    version = '1.0.0'
     description = 'Content Factory — Collection, AI processing, review, publishing, skill push'
     author = 'VeroRun'
+
+    def get_config_value(self, key: str, default=None):
+        """优先 PluginManager，回退到 plugin.json 默认值"""
+        try:
+            mgr = getattr(self.app.extensions, 'get', lambda x: None)('plugin_manager')
+            if mgr:
+                pm_cfg = mgr.get_config(self.identifier) or {}
+                if key in pm_cfg:
+                    return pm_cfg[key]
+        except Exception:
+            pass
+        return self._config.get(key, default)
+
+    def set_config_value(self, key: str, value) -> bool:
+        """优先 PluginManager"""
+        try:
+            mgr = getattr(self.app.extensions, 'get', lambda x: None)('plugin_manager')
+            if mgr:
+                mgr.set_config_batch(self.identifier, {key: str(value)}, coerce=True)
+                self._config[key] = value
+                return True
+        except Exception:
+            pass
+        self._config[key] = value
+        return True
 
     def on_install(self, registry):
         """安装时初始化独立数据库"""
