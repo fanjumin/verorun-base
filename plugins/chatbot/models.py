@@ -183,14 +183,25 @@ def migrate_from_main():
         from models import get_db as get_main_db
 
         with get_main_db() as mc:
-            # 迁移 plugin_configs
-            rows = mc.execute(
+            # 迁移 plugin_configs（仅迁移 chatbot.db 中不存在的键，不覆盖已有值）
+            main_rows = mc.execute(
                 "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot'"
             ).fetchall()
-            if rows:
-                for r in rows:
-                    set_config('chatbot', r['key'], r['value'])
-                print(f'[ChatbotPlugin] 已迁移 {len(rows)} 条 plugin_configs')
+            migrated = 0
+            if main_rows:
+                local_keys = {
+                    r['key'] for r in conn.execute(
+                        'SELECT key FROM plugin_configs WHERE plugin_name=?', ('chatbot',)
+                    ).fetchall()
+                }
+                for r in main_rows:
+                    if r['key'] not in local_keys:
+                        set_config('chatbot', r['key'], r['value'])
+                        migrated += 1
+                if migrated:
+                    print(f'[ChatbotPlugin] 已迁移 {migrated}/{len(main_rows)} 条 plugin_configs（跳过已有）')
+                else:
+                    print(f'[ChatbotPlugin] 跳过迁移，所有 {len(main_rows)} 条 plugin_configs 均已存在')
 
             # 迁移 agent（仅迁移 chatbot 相关的 agent_matrix 记录）
             agent_rows = mc.execute(
