@@ -22,6 +22,7 @@
         ],
         "listens": []
     },
+    "admin_url": "/admin",
     "menu": {
         "group": "Payment & Operations",
         "key": "payment",

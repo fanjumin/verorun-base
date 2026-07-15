@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Developer Accounts",
     "identifier": "dev_accounts",
     "version": "1.0.0",
@@ -6,6 +6,7 @@
     "author": "VeroRun",
     "category": "admin",
     "permissions": ["admin"],
+    "admin_url": "/admin",
     "admin": {
         "menu": {
             "title": "Developer Accounts",
