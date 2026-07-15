@@ -1,122 +1,134 @@
 /**
  * 阿里巴巴API管理控制台 - 前端交互
- * 
- * 功能：
- * 1. 仪表板数据加载
- * 2. 商品列表/搜索
- * 3. 商品采集（单次/批量搜索）
- * 4. AI 多标题选项生成 + 选择
- * 5. 商品发布到本地商城
- * 6. API 日志查看
- * 7. 缓存管理
- * 8. 配置查看
+ * Admin dark theme version (no Bootstrap dependency)
  */
-
-// ===== 全局状态 =====
 let currentPage = 'dashboard';
 let currentProductPage = 1;
 let currentLogPage = 1;
-let currentAiItemId = null; // 当前正在AI处理的商品ID
+let currentAiItemId = null;
 
-// ===== CSRF 防护 + JWT 鉴权 =====
-// 从 iframe URL 读取 token（父页面通过 ?token= 传入），附加到所有请求
+// ===== auth =====
 const _pageToken = new URLSearchParams(location.search).get('token') || '';
-// 在所有 axios 请求中自动附加 CSRF Token + JWT
 axios.interceptors.request.use(function(config) {
     const csrfToken = getCookie('csrf_token');
-    if (csrfToken) {
-        config.headers['X-CSRF-Token'] = csrfToken;
-    }
-    if (_pageToken) {
-        config.headers['Authorization'] = 'Bearer ' + _pageToken;
-    }
+    if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
+    if (_pageToken) config.headers['Authorization'] = 'Bearer ' + _pageToken;
     return config;
-}, function(error) {
-    return Promise.reject(error);
-});
+}, function(error) { return Promise.reject(error); });
 
 function getCookie(name) {
     const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
     return match ? decodeURIComponent(match[2]) : null;
 }
 
-// ===== 工具函数 =====
+// ===== modal helpers =====
+function showModal(id) {
+    var el = document.getElementById(id);
+    if (el) el.className = 'mo show';
+}
+function closeModal(id) {
+    var el = document.getElementById(id);
+    if (el) el.className = 'mo';
+}
 
+// ===== utils =====
 function showLoading() {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'flex';
+    var el = document.getElementById('lo');
+    if (el) el.className = 'lo show';
 }
-
 function hideLoading() {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'none';
+    var el = document.getElementById('lo');
+    if (el) el.className = 'lo';
 }
-
-function showMessage(elementId, message, type = 'info') {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-    const alertClass = type === 'error' ? 'alert-danger' :
-                       type === 'success' ? 'alert-success' : 'alert-info';
-    element.innerHTML = `
-        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
+function showMessage(elementId, message, type) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var cls = type === 'error' ? 'msg err' : type === 'success' ? 'msg ok' : 'msg info';
+    el.innerHTML = '<div class="'+cls+'">'+message+'</div>';
 }
-
-function formatPrice(price) {
-    if (price === null || price === undefined) return '未定价';
-    return '¥' + parseFloat(price).toFixed(2);
+function formatPrice(p) {
+    if (p===null||p===undefined) return '未定价';
+    return '¥'+parseFloat(p).toFixed(2);
 }
-
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    try {
-        return new Date(dateStr).toLocaleString();
-    } catch {
-        return dateStr;
-    }
+function formatDate(d) {
+    if (!d) return '-';
+    try { return new Date(d).toLocaleString(); } catch(e) { return d; }
 }
-
 function getStatusBadge(status) {
-    const map = {
-        'active': '<span class="api-status status-active">活跃</span>',
-        'inactive': '<span class="api-status status-inactive">非活跃</span>',
-        'draft': '<span class="badge bg-secondary">草稿</span>',
-        'published': '<span class="badge bg-success">已发布</span>',
-        'unpublished': '<span class="badge bg-warning text-dark">已下架</span>',
-        'failed': '<span class="badge bg-danger">失败</span>',
+    var m = {
+        'active': '<span class="stbd on">活跃</span>',
+        'inactive': '<span class="stbd off">非活跃</span>',
+        'draft': '<span class="bdg gy">草稿</span>',
+        'published': '<span class="bdg g">已发布</span>',
+        'unpublished': '<span class="bdg y">已下架</span>',
+        'failed': '<span class="bdg r">失败</span>',
     };
-    return map[status] || `<span class="badge bg-light text-dark">${status}</span>`;
+    return m[status] || '<span class="bdg gy">'+status+'</span>';
 }
 
-// ===== 页面切换 =====
+// ===== navigation =====
+document.addEventListener('DOMContentLoaded', function() {
+    initNavigation();
+    loadDashboard();
+
+    document.getElementById('collect-single-btn')?.addEventListener('click', collectSingleProduct);
+    document.getElementById('search-collect-btn')?.addEventListener('click', searchCollect);
+    document.getElementById('ai-optimize-btn')?.addEventListener('click', async function() {
+        var id = document.getElementById('ai-product-id')?.value?.trim();
+        if (!id) { showMessage('ai-result', '请输入商品ID', 'error'); return; }
+        var n = parseInt(id);
+        if (isNaN(n)) { showMessage('ai-result', '请输入数字ID', 'error'); return; }
+        await generateAiTitles(n);
+    });
+    document.getElementById('product-search')?.addEventListener('keypress', function(e) { if (e.key==='Enter') loadProducts(1); });
+    document.getElementById('status-filter')?.addEventListener('change', function() { loadProducts(1); });
+    document.getElementById('filter-logs-btn')?.addEventListener('click', function() { loadLogs(1); });
+    document.getElementById('log-endpoint')?.addEventListener('keypress', function(e) { if (e.key==='Enter') loadLogs(1); });
+    document.getElementById('refresh-cache-stats')?.addEventListener('click', loadCacheStats);
+    document.getElementById('cache-type')?.addEventListener('change', function() {
+        var c = document.getElementById('product-id-container');
+        if (c) c.style.display = this.value === 'product' ? 'block' : 'none';
+    });
+    document.getElementById('clear-cache-btn')?.addEventListener('click', async function() {
+        if (!confirm('确定清理缓存？')) return;
+        var type = document.getElementById('cache-type')?.value || 'all';
+        var productId = document.getElementById('cache-product-id')?.value?.trim() || '';
+        var data = { type: type };
+        if (type==='product' && productId) data.product_id = productId;
+        try {
+            showLoading();
+            var res = await axios.post('/admin/ali-api/cache/clear', data);
+            if (res.data.success) { showMessage('clear-result', res.data.message, 'success'); loadCacheStats(); if (document.getElementById('cache-product-id')) document.getElementById('cache-product-id').value=''; }
+            else { showMessage('clear-result', '清理失败: '+res.data.error, 'error'); }
+        } catch(e) { showMessage('clear-result', '清理失败', 'error'); }
+        finally { hideLoading(); }
+    });
+    // upload zone
+    var uz = document.getElementById('upload-zone');
+    var ui = document.getElementById('image-upload-input');
+    if (uz && ui) {
+        uz.addEventListener('click', function() { ui.click(); });
+        ui.addEventListener('change', function() { if (this.files&&this.files.length>0&&_galleryItemId) { uploadGalleryImages(_galleryItemId, this.files); this.value=''; } });
+        uz.addEventListener('dragover', function(e) { e.preventDefault(); this.style.borderColor='var(--accent)'; this.style.background='rgba(0,245,255,0.05)'; });
+        uz.addEventListener('dragleave', function(e) { e.preventDefault(); this.style.borderColor=''; this.style.background='var(--bg)'; });
+        uz.addEventListener('drop', function(e) { e.preventDefault(); this.style.borderColor=''; this.style.background='var(--bg)'; if (e.dataTransfer.files&&e.dataTransfer.files.length>0&&_galleryItemId) uploadGalleryImages(_galleryItemId, e.dataTransfer.files); });
+    }
+});
+
 function initNavigation() {
-    document.querySelectorAll('[data-page]').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = this.getAttribute('data-page');
-            switchPage(page);
+    document.querySelectorAll('.tb-i').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var page = this.getAttribute('data-page');
+            document.querySelectorAll('.tb-i').forEach(function(b) { b.classList.remove('act'); });
+            this.classList.add('act');
+            document.querySelectorAll('.page').forEach(function(el) { el.style.display='none'; });
+            var p = document.getElementById(page+'-page');
+            if (p) p.style.display='block';
+            currentPage = page;
+            loadPageData(page);
         });
     });
 }
-
-function switchPage(page) {
-    // 更新导航状态
-    document.querySelectorAll('.nav-link').forEach(nav => nav.classList.remove('active'));
-    const navLink = document.querySelector(`[data-page="${page}"]`);
-    if (navLink) navLink.classList.add('active');
-
-    // 切换页面
-    document.querySelectorAll('.page').forEach(el => el.style.display = 'none');
-    const pageEl = document.getElementById(`${page}-page`);
-    if (pageEl) pageEl.style.display = 'block';
-
-    currentPage = page;
-    loadPageData(page);
-}
-
 function loadPageData(page) {
     switch(page) {
         case 'dashboard': loadDashboard(); break;
@@ -128,883 +140,343 @@ function loadPageData(page) {
     }
 }
 
-// ===== 仪表板 =====
+// ===== dashboard =====
 async function loadDashboard() {
     try {
         showLoading();
-        const res = await axios.get('/admin/ali-api/dashboard');
+        var res = await axios.get('/admin/ali-api/dashboard');
         if (!res.data.success) return;
-
-        const d = res.data.data;
+        var d = res.data.data;
         document.getElementById('total-items').textContent = d.items.total;
         document.getElementById('active-items').textContent = d.items.active;
         document.getElementById('total-calls').textContent = d.api_calls.total;
         document.getElementById('today-calls').textContent = d.api_calls.today;
         document.getElementById('total-users').textContent = d.users.total;
-
-        // AI状态
-        const aiStatus = document.getElementById('ai-status');
-        const aiProvider = document.getElementById('ai-provider');
-        if (d.ai.available) {
-            aiStatus.textContent = '可用';
-            aiStatus.className = 'api-status status-active';
-            aiProvider.textContent = d.ai.provider;
-        } else {
-            aiStatus.textContent = '不可用';
-            aiStatus.className = 'api-status status-inactive';
-            aiProvider.textContent = '未配置';
-        }
-
+        var aiS = document.getElementById('ai-status');
+        var aiP = document.getElementById('ai-provider');
+        if (d.ai.available) { aiS.textContent='可用'; aiS.className='v s4'; aiP.textContent=d.ai.provider; }
+        else { aiS.textContent='不可用'; aiS.className='v'; aiS.style.color='#f85149'; aiP.textContent='未配置'; }
         updateRateLimitStats(d.rate_limit);
         updateCacheStats(d.cache);
-    } catch (e) {
-        console.error('仪表板加载失败', e);
-    } finally {
-        hideLoading();
-    }
+    } catch(e) { console.error('dashboard load failed', e); }
+    finally { hideLoading(); }
+}
+function updateRateLimitStats(s) {
+    var el = document.getElementById('rate-limit-stats');
+    if (!el || !s) return;
+    el.innerHTML = '<div><div style="font-size:11px;color:var(--dim)">用户限流</div><div style="font-size:12px;color:var(--muted);margin-top:4px">每日剩余: '+(s.user_limits?.daily_remaining??'-')+'/'+(s.user_limits?.daily_limit??'-')+'<br>每小时剩余: '+(s.user_limits?.hourly_remaining??'-')+'/'+(s.user_limits?.hourly_limit??'-')+'</div></div><div><div style="font-size:11px;color:var(--dim)">并发控制</div><div style="font-size:12px;color:var(--muted);margin-top:4px">活跃请求: '+(s.concurrent?.active_requests??0)+'/'+(s.concurrent?.max_concurrent??'-')+'<br>当前QPS: '+(s.concurrent?.current_qps??0)+'/'+(s.concurrent?.qps_limit??'-')+'</div></div>';
+}
+function updateCacheStats(s) {
+    var el = document.getElementById('cache-stats');
+    if (!el || !s) return;
+    var rc = s.redis?.connected;
+    el.innerHTML = '<div><div style="font-size:11px;color:var(--dim)">Redis</div><div style="font-size:12px;color:var(--muted);margin-top:4px">状态: '+(rc?'<span class="stbd on">已连接</span>':'<span class="stbd off">未连接</span>')+(rc?'<br>内存: '+(s.redis.used_memory||'N/A'):'<br>使用内存缓存')+'</div></div><div><div style="font-size:11px;color:var(--dim)">内存缓存</div><div style="font-size:12px;color:var(--muted);margin-top:4px">条目: '+(s.memory?.size??0)+'/'+(s.memory?.maxsize??'-')+'<br>TTL: '+(s.memory?.ttl??'-')+'秒</div></div>';
 }
 
-function updateRateLimitStats(stats) {
-    const el = document.getElementById('rate-limit-stats');
-    if (!el || !stats) return;
-    el.innerHTML = `
-        <div class="col-md-6">
-            <h6><i class="bi bi-person"></i> 用户限流</h6>
-            <p>每日剩余: ${stats.user_limits?.daily_remaining ?? '-'}/${stats.user_limits?.daily_limit ?? '-'}</p>
-            <p>每小时剩余: ${stats.user_limits?.hourly_remaining ?? '-'}/${stats.user_limits?.hourly_limit ?? '-'}</p>
-        </div>
-        <div class="col-md-6">
-            <h6><i class="bi bi-globe"></i> 并发控制</h6>
-            <p>活跃请求: ${stats.concurrent?.active_requests ?? 0}/${stats.concurrent?.max_concurrent ?? '-'}</p>
-            <p>当前QPS: ${stats.concurrent?.current_qps ?? 0}/${stats.concurrent?.qps_limit ?? '-'}</p>
-        </div>
-    `;
-}
-
-function updateCacheStats(stats) {
-    const el = document.getElementById('cache-stats');
-    if (!el || !stats) return;
-    const redisConnected = stats.redis?.connected;
-    el.innerHTML = `
-        <div class="col-md-6">
-            <h6><i class="bi bi-database"></i> Redis</h6>
-            <p>状态: ${redisConnected ? '<span class="api-status status-active">已连接</span>' : '<span class="api-status status-inactive">未连接</span>'}</p>
-            ${redisConnected ? `<p>内存: ${stats.redis.used_memory || 'N/A'}</p>` : '<p>使用内存缓存</p>'}
-        </div>
-        <div class="col-md-6">
-            <h6><i class="bi bi-memory"></i> 内存缓存</h6>
-            <p>条目: ${stats.memory?.size ?? 0}/${stats.memory?.maxsize ?? '-'}</p>
-            <p>TTL: ${stats.memory?.ttl ?? '-'}秒</p>
-        </div>
-    `;
-}
-
-// ===== 商品管理 =====
+// ===== products =====
 async function loadProducts(page) {
-    if (page === undefined) page = currentProductPage;
+    if (page===undefined) page=currentProductPage;
     try {
         showLoading();
-        const status = document.getElementById('status-filter')?.value || 'active';
-        const keyword = document.getElementById('product-search')?.value || '';
-        let url = `/admin/ali-api/items?page=${page}&per_page=20&status=${status}`;
-        if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
-
-        const res = await axios.get(url);
-        if (res.data.success) {
-            updateProductsTable(res.data.data.items);
-            updateProductsPagination(res.data.data.pagination);
-            currentProductPage = page;
-        }
-    } catch (e) {
-        console.error('加载商品失败:', e);
-        showMessage('products-table', '加载商品失败', 'error');
-    } finally {
-        hideLoading();
-    }
+        var status = document.getElementById('status-filter')?.value||'active';
+        var kw = document.getElementById('product-search')?.value||'';
+        var url = '/admin/ali-api/items?page='+page+'&per_page=20&status='+status;
+        if (kw) url+='&keyword='+encodeURIComponent(kw);
+        var res = await axios.get(url);
+        if (res.data.success) { updateProductsTable(res.data.data.items); updateProductsPagination(res.data.data.pagination); currentProductPage=page; }
+    } catch(e) { console.error('load products failed', e); showMessage('products-table', '加载商品失败', 'error'); }
+    finally { hideLoading(); }
 }
-
 function updateProductsTable(items) {
-    const tbody = document.getElementById('products-table');
+    var tbody = document.getElementById('products-table');
     if (!tbody) return;
-
-    if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">暂无商品数据</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = items.map(item => {
-        const images = parseJsonField(item.images, []);
-        const imgHtml = images.length > 0
-            ? `<img src="${escHtml(images[0])}" class="product-image" alt="图片" onerror="safeImgOnError.call(this)">`
-            : '<div class="product-image bg-light d-flex align-items-center justify-content-center text-muted" style="font-size:12px">无图</div>';
-
-        return `<tr>
-            <td>${item.id}</td>
-            <td>${imgHtml}</td>
-            <td>
-                <strong>${escHtml(item.title || item.original_title || '无标题')}</strong><br>
-                <small class="text-muted">ID: ${escHtml(item.product_id)}</small>
-            </td>
-            <td>${formatPrice(item.price)}</td>
-            <td>${escHtml(item.category || '未分类')}</td>
-            <td>${getStatusBadge(item.status)}<br>${getStatusBadge(item.publish_status)}</td>
-            <td>${formatDate(item.updated_at)}</td>
-            <td>
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-primary" title="查看" onclick="viewProduct(${item.id})"><i class="bi bi-eye"></i></button>
-                    <button class="btn btn-outline-secondary" title="图片" onclick="openImageGallery(${item.id})"><i class="bi bi-images"></i></button>
-                    <button class="btn btn-outline-info" title="AI标题" onclick="generateAiTitles(${item.id})"><i class="bi bi-magic"></i></button>
-                    <button class="btn btn-outline-success" title="发布" onclick="publishProduct(${item.id})" ${item.publish_status === 'published' ? 'disabled' : ''}><i class="bi bi-upload"></i></button>
-                </div>
-            </td>
-        </tr>`;
+    if (!items||items.length===0) { tbody.innerHTML='<tr><td colspan="8" class="tc dim" style="padding:20px">暂无商品数据</td></tr>'; return; }
+    tbody.innerHTML = items.map(function(item) {
+        var imgs = parseJsonField(item.images, []);
+        var imgH = imgs.length>0 ? '<img src="'+escHtml(imgs[0])+'" class="pr-img" alt="图片" onerror="safeImgOnError.call(this)">' : '<div class="pr-img no">无图</div>';
+        return '<tr><td>'+item.id+'</td><td>'+imgH+'</td><td><strong>'+escHtml(item.title||item.original_title||'无标题')+'</strong><br><span class="dim" style="font-size:10px">ID: '+escHtml(item.product_id)+'</span></td><td>'+formatPrice(item.price)+'</td><td>'+escHtml(item.category||'未分类')+'</td><td>'+getStatusBadge(item.status)+'<br>'+getStatusBadge(item.publish_status)+'</td><td>'+formatDate(item.updated_at)+'</td><td><div style="display:flex;gap:3px">'+
+            '<button class="btn bs" title="查看" onclick="viewProduct('+item.id+')">&#x1F441;</button>'+
+            '<button class="btn bs" title="图片" onclick="openImageGallery('+item.id+')">&#x1F5BC;</button>'+
+            '<button class="btn bs" title="AI标题" onclick="generateAiTitles('+item.id+')">&#x2728;</button>'+
+            '<button class="btn bs" title="发布" onclick="publishProduct('+item.id+')"'+(item.publish_status==='published'?' disabled':'')+'>&#x2B06;</button>'+
+            '</div></td></tr>';
     }).join('');
 }
-
-function updateProductsPagination(pagination) {
-    const el = document.getElementById('products-pagination');
+function updateProductsPagination(p) {
+    var el = document.getElementById('products-pagination');
     if (!el) return;
-    const { page, total_pages } = pagination;
-    let html = '';
-
-    // prev
-    html += page > 1
-        ? `<li class="page-item"><a class="page-link" href="#" onclick="loadProducts(${page-1});return false;">上一页</a></li>`
-        : `<li class="page-item disabled"><a class="page-link">上一页</a></li>`;
-
-    // pages
-    const start = Math.max(1, page - 2);
-    const end = Math.min(total_pages, page + 2);
-    for (let i = start; i <= end; i++) {
-        html += i === page
-            ? `<li class="page-item active"><a class="page-link">${i}</a></li>`
-            : `<li class="page-item"><a class="page-link" href="#" onclick="loadProducts(${i});return false;">${i}</a></li>`;
-    }
-
-    // next
-    html += page < total_pages
-        ? `<li class="page-item"><a class="page-link" href="#" onclick="loadProducts(${page+1});return false;">下一页</a></li>`
-        : `<li class="page-item disabled"><a class="page-link">下一页</a></li>`;
-
-    el.innerHTML = html;
+    var page=p.page, total=p.total_pages;
+    var h='';
+    h+=page>1?'<a onclick="loadProducts('+(page-1)+');return false;">上一页</a>':'<a class="dis">上一页</a>';
+    var start=Math.max(1,page-2), end=Math.min(total,page+2);
+    for(var i=start;i<=end;i++) h+=i===page?'<a class="act">'+i+'</a>':'<a onclick="loadProducts('+i+');return false;">'+i+'</a>';
+    h+=page<total?'<a onclick="loadProducts('+(page+1)+');return false;">下一页</a>':'<a class="dis">下一页</a>';
+    el.innerHTML=h;
 }
-
 async function viewProduct(itemId) {
     try {
-        const res = await axios.get(`/admin/ali-api/items/${itemId}`);
-        if (!res.data.success) { alert('获取失败: ' + res.data.error); return; }
-        const p = res.data.data;
-        
-        // 解析字段显示
-        const specs = parseJsonField(p.specs, {});
-        const sku = parseJsonField(p.product_sku, []);
-        const images = parseJsonField(p.images, []);
-        const titleOptions = parseJsonField(p.ai_title_options, []);
-
-        let detail = `📝 商品详情
-━━━━━━━━━━━━━━━
-ID: ${p.id}
-商品ID: ${p.product_id}
-标题: ${p.title || p.original_title || '-'}
-`;
-        if (p.ai_title) detail += `AI标题: ${p.ai_title}\n`;
-        if (p.selected_title) detail += `已选标题: ${p.selected_title}\n`;
-        detail += `价格: ${formatPrice(p.price)}
-原价: ${formatPrice(p.original_price)}
-类目: ${p.category || '-'}
-状态: ${p.status} | 发布: ${p.publish_status}
-图片: ${images.length} 张`;
-        if (p.target_product_id) detail += `本地商品ID: ${p.target_product_id}\n`;
-        if (Object.keys(specs).length > 0) detail += `规格: ${JSON.stringify(specs, null, 2)}\n`;
-        if (sku.length > 0) detail += `SKU: ${sku.length} 个\n`;
-        if (images.length > 0) {
-            detail += `\n图片列表:\n`;
-            images.forEach((img, i) => {
-                const url = typeof img === 'string' ? img : (img.url || '');
-                detail += `  ${i+1}. ${url.substring(0, 60)}${url.length > 60 ? '...' : ''}\n`;
-            });
-        }
-        if (titleOptions.length > 0) {
-            detail += `\nAI标题选项:\n`;
-            titleOptions.forEach((opt, i) => {
-                detail += `  ${i+1}. [${opt.style}] ${opt.title}\n`;
-            });
-        }
-
+        var res = await axios.get('/admin/ali-api/items/'+itemId);
+        if (!res.data.success) { alert('获取失败: '+res.data.error); return; }
+        var p = res.data.data;
+        var specs = parseJsonField(p.specs, {});
+        var sku = parseJsonField(p.product_sku, []);
+        var images = parseJsonField(p.images, []);
+        var titleOpts = parseJsonField(p.ai_title_options, []);
+        var detail = 'ID: '+p.id+'\n商品ID: '+p.product_id+'\n标题: '+(p.title||p.original_title||'-')+'\n';
+        if (p.ai_title) detail+='AI标题: '+p.ai_title+'\n';
+        if (p.selected_title) detail+='已选标题: '+p.selected_title+'\n';
+        detail+='价格: '+formatPrice(p.price)+'\n原价: '+formatPrice(p.original_price)+'\n类目: '+(p.category||'-')+'\n状态: '+p.status+' | 发布: '+p.publish_status+'\n图片: '+images.length+' 张';
+        if (p.target_product_id) detail+='\n本地商品ID: '+p.target_product_id;
+        if (Object.keys(specs).length>0) detail+='\n规格: '+JSON.stringify(specs,null,2);
+        if (sku.length>0) detail+='\nSKU: '+sku.length+' 个';
+        if (images.length>0) { detail+='\n\n图片列表:'; images.forEach(function(img,i){ var u=typeof img==='string'?img:(img.url||''); detail+='\n  '+(i+1)+'. '+u.substring(0,60)+(u.length>60?'...':''); }); }
+        if (titleOpts.length>0) { detail+='\n\nAI标题选项:'; titleOpts.forEach(function(opt,i){ detail+='\n  '+(i+1)+'. ['+opt.style+'] '+opt.title; }); }
         alert(detail);
-    } catch (e) {
-        console.error(e);
-        alert('查看失败');
-    }
+    } catch(e) { console.error(e); alert('查看失败'); }
 }
 
-// ===== 图片画廊 =====
-let _galleryItemId = null;
-
+// ===== image gallery =====
+var _galleryItemId = null;
 async function openImageGallery(itemId) {
     _galleryItemId = itemId;
-    const modal = document.getElementById('image-gallery-modal');
-    if (!modal) return;
-    
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-    
+    showModal('image-gallery-modal');
     await loadGalleryImages(itemId);
 }
-
 async function loadGalleryImages(itemId) {
-    const container = document.getElementById('image-gallery-container');
-    const countEl = document.getElementById('image-count');
+    var container = document.getElementById('image-gallery-container');
+    var countEl = document.getElementById('image-count');
     if (!container) return;
-
     try {
-        const res = await axios.get(`/admin/ali-api/items/${itemId}/images`);
-        if (!res.data.success) {
-            container.innerHTML = `<div class="text-center text-danger py-5">加载失败: ${res.data.error}</div>`;
-            return;
-        }
-
-        const images = res.data.data.images || [];
-        if (countEl) countEl.textContent = `共${images.length}张图片`;
-
-        if (images.length === 0) {
-            container.innerHTML = `
-                <div class="text-center text-muted py-5">
-                    <i class="bi bi-inbox" style="font-size:3rem;"></i>
-                    <p class="mt-2">暂无图片，请点击上方区域上传</p>
-                </div>`;
-            return;
-        }
-
-        container.innerHTML = `<div class="row g-3" id="image-grid">${
-            images.map((img, idx) => `
-                <div class="col-md-4 col-lg-3" data-index="${idx}">
-                    <div class="card position-relative">
-                        <img src="${escHtml(img.url)}" class="card-img-top" style="height:180px;object-fit:cover;" alt="商品图片"
-                             onerror="safeImgOnError.call(this, 'large')">
-                        <div class="card-body py-2 px-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted">${idx + 1}</small>
-                                <div>
-                                    <button class="btn btn-sm btn-outline-danger" title="删除" onclick="deleteGalleryImage(${itemId}, ${idx})">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `).join('')
-        }</div>`;
-    } catch (e) {
-        container.innerHTML = `<div class="text-center text-danger py-5">加载失败: ${e.message}</div>`;
-    }
+        var res = await axios.get('/admin/ali-api/items/'+itemId+'/images');
+        if (!res.data.success) { container.innerHTML='<div class="ac dg" style="padding:20px">加载失败: '+res.data.error+'</div>'; return; }
+        var images = res.data.data.images||[];
+        if (countEl) countEl.textContent='共'+images.length+'张图片';
+        if (images.length===0) { container.innerHTML='<div class="ac dim" style="padding:20px;font-size:13px"><div style="font-size:28px;opacity:.4">&#x1F4E5;</div><p style="margin-top:8px">暂无图片，请点击上方区域上传</p></div>'; return; }
+        container.innerHTML = '<div class="igg">'+images.map(function(img,idx){
+            return '<div class="ig-item"><img src="'+escHtml(img.url)+'" class="ig-img" alt="图片" onerror="safeImgOnError.call(this,\'large\')"><div class="ig-ft"><span class="dim">'+(idx+1)+'</span><button class="btn bs" onclick="deleteGalleryImage('+itemId+','+idx+')" title="删除" style="color:#f85149">&times;</button></div></div>';
+        }).join('')+'</div>';
+    } catch(e) { container.innerHTML='<div class="ac dg" style="padding:20px">加载失败: '+e.message+'</div>'; }
 }
-
 async function deleteGalleryImage(itemId, index) {
-    if (!confirm(`确定要删除第 ${index + 1} 张图片吗？`)) return;
-    try {
-        showLoading();
-        const res = await axios.delete(`/admin/ali-api/items/${itemId}/images/${index}`);
-        if (res.data.success) {
-            await loadGalleryImages(itemId);
-            if (currentPage === 'products') loadProducts(currentProductPage);
-        } else {
-            alert('删除失败: ' + res.data.error);
-        }
-    } catch (e) {
-        alert('删除失败: ' + (e.response?.data?.error || e.message));
-    } finally {
-        hideLoading();
-    }
+    if (!confirm('确定要删除第 '+(index+1)+' 张图片吗？')) return;
+    try { showLoading(); var res=await axios.delete('/admin/ali-api/items/'+itemId+'/images/'+index); if (res.data.success){ await loadGalleryImages(itemId); if (currentPage==='products') loadProducts(currentProductPage); } else alert('删除失败: '+res.data.error); } catch(e){ alert('删除失败: '+(e.response?.data?.error||e.message)); } finally { hideLoading(); }
 }
-
 async function uploadGalleryImages(itemId, files) {
-    if (!files || files.length === 0) return;
-    
-    for (const file of files) {
-        if (file.size > 5 * 1024 * 1024) {
-            alert(`文件 ${file.name} 超过 5MB 限制`);
-            continue;
-        }
-        
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (!['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) {
-            alert(`文件 ${file.name} 格式不支持`);
-            continue;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            showLoading();
-            const res = await axios.post(`/admin/ali-api/items/${itemId}/images/upload`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            if (!res.data.success) {
-                alert(`上传 ${file.name} 失败: ${res.data.error}`);
-            }
-        } catch (e) {
-            alert(`上传 ${file.name} 失败: ${e.response?.data?.error || e.message}`);
-        } finally {
-            hideLoading();
-        }
+    if (!files||files.length===0) return;
+    for (var i=0;i<files.length;i++) {
+        var f=files[i];
+        if (f.size>5*1024*1024) { alert('文件 '+f.name+' 超过 5MB 限制'); continue; }
+        var ext=f.name.split('.').pop().toLowerCase();
+        if (!['png','jpg','jpeg','gif','webp'].includes(ext)) { alert('文件 '+f.name+' 格式不支持'); continue; }
+        var fd=new FormData(); fd.append('file',f);
+        try { showLoading(); var r=await axios.post('/admin/ali-api/items/'+itemId+'/images/upload',fd,{headers:{'Content-Type':'multipart/form-data'}}); if(!r.data.success) alert('上传 '+f.name+' 失败: '+r.data.error); } catch(e){ alert('上传 '+f.name+' 失败: '+(e.response?.data?.error||e.message)); } finally { hideLoading(); }
     }
-    
     await loadGalleryImages(itemId);
-    if (currentPage === 'products') loadProducts(currentProductPage);
+    if (currentPage==='products') loadProducts(currentProductPage);
 }
 
-// ===== 商品采集 =====
+// ===== collect =====
 async function collectSingleProduct() {
-    const productId = document.getElementById('product-id')?.value?.trim();
-    if (!productId) { showMessage('collect-result', '请输入商品ID', 'error'); return; }
-
+    var pid = document.getElementById('product-id')?.value?.trim();
+    if (!pid) { showMessage('collect-result', '请输入商品ID', 'error'); return; }
     try {
         showLoading();
-        const res = await axios.post('/admin/ali-api/items/collect', { product_id: productId });
-        if (res.data.success) {
-            const tag = res.data.data.from_cache ? '（来自缓存）' : '';
-            showMessage('collect-result', `✅ 采集成功${tag}！商品ID: ${res.data.data.item_id}`, 'success');
-            document.getElementById('product-id').value = '';
-            if (currentPage === 'dashboard') loadDashboard();
-        } else {
-            showMessage('collect-result', `❌ 采集失败: ${res.data.error}`, 'error');
-        }
-    } catch (e) {
-        showMessage('collect-result', '❌ 采集失败: ' + (e.response?.data?.error || e.message), 'error');
-    } finally {
-        hideLoading();
-    }
+        var res = await axios.post('/admin/ali-api/items/collect', {product_id:pid});
+        if (res.data.success) { var tag=res.data.data.from_cache?'（来自缓存）':''; showMessage('collect-result','采集成功'+tag+'！商品ID: '+res.data.data.item_id,'success'); document.getElementById('product-id').value=''; if (currentPage==='dashboard') loadDashboard(); }
+        else showMessage('collect-result','采集失败: '+res.data.error,'error');
+    } catch(e) { showMessage('collect-result','采集失败: '+(e.response?.data?.error||e.message),'error'); }
+    finally { hideLoading(); }
 }
-
 async function searchCollect() {
-    const keywords = document.getElementById('search-keywords')?.value?.trim();
-    if (!keywords) { showMessage('search-result', '请输入搜索关键词', 'error'); return; }
-
-    const page = document.getElementById('search-page')?.value || 1;
-    const size = document.getElementById('search-size')?.value || 20;
-
+    var kw = document.getElementById('search-keywords')?.value?.trim();
+    if (!kw) { showMessage('search-result', '请输入搜索关键词', 'error'); return; }
+    var page = document.getElementById('search-page')?.value||1;
+    var size = document.getElementById('search-size')?.value||20;
     try {
         showLoading();
-        const res = await axios.post('/admin/ali-api/items/search', {
-            keywords, page_no: parseInt(page), page_size: parseInt(size)
-        });
+        var res = await axios.post('/admin/ali-api/items/search', {keywords:kw,page_no:parseInt(page),page_size:parseInt(size)});
         if (res.data.success) {
-            const data = res.data.data;
-            let msg = `✅ 搜索成功！找到${data.total} 个商品<br>`;
-            if (data.products?.length > 0) {
-                msg += '<hr><strong>结果预览:</strong><br>';
-                data.products.slice(0, 5).forEach((p, i) => {
-                    msg += `${i+1}. ${escHtml(p.title)} - ${formatPrice(p.price)}<br>`;
-                });
-                if (data.products.length > 5) msg += `...还有 ${data.products.length - 5} 个`;
-            }
-            showMessage('search-result', msg, 'success');
-        } else {
-            showMessage('search-result', '❌ 搜索失败: ' + res.data.error, 'error');
-        }
-    } catch (e) {
-        const errMsg = e.response?.data?.error || e.message || '未知错误';
-        showMessage('search-result', '❌ 搜索失败: ' + errMsg, 'error');
-    } finally {
-        hideLoading();
-    }
+            var d=res.data.data;
+            var msg='搜索成功！共找到 '+d.total+' 个商品';
+            if (d.products?.length>0) { msg+='<br><br><b>结果预览:</b><br>'; d.products.slice(0,5).forEach(function(p,i){ msg+=(i+1)+'. '+escHtml(p.title)+' - '+formatPrice(p.price)+'<br>'; }); if (d.products.length>5) msg+='...还有 '+(d.products.length-5)+' 个'; }
+            showMessage('search-result',msg,'success');
+        } else showMessage('search-result','搜索失败: '+res.data.error,'error');
+    } catch(e) { showMessage('search-result','搜索失败: '+(e.response?.data?.error||e.message),'error'); }
+    finally { hideLoading(); }
 }
 
-// ===== AI 多标题选项生成 =====
+// ===== AI titles =====
 async function generateAiTitles(itemId) {
     if (!confirm('确定要使用AI生成多版本标题选项吗？')) return;
-
     try {
         showLoading();
-        const res = await axios.post(`/admin/ali-api/items/${itemId}/ai-titles`);
-        if (res.data.success) {
-            const options = res.data.data.ai_title_options;
-            showTitleSelectionModal(itemId, options);
-        } else {
-            alert('AI生成标题失败: ' + res.data.error);
-        }
-    } catch (e) {
-        alert('AI生成标题失败: ' + (e.response?.data?.error || e.message));
-    } finally {
-        hideLoading();
-    }
+        var res = await axios.post('/admin/ali-api/items/'+itemId+'/ai-titles');
+        if (res.data.success) { showTitleSelectionModal(itemId, res.data.data.ai_title_options); }
+        else alert('AI生成标题失败: '+res.data.error);
+    } catch(e) { alert('AI生成标题失败: '+(e.response?.data?.error||e.message)); }
+    finally { hideLoading(); }
 }
-
 function showTitleSelectionModal(itemId, options) {
-    currentAiItemId = itemId;
-    const modal = document.getElementById('ai-title-modal');
-    if (!modal) return;
-
-    const list = document.getElementById('ai-title-options');
+    currentAiItemId=itemId;
+    var list=document.getElementById('ai-title-options');
     if (!list) return;
-
-    if (!options || options.length === 0) {
-        list.innerHTML = '<div class="text-muted">AI未生成有效的标题选项</div>';
-    } else {
-        list.innerHTML = options.map((opt, idx) => `
-            <div class="card mb-2 title-option" onclick="selectAiTitle(this, ${opt.id})" data-title="${escHtml(opt.title)}" style="cursor:pointer">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span class="badge bg-primary">选项${idx+1}</span>
-                                <span class="badge bg-info">${styleLabel(opt.style)}</span>
-                                ${idx === 0 ? '<span class="badge bg-warning text-dark">⭐ 推荐</span>' : ''}
-                            </div>
-                            <p class="mb-1 fw-bold">${escHtml(opt.title)}</p>
-                            <small class="text-muted">${escHtml(opt.reason || '')}</small>
-                        </div>
-                        <div class="form-check ms-3 mt-2">
-                            <input class="form-check-input" type="radio" name="title-radio" value="${idx}" ${idx === 0 ? 'checked' : ''}>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+    if (!options||options.length===0) { list.innerHTML='<div class="dim" style="font-size:12px">AI未生成有效的标题选项</div>'; }
+    else {
+        list.innerHTML = options.map(function(opt,idx){
+            return '<div class="to" onclick="selectAiTitle(this,'+opt.id+')" data-title="'+escHtml(opt.title)+'"><div class="to-badges"><span class="bdg gy">选项'+(idx+1)+'</span><span class="bdg b">'+styleLabel(opt.style)+'</span>'+(idx===0?'<span class="bdg y">推荐</span>':'')+'</div><div style="font-size:13px;margin-bottom:2px;font-weight:600">'+escHtml(opt.title)+'</div><div class="dim" style="font-size:11px">'+escHtml(opt.reason||'')+'</div></div>';
+        }).join('');
     }
-
-    // 设置确认按钮
-    document.getElementById('confirm-title-btn').onclick = async () => {
-        const selected = document.querySelector('.title-option.selected');
-        if (!selected) {
-            alert('请选择一个标题');
-            return;
-        }
-        const title = selected.getAttribute('data-title');
-        await confirmSelectedTitle(itemId, title);
+    document.getElementById('confirm-title-btn').onclick = async function() {
+        var sel=document.querySelector('.to.sel');
+        if (!sel) { alert('请选择一个标题'); return; }
+        await confirmSelectedTitle(itemId, sel.getAttribute('data-title'));
     };
-
-    // 显示模态框
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
+    showModal('ai-title-modal');
 }
-
-function styleLabel(style) {
-    const map = { 'professional': '专业型', 'attractive': '吸引力型', 'concise': '简洁型', 'normal': '通用' };
-    return map[style] || style;
+function styleLabel(s) {
+    var m={'professional':'专业型','attractive':'吸引力型','concise':'简洁型','normal':'通用'};
+    return m[s]||s;
 }
-
-function selectAiTitle(el, optId) {
-    document.querySelectorAll('.title-option').forEach(e => {
-        e.classList.remove('selected', 'border-primary');
-    });
-    el.classList.add('selected', 'border-primary');
-    el.style.border = '2px solid #0d6efd';
-    // 选中radio
-    const radio = el.querySelector('input[type="radio"]');
-    if (radio) radio.checked = true;
+function selectAiTitle(el) {
+    document.querySelectorAll('.to').forEach(function(e){ e.classList.remove('sel'); });
+    el.classList.add('sel');
 }
-
 async function confirmSelectedTitle(itemId, title) {
     try {
         showLoading();
-        const res = await axios.post(`/admin/ali-api/items/${itemId}/select-title`, { title });
-        if (res.data.success) {
-            alert('✅ 标题已选择成功！');
-            // 关闭模态框
-            const modal = document.getElementById('ai-title-modal');
-            const bsModal = bootstrap.Modal.getInstance(modal);
-            if (bsModal) bsModal.hide();
-            // 刷新列表
-            loadProducts(currentProductPage);
-        } else {
-            alert('选择失败: ' + res.data.error);
-        }
-    } catch (e) {
-        alert('选择失败: ' + (e.response?.data?.error || e.message));
-    } finally {
-        hideLoading();
-    }
+        var res = await axios.post('/admin/ali-api/items/'+itemId+'/select-title', {title:title});
+        if (res.data.success) { alert('标题已选择成功！'); closeModal('ai-title-modal'); loadProducts(currentProductPage); }
+        else alert('选择失败: '+res.data.error);
+    } catch(e) { alert('选择失败: '+(e.response?.data?.error||e.message)); }
+    finally { hideLoading(); }
 }
 
-// ===== 发布 =====
+// ===== publish =====
 async function publishProduct(itemId) {
-    const stock = prompt('请输入库存数量（默认999）', '999');
-    if (stock === null) return;
-    const stockNum = parseInt(stock) || 999;
-
-    if (!confirm(`确定要将商品发布到本地商城吗？\n库存: ${stockNum}`)) return;
-
+    var stock=prompt('请输入库存数量（默认999）','999'); if (stock===null) return;
+    var n=parseInt(stock)||999;
+    if (!confirm('确定要将商品发布到本地商城吗？库存: '+n)) return;
     try {
         showLoading();
-        const res = await axios.post(`/admin/ali-api/items/${itemId}/publish`, { stock: stockNum });
-        if (res.data.success) {
-            alert(`✅ 发布成功！本地商品ID: ${res.data.data.target_product_id}\n标题: ${res.data.data.title}\n价格: ${formatPrice(res.data.data.price)}`);
-            loadProducts(currentProductPage);
-        } else {
-            alert('❌ 发布失败: ' + res.data.error);
-        }
-    } catch (e) {
-        alert('❌ 发布失败: ' + (e.response?.data?.error || e.message));
-    } finally {
-        hideLoading();
-    }
+        var res=await axios.post('/admin/ali-api/items/'+itemId+'/publish',{stock:n});
+        if (res.data.success) { alert('发布成功！本地商品ID: '+res.data.data.target_product_id+'\n标题: '+res.data.data.title+'\n价格: '+formatPrice(res.data.data.price)); loadProducts(currentProductPage); }
+        else alert('发布失败: '+res.data.error);
+    } catch(e) { alert('发布失败: '+(e.response?.data?.error||e.message)); }
+    finally { hideLoading(); }
 }
 
-// ===== API日志 =====
+// ===== logs =====
 async function loadLogs(page) {
-    if (page === undefined) page = currentLogPage;
+    if (page===undefined) page=currentLogPage;
     try {
         showLoading();
-        const endpoint = document.getElementById('log-endpoint')?.value || '';
-        const success = document.getElementById('log-success')?.value || '';
-        let url = `/admin/ali-api/logs?page=${page}&per_page=20`;
-        if (endpoint) url += `&endpoint=${encodeURIComponent(endpoint)}`;
-        if (success) url += `&success=${success}`;
-
-        const res = await axios.get(url);
-        if (res.data.success) {
-            updateLogsTable(res.data.data.logs);
-            updateLogsPagination(res.data.data.pagination);
-            currentLogPage = page;
-        }
-    } catch (e) {
-        console.error('加载日志失败:', e);
-    } finally {
-        hideLoading();
-    }
+        var ep=document.getElementById('log-endpoint')?.value||'';
+        var sc=document.getElementById('log-success')?.value||'';
+        var url='/admin/ali-api/logs?page='+page+'&per_page=20';
+        if (ep) url+='&endpoint='+encodeURIComponent(ep);
+        if (sc) url+='&success='+sc;
+        var res=await axios.get(url);
+        if (res.data.success) { updateLogsTable(res.data.data.logs); updateLogsPagination(res.data.data.pagination); currentLogPage=page; }
+    } catch(e) { console.error('load logs failed',e); }
+    finally { hideLoading(); }
 }
-
 function updateLogsTable(logs) {
-    const tbody = document.getElementById('logs-table');
-    if (!tbody) return;
-    if (!logs || logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">暂无日志</td></tr>';
-        return;
-    }
-    tbody.innerHTML = logs.map(log => `
-        <tr>
-            <td>${log.id}</td>
-            <td>${log.user_id || '系统'}</td>
-            <td><code>${escHtml(log.endpoint)}</code></td>
-            <td><small class="text-muted">${escHtml(JSON.stringify(parseJsonField(log.params, {})).substring(0, 40))}</small></td>
-            <td>${log.response_code || '-'}</td>
-            <td>${log.response_time || '-'}</td>
-            <td>${log.success ? '<span class="api-status status-active">成功</span>' : '<span class="api-status status-inactive">失败</span>'}</td>
-            <td>${formatDate(log.created_at)}</td>
-        </tr>
-    `).join('');
+    var tbody=document.getElementById('logs-table'); if (!tbody) return;
+    if (!logs||logs.length===0) { tbody.innerHTML='<tr><td colspan="8" class="tc dim" style="padding:20px">暂无日志</td></tr>'; return; }
+    tbody.innerHTML=logs.map(function(log){
+        return '<tr><td>'+log.id+'</td><td>'+(log.user_id||'系统')+'</td><td><code style="color:var(--accent);font-size:11px">'+escHtml(log.endpoint)+'</code></td><td><span class="dim" style="font-size:10px">'+escHtml(JSON.stringify(parseJsonField(log.params,{})).substring(0,40))+'</span></td><td>'+(log.response_code||'-')+'</td><td>'+(log.response_time||'-')+'</td><td>'+(log.success?'<span class="stbd on">成功</span>':'<span class="stbd off">失败</span>')+'</td><td>'+formatDate(log.created_at)+'</td></tr>';
+    }).join('');
+}
+function updateLogsPagination(p) {
+    var el=document.getElementById('logs-pagination'); if (!el) return;
+    var page=p.page,total=p.total_pages;
+    var h='';
+    h+=page>1?'<a onclick="loadLogs('+(page-1)+');return false;">上一页</a>':'<a class="dis">上一页</a>';
+    var start=Math.max(1,page-2),end=Math.min(total,page+2);
+    for(var i=start;i<=end;i++) h+=i===page?'<a class="act">'+i+'</a>':'<a onclick="loadLogs('+i+');return false;">'+i+'</a>';
+    h+=page<total?'<a onclick="loadLogs('+(page+1)+');return false;">下一页</a>':'<a class="dis">下一页</a>';
+    el.innerHTML=h;
 }
 
-function updateLogsPagination(pagination) {
-    const el = document.getElementById('logs-pagination');
-    if (!el) return;
-    const { page, total_pages } = pagination;
-    let html = '';
-    html += page > 1
-        ? `<li class="page-item"><a class="page-link" href="#" onclick="loadLogs(${page-1});return false;">上一页</a></li>`
-        : `<li class="page-item disabled"><a class="page-link">上一页</a></li>`;
-    const start = Math.max(1, page - 2);
-    const end = Math.min(total_pages, page + 2);
-    for (let i = start; i <= end; i++) {
-        html += i === page
-            ? `<li class="page-item active"><a class="page-link">${i}</a></li>`
-            : `<li class="page-item"><a class="page-link" href="#" onclick="loadLogs(${i});return false;">${i}</a></li>`;
-    }
-    html += page < total_pages
-        ? `<li class="page-item"><a class="page-link" href="#" onclick="loadLogs(${page+1});return false;">下一页</a></li>`
-        : `<li class="page-item disabled"><a class="page-link">下一页</a></li>`;
-    el.innerHTML = html;
-}
-
-// ===== 缓存管理 =====
+// ===== cache =====
 async function loadCacheStats() {
-    try {
-        const res = await axios.get('/admin/ali-api/cache/stats');
-        if (res.data.success) updateCacheDetails(res.data.data);
-    } catch (e) {
-        console.error(e);
-    }
+    try { var res=await axios.get('/admin/ali-api/cache/stats'); if(res.data.success) updateCacheDetails(res.data.data); } catch(e){ console.error(e); }
+}
+function updateCacheDetails(s) {
+    var el=document.getElementById('cache-details'); if(!el) return;
+    var rc=s.redis?.connected;
+    el.innerHTML='<div style="font-size:12px;margin-bottom:6px"><b>Redis</b><br>状态: '+(rc?'<span class="stbd on">已连接</span>':'<span class="stbd off">未连接</span>')+(rc?'<br>内存: '+(s.redis.used_memory||'N/A')+'<br>连接数: '+(s.redis.connected_clients||0):'<br><span class="dim">使用内存缓存</span>')+'</div><div style="font-size:12px"><b>内存缓存</b><br>条目: '+(s.memory?.size??0)+'/'+(s.memory?.maxsize??'-')+'<br>过期: '+(s.memory?.expired_entries??0)+'<br>TTL: '+(s.memory?.ttl??'-')+'秒</div><div style="font-size:12px;margin-top:6px"><b>使用Redis:</b> '+(s.use_redis?'是':'否')+'</div>';
 }
 
-function updateCacheDetails(stats) {
-    const el = document.getElementById('cache-details');
-    if (!el) return;
-    const redisConnected = stats.redis?.connected;
-    el.innerHTML = `
-        <h6><i class="bi bi-database"></i> Redis</h6>
-        <p>状态: ${redisConnected ? '<span class="api-status status-active">已连接</span>' : '<span class="api-status status-inactive">未连接</span>'}</p>
-        ${redisConnected ? `<p>内存: ${stats.redis.used_memory || 'N/A'}<br>连接数: ${stats.redis.connected_clients || 0}</p>` : '<p class="text-muted">使用内存缓存</p>'}
-        <hr>
-        <h6><i class="bi bi-memory"></i> 内存缓存</h6>
-        <p>条目: ${stats.memory?.size ?? 0}/${stats.memory?.maxsize ?? '-'}<br>过期: ${stats.memory?.expired_entries ?? 0}<br>TTL: ${stats.memory?.ttl ?? '-'}秒</p>
-        <hr>
-        <p><strong>使用Redis:</strong> ${stats.use_redis ? '是' : '否'}</p>
-    `;
-}
-
-// ===== 配置信息 =====
+// ===== config =====
 async function loadConfig() {
     try {
-        const res = await axios.get('/admin/ali-api/config');
+        var res=await axios.get('/admin/ali-api/config');
         if (!res.data.success) return;
-        const c = res.data.data;
-
-        // 阿里巴巴配置（填充输入框）
-        const gwEl = document.getElementById('cfg-api-gateway');
-        if (gwEl) gwEl.value = c.alibaba.api_gateway || '';
-        const verEl = document.getElementById('cfg-api-version');
-        if (verEl) verEl.value = c.alibaba.api_version || '';
-        const sigEl = document.getElementById('cfg-sign-method');
-        if (sigEl) sigEl.value = c.alibaba.sign_method || '';
-        const keyEl = document.getElementById('cfg-app-key');
-        if (keyEl) keyEl.value = c.alibaba.app_key_masked || '';
-        // 如已配置则在 secret 输入框给予提示
-        const secEl = document.getElementById('cfg-app-secret');
-        if (secEl) secEl.placeholder = c.alibaba.app_key_configured ? '已配置，输入新值以覆盖' : '输入 1688 AppSecret';
-
-        // AI配置
-        const aiEl = document.getElementById('ai-config');
-        if (aiEl) {
-            aiEl.innerHTML = `
-                <dt class="col-sm-5">供应商</dt><dd class="col-sm-7">${escHtml(c.ai.provider)}</dd>
-                <dt class="col-sm-5">模型</dt><dd class="col-sm-7">${escHtml(c.ai.model)}</dd>
-                <dt class="col-sm-5">状态</dt><dd class="col-sm-7"><span class="api-status ${c.ai.available ? 'status-active' : 'status-inactive'}">${c.ai.available ? '可用' : '不可用'}</span></dd>
-            `;
-        }
-
-        // 风控配置
-        const rlEl = document.getElementById('rate-limit-config');
-        if (rlEl && c.rate_limit) {
-            rlEl.innerHTML = `
-                <dt class="col-sm-7">用户日限</dt><dd class="col-sm-5">${c.rate_limit.user_daily_limit}</dd>
-                <dt class="col-sm-7">用户时限</dt><dd class="col-sm-5">${c.rate_limit.user_hourly_limit}</dd>
-                <dt class="col-sm-7">全局并发</dt><dd class="col-sm-5">${c.rate_limit.global_concurrent_limit}</dd>
-                <dt class="col-sm-7">全局QPS</dt><dd class="col-sm-5">${c.rate_limit.global_qps_limit}</dd>
-                <dt class="col-sm-7">熔断阈值</dt><dd class="col-sm-5">${c.rate_limit.circuit_breaker_threshold}</dd>
-            `;
-        }
-
-        // 缓存配置
-        const cacheEl = document.getElementById('cache-config');
-        if (cacheEl && c.cache) {
-            cacheEl.innerHTML = `
-                <dt class="col-sm-7">Redis</dt><dd class="col-sm-5"><span class="api-status ${c.cache.redis_configured ? 'status-active' : 'status-inactive'}">${c.cache.redis_configured ? '已配置' : '未配置'}</span></dd>
-                <dt class="col-sm-7">内存缓存</dt><dd class="col-sm-5">${c.cache.memory_cache_maxsize}</dd>
-                <dt class="col-sm-7">商品缓存TTL</dt><dd class="col-sm-5">${c.cache.product_cache_ttl}秒</dd>
-            `;
-        }
-    } catch (e) {
-        console.error('加载配置失败:', e);
-    }
+        var c=res.data.data;
+        var gw=document.getElementById('cfg-api-gateway'); if(gw) gw.value=c.alibaba.api_gateway||'';
+        var ver=document.getElementById('cfg-api-version'); if(ver) ver.value=c.alibaba.api_version||'';
+        var sig=document.getElementById('cfg-sign-method'); if(sig) sig.value=c.alibaba.sign_method||'';
+        var key=document.getElementById('cfg-app-key'); if(key) key.value=c.alibaba.app_key_masked||'';
+        var sec=document.getElementById('cfg-app-secret'); if(sec) sec.placeholder=c.alibaba.app_key_configured?'已配置，输入新值以覆盖':'输入 1688 AppSecret';
+        var ai=document.getElementById('ai-config');
+        if (ai) ai.innerHTML='<dt>供应商</dt><dd>'+escHtml(c.ai.provider)+'</dd><dt>模型</dt><dd>'+escHtml(c.ai.model)+'</dd><dt>状态</dt><dd><span class="stbd '+(c.ai.available?'on':'off')+'">'+(c.ai.available?'可用':'不可用')+'</span></dd>';
+        var rl=document.getElementById('rate-limit-config');
+        if (rl&&c.rate_limit) rl.innerHTML='<dt>用户日限</dt><dd>'+c.rate_limit.user_daily_limit+'</dd><dt>用户时限</dt><dd>'+c.rate_limit.user_hourly_limit+'</dd><dt>全局并发</dt><dd>'+c.rate_limit.global_concurrent_limit+'</dd><dt>全局QPS</dt><dd>'+c.rate_limit.global_qps_limit+'</dd><dt>熔断阈值</dt><dd>'+c.rate_limit.circuit_breaker_threshold+'</dd>';
+        var ca=document.getElementById('cache-config');
+        if (ca&&c.cache) ca.innerHTML='<dt>Redis</dt><dd><span class="stbd '+(c.cache.redis_configured?'on':'off')+'">'+(c.cache.redis_configured?'已配置':'未配置')+'</span></dd><dt>内存缓存</dt><dd>'+c.cache.memory_cache_maxsize+'</dd><dt>商品缓存TTL</dt><dd>'+c.cache.product_cache_ttl+'秒</dd>';
+    } catch(e) { console.error('load config failed',e); }
 }
 
-// ===== Settings（PluginManager 标准化配置）=====
+// ===== settings =====
 async function loadSettings() {
-    const el = document.getElementById('settings-content');
-    if (!el) return;
+    var el=document.getElementById('settings-content'); if(!el) return;
     try {
-        const res = await axios.get('/admin/ali-api/settings');
-        if (!res.data.success) {
-            el.innerHTML = '<div class="text-danger">加载失败: ' + escHtml(res.data.error) + '</div>';
-            return;
-        }
-        const cfg = res.data.data.config || {};
-        let h = '<div class="mb-3">';
-        h += '<label class="form-label">API 网关地址</label>';
-        h += '<input type="text" class="form-control" id="s-api-gateway" value="' + escHtml(cfg.api_gateway || '') + '" placeholder="https://gw.open.1688.com/openapi">';
-        h += '<div class="form-text">1688 Open API 网关地址</div>';
-        h += '</div>';
-        h += '<button class="btn btn-primary" onclick="saveSettings()"><i class="bi bi-check-lg"></i> 保存配置</button>';
-        h += ' <span id="settings-status" class="small text-muted"></span>';
-        el.innerHTML = h;
-    } catch (e) {
-        el.innerHTML = '<div class="text-danger">加载失败: ' + escHtml(e.message) + '</div>';
-    }
+        var res=await axios.get('/admin/ali-api/settings');
+        if (!res.data.success) { el.innerHTML='<div style="color:#f85149;font-size:12px">加载失败: '+escHtml(res.data.error)+'</div>'; return; }
+        var cfg=res.data.data.config||{};
+        el.innerHTML='<div style="margin-bottom:10px"><label for="s-api-gateway">API 网关地址</label><input class="in" id="s-api-gateway" value="'+escHtml(cfg.api_gateway||'')+'" placeholder="https://gw.open.1688.com/openapi"><div class="fh">1688 Open API 网关地址</div></div><button class="btn bp" onclick="saveSettings()">保存配置</button><span id="settings-status" class="mu" style="font-size:11px;margin-left:8px"></span>';
+    } catch(e) { el.innerHTML='<div style="color:#f85149;font-size:12px">加载失败: '+escHtml(e.message)+'</div>'; }
 }
-
 async function saveSettings() {
-    const el = document.getElementById('settings-content');
-    const btn = el ? el.querySelector('button') : null;
-    const status = document.getElementById('settings-status');
-    if (status) status.textContent = '保存中...';
-    if (btn) btn.disabled = true;
+    var el=document.getElementById('settings-content');
+    var btn=el?el.querySelector('button'):null;
+    var st=document.getElementById('settings-status');
+    if (st) st.textContent='保存中...';
+    if (btn) btn.disabled=true;
     try {
-        const data = {
-            api_gateway: document.getElementById('s-api-gateway')?.value?.trim() || '',
-        };
-        const res = await axios.post('/admin/ali-api/settings', data);
-        if (res.data.success) {
-            if (status) { status.textContent = '✅ 已保存'; status.className = 'small text-success'; }
-            setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-        } else {
-            if (status) { status.textContent = '❌ ' + (res.data.error || '保存失败'); status.className = 'small text-danger'; }
-        }
-    } catch (e) {
-        if (status) { status.textContent = '❌ ' + (e.response?.data?.error || e.message); status.className = 'small text-danger'; }
-    } finally {
-        if (btn) btn.disabled = false;
-    }
+        var data={api_gateway:(document.getElementById('s-api-gateway')?.value?.trim()||'')};
+        var res=await axios.post('/admin/ali-api/settings',data);
+        if (res.data.success) { if(st){st.textContent='已保存';st.style.color='var(--accent)';} setTimeout(function(){if(st)st.textContent='';},3000); }
+        else { if(st){st.textContent='保存失败: '+(res.data.error||'');st.style.color='#f85149';} }
+    } catch(e) { if(st){st.textContent='保存失败: '+(e.response?.data?.error||e.message);st.style.color='#f85149';} }
+    finally { if(btn) btn.disabled=false; }
 }
 
-// ===== 辅助函数 =====
-function escHtml(str) {
-    if (!str) return '';
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-}
-
-function safeImgOnError(size) {
-    const svg = size === 'large' 
-        ? '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect fill="#f0f0f0" width="180" height="180"/><text x="55" y="95" font-size="14" fill="#999">加载失败</text></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="#f0f0f0" width="80" height="80"/><text x="25" y="45" font-size="12" fill="#999">无图</text></svg>';
-    this.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
-}
-
-function parseJsonField(val, defaultVal) {
-    if (val === null || val === undefined) return defaultVal;
-    if (typeof val === 'string') {
-        try { return JSON.parse(val); } catch { return defaultVal; }
-    }
-    return val;
-}
-
-// ===== 初始化 =====
-document.addEventListener('DOMContentLoaded', function() {
-    initNavigation();
-    loadDashboard();
-
-    // 采集按钮
-    const collectBtn = document.getElementById('collect-single-btn');
-    if (collectBtn) collectBtn.addEventListener('click', collectSingleProduct);
-
-    const searchBtn = document.getElementById('search-collect-btn');
-    if (searchBtn) searchBtn.addEventListener('click', searchCollect);
-
-    // AI优化按钮（采集页面的简化版）
-    const aiOptBtn = document.getElementById('ai-optimize-btn');
-    if (aiOptBtn) {
-        aiOptBtn.addEventListener('click', async function() {
-            const id = document.getElementById('ai-product-id')?.value?.trim();
-            if (!id) { showMessage('ai-result', '请输入商品ID', 'error'); return; }
-            const itemId = parseInt(id);
-            if (isNaN(itemId)) { showMessage('ai-result', '请输入数字ID', 'error'); return; }
-            await generateAiTitles(itemId);
-        });
-    }
-
-    // 搜索回车
-    const searchInput = document.getElementById('product-search');
-    if (searchInput) searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') loadProducts(1); });
-
-    // 状态筛选
-    const statusFilter = document.getElementById('status-filter');
-    if (statusFilter) statusFilter.addEventListener('change', () => loadProducts(1));
-
-    // 日志筛选
-    const filterBtn = document.getElementById('filter-logs-btn');
-    if (filterBtn) filterBtn.addEventListener('click', () => loadLogs(1));
-
-    // 日志输入回车
-    const logEndpoint = document.getElementById('log-endpoint');
-    if (logEndpoint) logEndpoint.addEventListener('keypress', e => { if (e.key === 'Enter') loadLogs(1); });
-
-    // 缓存管理
-    const refreshBtn = document.getElementById('refresh-cache-stats');
-    if (refreshBtn) refreshBtn.addEventListener('click', loadCacheStats);
-
-    const cacheType = document.getElementById('cache-type');
-    if (cacheType) {
-        cacheType.addEventListener('change', function() {
-            const container = document.getElementById('product-id-container');
-            if (container) container.style.display = this.value === 'product' ? 'block' : 'none';
-        });
-    }
-
-    const clearBtn = document.getElementById('clear-cache-btn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', async function() {
-            if (!confirm('确定清理缓存？')) return;
-            const type = document.getElementById('cache-type')?.value || 'all';
-            const productId = document.getElementById('cache-product-id')?.value?.trim() || '';
-            const data = { type };
-            if (type === 'product' && productId) data.product_id = productId;
-
-            try {
-                showLoading();
-                const res = await axios.post('/admin/ali-api/cache/clear', data);
-                if (res.data.success) {
-                    showMessage('clear-result', res.data.message, 'success');
-                    loadCacheStats();
-                    if (document.getElementById('cache-product-id')) document.getElementById('cache-product-id').value = '';
-                } else {
-                    showMessage('clear-result', '清理失败: ' + res.data.error, 'error');
-                }
-            } catch (e) {
-                showMessage('clear-result', '清理失败', 'error');
-            } finally {
-                hideLoading();
-            }
-        });
-    }
-
-    // 图片上传区域
-    const uploadZone = document.getElementById('upload-zone');
-    const uploadInput = document.getElementById('image-upload-input');
-    if (uploadZone && uploadInput) {
-        uploadZone.addEventListener('click', () => uploadInput.click());
-        
-        uploadInput.addEventListener('change', function() {
-            if (this.files && this.files.length > 0 && _galleryItemId) {
-                uploadGalleryImages(_galleryItemId, this.files);
-                this.value = '';
-            }
-        });
-        
-        // 拖拽上传
-        uploadZone.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            this.style.borderColor = '#0d6efd';
-            this.style.background = '#e7f1ff';
-        });
-        uploadZone.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            this.style.borderColor = '';
-            this.style.background = '#f8f9fa';
-        });
-        uploadZone.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.style.borderColor = '';
-            this.style.background = '#f8f9fa';
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0 && _galleryItemId) {
-                uploadGalleryImages(_galleryItemId, e.dataTransfer.files);
-            }
-        });
-    }
-});
-
-// ===== 配置保存 =====
+// ===== save config =====
 async function saveConfig() {
-    const appKey = document.getElementById('cfg-app-key')?.value?.trim();
-    const appSecret = document.getElementById('cfg-app-secret')?.value?.trim();
-    if (!appKey && !appSecret) {
-        showMessage('config-save-result', '请至少填写 AppKey 或 AppSecret', 'error');
-        return;
-    }
-    if (appKey && appKey.endsWith('...')) {
-        showMessage('config-save-result', 'AppKey 显示为脱敏值，如需修改请完整输入新的 AppKey', 'error');
-        return;
-    }
-
-    const btn = document.getElementById('save-config-btn');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 保存中...'; }
-
+    var ak=document.getElementById('cfg-app-key')?.value?.trim();
+    var as=document.getElementById('cfg-app-secret')?.value?.trim();
+    if (!ak&&!as) { showMessage('config-save-result','请至少填写 AppKey 或 AppSecret','error'); return; }
+    if (ak&&ak.endsWith('...')) { showMessage('config-save-result','AppKey 显示为脱敏值，如需修改请完整输入新的 AppKey','error'); return; }
+    var btn=document.getElementById('save-config-btn');
+    if (btn) { btn.disabled=true; btn.innerHTML='保存中...'; }
     try {
-        const res = await axios.post('/admin/ali-api/config', { app_key: appKey, app_secret: appSecret });
-        if (res.data.success) {
-            showMessage('config-save-result', '✅ ' + res.data.message, 'success');
-            // 刷新配置展示
-            loadConfig();
-        } else {
-            showMessage('config-save-result', '❌ ' + (res.data.error || '保存失败'), 'error');
-        }
-    } catch (e) {
-        showMessage('config-save-result', '❌ 保存失败: ' + (e.response?.data?.error || e.message), 'error');
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存配置'; }
-    }
+        var res=await axios.post('/admin/ali-api/config',{app_key:ak,app_secret:as});
+        if (res.data.success) { showMessage('config-save-result',res.data.message,'success'); loadConfig(); }
+        else showMessage('config-save-result','保存失败: '+(res.data.error||''),'error');
+    } catch(e) { showMessage('config-save-result','保存失败: '+(e.response?.data?.error||e.message),'error'); }
+    finally { if(btn){btn.disabled=false;btn.innerHTML='保存配置';} }
+}
+
+// ===== helpers =====
+function escHtml(s) { if (!s) return ''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function safeImgOnError(size) {
+    var svg=size==='large'?'<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect fill="#111" width="180" height="180"/><text x="55" y="95" font-size="14" fill="#555">加载失败</text></svg>':'<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="#111" width="80" height="80"/><text x="25" y="45" font-size="12" fill="#555">无图</text></svg>';
+    this.src='data:image/svg+xml,'+encodeURIComponent(svg);
+}
+function parseJsonField(v,d) {
+    if (v===null||v===undefined) return d;
+    if (typeof v==='string') { try { return JSON.parse(v); } catch(e) { return d; } }
+    return v;
 }

@@ -1,759 +1,371 @@
 <!DOCTYPE html>
+<!-- ali_api admin page - follows admin dark theme -->
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>阿里巴巴API管理 - EasyKai</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        .dashboard-card {
-            transition: transform 0.2s;
-            border-radius: 10px;
-            border: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .dashboard-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-        .stat-icon {
-            font-size: 2.5rem;
-            opacity: 0.8;
-        }
-        .nav-tabs .nav-link.active {
-            font-weight: bold;
-            border-bottom: 3px solid #0d6efd;
-        }
-        .api-status {
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: bold;
-        }
-        .status-active {
-            background-color: #d1e7dd;
-            color: #0f5132;
-        }
-        .status-inactive {
-            background-color: #f8d7da;
-            color: #842029;
-        }
-        .product-image {
-            width: 80px;
-            height: 80px;
-            object-fit: cover;
-            border-radius: 5px;
-        }
-        .log-level-info {
-            color: #0d6efd;
-        }
-        .log-level-warning {
-            color: #ffc107;
-        }
-        .log-level-error {
-            color: #dc3545;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255,255,255,0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        .spinner {
-            width: 3rem;
-            height: 3rem;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>阿里巴巴API管理</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0a;--card:#111118;--border:rgba(255,255,255,0.06);--text:#e0e0e0;--muted:#8b8b8b;--dim:#555;--accent:#00f5ff;--accent2:#a020f0;--accent3:#00ff9f;--radius:8px;--glow-accent:rgba(0,245,255,0.12)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+/* layout */
+.pa{padding:16px 20px}
+/* tabs */
+.tb{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+.tb .tb-i{padding:8px 14px;font-size:12px;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .15s}
+.tb .tb-i:hover{color:var(--text)}
+.tb .tb-i.act{color:var(--accent);border-bottom-color:var(--accent)}
+/* cards */
+.cd{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.cd .h{font-size:13px;font-weight:600;padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.cd .l{font-size:10px;color:var(--dim);text-transform:uppercase}
+.cd .v{font-size:18px;font-weight:700;margin-top:2px}
+.cd .v.s1{color:var(--accent)}
+.cd .v.s2{color:#58a6ff}
+.cd .v.s3{color:#f0c040}
+.cd .v.s4{color:#00ff9f}
+/* stat grid */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.sg .cd{text-align:left;margin-bottom:0}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--bg);color:var(--dim);padding:6px 8px;text-align:left;border-bottom:2px solid var(--border);font-weight:500}
+td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--muted)}
+table .tc{text-align:center}
+/* buttons */
+.btn{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:4px;font-family:inherit}
+.bp{background:var(--accent);color:#000}
+.bs{background:transparent;color:var(--text);border:1px solid var(--border);padding:3px 8px;font-size:10px}
+.br{background:#f85149;color:#fff}
+.bg{background:#238636;color:#fff}
+.by{background:#d29922;color:#fff}
+.bi{background:#1f6feb;color:#fff}
+.bn{background:transparent;color:var(--text);border:1px solid var(--border)}
+.bo{background:transparent;color:var(--text);border:1px solid var(--border)}
+/* inputs */
+.in{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:12px;outline:none;font-family:inherit;width:100%}
+.in:focus{border-color:var(--accent)}
+.sl{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:12px;outline:none;font-family:inherit}
+.sl:focus{border-color:var(--accent)}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.fh{font-size:11px;color:var(--dim);margin-top:2px}
+/* badges */
+.bdg{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.bdg.g{background:rgba(0,212,170,.12);color:var(--accent)}
+.bdg.r{background:rgba(248,81,73,.1);color:#f85149}
+.bdg.y{background:rgba(240,192,64,.12);color:#f0c040}
+.bdg.b{background:rgba(88,166,255,.12);color:#58a6ff}
+.bdg.gy{background:rgba(139,139,139,.12);color:var(--muted)}
+/* status badge */
+.stbd{padding:2px 8px;border-radius:10px;font-size:11px;display:inline-block}
+.stbd.on{background:rgba(0,212,170,.1);color:var(--accent)}
+.stbd.off{background:rgba(248,81,73,.1);color:#f85149}
+/* alerts */
+.msg{padding:8px 12px;border-radius:6px;font-size:12px;margin-top:8px}
+.msg.err{background:rgba(248,81,73,.1);color:#f85149;border:1px solid rgba(248,81,73,.2)}
+.msg.ok{background:rgba(0,212,170,.1);color:var(--accent);border:1px solid rgba(0,212,170,.2)}
+.msg.info{background:rgba(88,166,255,.1);color:#58a6ff;border:1px solid rgba(88,166,255,.2)}
+.msg.warn{background:rgba(240,192,64,.1);color:#f0c040;border:1px solid rgba(240,192,64,.2)}
+/* loader */
+.lo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;justify-content:center;align-items:center}
+.lo.show{display:flex}
+.lo .sp{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* modal */
+.mo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:9998;align-items:center;justify-content:center}
+.mo.show{display:flex}
+.mo .mb{background:var(--card);border:1px solid var(--border);border-radius:12px;max-height:80vh;overflow-y:auto;width:90%}
+.mo .mb.sm{max-width:500px}
+.mo .mb.lg{max-width:900px}
+.mo .mb.xl{max-width:1140px}
+.mo .mb .mt{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600}
+.mo .mb .mt .cl{width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;color:var(--muted);font-size:16px}
+.mo .mb .mt .cl:hover{background:var(--bg);color:var(--text)}
+.mo .mb .mbd{padding:14px 18px}
+.mo .mb .mf{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+/* upload zone */
+.uz{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;background:var(--bg);transition:border-color .2s}
+.uz:hover{border-color:var(--accent)}
+.uz .uz-ic{font-size:24px;opacity:.5}
+.uz .uz-t{font-size:13px;margin-top:6px}
+.uz .uz-st{font-size:11px;color:var(--dim);margin-top:2px}
+/* flex / grid rows */
+.r{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.c{flex:1;min-width:0}
+.c-6{flex:0 0 calc(50% - 6px)}
+.c-4{flex:0 0 calc(33.33% - 8px)}
+.c-3{flex:0 0 calc(25% - 9px)}
+@media(max-width:768px){.c-6,.c-4,.c-3{flex:0 0 100%}}
+/* search bar */
+.sb{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+/* pagination */
+.pg{display:flex;justify-content:center;align-items:center;gap:2px;margin-top:12px}
+.pg a{padding:4px 10px;font-size:12px;color:var(--muted);cursor:pointer;border-radius:4px;text-decoration:none;border:1px solid transparent}
+.pg a:hover{color:var(--text);border-color:var(--border)}
+.pg a.act{background:var(--accent);color:#000;font-weight:600}
+.pg a.dis{opacity:.4;pointer-events:none;color:var(--dim)}
+/* img preview */
+.pr-img{width:80px;height:80px;object-fit:cover;border-radius:4px}
+.pr-img.no{border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--dim);width:80px;height:80px}
+/* two col */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:768px){.g2{grid-template-columns:1fr}}
+/* three col */
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:768px){.g3{grid-template-columns:1fr}}
+/* dl */
+.dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px}
+.dl dt{color:var(--dim)}
+.dl dd{color:var(--muted)}
+/* dim text */
+.dim{color:var(--dim)}
+.mu{color:var(--muted)}
+.dg{color:#f85149}
+/* inline helpers */
+.gap{gap:6px;display:inline-flex;align-items:center}
+.mt{margin-top:8px}
+.mb{margin-bottom:8px}
+.mr{margin-right:4px}
+.ac{text-align:center}
+/* img gallery grid */
+.igg{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.igg .ig-item .ig-img{width:100%;height:160px;object-fit:cover;border-radius:8px 8px 0 0}
+.igg .ig-item .ig-ft{padding:6px 8px;display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:0 0 8px 8px;font-size:11px}
+/* title option cards */
+.to{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .2s}
+.to:hover{border-color:var(--accent)}
+.to.sel{border-color:var(--accent);border-width:2px}
+.to .to-badges{display:flex;gap:4px;margin-bottom:4px}
+/* grid image */
+.gg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.gg .gi img{width:100%;height:160px;object-fit:cover;border-radius:6px}
+</style>
 </head>
 <body>
-    <div class="container-fluid">
-        <!-- 导航栏 -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="#">
-                    <i class="bi bi-shop"></i> 阿里巴巴API管理
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav">
-                        <li class="nav-item">
-                            <a class="nav-link active" href="#" data-page="dashboard">
-                                <i class="bi bi-speedometer2"></i> 仪表板
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="products">
-                                <i class="bi bi-box-seam"></i> 商品管理
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="collect">
-                                <i class="bi bi-cloud-download"></i> 商品采集
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="logs">
-                                <i class="bi bi-journal-text"></i> API日志
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="cache">
-                                <i class="bi bi-hdd"></i> 缓存管理
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="settings">
-                                <i class="bi bi-sliders"></i> ⚙ Settings
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="config">
-                                <i class="bi bi-gear"></i> 配置信息
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+<div id="lo" class="lo"><div class="sp"></div></div>
 
-        <!-- 主要内容区域 -->
-        <div id="content">
-            <!-- 仪表板页面 -->
-            <div id="dashboard-page" class="page">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-speedometer2"></i> 仪表板</h2>
-                        <p class="text-muted">阿里巴巴API管理系统的实时监控面板</p>
-                    </div>
-                </div>
+<div class="pa">
+  <!-- tab navigation -->
+  <div class="tb" id="main-tabs">
+    <button class="tb-i act" data-page="dashboard">仪表板</button>
+    <button class="tb-i" data-page="products">商品管理</button>
+    <button class="tb-i" data-page="collect">商品采集</button>
+    <button class="tb-i" data-page="logs">API日志</button>
+    <button class="tb-i" data-page="cache">缓存管理</button>
+    <button class="tb-i" data-page="settings">Settings</button>
+    <button class="tb-i" data-page="config">配置信息</button>
+  </div>
 
-                <!-- 统计卡片 -->
-                <div class="row mb-4">
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card bg-primary text-white">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="card-title">商品总数</h5>
-                                        <h2 id="total-items" class="mb-0">0</h2>
-                                        <p class="card-text">活跃: <span id="active-items">0</span></p>
-                                    </div>
-                                    <i class="bi bi-box-seam stat-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card bg-success text-white">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="card-title">API调用</h5>
-                                        <h2 id="total-calls" class="mb-0">0</h2>
-                                        <p class="card-text">今日: <span id="today-calls">0</span></p>
-                                    </div>
-                                    <i class="bi bi-cloud-arrow-up stat-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card bg-warning text-white">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="card-title">用户统计</h5>
-                                        <h2 id="total-users" class="mb-0">0</h2>
-                                        <p class="card-text">API用户数</p>
-                                    </div>
-                                    <i class="bi bi-people stat-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card bg-info text-white">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="card-title">AI服务</h5>
-                                        <h2 id="ai-status" class="mb-0">未知</h2>
-                                        <p class="card-text" id="ai-provider">状态检测中...</p>
-                                    </div>
-                                    <i class="bi bi-robot stat-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 风控状态 -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-shield-check"></i> 风控状态</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row" id="rate-limit-stats">
-                                    <div class="col-md-6">
-                                        <p>加载中...</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 缓存状态 -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-hdd"></i> 缓存状态</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row" id="cache-stats">
-                                    <div class="col-md-6">
-                                        <p>加载中...</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 商品管理页面 -->
-            <div id="products-page" class="page" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-box-seam"></i> 商品管理</h2>
-                        <p class="text-muted">查看和管理采集的商品数据</p>
-                    </div>
-                </div>
-
-                <!-- 搜索和筛选 -->
-                <div class="row mb-4">
-                    <div class="col-md-8">
-                        <div class="input-group">
-                            <input type="text" id="product-search" class="form-control" placeholder="搜索商品标题、ID...">
-                            <button class="btn btn-outline-primary" type="button" id="search-btn">
-                                <i class="bi bi-search"></i> 搜索
-                            </button>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <select id="status-filter" class="form-select">
-                            <option value="active">活跃商品</option>
-                            <option value="all">所有商品</option>
-                            <option value="inactive">非活跃商品</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- 商品表格 -->
-                <div class="card">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>商品图片</th>
-                                        <th>商品标题</th>
-                                        <th>价格</th>
-                                        <th>类目</th>
-                                        <th>状态</th>
-                                        <th>更新时间</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="products-table">
-                                    <tr>
-                                        <td colspan="8" class="text-center">加载中...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <!-- 分页 -->
-                        <nav aria-label="商品分页">
-                            <ul class="pagination justify-content-center" id="products-pagination">
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" tabindex="-1">上一页</a>
-                                </li>
-                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#">下一页</a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 商品采集页面 -->
-            <div id="collect-page" class="page" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-cloud-download"></i> 商品采集</h2>
-                        <p class="text-muted">从阿里巴巴平台采集商品数据</p>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <!-- 单个商品采集 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-box"></i> 采集单个商品</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <label for="product-id" class="form-label">阿里巴巴商品ID</label>
-                                    <input type="text" class="form-control" id="product-id" 
-                                           placeholder="例如: 1234567890">
-                                    <div class="form-text">在阿里巴巴商品详情页URL中可以找到商品ID</div>
-                                </div>
-                                <button class="btn btn-primary" id="collect-single-btn">
-                                    <i class="bi bi-cloud-download"></i> 开始采集
-                                </button>
-                                <div class="mt-3" id="collect-result"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <!-- 批量搜索采集 -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-search"></i> 搜索采集</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <label for="search-keywords" class="form-label">搜索关键词</label>
-                                    <input type="text" class="form-control" id="search-keywords" 
-                                           placeholder="例如: 智能手机">
-                                </div>
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label for="search-page" class="form-label">页码</label>
-                                        <input type="number" class="form-control" id="search-page" value="1" min="1">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label for="search-size" class="form-label">每页数量</label>
-                                        <input type="number" class="form-control" id="search-size" value="20" min="1" max="50">
-                                    </div>
-                                </div>
-                                <button class="btn btn-success" id="search-collect-btn">
-                                    <i class="bi bi-search"></i> 搜索采集
-                                </button>
-                                <div class="mt-3" id="search-result"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI优化 -->
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-robot"></i> AI内容优化</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="alert alert-info">
-                                    <i class="bi bi-info-circle"></i> 
-                                    使用AI优化商品标题和描述，提升营销效果。需要AI服务可用。
-                                </div>
-                                <div class="mb-3">
-                                    <label for="ai-product-id" class="form-label">商品ID</label>
-                                    <input type="text" class="form-control" id="ai-product-id" 
-                                           placeholder="输入要优化的商品ID">
-                                </div>
-                                <button class="btn btn-warning" id="ai-optimize-btn">
-                                    <i class="bi bi-magic"></i> AI优化
-                                </button>
-                                <div class="mt-3" id="ai-result"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- API日志页面 -->
-            <div id="logs-page" class="page" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-journal-text"></i> API调用日志</h2>
-                        <p class="text-muted">查看阿里巴巴API调用记录和统计</p>
-                    </div>
-                </div>
-
-                <!-- 筛选条件 -->
-                <div class="row mb-4">
-                    <div class="col-md-4">
-                        <input type="text" class="form-control" id="log-endpoint" placeholder="API端点筛选">
-                    </div>
-                    <div class="col-md-4">
-                        <select id="log-success" class="form-select">
-                            <option value="">所有状态</option>
-                            <option value="true">成功</option>
-                            <option value="false">失败</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <button class="btn btn-primary w-100" id="filter-logs-btn">
-                            <i class="bi bi-filter"></i> 筛选
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 日志表格 -->
-                <div class="card">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>用户</th>
-                                        <th>API端点</th>
-                                        <th>参数</th>
-                                        <th>响应码</th>
-                                        <th>耗时(ms)</th>
-                                        <th>状态</th>
-                                        <th>时间</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="logs-table">
-                                    <tr>
-                                        <td colspan="8" class="text-center">加载中...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <!-- 分页 -->
-                        <nav aria-label="日志分页">
-                            <ul class="pagination justify-content-center" id="logs-pagination">
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#" tabindex="-1">上一页</a>
-                                </li>
-                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#">下一页</a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 缓存管理页面 -->
-            <div id="cache-page" class="page" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-hdd"></i> 缓存管理</h2>
-                        <p class="text-muted">管理Redis和内存缓存</p>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <!-- 缓存统计 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> 缓存统计</h5>
-                            </div>
-                            <div class="card-body">
-                                <div id="cache-details">
-                                    <p>加载中...</p>
-                                </div>
-                                <button class="btn btn-info mt-3" id="refresh-cache-stats">
-                                    <i class="bi bi-arrow-clockwise"></i> 刷新统计
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <!-- 缓存操作 -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-trash"></i> 缓存清理</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="alert alert-warning">
-                                    <i class="bi bi-exclamation-triangle"></i> 
-                                    清理缓存将删除缓存数据，可能导致API调用增加。
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">清理类型</label>
-                                    <select class="form-select" id="cache-type">
-                                        <option value="all">所有缓存</option>
-                                        <option value="product">商品缓存</option>
-                                        <option value="api">API响应缓存</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="mb-3" id="product-id-container" style="display: none;">
-                                    <label for="cache-product-id" class="form-label">商品ID</label>
-                                    <input type="text" class="form-control" id="cache-product-id" 
-                                           placeholder="留空则清除所有商品缓存">
-                                </div>
-                                
-                                <button class="btn btn-danger w-100" id="clear-cache-btn">
-                                    <i class="bi bi-trash"></i> 清理缓存
-                                </button>
-                                
-                                <div class="mt-3" id="clear-result"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Settings 页面 -->
-            <div id="settings-page" class="page" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-sliders"></i> ⚙ Settings</h2>
-                        <p class="text-muted">配置插件基本参数</p>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-gear"></i> 基本配置</h5>
-                            </div>
-                            <div class="card-body" id="settings-content">
-                                <div class="text-center text-muted py-5">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">加载中...</span>
-                                    </div>
-                                    <p class="mt-2">加载配置中...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 配置信息页面 -->
-            <div id="config-page" class="page" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h2><i class="bi bi-gear"></i> 配置信息</h2>
-                        <p class="text-muted">系统配置和状态信息</p>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <!-- 阿里巴巴配置 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-shop"></i> 阿里巴巴配置</h5>
-                            </div>
-                            <div class="card-body">
-                                <form onsubmit="event.preventDefault();">
-                                <div class="mb-3 row">
-                                    <label class="col-sm-3 col-form-label">API 网关</label>
-                                    <div class="col-sm-9">
-                                        <input type="text" class="form-control" id="cfg-api-gateway" readonly>
-                                    </div>
-                                </div>
-                                <div class="mb-3 row">
-                                    <label class="col-sm-3 col-form-label">API 版本</label>
-                                    <div class="col-sm-9">
-                                        <input type="text" class="form-control" id="cfg-api-version" readonly>
-                                    </div>
-                                </div>
-                                <div class="mb-3 row">
-                                    <label class="col-sm-3 col-form-label">签名方法</label>
-                                    <div class="col-sm-9">
-                                        <input type="text" class="form-control" id="cfg-sign-method" readonly>
-                                    </div>
-                                </div>
-                                <hr>
-                                <div class="mb-3 row">
-                                    <label class="col-sm-3 col-form-label">AppKey <span class="text-danger">*</span></label>
-                                    <div class="col-sm-9">
-                                        <input type="text" class="form-control" id="cfg-app-key" placeholder="输入 1688 AppKey">
-                                    </div>
-                                </div>
-                                <div class="mb-3 row">
-                                    <label class="col-sm-3 col-form-label">AppSecret <span class="text-danger">*</span></label>
-                                    <div class="col-sm-9">
-                                        <input type="password" class="form-control" id="cfg-app-secret" placeholder="输入 1688 AppSecret">
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-sm-9 offset-sm-3">
-                                        <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()">
-                                            <i class="bi bi-check-lg"></i> 保存配置
-                                        </button>
-                                        <span id="config-save-result" class="ms-2 small"></span>
-                                    </div>
-                                </div>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- AI配置 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-robot"></i> AI配置</h5>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row" id="ai-config">
-                                    <dt class="col-sm-5">供应商</dt>
-                                    <dd class="col-sm-7">加载中...</dd>
-                                    
-                                    <dt class="col-sm-5">模型</dt>
-                                    <dd class="col-sm-7">加载中...</dd>
-                                    
-                                    <dt class="col-sm-5">状态</dt>
-                                    <dd class="col-sm-7">
-                                        <span class="api-status status-inactive">未知</span>
-                                    </dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <!-- 风控配置 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-shield-check"></i> 风控配置</h5>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row" id="rate-limit-config">
-                                    <dt class="col-sm-7">用户每日限制</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                    
-                                    <dt class="col-sm-7">用户每小时限制</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                    
-                                    <dt class="col-sm-7">全局并发限制</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                    
-                                    <dt class="col-sm-7">全局QPS限制</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                    
-                                    <dt class="col-sm-7">熔断阈值</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                </dl>
-                            </div>
-                        </div>
-
-                        <!-- 缓存配置 -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="bi bi-hdd"></i> 缓存配置</h5>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row" id="cache-config">
-                                    <dt class="col-sm-7">Redis配置</dt>
-                                    <dd class="col-sm-5">
-                                        <span class="api-status status-inactive">未配置</span>
-                                    </dd>
-                                    
-                                    <dt class="col-sm-7">内存缓存大小</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                    
-                                    <dt class="col-sm-7">商品缓存TTL</dt>
-                                    <dd class="col-sm-5">加载中...</dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 加载遮罩 -->
-    <div id="loading-overlay" class="loading-overlay" style="display: none;">
-        <div class="spinner-border text-primary spinner" role="status">
-            <span class="visually-hidden">加载中...</span>
-        </div>
+  <!-- dashboard -->
+  <div id="dashboard-page" class="page">
+    <div class="sg">
+      <div class="cd"><div class="l">商品总数</div><div class="v s1" id="total-items">0</div><div class="dim" style="font-size:11px;margin-top:2px">活跃: <span id="active-items">0</span></div></div>
+      <div class="cd"><div class="l">API调用</div><div class="v s2" id="total-calls">0</div><div class="dim" style="font-size:11px;margin-top:2px">今日: <span id="today-calls">0</span></div></div>
+      <div class="cd"><div class="l">用户统计</div><div class="v s3" id="total-users">0</div><div class="dim" style="font-size:11px;margin-top:2px">API用户数</div></div>
+      <div class="cd"><div class="l">AI服务</div><div class="v s4" id="ai-status">—</div><div class="dim" style="font-size:11px;margin-top:2px" id="ai-provider">检测中...</div></div>
     </div>
-
-    <!-- AI标题选择模态框 -->
-    <div class="modal fade" id="ai-title-modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-magic"></i> AI 标题选项</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted">AI 生成了 3 个不同风格的标题，请选择最合适的。</p>
-                    <div id="ai-title-options">
-                        <div class="text-center text-muted py-3">加载中...</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="confirm-title-btn">
-                        <i class="bi bi-check-lg"></i> 确认选择
-                    </button>
-                </div>
-            </div>
-        </div>
+    <div class="g2">
+      <div class="cd"><div class="h">风控状态</div><div class="g2" id="rate-limit-stats"><div class="dim" style="font-size:12px">加载中...</div></div></div>
+      <div class="cd"><div class="h">缓存状态</div><div class="g2" id="cache-stats"><div class="dim" style="font-size:12px">加载中...</div></div></div>
     </div>
+  </div>
 
-    <!-- 图片画廊模态框 -->
-    <div class="modal fade" id="image-gallery-modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-images"></i> 商品图片管理</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <div class="upload-zone border border-dashed rounded p-4 text-center" id="upload-zone" style="cursor:pointer; border-style:dashed !important; background:#f8f9fa;">
-                                <i class="bi bi-cloud-upload" style="font-size:2rem;"></i>
-                                <p class="mb-1 mt-2 fw-bold">拖拽图片到此处或点击上传</p>
-                                <p class="text-muted small mb-0">支持 JPG/PNG/WebP/GIF，单张不超过 5MB</p>
-                                <input type="file" id="image-upload-input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" style="display:none;" multiple>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="image-gallery-container">
-                        <div class="text-center text-muted py-5">
-                            <i class="bi bi-images" style="font-size:3rem;"></i>
-                            <p class="mt-2">请选择商品以查看图片</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <span class="text-muted small me-auto" id="image-count">共0张图片</span>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                </div>
-            </div>
-        </div>
+  <!-- products -->
+  <div id="products-page" class="page" style="display:none">
+    <div class="sb">
+      <input class="in" id="product-search" placeholder="搜索商品标题、ID..." style="max-width:300px">
+      <select class="sl" id="status-filter">
+        <option value="active">活跃商品</option>
+        <option value="all">所有商品</option>
+        <option value="inactive">非活跃商品</option>
+      </select>
+      <button class="btn bp" id="search-btn">搜索</button>
     </div>
+    <div class="cd" style="padding:0;overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>ID</th><th>图片</th><th>商品标题</th><th>价格</th><th>类目</th><th>状态</th><th>更新时间</th><th>操作</th>
+        </tr></thead>
+        <tbody id="products-table"><tr><td colspan="8" class="tc dim" style="padding:20px">加载中...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pg" id="products-pagination"></div>
+  </div>
+
+  <!-- collect -->
+  <div id="collect-page" class="page" style="display:none">
+    <div class="g2">
+      <div class="cd">
+        <div class="h">采集单个商品</div>
+        <label for="product-id">阿里巴巴商品ID</label>
+        <input class="in" id="product-id" placeholder="例如: 1234567890">
+        <div class="fh">在阿里巴巴商品详情页URL中可以找到商品ID</div>
+        <button class="btn bp mt" id="collect-single-btn">开始采集</button>
+        <div id="collect-result"></div>
+      </div>
+      <div class="cd">
+        <div class="h">搜索采集</div>
+        <label for="search-keywords">搜索关键词</label>
+        <input class="in" id="search-keywords" placeholder="例如: 智能手机">
+        <div class="r" style="margin-top:8px">
+          <div style="flex:1"><label for="search-page">页码</label><input class="in" type="number" id="search-page" value="1" min="1"></div>
+          <div style="flex:1"><label for="search-size">每页数量</label><input class="in" type="number" id="search-size" value="20" min="1" max="50"></div>
+        </div>
+        <button class="btn bp" id="search-collect-btn">搜索采集</button>
+        <div id="search-result"></div>
+      </div>
+    </div>
+    <div class="cd">
+      <div class="h">AI内容优化</div>
+      <div class="msg info"><div>使用AI优化商品标题和描述，提升营销效果。需要AI服务可用。</div></div>
+      <div style="max-width:400px"><label for="ai-product-id">商品ID</label><input class="in" id="ai-product-id" placeholder="输入要优化的商品ID"></div>
+      <button class="btn bp mt" id="ai-optimize-btn">AI优化</button>
+      <div id="ai-result"></div>
+    </div>
+  </div>
+
+  <!-- logs -->
+  <div id="logs-page" class="page" style="display:none">
+    <div class="sb">
+      <input class="in" id="log-endpoint" placeholder="API端点筛选" style="max-width:300px">
+      <select class="sl" id="log-success">
+        <option value="">所有状态</option>
+        <option value="true">成功</option>
+        <option value="false">失败</option>
+      </select>
+      <button class="btn bp" id="filter-logs-btn">筛选</button>
+    </div>
+    <div class="cd" style="padding:0;overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>ID</th><th>用户</th><th>API端点</th><th>参数</th><th>响应码</th><th>耗时(ms)</th><th>状态</th><th>时间</th>
+        </tr></thead>
+        <tbody id="logs-table"><tr><td colspan="8" class="tc dim" style="padding:20px">加载中...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pg" id="logs-pagination"></div>
+  </div>
+
+  <!-- cache -->
+  <div id="cache-page" class="page" style="display:none">
+    <div class="g2">
+      <div class="cd">
+        <div class="h">缓存统计</div>
+        <div id="cache-details"><div class="dim" style="font-size:12px">加载中...</div></div>
+        <button class="btn bn mt" id="refresh-cache-stats">刷新统计</button>
+      </div>
+      <div class="cd">
+        <div class="h">缓存清理</div>
+        <div class="msg warn"><div>清理缓存将删除缓存数据，可能导致API调用增加。</div></div>
+        <label for="cache-type">清理类型</label>
+        <select class="sl" id="cache-type" style="width:100%">
+          <option value="all">所有缓存</option>
+          <option value="product">商品缓存</option>
+          <option value="api">API响应缓存</option>
+        </select>
+        <div id="product-id-container" style="display:none;margin-top:8px">
+          <label for="cache-product-id">商品ID</label>
+          <input class="in" id="cache-product-id" placeholder="留空则清除所有商品缓存">
+        </div>
+        <button class="btn br mt" id="clear-cache-btn">清理缓存</button>
+        <div id="clear-result"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- settings -->
+  <div id="settings-page" class="page" style="display:none">
+    <div class="cd" style="max-width:600px">
+      <div class="h">基本配置</div>
+      <div id="settings-content"><div class="ac dim" style="padding:20px;font-size:12px">加载配置中...</div></div>
+    </div>
+  </div>
+
+  <!-- config -->
+  <div id="config-page" class="page" style="display:none">
+    <div class="g2">
+      <div class="cd">
+        <div class="h">阿里巴巴配置</div>
+        <div class="fl" style="border:none;padding:0">
+          <form onsubmit="return false;" id="ali-config-form">
+            <div class="r"><div class="c"><label>API 网关</label><input class="in" id="cfg-api-gateway" readonly></div></div>
+            <div class="r"><div class="c"><label>API 版本</label><input class="in" id="cfg-api-version" readonly></div></div>
+            <div class="r"><div class="c"><label>签名方法</label><input class="in" id="cfg-sign-method" readonly></div></div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:10px 0">
+            <div class="r"><div class="c"><label>AppKey <span style="color:#f85149">*</span></label><input class="in" id="cfg-app-key" placeholder="输入 1688 AppKey"></div></div>
+            <div class="r"><div class="c"><label>AppSecret <span style="color:#f85149">*</span></label><input class="in" type="password" id="cfg-app-secret" placeholder="输入 1688 AppSecret"></div></div>
+            <button class="btn bp" id="save-config-btn" onclick="saveConfig()">保存配置</button>
+            <span id="config-save-result" class="mu" style="font-size:11px;margin-left:6px"></span>
+          </form>
+        </div>
+      </div>
+      <div class="cd">
+        <div class="h">AI配置</div>
+        <dl class="dl" id="ai-config">
+          <dt>供应商</dt><dd>加载中...</dd>
+          <dt>模型</dt><dd>加载中...</dd>
+          <dt>状态</dt><dd><span class="stbd off">未知</span></dd>
+        </dl>
+      </div>
+      <div class="cd">
+        <div class="h">风控配置</div>
+        <dl class="dl" id="rate-limit-config">
+          <dt>用户每日限制</dt><dd>加载中...</dd>
+          <dt>用户每小时限制</dt><dd>加载中...</dd>
+          <dt>全局并发限制</dt><dd>加载中...</dd>
+          <dt>全局QPS限制</dt><dd>加载中...</dd>
+          <dt>熔断阈值</dt><dd>加载中...</dd>
+        </dl>
+      </div>
+      <div class="cd">
+        <div class="h">缓存配置</div>
+        <dl class="dl" id="cache-config">
+          <dt>Redis配置</dt><dd><span class="stbd off">未配置</span></dd>
+          <dt>内存缓存大小</dt><dd>加载中...</dd>
+          <dt>商品缓存TTL</dt><dd>加载中...</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
 </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="/admin/ali-api/static/ali_console.js"></script>
+<!-- AI title modal -->
+<div class="mo" id="ai-title-modal">
+  <div class="mb sm">
+    <div class="mt"><span>AI 标题选项</span><span class="cl" onclick="closeModal('ai-title-modal')">&times;</span></div>
+    <div class="mbd">
+      <div class="dim" style="font-size:12px;margin-bottom:10px">AI 生成了 3 个不同风格的标题，请选择最合适的。</div>
+      <div id="ai-title-options"><div class="ac dim" style="padding:12px;font-size:12px">加载中...</div></div>
+    </div>
+    <div class="mf">
+      <button class="btn bn" onclick="closeModal('ai-title-modal')">取消</button>
+      <button class="btn bp" id="confirm-title-btn">确认选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- image gallery modal -->
+<div class="mo" id="image-gallery-modal">
+  <div class="mb xl">
+    <div class="mt"><span>商品图片管理</span><span class="cl" onclick="closeModal('image-gallery-modal')">&times;</span></div>
+    <div class="mbd">
+      <div class="uz" id="upload-zone">
+        <div class="uz-ic">&#x2601;</div>
+        <div class="uz-t">拖拽图片到此处或点击上传</div>
+        <div class="uz-st">支持 JPG/PNG/WebP/GIF，单张不超过 5MB</div>
+        <input type="file" id="image-upload-input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" style="display:none" multiple>
+      </div>
+      <div id="image-gallery-container"><div class="ac dim" style="padding:20px;font-size:12px">请选择商品以查看图片</div></div>
+    </div>
+    <div class="mf">
+      <span id="image-count" class="dim" style="font-size:12px;margin-right:auto">共0张图片</span>
+      <button class="btn bn" onclick="closeModal('image-gallery-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="/admin/ali-api/static/ali_console.js"></script>
 </body>
 </html>
