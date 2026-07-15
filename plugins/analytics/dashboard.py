@@ -17,7 +17,7 @@ import json
 import time
 from datetime import datetime, timedelta
 
-from flask import Blueprint, request, jsonify, render_template, Response
+from flask import Blueprint, request, jsonify, render_template, Response, g, current_app
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
@@ -496,3 +496,73 @@ def api_report_text():
     report = generate_report(days)
     text = generate_insight_text(report)
     return Response(text, mimetype='text/plain; charset=utf-8')
+
+
+# ─── PluginManager 标准化配置 ─────────────────────────────────────────
+
+_ANALYTICS_CONFIG_KEYS = ['sample_rate', 'geoip_enabled', 'service_name']
+
+_ANALYTICS_CONFIG_DEFAULTS = {
+    'sample_rate': 1.0,
+    'geoip_enabled': True,
+    'service_name': 'admin',
+}
+
+
+def _get_pm():
+    """获取 PluginManager 实例"""
+    pm = getattr(request, 'plugin_manager', None)
+    if pm is None:
+        pm = getattr(g, 'plugin_manager', None)
+    if pm is None:
+        pm = current_app.extensions.get('plugin_manager')
+    return pm
+
+
+@analytics_bp.route('/settings', methods=['GET'])
+def analytics_settings_get():
+    """获取插件配置（PluginManager 标准化）"""
+    from flask import current_app, g
+    pm = _get_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    cfg = pm.get_config('analytics') or {}
+    result = {}
+    for k in _ANALYTICS_CONFIG_KEYS:
+        v = cfg.get(k)
+        if v is not None:
+            result[k] = v
+        else:
+            result[k] = _ANALYTICS_CONFIG_DEFAULTS.get(k)
+    return jsonify({'success': True, 'data': result})
+
+
+@analytics_bp.route('/settings', methods=['POST'])
+def analytics_settings_save():
+    """保存插件配置（PluginManager 标准化）"""
+    from flask import current_app, g
+    data = request.get_json(force=True) or {}
+    pm = _get_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    filtered = {k: v for k, v in data.items() if k in _ANALYTICS_CONFIG_KEYS}
+    if not filtered:
+        return jsonify({'success': False, 'error': 'No valid config keys provided'}), 400
+    # 类型转换
+    for k in filtered:
+        if k == 'sample_rate':
+            try:
+                filtered[k] = float(filtered[k])
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': f'{k} must be a number'}), 400
+        elif k == 'geoip_enabled':
+            if isinstance(filtered[k], str):
+                filtered[k] = filtered[k].lower() in ('1', 'true', 'yes')
+            else:
+                filtered[k] = bool(filtered[k])
+        else:
+            filtered[k] = str(filtered[k])
+    result = pm.set_config_batch('analytics', filtered, coerce=True)
+    if result.get('errors'):
+        return jsonify({'success': True, 'warning': str(result['errors'])})
+    return jsonify({'success': True})
