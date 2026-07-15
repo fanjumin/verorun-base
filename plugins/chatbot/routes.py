@@ -314,8 +314,8 @@ def csat():
 
 
 DEFAULT_HANDOFF_KEYWORDS = [
-    "人工", "客服", "转人工", "联系真人", "联系工作人员",
-    "商务", "合作", "投诉", "定制", "开发"
+    "human", "agent", "customer service", "live chat", "real person",
+    "talk to human", "representative", "support agent", "complaint", "custom"
 ]
 
 
