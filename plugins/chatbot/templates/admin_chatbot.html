@@ -23,7 +23,7 @@ window.l_chatbot=function(){
       '<button class="btn bp bs" onclick="document.getElementById(\'cb-avatar_upload\').click()" title="{{ _('Upload') }}">📤 {{ _('Upload') }}</button>'+
       '</div>'+
       '<div id="cb-avatar-preview" style="margin-top:6px">';
-    if(c.avatar_url)h+='<img src="'+esc(c.avatar_url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
+    if(c.avatar_url)h+='<img src="'+esc(c.avatar_url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:1px solid var(--bd)">';
     h+='</div></div></div>';
     h+=_chatbotRow('agent_id',"{{ _('Bound Agent ID') }}",c.agent_id||'chat_assistant');
     h+=_chatbotRow('max_history',"{{ _('Max History Rounds') }}",c.max_history||'20');
