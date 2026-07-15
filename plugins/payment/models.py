@@ -18,23 +18,84 @@ _payment_conn = None
 _conn_lock = __import__('threading').Lock()
 
 
+def _rebuild_db():
+    """重建数据库（文件损坏时调用）"""
+    global _payment_conn
+    _payment_conn = None
+    try:
+        os.remove(_DB_PATH)
+    except OSError:
+        pass
+    # 清理旧的 WAL/SHM 文件
+    for ext in ('-wal', '-shm'):
+        try:
+            os.remove(_DB_PATH + ext)
+        except OSError:
+            pass
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    # 重建表
+    conn.execute('''CREATE TABLE IF NOT EXISTS payment_logs (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id        TEXT NOT NULL,
+        subject         TEXT DEFAULT '',
+        amount          REAL DEFAULT 0,
+        provider        TEXT DEFAULT '',
+        status          TEXT DEFAULT 'pending',
+        raw_response    TEXT DEFAULT '',
+        created_at      TEXT DEFAULT (datetime('now')),
+        completed_at    TEXT
+    )''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_payment_logs_order ON payment_logs(order_id)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_payment_logs_created ON payment_logs(created_at)')
+    conn.execute('''CREATE TABLE IF NOT EXISTS payment_configs (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider    TEXT NOT NULL,
+        config_key  TEXT NOT NULL,
+        config_value TEXT NOT NULL DEFAULT '',
+        updated_at  TEXT DEFAULT (datetime('now')),
+        UNIQUE(provider, config_key)
+    )''')
+    conn.commit()
+    conn.close()
+    print(f'[PaymentPlugin] 🛠️ 数据库已重建（{_DB_PATH}）')
+
+
+def _connect_db():
+    """连接数据库，失败时自动重建"""
+    try:
+        conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("SELECT 1").fetchone()
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+    except sqlite3.DatabaseError as e:
+        print(f'[PaymentPlugin] ⚠️ 数据库损坏，自动重建: {e}')
+        _rebuild_db()
+        conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
+
 def get_payment_db():
-    """获取支付数据库连接（线程安全，自动重连）"""
+    """获取支付数据库连接（线程安全，自动重连，自动修复损坏）"""
     global _payment_conn
     with _conn_lock:
         if _payment_conn is None:
-            _payment_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-            _payment_conn.row_factory = sqlite3.Row
-            _payment_conn.execute("PRAGMA journal_mode=WAL")
-            _payment_conn.execute("PRAGMA busy_timeout=5000")
+            _payment_conn = _connect_db()
         else:
             try:
                 _payment_conn.execute("SELECT 1").fetchone()
             except sqlite3.ProgrammingError:
-                _payment_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-                _payment_conn.row_factory = sqlite3.Row
-                _payment_conn.execute("PRAGMA journal_mode=WAL")
-                _payment_conn.execute("PRAGMA busy_timeout=5000")
+                _payment_conn = _connect_db()
+            except sqlite3.DatabaseError:
+                _payment_conn = None
+                _payment_conn = _connect_db()
     return _payment_conn
 
 
