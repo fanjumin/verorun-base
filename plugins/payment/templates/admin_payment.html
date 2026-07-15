@@ -63,7 +63,8 @@ window.l_payment = function(){
 
 function payShowError(msg){
   var grid = document.getElementById('payProviderGrid');
-  if(grid) grid.innerHTML = '<div class="pay-no-config" style="color:#f85149">⚠️ ' + esc(msg) + '</div>';
+  if(grid) grid.textContent = '[Error] ' + msg;
+  grid.style.color = '#f85149';
   console.error('[PaymentPlugin]', msg);
 }
 
@@ -83,9 +84,12 @@ function loadPayProviders(){
 
 function loadPayConfigs(){
   fetch('/admin/payment/configs', {headers:{"Authorization":"Bearer "+T}})
-    .then(function(r){return r.json()})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(d){
-      if(!d.success){showToast(d.error||'{{ _("Load failed") }}','error');return}
+      if(!d.success){payShowError(d.error||'{{ _("Load failed") }}');showToast(d.error||'{{ _("Load failed") }}','error');return}
       var map = {};
       (d.data||[]).forEach(function(item){map[item.provider] = item.configs || {};});
       _payConfigs = map;
