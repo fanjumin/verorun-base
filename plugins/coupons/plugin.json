@@ -27,7 +27,7 @@
         "type": "object",
         "properties": {}
     },
-    "admin_url": "/admin",
+    "admin_url": "#coupons_plugin",
     "menu": {
         "key": "coupons_plugin",
         "group": "Shop",

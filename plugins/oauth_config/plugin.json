@@ -23,7 +23,7 @@
         ],
         "listens": []
     },
-    "admin_url": "/admin",
+    "admin_url": "#oauth",
     "menu": {
         "group": "Security & Compliance",
         "key": "oauth",

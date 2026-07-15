@@ -6,7 +6,6 @@
     "author": "VeroRun",
     "category": "admin",
     "permissions": ["admin"],
-    "admin_url": "/admin",
     "admin": {
         "menu": {
             "title": "Developer Accounts",

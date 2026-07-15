@@ -50,7 +50,14 @@ function renderPluginList(){
       h+='<tr id="detail-'+p.identifier+'" style="display:none"><td colspan="5" style="padding:10px 16px;background:var(--bg2)">';
       h+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
       if(p.description) h+='<span style="color:var(--dim);font-size:12px">'+esc(p.description)+'</span>';
-      if(p.admin_url) h+='<a class="btn bp bs" href="'+escAttr(p.admin_url)+'" style="font-size:12px;padding:4px 14px;text-decoration:none" onclick="event.stopPropagation()">🔗 {{ _('Manage') }}</a>';
+      if(p.admin_url){
+        if(p.admin_url.charAt(0)==='#'){
+          var _k=p.admin_url.substring(1);
+          h+='<button class="btn bp bs" onclick="event.stopPropagation();go(\''+escAttr(_k)+'\')" style="font-size:12px;padding:4px 14px;cursor:pointer">🔗 {{ _('Manage') }}</button>';
+        }else{
+          h+='<a class="btn bp bs" href="'+escAttr(p.admin_url)+'" style="font-size:12px;padding:4px 14px;text-decoration:none" onclick="event.stopPropagation()">🔗 {{ _('Manage') }}</a>';
+        }
+      }
       h+='</div></td></tr>';
     });
     h+='</table>';
