@@ -132,6 +132,17 @@ def get_settings():
     }
 
     try:
+        # 优先 PluginManager
+        mgr = _get_plugin_manager()
+        if mgr:
+            pm_config = mgr.get_config('chatbot') or {}
+            cfg = {}
+            for k in keys:
+                v = pm_config.get(k)
+                cfg[k] = str(v) if v is not None else defaults.get(k, '')
+            return jsonify({'success': True, 'data': cfg})
+
+        # 回退旧方法：独立库 plugin_configs 表
         from .models import get_config as _gc
         cfg = {}
         for k in keys:
@@ -402,6 +413,15 @@ def save_settings():
     }
 
     try:
+        # 优先 PluginManager
+        mgr = _get_plugin_manager()
+        if mgr:
+            filtered = {k: str(v) for k, v in data.items() if k in allowed}
+            if filtered:
+                mgr.set_config_batch('chatbot', filtered, coerce=True)
+            return jsonify({'success': True})
+
+        # 回退旧方法：独立库 plugin_configs 表
         from .models import set_config as _sc
         for k, v in data.items():
             if k in allowed:

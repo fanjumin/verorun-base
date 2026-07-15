@@ -8,6 +8,7 @@ from plugin_manager.base import BasePlugin
 class ChatbotPlugin(BasePlugin):
     name = 'AI Advisor'
     identifier = 'chatbot'
+    version = '1.0.0'
 
     def setup(self):
         # 先执行父类 setup()，触发 on_install（建表/写种子）和 on_enable（注册Agent）
@@ -68,7 +69,16 @@ class ChatbotPlugin(BasePlugin):
             self.log(f'Register agents failed: {e}', 'warning')
 
     def get_config_value(self, key: str, default: Any = None) -> Any:
-        """从独立库 plugin_configs 读取；fallback 到 plugin.json 默认值"""
+        """优先 PluginManager，回退到独立库 plugin_configs 表"""
+        try:
+            mgr = getattr(self.app.extensions, 'get', lambda x: None)('plugin_manager')
+            if mgr:
+                pm_cfg = mgr.get_config(self.identifier) or {}
+                if key in pm_cfg:
+                    return pm_cfg[key]
+        except Exception:
+            pass
+        # 回退旧方法
         try:
             from .models import get_config
             val = get_config(self.identifier, key)
@@ -79,7 +89,16 @@ class ChatbotPlugin(BasePlugin):
         return self._config.get(key, default)
 
     def set_config_value(self, key: str, value: Any) -> bool:
-        """持久化到独立库 plugin_configs"""
+        """优先 PluginManager，回退到独立库 plugin_configs"""
+        try:
+            mgr = getattr(self.app.extensions, 'get', lambda x: None)('plugin_manager')
+            if mgr:
+                mgr.set_config_batch(self.identifier, {key: str(value)}, coerce=True)
+                self._config[key] = value
+                return True
+        except Exception:
+            pass
+        # 回退旧方法
         try:
             from .models import set_config
             set_config(self.identifier, key, str(value))

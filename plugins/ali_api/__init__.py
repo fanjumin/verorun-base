@@ -14,7 +14,7 @@ from .plugin_i18n import set_plugin
 
 class AliApiPlugin(BasePlugin):
     name = 'ali_api'
-    version = '0.2.1'
+    version = '1.0.0'
     description = '1688 供应链采集插件 — 商品搜索、AI 优化、本地商城发布'
     author = 'VeroRun'
 

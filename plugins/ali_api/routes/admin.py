@@ -1242,6 +1242,49 @@ def save_config():
     logger.info(f"ali_api 配置已保存 (user_id={admin['user_id']})")
     return _success(None, '配置保存成功。部分更改需要重启服务后才能生效。')
 
+# ── GET /admin/ali-api/settings ──
+# PluginManager 标准化配置接口（非敏感配置）
+# 敏感配置（AppKey/AppSecret）保留在 ali_api_config 表，通过 /admin/ali-api/config 管理
+_ALI_CONFIG_KEYS = ['api_gateway']
+
+
+@ali_admin_bp.route('/settings', methods=['GET'])
+def ali_settings_get():
+    """获取插件配置（PluginManager 标准化）"""
+    admin, err = _require_admin_or_error()
+    if err:
+        return err
+    from flask import current_app
+    mgr = current_app.extensions.get('plugin_manager')
+    cfg = mgr.get_config('ali_api') if mgr else {}
+    return _success({
+        'config': {k: cfg.get(k, '') for k in _ALI_CONFIG_KEYS},
+    })
+
+
+@ali_admin_bp.route('/settings', methods=['POST'])
+def ali_settings_save():
+    """保存插件配置（PluginManager 标准化）"""
+    admin, err = _require_admin_or_error()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    from flask import current_app
+    mgr = current_app.extensions.get('plugin_manager')
+    if not mgr:
+        return _error('PluginManager not available', 503)
+    cfg = {}
+    for k in _ALI_CONFIG_KEYS:
+        if k in data:
+            cfg[k] = data[k]
+    if not cfg:
+        return _error('No valid config keys provided', 400)
+    result = mgr.set_config_batch('ali_api', cfg, coerce=True)
+    if result.get('errors'):
+        return _success({'saved': True}, 'warning: ' + str(result['errors']))
+    return _success({'saved': True})
+
+
 # ===== 允许的 OAuth 回调域名白名单（从配置动态获取）=====
 def _get_allowed_domains():
     """从环境变量 + ali_api_config 读取允许的重定向域名

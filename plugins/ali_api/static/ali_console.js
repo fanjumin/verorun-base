@@ -123,6 +123,7 @@ function loadPageData(page) {
         case 'products': loadProducts(); break;
         case 'logs': loadLogs(); break;
         case 'cache': loadCacheStats(); break;
+        case 'settings': loadSettings(); break;
         case 'config': loadConfig(); break;
     }
 }
@@ -788,6 +789,54 @@ async function loadConfig() {
         }
     } catch (e) {
         console.error('加载配置失败:', e);
+    }
+}
+
+// ===== Settings（PluginManager 标准化配置）=====
+async function loadSettings() {
+    const el = document.getElementById('settings-content');
+    if (!el) return;
+    try {
+        const res = await axios.get('/admin/ali-api/settings');
+        if (!res.data.success) {
+            el.innerHTML = '<div class="text-danger">加载失败: ' + escHtml(res.data.error) + '</div>';
+            return;
+        }
+        const cfg = res.data.data.config || {};
+        let h = '<div class="mb-3">';
+        h += '<label class="form-label">API 网关地址</label>';
+        h += '<input type="text" class="form-control" id="s-api-gateway" value="' + escHtml(cfg.api_gateway || '') + '" placeholder="https://gw.open.1688.com/openapi">';
+        h += '<div class="form-text">1688 Open API 网关地址</div>';
+        h += '</div>';
+        h += '<button class="btn btn-primary" onclick="saveSettings()"><i class="bi bi-check-lg"></i> 保存配置</button>';
+        h += ' <span id="settings-status" class="small text-muted"></span>';
+        el.innerHTML = h;
+    } catch (e) {
+        el.innerHTML = '<div class="text-danger">加载失败: ' + escHtml(e.message) + '</div>';
+    }
+}
+
+async function saveSettings() {
+    const el = document.getElementById('settings-content');
+    const btn = el ? el.querySelector('button') : null;
+    const status = document.getElementById('settings-status');
+    if (status) status.textContent = '保存中...';
+    if (btn) btn.disabled = true;
+    try {
+        const data = {
+            api_gateway: document.getElementById('s-api-gateway')?.value?.trim() || '',
+        };
+        const res = await axios.post('/admin/ali-api/settings', data);
+        if (res.data.success) {
+            if (status) { status.textContent = '✅ 已保存'; status.className = 'small text-success'; }
+            setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+        } else {
+            if (status) { status.textContent = '❌ ' + (res.data.error || '保存失败'); status.className = 'small text-danger'; }
+        }
+    } catch (e) {
+        if (status) { status.textContent = '❌ ' + (e.response?.data?.error || e.message); status.className = 'small text-danger'; }
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

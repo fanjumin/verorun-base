@@ -1,7 +1,7 @@
 {
     "name": "AI Advisor",
     "identifier": "chatbot",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "category": "ai_agent",
     "icon": "message-circle",
     "tags": ["chatbot", "customer-service", "ai", "rag", "advisor"],
