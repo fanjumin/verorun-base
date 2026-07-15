@@ -116,9 +116,15 @@ def get_all_configs():
     a, e = _require_admin()
     if e:
         return e
-    from plugins.payment.models import get_all_providers_summary
-    summary = get_all_providers_summary()
-    return jsonify({'success': True, 'data': summary})
+    try:
+        from plugins.payment.models import get_all_providers_summary
+        summary = get_all_providers_summary()
+        return jsonify({'success': True, 'data': summary})
+    except Exception as ex:
+        import traceback
+        tb = traceback.format_exc()
+        print(f'[PaymentPlugin] ERROR /admin/payment/configs: {ex}\n{tb}')
+        return jsonify({'success': False, 'error': repr(ex), 'traceback': tb.split(chr(10))}), 500
 
 
 # ── API: 获取单个提供商配置 ──

@@ -102,6 +102,7 @@ def set_provider_configs(provider: str, configs: dict):
 
 def get_all_providers_summary() -> list:
     """获取所有提供商配置概览（供管理 UI 使用）"""
+    init_payment_tables()
     conn = get_payment_db()
     rows = conn.execute(
         'SELECT provider, config_key, config_value FROM payment_configs ORDER BY provider, config_key'

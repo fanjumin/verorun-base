@@ -29,12 +29,12 @@ function renderPluginList(){
     plugins.forEach(function(p){
       var st=statusMap[p.status]||esc(p.status);
       var s=p.status;
-      h+='<tr>';
+      h+='<tr onclick="togglePluginDetail(\''+escAttr(p.identifier)+'\')" style="cursor:pointer">';
       h+='<td style="padding:10px 12px;font-weight:600">'+esc(p.name||p.identifier)+'</td>';
       h+='<td style="padding:10px 12px;color:var(--dim)">v'+esc(p.version)+'</td>';
       h+='<td style="padding:10px 12px;color:var(--dim)">'+esc(p.author||'-')+'</td>';
       h+='<td style="padding:10px 12px;text-align:center">'+st+'</td>';
-      h+='<td style="padding:10px 12px;text-align:center;display:flex;gap:4px;flex-wrap:wrap;justify-content:center">';
+      h+='<td style="padding:10px 12px;text-align:center;display:flex;gap:4px;flex-wrap:wrap;justify-content:center" onclick="event.stopPropagation()">';
       // Install button
       if(s==='unknown') h+='<button class="btn bp bs" onclick="pluginInstall(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
       // Enable
@@ -45,16 +45,16 @@ function renderPluginList(){
       if(s==='active'||s==='enabled') h+='<button class="btn bo bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'disable\')">{{ _('Disable') }}</button>';
       // Uninstall
       if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" style="color:#f85149" onclick="showUninstallConfirm(\''+escAttr(p.identifier)+'\')">{{ _('Uninstall') }}</button>';
-      // Settings（有 admin_url 跳转插件自有页面，否则降级内联）
-      if(s!=='unknown'&&s!=='uninstalled'){
-        if(p.admin_url){h+='<button class="btn bo bs" onclick="goPlugin(\''+escAttr(p.identifier)+'\',\''+escAttr(p.admin_url)+'\')">⚙ '+(p.admin_label||'{{ _('Settings') }}')+'</button>'}
-        else{h+='<button class="btn bo bs" onclick="pluginShowConfig(\''+escAttr(p.identifier)+'\')">⚙ {{ _('Config') }}</button>'}
-      }
       h+='</td></tr>';
+      // 展开详情行（点插件行展开，显示描述+进入管理链接）
+      h+='<tr id="detail-'+p.identifier+'" style="display:none"><td colspan="5" style="padding:10px 16px;background:var(--bg2)">';
+      h+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
+      if(p.description) h+='<span style="color:var(--dim);font-size:12px">'+esc(p.description)+'</span>';
+      if(p.admin_url) h+='<a class="btn bp bs" href="'+escAttr(p.admin_url)+'" style="font-size:12px;padding:4px 14px;text-decoration:none" onclick="event.stopPropagation()">🔗 {{ _('Manage') }}</a>';
+      h+='</div></td></tr>';
     });
     h+='</table>';
     h+='<div id="pluginActionForm" style="margin-top:16px"></div>';
-    h+='<div id="pluginConfigBox" style="margin-top:16px"></div>';
     mc.innerHTML=h;
   }).catch(function(){mc.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
 }
@@ -123,51 +123,7 @@ function pluginUninstall(id){
     else{act.innerHTML='<div class="em">'+esc(d.error||'{{ _('Uninstall failed') }}')+'</div>'}
   }).catch(function(){act.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
 }
-function pluginShowConfig(id){
-  var box=document.getElementById("pluginConfigBox");
-  box.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
-  fetch("/admin/plugins/"+encodeURIComponent(id)+"/config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){box.innerHTML='<div class="em">'+esc(d.error||'')+'</div>';return}
-    var cfg=d.data.config||{};
-    var schema=d.data.settings_schema||{};
-    var props=schema.properties||{};
-    var h='<div class="cd"><div class="st">⚙ {{ _('Plugin Config') }} — '+esc(id)+'</div>';
-    var keys=Object.keys(props).length?Object.keys(props):Object.keys(cfg);
-    if(keys.length===0){
-      h+='<div class="em">{{ _('No configurable items') }}</div>';
-    }else{
-      keys.forEach(function(k){
-        var prop=props[k]||{};
-        var label=prop.title||k;
-        var val=cfg[k]!==undefined?cfg[k]:prop.default||'';
-        var inputType=prop.type==='number'||prop.type==='integer'?'number':'text';
-        var ph=prop.description||'';
-        h+='<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">';
-        h+='<div style="flex:1;min-width:0">';
-        h+='<div style="font-size:12px;font-weight:600">'+esc(label)+'</div>';
-        if(ph)h+='<div style="font-size:10px;color:var(--dim)">'+esc(ph)+'</div>';
-        h+='</div>';
-        h+='<input class="in" id="pcfg-'+k+'" type="'+inputType+'" value="'+esc(String(val))+'" style="width:160px">';
-        h+='</div>';
-      });
-      h+='<div style="margin-top:12px"><button class="btn bp" onclick="pluginSaveConfig(\''+escAttr(id)+'\')">{{ _('Save Config') }}</button></div>';
-    }
-    h+='</div>';
-    box.innerHTML=h;
-  }).catch(function(){box.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
-}
-function pluginSaveConfig(id){
-  var cfg={};
-  var keys=document.querySelectorAll('[id^="pcfg-"]');
-  keys.forEach(function(el){
-    var key=el.id.replace('pcfg-','');
-    cfg[key]=el.value;
-  });
-  var btn=document.querySelector('#pluginConfigBox button');
-  if(btn){btn.textContent="{{ _('Saving') }}...";btn.disabled=true}
-  fetch("/admin/plugins/"+encodeURIComponent(id)+"/config",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(cfg)}).then(function(r){return r.json()}).then(function(d){
-    if(btn){btn.textContent="{{ _('Save Config') }}";btn.disabled=false}
-    if(d.success){showToast("{{ _('Config saved') }}","success")}
-    else{showToast(d.error||"{{ _('Save failed') }}","error")}
-  }).catch(function(){if(btn){btn.textContent="{{ _('Save Config') }}";btn.disabled=false}showToast("{{ _('Network error') }}","error")});
+function togglePluginDetail(id){
+  var el=document.getElementById('detail-'+id);
+  if(el) el.style.display=el.style.display==='none'?'':'none';
 }
