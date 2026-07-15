@@ -854,6 +854,96 @@ class AliApiConfig:
         return True
 
 
+class AliPurchaseOrder:
+    """1688 代发采购单 — 本地订单与 1688 采购订单的关联记录"""
+
+    @staticmethod
+    def create_table(conn):
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS ali_purchase_orders (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                local_order_id      TEXT NOT NULL,
+                local_order_item_id INTEGER NOT NULL,
+                product_id          INTEGER NOT NULL,
+                ali_product_id      TEXT NOT NULL,
+                ali_sku_id          TEXT DEFAULT '',
+                quantity            INTEGER DEFAULT 1,
+                price               REAL DEFAULT 0,
+                total_fee           REAL DEFAULT 0,
+                ali_order_id        TEXT DEFAULT '',
+                ali_order_status    TEXT DEFAULT 'pending',
+                supplier_name       TEXT DEFAULT '',
+                supplier_id         TEXT DEFAULT '',
+                tracking_company    TEXT DEFAULT '',
+                tracking_number     TEXT DEFAULT '',
+                created_at          TEXT DEFAULT (datetime('now','localtime')),
+                ordered_at          TEXT,
+                shipped_at          TEXT,
+                remark              TEXT DEFAULT '',
+                UNIQUE(local_order_item_id, ali_product_id)
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_po_order ON ali_purchase_orders(local_order_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_po_status ON ali_purchase_orders(ali_order_status)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_po_ali_order ON ali_purchase_orders(ali_order_id)')
+
+    @staticmethod
+    def insert(conn, data: dict) -> int:
+        cursor = conn.execute('''
+            INSERT INTO ali_purchase_orders
+                (local_order_id, local_order_item_id, product_id,
+                 ali_product_id, ali_sku_id, quantity, price, total_fee,
+                 supplier_name, supplier_id, remark)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        ''', (
+            data['local_order_id'], data['local_order_item_id'], data['product_id'],
+            data['ali_product_id'], data.get('ali_sku_id',''), data.get('quantity',1),
+            data.get('price',0), data.get('total_fee',0),
+            data.get('supplier_name',''), data.get('supplier_id',''),
+            data.get('remark',''),
+        ))
+        return cursor.lastrowid
+
+    @staticmethod
+    def get_by_id(conn, po_id: int) -> Optional[dict]:
+        row = conn.execute('SELECT * FROM ali_purchase_orders WHERE id=?', (po_id,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_by_local_item(conn, local_order_item_id: int) -> Optional[dict]:
+        row = conn.execute('SELECT * FROM ali_purchase_orders WHERE local_order_item_id=?',
+                           (local_order_item_id,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def list_orders(conn, status: str = '', limit: int = 50, offset: int = 0) -> tuple:
+        where = ''
+        params = []
+        if status and status != 'all':
+            where = 'WHERE ali_order_status=?'
+            params.append(status)
+        total = conn.execute(f'SELECT COUNT(*) as c FROM ali_purchase_orders {where}',
+                             params).fetchone()['c']
+        rows = conn.execute(
+            f'SELECT * FROM ali_purchase_orders {where} ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            params + [limit, offset]
+        ).fetchall()
+        return [dict(r) for r in rows], total
+
+    @staticmethod
+    def update_order(conn, po_id: int, **updates) -> bool:
+        allowed = {'ali_order_id','ali_order_status','ali_sku_id','price','total_fee',
+                   'tracking_company','tracking_number','ordered_at','shipped_at','remark',
+                   'supplier_name','supplier_id','quantity'}
+        sets = {k:v for k,v in updates.items() if k in allowed}
+        if not sets:
+            return False
+        set_clause = ','.join(f'{k}=?' for k in sets)
+        vals = list(sets.values()) + [po_id]
+        conn.execute(f'UPDATE ali_purchase_orders SET {set_clause} WHERE id=?', vals)
+        return conn.rowcount > 0
+
+
 # ===== 数据库初始化 =====
 
 # 本插件全部数据表（用于遗留数据迁移）
@@ -918,6 +1008,7 @@ def init_tables():
         AliApiToken.create_table(conn)
         OAuthState.create_table(conn)
         AliApiConfig.create_table(conn)
+        AliPurchaseOrder.create_table(conn)
         conn.commit()
     # 复制主库遗留的 ali_api_* 数据（幂等、非破坏）
     migrate_data_from_main_db()

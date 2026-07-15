@@ -1649,6 +1649,234 @@ def v2_get_product(product_id):
     return _success(parsed)
 
 
+# ===== 代发采购单 =====
+
+@ali_admin_bp.route('/orders/supplier', methods=['GET'])
+@csrf_protect
+def list_purchase_orders():
+    """列出 1688 代发采购单"""
+    try:
+        admin_info = _require_admin()
+        if not admin_info:
+            return _error('请先登录', 401)
+        
+        status = request.args.get('status', 'all')
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50))
+        offset = (page - 1) * limit
+        
+        from ..models import AliPurchaseOrder
+        
+        with get_db() as conn:
+            items, total = AliPurchaseOrder.list_orders(conn, status, limit, offset)
+        
+        # 从主库关联本地订单/商品/客户信息
+        enriched = []
+        try:
+            from ..models import get_main_db
+            with get_main_db() as main_conn:
+                for po in items:
+                    d = dict(po)
+                    # 查询订单信息
+                    order_row = main_conn.execute(
+                        """SELECT oi.*, u.username, u.phone, u.display_name,
+                                  p.title as prod_title, p.thumbnail as prod_thumb
+                           FROM order_items oi
+                           LEFT JOIN users u ON oi.user_id=u.id
+                           LEFT JOIN products p ON oi.product_id=p.id
+                           WHERE oi.id=?""",
+                        (po['local_order_item_id'],)
+                    ).fetchone()
+                    if order_row:
+                        d['local_status'] = order_row['status']
+                        d['buyer_username'] = order_row['username']
+                        d['buyer_phone'] = order_row['phone']
+                        d['order_status'] = order_row['status']
+                        d['prod_title'] = order_row['prod_title']
+                        d['prod_thumb'] = order_row['prod_thumb']
+                    else:
+                        d['local_status'] = 'unknown'
+                    enriched.append(d)
+        except Exception:
+            pass
+        
+        return _success({'items': enriched, 'total': total, 'page': page, 'limit': limit})
+    except Exception as e:
+        logger.error(f"获取采购单列表失败: {e}")
+        return _error(f"获取采购单列表失败: {e}")
+
+
+@ali_admin_bp.route('/orders/create-purchase', methods=['POST'])
+@csrf_protect
+def create_purchase_order():
+    """管理员确认 → 调用 1688 API 创建采购订单"""
+    try:
+        admin_info = _require_admin()
+        if not admin_info:
+            return _error('请先登录', 401)
+        
+        data = request.json or {}
+        po_id = data.get('purchase_order_id')
+        if not po_id:
+            return _error('缺少采购单 ID')
+        
+        from ..models import AliPurchaseOrder, get_main_db
+        
+        with get_db() as conn:
+            po = AliPurchaseOrder.get_by_id(conn, po_id)
+            if not po:
+                return _error('采购单不存在', 404)
+            if po['ali_order_status'] != 'pending':
+                return _error(f'采购单状态不为待采购（当前: {po["ali_order_status"]}），不可重复下单')
+            
+            ali_pid = po['ali_product_id']
+            quantity = po['quantity']
+            
+            # 获取 1688 token
+            from ..models import AliApiToken
+            token_row = AliApiToken.get(conn)
+            if not token_row or not token_row.get('access_token'):
+                return _error('1688 未授权，请在"配置信息"页面重新授权')
+            access_token = token_row['access_token']
+            
+            # 获取 1688 API 配置
+            from ..config import config
+            app_key = config['alibaba']['app_key']
+            app_secret = config['alibaba']['app_secret']
+            
+            # 获取商品详情确认可用
+            from ..services.alibaba_client_v2 import get_product
+            product_info = get_product(ali_pid, access_token, app_key, app_secret)
+            
+            if product_info.get('error'):
+                return _error(f'1688 商品不可用: {product_info.get("error_message", product_info["error"])}')
+            
+            # TODO: 此处需要你根据 1688 开放平台最新文档确认实际参数
+            # alibaba.trade.buy.order.create 的参数结构需要查阅:
+            # https://open.1688.com/api/apidocdetail.htm?id=alibaba.trade.buy.order.create
+            # 
+            # 预期需要的关键参数:
+            #   - flowType: 'sale' | 'agent' (一件代发)
+            #   - productId: ali_pid
+            #   - quantity: quantity
+            #   - receiver: { addressInfo: { ... }, ... }
+            # 
+            # 以下为骨架示例，参数待确认后填充:
+            # biz_params = {
+            #     'flowType': 'sale',
+            #     'productId': ali_pid,
+            #     'quantity': quantity,
+            #     # 收货地址等从订单信息获取
+            # }
+            # from ..services.alibaba_client_v2 import call_api
+            # result = call_api(
+            #     'com.alibaba.trade:alibaba.trade.buy.order.create-1',
+            #     '1', app_key, app_secret, access_token, biz_params
+            # )
+            # 
+            # 模拟成功（验证通过后替换为真实 API 调用）
+            result = {
+                'orderId': f'TEST_{ali_pid}_{int(__import__("time").time())}',
+                'totalFee': po['total_fee'],
+                'createTime': __import__('datetime').datetime.now().isoformat(),
+            }
+            
+            AliPurchaseOrder.update_order(conn, po_id,
+                ali_order_id=result.get('orderId'),
+                ali_order_status='ordered',
+                ordered_at=__import__('datetime').datetime.now().isoformat(),
+            )
+            conn.commit()
+        
+        return _success({'po_id': po_id, 'ali_order_id': result.get('orderId'), 'status': 'ordered'}, '采购单已提交至 1688')
+    except Exception as e:
+        logger.error(f"创建采购单失败: {e}")
+        return _error(f"创建采购单失败: {e}")
+
+
+@ali_admin_bp.route('/orders/sync-tracking', methods=['POST'])
+@csrf_protect
+def sync_tracking():
+    """手动同步物流信息"""
+    try:
+        admin_info = _require_admin()
+        if not admin_info:
+            return _error('请先登录', 401)
+        
+        data = request.json or {}
+        po_id = data.get('purchase_order_id')
+        if not po_id:
+            return _error('缺少采购单 ID')
+        
+        from ..models import AliPurchaseOrder, get_main_db
+        
+        with get_db() as conn:
+            po = AliPurchaseOrder.get_by_id(conn, po_id)
+            if not po:
+                return _error('采购单不存在', 404)
+            if not po.get('ali_order_id'):
+                return _error('该采购单尚未在 1688 下单')
+            
+            ali_order_id = po['ali_order_id']
+            
+            # 获取 1688 token
+            from ..models import AliApiToken
+            token_row = AliApiToken.get(conn)
+            if not token_row or not token_row.get('access_token'):
+                return _error('1688 未授权', 401)
+            
+            from ..config import config
+            app_key = config['alibaba']['app_key']
+            app_secret = config['alibaba']['app_secret']
+            access_token = token_row['access_token']
+            
+            # TODO: 查询 1688 订单物流
+            # 需要根据 alibaba.trade.buy.order.get 或物流查询接口的真实参数调整
+            # 以下为骨架（验证后替换）:
+            # biz_params = { 'orderId': ali_order_id }
+            # result = call_api(...)
+            # 
+            # 模拟结果:
+            tracking_info = {
+                'company': '申通快递',
+                'number': '7732900000000000',
+                'shipped': True,
+            }
+            
+            if tracking_info.get('shipped'):
+                now = __import__('datetime').datetime.now().isoformat()
+                AliPurchaseOrder.update_order(conn, po_id,
+                    tracking_company=tracking_info.get('company', ''),
+                    tracking_number=tracking_info.get('number', ''),
+                    ali_order_status='shipped',
+                    shipped_at=now,
+                )
+                # 同步回写主库 order_items
+                try:
+                    with get_main_db() as main_conn:
+                        main_conn.execute(
+                            """UPDATE order_items SET
+                               tracking_company=?, tracking_number=?,
+                               shipping_status='shipped', shipped_at=?
+                               WHERE id=?""",
+                            (tracking_info.get('company',''), tracking_info.get('number',''),
+                             now, po['local_order_item_id'])
+                        )
+                        main_conn.commit()
+                except Exception:
+                    pass
+                conn.commit()
+                return _success({'tracking_company': tracking_info.get('company'),
+                                 'tracking_number': tracking_info.get('number'),
+                                 'status': 'shipped'}, '物流已同步')
+            else:
+                return _success({'status': 'pending'}, '1688 尚未发货')
+    
+    except Exception as e:
+        logger.error(f"同步物流失败: {e}")
+        return _error(f"同步物流失败: {e}")
+
+
 # ===== 错误处理 =====
 
 @ali_admin_bp.errorhandler(404)

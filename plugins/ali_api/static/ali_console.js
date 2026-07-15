@@ -137,6 +137,7 @@ function loadPageData(page) {
         case 'cache': loadCacheStats(); break;
         case 'settings': loadSettings(); break;
         case 'config': loadConfig(); break;
+        case 'supplier': loadPurchaseOrders(); break;
     }
 }
 
@@ -480,3 +481,124 @@ function parseJsonField(v,d) {
     if (typeof v==='string') { try { return JSON.parse(v); } catch(e) { return d; } }
     return v;
 }
+
+// ===== 代发订单 =====
+var poPage=1;
+
+async function loadPurchaseOrders() {
+    try {
+        var status = document.getElementById('po-status-filter').value;
+        var res = await api('/admin/ali-api/orders/supplier?status='+status+'&page='+poPage+'&limit=20');
+        if (!res.success) return;
+        var data = res.data;
+        var tbody = document.getElementById('po-tbody');
+        if (!data.items || data.items.length===0) {
+            tbody.innerHTML='<tr><td colspan="8" class="tc dim" style="padding:20px">暂无代发订单</td></tr>';
+            document.getElementById('po-pagination').innerHTML='';
+            return;
+        }
+        var h='';
+        data.items.forEach(function(po){
+            var statusBadge = getStatusBadge(po.ali_order_status);
+            var buyLink = '';
+            var trackBtn = '';
+            if (po.ali_order_status==='pending') {
+                buyLink = '<button class="btn bn btn-sm" onclick="createPurchaseOrder('+po.id+')">一键采购</button>';
+            } else {
+                buyLink = '<span class="dim" style="font-size:11px">'+po.ali_order_id+'</span>';
+            }
+            if (po.ali_order_status==='ordered') {
+                trackBtn = '<button class="btn bs btn-sm mt" style="margin-left:4px" onclick="syncTracking('+po.id+')">同步物流</button>';
+            }
+            var tracking = po.tracking_company ? (po.tracking_company+' '+po.tracking_number) : '-';
+            if (po.ali_order_status==='shipped' && tracking!=='-') {
+                tracking = '<span style="color:var(--grn)">'+tracking+'</span>';
+            }
+            h+='<tr>' +
+                '<td style="font-size:11px">#'+po.id+'</td>' +
+                '<td><a href="/admin/orders/'+po.local_order_item_id+'/detail" target="_blank" style="font-size:11px">'+esc(po.local_order_id||'')+'</a><br><span class="dim" style="font-size:10px">'+getOrderStatusText(po.order_status||po.local_status)+'</span></td>' +
+                '<td>'+(po.prod_thumb ? '<img src="'+esc(po.prod_thumb)+'" style="width:40px;height:40px;border-radius:4px;object-fit:cover;vertical-align:middle;margin-right:6px">' : '')+'<span style="font-size:12px">'+esc(po.prod_title||'')+'</span><br><span class="dim" style="font-size:10px">x'+po.quantity+'</span></td>' +
+                '<td style="font-size:11px">'+esc(po.buyer_phone||'')+'<br><span class="dim">'+esc(po.buyer_username||'')+'</span></td>' +
+                '<td><a href="https://detail.1688.com/offer/'+po.ali_product_id+'.html" target="_blank" style="font-size:11px">'+po.ali_product_id+'</a></td>' +
+                '<td>'+statusBadge+'</td>' +
+                '<td style="font-size:11px">'+tracking+'</td>' +
+                '<td style="white-space:nowrap">'+buyLink+trackBtn+'</td>' +
+                '</tr>';
+        });
+        tbody.innerHTML=h;
+        // 分页
+        var totalPages = Math.ceil(data.total/20);
+        var ph='';
+        if (poPage>1) ph+='<a onclick="poPage='+(poPage-1)+';loadPurchaseOrders();return false;">上一页</a>';
+        for (var i=Math.max(1,poPage-2); i<=Math.min(totalPages,poPage+2); i++) {
+            ph+='<a'+(i===poPage?' class="act"':'')+' onclick="poPage='+i+';loadPurchaseOrders();return false;">'+i+'</a>';
+        }
+        if (poPage<totalPages) ph+='<a onclick="poPage='+(poPage+1)+';loadPurchaseOrders();return false;">下一页</a>';
+        document.getElementById('po-pagination').innerHTML=ph;
+    } catch(e) {
+        console.error('loadPurchaseOrders error:', e);
+    }
+}
+
+function getOrderStatusText(s) {
+    var m={'pending':'待支付','paid':'已支付','shipped':'已发货','completed':'已完成','cancelled':'已取消','refunded':'已退款'};
+    return m[s]||s||'';
+}
+
+function getStatusBadge(status) {
+    var colors={'pending':'var(--wrn)','ordered':'var(--blu)','shipped':'var(--grn)','received':'var(--grn)','cancelled':'var(--dim)'};
+    var labels={'pending':'待采购','ordered':'已订购','shipped':'已发货','received':'已完成','cancelled':'已取消'};
+    return '<span style="color:'+(colors[status]||'var(--dim)')+';font-size:11px;font-weight:600">'+(labels[status]||status)+'</span>';
+}
+
+async function createPurchaseOrder(poId) {
+    if (!confirm('确定在 1688 创建采购订单？请确认价格和库存无误。')) return;
+    try {
+        var res = await api('/admin/ali-api/orders/create-purchase', 'POST', {purchase_order_id: poId});
+        if (res.success) {
+            alert('采购单已提交至 1688，订单号: '+res.data.ali_order_id);
+            loadPurchaseOrders();
+        } else {
+            alert('下单失败: '+(res.error||'未知错误'));
+        }
+    } catch(e) {
+        alert('下单失败: '+e.message);
+    }
+}
+
+async function syncTracking(poId) {
+    try {
+        var res = await api('/admin/ali-api/orders/sync-tracking', 'POST', {purchase_order_id: poId});
+        if (res.success) {
+            if (res.data.status==='shipped') {
+                alert('物流已同步: '+res.data.tracking_company+' '+res.data.tracking_number);
+            } else {
+                alert('1688 尚未发货');
+            }
+            loadPurchaseOrders();
+        } else {
+            alert('同步失败: '+(res.error||'未知错误'));
+        }
+    } catch(e) {
+        alert('同步失败: '+e.message);
+    }
+}
+
+// 过滤器变更自动刷新
+document.addEventListener('DOMContentLoaded', function(){
+    var filter = document.getElementById('po-status-filter');
+    if (filter) {
+        filter.addEventListener('change', function(){
+            poPage=1;
+            if (document.getElementById('supplier-page').style.display!=='none') {
+                loadPurchaseOrders();
+            }
+        });
+    }
+    var refreshBtn = document.getElementById('refresh-po-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function(){
+            loadPurchaseOrders();
+        });
+    }
+});

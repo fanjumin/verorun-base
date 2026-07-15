@@ -151,6 +151,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
     <button class="tb-i act" data-page="dashboard">仪表板</button>
     <button class="tb-i" data-page="products">商品管理</button>
     <button class="tb-i" data-page="collect">商品采集</button>
+    <button class="tb-i" data-page="supplier">代发订单</button>
     <button class="tb-i" data-page="logs">API日志</button>
     <button class="tb-i" data-page="cache">缓存管理</button>
     <button class="tb-i" data-page="settings">Settings</button>
@@ -223,6 +224,41 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
       <button class="btn bp mt" id="ai-optimize-btn">AI优化</button>
       <div id="ai-result"></div>
     </div>
+  </div>
+
+  <!-- supplier -->
+  <div id="supplier-page" class="page" style="display:none">
+    <div class="sb">
+      <div class="h">代发订单管理</div>
+      <div class="dim" style="font-size:12px">订单支付后自动创建采购单，管理员确认后在 1688 下单，物流同步自动回填</div>
+    </div>
+    <div class="sb">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select class="sl" id="po-status-filter" style="width:auto;min-width:120px">
+          <option value="all">全部状态</option>
+          <option value="pending">待采购</option>
+          <option value="ordered">已订购</option>
+          <option value="shipped">已发货</option>
+          <option value="received">已完成</option>
+          <option value="cancelled">已取消</option>
+        </select>
+        <button class="btn bp" id="refresh-po-btn">刷新</button>
+      </div>
+    </div>
+    <table class="tl" id="po-table">
+      <thead><tr>
+        <th>采购单ID</th>
+        <th>本地订单</th>
+        <th>商品信息</th>
+        <th>客户</th>
+        <th>1688商品</th>
+        <th>采购状态</th>
+        <th>物流</th>
+        <th>操作</th>
+      </tr></thead>
+      <tbody id="po-tbody"><tr><td colspan="8" class="tc dim" style="padding:20px">加载中...</td></tr></tbody>
+    </table>
+    <div class="pg" id="po-pagination"></div>
   </div>
 
   <!-- logs -->
