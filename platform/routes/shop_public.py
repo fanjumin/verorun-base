@@ -339,6 +339,44 @@ def api_remove_from_cart():
 
 
 # =============================================
+# API: 用户地址列表
+# =============================================
+@shop_public_bp.route('/api/addresses', methods=['GET'])
+def api_addresses():
+    """Return user's saved addresses (cn + intl)"""
+    payload, err = _require_user()
+    if err:
+        return err
+    uid = payload['user_id']
+    with get_db() as conn:
+        cn_rows = conn.execute(
+            'SELECT id, recipient_name, phone, province_code, city_code, district_code, street_code, street_address, postal_code, is_default FROM user_addresses WHERE user_id=? AND status=1',
+            (uid,)
+        ).fetchall()
+        intl_rows = conn.execute(
+            'SELECT id, recipient_name, phone, country, state, city, address_line1, address_line2, postal_code, is_default FROM user_addresses_intl WHERE user_id=? AND status=1',
+            (uid,)
+        ).fetchall()
+    cn_list = []
+    for r in cn_rows:
+        parts = [r['province_code'], r['city_code'], r['district_code'], r['street_code'], r['street_address']]
+        addr = ' '.join(p for p in parts if p)
+        cn_list.append({'id': r['id'], 'type': 'cn', 'recipient_name': r['recipient_name'], 'phone': r['phone'], 'address': addr, 'is_default': bool(r['is_default'])})
+    intl_list = []
+    for r in intl_rows:
+        parts = [r['country'], r['state'], r['city'], r['address_line1'], r['address_line2']]
+        addr = ', '.join(p for p in parts if p)
+        intl_list.append({'id': r['id'], 'type': 'intl', 'recipient_name': r['recipient_name'], 'phone': r['phone'], 'address': addr, 'is_default': bool(r['is_default'])})
+    all_addrs = cn_list + intl_list
+    default = None
+    for a in all_addrs:
+        if a['is_default']:
+            default = a
+            break
+    return jsonify({'success': True, 'data': {'addresses': all_addrs, 'default': default}})
+
+
+# =============================================
 # API: 下单
 # =============================================
 @shop_public_bp.route('/api/checkout', methods=['POST'])
@@ -373,6 +411,39 @@ def api_checkout():
     # 用户只能传 product_id + quantity（不允许传 price）
     raw_items = data.get('items', [])
     coupon_code = data.get('coupon_code', '').strip().upper()
+
+    # ── Resolve shipping address ──
+    address_id = data.get('address_id')
+    address_type = data.get('address_type', 'cn')  # 'cn' or 'intl'
+    receiver_name = ''
+    receiver_phone = ''
+    receiver_address = ''
+
+    if address_id:
+        with get_db() as conn:
+            if address_type == 'intl':
+                addr = conn.execute(
+                    'SELECT * FROM user_addresses_intl WHERE id=? AND user_id=?',
+                    (address_id, uid)
+                ).fetchone()
+                if addr:
+                    receiver_name = addr['recipient_name']
+                    receiver_phone = addr['phone']
+                    parts = [addr['country'], addr['state'], addr['city'],
+                             addr['address_line1'], addr.get('address_line2', '')]
+                    receiver_address = ', '.join(p for p in parts if p)
+            else:
+                addr = conn.execute(
+                    'SELECT * FROM user_addresses WHERE id=? AND user_id=?',
+                    (address_id, uid)
+                ).fetchone()
+                if addr:
+                    receiver_name = addr['recipient_name']
+                    receiver_phone = addr['phone']
+                    parts = [addr.get('province_code',''), addr.get('city_code',''),
+                             addr.get('district_code',''), addr.get('street_code',''),
+                             addr['street_address']]
+                    receiver_address = ' '.join(p for p in parts if p)
 
     items = []
 
@@ -444,13 +515,15 @@ def api_checkout():
         for item in items:
             conn.execute(
                 '''INSERT INTO order_items (order_id, user_id, product_id, product_title,
-                   quantity, unit_price, subtotal, coupon_id, discount, status, idempotency_key, created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))''',
+                   quantity, unit_price, subtotal, coupon_id, discount, status, idempotency_key, created_at,
+                   receiver_name, receiver_phone, receiver_address)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),?,?,?)''',
                 (order_id, uid, item['product_id'], (item.get('title', '') or '')[:200],
                  int(item.get('quantity', 1)), float(item.get('price', 0)),
                  round(float(item.get('price', 0)) * int(item.get('quantity', 1)), 2),
                  coupon_id, round(discount / max(len(items), 1), 2) if coupon_id else 0,
-                 'pending', idempotency_key)
+                 'pending', idempotency_key,
+                 receiver_name, receiver_phone, receiver_address)
             )
             # 增加销量 + 扣减库存
             conn.execute('UPDATE products SET sales_count=sales_count+?, stock=MAX(0,stock-?) WHERE id=?',

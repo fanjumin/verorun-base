@@ -1687,6 +1687,20 @@ def init_db():
 
     # ── shop tables 已迁移至独立 shop.db（init_shop_db）──
 
+    # ── Migration: add receiver fields to order_items (shop.db) ──
+    try:
+        shop_conn = sqlite3.connect(SHOP_DB_PATH)
+        shop_conn.row_factory = sqlite3.Row
+        for col in ['receiver_name', 'receiver_phone', 'receiver_address']:
+            try:
+                shop_conn.execute(f"ALTER TABLE order_items ADD COLUMN {col} TEXT DEFAULT ''")
+            except Exception:
+                pass  # already exists
+        shop_conn.commit()
+        shop_conn.close()
+    except Exception:
+        pass  # shop.db may not exist yet (first run)
+
     # ── Migration: order_items column additions (now in shop.db) ──
     # All order_items column migrations are handled by init_shop_db() DDL.
     # If any column is missing (production DB layout differs), run via shop. prefix.

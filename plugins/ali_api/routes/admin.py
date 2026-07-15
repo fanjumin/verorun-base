@@ -1732,6 +1732,23 @@ def create_purchase_order():
             ali_pid = po['ali_product_id']
             quantity = po['quantity']
             
+            # ── Read receiver address from order_items (shop.db via get_main_db) ──
+            receiver_name = ''
+            receiver_phone = ''
+            receiver_address = ''
+            with get_main_db() as mdb:
+                oi = mdb.execute(
+                    'SELECT receiver_name, receiver_phone, receiver_address FROM order_items WHERE id=?',
+                    (po['local_order_item_id'],)
+                ).fetchone()
+                if oi:
+                    receiver_name = oi['receiver_name'] or ''
+                    receiver_phone = oi['receiver_phone'] or ''
+                    receiver_address = oi['receiver_address'] or ''
+            
+            if not receiver_name or not receiver_phone or not receiver_address:
+                return _error('订单缺少收货地址信息，请先在订单管理中补充收货地址')
+            
             # 获取 1688 token
             from ..models import AliApiToken
             token_row = AliApiToken.get(conn)
@@ -1751,29 +1768,30 @@ def create_purchase_order():
             if product_info.get('error'):
                 return _error(f'1688 商品不可用: {product_info.get("error_message", product_info["error"])}')
             
-            # TODO: 此处需要你根据 1688 开放平台最新文档确认实际参数
-            # alibaba.trade.buy.order.create 的参数结构需要查阅:
-            # https://open.1688.com/api/apidocdetail.htm?id=alibaba.trade.buy.order.create
-            # 
-            # 预期需要的关键参数:
-            #   - flowType: 'sale' | 'agent' (一件代发)
-            #   - productId: ali_pid
-            #   - quantity: quantity
-            #   - receiver: { addressInfo: { ... }, ... }
-            # 
-            # 以下为骨架示例，参数待确认后填充:
+            # 1688 交易接口: alibaba.trade.createCrossOrder
+            # 参数参考: https://open.1688.com/api/apidocdetail.htm?id=alibaba.trade.createCrossOrder
+            # 前置接口: alibaba.trade.receiveAddress.get（获取 1688 收货地址ID）
+            #
+            # 实际参数示例（待你确认 1688 API 文档后替换）:
             # biz_params = {
-            #     'flowType': 'sale',
-            #     'productId': ali_pid,
-            #     'quantity': quantity,
-            #     # 收货地址等从订单信息获取
+            #     'flow': 'general',
+            #     'addressParam': {
+            #         'addressId': 0,  # 可传 0 走新增地址
+            #         'fullName': receiver_name,
+            #         'phone': receiver_phone,
+            #         'address': receiver_address,
+            #     },
+            #     'cargoParamList': [{
+            #         'offerId': ali_pid,
+            #         'quantity': quantity,
+            #     }]
             # }
             # from ..services.alibaba_client_v2 import call_api
             # result = call_api(
-            #     'com.alibaba.trade:alibaba.trade.buy.order.create-1',
+            #     'com.alibaba.trade:alibaba.trade.createCrossOrder-1',
             #     '1', app_key, app_secret, access_token, biz_params
             # )
-            # 
+            
             # 模拟成功（验证通过后替换为真实 API 调用）
             result = {
                 'orderId': f'TEST_{ali_pid}_{int(__import__("time").time())}',
