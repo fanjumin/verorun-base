@@ -362,7 +362,7 @@ from plugins import (
 | `dependencies` | 否 | object | 依赖插件映射 `{identifier: version_spec}` |
 | `enabled` | 否 | bool | 是否启用，默认 `true` |
 | `config` | 否 | object | 插件自定义配置 |
-| `admin_url` | 否 | string | 插件管理页面 URL。有此值则插件管理列表中展开详情行，显示 🔗 Manage 链接跳转到此 URL。无此值则不显示管理入口，插件配置完全由插件自有页面承载。无内联配置降级。 |
+| `admin_url` | 否 | string | 已弃用（原为插件管理页面 URL）。不再显示 Manage 按钮。插件配置通过侧栏菜单 `menu` 字段注册访问。 |
 
 > 完整 `plugin.json` Schema（含 `identifier`、`category`、`icons`、`tags`、`settings_schema`、`permissions`、`agents`、`dashboard` 等 v1.1 字段）详见 [plugin-standard-v1.1.md](plugin-standard-v1.1.md)。
 
