@@ -528,6 +528,64 @@ def license_list():
 
 
 # ====================================================================
+# 优惠券 API
+# ====================================================================
+
+
+# ── 24a. 创建优惠券 ──────────────────────────────────────
+
+@bp.route('/coupons', methods=['POST'])
+def coupon_create():
+    """创建优惠券"""
+    data = request.json if request.is_json else {}
+    code = data.get('code', '').strip()
+    if not code:
+        return _json_result(False, error='code required', code=400)
+
+    cm = get_coupon_manager()
+    result = cm.create(
+        code=code,
+        discount_type=data.get('discount_type', 'percentage'),
+        discount_value=int(data.get('discount_value', 0)),
+        max_uses=int(data.get('max_uses', 0)),
+        min_amount_fen=int(data.get('min_amount_fen', 0)),
+        applicable_plugins=data.get('applicable_plugins', []),
+        expires_at=data.get('expires_at', ''),
+    )
+    if result.get('success'):
+        return _json_result(True, data=result)
+    return _json_result(False, error=result.get('error', 'creation failed'), code=400)
+
+
+# ── 24b. 校验优惠券 ──────────────────────────────────────
+
+@bp.route('/coupons/validate', methods=['POST'])
+def coupon_validate():
+    """校验优惠券"""
+    data = request.json if request.is_json else {}
+    code = data.get('code', '').strip()
+    plugin_id = data.get('plugin_id', '')
+    amount_fen = int(data.get('amount_fen', 0))
+    if not code:
+        return _json_result(False, error='code required', code=400)
+
+    cm = get_coupon_manager()
+    result = cm.validate(code, plugin_id, amount_fen)
+    return _json_result(result.get('valid', False), data=result,
+                        error=result.get('error', ''))
+
+
+# ── 24c. 优惠券列表 ──────────────────────────────────────
+
+@bp.route('/coupons', methods=['GET'])
+def coupon_list():
+    """列出所有优惠券"""
+    cm = get_coupon_manager()
+    coupons = cm.list_coupons()
+    return _json_result(True, data={'coupons': coupons})
+
+
+# ====================================================================
 # 支付 / 购买 API
 # ====================================================================
 
@@ -536,6 +594,7 @@ from .payment import (
     update_payment_order, get_payment_order, OrderStatus,
 )
 from .subscription import get_subscription_manager
+from .coupons import get_coupon_manager
 
 
 # ── 25. 发起购买 ─────────────────────────────────────────
@@ -558,13 +617,24 @@ def store_purchase(identifier: str):
     if detail.get('price_type') == 'free':
         return _json_result(False, error='This plugin is free, no purchase needed', code=400)
 
-    channel = (request.json or {}).get('channel', 'alipay')
+    channel = (request.json or {}).get('channel', '')
     customer_email = (request.json or {}).get('customer_email', '')
+    coupon_code = (request.json or {}).get('coupon_code', '').strip()
     amount_fen = detail.get('price_amount', 0)
     price_type = detail.get('price_type', 'onetime')
 
     if amount_fen <= 0:
         return _json_result(False, error='Invalid price', code=400)
+
+    # 优惠券校验
+    discount_fen = 0
+    if coupon_code:
+        cm = get_coupon_manager()
+        coupon_result = cm.validate(coupon_code, identifier, amount_fen)
+        if not coupon_result.get('valid'):
+            return _json_result(False, error=coupon_result.get('error', 'Invalid coupon'), code=400)
+        discount_fen = coupon_result.get('discount_fen', 0)
+        amount_fen = coupon_result.get('final_fen', amount_fen)
 
     # 检查是否已有 License
     if mgr.license_manager:
@@ -583,6 +653,12 @@ def store_purchase(identifier: str):
         customer_email=customer_email,
     )
 
+    # 保存优惠券信息到订单 extra
+    if coupon_code:
+        extra = order.extra.copy()
+        extra['coupon_code'] = coupon_code
+        update_payment_order(order.order_no, extra=json.dumps(extra))
+
     # 调用支付网关
     router = get_payment_router()
     provider = router.get_provider(channel)
@@ -599,8 +675,11 @@ def store_purchase(identifier: str):
             'qr_code': result.qr_code,
             'redirect_url': result.redirect_url,
             'amount_fen': amount_fen,
+            'original_fen': detail.get('price_amount', amount_fen),
+            'discount_fen': discount_fen,
             'price_type': price_type,
             'channel': channel,
+            'coupon_code': coupon_code or '',
         })
 
     update_payment_order(order.order_no, status='failed')
@@ -623,18 +702,61 @@ def payment_order_status(order_no: str):
 
 @bp.route('/payment/notify/<channel>', methods=['POST'])
 def payment_notify(channel: str):
-    """支付回调 Webhook"""
+    """支付回调 Webhook（统一入口，支持 alipay / wechat / stripe / paypal / mock）"""
     router = get_payment_router()
     provider = router.get_provider(channel)
 
+    # ── 根据 channel 解析原始数据 ──
+    raw_data = None
     if channel == 'alipay':
         raw_data = request.form.to_dict()
+    elif channel == 'wechat':
+        raw_data = request.get_data(as_text=True)
+        # 微信回调需要验签 headers
+        try:
+            import sys as _sys
+            _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            _gw_path = os.path.join(_base, 'auth-center', 'routes', 'subscription', 'gateway')
+            if _gw_path not in _sys.path:
+                _sys.path.insert(0, _gw_path)
+            from wechat import handle_notify as wx_notify
+            return wx_notify()
+        except Exception:
+            pass
+        return 'FAIL', 400
+    elif channel in ('stripe', 'paypal'):
+        raw_data = request.get_data()  # bytes
+        headers_dict = dict(request.headers)
+        is_valid, parsed = provider.verify_notify(raw_data, headers_dict)
+        if not is_valid:
+            return 'invalid', 400
+
+        order_no = parsed.get('out_trade_no', '')
+        trade_no = parsed.get('trade_no', '')
+
+        if not order_no:
+            return _json_result(False, error='Missing order_no', code=400)
+
+        order = get_payment_order(order_no)
+        if not order:
+            return _json_result(False, error='Order not found', code=404)
+
+        if order.status == OrderStatus.PAID:
+            return 'success'
+
+        update_payment_order(order_no, status='paid', trade_no=trade_no,
+                             paid_at=datetime.now().isoformat())
+        _activate_license_after_payment(order, order_no)
+        return 'success'
     elif channel == 'mock':
         raw_data = request.json or request.form.to_dict()
     else:
         return _json_result(False, error=f'Unknown channel: {channel}', code=400)
 
-    # 验证签名
+    if raw_data is None:
+        return _json_result(False, error='Failed to parse request data', code=400)
+
+    # ── 验证签名（alipay / mock） ──
     is_valid, parsed = provider.verify_notify(raw_data)
     if not is_valid:
         if channel == 'mock':
@@ -649,55 +771,58 @@ def payment_notify(channel: str):
     if not out_trade_no:
         return _json_result(False, error='Missing order_no', code=400)
 
-    # 查询订单
     order = get_payment_order(out_trade_no)
     if not order:
         return _json_result(False, error='Order not found', code=404)
 
-    # 幂等：已支付的订单不再重复处理
     if order.status == OrderStatus.PAID:
         return 'success'
 
     if trade_status in ('TRADE_SUCCESS', 'TRADE_FINISHED'):
-        # 支付成功 → 激活 License
-        update_payment_order(
-            out_trade_no,
-            status='paid',
-            trade_no=trade_no or parsed.get('trade_no', ''),
-            paid_at=datetime.now().isoformat(),
-        )
-
-        # 激活 License
-        mgr = _get_manager()
-        if mgr and mgr.license_manager:
-            lic_result = mgr.license_manager.activate(
-                plugin_id=order.plugin_id,
-                license_key=out_trade_no,
-                customer_email=order.customer_email,
-            )
-            if not lic_result.get('success'):
-                print(f'[Payment] License activation failed for {order.plugin_id}')
-
-            # 订阅模式 → 创建订阅记录
-            store = mgr.store_client
-            if store:
-                detail = store.get_detail(order.plugin_id)
-                if detail and detail.get('price_type') == 'sub':
-                    sm = get_subscription_manager()
-                    sm.create(
-                        plugin_id=order.plugin_id,
-                        license_key=out_trade_no,
-                        order_no=out_trade_no,
-                        interval_type=detail.get('price_interval', 'month'),
-                        amount_fen=detail.get('price_amount', 0),
-                    )
-
-        # 触发购买成功钩子
-        _fire_payment_hook(order.plugin_id, 'purchase', out_trade_no)
-
+        update_payment_order(out_trade_no, status='paid', trade_no=trade_no or parsed.get('trade_no', ''),
+                             paid_at=datetime.now().isoformat())
+        _activate_license_after_payment(order, out_trade_no)
         return 'success'
 
     return 'pending', 200
+
+
+def _activate_license_after_payment(order, order_no: str):
+    """支付成功后的 License 激活 + 订阅创建 + 钩子触发"""
+    mgr = _get_manager()
+
+    # 核销优惠券
+    coupon_code = (order.extra or {}).get('coupon_code', '')
+    if coupon_code:
+        try:
+            from .coupons import get_coupon_manager
+            get_coupon_manager().apply(coupon_code, order_no)
+        except Exception:
+            pass
+
+    if mgr and mgr.license_manager:
+        lic_result = mgr.license_manager.activate(
+            plugin_id=order.plugin_id,
+            license_key=order_no,
+            customer_email=order.customer_email,
+        )
+        if not lic_result.get('success'):
+            print(f'[Payment] License activation failed for {order.plugin_id}')
+
+        store = mgr.store_client
+        if store:
+            detail = store.get_detail(order.plugin_id)
+            if detail and detail.get('price_type') == 'sub':
+                sm = get_subscription_manager()
+                sm.create(
+                    plugin_id=order.plugin_id,
+                    license_key=order_no,
+                    order_no=order_no,
+                    interval_type=detail.get('price_interval', 'month'),
+                    amount_fen=detail.get('price_amount', 0),
+                )
+
+    _fire_payment_hook(order.plugin_id, 'purchase', order_no)
 
 
 # ── 28. 退款 ─────────────────────────────────────────────

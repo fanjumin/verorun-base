@@ -1,3 +1,4 @@
+window.MARKET=window.MARKET||'{{ MARKET|default('cn') }}';
 window.l_plugins_store=function(){
   document.getElementById("pt").textContent="{{ _('Plugin Store') }}";
   renderStoreList();
@@ -22,7 +23,8 @@ function renderStoreList(){
     }
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">';
     plugins.forEach(function(p){
-      var priceLabel=p.price_type==='free'?'{{ _('Free') }}':'¥'+(p.price_amount/100).toFixed(2)+(p.price_interval==='year'?'/yr':p.price_interval==='month'?'/mo':'');
+      var priceSymbol = window.MARKET === 'intl' ? '$' : '¥';
+      var priceLabel=p.price_type==='free'?'{{ _('Free') }}': priceSymbol+(p.price_amount/100).toFixed(2)+(p.price_interval==='year'?'/yr':p.price_interval==='month'?'/mo':'');
       var priceClass=p.price_type==='free'?'on':'';
       h+='<div class="cd" style="display:flex;flex-direction:column">';
       h+='<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(p.name)+' <span style="font-size:11px;color:var(--dim)">v'+esc(p.version)+'</span></div>';
@@ -135,26 +137,51 @@ function showPurchaseDialog(btn){
   var ptype=btn.getAttribute("data-ptype");
   var pinterval=btn.getAttribute("data-pinterval");
   var mc=document.getElementById("mc");
-  var priceStr='¥'+(amount/100).toFixed(2)+(pinterval==='year'?'/yr':pinterval==='month'?'/mo':'');
+  var priceSymbol = window.MARKET === 'intl' ? '$' : '¥';
+  var priceStr=priceSymbol+(amount/100).toFixed(2)+(pinterval==='year'?'/yr':pinterval==='month'?'/mo':'');
+  var isIntl = window.MARKET === 'intl';
+  var channelOptions = isIntl
+    ? '<option value="stripe">Stripe (Card)</option><option value="paypal">PayPal</option>'
+    : '<option value="alipay">{{ _('Alipay') }}</option><option value="wechat">{{ _('WeChat Pay') }}</option>';
   mc.innerHTML='<div class="cd"><div class="st">🛒 {{ _('Purchase') }}: '+esc(name)+'</div>'+
     '<div style="margin:16px 0"><table style="width:100%;font-size:13px">'+
     '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Plugin') }}</td><td style="padding:8px 12px;font-weight:600">'+esc(name)+'</td></tr>'+
     '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Price') }}</td><td style="padding:8px 12px;font-weight:600">'+priceStr+'</td></tr>'+
     '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Type') }}</td><td style="padding:8px 12px">'+(ptype==='sub'?'{{ _('Subscription') }}':'{{ _('One-time') }}')+'</td></tr>'+
+    '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Payment') }}</td><td style="padding:8px 12px"><select class="in" id="purchaseChannel">'+channelOptions+'</select></td></tr>'+
     '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Email') }}</td><td style="padding:8px 12px"><input class="in" id="purchaseEmail" placeholder="customer@example.com" style="width:250px"></td></tr>'+
+    '<tr><td style="padding:8px 12px;color:var(--dim)">{{ _('Coupon') }}</td><td style="padding:8px 12px"><div style="display:flex;gap:8px"><input class="in" id="couponCode" placeholder="{{ _('Discount code') }}" style="width:180px"><button class="btn bo bs" onclick="validateCoupon(\''+escAttr(pid)+'\','+amount+')">{{ _('Apply') }}</button></div><div id="couponResult" style="font-size:12px;margin-top:4px"></div></td></tr>'+
     '</table></div>'+
     '<div style="display:flex;gap:12px">'+
     '<button class="btn bp" onclick="submitPurchase(\''+escAttr(pid)+'\')">💳 {{ _('Pay Now') }}</button>'+
     '<button class="btn bo" onclick="renderStoreList()">{{ _('Cancel') }}</button>'+
     '</div><div id="purchaseResult" style="margin-top:16px"></div></div>';
 }
+function validateCoupon(pid, amountFen){
+  var code=document.getElementById("couponCode").value.trim();
+  var cr=document.getElementById("couponResult");
+  if(!code){cr.innerHTML='';return}
+  cr.innerHTML='<div class="lo"><div class="s"></div></div>';
+  fetch("/admin/plugins/coupons/validate",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({code:code,plugin_id:pid,amount_fen:amountFen})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      var ds=d.data;
+      cr.innerHTML='<span style="color:var(--on)">✅ {{ _('Discount') }}: '+(ds.discount_type==='percentage'?ds.discount_value+'%':(window.MARKET==='intl'?'$':'¥')+(ds.discount_fen/100).toFixed(2))+'</span>';
+    }else{
+      cr.innerHTML='<span style="color:#f85149">❌ '+esc(d.error||'{{ _('Invalid') }}')+'</span>';
+    }
+  }).catch(function(){cr.innerHTML='<span style="color:#f85149">❌ {{ _('Check failed') }}</span>'});
+}
 function submitPurchase(pid){
   var email=document.getElementById("purchaseEmail").value.trim();
+  var channel=document.getElementById("purchaseChannel").value;
+  var coupon=document.getElementById("couponCode").value.trim();
   var resultBox=document.getElementById("purchaseResult");
   resultBox.innerHTML='<div class="lo"><div class="s"></div>{{ _('Creating order') }}...</div>';
-  var btn=resultBox.parentElement.querySelector(".bp");
+  var btn=document.querySelector('#purchaseResult').parentElement.querySelector(".bp");
   if(btn){btn.disabled=true;btn.textContent="{{ _('Processing') }}...";}
-  fetch("/admin/plugins/store/"+encodeURIComponent(pid)+"/purchase",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({channel:"alipay",customer_email:email})}).then(function(r){return r.json()}).then(function(d){
+  var body={channel:channel,customer_email:email};
+  if(coupon){body.coupon_code=coupon}
+  fetch("/admin/plugins/store/"+encodeURIComponent(pid)+"/purchase",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(d){
     if(btn){btn.disabled=false;btn.textContent="💳 {{ _('Pay Now') }}";}
     if(!d.success){
       if(d.error==='Plugin already licensed'){
@@ -165,31 +192,53 @@ function submitPurchase(pid){
       return
     }
     var data=d.data;
-    resultBox.innerHTML='<div style="margin-top:12px"><div class="st" style="margin-bottom:12px">{{ _('Scan to pay') }}</div>'+
-      '<div style="text-align:center;padding:16px;background:var(--bg-secondary);border-radius:8px;margin-bottom:12px">'+
-      '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">{{ _('Alipay') }}</div>'+
-      '<div style="font-family:monospace;font-size:12px;word-break:break-all;padding:12px;background:#fff;border-radius:6px;color:#333">'+
-      (data.qr_code||'{{ _('QR code received') }}')+'</div></div>'+
-      '<div style="font-size:12px;color:var(--dim)">{{ _('Order No') }}: '+esc(data.order_no)+'</div>'+
-      '<div style="font-size:12px;color:var(--dim)">{{ _('Amount') }}: ¥'+(data.amount_fen/100).toFixed(2)+'</div>'+
-      '<button class="btn bp bs" style="margin-top:12px" onclick="pollPaymentStatus(\''+escAttr(data.order_no)+'\')">{{ _('Check Payment Status') }}</button>'+
-      '<div id="paymentPollResult" style="margin-top:8px"></div></div>';
+    var h='<div style="margin-top:12px">';
+
+    // Stripe/PayPal: redirect
+    if(data.redirect_url){
+      h+='<div class="st">{{ _('Redirect to payment') }}</div>'+
+        '<div style="text-align:center;padding:20px">'+
+        '<a href="'+escAttr(data.redirect_url)+'" target="_blank" class="btn bp bs">{{ _('Go to Pay') }}</a>'+
+        '</div>';
+    }else if(data.qr_code){
+      // QR code payment (Alipay/WeChat)
+      var qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(data.qr_code);
+      var channelLabel=data.channel==='wechat'?'{{ _('WeChat Pay') }}':'{{ _('Alipay') }}';
+      h+='<div class="st" style="margin-bottom:12px">{{ _('Scan to pay') }}</div>'+
+        '<div style="text-align:center;padding:16px;background:var(--bg-secondary);border-radius:8px;margin-bottom:12px">'+
+        '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">'+channelLabel+'</div>'+
+        '<img src="'+qrUrl+'" style="width:180px;height:180px;border-radius:6px;background:#fff;padding:8px" alt="{{ _('QR Code') }}">'+
+        '</div>';
+    }
+
+    if(data.discount_fen>0){
+      var ps=window.MARKET==='intl'?'$':'¥';
+      h+='<div style="font-size:12px;color:var(--on);margin-bottom:4px">{{ _('Discount applied') }}: -'+ps+(data.discount_fen/100).toFixed(2)+'</div>';
+    }
+    h+='<div style="font-size:12px;color:var(--dim)">{{ _('Order No') }}: '+esc(data.order_no)+'</div>'+
+      '<div id="paymentPollResult" style="margin-top:8px;font-size:13px;color:var(--dim)">{{ _('Waiting for payment') }}...</div></div>';
+    resultBox.innerHTML=h;
+
+    // Auto-poll every 3 seconds
+    if(purchasePollTimer)clearInterval(purchasePollTimer);
+    purchasePollTimer=setInterval(function(){checkPaymentStatus(data.order_no,resultBox)},3000);
   }).catch(function(){if(btn){btn.disabled=false;btn.textContent="💳 {{ _('Pay Now') }}";}resultBox.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
 }
-function pollPaymentStatus(orderNo){
+function checkPaymentStatus(orderNo,resultBox){
+  if(!resultBox)resultBox=document.getElementById("paymentPollResult");
+  if(!resultBox)return;
   var pr=document.getElementById("paymentPollResult");
-  pr.innerHTML='<div class="lo"><div class="s"></div>{{ _('Checking') }}...</div>';
   fetch("/admin/plugins/payment/"+encodeURIComponent(orderNo)+"/status",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data){pr.innerHTML='<div class="em">{{ _('Error') }}: '+(d.error||'')+'</div>';return}
+    if(!d.success||!d.data)return;
     var status=d.data.status;
     if(status==='paid'){
+      if(purchasePollTimer){clearInterval(purchasePollTimer);purchasePollTimer=null}
       pr.innerHTML='<div class="on" style="padding:12px">✅ {{ _('Payment successful! License activated.') }}<br><button class="btn bo bs" style="margin-top:8px" onclick="renderStoreList()">{{ _('Back to Store') }}</button></div>';
-    }else if(status==='failed'){
-      pr.innerHTML='<div class="em">{{ _('Payment failed') }}</div>';
-    }else{
-      pr.innerHTML='<div style="color:var(--dim)">{{ _('Pending payment') }}... <button class="btn bo bs" style="margin-left:8px" onclick="pollPaymentStatus(\''+escAttr(orderNo)+'\')">{{ _('Retry') }}</button></div>';
+    }else if(status==='failed'||status==='expired'){
+      if(purchasePollTimer){clearInterval(purchasePollTimer);purchasePollTimer=null}
+      pr.innerHTML='<div class="em">{{ _('Payment') }} '+esc(status)+'</div>';
     }
-  }).catch(function(){pr.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+  }).catch(function(){});
 }
 
 /* ── Subscriptions Management ── */
@@ -220,7 +269,7 @@ function renderSubscriptionList(){
         h+='<tr>';
         h+='<td style="padding:10px 12px;font-weight:600">'+esc(s.plugin_id)+'</td>';
         h+='<td style="padding:10px 12px;text-align:center">'+(s.interval_type==='month'?'{{ _('Monthly') }}':'{{ _('Yearly') }}')+'</td>';
-        h+='<td style="padding:10px 12px;text-align:center">¥'+(s.amount_fen/100).toFixed(2)+'</td>';
+        h+='<td style="padding:10px 12px;text-align:center">'+(window.MARKET==='intl'?'$':'¥')+(s.amount_fen/100).toFixed(2)+'</td>';
         h+='<td style="padding:10px 12px;text-align:center">'+st+'</td>';
         h+='<td style="padding:10px 12px;text-align:center;font-size:12px;color:var(--dim)">'+(s.current_period_end?esc(s.current_period_end.slice(0,10)):'-')+'</td>';
         h+='<td style="padding:10px 12px;text-align:center">'+(s.auto_renew?'✅':'❌')+'</td>';

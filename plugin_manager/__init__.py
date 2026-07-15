@@ -24,12 +24,13 @@ from .payment import (
     get_payment_router, PaymentRouter, PaymentProvider,
     PaymentOrder, OrderStatus, create_payment_order,
     get_payment_order, update_payment_order,
-    AlipayProvider, MockProvider,
+    AlipayProvider, WechatProvider, StripeProvider, PayPalProvider, MockProvider,
 )
 from .subscription import (
     get_subscription_manager, SubscriptionManager, PluginSubscription,
 )
 from .models_store import LicenseRecord, LicenseType, LicenseStatus, StorePlugin
+from .coupons import CouponManager, get_coupon_manager
 
 __all__ = [
     'PluginManager',
@@ -61,10 +62,15 @@ __all__ = [
     'get_payment_order',
     'update_payment_order',
     'AlipayProvider',
+    'WechatProvider',
+    'StripeProvider',
+    'PayPalProvider',
     'MockProvider',
     'get_subscription_manager',
     'SubscriptionManager',
     'PluginSubscription',
+    'CouponManager',
+    'get_coupon_manager',
     'init_plugin_registry_table',
     'get_registry_db',
 ]
