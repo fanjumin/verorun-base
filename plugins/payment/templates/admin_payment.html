@@ -61,15 +61,24 @@ window.l_payment = function(){
   loadPayProviders();
 };
 
+function payShowError(msg){
+  var grid = document.getElementById('payProviderGrid');
+  if(grid) grid.innerHTML = '<div class="pay-no-config" style="color:#f85149">⚠️ ' + esc(msg) + '</div>';
+  console.error('[PaymentPlugin]', msg);
+}
+
 function loadPayProviders(){
   fetch('/admin/payment/providers?market=' + _payMarket, {headers:{"Authorization":"Bearer "+T}})
-    .then(function(r){return r.json()})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(d){
-      if(!d.success){showToast(d.error||'{{ _("Load failed") }}','error');return}
+      if(!d.success){payShowError(d.error||'{{ _("Load failed") }}');showToast(d.error||'{{ _("Load failed") }}','error');return}
       _payProviders = d.data || {};
       loadPayConfigs();
     })
-    .catch(function(){showToast('{{ _("Request Failed") }}','error')});
+    .catch(function(e){payShowError(e.message||'{{ _("Request Failed") }}');showToast(e.message||'{{ _("Request Failed") }}','error')});
 }
 
 function loadPayConfigs(){
@@ -93,17 +102,20 @@ function loadPayConfigs(){
         renderPayCards();
       }
     })
-    .catch(function(){showToast('{{ _("Request Failed") }}','error')});
+    .catch(function(e){payShowError(e.message||'{{ _("Request Failed") }}');showToast(e.message||'{{ _("Request Failed") }}','error')});
 }
 
 function loadPayProvidersIntl(){
   fetch('/admin/payment/providers?market=' + _payMarket, {headers:{"Authorization":"Bearer "+T}})
-    .then(function(r){return r.json()})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(d){
       if(d.success) _payProviders = d.data || {};
       renderPayCards();
     })
-    .catch(function(){renderPayCards();});
+    .catch(function(e){payShowError(e.message||'{{ _("Request Failed") }}')});
 }
 
 function renderPayCards(){
