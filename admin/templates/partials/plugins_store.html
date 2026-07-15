@@ -6,7 +6,12 @@ window.l_plugins_store=function(){
 function renderStoreList(){
   var mc=document.getElementById("mc");
   mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
-  fetch("/admin/plugins/store/browse",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+  var q=document.getElementById("storeSearch")?document.getElementById("storeSearch").value:'';
+  var cat=document.getElementById("storeCategory")?document.getElementById("storeCategory").value:'';
+  var pt=document.getElementById("storePrice")?document.getElementById("storePrice").value:'';
+  var sort=document.getElementById("storeSort")?document.getElementById("storeSort").value:'downloads';
+  var url="/admin/plugins/store/browse?q="+encodeURIComponent(q)+"&category="+encodeURIComponent(cat)+"&price_type="+encodeURIComponent(pt)+"&sort_by="+encodeURIComponent(sort);
+  fetch(url,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
     var plugins=d.data.plugins||[];
     var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
@@ -14,6 +19,7 @@ function renderStoreList(){
     h+='<input class="in" id="storeSearch" placeholder="{{ _('Search') }}..." style="width:200px" onkeydown="if(event.key===\'Enter\')renderStoreList()">';
     h+='<select class="in" id="storeCategory" onchange="renderStoreList()"><option value="">{{ _('All Categories') }}</option><option value="marketing">{{ _('Marketing') }}</option><option value="supply-chain">{{ _('Supply Chain') }}</option><option value="content">{{ _('Content') }}</option><option value="tool">{{ _('Tools') }}</option></select>';
     h+='<select class="in" id="storePrice" onchange="renderStoreList()"><option value="">{{ _('All') }}</option><option value="free">{{ _('Free') }}</option><option value="onetime">{{ _('Paid (One-time)') }}</option><option value="sub">{{ _('Subscription') }}</option></select>';
+    h+='<select class="in" id="storeSort" onchange="renderStoreList()"><option value="downloads">{{ _('Most Downloaded') }}</option><option value="rating">{{ _('Highest Rated') }}</option><option value="newest">{{ _('Newest') }}</option><option value="price_asc">{{ _('Price: Low to High') }}</option><option value="price_desc">{{ _('Price: High to Low') }}</option></select>';
     h+='</div>';
     h+='<span style="font-size:13px;color:var(--text-muted)">{{ _('Total') }}: '+plugins.length+'</span>';
     h+='</div>';
@@ -29,14 +35,19 @@ function renderStoreList(){
       h+='<div class="cd" style="display:flex;flex-direction:column">';
       h+='<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(p.name)+' <span style="font-size:11px;color:var(--dim)">v'+esc(p.version)+'</span></div>';
       h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:1">'+esc(p.description||'')+'</div>';
+      var avgRating=(p._reviews&&p._reviews.average)||p.rating||0;
+      var reviewTotal=(p._reviews&&p._reviews.total)||p.review_count||0;
+      h+='<div style="margin-top:4px;margin-bottom:4px">'+renderStars(avgRating,reviewTotal)+'</div>';
       h+='<div style="display:flex;align-items:center;justify-content:space-between">';
       h+='<span class="bdg '+priceClass+'">'+priceLabel+'</span>';
+      h+='<div style="display:flex;gap:4px">';
+      h+='<button class="btn bo bs" onclick="showPluginDetail(\''+escAttr(p.identifier)+'\')">{{ _('Details') }}</button>';
       if(p.price_type==='free'){
         h+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
       }else{
         h+='<button class="btn bp bs" data-pid="'+escAttr(p.identifier)+'" data-name="'+escAttr(p.name)+'" data-amount="'+(p.price_amount||0)+'" data-ptype="'+escAttr(p.price_type)+'" data-pinterval="'+escAttr(p.price_interval||'onetime')+'" onclick="showPurchaseDialog(this)">{{ _('Purchase') }}</button>';
       }
-      h+='</div></div>';
+      h+='</div></div></div>';
     });
     h+='</div>';
     mc.innerHTML=h;
@@ -296,5 +307,303 @@ function renewSubscription(pid){
   fetch("/admin/plugins/subscriptions/"+encodeURIComponent(pid)+"/renew",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("{{ _('Subscription renewed') }}","success");renderSubscriptionList()}
     else{showToast(d.error||"{{ _('Renew failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+
+/* ── Star Rating Helper ── */
+function renderStars(rating, count){
+  var r=Math.round(rating||0);
+  var s='';
+  for(var i=1;i<=5;i++){
+    s+=i<=r?'★':'☆';
+  }
+  if(count!==undefined){
+    s+=' <span style="font-size:11px;color:var(--dim)">('+count+')</span>';
+  }
+  return '<span style="color:#f0c040;font-size:14px;letter-spacing:1px">'+s+'</span>';
+}
+
+/* ── Plugin Detail Modal ── */
+var detailModal=null;
+function showPluginDetail(pid){
+  if(detailModal){detailModal.remove();detailModal=null}
+  var ov=document.createElement("div");ov.className="modal-overlay";ov.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center";
+  var box=document.createElement("div");box.className="modal-box";box.style.cssText="background:var(--bg-primary);border-radius:12px;padding:24px;max-width:640px;width:90%;max-height:80vh;overflow-y:auto;position:relative";
+  box.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  detailModal=ov;
+
+  fetch("/admin/plugins/store/"+encodeURIComponent(pid),{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){box.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var p=d.data;
+    var reviewsData=d.data._reviews||{};
+    var avgRating=reviewsData.average||p.rating||0;
+    var reviewTotal=reviewsData.total||p.review_count||0;
+    var ps=window.MARKET==='intl'?'$':'¥';
+    var priceLabel=p.price_type==='free'?'{{ _('Free') }}':ps+(p.price_amount/100).toFixed(2)+(p.price_interval==='year'?'/yr':p.price_interval==='month'?'/mo':'');
+    var priceClass=p.price_type==='free'?'on':'';
+
+    box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'+
+      '<div><div style="font-size:18px;font-weight:600">'+esc(p.name)+' <span style="font-size:12px;color:var(--dim)">v'+esc(p.version)+'</span></div>'+
+      '<div style="margin-top:4px">'+renderStars(avgRating,reviewTotal)+'</div>'+
+      '<div style="margin-top:4px"><span class="bdg '+priceClass+'">'+priceLabel+'</span> <span class="bdg off">'+esc(p.category||'')+'</span></div></div>'+
+      '<button class="btn bo bs" onclick="closePluginDetail()">{{ _('Close') }}</button></div>';
+
+    var tabsHtml='<div class="tab-bar mt" style="margin-bottom:16px;display:flex;gap:0;border-bottom:1px solid var(--bd)">'+
+      '<div class="tab-item active" data-tab="desc" onclick="switchDetailTab(this,\'desc\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid var(--accent);font-size:13px">{{ _('Description') }}</div>'+
+      '<div class="tab-item" data-tab="reviews" onclick="switchDetailTab(this,\'reviews\');loadReviews(\''+escAttr(pid)+'\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;font-size:13px">{{ _('Reviews') }} ('+reviewTotal+')</div>'+
+      '</div>';
+    box.innerHTML+=tabsHtml;
+
+    // Description tab content
+    box.innerHTML+='<div id="detailTabDesc" class="detail-tab-content" style="font-size:13px;color:var(--text);line-height:1.6">'+
+      '<p>'+(p.description||'{{ _('No description') }}')+'</p>'+
+      (p.screenshots&&p.screenshots.length>0?'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+p.screenshots.map(function(s){return '<img src="'+escAttr(s)+'" style="max-width:100%;border-radius:6px;max-height:200px">'}).join('')+'</div>':'')+
+      '</div>';
+
+    // Reviews tab (hidden by default)
+    box.innerHTML+='<div id="detailTabReviews" class="detail-tab-content" style="display:none;font-size:13px"><div class="lo"><div class="s"></div></div></div>';
+
+  }).catch(function(){box.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function closePluginDetail(){
+  if(detailModal){detailModal.remove();detailModal=null}
+}
+function switchDetailTab(el, tab){
+  document.querySelectorAll('.detail-tab-content').forEach(function(e){e.style.display='none'});
+  document.querySelectorAll('.tab-item').forEach(function(e){e.style.borderBottom='2px solid transparent'});
+  document.getElementById('detailTab'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display='block';
+  el.style.borderBottom='2px solid var(--accent)';
+}
+function loadReviews(pid){
+  var tab=document.getElementById('detailTabReviews');
+  if(!tab)return;
+  fetch("/admin/plugins/store/"+encodeURIComponent(pid)+"/reviews?sort=newest&page_size=50",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){tab.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var reviews=d.data.reviews||[];
+    var h='';
+
+    // Review form (if purchased)
+    var isLicensed=false;
+    // check license from page context
+    h+=_buildReviewForm(pid);
+
+    if(reviews.length===0){
+      h+='<div style="padding:20px;text-align:center;color:var(--dim)">{{ _('No reviews yet') }}</div>';
+    }else{
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<span style="font-size:12px;color:var(--text-muted)">{{ _('Total') }}: '+d.data.total+'</span>'+
+        '<select class="in" style="font-size:12px;width:auto" onchange="sortReviews(this.value,\''+escAttr(pid)+'\')">'+
+        '<option value="newest">{{ _('Newest') }}</option>'+
+        '<option value="highest">{{ _('Highest Rated') }}</option>'+
+        '<option value="lowest">{{ _('Lowest Rated') }}</option></select></div>';
+      reviews.forEach(function(r){
+        h+='<div style="padding:12px;border-bottom:1px solid var(--bd);font-size:13px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div><strong>'+esc(r.user_name||'{{ _('Anonymous') }}')+'</strong> '+renderStars(r.rating,0)+'</div>'+
+          '<span style="font-size:11px;color:var(--dim)">'+(r.created_at?esc(r.created_at.slice(0,10)):'')+'</span></div>'+
+          (r.content?'<div style="margin-top:6px;color:var(--text)">'+esc(r.content)+'</div>':'')+
+          (r.reply_content?'<div style="margin-top:6px;padding:8px;background:var(--bg-secondary);border-radius:6px;font-size:12px;color:var(--dim)"><strong>{{ _('Developer Reply') }}:</strong> '+esc(r.reply_content)+'</div>':'')+
+          '</div>';
+      });
+    }
+    tab.innerHTML=h;
+  }).catch(function(){tab.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function _buildReviewForm(pid){
+  return '<div id="reviewForm" style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px">'+
+    '<div style="font-size:13px;font-weight:600;margin-bottom:8px">{{ _('Write a Review') }}</div>'+
+    '<div style="display:flex;gap:4px;margin-bottom:8px;font-size:24px;color:#f0c040;cursor:pointer" id="starSelector">'+
+    '★☆☆☆☆</div>'+
+    '<textarea class="in" id="reviewContent" placeholder="{{ _('Share your experience...') }}" style="width:100%;min-height:60px;resize:vertical"></textarea>'+
+    '<div style="margin-top:8px;display:flex;gap:8px">'+
+    '<button class="btn bp bs" onclick="submitReview(\''+escAttr(pid)+'\')">{{ _('Submit Review') }}</button>'+
+    '</div>'+
+    '<div id="reviewSubmitResult" style="margin-top:8px;font-size:12px"></div></div>';
+}
+// Initialize star selector
+document.addEventListener('click', function(e){
+  var starSel=document.getElementById('starSelector');
+  if(!starSel||!starSel.contains(e.target))return;
+  var rect=starSel.getBoundingClientRect();
+  var x=e.clientX-rect.left;
+  var starWidth=rect.width/5;
+  var rating=Math.min(5,Math.max(1,Math.ceil(x/starWidth)));
+  var s='';
+  for(var i=1;i<=5;i++){s+=i<=rating?'★':'☆';}
+  starSel.textContent=s;
+  starSel.dataset.rating=rating;
+});
+function submitReview(pid){
+  var starSel=document.getElementById('starSelector');
+  var rating=parseInt(starSel&&starSel.dataset.rating)||5;
+  var content=document.getElementById('reviewContent').value.trim();
+  var result=document.getElementById('reviewSubmitResult');
+  if(!content){result.innerHTML='<span style="color:#f85149">{{ _('Please enter your review') }}</span>';return}
+  result.innerHTML='<div class="lo"><div class="s"></div></div>';
+  fetch("/admin/plugins/store/"+encodeURIComponent(pid)+"/reviews",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({rating:rating,content:content})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      result.innerHTML='<span style="color:var(--on)">✅ {{ _('Review submitted') }}</span>';
+      document.getElementById('reviewContent').value='';
+      setTimeout(function(){loadReviews(pid)},500);
+    }else{
+      result.innerHTML='<span style="color:#f85149">❌ '+esc(d.error||'')+'</span>';
+    }
+  }).catch(function(){result.innerHTML='<span style="color:#f85149">❌ {{ _('Network error') }}</span>'});
+}
+function sortReviews(sort,pid){
+  var tab=document.getElementById('detailTabReviews');
+  if(!tab)return;
+  tab.innerHTML='<div class="lo"><div class="s"></div></div>';
+  fetch("/admin/plugins/store/"+encodeURIComponent(pid)+"/reviews?sort="+encodeURIComponent(sort)+"&page_size=50",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){tab.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var reviews=d.data.reviews||[];
+    var h='';
+    h+=_buildReviewForm(pid);
+    if(reviews.length===0){
+      h+='<div style="padding:20px;text-align:center;color:var(--dim)">{{ _('No reviews yet') }}</div>';
+    }else{
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<span style="font-size:12px;color:var(--text-muted)">{{ _('Total') }}: '+d.data.total+'</span>'+
+        '<select class="in" style="font-size:12px;width:auto" onchange="sortReviews(this.value,\''+escAttr(pid)+'\')">'+
+        '<option value="newest" '+(sort==='newest'?'selected':'')+'>{{ _('Newest') }}</option>'+
+        '<option value="highest" '+(sort==='highest'?'selected':'')+'>{{ _('Highest Rated') }}</option>'+
+        '<option value="lowest" '+(sort==='lowest'?'selected':'')+'>{{ _('Lowest Rated') }}</option></select></div>';
+      reviews.forEach(function(r){
+        h+='<div style="padding:12px;border-bottom:1px solid var(--bd);font-size:13px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div><strong>'+esc(r.user_name||'{{ _('Anonymous') }}')+'</strong> '+renderStars(r.rating,0)+'</div>'+
+          '<span style="font-size:11px;color:var(--dim)">'+(r.created_at?esc(r.created_at.slice(0,10)):'')+'</span></div>'+
+          (r.content?'<div style="margin-top:6px;color:var(--text)">'+esc(r.content)+'</div>':'')+
+          (r.reply_content?'<div style="margin-top:6px;padding:8px;background:var(--bg-secondary);border-radius:6px;font-size:12px;color:var(--dim)"><strong>{{ _('Developer Reply') }}:</strong> '+esc(r.reply_content)+'</div>':'')+
+          '</div>';
+      });
+    }
+    tab.innerHTML=h;
+  }).catch(function(){tab.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+
+/* ── Store Admin (CRUD) ── */
+window.l_plugins_store_admin=function(){
+  document.getElementById("pt").textContent="{{ _('Store Admin') }}";
+  renderStoreAdminList();
+};
+function renderStoreAdminList(){
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/plugins/store/admin",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var plugins=d.data.plugins||[];
+    var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
+      '<span style="font-size:13px;color:var(--text-muted)">{{ _('Total') }}: '+plugins.length+'</span>'+
+      '<button class="btn bp bs" onclick="showStoreAdminForm(null)">{{ _('Add Plugin') }}</button></div>';
+    if(plugins.length===0){
+      h+='<div class="empty-state"><div style="margin-bottom:12px;font-size:40px">📦</div><div style="color:var(--dim)">{{ _('No plugins in store') }}</div></div>';
+      mc.innerHTML=h;return
+    }
+    h+='<table style="width:100%;font-size:13px">'+
+      '<tr><th style="text-align:left;padding:8px 12px">{{ _('Identifier') }}</th><th style="text-align:left;padding:8px 12px">{{ _('Name') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Price') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Category') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Rating') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Status') }}</th><th style="text-align:center;padding:8px 12px">{{ _('Actions') }}</th></tr>';
+    var ps=window.MARKET==='intl'?'$':'¥';
+    plugins.forEach(function(p){
+      var priceLabel=p.price_type==='free'?'{{ _('Free') }}':ps+(p.price_amount/100).toFixed(2);
+      var statusHtml=p.enabled?'<span class="bdg on">{{ _('Published') }}</span>':'<span class="bdg off">{{ _('Draft') }}</span>';
+      h+='<tr>'+
+        '<td style="padding:10px 12px;font-family:monospace;font-size:12px">'+esc(p.identifier)+'</td>'+
+        '<td style="padding:10px 12px;font-weight:600">'+esc(p.name)+'</td>'+
+        '<td style="padding:10px 12px;text-align:center">'+priceLabel+'</td>'+
+        '<td style="padding:10px 12px;text-align:center">'+esc(p.category||'-')+'</td>'+
+        '<td style="padding:10px 12px;text-align:center">'+renderStars(p.rating||0,p.review_count||0)+'</td>'+
+        '<td style="padding:10px 12px;text-align:center">'+statusHtml+'</td>'+
+        '<td style="padding:10px 12px;text-align:center">'+
+        '<button class="btn bo bs" style="margin-right:4px" onclick="showStoreAdminForm(\''+escAttr(p.identifier)+'\')">{{ _('Edit') }}</button>'+
+        '<button class="btn bo bs" style="margin-right:4px" onclick="toggleStorePlugin(\''+escAttr(p.identifier)+'\')">'+(p.enabled?'{{ _('Unpublish') }}':'{{ _('Publish') }}')+'</button>'+
+        '<button class="btn bo bs" style="color:#f85149" onclick="deleteStorePlugin(\''+escAttr(p.identifier)+'\')">{{ _('Delete') }}</button>'+
+        '</td></tr>';
+    });
+    h+='</table>';
+    mc.innerHTML=h;
+  }).catch(function(){mc.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+function showStoreAdminForm(identifier){
+  var mc=document.getElementById("mc");
+  var isEdit=!!identifier;
+  var title=isEdit?'{{ _('Edit Plugin') }}':'{{ _('Add Plugin') }}';
+  var p={identifier:'',name:'',description:'',version:'0.1.0',author:'',author_url:'',icon_url:'',price_type:'free',price_amount:0,price_interval:'onetime',trial_days:0,category:'',download_url:'',readme_url:'',tags:'[]',screenshots:'[]'};
+  if(isEdit){
+    // Pre-fill from store by loading detail
+    mc.innerHTML='<div class="lo"><div class="s"></div></div>';
+    fetch("/admin/plugins/store/"+encodeURIComponent(identifier),{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+      if(d.success&&d.data){
+        var dp=d.data;
+        dp.tags=JSON.stringify(dp.tags||[]);
+        dp.screenshots=JSON.stringify(dp.screenshots||[]);
+        _renderStoreForm(mc,title,dp);
+      }else{
+        _renderStoreForm(mc,title,p);
+      }
+    }).catch(function(){_renderStoreForm(mc,title,p)});
+  }else{
+    _renderStoreForm(mc,title,p);
+  }
+}
+function _renderStoreForm(container, title, p){
+  container.innerHTML='<div class="cd"><div class="st">📝 '+title+'</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0">'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Identifier') }} *</label><input class="in" id="sai_identifier" value="'+escAttr(p.identifier||'')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Name') }} *</label><input class="in" id="sai_name" value="'+escAttr(p.name||'')+'" style="width:100%"></div>'+
+    '<div style="grid-column:1/3"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Description') }}</label><textarea class="in" id="sai_desc" style="width:100%;min-height:60px">'+esc(p.description||'')+'</textarea></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Version') }}</label><input class="in" id="sai_version" value="'+escAttr(p.version||'0.1.0')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Category') }}</label><select class="in" id="sai_category" style="width:100%"><option value="">-</option><option value="marketing"'+(p.category==='marketing'?' selected':'')+'>{{ _('Marketing') }}</option><option value="supply-chain"'+(p.category==='supply-chain'?' selected':'')+'>{{ _('Supply Chain') }}</option><option value="content"'+(p.category==='content'?' selected':'')+'>{{ _('Content') }}</option><option value="tool"'+(p.category==='tool'?' selected':'')+'>{{ _('Tools') }}</option></select></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Price Type') }}</label><select class="in" id="sai_price_type" style="width:100%" onchange="document.getElementById(\'sai_price_interval_row\').style.display=this.value===\'sub\'?\'\':\'none\'"><option value="free"'+(p.price_type==='free'?' selected':'')+'>{{ _('Free') }}</option><option value="onetime"'+(p.price_type==='onetime'?' selected':'')+'>{{ _('One-time') }}</option><option value="sub"'+(p.price_type==='sub'?' selected':'')+'>{{ _('Subscription') }}</option></select></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Price') }} ({{ _('cents') }})</label><input class="in" id="sai_price" type="number" value="'+(p.price_amount||0)+'" style="width:100%"></div>'+
+    '<div id="sai_price_interval_row" style="display:'+(p.price_type==='sub'?'':'none')+'"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Interval') }}</label><select class="in" id="sai_interval" style="width:100%"><option value="month"'+(p.price_interval==='month'?' selected':'')+'>{{ _('Monthly') }}</option><option value="year"'+(p.price_interval==='year'?' selected':'')+'>{{ _('Yearly') }}</option></select></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Icon URL') }}</label><input class="in" id="sai_icon" value="'+escAttr(p.icon_url||'')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Download URL') }}</label><input class="in" id="sai_download" value="'+escAttr(p.download_url||'')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Author') }}</label><input class="in" id="sai_author" value="'+escAttr(p.author||'')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Readme URL') }}</label><input class="in" id="sai_readme" value="'+escAttr(p.readme_url||'')+'" style="width:100%"></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:12px;margin-top:12px">'+
+    '<button class="btn bp" onclick="saveStorePlugin()">💾 {{ _('Save') }}</button>'+
+    '<button class="btn bo" onclick="renderStoreAdminList()">{{ _('Cancel') }}</button>'+
+    '</div><div id="storeAdminResult" style="margin-top:12px"></div></div>';
+}
+function saveStorePlugin(){
+  var d={};
+  d.identifier=document.getElementById("sai_identifier").value.trim();
+  d.name=document.getElementById("sai_name").value.trim();
+  d.description=document.getElementById("sai_desc").value.trim();
+  d.version=document.getElementById("sai_version").value.trim();
+  d.category=document.getElementById("sai_category").value;
+  d.price_type=document.getElementById("sai_price_type").value;
+  d.price_amount=parseInt(document.getElementById("sai_price").value)||0;
+  d.price_interval=document.getElementById("sai_interval")?document.getElementById("sai_interval").value:'onetime';
+  d.icon_url=document.getElementById("sai_icon").value.trim();
+  d.download_url=document.getElementById("sai_download").value.trim();
+  d.author=document.getElementById("sai_author").value.trim();
+  d.readme_url=document.getElementById("sai_readme").value.trim();
+  if(!d.identifier||!d.name){showToast("{{ _('Identifier and Name are required') }}","error");return}
+  var result=document.getElementById("storeAdminResult");
+  result.innerHTML='<div class="lo"><div class="s"></div></div>';
+  fetch("/admin/plugins/store/admin",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(d)}).then(function(r){return r.json()}).then(function(rsp){
+    if(rsp.success){
+      showToast("{{ _('Saved') }}","success");
+      renderStoreAdminList();
+    }else{
+      result.innerHTML='<span style="color:#f85149">❌ '+esc(rsp.error||'')+'</span>';
+    }
+  }).catch(function(){result.innerHTML='<span style="color:#f85149">❌ {{ _('Network error') }}</span>'});
+}
+function toggleStorePlugin(identifier){
+  fetch("/admin/plugins/store/admin/"+encodeURIComponent(identifier)+"/toggle",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Status updated') }}","success");renderStoreAdminList()}
+    else{showToast(d.error||"{{ _('Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+function deleteStorePlugin(identifier){
+  if(!confirm("{{ _('Delete plugin from store?') }} "+esc(identifier)+" ?"))return;
+  fetch("/admin/plugins/store/admin/"+encodeURIComponent(identifier),{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Deleted') }}","success");renderStoreAdminList()}
+    else{showToast(d.error||"{{ _('Delete failed') }}","error")}
   }).catch(function(){showToast("{{ _('Network error') }}","error")});
 }

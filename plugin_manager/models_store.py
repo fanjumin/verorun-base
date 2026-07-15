@@ -108,10 +108,29 @@ CREATE TABLE IF NOT EXISTS store_plugins (
     readme_url      TEXT DEFAULT '',
     downloads       INTEGER DEFAULT 0,
     rating          REAL DEFAULT 0.0,
+    review_count    INTEGER DEFAULT 0,               -- 评价总数
     enabled         INTEGER NOT NULL DEFAULT 1,      -- 是否上架
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS plugin_reviews (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    plugin_identifier TEXT NOT NULL,
+    user_id           INTEGER NOT NULL,
+    user_name         TEXT DEFAULT '',
+    rating            INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+    content           TEXT DEFAULT '',
+    version           TEXT DEFAULT '',
+    is_active         INTEGER DEFAULT 1,
+    reply_content     TEXT DEFAULT '',
+    reply_at          TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    UNIQUE(plugin_identifier, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_plugin
+    ON plugin_reviews(plugin_identifier, is_active, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_store_plugins_category
     ON store_plugins(category);
@@ -217,6 +236,7 @@ class StorePlugin:
     readme_url: str = ''
     downloads: int = 0
     rating: float = 0.0
+    review_count: int = 0
     enabled: bool = True
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -252,7 +272,44 @@ class StorePlugin:
             readme_url=row.get('readme_url', ''),
             downloads=row.get('downloads', 0),
             rating=row.get('rating', 0.0),
+            review_count=row.get('review_count', 0),
             enabled=bool(row.get('enabled', 1)),
             created_at=row.get('created_at'),
             updated_at=row.get('updated_at'),
+        )
+
+
+@dataclass
+class PluginReview:
+    id: Optional[int] = None
+    plugin_identifier: str = ''
+    user_id: int = 0
+    user_name: str = ''
+    rating: int = 5
+    content: str = ''
+    version: str = ''
+    is_active: bool = True
+    reply_content: str = ''
+    reply_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['is_active'] = int(self.is_active)
+        return d
+
+    @classmethod
+    def from_row(cls, row: dict) -> 'PluginReview':
+        return cls(
+            id=row['id'],
+            plugin_identifier=row['plugin_identifier'],
+            user_id=row['user_id'],
+            user_name=row.get('user_name', ''),
+            rating=row['rating'],
+            content=row.get('content', ''),
+            version=row.get('version', ''),
+            is_active=bool(row.get('is_active', 1)),
+            reply_content=row.get('reply_content', ''),
+            reply_at=row.get('reply_at'),
+            created_at=row.get('created_at'),
         )

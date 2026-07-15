@@ -791,6 +791,20 @@ class PaymentRouter:
     def register_provider(self, channel: str, provider: PaymentProvider):
         self._providers[channel] = provider
 
+    def get_provider_for_plugin(self, plugin_id: str) -> PaymentProvider:
+        """根据插件 ID 查找该插件支付时使用的渠道并返回对应 Provider"""
+        try:
+            with get_registry_db() as conn:
+                row = conn.execute(
+                    'SELECT channel FROM plugin_payment_orders WHERE plugin_id=? AND status="paid" ORDER BY created_at DESC LIMIT 1',
+                    (plugin_id,)
+                ).fetchone()
+                if row:
+                    return self.get_provider(row['channel'])
+        except Exception:
+            pass
+        return self.get_provider(None)
+
 
 # ── 订单数据库操作 ────────────────────────────────────────────────────
 

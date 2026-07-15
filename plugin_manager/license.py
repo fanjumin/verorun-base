@@ -492,6 +492,32 @@ class LicenseManager:
             conn.commit()
 
 
+# ── 开发者入驻占位接口（未来） ──────────────────────────────────────
+
+def submit_plugin(plugin_data: dict) -> dict:
+    """[未来] 开发者提交插件到商店审核
+
+    Args:
+        plugin_data: {
+            'identifier': str,       # 唯一标识
+            'name': str,             # 插件名称
+            'version': str,          # 当前版本
+            'description': str,      # 描述
+            'price_type': str,       # 'free' | 'onetime' | 'sub'
+            'price_amount': int,     # 金额（分），免费为 0
+            'price_interval': str,   # 'month' | 'year' (仅 sub)
+            'screenshots': list,     # 截图 URL
+            'readme_url': str,       # 文档 URL
+            'tags': list,            # 标签
+        }
+    Returns:
+        {'success': bool, 'plugin_id': str, 'error': str}
+    """
+    import warnings
+    warnings.warn("submit_plugin() not yet implemented", FutureWarning)
+    return {'success': False, 'error': 'not_implemented'}
+
+
 # ── 模块级单例 ──────────────────────────────────────────────────────
 
 _LICENSE_MGR = None

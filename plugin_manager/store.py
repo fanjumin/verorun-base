@@ -30,7 +30,7 @@ class StoreAPIClient:
 
     def search(self, query: str = '', category: str = '',
                price_type: str = '', page: int = 1,
-               page_size: int = 20) -> dict:
+               page_size: int = 20, sort_by: str = 'downloads') -> dict:
         """搜索商店插件
 
         先尝试远程 API，失败后从本地缓存查询。
@@ -51,7 +51,7 @@ class StoreAPIClient:
             return remote['data']
 
         # 降级：本地缓存
-        return self._search_local(query, category, price_type, page, page_size)
+        return self._search_local(query, category, price_type, page, page_size, sort_by)
 
     def list_by_category(self, category: str = '') -> List[dict]:
         """按分类列出（从本地缓存）"""
@@ -69,7 +69,7 @@ class StoreAPIClient:
                 return [StorePlugin.from_row(dict(r)).to_dict() for r in rows]
 
     def get_detail(self, identifier: str) -> Optional[dict]:
-        """获取插件详情"""
+        """获取插件详情（含评分聚合数据）"""
         # 尝试远程
         remote = _call_remote('GET', f'/plugins/{identifier}')
         if remote.get('success') and remote.get('data'):
@@ -84,8 +84,26 @@ class StoreAPIClient:
                 (identifier,)
             ).fetchone()
             if row:
-                return StorePlugin.from_row(dict(row)).to_dict()
+                plugin = StorePlugin.from_row(dict(row)).to_dict()
+                # 附加评分统计
+                plugin['_reviews'] = self._get_review_summary(identifier, conn)
+                return plugin
         return None
+
+    def _get_review_summary(self, identifier: str, conn=None) -> dict:
+        """获取评价统计摘要"""
+        if conn is None:
+            with get_registry_db() as c:
+                return self._get_review_summary(identifier, c)
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt, AVG(rating) as avg_rating FROM plugin_reviews "
+            "WHERE plugin_identifier=? AND is_active=1",
+            (identifier,)
+        ).fetchone()
+        return {
+            'total': row['cnt'] if row else 0,
+            'average': round(row['avg_rating'], 1) if row and row['avg_rating'] else 0.0,
+        }
 
     # ── 下载 ────────────────────────────────────────────────────────
 
@@ -106,37 +124,49 @@ class StoreAPIClient:
 
     def _search_local(self, query: str, category: str,
                       price_type: str, page: int,
-                      page_size: int) -> dict:
+                      page_size: int, sort_by: str = 'downloads') -> dict:
         """从本地缓存搜索"""
         with self._cache_lock:
             with get_registry_db() as conn:
-                sql = 'SELECT * FROM store_plugins WHERE enabled=1'
+                sql = 'SELECT s.* FROM store_plugins s WHERE s.enabled=1'
                 params = []
 
                 if query:
-                    sql += ' AND (name LIKE ? OR description LIKE ? OR identifier LIKE ?)'
+                    sql += ' AND (s.name LIKE ? OR s.description LIKE ? OR s.identifier LIKE ?)'
                     like = f'%{query}%'
                     params.extend([like, like, like])
                 if category:
-                    sql += ' AND category=?'
+                    sql += ' AND s.category=?'
                     params.append(category)
                 if price_type:
-                    sql += ' AND price_type=?'
+                    sql += ' AND s.price_type=?'
                     params.append(price_type)
 
-                sql += ' ORDER BY downloads DESC'
+                # 排序
+                sort_map = {
+                    'downloads': 's.downloads DESC',
+                    'rating': 's.rating DESC',
+                    'newest': 's.created_at DESC',
+                    'price_asc': 's.price_amount ASC',
+                    'price_desc': 's.price_amount DESC',
+                }
+                sql += f' ORDER BY {sort_map.get(sort_by, "s.downloads DESC")}'
 
                 # 总数
-                count_sql = sql.replace('SELECT *', 'SELECT COUNT(*) as cnt')
+                count_sql = sql.replace('SELECT s.* FROM', 'SELECT COUNT(*) as cnt FROM')
                 total = conn.execute(count_sql, params).fetchone()['cnt']
 
                 # 分页
                 offset = (page - 1) * page_size
-                sql += f' LIMIT ? OFFSET ?'
+                sql += ' LIMIT ? OFFSET ?'
                 params.extend([page_size, offset])
 
                 rows = conn.execute(sql, params).fetchall()
-                plugins = [StorePlugin.from_row(dict(r)).to_dict() for r in rows]
+                plugins = []
+                for r in rows:
+                    p = StorePlugin.from_row(dict(r)).to_dict()
+                    p['_reviews'] = self._get_review_summary(p['identifier'], conn)
+                    plugins.append(p)
 
                 return {
                     'plugins': plugins,
@@ -155,7 +185,7 @@ class StoreAPIClient:
                         author_url, icon_url, price_type, price_amount,
                         price_interval, trial_days, download_url, package_hash,
                         file_size, category, tags, min_app_version, depends_on,
-                        screenshots, readme_url, downloads, rating, enabled
+                        screenshots, readme_url, downloads, rating, review_count, enabled
                     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
                     ON CONFLICT(identifier) DO UPDATE SET
                         name=excluded.name,
@@ -171,6 +201,7 @@ class StoreAPIClient:
                         tags=excluded.tags,
                         downloads=excluded.downloads,
                         rating=excluded.rating,
+                        review_count=excluded.review_count,
                         updated_at=datetime('now')
                 """, (
                     pdata.get('identifier', ''),
@@ -195,6 +226,7 @@ class StoreAPIClient:
                     pdata.get('readme_url', ''),
                     pdata.get('downloads', 0),
                     pdata.get('rating', 0.0),
+                    pdata.get('review_count', 0),
                 ))
                 conn.commit()
 

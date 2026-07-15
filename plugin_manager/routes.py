@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, request
 
 from .manager import PluginManager
 from .models import PluginStatus
+from .models_store import get_registry_db
 from .exceptions import PluginError
 
 bp = Blueprint('plugin_manager_api', __name__, url_prefix='/admin/plugins')
@@ -407,10 +408,11 @@ def store_browse():
     query = request.args.get('q', '')
     category = request.args.get('category', '')
     price_type = request.args.get('price_type', '')
+    sort_by = request.args.get('sort_by', 'downloads')
     page = int(request.args.get('page', 1))
     page_size = int(request.args.get('page_size', 20))
 
-    data = mgr.store_client.search(query, category, price_type, page, page_size)
+    data = mgr.store_client.search(query, category, price_type, page, page_size, sort_by)
     return _json_result(True, data=data)
 
 
@@ -904,6 +906,301 @@ def plugin_menus():
 
     menus = mgr.get_plugin_menus()
     return _json_result(True, data={'menus': menus})
+
+
+# ====================================================================
+# 评价 API
+# ====================================================================
+
+# ── 33. 获取评价列表 ─────────────────────────────────────
+
+@bp.route('/store/<identifier>/reviews', methods=['GET'])
+def store_reviews_list(identifier: str):
+    """获取插件评价列表（分页，支持排序）"""
+    page = int(request.args.get('page', 1))
+    page_size = int(request.args.get('page_size', 20))
+    sort = request.args.get('sort', 'newest')  # newest / highest / lowest
+
+    sort_map = {
+        'newest': 'r.created_at DESC',
+        'highest': 'r.rating DESC',
+        'lowest': 'r.rating ASC',
+    }
+    order_by = sort_map.get(sort, 'r.created_at DESC')
+
+    with get_registry_db() as conn:
+        total = conn.execute(
+            'SELECT COUNT(*) as cnt FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1',
+            (identifier,)
+        ).fetchone()['cnt']
+
+        offset = (page - 1) * page_size
+        rows = conn.execute(
+            f'SELECT * FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1 ORDER BY {order_by} LIMIT ? OFFSET ?',
+            (identifier, page_size, offset)
+        ).fetchall()
+
+        reviews = []
+        for r in rows:
+            review = dict(r)
+            reviews.append(review)
+
+        return _json_result(True, data={
+            'reviews': reviews,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'sort': sort,
+        })
+
+
+# ── 34. 创建评价 ─────────────────────────────────────────
+
+@bp.route('/store/<identifier>/reviews', methods=['POST'])
+def store_review_create(identifier: str):
+    """创建评价（需购买验证）"""
+    if not request.is_json:
+        return _json_result(False, error='请求体必须是 JSON', code=400)
+
+    data = request.json
+    rating = int(data.get('rating', 0))
+    content = data.get('content', '').strip()
+
+    if rating < 1 or rating > 5:
+        return _json_result(False, error='评分必须在 1-5 之间', code=400)
+
+    # 从 JWT 获取用户信息
+    user_id = None
+    user_name = ''
+    try:
+        from flask import current_app
+        from plugins.auth_sso import verify_and_get_user
+        token = request.cookies.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
+        if token:
+            user_data = verify_and_get_user(token)
+            if user_data:
+                user_id = user_data.get('id')
+                user_name = user_data.get('display_name') or user_data.get('username', '')
+    except Exception:
+        pass
+
+    if not user_id:
+        return _json_result(False, error='未登录', code=401)
+
+    # 检查是否已购买
+    mgr = _get_manager()
+    if mgr and mgr.license_manager:
+        lic = mgr.license_manager.get_license(identifier)
+        if not lic or lic.get('license_status') not in ('active', 'grace'):
+            return _json_result(False, error='请先购买插件后再评价', code=403)
+
+    with get_registry_db() as conn:
+        # 检查是否已评价过
+        existing = conn.execute(
+            'SELECT id FROM plugin_reviews WHERE plugin_identifier=? AND user_id=?',
+            (identifier, user_id)
+        ).fetchone()
+        if existing:
+            # 更新已有评价
+            conn.execute(
+                'UPDATE plugin_reviews SET rating=?, content=?, is_active=1 WHERE id=?',
+                (rating, content, existing['id'])
+            )
+            conn.commit()
+            return _json_result(True, data={'id': existing['id'], 'updated': True})
+
+        cur = conn.execute(
+            'INSERT INTO plugin_reviews (plugin_identifier, user_id, user_name, rating, content) VALUES (?,?,?,?,?)',
+            (identifier, user_id, user_name, rating, content)
+        )
+        conn.commit()
+        review_id = cur.lastrowid
+
+        # 更新 store_plugins 的评分聚合
+        agg = conn.execute(
+            'SELECT COUNT(*) as cnt, AVG(rating) as avg FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1',
+            (identifier,)
+        ).fetchone()
+        conn.execute(
+            'UPDATE store_plugins SET rating=?, review_count=? WHERE identifier=?',
+            (round(agg['avg'], 1) if agg['avg'] else 0.0, agg['cnt'], identifier)
+        )
+        conn.commit()
+
+    return _json_result(True, data={'id': review_id, 'created': True})
+
+
+# ── 35. 删除自己的评价 ───────────────────────────────────
+
+@bp.route('/store/<identifier>/reviews/<int:review_id>', methods=['DELETE'])
+def store_review_delete(identifier: str, review_id: int):
+    """删除评价（仅自己或管理员）"""
+    user_id = None
+    is_admin = False
+    try:
+        from flask import current_app
+        from plugins.auth_sso import verify_and_get_user
+        token = request.cookies.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
+        if token:
+            user_data = verify_and_get_user(token)
+            if user_data:
+                user_id = user_data.get('id')
+                is_admin = user_data.get('role') == 'admin' or user_data.get('is_admin', False)
+    except Exception:
+        pass
+
+    with get_registry_db() as conn:
+        review = conn.execute('SELECT * FROM plugin_reviews WHERE id=?', (review_id,)).fetchone()
+        if not review:
+            return _json_result(False, error='评价不存在', code=404)
+        if review['user_id'] != user_id and not is_admin:
+            return _json_result(False, error='无权删除此评价', code=403)
+
+        conn.execute('UPDATE plugin_reviews SET is_active=0 WHERE id=?', (review_id,))
+        # 重新计算评分
+        agg = conn.execute(
+            'SELECT COUNT(*) as cnt, AVG(rating) as avg FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1',
+            (identifier,)
+        ).fetchone()
+        conn.execute(
+            'UPDATE store_plugins SET rating=?, review_count=? WHERE identifier=?',
+            (round(agg['avg'], 1) if agg['avg'] else 0.0, agg['cnt'], identifier)
+        )
+        conn.commit()
+
+    return _json_result(True, data={'deleted': True})
+
+
+# ── 36. 管理员回复评价 ───────────────────────────────────
+
+@bp.route('/store/<identifier>/reviews/<int:review_id>/reply', methods=['POST'])
+def store_review_reply(identifier: str, review_id: int):
+    """管理员回复评价"""
+    if not request.is_json:
+        return _json_result(False, error='请求体必须是 JSON', code=400)
+
+    reply_content = request.json.get('content', '').strip()
+    if not reply_content:
+        return _json_result(False, error='回复内容不能为空', code=400)
+
+    with get_registry_db() as conn:
+        review = conn.execute('SELECT * FROM plugin_reviews WHERE id=?', (review_id,)).fetchone()
+        if not review:
+            return _json_result(False, error='评价不存在', code=404)
+
+        conn.execute(
+            'UPDATE plugin_reviews SET reply_content=?, reply_at=datetime("now") WHERE id=?',
+            (reply_content, review_id)
+        )
+        conn.commit()
+
+    return _json_result(True, data={'replied': True})
+
+
+# ====================================================================
+# 商店管理 API（仅管理员）
+# ====================================================================
+
+# ── 37. 商店管理：列出所有插件商品 ────────────────────────
+
+@bp.route('/store/admin', methods=['GET'])
+def store_admin_list():
+    """管理员：列出所有商店插件商品"""
+    with get_registry_db() as conn:
+        rows = conn.execute('SELECT * FROM store_plugins ORDER BY created_at DESC').fetchall()
+        plugins = [dict(r) for r in rows]
+    return _json_result(True, data={'plugins': plugins})
+
+
+# ── 38. 商店管理：创建/更新插件商品 ───────────────────────
+
+@bp.route('/store/admin', methods=['POST'])
+def store_admin_save():
+    """管理员：创建或更新商店插件商品"""
+    data = request.json if request.is_json else {}
+    identifier = data.get('identifier', '')
+    if not identifier:
+        return _json_result(False, error='identifier required', code=400)
+
+    with get_registry_db() as conn:
+        conn.execute("""
+            INSERT INTO store_plugins (
+                identifier, name, description, version, author,
+                author_url, icon_url, price_type, price_amount,
+                price_interval, trial_days, download_url, package_hash,
+                file_size, category, tags, screenshots, readme_url, enabled
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+            ON CONFLICT(identifier) DO UPDATE SET
+                name=excluded.name,
+                description=excluded.description,
+                version=excluded.version,
+                author=excluded.author,
+                author_url=excluded.author_url,
+                icon_url=excluded.icon_url,
+                price_type=excluded.price_type,
+                price_amount=excluded.price_amount,
+                price_interval=excluded.price_interval,
+                trial_days=excluded.trial_days,
+                download_url=excluded.download_url,
+                package_hash=excluded.package_hash,
+                file_size=excluded.file_size,
+                category=excluded.category,
+                tags=excluded.tags,
+                screenshots=excluded.screenshots,
+                readme_url=excluded.readme_url,
+                enabled=excluded.enabled,
+                updated_at=datetime('now')
+        """, (
+            identifier,
+            data.get('name', ''),
+            data.get('description', ''),
+            data.get('version', '0.1.0'),
+            data.get('author', ''),
+            data.get('author_url', ''),
+            data.get('icon_url', ''),
+            data.get('price_type', 'free'),
+            int(data.get('price_amount', 0)),
+            data.get('price_interval', 'onetime'),
+            int(data.get('trial_days', 0)),
+            data.get('download_url', ''),
+            data.get('package_hash', ''),
+            int(data.get('file_size', 0)),
+            data.get('category', ''),
+            json.dumps(data.get('tags', [])),
+            json.dumps(data.get('screenshots', [])),
+            data.get('readme_url', ''),
+        ))
+        conn.commit()
+
+    return _json_result(True, data={'identifier': identifier, 'saved': True})
+
+
+# ── 39. 商店管理：删除插件商品 ────────────────────────────
+
+@bp.route('/store/admin/<identifier>', methods=['DELETE'])
+def store_admin_delete(identifier: str):
+    """管理员：删除商店插件商品"""
+    with get_registry_db() as conn:
+        conn.execute('DELETE FROM store_plugins WHERE identifier=?', (identifier,))
+        conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=?', (identifier,))
+        conn.commit()
+    return _json_result(True, data={'deleted': True})
+
+
+# ── 40. 商店管理：切换上架状态 ────────────────────────────
+
+@bp.route('/store/admin/<identifier>/toggle', methods=['POST'])
+def store_admin_toggle(identifier: str):
+    """管理员：切换插件上架/下架状态"""
+    with get_registry_db() as conn:
+        row = conn.execute('SELECT enabled FROM store_plugins WHERE identifier=?', (identifier,)).fetchone()
+        if not row:
+            return _json_result(False, error='Plugin not found', code=404)
+        new_enabled = 0 if row['enabled'] else 1
+        conn.execute('UPDATE store_plugins SET enabled=?, updated_at=datetime("now") WHERE identifier=?',
+                     (new_enabled, identifier))
+        conn.commit()
+    return _json_result(True, data={'identifier': identifier, 'enabled': bool(new_enabled)})
 
 
 # ── 工具: 触发支付相关钩子 ──────────────────────────────
