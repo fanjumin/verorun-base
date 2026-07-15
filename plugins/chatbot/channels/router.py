@@ -54,7 +54,7 @@ def _call_ai(user_query, session_id=''):
         provider = agent.get('provider') or cfg.get('provider', 'dashscope')
         model_name = agent.get('model_name') or cfg.get('model_name', 'qwen-turbo')
     else:
-        system_prompt = f"你是 AI Advisor。回答要友好、专业、简洁。当前用户情绪：{sentiment}"
+        system_prompt = f"You are AI Advisor. Be friendly, professional and concise. Current user sentiment: {sentiment}"
         provider = cfg.get('provider', 'dashscope')
         model_name = cfg.get('model_name', 'qwen-turbo')
 

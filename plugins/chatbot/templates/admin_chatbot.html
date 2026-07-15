@@ -9,8 +9,8 @@ window.l_chatbot=function(){
     h+='<div id="chatbot-form">';
     h+=_chatbotRowToggle('enabled',"{{ _('Enable AI Advisor') }}",c.enabled==='1'||c.enabled===true||c.enabled==='true');
     h+=_chatbotRowToggle('auto_escalate',"{{ _('Auto-Create Ticket on Handoff') }}",c.auto_escalate==='1'||c.auto_escalate===true||c.auto_escalate==='true');
-    h+=_chatbotRow('title',"{{ _('Chat Window Title') }}",c.title||'AI Advisor');
-    h+=_chatbotRow('subtitle',"{{ _('Subtitle') }}",c.subtitle||'Powered by AI Engine');
+    h+=_chatbotRow('title',"{{ _('Chat Window Title') }}",c.title||{{ _('AI Advisor')|tojson }});
+    h+=_chatbotRow('subtitle',"{{ _('Subtitle') }}",c.subtitle||{{ _('Powered by AI Engine')|tojson }});
     h+=_chatbotRow('welcome_message',"{{ _('Welcome Message') }}",c.welcome_message||'');
     h+=_chatbotRow('help_hint',"{{ _('Help Hint') }}",c.help_hint||'');
     h+='<div class="fl" style="align-items:flex-start;margin-bottom:10px;flex-wrap:wrap">'+
@@ -27,7 +27,7 @@ window.l_chatbot=function(){
     h+='</div></div></div>';
     h+=_chatbotRow('agent_id',"{{ _('Bound Agent ID') }}",c.agent_id||'chat_assistant');
     h+=_chatbotRow('max_history',"{{ _('Max History Rounds') }}",c.max_history||'20');
-    h+=_chatbotRow('float_button_text',"{{ _('Float Button Text') }}",c.float_button_text||'AI Advisor');
+    h+=_chatbotRow('float_button_text',"{{ _('Float Button Text') }}",c.float_button_text||{{ _('AI Advisor')|tojson }});
     h+='</div>';
     h+='<div style="margin-top:16px;display:flex;gap:8px"><button class="btn bp" onclick="saveChatbotSettings()">{{ _('Save') }}</button></div>';
     h+='</div>';

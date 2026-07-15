@@ -123,12 +123,12 @@ def get_settings():
     ]
 
     defaults = {
-        'enabled': '1', 'auto_escalate': '1', 'title': 'AI Advisor',
-        'subtitle': 'Powered by AI Engine',
-        'welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
-        'help_hint': 'Type help to see what I can do for you',
+        'enabled': '1', 'auto_escalate': '1', 'title': '',
+        'subtitle': '',
+        'welcome_message': '',
+        'help_hint': '',
         'avatar_url': '', 'agent_id': 'chat_assistant', 'max_history': '20',
-        'float_button_text': 'AI Advisor'
+        'float_button_text': ''
     }
 
     try:

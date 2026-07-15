@@ -1349,7 +1349,7 @@ async function chatSend(){
             var ev=JSON.parse(raw);
             if(ev.type==='token'){fullText+=ev.content||''}
             else if(ev.type==='error'){botDiv.innerHTML='<span style="color:#ff4d4f">\u26a0 '+esc(ev.content||'{{ _('Request failed') }}')+'<\/span>';isChatStreaming=false;if(btn)btn.disabled=false;return;}
-            else if(ev.type==='escalated'){ticketId=ev.ticket_id;var emsg=ev.message||'已为您创建工单';continue}
+            else if(ev.type==='escalated'){ticketId=ev.ticket_id;var emsg=ev.message||{{ _('Ticket created')|tojson }};continue}
             else if(ev.type==='done'&&ev.reply){fullText=ev.reply;sessionId=ev.session_id||null}
           }catch(e){}
           continue;
