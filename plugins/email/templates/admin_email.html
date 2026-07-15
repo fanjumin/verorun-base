@@ -1,5 +1,25 @@
 window.l_email=function(){
   document.getElementById("pt").textContent="{{ _('Email Management') }}";
+  // Tab navigation
+  var h='<div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">';
+  h+='<button class="btn bp bs" id="tab-inbox" onclick="showEmailTab(\'inbox\')">📥 {{ _('Inbox') }}</button>';
+  h+='<button class="btn bo bs" id="tab-settings" onclick="showEmailTab(\'settings\')">⚙ {{ _('Settings') }}</button>';
+  h+='</div>';
+  h+='<div id="emailTabContent"></div>';
+  document.getElementById("mc").innerHTML=h;
+  showEmailTab('inbox');
+};
+
+function showEmailTab(tab){
+  document.querySelectorAll('[id^="tab-"]').forEach(function(b){b.className='btn bo bs'});
+  var btn=document.getElementById('tab-'+tab);
+  if(btn)btn.className='btn bp bs';
+  if(tab==='inbox')renderInbox();
+  else if(tab==='settings')renderEmailSettings();
+}
+
+function renderInbox(){
+  var el=document.getElementById("emailTabContent");
   var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="se()">{{ _('Write Email') }}</button></div>';
   h+='<div id="sendForm" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('Write Email') }}</div>';
   h+='<div style="margin-bottom:10px">';
@@ -22,27 +42,82 @@ window.l_email=function(){
   h+='<button class="btn bp" onclick="sendBulk()" style="font-size:11px">📤 {{ _('Broadcast to Selected Contacts') }}</button>';
   h+='<span id="contactCount" style="font-size:11px;color:var(--dim)">0 {{ _('Contact Person(s)') }}</span>';
   h+='</div><div id="contactsList"><div class="lo"><div class="s"></div></div></div></div></div>';
-  document.getElementById("mc").innerHTML=h;
-  // Prepare Quill
+  el.innerHTML=h;
   window.emEditor=null;
   window.emAttachments=[];
-  // Load contacts
   loadContacts();
-  // Auto-parse recipients on input
   document.getElementById("em-to").addEventListener("input",parseRecipients);
   fetch("/admin/email/inbox",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data){document.getElementById("inboxList").innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var lst=d.data.items||d.data;
     if(!lst.length){document.getElementById("inboxList").innerHTML='<div class="em">{{ _('No Emails') }}</div>';return}
-    var tbl='{{ _('<table><tr><th>From</th><th>Subject</th><th>Attachment</th><th>Time</th><th>Action</th></tr>') }}';
+    var tbl='<table><tr><th>{{ _('From') }}</th><th>{{ _('Subject') }}</th><th>{{ _('Attachment') }}</th><th>{{ _('Time') }}</th><th>{{ _('Action') }}</th></tr>';
     lst.forEach(function(e){
       var attIcon=e.has_attachments?' <span style="color:var(--accent)">📎</span>':'';
-      tbl+='<tr><td>'+(e.from||'-')+'</td><td>'+(e.subject||'({{ _('No Subject') }})')+attIcon+'</td><td>'+(e.has_attachments?'<span style="color:var(--accent)">有</span>':'')+'</td><td>'+(e.date||'')+'</td>';
+      tbl+='<tr><td>'+(e.from||'-')+'</td><td>'+(e.subject||'({{ _('No Subject') }})')+attIcon+'</td><td>'+(e.has_attachments?'<span style="color:var(--accent)">{{ _('Yes') }}</span>':'')+'</td><td>'+(e.date||'')+'</td>';
       tbl+='<td><button class="btn bo bs" onclick="re('+e.uid+',\''+e.from.replace(/'/g,'')+'\',\''+(e.subject||'').replace(/'/g,'')+'\')">{{ _('Reply') }}</button> <button class="btn bo" onclick="viewEmail('+e.uid+')">{{ _('View') }}</button></td></tr>';
     });
     tbl+='</table>';
     document.getElementById("inboxList").innerHTML=tbl;
   }).catch(function(){})
+}
+
+function renderEmailSettings(){
+  var el=document.getElementById("emailTabContent");
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/email/settings",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var cfg=d.data.config||{};
+    var defs=d.data.defs||{};
+    var h='<div class="cd"><div class="st">⚙ {{ _('Email Settings') }}</div>';
+    h+='<div style="font-size:12px;color:var(--dim);margin-bottom:12px">{{ _('Configure SMTP and IMAP settings for email sending and receiving.') }}</div>';
+    var keys=Object.keys(defs);
+    keys.forEach(function(k){
+      var df=defs[k]||{};
+      var label=df.label||k;
+      var val=cfg[k]!==undefined?cfg[k]:df.default||'';
+      var isSensitive=k==='smtp_pass';
+      h+='<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">';
+      h+='<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+esc(label)+'</div>';
+      h+='<div style="font-size:10px;color:var(--dim)">'+esc(k)+'</div></div>';
+      if(isSensitive){
+        h+='<div style="position:relative"><input class="in" id="es-'+k+'" type="password" value="'+esc(String(val))+'" style="width:160px;padding-right:28px" placeholder="********">';
+        h+='<span style="position:absolute;right:6px;top:6px;cursor:pointer;font-size:12px;color:var(--dim)" onclick="togglePwd(this)">👁</span></div>';
+      }else{
+        h+='<input class="in" id="es-'+k+'" type="text" value="'+esc(String(val))+'" style="width:160px">';
+      }
+      h+='</div>';
+    });
+    h+='<div style="margin-top:12px;display:flex;gap:8px;align-items:center">';
+    h+='<button class="btn bp" onclick="saveEmailSettings()">{{ _('Save Settings') }}</button>';
+    h+='<span id="es-status" style="font-size:12px;color:var(--dim)"></span></div>';
+    h+='</div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+
+function togglePwd(el){
+  var inp=el.parentElement.querySelector('input');
+  inp.type=inp.type==='password'?'text':'password';
+}
+
+function saveEmailSettings(){
+  var data={};
+  var el=document.getElementById("emailTabContent");
+  var inputs=el.querySelectorAll('[id^="es-"]');
+  inputs.forEach(function(inp){
+    var key=inp.id.replace('es-','');
+    data[key]=inp.value;
+  });
+  var status=document.getElementById("es-status");
+  status.textContent="{{ _('Saving') }}...";
+  var btn=el.querySelector('button');
+  if(btn){btn.disabled=true}
+  fetch("/admin/email/settings",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(d){
+    if(btn)btn.disabled=false;
+    if(d.success){status.textContent="✅ {{ _('Saved') }}";setTimeout(function(){status.textContent=''},3000)}
+    else{status.textContent="❌ "+(d.error||"{{ _('Save failed') }}")}
+  }).catch(function(){if(btn)btn.disabled=false;status.textContent="❌ {{ _('Network error') }}"});
 }
 
 var emContacts=[];

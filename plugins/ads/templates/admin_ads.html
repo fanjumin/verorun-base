@@ -31,7 +31,8 @@ function renderAdsApp(){
   var h='<div class="sbar">';
   h+='<button class="btn bp" onclick="switchAdTab(\'ads\')">{{ _('Ad List') }}</button> ';
   h+='<button class="btn bo" onclick="switchAdTab(\'zones\')">{{ _('Zone Management') }}</button> ';
-  h+='<button class="btn bo" onclick="switchAdTab(\'stats\')">{{ _('Ad Statistics') }}</button>';
+  h+='<button class="btn bo" onclick="switchAdTab(\'stats\')">{{ _('Ad Statistics') }}</button> ';
+  h+='<button class="btn bo" onclick="switchAdTab(\'settings\')">⚙ {{ _('Settings') }}</button>';
   h+='<span style="flex:1"></span>';
   h+='<label style="font-size:12px;color:var(--dim);margin-right:6px">{{ _('Site') }}</label>';
   h+='<input id="siteKeyFilter" class="in" style="width:140px" value="'+esc(_currentSiteKey)+'" onchange="changeSiteKey()" placeholder="site_key">';
@@ -39,10 +40,12 @@ function renderAdsApp(){
   h+='<div id="adTabAds"></div>';
   h+='<div id="adTabZones" style="display:none"></div>';
   h+='<div id="adTabStats" style="display:none"></div>';
+  h+='<div id="adTabSettings" style="display:none"></div>';
   document.getElementById("mc").innerHTML=h;
   renderAdList();
   renderZoneList();
   renderStatsPanel();
+  renderAdSettings();
 }
 
 function switchAdTab(tab){
@@ -50,8 +53,10 @@ function switchAdTab(tab){
   document.getElementById("adTabAds").style.display=tab==='ads'?'block':'none';
   document.getElementById("adTabZones").style.display=tab==='zones'?'block':'none';
   document.getElementById("adTabStats").style.display=tab==='stats'?'block':'none';
-  document.querySelectorAll('.sbar button').forEach(function(b,idx){
-    b.className='btn '+(tab===(idx===0?'ads':idx===1?'zones':'stats')?'bp':'bo');
+  document.getElementById("adTabSettings").style.display=tab==='settings'?'block':'none';
+  document.querySelectorAll('.sbar button').forEach(function(b){
+    var t=b.textContent.trim().toLowerCase();
+    b.className='btn '+(tab==='ads'&&t.indexOf('list')>=0||tab==='zones'&&t.indexOf('zone')>=0||tab==='stats'&&t.indexOf('stat')>=0||tab==='settings'&&t.indexOf('setting')>=0?'bp':'bo');
   });
 }
 
@@ -349,4 +354,54 @@ function loadStats(){
     h+='</table></div>';
     document.getElementById("statsResult").innerHTML=h;
   }).catch(function(){document.getElementById("statsResult").innerHTML='<div class="em">{{ _('Request Failed') }}</div>';});
+}
+
+// ============================================================
+// 设置
+// ============================================================
+function renderAdSettings(){
+  var el=document.getElementById("adTabSettings");
+  if(!el)return;
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}...</div>';
+  fetch("/admin/ads/settings",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}: '+esc(d.error||'')+'</div>';return}
+    var cfg=d.data.config||{};
+    var defs={
+      default_width:     {label:'{{ _('Default Ad Width') }}',     desc:'{{ _('Default width for new image ads') }}',      type:'integer'},
+      default_height:    {label:'{{ _('Default Ad Height') }}',    desc:'{{ _('Default height for new image ads (0=auto)') }}', type:'integer'},
+      max_placements:    {label:'{{ _('Max Placements') }}',       desc:'{{ _('Maximum number of ad placements') }}',     type:'integer'},
+    };
+    var h='<div class="cd"><div class="st">⚙ {{ _('Ad Settings') }}</div>';
+    h+='<div style="font-size:12px;color:var(--dim);margin-bottom:12px">{{ _('Configure global ad placement defaults.') }}</div>';
+    Object.keys(defs).forEach(function(k){
+      var df=defs[k];
+      var val=cfg[k]!==undefined?cfg[k]:'';
+      h+='<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">';
+      h+='<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+esc(df.label)+'</div>';
+      h+='<div style="font-size:10px;color:var(--dim)">'+esc(df.desc)+'</div></div>';
+      h+='<input class="in" id="as-'+k+'" type="'+df.type+'" value="'+esc(String(val))+'" style="width:140px">';
+      h+='</div>';
+    });
+    h+='<div style="margin-top:12px;display:flex;gap:8px;align-items:center">';
+    h+='<button class="btn bp" onclick="saveAdSettings()">{{ _('Save Settings') }}</button>';
+    h+='<span id="as-status" style="font-size:12px;color:var(--dim)"></span></div>';
+    h+='</div>';
+    el.innerHTML=h;
+  }).catch(function(){el.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
+}
+
+function saveAdSettings(){
+  var data={};
+  var el=document.getElementById("adTabSettings");
+  var inputs=el.querySelectorAll('[id^="as-"]');
+  inputs.forEach(function(inp){
+    var key=inp.id.replace('as-','');
+    data[key]=inp.value;
+  });
+  var status=document.getElementById("as-status");
+  status.textContent="{{ _('Saving') }}...";
+  fetch("/admin/ads/settings",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){status.textContent="✅ {{ _('Saved') }}";setTimeout(function(){status.textContent=''},3000)}
+    else{status.textContent="❌ "+(d.error||"{{ _('Save failed') }}")}
+  }).catch(function(){status.textContent="❌ {{ _('Network error') }}"});
 }

@@ -1,7 +1,7 @@
 {
     "name": "Email Service",
     "identifier": "email",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "category": "Communication",
     "tags": ["email", "smtp", "imap", "notification"],
     "icon": "email",

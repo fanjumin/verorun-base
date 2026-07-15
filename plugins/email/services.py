@@ -65,10 +65,26 @@ CONFIG_DEFS = {
 
 # ─── Config helpers ────────────────────────────────────────────────────────
 
+def _get_plugin_manager_config():
+    """尝试从 PluginManager 读取邮件配置（优先级次于 env var，高于 system_config）"""
+    try:
+        from flask import current_app
+        mgr = current_app.extensions.get('plugin_manager')
+        if mgr:
+            return mgr.get_config('email') or {}
+    except Exception:
+        pass
+    return {}
+
+
 def _get_mail_config():
-    """Merge env → system_config → defaults for all mail config keys。兼容主库 system_config 中的旧配置。"""
+    """Merge env → plugin_manager → system_config → defaults for all mail config keys."""
     cfg = {}
-    # 1. 尝试从主库 system_config 读取（兼容系统设置中已保存的配置）
+
+    # 1. 尝试从 PluginManager 读取（新建/编辑设置页的配置）
+    pm_config = _get_plugin_manager_config()
+
+    # 2. 尝试从主库 system_config 读取（兼容旧配置）
     db_config = {}
     try:
         from models import get_db
@@ -82,9 +98,13 @@ def _get_mail_config():
                 db_config[r['key']] = r['value']
     except Exception:
         pass
-    # 2. 优先级：环境变量 > system_config > 默认值
+
+    # 3. 优先级：环境变量 > plugin_manager > system_config > 默认值
     for k in _MAIL_KEYS:
-        cfg[k] = os.environ.get(_ENV_MAP[k], '') or db_config.get(k, '') or _DEFAULTS[k]
+        cfg[k] = (os.environ.get(_ENV_MAP[k], '')
+                  or str(pm_config.get(k, '') or '')
+                  or db_config.get(k, '')
+                  or _DEFAULTS[k])
     if not cfg['smtp_from']:
         cfg['smtp_from'] = cfg['smtp_user']
     if not cfg['smtp_user']:

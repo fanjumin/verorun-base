@@ -139,6 +139,60 @@ def admin_email_contacts():
     return jsonify({'success': True, 'data': sorted(contacts.values(), key=lambda c: -c['count'])})
 
 
+# ── GET /admin/email/settings ──
+@email_bp.route('/settings', methods=['GET'])
+def admin_email_settings_get():
+    """获取邮件服务配置（用于设置页渲染）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    from plugins.email.services import _get_mail_config, CONFIG_DEFS, _MAIL_KEYS
+    try:
+        cfg = _get_mail_config()
+        # 按 _MAIL_KEYS 顺序组织返回，敏感字段掩码显示
+        result = {}
+        for k in _MAIL_KEYS:
+            val = cfg.get(k, '')
+            if k == 'smtp_pass' and val:
+                val = '********'
+            result[k] = val
+        return jsonify({'success': True, 'data': {
+            'config': result,
+            'defs': {k: CONFIG_DEFS.get(k, {}) for k in _MAIL_KEYS},
+        }})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── POST /admin/email/settings ──
+@email_bp.route('/settings', methods=['POST'])
+def admin_email_settings_save():
+    """保存邮件服务配置"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    from flask import current_app
+    mgr = current_app.extensions.get('plugin_manager')
+    if not mgr:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+
+    # 只保存 config 中定义的 keys
+    cfg = {}
+    for k in _MAIL_KEYS:
+        if k in data:
+            cfg[k] = data[k]
+
+    if not cfg:
+        return jsonify({'success': False, 'error': 'No valid config keys provided'}), 400
+
+    # 通过 PluginManager set_config_batch 保存（含类型转换+校验）
+    result = mgr.set_config_batch('email', cfg, coerce=True)
+    if result.get('errors'):
+        return jsonify({'success': True, 'warning': result['errors'], 'data': {'saved': True}})
+    return jsonify({'success': True, 'data': {'saved': True}})
+
+
 # ── GET /admin/email/attachment/<uid>/<filename> ──
 @email_bp.route('/attachment/<int:uid>/<path:filename>', methods=['GET'])
 def admin_email_attachment(uid, filename):

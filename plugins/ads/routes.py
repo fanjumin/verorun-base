@@ -314,8 +314,52 @@ def api_get_stats():
 
 
 # ============================================================
-# 站点解析辅助
+# 插件设置
 # ============================================================
+
+_ADS_CONFIG_KEYS = ['default_width', 'default_height', 'max_placements']
+
+
+@ads_bp.route('/settings', methods=['GET'])
+def ads_settings_get():
+    """获取插件配置"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    from flask import current_app
+    mgr = current_app.extensions.get('plugin_manager')
+    cfg = mgr.get_config('ads') if mgr else {}
+    return jsonify({'success': True, 'data': {
+        'config': {k: cfg.get(k, '') for k in _ADS_CONFIG_KEYS},
+    }})
+
+
+@ads_bp.route('/settings', methods=['POST'])
+def ads_settings_save():
+    """保存插件配置"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    from flask import current_app
+    mgr = current_app.extensions.get('plugin_manager')
+    if not mgr:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    cfg = {}
+    for k in _ADS_CONFIG_KEYS:
+        if k in data:
+            cfg[k] = data[k]
+    if not cfg:
+        return jsonify({'success': False, 'error': 'No valid keys'}), 400
+    result = mgr.set_config_batch('ads', cfg, coerce=True)
+    if result.get('errors'):
+        return jsonify({'success': True, 'warning': result['errors'], 'data': {'saved': True}})
+    return jsonify({'success': True, 'data': {'saved': True}})
+
+
+# ============================================================
+# 站点解析辅助
+# =========================================================
 
 def _resolve_site_key_from_host():
     """根据请求 Host 从 site_domains 表解析当前子域名作为 site_key"""
