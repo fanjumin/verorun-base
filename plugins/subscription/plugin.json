@@ -9,7 +9,7 @@
     "tags": ["subscription", "payment", "billing"],
     "dependencies": {},
     "enabled": true,
-    "admin_url": "/plugin/subscription/admin/subscription/",
+    "admin_url": "",
     "admin_label": "Subscription Settings",
     "config": {
         "trial_days": 0,

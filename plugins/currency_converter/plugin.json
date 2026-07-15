@@ -14,7 +14,7 @@
 
     "enabled": false,
 
-    "admin_url": "/admin/currency",
+    "admin_url": "",
     "admin_label": "Currency Settings",
 
     "config": {

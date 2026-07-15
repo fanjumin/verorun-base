@@ -10,7 +10,7 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
-    "admin_url": "/admin/email",
+    "admin_url": "",
     "admin_label": "Email Settings",
     "config": {
         "smtp_host": "smtp.qiye.aliyun.com",

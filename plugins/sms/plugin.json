@@ -10,7 +10,7 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
-    "admin_url": "/admin/sms",
+    "admin_url": "",
     "admin_label": "SMS Settings",
     "config": {
         "aliyun_sms_sign_name": "",
