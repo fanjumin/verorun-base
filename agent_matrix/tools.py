@@ -239,6 +239,22 @@ TOOL_SCHEMAS = {
             }
         }
     },
+    "generate_docx": {
+        "type": "function",
+        "function": {
+            "name": "generate_docx",
+            "description": "使用 AI 生成 Word 文档（.docx）。根据用户提供主题和格式要求，生成样式化的 Word 文档，包含标题、段落、列表、表格等。适合生成报告、合同、方案书、简历等正式文档。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "文档主题（必填）"},
+                    "style": {"type": "string", "description": "风格，可选 professional/formal/creative/simple/report", "default": "professional"},
+                    "sections": {"type": "integer", "description": "章节数量（3-12），默认 5", "default": 5}
+                },
+                "required": ["topic"]
+            }
+        }
+    },
 }
 
 
@@ -626,6 +642,105 @@ def _tool_generate_markdown(args):
         return f'❌ Markdown 生成异常: {e}'
 
 
+def _tool_generate_docx(args):
+    """使用 AI 生成 Word 文档（.docx）"""
+    try:
+        topic = str(args.get('topic', '')).strip()
+        if not topic:
+            return '❌ 请提供文档主题'
+        sections = max(3, min(int(args.get('sections', 5) or 5), 12))
+        style = str(args.get('style', 'professional'))
+
+        style_desc = {
+            'professional': '专业商务风格，使用正式的标题和段落格式',
+            'formal': '正式公文风格，章节目录清晰，语言严谨',
+            'creative': '创意设计风格，灵活的版式和现代感',
+            'simple': '简洁风格，要点突出，便于快速阅读',
+            'report': '报告风格，包含摘要、数据分析、结论和建议',
+        }.get(style, '专业商务风格')
+
+        prompt_text = f'请撰写一篇关于"{topic}"的Word文档，包含{sections}个章节。\n风格要求：{style_desc}\n请输出Markdown格式，包含标题（##）、段落、列表。'
+
+        # 读取 API Key（硅基流动优先）
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM system_config WHERE key='siliconflow_api_key'").fetchone()
+        api_key = row['value'] if row else os.environ.get('SILICONFLOW_API_KEY', '')
+        if not api_key:
+            with get_db() as conn:
+                row = conn.execute("SELECT value FROM system_config WHERE key='dashscope_text_key'").fetchone()
+            if row:
+                api_key = row['value']
+                base_url, model = 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'qwen-turbo'
+            else:
+                return '❌ API Key 未配置'
+        else:
+            base_url, model = 'https://api.siliconflow.cn/v1', 'Qwen/Qwen2.5-14B-Instruct'
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {'role': 'system', 'content': '你是专业文档撰写助手。输出结构化的 Markdown 内容，包含多级标题和段落，不包含多余说明。'},
+                {'role': 'user', 'content': prompt_text}
+            ],
+            temperature=0.5, max_tokens=4096
+        )
+        md_content = resp.choices[0].message.content or ''
+        if not md_content.strip():
+            return '❌ AI 内容生成为空'
+
+        # 用 python-docx 渲染
+        from docx import Document
+        from docx.shared import Pt, Inches, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        doc = Document()
+
+        # 设置默认字体
+        style_n = doc.styles['Normal']
+        style_n.font.name = 'Microsoft YaHei'
+        style_n.font.size = Pt(11)
+        style_n.paragraph_format.space_after = Pt(6)
+
+        # 标题
+        lines = md_content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith('## '):
+                h = doc.add_heading(line[3:], level=2)
+                for run in h.runs:
+                    run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
+                    run.font.size = Pt(16)
+            elif line.startswith('### '):
+                h = doc.add_heading(line[4:], level=3)
+                for run in h.runs:
+                    run.font.color.rgb = RGBColor(0x2D, 0x2D, 0x44)
+                    run.font.size = Pt(13)
+            elif line.startswith('- ') or line.startswith('* '):
+                p = doc.add_paragraph(line[2:], style='List Bullet')
+            elif line.startswith('1. ') or line.startswith('2. ') or any(line.startswith(f'{i}. ') for i in range(1, 10)):
+                p = doc.add_paragraph(line, style='List Number')
+            else:
+                p = doc.add_paragraph(line)
+
+        import uuid
+        media_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'media', 'temp')
+        os.makedirs(media_dir, exist_ok=True)
+        fn = f"doc_{uuid.uuid4().hex[:8]}.docx"
+        fp = os.path.join(media_dir, fn)
+        doc.save(fp)
+
+        download_url = f'/admin/agent-matrix/media/download/{fn}'
+        return f'✅ Word 文档已生成："{topic}"（{sections}章）\n文件：{fn}\n下载链接：{download_url}'
+
+    except Exception as e:
+        logger.warning(f"[tool:generate_docx] 执行失败: {e}")
+        return f'❌ Word 文档生成异常: {e}'
+
+
 TOOL_EXECUTORS = {
     "get_system_health": _tool_get_system_health,
     "query_stats": _tool_query_stats,
@@ -640,6 +755,7 @@ TOOL_EXECUTORS = {
     "generate_ppt": _tool_generate_ppt,
     "generate_image": _tool_generate_image,
     "generate_markdown": _tool_generate_markdown,
+    "generate_docx": _tool_generate_docx,
 }
 
 
