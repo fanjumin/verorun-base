@@ -16,7 +16,7 @@ window.l_chatbot=function(){
     h+='<div class="fl" style="align-items:flex-start;margin-bottom:10px;flex-wrap:wrap">'+
       '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">{{ _('Avatar URL') }}</div></div>'+
       '<div style="width:320px">'+
-      '<input class="in" id="cb-avatar_url" value="'+esc(c.avatar_url||'/static/ai-chat.png')+'" style="width:100%">'+
+      '<input class="in" id="cb-avatar_url" value="'+esc(c.avatar_url||'')+'" style="width:100%">'+
       '<div style="display:flex;gap:6px;margin-top:6px">'+
       '<button class="btn bo bs" onclick="openChatbotMediaPicker()" title="{{ _('Choose from Library') }}">🖼 {{ _('Select Image') }}</button>'+
       '<input type="file" id="cb-avatar_upload" accept="image/*" style="display:none" onchange="uploadChatbotAvatar()">'+

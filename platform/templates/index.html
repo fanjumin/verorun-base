@@ -1257,7 +1257,7 @@ var chatHistory=[];
 var isChatStreaming=false;
 
 function loadSupportChat(){
-  var avatarUrl={{ chatbot_avatar_url | default('/static/ai-chat.png') | tojson }};
+  var avatarUrl={{ chatbot_avatar_url | default('') | tojson }};
   var title={{ chatbot_title | default('AI Advisor') | tojson }};
   var subtitle={{ chatbot_subtitle | default(_('Powered by AI Engine')) | tojson }};
   var welcome={{ chatbot_welcome_message | default(_('Hello! I am your AI advisor. How can I help you today?')) | tojson }};
@@ -1418,7 +1418,7 @@ function submitCSAT(sid,score,el){
 (function(){
   {% if chatbot_enabled | default(true) %}
   var floatText={{ chatbot_float_button_text | default(_('AI Advisor')) | tojson }};
-  var floatAvatar={{ chatbot_avatar_url | default('/static/ai-chat.png') | tojson }};
+  var floatAvatar={{ chatbot_avatar_url | default('') | tojson }};
   var btn=document.createElement('div');
   btn.id='float-chat-btn';
   btn.innerHTML='<img src="'+esc(floatAvatar)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover"><span>'+esc(floatText)+'<\/span>';
