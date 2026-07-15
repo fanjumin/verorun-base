@@ -135,13 +135,21 @@ class PluginManager:
                 self._load_cache()
 
             # 用磁盘 plugin.json 刷新已缓存插件的静态元信息（menu/version 等）。
-            # 仅更新内存缓存，不写 DB，避免污染运行时状态（status/config）；
-            # 保证 plugin.json 始终是菜单等静态元信息的权威来源。
+            # 当磁盘版本与数据库不一致时同步写回 DB，确保插件管理器展示最新版本号。
             for disk_info in discovered:
                 cached = self._cache.get(disk_info.identifier)
                 if cached:
+                    needs_db_sync = (
+                        cached.version != disk_info.version or
+                        cached.metadata.get('version') != disk_info.metadata.get('version') or
+                        cached.name != disk_info.name
+                    )
                     cached.metadata = disk_info.metadata
                     cached.version = disk_info.version
+                    cached.name = disk_info.name
+                    if needs_db_sync:
+                        self._save_to_db(cached)
+                        print(f'[PluginManager] 🔄 {disk_info.identifier}: synced v{disk_info.version} to DB')
 
             # ── 加载所有插件的 locale 翻译 ─────────────────────
             try:

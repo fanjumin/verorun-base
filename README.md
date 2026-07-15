@@ -882,7 +882,6 @@ VeroRunSystem/
 │
 ├── plugins/                   # 插件代码目录（独立数据库）
 │   ├── ads/                   # 广告管理（ads.db）
-│   ├── ai_tools/              # AI 工具（ai_tools.db）
 │   ├── ali_api/               # 1688 供应链采集（ali_api.db, 7 表, 0.2.1）
 │   ├── analytics/             # 分析看板（analytics.db）
 │   ├── captcha_embedded/      # 验证码嵌入

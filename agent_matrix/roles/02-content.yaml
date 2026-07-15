@@ -18,7 +18,6 @@ managed_modules:
   - token_monitoring
   - ads
   - content_factory
-  - ai_tools
   - social_push
 provider: openai
 model_name: gpt-4o

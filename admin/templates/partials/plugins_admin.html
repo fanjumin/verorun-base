@@ -44,7 +44,7 @@ function renderPluginList(){
       // Disable
       if(s==='active'||s==='enabled') h+='<button class="btn bo bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'disable\')">{{ _('Disable') }}</button>';
       // Uninstall
-      if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" style="color:#f85149" onclick="pluginUninstall(\''+escAttr(p.identifier)+'\')">{{ _('Uninstall') }}</button>';
+      if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" style="color:#f85149" onclick="showUninstallConfirm(\''+escAttr(p.identifier)+'\')">{{ _('Uninstall') }}</button>';
       // Config
       if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" onclick="pluginShowConfig(\''+escAttr(p.identifier)+'\')">⚙ {{ _('Config') }}</button>';
       h+='</td></tr>';
@@ -92,8 +92,27 @@ function pluginAction(id,action){
     else{act.innerHTML='<div class="em">'+esc(d.error||action+' {{ _('Failed') }}')+'</div>'}
   }).catch(function(){act.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
 }
+function showUninstallConfirm(id){
+  var existing=document.querySelector(".modal-overlay");
+  if(existing)existing.remove();
+  var h='<div class="modal-overlay" onclick="if(event.target===this)this.remove()">';
+  h+='<div class="modal-box" style="width:420px;text-align:center">';
+  h+='<div style="font-size:28px;margin-bottom:12px">⚠️</div>';
+  h+='<h3 style="margin:0 0 8px;font-size:16px;color:var(--text)">{{ _('Uninstall Plugin') }}</h3>';
+  h+='<div style="font-size:13px;color:var(--dim);margin-bottom:16px;line-height:1.6">';
+  h+='{{ _('Are you sure you want to uninstall') }} <strong>'+esc(id)+'</strong>?<br>';
+  h+='<span style="color:#f85149">{{ _('This will delete the plugin data and configuration.') }}</span>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:8px;justify-content:center">';
+  h+='<button class="btn bo" style="font-size:13px;padding:6px 20px" onclick="this.closest(\'.modal-overlay\').remove()">{{ _('Cancel') }}</button>';
+  h+='<button class="btn" style="font-size:13px;padding:6px 20px;background:#f85149;color:#fff;border:none" onclick="pluginUninstall(\''+escAttr(id)+'\')">{{ _('Uninstall') }}</button>';
+  h+='</div></div></div>';
+  var div=document.createElement("div");
+  div.innerHTML=h;
+  document.body.appendChild(div.firstElementChild);
+}
 function pluginUninstall(id){
-  if(!confirm("{{ _('Are you sure you want to uninstall?') }} "+esc(id)+" ?"))return;
+  document.querySelector(".modal-overlay")&&document.querySelector(".modal-overlay").remove();
   var act=document.getElementById("pluginActionForm");
   act.innerHTML='<div class="lo"><div class="s"></div>{{ _('Uninstalling') }}...</div>';
   fetch("/admin/plugins/"+encodeURIComponent(id)+"/uninstall",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({confirm:true})}).then(function(r){return r.json()}).then(function(d){
