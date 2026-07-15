@@ -1,4 +1,4 @@
-﻿# 插件标准 v1.1 — 完整规范
+# 插件标准 v1.1 — 完整规范
 
 > 生成日期：2026-07-09（§9-11 于 07-09 追加）
 > 前置阅读：本规范假定已了解项目最高宪法 [AGENTS.md](../AGENTS.md) 和 `project_rules.md`。
@@ -543,7 +543,7 @@ CREATE TABLE IF NOT EXISTS plugin_configs (
 }
 ```
 
-**管理端入口**：`admin/templates/partials/plugins_admin.html` 中自动加载已安装插件的配置面板。
+**管理端入口**：插件通过 `plugin.json` 的 `admin_url` 字段声明管理页面入口。插件管理列表（`plugins_admin.html`）据此显示 🔗 Manage 链接跳转到插件自有管理页或 admin SPA。插件配置不再通过 PluginManager 内联加载，由插件自有页面独立承载。
 
 ### 10.4 依赖管理
 
