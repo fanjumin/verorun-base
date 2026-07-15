@@ -396,15 +396,10 @@ def _get_chatbot_config():
 
 
 def _get_chatbot_agent(agent_id):
-    """从 agent_matrix 表读取绑定的 Agent 配置。"""
+    """从 chatbot 独立库 agent_registry 表读取绑定的 Agent 配置。"""
     try:
-        from agent_matrix.models import get_db
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT * FROM agent_matrix WHERE name=? OR slug=? LIMIT 1",
-                (agent_id, agent_id)
-            ).fetchone()
-        return dict(row) if row else None
+        from plugins.chatbot.models import get_agent
+        return get_agent(agent_id)
     except Exception as e:
         import logging
         logging.warning(f"[chatbot] 读取 Agent 失败: {e}")

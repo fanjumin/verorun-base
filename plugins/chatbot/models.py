@@ -45,6 +45,7 @@ def init_chatbot_tables():
     conn.execute('''CREATE TABLE IF NOT EXISTS agent_registry (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         name            TEXT NOT NULL,
+        identifier      TEXT DEFAULT '',
         role_type       TEXT DEFAULT 'sub',
         description     TEXT DEFAULT '',
         domain          TEXT DEFAULT 'chatbot',
@@ -56,6 +57,11 @@ def init_chatbot_tables():
         created_at      TEXT DEFAULT (datetime('now')),
         updated_at      TEXT DEFAULT (datetime('now'))
     )''')
+    # 幂等添加 identifier 列（兼容旧表）
+    try:
+        conn.execute("ALTER TABLE agent_registry ADD COLUMN identifier TEXT DEFAULT ''")
+    except Exception:
+        pass
 
     # 3. 对话会话日志表
     conn.execute('''CREATE TABLE IF NOT EXISTS chatbot_sessions (
@@ -130,7 +136,7 @@ def seed_defaults(plugin_name: str, defaults: dict):
 
 def upsert_agent(name: str, role_type: str, description: str, domain: str,
                  provider: str, model_name: str, system_prompt: str,
-                 capabilities: str, is_active: int = 1):
+                 capabilities: str, is_active: int = 1, identifier: str = ''):
     """注册或更新 Agent"""
     conn = get_chatbot_db()
     exists = conn.execute(
@@ -142,17 +148,17 @@ def upsert_agent(name: str, role_type: str, description: str, domain: str,
             UPDATE agent_registry
             SET description=?, domain=?, provider=?, model_name=?,
                 system_prompt=?, capabilities=?, is_active=?,
-                updated_at=datetime('now')
+                identifier=?, updated_at=datetime('now')
             WHERE id=?
         ''', (description, domain, provider, model_name,
-              system_prompt, capabilities, is_active, exists['id']))
+              system_prompt, capabilities, is_active, identifier, exists['id']))
     else:
         conn.execute('''
             INSERT INTO agent_registry
-            (name, role_type, description, domain, provider, model_name,
+            (name, identifier, role_type, description, domain, provider, model_name,
              system_prompt, capabilities, is_active)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        ''', (name, role_type, description, domain, provider, model_name,
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+        ''', (name, identifier, role_type, description, domain, provider, model_name,
               system_prompt, capabilities, is_active))
     conn.commit()
 
@@ -161,7 +167,7 @@ def get_agent(agent_id: str):
     """按 name 或 identifier 查询 Agent"""
     conn = get_chatbot_db()
     row = conn.execute(
-        'SELECT * FROM agent_registry WHERE (name=? OR name=?) AND is_active=1 LIMIT 1',
+        'SELECT * FROM agent_registry WHERE (name=? OR identifier=?) AND is_active=1 LIMIT 1',
         (agent_id, agent_id)
     ).fetchone()
     return dict(row) if row else None

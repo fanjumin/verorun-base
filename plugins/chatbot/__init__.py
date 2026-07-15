@@ -54,6 +54,7 @@ class ChatbotPlugin(BasePlugin):
             agent = agents[0]
             upsert_agent(
                 name=agent['name'],
+                identifier=agent.get('identifier', ''),
                 role_type=agent['role_type'],
                 description=f"AI Advisor Agent — {agent['domain']}",
                 domain=agent.get('domain', 'chatbot'),
