@@ -10,6 +10,8 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/admin/enterprise-verifications",
+    "admin_label": "Enterprise Verification Settings",
     "config": {
         "siliconflow_api_key": "",
         "auto_approve": false,

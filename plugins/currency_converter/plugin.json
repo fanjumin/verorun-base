@@ -14,6 +14,9 @@
 
     "enabled": false,
 
+    "admin_url": "/admin/currency",
+    "admin_label": "Currency Settings",
+
     "config": {
         "primary_api": "https://api.frankfurter.app/latest",
         "fallback_api": "https://open.er-api.com/v6/latest",

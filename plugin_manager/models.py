@@ -110,6 +110,10 @@ class PluginInfo:
     # 运行时配置（持久化）
     config: Dict[str, Any] = field(default_factory=dict)
 
+    # 配置页 URL（插件自有管理页，无则降级内联）
+    admin_url: str = ''
+    admin_label: str = ''
+
     # 时间戳
     installed_at: Optional[str] = None
     updated_at: Optional[str] = None

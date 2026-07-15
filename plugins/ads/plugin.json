@@ -10,6 +10,8 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/admin/ads",
+    "admin_label": "Ad Settings",
     "config": {
         "default_width": 320,
         "default_height": 0,

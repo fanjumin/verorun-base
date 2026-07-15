@@ -162,6 +162,8 @@ class PluginDiscovery:
             permissions=meta.get('permissions', []),
             settings_schema=meta.get('settings_schema', {}),
             config=meta.get('config', {}),
+            admin_url=meta.get('admin_url', ''),
+            admin_label=meta.get('admin_label', ''),
         )
         return info
 

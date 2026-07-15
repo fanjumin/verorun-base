@@ -10,6 +10,8 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/admin/content-factory",
+    "admin_label": "Content Factory Settings",
     "config": {
         "dashscope_text_key": "",
         "max_items_per_run": 10,

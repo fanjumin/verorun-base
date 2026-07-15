@@ -7,6 +7,8 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/admin/ali-api",
+    "admin_label": "1688 Settings",
     "config": {
         "api_gateway": "https://gw.open.1688.com/openapi"
     },

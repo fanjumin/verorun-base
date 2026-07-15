@@ -10,6 +10,8 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/admin/chatbot",
+    "admin_label": "AI Advisor Settings",
     "config": {
         "enabled": "1",
         "auto_escalate": "1",

@@ -7,6 +7,8 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/admin/analytics",
+    "admin_label": "Analytics Settings",
     "config": {
         "sample_rate": 1.0,
         "geoip_enabled": true,

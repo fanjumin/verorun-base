@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "Subscription",
     "identifier": "subscription",
     "version": "1.0.0",
@@ -9,6 +9,8 @@
     "tags": ["subscription", "payment", "billing"],
     "dependencies": {},
     "enabled": true,
+    "admin_url": "/plugin/subscription/admin/subscription/",
+    "admin_label": "Subscription Settings",
     "config": {
         "trial_days": 0,
         "grace_days": 3,

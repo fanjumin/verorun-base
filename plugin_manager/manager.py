@@ -1077,6 +1077,7 @@ class PluginManager:
 
     def _row_to_info(self, row: dict) -> PluginInfo:
         """数据库行 → PluginInfo"""
+        meta = json.loads(row.get('metadata', '{}'))
         return PluginInfo(
             identifier=row['identifier'],
             name=row['name'],
@@ -1085,7 +1086,7 @@ class PluginManager:
             description=row.get('description', ''),
             min_app_version=row.get('min_app_version', '1.0.0'),
             path=row.get('path', ''),
-            metadata=json.loads(row.get('metadata', '{}')),
+            metadata=meta,
             status=PluginStatus(row['status']),
             config=json.loads(row.get('config', '{}')),
             dependencies=json.loads(row.get('dependencies', '{}')),
@@ -1093,6 +1094,8 @@ class PluginManager:
             listens_hooks=json.loads(row.get('listens_hooks', '[]')),
             permissions=json.loads(row.get('permissions', '[]')),
             settings_schema=json.loads(row.get('settings_schema', '{}')),
+            admin_url=row.get('admin_url', '') or meta.get('admin_url', ''),
+            admin_label=row.get('admin_label', '') or meta.get('admin_label', ''),
             installed_at=row.get('installed_at'),
             updated_at=row.get('updated_at'),
             last_error=row.get('last_error', ''),

@@ -362,6 +362,8 @@ from plugins import (
 | `dependencies` | 否 | object | 依赖插件映射 `{identifier: version_spec}` |
 | `enabled` | 否 | bool | 是否启用，默认 `true` |
 | `config` | 否 | object | 插件自定义配置 |
+| `admin_url` | 否 | string | 插件管理页面 URL。有此值则插件管理列表中显示 "Settings" 按钮并跳转；无则降级为内联配置 |
+| `admin_label` | 否 | string | Settings 按钮显示文本（默认 "Settings"） |
 
 > 完整 `plugin.json` Schema（含 `identifier`、`category`、`icons`、`tags`、`settings_schema`、`permissions`、`agents`、`dashboard` 等 v1.1 字段）详见 [plugin-standard-v1.1.md](plugin-standard-v1.1.md)。
 

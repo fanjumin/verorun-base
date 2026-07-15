@@ -45,8 +45,11 @@ function renderPluginList(){
       if(s==='active'||s==='enabled') h+='<button class="btn bo bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'disable\')">{{ _('Disable') }}</button>';
       // Uninstall
       if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" style="color:#f85149" onclick="showUninstallConfirm(\''+escAttr(p.identifier)+'\')">{{ _('Uninstall') }}</button>';
-      // Config
-      if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" onclick="pluginShowConfig(\''+escAttr(p.identifier)+'\')">⚙ {{ _('Config') }}</button>';
+      // Settings（有 admin_url 跳转插件自有页面，否则降级内联）
+      if(s!=='unknown'&&s!=='uninstalled'){
+        if(p.admin_url){h+='<button class="btn bo bs" onclick="goPlugin(\''+escAttr(p.identifier)+'\',\''+escAttr(p.admin_url)+'\')">⚙ '+(p.admin_label||'{{ _('Settings') }}')+'</button>'}
+        else{h+='<button class="btn bo bs" onclick="pluginShowConfig(\''+escAttr(p.identifier)+'\')">⚙ {{ _('Config') }}</button>'}
+      }
       h+='</td></tr>';
     });
     h+='</table>';
