@@ -393,6 +393,112 @@ def clear_plugin_log(identifier: str):
 
 
 # ====================================================================
+# 商店管理 API（仅管理员，字面路由须在通配路由前注册）
+# ====================================================================
+
+# ── 37. 商店管理：列出所有插件商品 ────────────────────────
+
+@bp.route('/store/admin', methods=['GET'])
+def store_admin_list():
+    """管理员：列出所有商店插件商品"""
+    with get_registry_db() as conn:
+        rows = conn.execute('SELECT * FROM store_plugins ORDER BY created_at DESC').fetchall()
+        plugins = [dict(r) for r in rows]
+    return _json_result(True, data={'plugins': plugins})
+
+
+# ── 38. 商店管理：创建/更新插件商品 ───────────────────────
+
+@bp.route('/store/admin', methods=['POST'])
+def store_admin_save():
+    """管理员：创建或更新商店插件商品"""
+    data = request.json if request.is_json else {}
+    identifier = data.get('identifier', '')
+    if not identifier:
+        return _json_result(False, error='identifier required', code=400)
+
+    with get_registry_db() as conn:
+        conn.execute("""
+            INSERT INTO store_plugins (
+                identifier, name, description, version, author,
+                author_url, icon_url, price_type, price_amount,
+                price_interval, trial_days, download_url, package_hash,
+                file_size, category, tags, screenshots, readme_url, enabled
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+            ON CONFLICT(identifier) DO UPDATE SET
+                name=excluded.name,
+                description=excluded.description,
+                version=excluded.version,
+                author=excluded.author,
+                author_url=excluded.author_url,
+                icon_url=excluded.icon_url,
+                price_type=excluded.price_type,
+                price_amount=excluded.price_amount,
+                price_interval=excluded.price_interval,
+                trial_days=excluded.trial_days,
+                download_url=excluded.download_url,
+                package_hash=excluded.package_hash,
+                file_size=excluded.file_size,
+                category=excluded.category,
+                tags=excluded.tags,
+                screenshots=excluded.screenshots,
+                readme_url=excluded.readme_url,
+                enabled=excluded.enabled,
+                updated_at=datetime('now')
+        """, (
+            identifier,
+            data.get('name', ''),
+            data.get('description', ''),
+            data.get('version', '0.1.0'),
+            data.get('author', ''),
+            data.get('author_url', ''),
+            data.get('icon_url', ''),
+            data.get('price_type', 'free'),
+            int(data.get('price_amount', 0)),
+            data.get('price_interval', 'onetime'),
+            int(data.get('trial_days', 0)),
+            data.get('download_url', ''),
+            data.get('package_hash', ''),
+            int(data.get('file_size', 0)),
+            data.get('category', ''),
+            json.dumps(data.get('tags', [])),
+            json.dumps(data.get('screenshots', [])),
+            data.get('readme_url', ''),
+        ))
+        conn.commit()
+
+    return _json_result(True, data={'identifier': identifier, 'saved': True})
+
+
+# ── 39. 商店管理：删除插件商品 ────────────────────────────
+
+@bp.route('/store/admin/<identifier>', methods=['DELETE'])
+def store_admin_delete(identifier: str):
+    """管理员：删除商店插件商品"""
+    with get_registry_db() as conn:
+        conn.execute('DELETE FROM store_plugins WHERE identifier=?', (identifier,))
+        conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=?', (identifier,))
+        conn.commit()
+    return _json_result(True, data={'deleted': True})
+
+
+# ── 40. 商店管理：切换上架状态 ────────────────────────────
+
+@bp.route('/store/admin/<identifier>/toggle', methods=['POST'])
+def store_admin_toggle(identifier: str):
+    """管理员：切换插件上架/下架状态"""
+    with get_registry_db() as conn:
+        row = conn.execute('SELECT enabled FROM store_plugins WHERE identifier=?', (identifier,)).fetchone()
+        if not row:
+            return _json_result(False, error='Plugin not found', code=404)
+        new_enabled = 0 if row['enabled'] else 1
+        conn.execute('UPDATE store_plugins SET enabled=?, updated_at=datetime("now") WHERE identifier=?',
+                     (new_enabled, identifier))
+        conn.commit()
+    return _json_result(True, data={'identifier': identifier, 'enabled': bool(new_enabled)})
+
+
+# ====================================================================
 # 商店 API
 # ====================================================================
 
@@ -1095,112 +1201,6 @@ def store_review_reply(identifier: str, review_id: int):
         conn.commit()
 
     return _json_result(True, data={'replied': True})
-
-
-# ====================================================================
-# 商店管理 API（仅管理员）
-# ====================================================================
-
-# ── 37. 商店管理：列出所有插件商品 ────────────────────────
-
-@bp.route('/store/admin', methods=['GET'])
-def store_admin_list():
-    """管理员：列出所有商店插件商品"""
-    with get_registry_db() as conn:
-        rows = conn.execute('SELECT * FROM store_plugins ORDER BY created_at DESC').fetchall()
-        plugins = [dict(r) for r in rows]
-    return _json_result(True, data={'plugins': plugins})
-
-
-# ── 38. 商店管理：创建/更新插件商品 ───────────────────────
-
-@bp.route('/store/admin', methods=['POST'])
-def store_admin_save():
-    """管理员：创建或更新商店插件商品"""
-    data = request.json if request.is_json else {}
-    identifier = data.get('identifier', '')
-    if not identifier:
-        return _json_result(False, error='identifier required', code=400)
-
-    with get_registry_db() as conn:
-        conn.execute("""
-            INSERT INTO store_plugins (
-                identifier, name, description, version, author,
-                author_url, icon_url, price_type, price_amount,
-                price_interval, trial_days, download_url, package_hash,
-                file_size, category, tags, screenshots, readme_url, enabled
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
-            ON CONFLICT(identifier) DO UPDATE SET
-                name=excluded.name,
-                description=excluded.description,
-                version=excluded.version,
-                author=excluded.author,
-                author_url=excluded.author_url,
-                icon_url=excluded.icon_url,
-                price_type=excluded.price_type,
-                price_amount=excluded.price_amount,
-                price_interval=excluded.price_interval,
-                trial_days=excluded.trial_days,
-                download_url=excluded.download_url,
-                package_hash=excluded.package_hash,
-                file_size=excluded.file_size,
-                category=excluded.category,
-                tags=excluded.tags,
-                screenshots=excluded.screenshots,
-                readme_url=excluded.readme_url,
-                enabled=excluded.enabled,
-                updated_at=datetime('now')
-        """, (
-            identifier,
-            data.get('name', ''),
-            data.get('description', ''),
-            data.get('version', '0.1.0'),
-            data.get('author', ''),
-            data.get('author_url', ''),
-            data.get('icon_url', ''),
-            data.get('price_type', 'free'),
-            int(data.get('price_amount', 0)),
-            data.get('price_interval', 'onetime'),
-            int(data.get('trial_days', 0)),
-            data.get('download_url', ''),
-            data.get('package_hash', ''),
-            int(data.get('file_size', 0)),
-            data.get('category', ''),
-            json.dumps(data.get('tags', [])),
-            json.dumps(data.get('screenshots', [])),
-            data.get('readme_url', ''),
-        ))
-        conn.commit()
-
-    return _json_result(True, data={'identifier': identifier, 'saved': True})
-
-
-# ── 39. 商店管理：删除插件商品 ────────────────────────────
-
-@bp.route('/store/admin/<identifier>', methods=['DELETE'])
-def store_admin_delete(identifier: str):
-    """管理员：删除商店插件商品"""
-    with get_registry_db() as conn:
-        conn.execute('DELETE FROM store_plugins WHERE identifier=?', (identifier,))
-        conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=?', (identifier,))
-        conn.commit()
-    return _json_result(True, data={'deleted': True})
-
-
-# ── 40. 商店管理：切换上架状态 ────────────────────────────
-
-@bp.route('/store/admin/<identifier>/toggle', methods=['POST'])
-def store_admin_toggle(identifier: str):
-    """管理员：切换插件上架/下架状态"""
-    with get_registry_db() as conn:
-        row = conn.execute('SELECT enabled FROM store_plugins WHERE identifier=?', (identifier,)).fetchone()
-        if not row:
-            return _json_result(False, error='Plugin not found', code=404)
-        new_enabled = 0 if row['enabled'] else 1
-        conn.execute('UPDATE store_plugins SET enabled=?, updated_at=datetime("now") WHERE identifier=?',
-                     (new_enabled, identifier))
-        conn.commit()
-    return _json_result(True, data={'identifier': identifier, 'enabled': bool(new_enabled)})
 
 
 # ── 工具: 触发支付相关钩子 ──────────────────────────────
