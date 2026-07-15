@@ -166,3 +166,62 @@ def sms_test_send():
     if result.get('success'):
         return jsonify({'success': True, 'data': result})
     return jsonify({'success': False, 'error': result.get('error', '发送失败')}), 400
+
+
+# ─── PluginManager 标准化配置 ─────────────────────────────────────────
+
+_SMS_CONFIG_KEYS = ['aliyun_sms_sign_name', 'aliyun_sms_access_key', 'aliyun_sms_secret']
+
+_SMS_DEFAULTS = {
+    'aliyun_sms_sign_name': '',
+    'aliyun_sms_access_key': '',
+    'aliyun_sms_secret': '',
+}
+
+
+def _get_sms_pm():
+    import flask
+    try:
+        return flask.current_app.extensions.get('plugin_manager')
+    except Exception:
+        return None
+
+
+@sms_bp.route('/settings', methods=['GET'])
+def sms_settings_get():
+    admin, err = _require_admin()
+    if err:
+        return err
+    pm = _get_sms_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    cfg = pm.get_config('sms') or {}
+    result = {}
+    for k in _SMS_CONFIG_KEYS:
+        v = cfg.get(k)
+        if v is not None:
+            result[k] = v
+        else:
+            result[k] = _SMS_DEFAULTS.get(k, '')
+    return jsonify({'success': True, 'data': result})
+
+
+@sms_bp.route('/settings', methods=['POST'])
+def sms_settings_save():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    pm = _get_sms_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    filtered = {}
+    for k, v in data.items():
+        if k in _SMS_CONFIG_KEYS:
+            filtered[k] = str(v) if v is not None else ''
+    if not filtered:
+        return jsonify({'success': False, 'error': 'No valid config keys'}), 400
+    result = pm.set_config_batch('sms', filtered, coerce=True)
+    if result.get('errors'):
+        return jsonify({'success': True, 'warning': str(result['errors'])})
+    return jsonify({'success': True})

@@ -1,7 +1,7 @@
 {
     "name": "Enterprise Verification",
     "identifier": "enterprise_verify",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "category": "Customer Management",
     "tags": ["verification", "enterprise", "ocr", "kyc", "audit"],
     "icon": "enterprise_verify",

@@ -10,14 +10,22 @@ DEFAULT_AUDIT_MODEL = 'deepseek-ai/DeepSeek-V3'
 
 
 def _get_config(key: str, default=''):
-    """从主系统 system_config 表读取配置"""
+    """优先 PluginManager，回退到主系统 system_config 表"""
     try:
-        from models import get_db
-        with get_db() as conn:
-            row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
-            return row['value'] if row else default
+        import flask
+        pm = flask.current_app.extensions.get('plugin_manager')
+        if pm:
+            cfg = pm.get_config('enterprise_verify') or {}
+            if key in cfg:
+                val = cfg[key]
+                return str(val) if not isinstance(val, str) else val
     except Exception:
-        return default
+        pass
+    # 回退旧方法
+    from models import get_db
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
+        return row['value'] if row else default
 
 
 def _get_siliconflow_api_key() -> str:

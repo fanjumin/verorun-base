@@ -26,9 +26,21 @@ def init_i18n(t_fn):
 
 class EnterpriseVerifyPlugin(BasePlugin):
     name = 'enterprise_verify'
-    version = '0.1.0'
+    version = '1.0.0'
     description = 'Enterprise Verification — OCR license recognition + AI auto-audit'
     author = 'VeroRun'
+
+    def get_config_value(self, key: str, default=None):
+        """优先 PluginManager，回退到 plugin.json 默认值"""
+        try:
+            mgr = getattr(self.app.extensions, 'get', lambda x: None)('plugin_manager')
+            if mgr:
+                pm_cfg = mgr.get_config(self.identifier) or {}
+                if key in pm_cfg:
+                    return pm_cfg[key]
+        except Exception:
+            pass
+        return self._config.get(key, default)
 
     def on_install(self, registry):
         """安装时初始化独立数据库"""

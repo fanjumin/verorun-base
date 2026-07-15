@@ -1,7 +1,7 @@
 {
     "name": "Currency Converter",
     "identifier": "currency_converter",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "Currency Converter — Multi-currency display with real-time exchange rates, user preference, and automatic price conversion",
     "author": "VeroRun",
     "min_app_version": "0.10.0",

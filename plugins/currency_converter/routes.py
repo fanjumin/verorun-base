@@ -182,3 +182,82 @@ def admin_get_config():
             'cache_ttl_seconds': _CACHE_TTL,
         }
     })
+
+
+# ─── PluginManager 标准化配置 ─────────────────────────────────────────
+
+_CC_CONFIG_KEYS = [
+    'primary_api', 'fallback_api', 'base_currency', 'refresh_interval_minutes',
+    'cache_ttl_minutes', 'default_currency', 'enable_geoip', 'enabled_currencies',
+]
+
+_CC_DEFAULTS = {
+    'primary_api': 'https://api.frankfurter.app/latest',
+    'fallback_api': 'https://open.er-api.com/v6/latest',
+    'base_currency': 'CNY',
+    'refresh_interval_minutes': 60,
+    'cache_ttl_minutes': 60,
+    'default_currency': 'CNY',
+    'enable_geoip': True,
+    'enabled_currencies': 'CNY,USD,EUR,JPY,GBP,HKD,KRW,AUD,CAD,SGD,THB,MYR,PHP,IDR,VND',
+}
+
+
+def _get_cc_pm():
+    import flask
+    try:
+        return flask.current_app.extensions.get('plugin_manager')
+    except Exception:
+        return None
+
+
+@currency_bp.route('/settings', methods=['GET'])
+def cc_settings_get():
+    admin, err = _require_admin()
+    if err:
+        return err
+    pm = _get_cc_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    cfg = pm.get_config('currency_converter') or {}
+    result = {}
+    for k in _CC_CONFIG_KEYS:
+        v = cfg.get(k)
+        if v is not None:
+            result[k] = v
+        else:
+            result[k] = _CC_DEFAULTS.get(k)
+    return jsonify({'success': True, 'data': result})
+
+
+@currency_bp.route('/settings', methods=['POST'])
+def cc_settings_save():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    pm = _get_cc_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    filtered = {}
+    for k in _CC_CONFIG_KEYS:
+        if k in data:
+            v = data[k]
+            if k in ('refresh_interval_minutes', 'cache_ttl_minutes'):
+                try:
+                    filtered[k] = int(v)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'error': f'{k} must be integer'}), 400
+            elif k == 'enable_geoip':
+                if isinstance(v, str):
+                    filtered[k] = v.lower() in ('1', 'true', 'yes')
+                else:
+                    filtered[k] = bool(v)
+            else:
+                filtered[k] = str(v) if v is not None else ''
+    if not filtered:
+        return jsonify({'success': False, 'error': 'No valid config keys'}), 400
+    result = pm.set_config_batch('currency_converter', filtered, coerce=True)
+    if result.get('errors'):
+        return jsonify({'success': True, 'warning': str(result['errors'])})
+    return jsonify({'success': True})

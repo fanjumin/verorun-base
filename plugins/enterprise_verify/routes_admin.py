@@ -153,3 +153,74 @@ def enterprise_verify_reject(ev_id):
 
     _log(admin['user_id'], 'reject_enterprise_verify', detail=f'id={ev_id} user={ev["user_id"]}')
     return jsonify({'success': True, 'message': 'Enterprise Verification Rejected'})
+
+
+# ─── PluginManager 标准化配置 ─────────────────────────────────────────
+
+_EV_CONFIG_KEYS = ['siliconflow_api_key', 'auto_approve', 'max_retry']
+
+_EV_DEFAULTS = {
+    'siliconflow_api_key': '',
+    'auto_approve': False,
+    'max_retry': 3,
+}
+
+
+def _get_ev_pm():
+    import flask
+    try:
+        return flask.current_app.extensions.get('plugin_manager')
+    except Exception:
+        return None
+
+
+@ev_admin_bp.route('/settings', methods=['GET'])
+def ev_settings_get():
+    admin, err = _require_admin()
+    if err:
+        return err
+    pm = _get_ev_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    cfg = pm.get_config('enterprise_verify') or {}
+    result = {}
+    for k in _EV_CONFIG_KEYS:
+        v = cfg.get(k)
+        if v is not None:
+            result[k] = v
+        else:
+            result[k] = _EV_DEFAULTS.get(k)
+    return jsonify({'success': True, 'data': result})
+
+
+@ev_admin_bp.route('/settings', methods=['POST'])
+def ev_settings_save():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    pm = _get_ev_pm()
+    if not pm:
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
+    filtered = {}
+    for k in _EV_CONFIG_KEYS:
+        if k in data:
+            v = data[k]
+            if k == 'max_retry':
+                try:
+                    filtered[k] = int(v)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'error': f'{k} must be integer'}), 400
+            elif k == 'auto_approve':
+                if isinstance(v, str):
+                    filtered[k] = v.lower() in ('1', 'true', 'yes')
+                else:
+                    filtered[k] = bool(v)
+            else:
+                filtered[k] = str(v) if v is not None else ''
+    if not filtered:
+        return jsonify({'success': False, 'error': 'No valid config keys'}), 400
+    result = pm.set_config_batch('enterprise_verify', filtered, coerce=True)
+    if result.get('errors'):
+        return jsonify({'success': True, 'warning': str(result['errors'])})
+    return jsonify({'success': True})
