@@ -464,7 +464,7 @@ def chat_tool():
             style = args.get('style', 'Dark科技风，16:9')
             filename = _generate_ppt_file(topic, pages, style)
             if filename:
-                url = f"/admin/media/download/{filename}"
+                url = f"/admin/agent-matrix/media/download/{filename}"
                 actions.append({'type': 'ppt_download', 'url': url, 'filename': filename})
                 summary = f'✅ PPT已生成：{topic}（{pages}页）\n⬇ 点击下方按钮下载'
             else:
@@ -779,6 +779,16 @@ def _generate_ppt_file(topic, pages=10, style='Dark科技风，16:9'):
         import traceback
         traceback.print_exc()
         return None
+
+
+@agent_matrix_bp.route('/media/download/<filename>')
+def agent_media_download(filename):
+    """下载生成的媒体文件（PPT 等）"""
+    from flask import send_from_directory
+    media_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'media', 'temp')
+    if not os.path.exists(os.path.join(media_dir, filename)):
+        return jsonify({'success': False, 'error': '文件不存在或已过期'}), 404
+    return send_from_directory(media_dir, filename, as_attachment=True, download_name=filename)
 
 
 @agent_matrix_bp.route('/chat/history', methods=['GET'])

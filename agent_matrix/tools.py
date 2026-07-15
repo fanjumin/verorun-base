@@ -190,6 +190,22 @@ TOOL_SCHEMAS = {
             }
         }
     },
+    "generate_ppt": {
+        "type": "function",
+        "function": {
+            "name": "generate_ppt",
+            "description": "使用 AI 生成 PowerPoint 演示文稿（PPTX）。用户提供主题、页数和风格即可生成一份可直接下载的 PPT 文件。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "PPT 主题（必填）"},
+                    "pages": {"type": "integer", "description": "页数，默认 10，范围 3-20", "default": 10},
+                    "style": {"type": "string", "description": "风格描述，如'Dark 科技风'、'简约商务'、'教育风格'等", "default": "Dark 科技风，16:9"}
+                },
+                "required": ["topic"]
+            }
+        }
+    },
 }
 
 
@@ -414,6 +430,24 @@ def _tool_ads_render_snippet(args):
         return f"生成广告渲染代码失败: {e}"
 
 
+def _tool_generate_ppt(args):
+    """使用 AI 生成 PPT 文件"""
+    try:
+        topic = str(args.get('topic', '未命名主题')).strip()
+        if not topic:
+            return '❌ 请提供 PPT 主题'
+        pages = max(3, min(int(args.get('pages', 10) or 10), 20))
+        style = str(args.get('style', 'Dark 科技风，16:9'))
+        from agent_matrix.routes import _generate_ppt_file
+        filename = _generate_ppt_file(topic, pages, style)
+        if filename:
+            return f'✅ PPT 已生成："{topic}"（{pages}页）\n下载链接：/admin/agent-matrix/media/download/{filename}'
+        return '❌ PPT 生成失败，请检查后端日志'
+    except Exception as e:
+        logger.warning(f"[tool:generate_ppt] 执行失败: {e}")
+        return f'❌ PPT 生成异常: {e}'
+
+
 TOOL_EXECUTORS = {
     "get_system_health": _tool_get_system_health,
     "query_stats": _tool_query_stats,
@@ -425,6 +459,7 @@ TOOL_EXECUTORS = {
     "ads_get_stats": _tool_ads_get_stats,
     "ads_analyze": _tool_ads_analyze,
     "ads_render_snippet": _tool_ads_render_snippet,
+    "generate_ppt": _tool_generate_ppt,
 }
 
 
