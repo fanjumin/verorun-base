@@ -371,8 +371,7 @@ def chat_public():
         return api_err(f'请求失败: {str(e)}', 500)
 
 def _get_chatbot_config():
-    """从 plugin_configs 表读取 AI Advisor 配置。"""
-    from models import get_db
+    """从独立库 chatbot.db 读取 AI Advisor 配置。"""
     defaults = {
         'enabled': '1',
         'auto_escalate': '1',
@@ -386,11 +385,8 @@ def _get_chatbot_config():
         'float_button_text': 'AI Advisor'
     }
     try:
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot'"
-            ).fetchall()
-        db_cfg = {r['key']: r['value'] for r in rows}
+        from plugins.chatbot.models import get_all_configs
+        db_cfg = get_all_configs('chatbot')
         merged = {**defaults, **db_cfg}
         return merged
     except Exception as e:

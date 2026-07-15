@@ -122,10 +122,21 @@ def get_settings():
         'avatar_url', 'agent_id', 'max_history', 'float_button_text'
     ]
 
+    defaults = {
+        'enabled': '1', 'auto_escalate': '1', 'title': 'AI Advisor',
+        'subtitle': 'Powered by AI Engine',
+        'welcome_message': 'Hello! I am your AI advisor. How can I help you today?',
+        'help_hint': 'Type help to see what I can do for you',
+        'avatar_url': '', 'agent_id': 'kai_assistant', 'max_history': '20',
+        'float_button_text': 'AI Advisor'
+    }
+
     try:
-        pm = _get_plugin_manager()
-        inst = pm.get_instance('chatbot') if pm else None
-        cfg = {k: inst.get_config_value(k) if inst else '' for k in keys}
+        from .models import get_config as _gc
+        cfg = {}
+        for k in keys:
+            val = _gc('chatbot', k)
+            cfg[k] = val if val else defaults.get(k, '')
         return jsonify({'success': True, 'data': cfg})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -391,14 +402,10 @@ def save_settings():
     }
 
     try:
-        pm = _get_plugin_manager()
-        inst = pm.get_instance('chatbot') if pm else None
-        if not inst:
-            return jsonify({'success': False, 'error': 'Plugin not loaded'}), 500
-
+        from .models import set_config as _sc
         for k, v in data.items():
             if k in allowed:
-                inst.set_config_value(k, v)
+                _sc('chatbot', k, str(v))
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

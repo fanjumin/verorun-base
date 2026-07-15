@@ -209,11 +209,8 @@ def _chatbot_context():
         'chatbot_float_button_text': 'AI Advisor'
     }
     try:
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot'"
-            ).fetchall()
-        cfg = {r['key']: r['value'] for r in rows}
+        from plugins.chatbot.models import get_all_configs
+        cfg = get_all_configs('chatbot')
         return {
             'chatbot_enabled': str(cfg.get('enabled', '1')).lower() in ('1', 'true', 'yes', 'on'),
             'chatbot_title': cfg.get('title', defaults['chatbot_title']),
