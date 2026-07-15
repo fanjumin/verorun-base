@@ -476,7 +476,21 @@ def chat_tool():
                 summary = '🔍 图像理解：请先上传图片（点击📎按钮），然后重新发送指令。'
             else:
                 prompt = args.get('prompt', message)
-                summary = f'🎨 图像生成：「{prompt}」\n图像生成API接入中，请使用「🎨 图像」Tab手动生成。'
+                style = args.get('style', 'realistic')
+                count = int(args.get('count', 1))
+                size = args.get('size', '1024x1024')
+                from agent_matrix.tools import execute_tool
+                result = execute_tool('generate_image', {
+                    'prompt': prompt, 'style': style,
+                    'count': count, 'size': size
+                })
+                # 解析结果，提取图片 URL
+                summary = result
+                lines = result.split('\n')
+                for ll in lines:
+                    ll = ll.strip()
+                    if ll.startswith('http') or ll.startswith('/admin'):
+                        actions.append({'type': 'image', 'url': ll})
 
         elif intent == 'voice':
             name = args.get('name', '我的声音')

@@ -206,6 +206,23 @@ TOOL_SCHEMAS = {
             }
         }
     },
+    "generate_image": {
+        "type": "function",
+        "function": {
+            "name": "generate_image",
+            "description": "使用 AI 生成图像。用户提供描述文字即可生成图片，支持指定风格和数量。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "图像描述（必填）"},
+                    "style": {"type": "string", "description": "风格，可选 realistic/anime/3d/painting/line-art", "default": "realistic"},
+                    "count": {"type": "integer", "description": "生成数量（1-4），默认 1", "default": 1},
+                    "size": {"type": "string", "description": "尺寸，可选 1024x1024/1792x1024/1024x1792，默认 1024x1024", "default": "1024x1024"}
+                },
+                "required": ["prompt"]
+            }
+        }
+    },
 }
 
 
@@ -448,6 +465,76 @@ def _tool_generate_ppt(args):
         return f'❌ PPT 生成异常: {e}'
 
 
+def _tool_generate_image(args):
+    """使用硅基流动 API 生成图像"""
+    try:
+        prompt = str(args.get('prompt', '')).strip()
+        if not prompt:
+            return '❌ 请提供图像描述'
+        count = max(1, min(int(args.get('count', 1) or 1), 4))
+        size = str(args.get('size', '1024x1024'))
+        if '\\' in size:
+            size = '1024x1024'
+
+        # 从 system_config 读取 siliconflow_api_key
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM system_config WHERE key='siliconflow_api_key'").fetchone()
+        api_key = row['value'] if row else os.environ.get('SILICONFLOW_API_KEY', '')
+        if not api_key:
+            return '❌ 硅基流动 API Key 未配置'
+
+        # 风格 → 模型映射
+        style_map = {
+            'realistic': 'black-forest-labs/FLUX.1-dev',
+            'anime': 'stabilityai/stable-diffusion-xl-base-1.0',
+            '3d': 'stabilityai/stable-diffusion-xl-base-1.0',
+            'painting': 'SG161222/RealVisXL_V4.0',
+            'line-art': 'lykon/dreamshaper-xl-1-0',
+        }
+        model = style_map.get(args.get('style', 'realistic'), 'black-forest-labs/FLUX.1-dev')
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url='https://api.siliconflow.cn/v1')
+        resp = client.images.generate(
+            model=model,
+            prompt=prompt,
+            n=count,
+            size=size
+        )
+
+        # 保存图片到 media 目录
+        import uuid, requests
+        media_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'media', 'temp')
+        os.makedirs(media_dir, exist_ok=True)
+
+        urls = []
+        for i, img_data in enumerate(resp.data):
+            img_url = img_data.url
+            if not img_url:
+                continue
+            r = requests.get(img_url, timeout=30)
+            ext = 'png'
+            fn = f"img_{uuid.uuid4().hex[:8]}_{i}.{ext}"
+            fp = os.path.join(media_dir, fn)
+            with open(fp, 'wb') as f:
+                f.write(r.content)
+            download_url = f'/admin/agent-matrix/media/download/{fn}'
+            urls.append(download_url)
+
+        if not urls:
+            return '❌ 图像生成 API 返回为空'
+
+        lines = [f'✅ 已生成 {len(urls)} 张图像：']
+        for u in urls:
+            lines.append(f'  {u}')
+        return '\n'.join(lines)
+
+    except Exception as e:
+        logger.warning(f"[tool:generate_image] 执行失败: {e}")
+        return f'❌ 图像生成异常: {e}'
+
+
 TOOL_EXECUTORS = {
     "get_system_health": _tool_get_system_health,
     "query_stats": _tool_query_stats,
@@ -460,6 +547,7 @@ TOOL_EXECUTORS = {
     "ads_analyze": _tool_ads_analyze,
     "ads_render_snippet": _tool_ads_render_snippet,
     "generate_ppt": _tool_generate_ppt,
+    "generate_image": _tool_generate_image,
 }
 
 
