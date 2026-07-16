@@ -1630,6 +1630,30 @@ def init_db():
         m.commit()
         print('[Migration] reward_rules + reward_claims tables created')
 
+    # ── article_comments table (for comments.py) ──
+    with get_db() as m:
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS article_comments (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                post_id         BIGINT NOT NULL REFERENCES cms_posts(id),
+                parent_id       BIGINT,
+                nickname        TEXT NOT NULL DEFAULT 'Anonymous',
+                content         TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(status IN ('pending','approved','rejected')),
+                ai_review       TEXT DEFAULT '',
+                ai_score        BIGINT DEFAULT 0,
+                ip_address      TEXT DEFAULT '',
+                reviewed_by     BIGINT,
+                reviewed_at     TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.execute("CREATE INDEX IF NOT EXISTS idx_article_comments_post ON article_comments(post_id)")
+        m.execute("CREATE INDEX IF NOT EXISTS idx_article_comments_status ON article_comments(status)")
+        m.commit()
+        print('[Migration] article_comments table created')
+
     # ── Interests + user_interests tables ──
     with get_db() as m:
         m.execute("""

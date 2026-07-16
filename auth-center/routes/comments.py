@@ -37,13 +37,13 @@ def submit_comment():
     ai_review = json.dumps({'reason': reason, 'score': score}, ensure_ascii=False)
 
     with get_db() as conn:
-        conn.execute('INSERT INTO article_comments'
+        cur = conn.execute('INSERT INTO article_comments'
             ' (post_id, parent_id, nickname, content, status, ai_review, ai_score, ip_address)'
-            ' VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
+            ' VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
             (post_id, parent_id, nickname, content, status, ai_review, score,
              request.remote_addr or ''))
+        comment_id = cur.fetchone()['id']
         conn.commit()
-        comment_id = conn.execute('SELECT lastval()').fetchone()[0]
 
     msg_map = {
         'approved': 'Comment posted successfully',

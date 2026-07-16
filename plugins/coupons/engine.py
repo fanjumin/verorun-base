@@ -331,7 +331,7 @@ class CouponEngine:
             'total_coupons': total,
             'active_coupons': active,
             'total_used': used or 0,
-            'total_discount': round(disc_fen / 100.0 + shop_disc, 2),
+            'total_discount': round(float(disc_fen) / 100 + float(shop_disc), 2),
             'by_category': [dict(r) for r in by_cat],
             'by_type': [dict(r) for r in by_type],
             'top_used': [dict(r) for r in top],

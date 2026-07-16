@@ -936,12 +936,12 @@ def admin_order_list():
         if status:
             total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders WHERE status=%s', (status,)).fetchone()
             rows = conn.execute(
-                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.status=%s ORDER BY o.created_at DESC LIMIT %s OFFSET %s',
+                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, COALESCE(u.display_name, u.username) AS nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.status=%s ORDER BY o.created_at DESC LIMIT %s OFFSET %s',
                 (status, limit, offset)).fetchall()
         else:
             total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders').fetchone()
             rows = conn.execute(
-                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT %s OFFSET %s',
+                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, COALESCE(u.display_name, u.username) AS nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT %s OFFSET %s',
                 (limit, offset)).fetchall()
     return api_res({'total': total['c'], 'page': page, 'orders': [dict(r) for r in rows]})
 
@@ -1093,7 +1093,7 @@ def admin_audit_log():
     limit = int(request.args.get('limit', 50))
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT l.*, u.nickname FROM subscription_audit_log l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.created_at DESC LIMIT %s',
+            'SELECT l.*, COALESCE(u.display_name, u.username) AS nickname FROM subscription_audit_log l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.created_at DESC LIMIT %s',
             (limit,)).fetchall()
     return api_res({'logs': [dict(r) for r in rows]})
 

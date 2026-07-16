@@ -528,7 +528,7 @@ def _revenue_dashboard_data():
             'month_change_pct': round(((this_month - last_month) / last_month * 100) if last_month > 0 else 0, 1),
         },
         'subscriptions': {
-            'mrr': round(mrr / 100.0, 2),
+            'mrr': round(float(mrr) / 100, 2),
             'active': active_subs,
             'total_paid_users': total_paid_users,
             'new_this_month': new_this_month,

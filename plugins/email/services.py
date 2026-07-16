@@ -480,7 +480,7 @@ def get_sent_emails(page=1, per_page=20):
     """从独立 email.db 查询已发送邮件列表"""
     from .models import get_email_db
     db = get_email_db()
-    count = db.execute("SELECT COUNT(*) FROM email_sent").fetchone()[0]
+    count = db.execute("SELECT COUNT(*) FROM email_sent").fetchone()['count']
     offset = (page - 1) * per_page
     rows = db.execute(
         "SELECT * FROM email_sent ORDER BY sent_at DESC LIMIT ? OFFSET ?",
