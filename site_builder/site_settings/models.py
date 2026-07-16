@@ -95,7 +95,7 @@ def init_tables():
         try:
             conn.execute("ALTER TABLE design_tokens ADD COLUMN draft_json TEXT DEFAULT '{}'")
         except Exception:
-            pass  # column already exists
+            conn.rollback()  # column already exists
         conn.commit()
 
 
@@ -177,7 +177,7 @@ def migrate_from_legacy():
                 tokens['seo']['title'] = b.get('seo_title', '')
                 tokens['seo']['description'] = b.get('seo_desc', '')
         except Exception:
-            pass
+            conn.rollback()
 
         # ── 2. Navigation ──
         try:
@@ -191,7 +191,7 @@ def migrate_from_legacy():
                     for i, r in enumerate(nav_rows)
                 ]
         except Exception:
-            pass
+            conn.rollback()
 
         # ── 3. Footer Links ──
         try:
@@ -207,7 +207,7 @@ def migrate_from_legacy():
             if sections:
                 tokens['footer']['sections'] = list(sections.values())
         except Exception:
-            pass
+            conn.rollback()
 
         # ── 4. Footer Articles / Documents ──
         try:
@@ -219,7 +219,7 @@ def migrate_from_legacy():
                     {'title': r['title'], 'url': r['url']} for r in fa_rows
                 ]
         except Exception:
-            pass
+            conn.rollback()
 
         # ── 5. Theme Config ──
         try:

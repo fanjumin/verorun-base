@@ -111,6 +111,10 @@ app.jinja_env.bytecode_cache = jinja2.FileSystemBytecodeCache(_cache_dir, '%s.ca
 
 try:
     init_shop_db()
+except Exception as e:
+    print(f'[DB] init_shop_db warning: {e}')
+
+try:
     init_db()
 except Exception as e:
     print(f'[DB] init_db warning: {e}')

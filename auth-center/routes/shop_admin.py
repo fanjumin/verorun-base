@@ -3,6 +3,8 @@
 import sys, os, json, time, secrets
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, jsonify, request
+import gettext
+_ = gettext.gettext
 from models import get_db
 from datetime import datetime
 from werkzeug.utils import secure_filename
