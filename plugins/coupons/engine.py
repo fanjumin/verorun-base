@@ -358,7 +358,7 @@ class CouponEngine:
             ph = ','.join('?' * len(uid_set))
             with self._get_main_db() as conn:
                 for u in conn.execute(
-                    f'SELECT id, nickname, phone FROM users WHERE id IN ({ph})',
+                    f'SELECT id, COALESCE(display_name, username) AS nickname, phone FROM users WHERE id IN ({ph})',
                     tuple(uid_set)
                 ):
                     user_map[u['id']] = dict(u)
