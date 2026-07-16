@@ -168,7 +168,7 @@ def dashboard():
         with get_db() as conn:
             # 商品统计
             total_items = conn.execute('SELECT COUNT(*) as count FROM ali_api_items').fetchone()['count']
-            active_items = conn.execute('SELECT COUNT(*) as count FROM ali_api_items WHERE status = "active"').fetchone()['count']
+            active_items = conn.execute("SELECT COUNT(*) as count FROM ali_api_items WHERE status = 'active'").fetchone()['count']
             
             # API调用统计
             total_calls = conn.execute('SELECT COUNT(*) as count FROM ali_api_logs').fetchone()['count']

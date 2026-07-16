@@ -65,9 +65,9 @@ def get_comments(post_id):
 
     with get_db() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM article_comments WHERE post_id=%s AND status='approved'",
+            "SELECT COUNT(*) as c FROM article_comments WHERE post_id=%s AND status='approved'",
             (post_id,)
-        ).fetchone()[0]
+        ).fetchone()['c']
         rows = conn.execute(
             "SELECT id, parent_id, nickname, content, created_at FROM article_comments "
             "WHERE post_id=%s AND status='approved' ORDER BY created_at DESC LIMIT %s OFFSET %s",
