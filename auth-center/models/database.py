@@ -44,23 +44,61 @@ def _ensure_pool() -> ThreadedConnectionPool:
     return _pool
 
 
+class _DbWrapper:
+    """psycopg2 connection wrapper that exposes sqlite3-style execute/commit."""
+    def __init__(self, conn):
+        self._conn = conn
+        self._cur = conn.cursor()
+
+    def execute(self, sql, params=None):
+        if params is not None:
+            return self._cur.execute(sql, params)
+        return self._cur.execute(sql)
+
+    def executemany(self, sql, params):
+        return self._cur.executemany(sql, params)
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def cursor(self):
+        """Return a new cursor (for compatibility with direct conn usage)."""
+        return self._conn.cursor()
+
+    def close(self):
+        self._cur.close()
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+
 @contextmanager
 def get_db():
     """Get PostgreSQL connection from pool, with schema search_path set."""
     pool = _ensure_pool()
     conn = pool.getconn()
     conn.autocommit = False
-    with conn.cursor() as cur:
-        cur.execute(
-            "SET search_path TO public, shop, analytics, health, payment, order_notify"
-        )
+    db = _DbWrapper(conn)
+    db.execute(
+        "SET search_path TO public, shop, analytics, health, payment, order_notify"
+    )
     try:
-        yield conn
+        yield db
         conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
+        db.close()
         pool.putconn(conn)
 
 
