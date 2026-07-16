@@ -319,11 +319,11 @@ def user_notifications_list():
         limit, offset = 50, 0
     with get_db() as conn:
         total = conn.execute(
-            'SELECT COUNT(*) as c FROM user_notifications WHERE user_id=?', (user_id,)
+            'SELECT COUNT(*) as c FROM user_notifications WHERE user_id=%s', (user_id,)
         ).fetchone()['c']
         rows = conn.execute(
             'SELECT id, type, title, content, link_url, is_read, created_at '
-            'FROM user_notifications WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            'FROM user_notifications WHERE user_id=%s ORDER BY created_at DESC LIMIT %s OFFSET %s',
             (user_id, limit, offset)
         ).fetchall()
     return jsonify({
@@ -371,7 +371,7 @@ def user_notification_delete(nid):
         return jsonify({'success': False, 'error': '未登录'}), 401
     try:
         with get_db() as conn:
-            conn.execute('DELETE FROM user_notifications WHERE user_id=? AND id=?', (user_id, nid))
+            conn.execute('DELETE FROM user_notifications WHERE user_id=%s AND id=%s', (user_id, nid))
             conn.commit()
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -403,7 +403,7 @@ def submit_feedback():
     try:
         with get_db() as conn:
             conn.execute(
-                'INSERT INTO user_feedback (user_id, type, category, title, content, contact) VALUES (?,?,?,?,?,?)',
+                'INSERT INTO user_feedback (user_id, type, category, title, content, contact) VALUES (%s,%s,%s,%s,%s,%s)',
                 (user_id, fb_type, category, title, content, contact)
             )
             conn.commit()

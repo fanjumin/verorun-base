@@ -39,7 +39,7 @@ def _get_site_tiers():
 def _get_site_by_domain(domain):
     host = domain.lower().split(':')[0]
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM site_configs WHERE domain=?", (host,)).fetchone()
+        row = conn.execute("SELECT * FROM site_configs WHERE domain=%s", (host,)).fetchone()
         return dict(row) if row else None
 
 
@@ -62,7 +62,7 @@ def _get_site_by_slug(slug):
 def _get_site_blocks(site_id, page='home'):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM site_blocks WHERE site_id=? AND page=? AND is_published=1 ORDER BY position",
+            "SELECT * FROM site_blocks WHERE site_id=%s AND page=%s AND is_published=1 ORDER BY position",
             (site_id, page)
         ).fetchall()
         blocks = [dict(r) for r in rows]
@@ -77,7 +77,7 @@ def _get_site_blocks(site_id, page='home'):
 def _get_site_plans(site_id):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM site_plans WHERE site_id=? AND is_published=1 ORDER BY sort_order",
+            "SELECT * FROM site_plans WHERE site_id=%s AND is_published=1 ORDER BY sort_order",
             (site_id,)
         ).fetchall()
         plans = [dict(r) for r in rows]

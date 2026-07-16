@@ -106,7 +106,7 @@ def check_rate_limit(phone, max_per_hour=5):
             conn.execute('UPDATE sms_rate_limits SET count=count+1 WHERE phone=? AND hour_bucket=?',
                          (phone, hour_bucket))
         else:
-            conn.execute('INSERT INTO sms_rate_limits (phone, hour_bucket, count) VALUES (?,?,1)',
+            conn.execute('INSERT INTO sms_rate_limits (phone, hour_bucket, count) VALUES (%s,%s,1)',
                          (phone, hour_bucket))
         conn.commit()
     return True

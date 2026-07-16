@@ -48,7 +48,7 @@ class _DbWrapper:
     """psycopg2 connection wrapper that exposes sqlite3-style execute/commit."""
     def __init__(self, conn):
         self._conn = conn
-        self._cur = conn.cursor()
+        self._cur = conn.cursor(cursor_factory=RealDictCursor)
 
     def execute(self, sql, params=None):
         if params is not None:

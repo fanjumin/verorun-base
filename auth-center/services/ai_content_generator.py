@@ -18,7 +18,7 @@ DASHSCOPE_BASE = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
 def _get_key(key_name):
     """Read a specific API key from system_config."""
     with get_db() as conn:
-        row = conn.execute("SELECT value FROM system_config WHERE key=?", (key_name,)).fetchone()
+        row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key_name,)).fetchone()
     if row and row['value']:
         return row['value']
     return ''

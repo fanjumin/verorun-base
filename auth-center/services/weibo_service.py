@@ -14,7 +14,7 @@ def _get_config():
     keys = ['weibo_app_key', 'weibo_app_secret', 'weibo_access_token']
     with get_db() as conn:
         rows = conn.execute(
-            f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in keys)})",
+            f"SELECT key, value FROM system_config WHERE key IN ({','.join('%s' for _ in keys)})",
             keys
         ).fetchall()
     cfg = {r['key']: r['value'] for r in rows}

@@ -90,7 +90,7 @@ def services():
             srows = conn.execute("SELECT * FROM site_services WHERE is_active=1 ORDER BY sort_order").fetchall()
             for sr in srows:
                 sd = dict(sr)
-                features = conn.execute("SELECT feature FROM site_service_features WHERE service_id=? ORDER BY sort_order", (sd['id'],)).fetchall()
+                features = conn.execute("SELECT feature FROM site_service_features WHERE service_id=%s ORDER BY sort_order", (sd['id'],)).fetchall()
                 sd['features'] = [f[0] for f in features]
                 services_list.append(sd)
             

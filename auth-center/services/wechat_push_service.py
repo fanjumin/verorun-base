@@ -15,7 +15,7 @@ def _get_config():
     keys = ['wechat_app_id', 'wechat_app_secret', 'wechat_token']
     with get_db() as conn:
         rows = conn.execute(
-            f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in keys)})",
+            f"SELECT key, value FROM system_config WHERE key IN ({','.join('%s' for _ in keys)})",
             keys
         ).fetchall()
     cfg = {r['key']: r['value'] for r in rows}
@@ -56,7 +56,7 @@ def _get_access_token():
     token = data['access_token']
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO system_config (key, value, description) VALUES (?, ?, ?)",
+            "INSERT OR REPLACE INTO system_config (key, value, description) VALUES (%s, %s, %s)",
             ('wechat_access_token', token, '微信 AccessToken (自动缓存)')
         )
         conn.commit()

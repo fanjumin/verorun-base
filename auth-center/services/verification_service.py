@@ -98,7 +98,7 @@ class AlipayVerificationProvider(BaseVerificationProvider):
     def _get_config(self, key: str) -> str:
         with get_db() as conn:
             row = conn.execute(
-                "SELECT value FROM system_config WHERE key=?", (key,)
+                "SELECT value FROM system_config WHERE key=%s", (key,)
             ).fetchone()
         return row['value'] if row else ''
 
@@ -389,7 +389,7 @@ _PROVIDER_REGISTRY = {
 def _get_config(key: str) -> str:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT value FROM system_config WHERE key=?", (key,)
+            "SELECT value FROM system_config WHERE key=%s", (key,)
         ).fetchone()
     return row['value'] if row else ''
 
@@ -422,7 +422,7 @@ def check_duplicate(user_id: int) -> bool:
     """检查用户是否已完成实名认证，防止重复认证。"""
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_real_name_verified FROM users WHERE id=?",
+            "SELECT is_real_name_verified FROM users WHERE id=%s",
             (user_id,)
         ).fetchone()
     return bool(row and row['is_real_name_verified'])
@@ -463,7 +463,7 @@ def initiate_verification(user_id: int, return_url: str, cert_name: str = '', ce
         conn.execute(
             """INSERT INTO verification_requests
                (user_id, request_id, provider, return_url, status, created_at)
-               VALUES (?,?,?,?,'pending',?)""",
+               VALUES (%s,%s,%s,%s,'pending',%s)""",
             (user_id, request_id, provider.__class__.__name__, return_url, now_iso())
         )
         conn.commit()
@@ -508,7 +508,7 @@ def verify_callback(user_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
 
     with get_db() as conn:
         existing = conn.execute(
-            "SELECT id, status FROM verification_requests WHERE request_id=?",
+            "SELECT id, status FROM verification_requests WHERE request_id=%s",
             (request_id,)
         ).fetchone()
 
@@ -541,12 +541,12 @@ def verify_callback(user_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
     with get_db() as conn:
         conn.execute(
             """UPDATE users SET
-               display_name = ?,
-               verified_by = ?,
-               verified_at = ?,
+               display_name = %s,
+               verified_by = %s,
+               verified_at = %s,
                is_real_name_verified = 1,
-               real_name_verified_at = ?
-               WHERE id = ?""",
+               real_name_verified_at = %s
+               WHERE id = %s""",
             (real_name, 'alipay', now_iso(), now_iso(), user_id)
         )
         # 更新认证流水状态

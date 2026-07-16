@@ -91,8 +91,8 @@ def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 
 
         for item in items:
             conn.execute(
-                '''UPDATE order_items SET status='paid', paid_at=?, payment_method=?,
-                   payment_trade_no=? WHERE id=?''',
+                '''UPDATE order_items SET status='paid', paid_at=%s, payment_method=%s,
+                   payment_trade_no=%s WHERE id=%s''',
                 (now, payment_method, trade_no, item['id'])
             )
             # 创建购买记录
@@ -104,7 +104,7 @@ def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 
                 conn.execute(
                     '''INSERT INTO user_purchases (user_id, product_id, order_id,
                        purchase_type, status, created_at)
-                       VALUES (?,?,?,'once','active',?)''',
+                       VALUES (%s,%s,%s,'once','active',%s)''',
                     (item['user_id'], item['product_id'], order_id, now)
                 )
         conn.commit()

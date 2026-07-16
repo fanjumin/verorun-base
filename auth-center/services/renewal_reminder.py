@@ -32,7 +32,7 @@ def _insert_notification(conn, user_id, title, content):
     """写入站内通知"""
     try:
         conn.execute(
-            "INSERT INTO notifications (user_id, title, content, type, is_read) VALUES (?,?,?,?,0)",
+            "INSERT INTO notifications (user_id, title, content, type, is_read) VALUES (%s,%s,%s,%s,0)",
             (user_id, title, content, 'subscription'))
     except Exception:
         # notifications 表可能不存在，忽略
@@ -43,7 +43,7 @@ def _insert_sms_queue(conn, user_id, phone, content):
     """插入短信队列"""
     try:
         conn.execute(
-            "INSERT INTO sms_queue (user_id, phone, content, status) VALUES (?,?,?,'pending')",
+            "INSERT INTO sms_queue (user_id, phone, content, status) VALUES (%s,%s,%s,'pending')",
             (user_id, phone, content))
     except Exception:
         pass
@@ -67,7 +67,7 @@ def run_reminder_scan():
                 JOIN users u ON u.id = s.user_id
                 WHERE s.status IN ('active', 'trialing')
                   AND s.auto_renew = 1
-                  AND date(s.current_period_end) = date(?)
+                  AND date(s.current_period_end) = date(%s)
             """, (target_date.isoformat(),)).fetchall()
 
             for row in rows:
@@ -116,7 +116,7 @@ def notify_payment_failed(user_id, plan_name, fail_reason):
     """扣款失败通知（由 renewal.py 调用）"""
     with get_db() as conn:
         user = conn.execute(
-            'SELECT id, display_name, nickname, phone FROM users WHERE id=?',
+            'SELECT id, display_name, nickname, phone FROM users WHERE id=%s',
             (user_id,)).fetchone()
         if not user:
             return
@@ -139,7 +139,7 @@ def notify_renewal_success(user_id, plan_name, amount_yuan, end_date):
     """续费成功通知"""
     with get_db() as conn:
         user = conn.execute(
-            'SELECT id, display_name, nickname, phone FROM users WHERE id=?',
+            'SELECT id, display_name, nickname, phone FROM users WHERE id=%s',
             (user_id,)).fetchone()
         if not user:
             return
@@ -157,7 +157,7 @@ def notify_downgraded_to_free(user_id, plan_name):
     """宽限期超期降级通知"""
     with get_db() as conn:
         user = conn.execute(
-            'SELECT id, display_name, nickname, phone FROM users WHERE id=?',
+            'SELECT id, display_name, nickname, phone FROM users WHERE id=%s',
             (user_id,)).fetchone()
         if not user:
             return

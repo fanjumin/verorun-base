@@ -357,7 +357,7 @@ def admin_login_action():
             if market == 'intl':
                 # 邮箱验证码登录
                 row = conn.execute(
-                    "SELECT * FROM email_codes WHERE email=? AND code=? AND purpose='login' AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1",
+                    "SELECT * FROM email_codes WHERE email=%s AND code=%s AND purpose='login' AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1",
                     (username, code, now_iso)
                 ).fetchone()
                 if not row:
@@ -366,13 +366,13 @@ def admin_login_action():
                 row = dict(row)
                 if row['attempts'] >= 5:
                     return jsonify({'success': False, 'error': '尝试次数过多，请重新获取验证码'}), 400
-                conn.execute('UPDATE email_codes SET used=1 WHERE id=?', (row['id'],))
+                conn.execute('UPDATE email_codes SET used=1 WHERE id=%s', (row['id'],))
                 # Find user by email
-                user = conn.execute('SELECT * FROM users WHERE email=? AND is_admin=1', (username,)).fetchone()
+                user = conn.execute('SELECT * FROM users WHERE email=%s AND is_admin=1', (username,)).fetchone()
             else:
                 # 短信验证码登录 — 复用 sms_codes 表
                 row = conn.execute(
-                    "SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose='login' AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1",
+                    "SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose='login' AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1",
                     (username, code, now_iso)
                 ).fetchone()
                 if not row:
@@ -381,9 +381,9 @@ def admin_login_action():
                 row = dict(row)
                 if row['attempts'] >= 5:
                     return jsonify({'success': False, 'error': '尝试次数过多，请重新获取验证码'}), 400
-                conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (row['id'],))
+                conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
                 # Find user by phone
-                user = conn.execute('SELECT * FROM users WHERE phone=? AND is_admin=1', (username,)).fetchone()
+                user = conn.execute('SELECT * FROM users WHERE phone=%s AND is_admin=1', (username,)).fetchone()
 
             conn.commit()
 
@@ -406,7 +406,7 @@ def admin_login_action():
     from models import get_db
     with get_db() as conn:
         user = conn.execute(
-            'SELECT id, username, phone, password_hash, is_admin, display_name FROM users WHERE (username=? OR phone=?) AND is_admin=1',
+            'SELECT id, username, phone, password_hash, is_admin, display_name FROM users WHERE (username=%s OR phone=%s) AND is_admin=1',
             (username, username)
         ).fetchone()
 
@@ -505,9 +505,9 @@ def admin_send_code():
     from models import get_db
     with get_db() as conn:
         if market == 'intl':
-            user = conn.execute('SELECT id FROM users WHERE email=? AND is_admin=1', (target,)).fetchone()
+            user = conn.execute('SELECT id FROM users WHERE email=%s AND is_admin=1', (target,)).fetchone()
         else:
-            user = conn.execute('SELECT id FROM users WHERE phone=? AND is_admin=1', (target,)).fetchone()
+            user = conn.execute('SELECT id FROM users WHERE phone=%s AND is_admin=1', (target,)).fetchone()
 
     if not user:
         return jsonify({'success': False, 'error': '该账号不存在或非管理员账号'}), 400
@@ -517,7 +517,7 @@ def admin_send_code():
         from models import get_db
         with get_db() as conn:
             conn.execute(
-                'INSERT INTO email_codes (email, code, purpose, expires_at) VALUES (?,?,?,?)',
+                'INSERT INTO email_codes (email, code, purpose, expires_at) VALUES (%s,%s,%s,%s)',
                 (target, code, 'login', expires_at))
             conn.commit()
 
@@ -537,7 +537,7 @@ def admin_send_code():
         from models import get_db
         with get_db() as conn:
             conn.execute(
-                'INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (?,?,?,?)',
+                'INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (%s,%s,%s,%s)',
                 (target, code, 'login', expires_at))
             conn.commit()
 
@@ -568,7 +568,7 @@ def _log_admin_action(admin_id, action, ip, detail=''):
         try:
             with _gdb() as conn:
                 conn.execute(
-                    'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (?,?,?,?,?,?)',
+                    'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (%s,%s,%s,%s,%s,%s)',
                     (admin_id or 0, action, 'admin', 'login', detail, ip)
                 )
                 conn.commit()
@@ -607,7 +607,7 @@ def debug_jwt():
             # Also simulate _require_admin DB check
             from models import get_db
             with get_db() as conn:
-                user = conn.execute('SELECT id, is_admin FROM users WHERE id=?', (payload['user_id'],)).fetchone()
+                user = conn.execute('SELECT id, is_admin FROM users WHERE id=%s', (payload['user_id'],)).fetchone()
             result['db_user_exists'] = user is not None
             result['db_is_admin'] = bool(user and user['is_admin'])
         # Also test via actual request context
@@ -670,7 +670,7 @@ def public_interests():
     with get_db() as conn:
         if search:
             rows = conn.execute(
-                'SELECT id, name, category, is_hot FROM interests WHERE is_active=1 AND is_hot=1 AND name LIKE ? ORDER BY category, sort_order, id',
+                'SELECT id, name, category, is_hot FROM interests WHERE is_active=1 AND is_hot=1 AND name LIKE %s ORDER BY category, sort_order, id',
                 ('%'+search+'%',)
             ).fetchall()
         else:

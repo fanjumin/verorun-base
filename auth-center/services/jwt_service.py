@@ -84,7 +84,7 @@ def revoke_all_user_tokens(user_id):
     now = int(time.time())
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)",
+            "INSERT OR REPLACE INTO system_config (key, value) VALUES (%s, %s)",
             (f'user_token_revoked_at_{user_id}', str(now))
         )
         conn.commit()
@@ -120,7 +120,7 @@ def validate_token(token):
         try:
             with get_db() as conn:
                 row = conn.execute(
-                    "SELECT value FROM system_config WHERE key=?",
+                    "SELECT value FROM system_config WHERE key=%s",
                     (f'user_token_revoked_at_{user_id}',)
                 ).fetchone()
             if row:

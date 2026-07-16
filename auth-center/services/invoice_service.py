@@ -266,7 +266,7 @@ def create_invoice_record(order_no, user_id, amount_fen, plan_name, period_text,
         conn.execute(
             """INSERT INTO invoices (invoice_no, order_no, user_id, amount_fen, amount_yuan,
                plan_name, period_text, pdf_path, status)
-               VALUES (?,?,?,?,?,?,?,?,'issued')""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'issued')""",
             (invoice_no, order_no, user_id, amount_fen, amount_fen / 100.0,
              plan_name, period_text, pdf_filename))
         conn.commit()

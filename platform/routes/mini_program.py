@@ -178,7 +178,7 @@ def _wechat_login(data):
 
         with get_db() as conn:
             existing = conn.execute(
-                "SELECT id, username, display_name FROM users WHERE username=?",
+                "SELECT id, username, display_name FROM users WHERE username=%s",
                 (username,)
             ).fetchone()
 
@@ -193,7 +193,7 @@ def _wechat_login(data):
                 )
                 conn.commit()
                 user = dict(conn.execute(
-                    "SELECT id, username, display_name FROM users WHERE username=?",
+                    "SELECT id, username, display_name FROM users WHERE username=%s",
                     (username,)
                 ).fetchone())
                 is_new = True
@@ -284,7 +284,7 @@ def _telegram_login(data):
 
         with get_db() as conn:
             existing = conn.execute(
-                "SELECT id, username, display_name FROM users WHERE username=?",
+                "SELECT id, username, display_name FROM users WHERE username=%s",
                 (username,)
             ).fetchone()
 
@@ -299,7 +299,7 @@ def _telegram_login(data):
                 )
                 conn.commit()
                 user = dict(conn.execute(
-                    "SELECT id, username, display_name FROM users WHERE username=?",
+                    "SELECT id, username, display_name FROM users WHERE username=%s",
                     (username,)
                 ).fetchone())
                 is_new = True
@@ -345,7 +345,7 @@ def _line_login(data):
 
         with get_db() as conn:
             existing = conn.execute(
-                "SELECT id, username, display_name FROM users WHERE username=?",
+                "SELECT id, username, display_name FROM users WHERE username=%s",
                 (username,)
             ).fetchone()
 
@@ -360,7 +360,7 @@ def _line_login(data):
                 )
                 conn.commit()
                 user = dict(conn.execute(
-                    "SELECT id, username, display_name FROM users WHERE username=?",
+                    "SELECT id, username, display_name FROM users WHERE username=%s",
                     (username,)
                 ).fetchone())
                 is_new = True
@@ -603,7 +603,7 @@ def mp_chat_history():
         from models import get_db
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT * FROM chatbot_sessions WHERE source LIKE ? ORDER BY created_at DESC LIMIT 50",
+                "SELECT * FROM chatbot_sessions WHERE source LIKE %s ORDER BY created_at DESC LIMIT 50",
                 (f'mini_program_%',)
             ).fetchall()
         return _ok([dict(r) for r in rows])
@@ -680,7 +680,7 @@ def mp_site_page(slug):
         from models import get_db
         with get_db() as conn:
             row = conn.execute(
-                "SELECT * FROM cms_posts WHERE slug=? AND status='published' AND post_type='page' LIMIT 1",
+                "SELECT * FROM cms_posts WHERE slug=%s AND status='published' AND post_type='page' LIMIT 1",
                 (slug,)
             ).fetchone()
             if not row:
@@ -689,7 +689,7 @@ def mp_site_page(slug):
             page = dict(row)
             # Get blocks for this page
             blocks = conn.execute(
-                "SELECT * FROM cms_blocks WHERE post_id=? AND status='published' ORDER BY sort_order ASC",
+                "SELECT * FROM cms_blocks WHERE post_id=%s AND status='published' ORDER BY sort_order ASC",
                 (page['id'],)
             ).fetchall()
             page['blocks'] = [dict(b) for b in blocks]
@@ -710,7 +710,7 @@ def mp_user_profile():
         with get_db() as conn:
             row = conn.execute(
                 "SELECT id, username, display_name, avatar, platform, platform_user_id, created_at "
-                "FROM users WHERE id=?",
+                "FROM users WHERE id=%s",
                 (user_id,)
             ).fetchone()
             if not row:

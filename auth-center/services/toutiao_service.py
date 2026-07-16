@@ -12,7 +12,7 @@ def _get_config():
     keys = ['toutiao_app_id', 'toutiao_app_secret', 'toutiao_access_token']
     with get_db() as conn:
         rows = conn.execute(
-            f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in keys)})",
+            f"SELECT key, value FROM system_config WHERE key IN ({','.join('%s' for _ in keys)})",
             keys
         ).fetchall()
     return {r['key']: r['value'] for r in rows}

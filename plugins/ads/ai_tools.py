@@ -164,9 +164,9 @@ def update_ad(ad_id, data):
         if not fields:
             return {'success': False, 'error': '没有要更新的字段'}
 
-        fields.append('updated_at=datetime("now")')
+        fields.append('updated_at=NOW()')
         params.append(ad_id)
-        conn.execute(f"UPDATE ad_placements SET {', '.join(fields)} WHERE id=?", params)
+        conn.execute(f"UPDATE ad_placements SET {', '.join(fields)} WHERE id=%s", params)
         conn.commit()
         return {'success': True}
     except Exception as e:

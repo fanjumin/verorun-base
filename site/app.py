@@ -312,7 +312,7 @@ def get_header_nav(site='platform'):
     try:
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT title, url FROM header_nav WHERE site=? AND is_enabled=1 ORDER BY sort_order ASC",
+                "SELECT title, url FROM header_nav WHERE site=%s AND is_enabled=1 ORDER BY sort_order ASC",
                 (site,)
             ).fetchall()
             nav_items = [dict(r) for r in rows]
@@ -686,7 +686,7 @@ def knowledge_page():
     try:
         with get_db() as conn:
             rows = conn.execute(
-                'SELECT id, title, summary FROM processed_contents WHERE is_published=1 AND content_type=? ORDER BY created_at DESC LIMIT 10',
+                'SELECT id, title, summary FROM processed_contents WHERE is_published=1 AND content_type=%s ORDER BY created_at DESC LIMIT 10',
                 ('article',)
             ).fetchall()
             articles = [{'title': r['title'],
@@ -855,7 +855,7 @@ def public_interests():
     with get_db() as conn:
         if search:
             rows = conn.execute(
-                'SELECT id, name, category, is_hot FROM interests WHERE is_active=1 AND is_hot=1 AND name LIKE ? ORDER BY category, sort_order, id',
+                'SELECT id, name, category, is_hot FROM interests WHERE is_active=1 AND is_hot=1 AND name LIKE %s ORDER BY category, sort_order, id',
                 ('%'+search+'%',)
             ).fetchall()
         else:

@@ -28,7 +28,7 @@ def _get_config():
     from models import get_db
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT key, value FROM system_config WHERE key IN (?,?)",
+            "SELECT key, value FROM system_config WHERE key IN (%s,%s)",
             (CFG_ACCESS_KEY, CFG_SECRET_KEY)
         ).fetchall()
     cfg = {r['key']: r['value'] for r in rows}

@@ -129,7 +129,7 @@ def install_theme():
 
             # 检查重复
             with _get_db() as conn:
-                existing = conn.execute('SELECT id FROM themes WHERE slug=?', (slug,)).fetchone()
+                existing = conn.execute('SELECT id FROM themes WHERE slug=%s', (slug,)).fetchone()
                 if existing:
                     return jsonify({'success': False, 'error': '主题 slug "{}" 已存在'.format(slug)}), 409
 
@@ -147,7 +147,7 @@ def install_theme():
                 conn.execute(
                     'INSERT INTO themes (name, slug, version, author, author_url, description, industry, '
                     'tags, config_json, dir_name, installed_at, updated_at) '
-                    'VALUES (?,?,?,?,?,?,?,?,?,?,datetime(\'now\'),datetime(\'now\'))',
+                    'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())',
                     (
                         manifest['name'],
                         slug,
@@ -181,7 +181,7 @@ def get_theme(theme_id):
     err = _require_admin()
     if err: return err
     with _get_db() as conn:
-        t = conn.execute('SELECT * FROM themes WHERE id=?', (theme_id,)).fetchone()
+        t = conn.execute('SELECT * FROM themes WHERE id=%s', (theme_id,)).fetchone()
     if not t:
         return jsonify({'success': False, 'error': '主题不存在'}), 404
     return jsonify({'success': True, 'data': dict(t)})
@@ -191,16 +191,16 @@ def delete_theme(theme_id):
     err = _require_admin()
     if err: return err
     with _get_db() as conn:
-        t = conn.execute('SELECT * FROM themes WHERE id=?', (theme_id,)).fetchone()
+        t = conn.execute('SELECT * FROM themes WHERE id=%s', (theme_id,)).fetchone()
         if not t:
             return jsonify({'success': False, 'error': '主题不存在'}), 404
         if t['slug'] == 'default':
             return jsonify({'success': False, 'error': '不能删除默认主题'}), 403
         
         # 清空使用该主题的站点
-        conn.execute('UPDATE site_theme_config SET theme_id=NULL, updated_at=datetime(\'now\') WHERE theme_id=?', (theme_id,))
+        conn.execute('UPDATE site_theme_config SET theme_id=NULL, updated_at=NOW() WHERE theme_id=%s', (theme_id,))
         # 删除 DB 记录
-        conn.execute('DELETE FROM themes WHERE id=?', (theme_id,))
+        conn.execute('DELETE FROM themes WHERE id=%s', (theme_id,))
         conn.commit()
     
     # 删除目录
@@ -251,7 +251,7 @@ def set_site_theme():
     
     if theme_id and theme_id != 0:
         with _get_db() as conn:
-            t = conn.execute('SELECT id FROM themes WHERE id=?', (theme_id,)).fetchone()
+            t = conn.execute('SELECT id FROM themes WHERE id=%s', (theme_id,)).fetchone()
             if not t:
                 return jsonify({'success': False, 'error': '主题不存在'}), 404
         final_id = theme_id
@@ -259,15 +259,15 @@ def set_site_theme():
         final_id = None
     
     with _get_db() as conn:
-        existing = conn.execute('SELECT id FROM site_theme_config WHERE site_key=?', (site_key,)).fetchone()
+        existing = conn.execute('SELECT id FROM site_theme_config WHERE site_key=%s', (site_key,)).fetchone()
         if existing:
             conn.execute(
-                'UPDATE site_theme_config SET theme_id=?, updated_at=datetime(\'now\') WHERE site_key=?',
+                'UPDATE site_theme_config SET theme_id=%s, updated_at=NOW() WHERE site_key=%s',
                 (final_id, site_key)
             )
         else:
             conn.execute(
-                'INSERT INTO site_theme_config (site_key, theme_id, updated_at) VALUES (?,?,datetime(\'now\'))',
+                'INSERT INTO site_theme_config (site_key, theme_id, updated_at) VALUES (%s,%s,NOW())',
                 (site_key, final_id)
             )
         conn.commit()
@@ -283,7 +283,7 @@ def get_active_theme_slug_for_site(site_key):
             row = conn.execute(
                 'SELECT t.slug FROM site_theme_config s '
                 'LEFT JOIN themes t ON s.theme_id = t.id '
-                'WHERE s.site_key=?', (site_key,)
+                'WHERE s.site_key=%s', (site_key,)
             ).fetchone()
         if row and row['slug'] and row['slug'] != 'default':
             return row['slug']
