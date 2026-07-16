@@ -265,8 +265,8 @@ def init_agent_matrix_tables():
 
             CREATE INDEX IF NOT EXISTS idx_tkl_agent_id   ON agent_token_logs(agent_id);
             CREATE INDEX IF NOT EXISTS idx_tkl_created_at ON agent_token_logs(created_at);
-            CREATE INDEX IF NOT EXISTS idx_tkl_date       ON agent_token_logs(date(created_at));
-            CREATE INDEX IF NOT EXISTS idx_tkl_agent_date ON agent_token_logs(agent_id, date(created_at));
+            -- idx_tkl_date and idx_tkl_agent_date removed:
+            -- date(text) is STABLE, not IMMUTABLE — PostgreSQL requires IMMUTABLE for index expressions
 
             -- ================================================
             -- 6. Token 每日汇总表 (2026-05-16)

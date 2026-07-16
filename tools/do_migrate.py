@@ -1,22 +1,24 @@
 """Simple data migration: SQLite → PostgreSQL with OVERRIDING SYSTEM VALUE."""
 import os, sys, sqlite3, time
 
-sys.path.insert(0, r'F:\Sites\VeroRun')
+# Auto-detect project root (works on both local and server)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
 # PG connection
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 PG = {
-    'host': 'localhost',
-    'port': 5432,
-    'dbname': 'verorun',
-    'user': 'easykai',
-    'password': '***REMOVED***',
+    'host': os.environ.get('PG_HOST', 'localhost'),
+    'port': int(os.environ.get('PG_PORT', 5432)),
+    'dbname': os.environ.get('PG_DB', 'verorun'),
+    'user': os.environ.get('PG_USER', 'easykai'),
+    'password': os.environ.get('PG_PASSWORD', '***REMOVED***'),
 }
 
-# SQLite source
-DATA_DIR = r'F:\Sites\VeroRun\data'
+# SQLite source (same relative path on server and local)
+DATA_DIR = os.path.join(ROOT, 'data')
 SQ_MAIN = os.path.join(DATA_DIR, 'x7k2m9a4.db')
 SQ_SHOP = os.path.join(DATA_DIR, 'shop.db')
 

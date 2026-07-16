@@ -103,7 +103,7 @@ def get_tokens(site_key='platform'):
     """Get site tokens, return defaults if not found"""
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM design_tokens WHERE site_key=?', (site_key,)
+            'SELECT * FROM design_tokens WHERE site_key=%s', (site_key,)
         ).fetchone()
     if row:
         data = dict(row)
@@ -117,17 +117,17 @@ def save_tokens(site_key, token_dict, generated_by='manual', prompt_id=None):
     token_json = json.dumps(token_dict, ensure_ascii=False)
     with get_db() as conn:
         existing = conn.execute(
-            'SELECT id, version FROM design_tokens WHERE site_key=?', (site_key,)
+            'SELECT id, version FROM design_tokens WHERE site_key=%s', (site_key,)
         ).fetchone()
         if existing:
             new_version = existing['version'] + 1
             conn.execute(
-                'UPDATE design_tokens SET token_json=?, generated_by=?, prompt_id=?, version=?, updated_at=datetime(\'now\') WHERE site_key=?',
+                'UPDATE design_tokens SET token_json=%s, generated_by=%s, prompt_id=%s, version=%s, updated_at=datetime(\'now\') WHERE site_key=%s',
                 (token_json, generated_by, prompt_id, new_version, site_key)
             )
         else:
             conn.execute(
-                'INSERT INTO design_tokens (site_key, token_json, generated_by, prompt_id) VALUES (?,?,?,?)',
+                'INSERT INTO design_tokens (site_key, token_json, generated_by, prompt_id) VALUES (%s,%s,%s,%s)',
                 (site_key, token_json, generated_by, prompt_id)
             )
         conn.commit()
@@ -253,7 +253,7 @@ def migrate_from_legacy():
         # ── Save ──
         token_json = json.dumps(tokens, ensure_ascii=False)
         conn.execute(
-            'INSERT INTO design_tokens (site_key, token_json, generated_by, version) VALUES (?,?,?,?)',
+            'INSERT INTO design_tokens (site_key, token_json, generated_by, version) VALUES (%s,%s,%s,%s)',
             ('platform', token_json, 'migrated', 1)
         )
         conn.commit()
@@ -267,7 +267,7 @@ def get_draft_tokens(site_key='platform'):
     """Get draft tokens from design_tokens.draft_json"""
     with get_db() as conn:
         row = conn.execute(
-            'SELECT draft_json FROM design_tokens WHERE site_key=?', (site_key,)
+            'SELECT draft_json FROM design_tokens WHERE site_key=%s', (site_key,)
         ).fetchone()
     if row and row['draft_json']:
         try:
@@ -282,7 +282,7 @@ def save_draft_tokens(site_key, token_dict):
     draft_json = json.dumps(token_dict, ensure_ascii=False)
     with get_db() as conn:
         existing = conn.execute(
-            'SELECT id FROM design_tokens WHERE site_key=?', (site_key,)
+            'SELECT id FROM design_tokens WHERE site_key=%s', (site_key,)
         ).fetchone()
         if existing:
             conn.execute(
@@ -291,7 +291,7 @@ def save_draft_tokens(site_key, token_dict):
             )
         else:
             conn.execute(
-                'INSERT INTO design_tokens (site_key, token_json, draft_json, generated_by) VALUES (?,?,?,?)',
+                'INSERT INTO design_tokens (site_key, token_json, draft_json, generated_by) VALUES (%s,%s,%s,%s)',
                 (site_key, '{}', draft_json, 'ai_draft')
             )
         conn.commit()
@@ -315,7 +315,7 @@ def backup_tokens(site_key='platform'):
     with get_db() as conn:
         try:
             conn.execute(
-                f"UPDATE design_tokens SET {backup_label}=? WHERE site_key=?",
+                f"UPDATE design_tokens SET {backup_label}=%s WHERE site_key=%s",
                 (backup_val, site_key)
             )
         except Exception:

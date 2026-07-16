@@ -432,7 +432,7 @@ def create_cron_job(data):
             data.get('retry_backoff', 2.0), data.get('timeout_seconds', 300),
             data.get('is_active', 1), data.get('created_by', 0)
         ))
-        return conn.fetchone()[0]
+        return conn.fetchone()['id']
 
 
 def update_cron_job(job_id, data):
@@ -485,7 +485,7 @@ def list_cron_jobs(active_only=False, page=1, limit=50, priority=None):
         conn.execute(
             f"SELECT COUNT(*) FROM cron_jobs WHERE {' AND '.join(where)}", params
         )
-        total = conn.fetchone()[0]
+        total = conn.fetchone()['count']
         conn.execute(
             f"SELECT * FROM cron_jobs WHERE {' AND '.join(where)} "
             f"ORDER BY priority DESC, created_at DESC LIMIT %s OFFSET %s",
@@ -533,7 +533,7 @@ def create_workflow(data):
             data.get('on_error', 'pause'),
             data.get('created_by', 0)
         ))
-        return conn.fetchone()[0]
+        return conn.fetchone()['id']
 
 
 def update_workflow(wf_id, data):
@@ -584,7 +584,7 @@ def list_workflows(active_only=False, page=1, limit=50):
             f"SELECT COUNT(*) FROM workflow_definitions WHERE {' AND '.join(where)}",
             params
         )
-        total = conn.fetchone()[0]
+        total = conn.fetchone()['count']
         conn.execute(
             f"SELECT * FROM workflow_definitions WHERE {' AND '.join(where)} "
             f"ORDER BY updated_at DESC LIMIT %s OFFSET %s",
@@ -631,7 +631,7 @@ def create_workflow_instance(workflow_id, trigger_type='manual', trigger_config=
             workflow_id, wf.get('version', 1),
             trigger_type, to_json(trigger_config or {})
         ))
-        inst_id = conn.fetchone()[0]
+        inst_id = conn.fetchone()['id']
 
         # 创建所有节点的实例记录
         nodes = defn.get('nodes', [])
@@ -697,7 +697,7 @@ def list_workflow_instances(workflow_id=None, status=None, page=1, limit=50):
             f"SELECT COUNT(*) FROM workflow_instances WHERE {' AND '.join(where)}",
             params
         )
-        total = conn.fetchone()[0]
+        total = conn.fetchone()['count']
         conn.execute(
             f"SELECT * FROM workflow_instances WHERE {' AND '.join(where)} "
             f"ORDER BY id DESC LIMIT %s OFFSET %s",
@@ -790,7 +790,7 @@ def query_logs(source_type=None, source_id=None, level=None, page=1, limit=100):
             f"SELECT COUNT(*) FROM execution_logs WHERE {' AND '.join(where)}",
             params
         )
-        total = conn.fetchone()[0]
+        total = conn.fetchone()['count']
         conn.execute(
             f"SELECT * FROM execution_logs WHERE {' AND '.join(where)} "
             f"ORDER BY id DESC LIMIT %s OFFSET %s",
@@ -811,27 +811,27 @@ def get_automation_stats():
     """获取自动化系统统计概览"""
     with get_db() as conn:
         conn.execute("SELECT COUNT(*) FROM cron_jobs")
-        total_jobs = conn.fetchone()[0]
+        total_jobs = conn.fetchone()['count']
         conn.execute("SELECT COUNT(*) FROM cron_jobs WHERE is_active=1")
-        active_jobs = conn.fetchone()[0]
+        active_jobs = conn.fetchone()['count']
         conn.execute("SELECT COUNT(*) FROM workflow_definitions")
-        total_wfs = conn.fetchone()[0]
+        total_wfs = conn.fetchone()['count']
         conn.execute(
             "SELECT COUNT(*) FROM workflow_instances WHERE status IN ('running','paused')"
         )
-        running_instances = conn.fetchone()[0]
+        running_instances = conn.fetchone()['count']
         conn.execute(
             "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
         )
-        completed_today = conn.fetchone()[0]
+        completed_today = conn.fetchone()['count']
         conn.execute(
             "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND date(finished_at)=CURRENT_DATE"
         )
-        failed_today = conn.fetchone()[0]
+        failed_today = conn.fetchone()['count']
         conn.execute(
-            "SELECT COALESCE(AVG(duration_ms),0) FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
+            "SELECT COALESCE(AVG(duration_ms),0) AS avg_duration FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
         )
-        avg_duration = conn.fetchone()[0]
+        avg_duration = conn.fetchone()['avg_duration']
 
         # 获取最近失败的
         conn.execute("""
