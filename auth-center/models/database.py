@@ -79,6 +79,16 @@ class _DbWrapper:
     def close(self):
         self._cur.close()
 
+    def executescript(self, sql):
+        """Run multi-statement SQL (psycopg2 has no native executescript)."""
+        from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+        old_level = self._conn.isolation_level
+        self._conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = self._conn.cursor()
+        cur.execute(sql)
+        cur.close()
+        self._conn.set_isolation_level(old_level)
+
     def __getattr__(self, name):
         return getattr(self._cur, name)
 
@@ -2360,7 +2370,7 @@ _default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
 try:
     with get_db() as m:
         m.execute(
-            "INSERT INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, %s, %s, 'ai', 'self_hosted', '[\"main\"]') ON CONFLICT (id) DO NOTHING",
+            "INSERT INTO site_configs (id, domain, name, industry, tier, features) OVERRIDING SYSTEM VALUE VALUES (1, %s, %s, 'ai', 'self_hosted', '[\"main\"]') ON CONFLICT (id) DO NOTHING",
             (_default_domain, _default_brand)
         )
         m.commit()

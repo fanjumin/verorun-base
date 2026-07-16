@@ -291,7 +291,7 @@ def _tool_get_system_health(args):
 
             items = conn.execute(
                 "SELECT check_name, status, message FROM check_history "
-                "WHERE run_id=? ORDER BY status DESC",
+                "WHERE run_id=%s ORDER BY status DESC",
                 (run['id'],)
             ).fetchall()
         lines = [
