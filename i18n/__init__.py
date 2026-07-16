@@ -61,11 +61,19 @@ def _get_db_path() -> str:
 
 
 def _get_db():
-    """返回数据库连接"""
-    import sqlite3
-    conn = sqlite3.connect(_get_db_path())
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    """返回 PostgreSQL 数据库连接（与 models.database 配置一致）"""
+    import psycopg2
+    import psycopg2.extras
+    PG_CONFIG = {
+        'host': os.environ.get('PG_HOST', 'localhost'),
+        'port': int(os.environ.get('PG_PORT', 5432)),
+        'dbname': os.environ.get('PG_DB', 'verorun'),
+        'user': os.environ.get('PG_USER', 'verorun'),
+        'password': os.environ.get('PG_PASSWORD', ''),
+    }
+    conn = psycopg2.connect(**PG_CONFIG)
+    conn.cursor_factory = psycopg2.extras.RealDictCursor
+    conn.autocommit = False
     return conn
 
 
@@ -124,11 +132,11 @@ def set_translation(locale: str, source: str, translation: str,
         conn = _get_db()
         conn.execute(
             '''INSERT INTO i18n_strings (locale, source_hash, source, translation, is_auto)
-               VALUES (?,?,?,?,?)
+               VALUES (%s,%s,%s,%s,%s)
                ON CONFLICT(locale, source_hash) DO UPDATE SET
                    translation=excluded.translation,
                    is_auto=excluded.is_auto,
-                   updated_at=datetime('now')''',
+                   updated_at=NOW()''',
             (locale, s_hash, source, translation, is_auto)
         )
         conn.commit()
@@ -144,7 +152,7 @@ def delete_translation(translation_id: int) -> bool:
     """删除一条翻译"""
     try:
         conn = _get_db()
-        conn.execute('DELETE FROM i18n_strings WHERE id=?', (translation_id,))
+        conn.execute('DELETE FROM i18n_strings WHERE id=%s', (translation_id,))
         conn.commit()
         conn.close()
         get_all_translations.cache_clear()
@@ -170,7 +178,7 @@ def get_all_translations(locale: str = None) -> dict:
     try:
         conn = _get_db()
         rows = conn.execute(
-            'SELECT source, translation FROM i18n_strings WHERE locale=?',
+            'SELECT source, translation FROM i18n_strings WHERE locale=%s',
             (locale,)
         ).fetchall()
         conn.close()
@@ -288,9 +296,12 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
                     continue
                 s_hash = _source_hash(source)
                 conn.execute(
-                    '''INSERT OR REPLACE INTO i18n_strings
+                    '''INSERT INTO i18n_strings
                        (locale, source_hash, source, translation, is_auto)
-                       VALUES (?,?,?,?,?)''',
+                       VALUES (%s,%s,%s,%s,%s)
+                       ON CONFLICT(locale, source_hash) DO UPDATE SET
+                           translation=EXCLUDED.translation,
+                           is_auto=EXCLUDED.is_auto''',
                     (locale, s_hash, source, translation, 1)
                 )
                 count += 1

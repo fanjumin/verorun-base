@@ -6,10 +6,8 @@ SMS Plugin Models — 独立数据库 sms.db
 - sms_templates: 短信模板（从主库迁移）
 - sms_logs: 短信发送日志
 """
-import sqlite3
+import psycopg2
 import os
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'sms.db')
 
 _sms_conn = None
 
@@ -18,11 +16,16 @@ def get_sms_db():
     """获取短信插件独立数据库连接（单例）"""
     global _sms_conn
     if _sms_conn is None:
-        _sms_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _sms_conn.row_factory = sqlite3.Row
-        _sms_conn.execute("PRAGMA journal_mode=WAL")
-        _sms_conn.execute("PRAGMA busy_timeout=1000")
-        _sms_conn.execute("PRAGMA foreign_keys=ON")
+        _sms_conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        _sms_conn.autocommit = False
+        _sms_conn.execute("CREATE SCHEMA IF NOT EXISTS sms")
+        _sms_conn.execute("SET search_path TO sms")
     return _sms_conn
 
 
@@ -30,25 +33,25 @@ def init_sms_db():
     """初始化短信插件数据库表（幂等）"""
     conn = get_sms_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS sms_templates (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         category        TEXT NOT NULL,
         name            TEXT NOT NULL,
         template_code   TEXT NOT NULL,
         note            TEXT DEFAULT '',
-        sort_order      INTEGER DEFAULT 0,
-        created_at      TEXT DEFAULT (datetime('now')),
-        updated_at      TEXT DEFAULT (datetime('now')),
+        sort_order      BIGINT DEFAULT 0,
+        created_at      TEXT DEFAULT (NOW()),
+        updated_at      TEXT DEFAULT (NOW()),
         UNIQUE(category, name)
     )''')
     conn.execute('''CREATE TABLE IF NOT EXISTS sms_logs (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         phone           TEXT NOT NULL,
         code            TEXT DEFAULT '',
         purpose         TEXT DEFAULT '',
         provider        TEXT DEFAULT '',
         status          TEXT DEFAULT 'sent',
         error           TEXT DEFAULT '',
-        created_at      TEXT DEFAULT (datetime('now'))
+        created_at      TEXT DEFAULT (NOW())
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_sms_logs_phone ON sms_logs(phone)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_sms_logs_created ON sms_logs(created_at)')
@@ -78,7 +81,7 @@ def migrate_from_main_db():
         count = 0
         for r in rows:
             conn.execute(
-                'INSERT OR IGNORE INTO sms_templates (category, name, template_code, note, sort_order) VALUES (?,?,?,?,?)',
+                'INSERT INTO sms_templates (category, name, template_code, note, sort_order) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (category, name) DO NOTHING',
                 (r['category'], r['name'], r['template_code'], r['note'], r['sort_order'])
             )
             count += 1

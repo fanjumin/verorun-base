@@ -32,7 +32,7 @@ def _read_system_config(key: str, default=''):
     """从 system_config 表读取配置"""
     try:
         with get_db() as conn:
-            row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
+            row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key,)).fetchone()
             return row['value'] if row else default
     except Exception:
         return default
@@ -136,7 +136,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
     # 写入队列
     with get_db() as conn:
         c = conn.execute(
-            'INSERT INTO knowledge_queue (source, raw_content, admin_id) VALUES (?,?,?)',
+            'INSERT INTO knowledge_queue (source, raw_content, admin_id) VALUES (%s,%s,%s)',
             ('matrix', raw_content, admin_id)
         )
         qid = c.lastrowid
@@ -146,14 +146,14 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
     result = _call_llm(system_prompt, user_prompt)
     if 'error' in result:
         with get_db() as conn:
-            conn.execute("UPDATE knowledge_queue SET status='failed', error_msg=? WHERE id=?",
+            conn.execute("UPDATE knowledge_queue SET status='failed', error_msg=%s WHERE id=%s",
                          (result['error'][:500], qid))
             conn.commit()
         return {'success': False, 'error': result['error']}
 
     with get_db() as conn:
         if result.get('is_duplicate'):
-            conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=?", (qid,))
+            conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
             conn.commit()
             return {'success': True, 'kb_id': 'duplicate', 'title': result['title'],
                     'category': result.get('category', ''), 'message': '检测到重复，已跳过'}
@@ -162,11 +162,11 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         conn.execute(
             '''INSERT OR IGNORE INTO knowledge_blocks
                (id, title, content, keywords, category, priority, created_at)
-               VALUES (?,?,?,?,?,?,datetime('now','localtime'))''',
+               VALUES (%s,%s,%s,%s,%s,%s,NOW())''',
             (kb_id, result['title'][:200], result['content'],
              result.get('keywords', '')[:500], result.get('category', 'general'), 5)
         )
-        conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=? WHERE id=?", (kb_id, qid))
+        conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (kb_id, qid))
         conn.commit()
 
     return {
@@ -230,7 +230,7 @@ def list_queue():
         sql = 'SELECT * FROM knowledge_queue'
         params = []
         if status_filter:
-            sql += ' WHERE status=?'
+            sql += ' WHERE status=%s'
             params.append(status_filter)
         sql += ' ORDER BY id DESC LIMIT 100'
         rows = conn.execute(sql, params).fetchall()
@@ -243,7 +243,7 @@ def run_clean(qid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM knowledge_queue WHERE id=?', (qid,)).fetchone()
+        row = conn.execute('SELECT * FROM knowledge_queue WHERE id=%s', (qid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '队列项不存在'}), 404
         if row['status'] == 'cleaning':

@@ -39,7 +39,7 @@ def session_list():
         rows = conn.execute(
             "SELECT id, device_name, device_type, ip_address, user_agent, "
             "       location, is_current, created_at "
-            "FROM user_sessions WHERE user_id=? AND (expired_at IS NULL OR expired_at > datetime('now')) "
+            "FROM user_sessions WHERE user_id=%s AND (expired_at IS NULL OR expired_at > NOW()) "
             "ORDER BY is_current DESC, created_at DESC",
             (uid,)
         ).fetchall()
@@ -64,7 +64,7 @@ def session_current():
         row = conn.execute(
             "SELECT id, device_name, device_type, ip_address, user_agent, "
             "       location, created_at "
-            "FROM user_sessions WHERE user_id=? AND token_hash=?",
+            "FROM user_sessions WHERE user_id=%s AND token_hash=%s",
             (uid, token_hash)
         ).fetchone()
         if not row:
@@ -73,7 +73,7 @@ def session_current():
             ip = request.remote_addr or ''
             cur = conn.execute(
                 "INSERT INTO user_sessions (user_id, token_hash, device_type, ip_address, user_agent, is_current) "
-                "VALUES (?,?,?,?,?,1)",
+                "VALUES (%s,%s,%s,%s,%s,1)",
                 (uid, token_hash, 'api', ip, user_agent)
             )
             conn.commit()
@@ -100,7 +100,7 @@ def session_terminate(sid):
     uid = payload['user_id']
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, is_current FROM user_sessions WHERE id=? AND user_id=?",
+            "SELECT id, is_current FROM user_sessions WHERE id=%s AND user_id=%s",
             (sid, uid)
         ).fetchone()
         if not row:
@@ -108,7 +108,7 @@ def session_terminate(sid):
         if row['is_current']:
             return jsonify({'success': False, 'error': '不能退出当前会话，请使用退出登录'}), 400
         conn.execute(
-            "UPDATE user_sessions SET expired_at=datetime('now') WHERE id=?",
+            "UPDATE user_sessions SET expired_at=NOW() WHERE id=%s",
             (sid,)
         )
         conn.commit()

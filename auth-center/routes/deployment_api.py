@@ -23,21 +23,10 @@ import os, sys, json, secrets, hashlib
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'models'))
+from database import get_db
+
 deploy_bp = Blueprint('deployment', __name__, url_prefix='/api/subscription')
-
-# ── 数据库路径 ──
-DB_PATH = os.environ.get(
-    'DB_PATH',
-    os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'x7k2m9a4.db')
-)
-
-
-def _get_db():
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
 
 
 def _require_admin():
@@ -65,11 +54,10 @@ def admin_list_codes():
     admin, err = _require_admin()
     if err:
         return err
-    conn = _get_db()
-    rows = conn.execute(
-        'SELECT * FROM deployment_codes ORDER BY created_at DESC'
-    ).fetchall()
-    conn.close()
+    with get_db() as conn:
+        rows = conn.execute(
+            'SELECT * FROM deployment_codes ORDER BY created_at DESC'
+        ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
 
@@ -94,13 +82,12 @@ def admin_generate_code():
 
     expires_at = (datetime.now() + timedelta(days=duration_days)).isoformat()
 
-    conn = _get_db()
-    conn.execute('''INSERT INTO deployment_codes
-        (code, code_hash, user_id, plan_key, duration_days, expires_at, status)
-        VALUES (?,?,?,?,?,?,?)''',
-        (code, code_hash, user_id, plan_key, duration_days, expires_at, 'active'))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        conn.execute('''INSERT INTO deployment_codes
+            (code, code_hash, user_id, plan_key, duration_days, expires_at, status)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)''',
+            (code, code_hash, user_id, plan_key, duration_days, expires_at, 'active'))
+        conn.commit()
 
     return jsonify({
         'success': True,
@@ -120,10 +107,9 @@ def admin_revoke_code(code_id):
     admin, err = _require_admin()
     if err:
         return err
-    conn = _get_db()
-    conn.execute("UPDATE deployment_codes SET status='revoked', updated_at=CURRENT_TIMESTAMP WHERE id=?", (code_id,))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        conn.execute("UPDATE deployment_codes SET status='revoked', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (code_id,))
+        conn.commit()
     return jsonify({'success': True, 'message': '部署码已作废'})
 
 
@@ -157,12 +143,11 @@ def heartbeat():
 
     now = datetime.now()
 
-    conn = _get_db()
-    row = conn.execute(
-        'SELECT * FROM deployment_codes WHERE code=?',
-        (code,)
-    ).fetchone()
-    conn.close()
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM deployment_codes WHERE code=%s',
+            (code,)
+        ).fetchone()
 
     if not row:
         return jsonify({
@@ -186,13 +171,12 @@ def heartbeat():
 
     # 更新最后心跳时间
     if is_valid:
-        conn = _get_db()
-        conn.execute(
-            "UPDATE deployment_codes SET last_heartbeat=CURRENT_TIMESTAMP, last_hostname=?, last_version=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (hostname[:200], version[:50], d['id'])
-        )
-        conn.commit()
-        conn.close()
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE deployment_codes SET last_heartbeat=CURRENT_TIMESTAMP, last_hostname=%s, last_version=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+                (hostname[:200], version[:50], d['id'])
+            )
+            conn.commit()
 
     return jsonify({
         'success': True,
@@ -216,12 +200,11 @@ def check_subscription_public():
     if not code:
         return jsonify({'success': False, 'error': '缺少部署码'}), 400
 
-    conn = _get_db()
-    row = conn.execute(
-        'SELECT code, plan_key, status, expires_at, created_at FROM deployment_codes WHERE code=?',
-        (code,)
-    ).fetchone()
-    conn.close()
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT code, plan_key, status, expires_at, created_at FROM deployment_codes WHERE code=%s',
+            (code,)
+        ).fetchone()
 
     if not row:
         return jsonify({'success': False, 'error': '部署码不存在'}), 404
@@ -249,25 +232,24 @@ def check_subscription_public():
 
 def init_deployment_tables():
     """创建 deployment_codes 表"""
-    conn = _get_db()
-    conn.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        code            TEXT UNIQUE NOT NULL,
-        code_hash       TEXT NOT NULL,
-        user_id         INTEGER NOT NULL,
-        plan_key        TEXT NOT NULL DEFAULT 'deploy_basic',
-        duration_days   INTEGER NOT NULL DEFAULT 365,
-        expires_at      TEXT NOT NULL,
-        status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
-        last_heartbeat  TEXT,
-        last_hostname   TEXT DEFAULT '',
-        last_version    TEXT DEFAULT '',
-        created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-    )''')
-    conn.execute('CREATE INDEX IF NOT EXISTS idx_dc_code ON deployment_codes(code)')
-    conn.execute('CREATE INDEX IF NOT EXISTS idx_dc_user ON deployment_codes(user_id)')
-    conn.execute('CREATE INDEX IF NOT EXISTS idx_dc_status ON deployment_codes(status)')
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            code            TEXT UNIQUE NOT NULL,
+            code_hash       TEXT NOT NULL,
+            user_id         BIGINT NOT NULL,
+            plan_key        TEXT NOT NULL DEFAULT 'deploy_basic',
+            duration_days   BIGINT NOT NULL DEFAULT 365,
+            expires_at      TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
+            last_heartbeat  TEXT,
+            last_hostname   TEXT DEFAULT '',
+            last_version    TEXT DEFAULT '',
+            created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_dc_code ON deployment_codes(code)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_dc_user ON deployment_codes(user_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_dc_status ON deployment_codes(status)')
+        conn.commit()
     print('[DeploymentAPI] ✅ deployment_codes table ready')

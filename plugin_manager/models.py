@@ -13,36 +13,61 @@ Plugin Manager — 数据库模型 & 数据类
 
 import os
 import json
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 
-# ── 数据库路径 ────────────────────────────────────────────────────────────
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
-DB_PATH = os.environ.get(
-    'PLUGIN_REGISTRY_DB',
-    os.path.join(DATA_DIR, 'verorun.db')
-)
+# ── PG 连接封装 ───────────────────────────────────────────────────────────
+
+class _PgConnection:
+    """轻量封装，保持 conn.execute(sql, params) 接口兼容"""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=None):
+        cursor = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cursor.execute(sql, params)
+        else:
+            cursor.execute(sql)
+        return cursor
+
+    def commit(self):
+        self._conn.commit()
+
+    def executescript(self, sql):
+        """多语句 DDL 执行（PG 不支持 executescript，用单个 execute 替代）"""
+        cursor = self._conn.cursor()
+        cursor.execute(sql)
+        self._conn.commit()
+        cursor.close()
+
+    def close(self):
+        self._conn.close()
 
 
 # ── 数据库连接 ────────────────────────────────────────────────────────────
 
 @contextmanager
 def get_registry_db():
-    """获取主库连接（用于 plugin_registry 表）"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    """获取主库 PG 连接（用于 plugin_registry 表）"""
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=os.environ.get('PG_PORT', '5432'),
+        dbname=os.environ.get('PG_DATABASE', 'verorun'),
+        user=os.environ.get('PG_USER', 'postgres'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    wrapped = _PgConnection(conn)
     try:
-        yield conn
+        yield wrapped
     finally:
-        conn.close()
+        wrapped.close()
 
 
 # ── 状态枚举 ──────────────────────────────────────────────────────────────
@@ -144,7 +169,7 @@ class PluginInfo:
 # 插件注册表 DDL
 PLUGIN_REGISTRY_DDL = """
 CREATE TABLE IF NOT EXISTS plugin_registry (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     identifier      TEXT NOT NULL UNIQUE,          -- 插件唯一标识
     name            TEXT NOT NULL,                  -- 显示名称
     version         TEXT NOT NULL DEFAULT '0.1.0', -- 版本号
@@ -180,8 +205,8 @@ CREATE TABLE IF NOT EXISTS plugin_registry (
     settings_schema TEXT DEFAULT '{}',
 
     -- 时间戳
-    installed_at    TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now')),
+    installed_at    TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW(),
 
     -- 最后一次错误信息
     last_error      TEXT DEFAULT ''
@@ -197,8 +222,7 @@ CREATE INDEX IF NOT EXISTS idx_plugin_registry_identifier
 
 def init_plugin_registry_table():
     """初始化 plugin_registry 表（幂等）"""
-    os.makedirs(DATA_DIR, exist_ok=True)
     with get_registry_db() as conn:
         conn.executescript(PLUGIN_REGISTRY_DDL)
-        print(f'[PluginManager] ✅ plugin_registry table ready ({DB_PATH})')
+        print('[PluginManager] ✅ plugin_registry table ready')
         conn.commit()

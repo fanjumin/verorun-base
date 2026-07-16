@@ -4,10 +4,8 @@ Verification Plugin Models — 独立数据库 verification.db
 =======================================================
 - verification_requests: 实名认证请求记录（从主库迁移）
 """
-import sqlite3
+import psycopg2
 import os
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'verification.db')
 
 _verification_conn = None
 
@@ -15,24 +13,29 @@ _verification_conn = None
 def get_verification_db():
     global _verification_conn
     if _verification_conn is None:
-        _verification_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _verification_conn.row_factory = sqlite3.Row
-        _verification_conn.execute("PRAGMA journal_mode=WAL")
-        _verification_conn.execute("PRAGMA busy_timeout=1000")
-        _verification_conn.execute("PRAGMA foreign_keys=ON")
+        _verification_conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        _verification_conn.autocommit = False
+        _verification_conn.execute("CREATE SCHEMA IF NOT EXISTS verification")
+        _verification_conn.execute("SET search_path TO verification")
     return _verification_conn
 
 
 def init_verification_db():
     conn = get_verification_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS verification_requests (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id         INTEGER NOT NULL,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        user_id         BIGINT NOT NULL,
         request_id      TEXT UNIQUE NOT NULL,
         provider        TEXT DEFAULT '',
         return_url      TEXT DEFAULT '',
         status          TEXT DEFAULT 'pending',
-        created_at      TEXT DEFAULT (datetime('now')),
+        created_at      TEXT DEFAULT (NOW()),
         completed_at    TEXT
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ver_requests_user ON verification_requests(user_id)')
@@ -63,7 +66,7 @@ def migrate_from_main_db():
         count = 0
         for r in rows:
             conn.execute(
-                'INSERT OR IGNORE INTO verification_requests (user_id, request_id, provider, return_url, status, created_at, completed_at) VALUES (?,?,?,?,?,?,?)',
+                'INSERT INTO verification_requests (user_id, request_id, provider, return_url, status, created_at, completed_at) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (request_id) DO NOTHING',
                 (r['user_id'], r['request_id'], r['provider'], r['return_url'], r['status'], r['created_at'], r['completed_at'])
             )
             count += 1

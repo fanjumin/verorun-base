@@ -61,7 +61,7 @@ def _log(admin_id, action, target_type="", target_id="", detail=""):
     ip = request.remote_addr or ''
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (?,?,?,?,?,?)',
+            'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (%s,%s,%s,%s,%s,%s)',
             (admin_id, action, target_type, target_id, detail, ip)
         )
         conn.commit()
@@ -121,7 +121,7 @@ def _build_dashboard_data(conn):
 
     # --- Core metrics ---
     try:
-        u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=date('now') THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
+        u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=CURRENT_DATE THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
         data['total_users'] = u['c']; data['active_users'] = u['a']; data['today_new_users'] = u['n']
     except: pass
     try:
@@ -131,8 +131,8 @@ def _build_dashboard_data(conn):
         data['active_agents'] = aa['c'] if aa else 0
     except: pass
     try:
-        tdc_old = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=date('now')")
-        tdc_new = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE last_reset=date('now')")
+        tdc_old = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=CURRENT_DATE")
+        tdc_new = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE last_reset=CURRENT_DATE")
         data['today_calls'] = (tdc_old['c'] if tdc_old else 0) + (tdc_new['c'] if tdc_new else 0)
         tc_old = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM api_keys')
         tc_new = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys')
@@ -144,7 +144,7 @@ def _build_dashboard_data(conn):
     except: pass
     try:
         data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
-        mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=datetime('now','-30 days')").fetchone()
+        mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'").fetchone()
         data['monthly_revenue'] = mr['c'] if mr else 0
     except: pass
     # --- Action items ---
@@ -158,7 +158,7 @@ def _build_dashboard_data(conn):
         data['pending_contacts'] = conn.execute("SELECT COUNT(*) as c FROM contact_messages WHERE status='unread'").fetchone()['c']
     except: pass
     try:
-        data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=date('now')") or {'c':0})['c']
+        data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=CURRENT_DATE") or {'c':0})['c']
     except: pass
     # --- Recent data ---
     try:
@@ -171,28 +171,28 @@ def _build_dashboard_data(conn):
     except: pass
     # --- Analytics snapshot ---
     @_qcached('dash_pvuv', ttl=10)
-    def _qpvuv(): return _safe("SELECT pv, uv FROM analytics_daily_stats WHERE date=date('now')")
+    def _qpvuv(): return _safe("SELECT pv, uv FROM analytics_daily_stats WHERE date=CURRENT_DATE")
     pvuv = _qpvuv()
     data['today_pv'] = pvuv['pv'] if pvuv else 0
     data['today_uv'] = pvuv['uv'] if pvuv else 0
     @_qcached('dash_online', ttl=5)
-    def _qonline(): return _safe("SELECT COUNT(DISTINCT visitor_hash) as c FROM analytics_visitor_sessions WHERE last_active_at>=datetime('now','-5 minutes')")
+    def _qonline(): return _safe("SELECT COUNT(DISTINCT visitor_hash) as c FROM analytics_visitor_sessions WHERE last_active_at>=NOW() - INTERVAL '5 minutes'")
     online = _qonline()
     data['online_now'] = online['c'] if online else 0
     @_qcached('dash_toppages', ttl=10)
-    def _qpages(): return _safe_all("SELECT path, pv FROM analytics_page_stats WHERE date=date('now') ORDER BY pv DESC LIMIT 3")
+    def _qpages(): return _safe_all("SELECT path, pv FROM analytics_page_stats WHERE date=CURRENT_DATE ORDER BY pv DESC LIMIT 3")
     data['top_pages'] = [{'path': r['path'], 'pv': r['pv']} for r in _qpages()]
     # --- Token 用量 ---
     @_qcached('dash_tokens', ttl=15)
     def _qtokens():
-        r = _safe("SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=date('now')")
+        r = _safe("SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=CURRENT_DATE")
         return r['c'] if r else 0
     data['today_tokens'] = _qtokens()
     @_qcached('dash_topagents', ttl=15)
     def _qtopagents():
         return [dict(r) for r in _safe_all(
             "SELECT t.agent_id, t.agent_name, t.total_tokens as total "
-            "FROM agent_token_daily t WHERE t.stat_date=date('now') ORDER BY t.total_tokens DESC LIMIT 3")]
+            "FROM agent_token_daily t WHERE t.stat_date=CURRENT_DATE ORDER BY t.total_tokens DESC LIMIT 3")]
     data['top_token_agents'] = _qtopagents()
 
     # --- Service health (outside DB) ---
@@ -262,68 +262,68 @@ def _revenue_dashboard_data():
         # ── 收入汇总 ──
         today = conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND date(paid_at)=date('now')
+            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
         """).fetchone()['rev']
         today += (conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND date(paid_at)=date('now')
+            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
         """).fetchone()['rev'] or 0)
         today += (conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND date(paid_at)=date('now')
+            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
         """).fetchone()['rev'] or 0)
 
         this_month = conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now')
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['rev']
         this_month += (conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now')
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['rev'] or 0)
         this_month += (conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now')
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['rev'] or 0)
 
         this_year = conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND strftime('%Y',paid_at)=strftime('%Y','now')
+            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
         """).fetchone()['rev']
         this_year += (conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND strftime('%Y',paid_at)=strftime('%Y','now')
+            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
         """).fetchone()['rev'] or 0)
         this_year += (conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND strftime('%Y',paid_at)=strftime('%Y','now')
+            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
         """).fetchone()['rev'] or 0)
 
         # ── 上月收入（环比） ──
         last_month = conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now','-1 month')
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
         """).fetchone()['rev']
         last_month += (conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now','-1 month')
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
         """).fetchone()['rev'] or 0)
         last_month += (conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND strftime('%Y-%m',paid_at)=strftime('%Y-%m','now','-1 month')
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
         """).fetchone()['rev'] or 0)
 
         # ── 近30天每日收入趋势 ──
         trend = conn.execute("""
             SELECT date(paid_at) as day, SUM(amount) as rev FROM billing_orders
-            WHERE status='paid' AND paid_at>=datetime('now','-30 days')
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
         trend_map = {r['day']: r['rev'] for r in trend}
         # Add subscription orders
         sub_trend = conn.execute("""
             SELECT date(paid_at) as day, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND paid_at>=datetime('now','-30 days')
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
         for r in sub_trend:
@@ -331,7 +331,7 @@ def _revenue_dashboard_data():
         # Add shop orders
         shop_trend = conn.execute("""
             SELECT date(paid_at) as day, COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND paid_at>=datetime('now','-30 days')
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
         for r in shop_trend:
@@ -339,21 +339,21 @@ def _revenue_dashboard_data():
 
         # ── 近12月月度收入 ──
         monthly = conn.execute("""
-            SELECT strftime('%Y-%m',paid_at) as ym, SUM(amount) as rev FROM billing_orders
-            WHERE status='paid' AND paid_at>=datetime('now','-12 months')
+            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, SUM(amount) as rev FROM billing_orders
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
             GROUP BY ym ORDER BY ym
         """).fetchall()
         monthly_map = {r['ym']: r['rev'] for r in monthly}
         sub_monthly = conn.execute("""
-            SELECT strftime('%Y-%m',paid_at) as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND paid_at>=datetime('now','-12 months')
+            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
             GROUP BY ym ORDER BY ym
         """).fetchall()
         for r in sub_monthly:
             monthly_map[r['ym']] = monthly_map.get(r['ym'], 0) + r['rev']
         shop_monthly = conn.execute("""
-            SELECT strftime('%Y-%m',paid_at) as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND paid_at>=datetime('now','-12 months')
+            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
             GROUP BY ym ORDER BY ym
         """).fetchall()
         for r in shop_monthly:
@@ -430,13 +430,13 @@ def _revenue_dashboard_data():
         canceled = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='canceled'
-              AND strftime('%Y-%m',canceled_at)=strftime('%Y-%m','now')
+              AND TO_CHAR(canceled_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()
         active_start_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status IN ('active','trialing')
-              AND (canceled_at IS NULL OR canceled_at >= date('now','start of month'))
-              AND created_at < date('now','start of month')
+              AND (canceled_at IS NULL OR canceled_at >= DATE_TRUNC('month', CURRENT_DATE)::DATE)
+              AND created_at < DATE_TRUNC('month', CURRENT_DATE)::DATE
         """).fetchone()['c'] or 1
         churn_rate = round((canceled['c'] / active_start_month) * 100, 2) if active_start_month > 0 else 0
 
@@ -444,21 +444,21 @@ def _revenue_dashboard_data():
         last_month_canceled = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='canceled'
-              AND strftime('%Y-%m',canceled_at)=strftime('%Y-%m','now','-1 month')
+              AND TO_CHAR(canceled_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
         """).fetchone()['c']
         last_month_active_start = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status IN ('active','trialing')
-              AND canceled_at >= date('now','start of month','-1 month')
-              AND created_at < date('now','start of month','-1 month')
+              AND canceled_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')::DATE
+              AND created_at < DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')::DATE
         """).fetchone()['c'] or 1
         last_churn_rate = round((last_month_canceled / last_month_active_start) * 100, 2) if last_month_active_start > 0 else 0
 
         # ── 近12月月度流失率趋势 ──
         churn_trend = []
         for i in range(11, -1, -1):
-            ym_start = f"date('now','start of month','-{i} months')"
-            ym_end = f"date('now','start of month','-{i-1} months')"
+            ym_start = f"DATE_TRUNC('month', CURRENT_DATE - INTERVAL '{i} months')::DATE"
+            ym_end = f"DATE_TRUNC('month', CURRENT_DATE - INTERVAL '{i-1} months')::DATE"
             m_canceled = conn.execute(f"""
                 SELECT COUNT(*) as c FROM subscriptions
                 WHERE status='canceled'
@@ -481,25 +481,25 @@ def _revenue_dashboard_data():
             active_count = conn.execute(f"""
                 SELECT COUNT(*) as c FROM subscriptions
                 WHERE status IN ('active','trialing')
-                  AND date(created_at) <= ?
-                  AND (canceled_at IS NULL OR date(canceled_at) > ?)
+                  AND date(created_at) <= %s
+                  AND (canceled_at IS NULL OR date(canceled_at) > %s)
             """, (day, day)).fetchone()['c']
             sub_trend_30d.append({'day': day, 'active_count': active_count})
 
         # 本月新增订阅（含 trialing 和 past_due 中本月创建的）
         new_this_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
-            WHERE strftime('%Y-%m',created_at)=strftime('%Y-%m','now')
+            WHERE TO_CHAR(created_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['c'] + conn.execute("""
             SELECT COUNT(*) as c FROM subscription_orders
-            WHERE strftime('%Y-%m',created_at)=strftime('%Y-%m','now') AND item_type='new' AND status='paid'
+            WHERE TO_CHAR(created_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM') AND item_type='new' AND status='paid'
         """).fetchone()['c']
 
         # 本月已过期
         expired_this_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='expired'
-              AND strftime('%Y-%m',updated_at)=strftime('%Y-%m','now')
+              AND TO_CHAR(updated_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['c']
 
     return jsonify({"success": True, "data": {
@@ -549,20 +549,20 @@ def user_list():
     where = []
     params = []
     if search:
-        where.append("(u.phone LIKE ? OR IFNULL(u.display_name, u.username) LIKE ? OR u.email LIKE ?)")
+        where.append("(u.phone LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s OR u.email LIKE %s)")
         s = '%' + search + '%'
         params.extend([s, s, s])
     if tier_filter:
-        where.append('a.tier=?')
+        where.append('a.tier=%s')
         params.append(tier_filter)
     if industry:
-        where.append("p.industry LIKE ?")
+        where.append("p.industry LIKE %s")
         params.append('%' + industry + '%')
     if occupation:
-        where.append("p.occupation LIKE ?")
+        where.append("p.occupation LIKE %s")
         params.append('%' + occupation + '%')
     if region:
-        where.append("(p.province LIKE ? OR p.city LIKE ? OR p.district LIKE ?)")
+        where.append("(p.province LIKE %s OR p.city LIKE %s OR p.district LIKE %s)")
         r = '%' + region + '%'
         params.extend([r, r, r])
     wsql = 'WHERE ' + ' AND '.join(where) if where else ''
@@ -572,13 +572,13 @@ def user_list():
     if industry or occupation or region:
         # If filtering, only join profiles (address join for region)
         pass
-    sql = ("SELECT u.id, u.phone, IFNULL(u.display_name, u.username) as nickname, u.email, u.wechat_nickname, "
+    sql = ("SELECT u.id, u.phone, COALESCE(u.display_name, u.username) as nickname, u.email, u.wechat_nickname, "
            "COALESCE((SELECT COUNT(*) FROM user_agents WHERE user_id=u.id),0) as agent_count, "
            "'' as agent_nickname, u.is_admin, u.active, u.created_at, u.last_login, "
            "'' as tier, '' as tier_expire_at, "
            "u.verified_by, u.verified_at, "
-           "IFNULL(p.industry,'') as industry, IFNULL(p.occupation,'') as occupation "
-           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?')
+           "COALESCE(p.industry,'') as industry, COALESCE(p.occupation,'') as occupation "
+           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
     csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
     with get_db() as conn:
         total = conn.execute(csql, params).fetchone()
@@ -600,11 +600,11 @@ def user_detail(uid):
                             "verified_by, verified_at, display_name, "
                             "'' as agent_id, '' as agent_nickname, '' as agent_avatar_url, "
                             "is_admin, active, created_at, last_login "
-                            "FROM users WHERE id=?", (uid,)).fetchone()
+                            "FROM users WHERE id=%s", (uid,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': chr(29992)+chr(25143)+chr(19981)+chr(23384)+chr(22312)}), 404
-        auths = conn.execute('SELECT app_name, tier, tier_expire_at, calls_today, calls_total FROM app_authorizations WHERE user_id=?', (uid,)).fetchall()
-        orders = conn.execute('SELECT id, order_no, amount, item_type, item_desc, status, created_at FROM billing_orders WHERE user_id=? ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
+        auths = conn.execute('SELECT app_name, tier, tier_expire_at, calls_today, calls_total FROM app_authorizations WHERE user_id=%s', (uid,)).fetchall()
+        orders = conn.execute('SELECT id, order_no, amount, item_type, item_desc, status, created_at FROM billing_orders WHERE user_id=%s ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
     return jsonify({'success': True, 'data': {'user': dict(user), 'authorizations': [dict(a) for a in auths], 'orders': [dict(o) for o in orders]}})
 
 @admin_bp.route('/users/<int:uid>/status', methods=['PUT'])
@@ -615,7 +615,7 @@ def user_status(uid):
     data = request.get_json(force=True) or {}
     active = data.get('active', 1)
     with get_db() as conn:
-        conn.execute('UPDATE users SET active=? WHERE id=?', (1 if active else 0, uid))
+        conn.execute('UPDATE users SET active=%s WHERE id=%s', (1 if active else 0, uid))
         conn.commit()
     _log(admin['user_id'], 'ban_user' if not active else 'activate_user', 'user', str(uid))
     return jsonify({'success': True, 'message': chr(29366)+chr(24577)+chr(24050)+chr(26356)+chr(26032)})
@@ -631,14 +631,14 @@ def admin_verify_user(uid):
     if not real_name:
         return jsonify({'success': False, 'error': '姓名不能为空'}), 400
     with get_db() as conn:
-        user = conn.execute('SELECT id, is_real_name_verified FROM users WHERE id=?', (uid,)).fetchone()
+        user = conn.execute('SELECT id, is_real_name_verified FROM users WHERE id=%s', (uid,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': '用户不存在'}), 404
         if user['is_real_name_verified']:
             return jsonify({'success': False, 'error': '用户已完成实名认证'}), 400
         # 合规v2：只写 display_name + 认证标记，不存储身份证号
         conn.execute(
-            'UPDATE users SET display_name=?, verified_by=?, verified_at=?, is_real_name_verified=1, real_name_verified_at=? WHERE id=?',
+            'UPDATE users SET display_name=%s, verified_by=%s, verified_at=%s, is_real_name_verified=1, real_name_verified_at=%s WHERE id=%s',
             (real_name, 'manual', now_iso(), now_iso(), uid)
         )
         conn.commit()
@@ -659,7 +659,7 @@ def user_profile_admin(uid):
             FROM user_profiles up
             LEFT JOIN industries ind ON up.industry_id = ind.id
             LEFT JOIN career_options co ON up.career_id = co.id
-            WHERE up.user_id=?
+            WHERE up.user_id=%s
         ''', (uid,)).fetchone()
         addrs = conn.execute('''
             SELECT ua.*,
@@ -672,7 +672,7 @@ def user_profile_admin(uid):
             LEFT JOIN regions c ON ua.city_code = c.code
             LEFT JOIN regions d ON ua.district_code = d.code
             LEFT JOIN regions s ON ua.street_code = s.code
-            WHERE ua.user_id=? AND ua.status=1
+            WHERE ua.user_id=%s AND ua.status=1
             ORDER BY ua.is_default DESC, ua.created_at DESC
         ''', (uid,)).fetchall()
 
@@ -725,7 +725,7 @@ def agent_list():
     w = ''
     params = []
     if search:
-        w = "WHERE (ua.agent_name LIKE ? OR IFNULL(u.display_name, u.username) LIKE ?)"
+        w = "WHERE (ua.agent_name LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s)"
         s = '%' + search + '%'
         params.extend([s, s])
     with get_db() as conn:
@@ -735,9 +735,9 @@ def agent_list():
         ).fetchone()
         rows = conn.execute(
             'SELECT ua.id, ua.agent_name, ua.agent_type, ua.status, ua.created_at, '
-            "u.id as user_id, IFNULL(u.display_name, u.username) as user_name, u.phone "
+            "u.id as user_id, COALESCE(u.display_name, u.username) as user_name, u.phone "
             'FROM user_agents ua LEFT JOIN users u ON ua.user_id=u.id ' +
-            w + ' ORDER BY ua.created_at DESC LIMIT ? OFFSET ?',
+            w + ' ORDER BY ua.created_at DESC LIMIT %s OFFSET %s',
             params + [limit, offset]
         ).fetchall()
     return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'agents': [dict(r) for r in rows]}})
@@ -756,10 +756,10 @@ def post_list():
     w = []
     p = []
     if sf:
-        w.append('e.status=?')
+        w.append('e.status=%s')
         p.append(sf)
     wsql = ('WHERE ' + ' AND '.join(w)) if w else ''
-    sql = 'SELECT e.id, e.title, e.category, e.status, e.is_published, e.like_count, e.view_count, e.created_at, e.agent_id, IFNULL(u.display_name, u.username) as user_name FROM agent_experiences e LEFT JOIN users u ON e.user_id=u.id ' + wsql + ' ORDER BY e.created_at DESC LIMIT ? OFFSET ?'
+    sql = 'SELECT e.id, e.title, e.category, e.status, e.is_published, e.like_count, e.view_count, e.created_at, e.agent_id, COALESCE(u.display_name, u.username) as user_name FROM agent_experiences e LEFT JOIN users u ON e.user_id=u.id ' + wsql + ' ORDER BY e.created_at DESC LIMIT %s OFFSET %s'
     with get_db() as conn:
         total = conn.execute('SELECT COUNT(*) as c FROM agent_experiences e ' + wsql, p).fetchone()
         rows = conn.execute(sql, p + [limit, offset]).fetchall()
@@ -775,7 +775,7 @@ def review_post(pid):
     status = data.get('status', 'approved')
     pub = 1 if status == 'approved' else 0
     with get_db() as conn:
-        conn.execute("UPDATE agent_experiences SET status=?, is_published=?, updated_at=datetime('now') WHERE id=?", (status, pub, pid))
+        conn.execute("UPDATE agent_experiences SET status=%s, is_published=%s, updated_at=NOW() WHERE id=%s", (status, pub, pid))
         conn.commit()
     _log(admin['user_id'], 'review_post', 'post', str(pid), 'Status: ' + status)
     return jsonify({'success': True, 'message': '审核完成'})
@@ -792,7 +792,7 @@ def contact_list():
     offset = (page - 1) * limit
     with get_db() as conn:
         total = conn.execute('SELECT COUNT(*) as c FROM contact_messages').fetchone()
-        rows = conn.execute("SELECT id, name, email, subject, message, status, created_at FROM contact_messages ORDER BY CASE status WHEN 'unread' THEN 0 ELSE 1 END, created_at DESC LIMIT ? OFFSET ?", (limit, offset)).fetchall()
+        rows = conn.execute("SELECT id, name, email, subject, message, status, created_at FROM contact_messages ORDER BY CASE status WHEN 'unread' THEN 0 ELSE 1 END, created_at DESC LIMIT %s OFFSET %s", (limit, offset)).fetchall()
     return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'contacts': [dict(r) for r in rows]}})
 
 
@@ -807,7 +807,7 @@ def api_key_list():
     offset = (page - 1) * limit
     with get_db() as conn:
         total = conn.execute('SELECT COUNT(*) as c FROM api_keys').fetchone()
-        rows = conn.execute("SELECT k.id, k.name, k.key_prefix, k.calls_today, k.calls_total, k.active, k.created_at, COALESCE(u.display_name, u.username, '') as user_name, u.id as user_id FROM api_keys k LEFT JOIN users u ON k.user_id=u.id ORDER BY k.created_at DESC LIMIT ? OFFSET ?", (limit, offset)).fetchall()
+        rows = conn.execute("SELECT k.id, k.name, k.key_prefix, k.calls_today, k.calls_total, k.active, k.created_at, COALESCE(u.display_name, u.username, '') as user_name, u.id as user_id FROM api_keys k LEFT JOIN users u ON k.user_id=u.id ORDER BY k.created_at DESC LIMIT %s OFFSET %s", (limit, offset)).fetchall()
     return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'keys': [dict(r) for r in rows]}})
 
 
@@ -817,7 +817,7 @@ def revoke_key(kid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('UPDATE api_keys SET active=0 WHERE id=?', (kid,))
+        conn.execute('UPDATE api_keys SET active=0 WHERE id=%s', (kid,))
         conn.commit()
     _log(admin['user_id'], 'revoke_api_key', 'api_key', str(kid))
     return jsonify({'success': True, 'message': '密钥已吊销'})
@@ -831,7 +831,7 @@ def admin_logs():
         return err
     limit = request.args.get('limit', 50, type=int)
     with get_db() as conn:
-        rows = conn.execute('SELECT l.id, l.action, l.target_type, l.target_id, l.detail, l.ip_address, l.created_at, IFNULL(u.display_name, u.username) as admin_name FROM admin_logs l LEFT JOIN users u ON l.admin_id=u.id ORDER BY l.created_at DESC LIMIT ?', (limit,)).fetchall()
+        rows = conn.execute('SELECT l.id, l.action, l.target_type, l.target_id, l.detail, l.ip_address, l.created_at, COALESCE(u.display_name, u.username) as admin_name FROM admin_logs l LEFT JOIN users u ON l.admin_id=u.id ORDER BY l.created_at DESC LIMIT %s', (limit,)).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
 
@@ -847,7 +847,7 @@ def agent_matrix_list():
     type_filter = request.args.get('type', chr(39)+chr(39))
     with get_db() as conn:
         if type_filter:
-            rows = conn.execute('SELECT * FROM agents WHERE type=? ORDER BY type, id', (type_filter,)).fetchall()
+            rows = conn.execute('SELECT * FROM agents WHERE type=%s ORDER BY type, id', (type_filter,)).fetchall()
         else:
             rows = conn.execute('SELECT * FROM agents ORDER BY type, id').fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -866,10 +866,12 @@ def agent_matrix_create():
     if model_provider_id is None:
         model_provider_id = data.get('model_provider_id')  # backward compat
     with get_db() as conn:
-        conn.execute("INSERT INTO agents (type, alias, mission, system_prompt, provider_model_id) VALUES (?,?,?,?,?)",
-                     (data.get('type', 'child'), alias, mission, prompt, model_provider_id))
+        row = conn.execute(
+            "INSERT INTO agents (type, alias, mission, system_prompt, provider_model_id) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+            (data.get('type', 'child'), alias, mission, prompt, model_provider_id)
+        ).fetchone()
         conn.commit()
-        aid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        aid = row['id']
     _log(admin['user_id'], 'create_agent', 'agent', str(aid), alias)
     return jsonify({'success': True, 'message': 'Agent 已创建', 'id': aid})
 
@@ -884,14 +886,14 @@ def agent_matrix_update(aid):
     values = []
     for key in ['type', 'alias', 'mission', 'system_prompt', 'provider_model_id', 'is_active']:
         if key in data:
-            fields.append(key + '=?')
+            fields.append(key + '=%s')
             values.append(data[key])
     if not fields:
         return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
-    fields.append("updated_at=datetime('now')")
+    fields.append("updated_at=NOW()")
     values.append(aid)
     with get_db() as conn:
-        conn.execute('UPDATE agents SET ' + ','.join(fields) + ' WHERE id=?', values)
+        conn.execute('UPDATE agents SET ' + ','.join(fields) + ' WHERE id=%s', values)
         conn.commit()
     _log(admin['user_id'], 'update_agent', 'agent', str(aid))
     return jsonify({'success': True, 'message': 'Agent 已更新'})
@@ -903,7 +905,7 @@ def agent_matrix_delete(aid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('DELETE FROM agents WHERE id=?', (aid,))
+        conn.execute('DELETE FROM agents WHERE id=%s', (aid,))
         conn.commit()
     _log(admin['user_id'], 'delete_agent', 'agent', str(aid))
     return jsonify({'success': True, 'message': 'Agent 已删除'})
@@ -919,7 +921,7 @@ def agent_matrix_test(aid):
     if not query:
         return jsonify({'success': False, 'error': '请先输入测试消息（不能为空）'}), 400
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM agents WHERE id=?', (aid,)).fetchone()
+        row = conn.execute('SELECT * FROM agents WHERE id=%s', (aid,)).fetchone()
     if not row:
         return jsonify({'success': False, 'error': 'Agent 不存在'}), 404
     from services.agent_engine import UniversalAgentEngine
@@ -952,7 +954,7 @@ def _require_super_admin():
     if err:
         return None, err
     with get_db() as conn:
-        row = conn.execute('SELECT role FROM admin_profiles WHERE user_id=?', (admin['user_id'],)).fetchone()
+        row = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (admin['user_id'],)).fetchone()
     if not row or row['role'] != 'super_admin':
         return None, (jsonify({'success': False, 'error': '仅超级管理员可执行此操作'}), 403)
     return admin, None
@@ -966,7 +968,7 @@ def admin_list():
         return err
     with get_db() as conn:
         rows = conn.execute('''
-            SELECT u.id, u.phone, IFNULL(u.display_name, u.username), u.email, u.avatar_url, u.active, 
+            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url, u.active, 
                    u.last_login, u.created_at as registered_at,
                    p.role, p.permissions, p.real_name, p.internal_phone, 
                    p.internal_email, p.notes, p.last_login_ip
@@ -994,13 +996,13 @@ def admin_me():
         return err
     with get_db() as conn:
         row = conn.execute('''
-            SELECT u.id, u.phone, IFNULL(u.display_name, u.username), u.email, u.avatar_url,
+            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url,
                    p.role, p.permissions, p.real_name, p.internal_phone,
                    p.internal_email, p.notes, p.last_login_ip, p.last_login_at,
                    p.created_at as admin_since
             FROM users u 
             JOIN admin_profiles p ON u.id = p.user_id
-            WHERE u.id = ?
+            WHERE u.id = %s
         ''', (admin['user_id'],)).fetchone()
     if not row:
         return jsonify({'success': False, 'error': '管理员配置不存在'}), 404
@@ -1023,13 +1025,13 @@ def admin_me_update():
     params = []
     for key in ('real_name', 'internal_phone', 'internal_email', 'notes'):
         if key in data:
-            fields.append(f'{key}=?')
+            fields.append(f'{key}=%s')
             params.append(data.get(key, chr(39)+chr(39)).strip())
     if not fields:
         return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
     params.append(admin['user_id'])
     with get_db() as conn:
-        conn.execute(f'UPDATE admin_profiles SET {", ".join(fields)}, updated_at=datetime(\'now\') WHERE user_id=?', params)
+        conn.execute(f'UPDATE admin_profiles SET {", ".join(fields)}, updated_at=NOW() WHERE user_id=%s', params)
         conn.commit()
         _log(admin['user_id'], 'update_self', 'admin_profile', str(admin['user_id']))
     return jsonify({'success': True, 'message': '已更新'})
@@ -1049,17 +1051,17 @@ def admin_me_phone():
     from models import get_db
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>datetime(\'now\') ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>NOW() ORDER BY id DESC LIMIT 1',
             (new_phone, code, 'change_phone')
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '验证码无效或已过期'}), 400
         # 检查新手机号是否已占用
-        existing = conn.execute('SELECT id FROM users WHERE phone=? AND id!=?', (new_phone, admin['user_id'])).fetchone()
+        existing = conn.execute('SELECT id FROM users WHERE phone=%s AND id!=%s', (new_phone, admin['user_id'])).fetchone()
         if existing:
             return jsonify({'success': False, 'error': '该手机号已被其他用户绑定'}), 400
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (row['id'],))
-        conn.execute('UPDATE users SET phone=?, phone_verified=1 WHERE id=?', (new_phone, admin['user_id']))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
+        conn.execute('UPDATE users SET phone=%s, phone_verified=1 WHERE id=%s', (new_phone, admin['user_id']))
         conn.commit()
         _log(admin['user_id'], 'change_phone', 'admin_profile', str(admin['user_id']), f'新手机: {new_phone}')
     return jsonify({'success': True, 'message': '手机号已更新'})
@@ -1073,13 +1075,13 @@ def admin_detail(uid):
         return err
     with get_db() as conn:
         row = conn.execute('''
-            SELECT u.id, u.phone, IFNULL(u.display_name, u.username), u.email, u.avatar_url, u.active, u.last_login,
+            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url, u.active, u.last_login,
                    p.role, p.permissions, p.real_name, p.internal_phone,
                    p.internal_email, p.notes, p.last_login_ip, p.last_login_at,
                    p.created_at as admin_since, p.updated_at
             FROM users u 
             JOIN admin_profiles p ON u.id = p.user_id
-            WHERE u.id=? AND u.is_admin=1
+            WHERE u.id=%s AND u.is_admin=1
         ''', (uid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '管理员不存在'}), 404
@@ -1090,7 +1092,7 @@ def admin_detail(uid):
             d['permissions'] = []
         # 审计日志
         logs = conn.execute(
-            'SELECT id, action, target_type, target_id, detail, ip_address, created_at FROM admin_logs WHERE admin_id=? ORDER BY created_at DESC LIMIT 30',
+            'SELECT id, action, target_type, target_id, detail, ip_address, created_at FROM admin_logs WHERE admin_id=%s ORDER BY created_at DESC LIMIT 30',
             (uid,)
         ).fetchall()
         d['recent_logs'] = [dict(l) for l in logs]
@@ -1117,9 +1119,9 @@ def admin_create():
     
     with get_db() as conn:
         if uid:
-            user = conn.execute('SELECT id, phone, display_name FROM users WHERE id=?', (uid,)).fetchone()
+            user = conn.execute('SELECT id, phone, display_name FROM users WHERE id=%s', (uid,)).fetchone()
         else:
-            user = conn.execute('SELECT id, phone, display_name FROM users WHERE phone=?', (phone,)).fetchone()
+            user = conn.execute('SELECT id, phone, display_name FROM users WHERE phone=%s', (phone,)).fetchone()
         
         if not user:
             return jsonify({'success': False, 'error': '用户不存在'}), 404
@@ -1127,17 +1129,17 @@ def admin_create():
         if user['id'] == admin['user_id']:
             return jsonify({'success': False, 'error': '不能提升自己，你已经是管理员'}), 400
         
-        existing = conn.execute('SELECT id FROM admin_profiles WHERE user_id=?', (user['id'],)).fetchone()
+        existing = conn.execute('SELECT id FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
         if existing:
             return jsonify({'success': False, 'error': f'{user["display_name"] or user["phone"]} 已经是管理员'}), 400
         
         import json as _json
         permissions_str = _json.dumps(permissions if permissions else [])
         
-        conn.execute('UPDATE users SET is_admin=1 WHERE id=?', (user['id'],))
+        conn.execute('UPDATE users SET is_admin=1 WHERE id=%s', (user['id'],))
         conn.execute('''
             INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes, created_by) 
-            VALUES (?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s)
         ''', (user['id'], role, permissions_str, real_name, notes, admin['user_id']))
         conn.commit()
         _log(admin['user_id'], 'create_admin', 'admin', str(user['id']), f'{user["display_name"] or user["phone"]} ({role})')
@@ -1158,13 +1160,13 @@ def admin_update(uid):
     pf_params = []
     for key in ('role', 'real_name', 'internal_phone', 'internal_email', 'notes'):
         if key in data:
-            pf_fields.append(f'{key}=?')
+            pf_fields.append(f'{key}=%s')
             pf_params.append(data.get(key, chr(39)+chr(39)).strip())
     
     # 处理 permissions（JSON数组）
     if 'permissions' in data:
         import json as _json
-        pf_fields.append('permissions=?')
+        pf_fields.append('permissions=%s')
         pf_params.append(_json.dumps(data['permissions']))
     
     # 处理密码（单独字段，不走 profile）—— 仅短信验证码验证
@@ -1173,7 +1175,7 @@ def admin_update(uid):
     
     with get_db() as conn:
         # 验证目标确实是管理员
-        target = conn.execute('SELECT id, phone, IFNULL(display_name, username) as nickname FROM users WHERE id=? AND is_admin=1', (uid,)).fetchone()
+        target = conn.execute('SELECT id, phone, COALESCE(display_name, username) as nickname FROM users WHERE id=%s AND is_admin=1', (uid,)).fetchone()
         if not target:
             return jsonify({'success': False, 'error': '管理员不存在'}), 404
         
@@ -1181,9 +1183,9 @@ def admin_update(uid):
             return jsonify({'success': False, 'error': '不能将自己降级为非超级管理员'}), 400
         
         if pf_fields:
-            pf_fields.append("updated_at=datetime('now')")
+            pf_fields.append("updated_at=NOW()")
             pf_params.append(uid)
-            conn.execute(f'UPDATE admin_profiles SET {", ".join(pf_fields)} WHERE user_id=?', pf_params)
+            conn.execute(f'UPDATE admin_profiles SET {", ".join(pf_fields)} WHERE user_id=%s', pf_params)
         
         # 修改密码：仅短信验证码验证
         if password:
@@ -1191,18 +1193,18 @@ def admin_update(uid):
                 return jsonify({'success': False, 'error': '请输入短信验证码'}), 400
             # 验证 SMS 验证码
             row = conn.execute(
-                'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>datetime(\'now\') ORDER BY id DESC LIMIT 1',
+                'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>NOW() ORDER BY id DESC LIMIT 1',
                 (target['phone'], code, 'modify_password')
             ).fetchone()
             if not row:
                 return jsonify({'success': False, 'error': '验证码无效或已过期'}), 400
-            conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (row['id'],))
+            conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
             
             import hashlib, secrets
             salt = secrets.token_hex(8)
             pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
             stored = f'pbkdf2:sha256:100000:{salt}:{pw_hash}'
-            conn.execute('UPDATE users SET password_hash=? WHERE id=?', (stored, uid))
+            conn.execute('UPDATE users SET password_hash=%s WHERE id=%s', (stored, uid))
         
         conn.commit()
         _log(admin['user_id'], 'update_admin', 'admin', str(uid), f'role={data.get("role","")}')
@@ -1219,11 +1221,11 @@ def admin_delete(uid):
     if uid == admin['user_id']:
         return jsonify({'success': False, 'error': '不能移除自己，请先转移超管权限'}), 400
     with get_db() as conn:
-        target = conn.execute('SELECT id, display_name, phone FROM users WHERE id=? AND is_admin=1', (uid,)).fetchone()
+        target = conn.execute('SELECT id, display_name, phone FROM users WHERE id=%s AND is_admin=1', (uid,)).fetchone()
         if not target:
             return jsonify({'success': False, 'error': '管理员不存在'}), 404
-        conn.execute('DELETE FROM admin_profiles WHERE user_id=?', (uid,))
-        conn.execute('UPDATE users SET is_admin=0 WHERE id=?', (uid,))
+        conn.execute('DELETE FROM admin_profiles WHERE user_id=%s', (uid,))
+        conn.execute('UPDATE users SET is_admin=0 WHERE id=%s', (uid,))
         conn.commit()
         _log(admin['user_id'], 'remove_admin', 'admin', str(uid), f'{target["display_name"] or target["phone"]}')
     return jsonify({'success': True, 'message': f'已将 {target["display_name"] or target["phone"]} 降为普通用户'})
@@ -1274,7 +1276,7 @@ def admin_me_avatar():
     avatar_url = f'/static/avatars/{filename}'
     from models import get_db
     with get_db() as conn:
-        conn.execute('UPDATE users SET avatar_url=? WHERE id=?', (avatar_url, admin['user_id']))
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, admin['user_id']))
         conn.commit()
     _log(admin['user_id'], 'update_avatar', 'admin_profile', str(admin['user_id']))
     return jsonify({'success': True, 'data': {'avatar_url': avatar_url}})
@@ -1298,7 +1300,7 @@ def user_avatar_upload(uid):
 
     # 验证用户存在
     with get_db() as conn:
-        user = conn.execute('SELECT id, IFNULL(display_name, username) as nickname FROM users WHERE id=?', (uid,)).fetchone()
+        user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname FROM users WHERE id=%s', (uid,)).fetchone()
     if not user:
         return jsonify({'success': False, 'error': '用户不存在'}), 404
 
@@ -1334,7 +1336,7 @@ def user_avatar_upload(uid):
 
     avatar_url = f'/static/avatars/{filename}'
     with get_db() as conn:
-        conn.execute('UPDATE users SET avatar_url=? WHERE id=?', (avatar_url, uid))
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, uid))
         conn.commit()
     _log(admin['user_id'], 'set_user_avatar', 'user', str(uid))
     return jsonify({'success': True, 'data': {'avatar_url': avatar_url}})
@@ -1352,7 +1354,7 @@ def user_avatar_default(uid):
         return jsonify({'success': False, 'error': '请指定默认头像文件名'}), 400
     avatar_url = f'/static/avatars/default/users/{default_name}'
     with get_db() as conn:
-        conn.execute('UPDATE users SET avatar_url=? WHERE id=?', (avatar_url, uid))
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, uid))
         conn.commit()
     _log(admin['user_id'], 'set_user_default_avatar', 'user', str(uid), default_name)
     return jsonify({'success': True, 'data': {'avatar_url': avatar_url}})
@@ -1371,7 +1373,7 @@ def user_agent_avatar_upload(uid):
         return jsonify({'success': False, 'error': '文件名为空'}), 400
 
     with get_db() as conn:
-        user = conn.execute('SELECT id, IFNULL(display_name, username) as nickname FROM users WHERE id=?', (uid,)).fetchone()
+        user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname FROM users WHERE id=%s', (uid,)).fetchone()
     if not user:
         return jsonify({'success': False, 'error': '用户不存在'}), 404
 
@@ -1407,7 +1409,7 @@ def user_agent_avatar_upload(uid):
 
     agent_avatar_url = f'/static/avatars/{filename}'
     with get_db() as conn:
-        conn.execute('UPDATE users SET agent_avatar_url=? WHERE id=?', (agent_avatar_url, uid))
+        conn.execute('UPDATE users SET agent_avatar_url=%s WHERE id=%s', (agent_avatar_url, uid))
         conn.commit()
     _log(admin['user_id'], 'set_agent_avatar', 'user', str(uid))
     return jsonify({'success': True, 'data': {'agent_avatar_url': agent_avatar_url}})
@@ -1425,7 +1427,7 @@ def user_agent_avatar_default(uid):
         return jsonify({'success': False, 'error': '请指定默认头像文件名'}), 400
     agent_avatar_url = f'/static/avatars/default/agents/{default_name}'
     with get_db() as conn:
-        conn.execute('UPDATE users SET agent_avatar_url=? WHERE id=?', (agent_avatar_url, uid))
+        conn.execute('UPDATE users SET agent_avatar_url=%s WHERE id=%s', (agent_avatar_url, uid))
         conn.commit()
     _log(admin['user_id'], 'set_agent_default_avatar', 'user', str(uid), default_name)
     return jsonify({'success': True, 'data': {'agent_avatar_url': agent_avatar_url}})
@@ -1438,7 +1440,7 @@ def user_avatar_clear(uid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('UPDATE users SET avatar_url=\'\' WHERE id=?', (uid,))
+        conn.execute('UPDATE users SET avatar_url=\'\' WHERE id=%s', (uid,))
         conn.commit()
     _log(admin['user_id'], 'clear_user_avatar', 'user', str(uid))
     return jsonify({'success': True})
@@ -1451,7 +1453,7 @@ def user_agent_avatar_clear(uid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('UPDATE users SET agent_avatar_url=\'\' WHERE id=?', (uid,))
+        conn.execute('UPDATE users SET agent_avatar_url=\'\' WHERE id=%s', (uid,))
         conn.commit()
     _log(admin['user_id'], 'clear_agent_avatar', 'user', str(uid))
     return jsonify({'success': True})
@@ -1520,7 +1522,7 @@ def _require_permission(perm):
                 return err
             with get_db() as conn:
                 prof = conn.execute(
-                    'SELECT permissions, role FROM admin_profiles WHERE user_id=?',
+                    'SELECT permissions, role FROM admin_profiles WHERE user_id=%s',
                     (admin['user_id'],)
                 ).fetchone()
             if not prof:
@@ -1558,11 +1560,11 @@ def admin_user_agents_list():
     where = []
     params = []
     if search:
-        where.append('(ua.agent_name LIKE ? OR IFNULL(u.display_name, u.username) LIKE ? OR u.phone LIKE ?)')
+        where.append('(ua.agent_name LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s OR u.phone LIKE %s)')
         s = '%' + search + '%'
         params.extend([s, s, s])
     if status_filter:
-        where.append('ua.status=?')
+        where.append('ua.status=%s')
         params.append(status_filter)
     wsql = 'WHERE ' + ' AND '.join(where) if where else ''
     
@@ -1573,9 +1575,9 @@ def admin_user_agents_list():
         ).fetchone()
         rows = conn.execute(
             "SELECT ua.id, ua.agent_name, ua.agent_type, ua.status, ua.last_active_at, "
-            "       ua.created_at, ua.user_id, IFNULL(u.display_name, u.username) as user_name, u.phone as user_phone "
+            "       ua.created_at, ua.user_id, COALESCE(u.display_name, u.username) as user_name, u.phone as user_phone "
             "FROM user_agents ua LEFT JOIN users u ON ua.user_id=u.id " +
-            wsql + " ORDER BY ua.created_at DESC LIMIT ? OFFSET ?",
+            wsql + " ORDER BY ua.created_at DESC LIMIT %s OFFSET %s",
             params + [limit, offset]
         ).fetchall()
     
@@ -1594,13 +1596,13 @@ def admin_user_agent_list(uid):
     if err:
         return err
     with get_db() as conn:
-        user = conn.execute('SELECT id, IFNULL(display_name, username) as nickname, phone FROM users WHERE id=?', (uid,)).fetchone()
+        user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname, phone FROM users WHERE id=%s', (uid,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': '用户不存在'}), 404
         rows = conn.execute(
             "SELECT ua.id, ua.agent_name, ua.agent_type, ua.avatar_url, ua.status, "
             "       ua.default_scopes, ua.last_active_ip, ua.last_active_at, ua.created_at, ua.updated_at "
-            "FROM user_agents ua WHERE ua.user_id=? ORDER BY ua.created_at DESC",
+            "FROM user_agents ua WHERE ua.user_id=%s ORDER BY ua.created_at DESC",
             (uid,)
         ).fetchall()
         
@@ -1613,7 +1615,7 @@ def admin_user_agent_list(uid):
                 d['default_scopes'] = []
             # Count active keys
             kc = conn.execute(
-                "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=? AND status='active'",
+                "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=%s AND status='active'",
                 (r['id'],)
             ).fetchone()
             d['active_keys'] = kc['c'] if kc else 0
@@ -1638,12 +1640,12 @@ def admin_user_agent_status(aid):
     
     with get_db() as conn:
         row = conn.execute(
-            'SELECT ua.id, ua.agent_name, u.id as uid FROM user_agents ua JOIN users u ON ua.user_id=u.id WHERE ua.id=?',
+            'SELECT ua.id, ua.agent_name, u.id as uid FROM user_agents ua JOIN users u ON ua.user_id=u.id WHERE ua.id=%s',
             (aid,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent不存在'}), 404
-        conn.execute('UPDATE user_agents SET status=?, updated_at=datetime(\'now\') WHERE id=?', (status, aid))
+        conn.execute('UPDATE user_agents SET status=%s, updated_at=NOW() WHERE id=%s', (status, aid))
         conn.commit()
         _log(admin['user_id'], 'set_agent_status', 'user_agent', str(aid),
              f'Agent "{row["agent_name"]}" → {status}')
@@ -1663,17 +1665,17 @@ def admin_user_agent_create(uid):
         return jsonify({'success': False, 'error': 'Agent名称不能为空'}), 400
     
     with get_db() as conn:
-        user = conn.execute('SELECT id, display_name FROM users WHERE id=?', (uid,)).fetchone()
+        user = conn.execute('SELECT id, display_name FROM users WHERE id=%s', (uid,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': '用户不存在'}), 404
         existing = conn.execute(
-            'SELECT id FROM user_agents WHERE user_id=? AND agent_name=?',
+            'SELECT id FROM user_agents WHERE user_id=%s AND agent_name=%s',
             (uid, agent_name)
         ).fetchone()
         if existing:
             return jsonify({'success': False, 'error': '该用户已存在同名Agent'}), 400
         cur = conn.execute(
-            'INSERT INTO user_agents (user_id, agent_name) VALUES (?,?)',
+            'INSERT INTO user_agents (user_id, agent_name) VALUES (%s,%s)',
             (uid, agent_name)
         )
         conn.commit()
@@ -1710,7 +1712,7 @@ def create_social_link():
     with get_db() as conn:
         max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM social_links').fetchone()[0]
         cur = conn.execute(
-            'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (?,?,?,?,?,?)',
+            'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s)',
             (name, url, icon_url, platform, max_sort, is_active)
         )
         conn.commit()
@@ -1729,17 +1731,17 @@ def update_social_link(lid):
     platform = (data.get('platform') or '').strip()
     is_active = data.get('is_active')
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM social_links WHERE id=?', (lid,)).fetchone()
+        row = conn.execute('SELECT * FROM social_links WHERE id=%s', (lid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '不存在'}), 404
         name = name or row['name']
         if not url: url = '#'
         platform = platform or row.get('platform', '')
         if is_active is not None:
-            conn.execute('UPDATE social_links SET name=?, url=?, icon_url=?, platform=?, is_active=?, updated_at=datetime(\'now\') WHERE id=?',
+            conn.execute('UPDATE social_links SET name=%s, url=%s, icon_url=%s, platform=%s, is_active=%s, updated_at=NOW() WHERE id=%s',
                          (name, url, icon_url, platform, 1 if is_active else 0, lid))
         else:
-            conn.execute('UPDATE social_links SET name=?, url=?, icon_url=?, platform=?, updated_at=datetime(\'now\') WHERE id=?',
+            conn.execute('UPDATE social_links SET name=%s, url=%s, icon_url=%s, platform=%s, updated_at=NOW() WHERE id=%s',
                          (name, url, icon_url, platform, lid))
         conn.commit()
         _log(admin['user_id'], 'update', 'social_link', str(lid), f'更新社媒图标: {name}')
@@ -1750,10 +1752,10 @@ def delete_social_link(lid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        row = conn.execute('SELECT name FROM social_links WHERE id=?', (lid,)).fetchone()
+        row = conn.execute('SELECT name FROM social_links WHERE id=%s', (lid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM social_links WHERE id=?', (lid,))
+        conn.execute('DELETE FROM social_links WHERE id=%s', (lid,))
         conn.commit()
         _log(admin['user_id'], 'delete', 'social_link', str(lid), f'删除社媒图标: {row["name"]}')
     return jsonify({'success': True})
@@ -1766,7 +1768,7 @@ def reorder_social_links():
     ids = data.get('ids', [])
     with get_db() as conn:
         for idx, lid in enumerate(ids):
-            conn.execute('UPDATE social_links SET sort_order=? WHERE id=?', (idx, lid))
+            conn.execute('UPDATE social_links SET sort_order=%s WHERE id=%s', (idx, lid))
         conn.commit()
     return jsonify({'success': True})
 
@@ -1792,22 +1794,22 @@ def user_export():
     where = []
     params = []
     if industry:
-        where.append('p.industry LIKE ?')
+        where.append('p.industry LIKE %s')
         params.append('%' + industry + '%')
     if occupation:
-        where.append('p.occupation LIKE ?')
+        where.append('p.occupation LIKE %s')
         params.append('%' + occupation + '%')
     if region:
-        where.append('(pa.province LIKE ? OR pa.city LIKE ? OR pa.district LIKE ?)')
+        where.append('(pa.province LIKE %s OR pa.city LIKE %s OR pa.district LIKE %s)')
         r = '%' + region + '%'
         params.extend([r, r, r])
     wsql = 'WHERE ' + ' AND '.join(where) if where else ''
 
     sql = (
-        "SELECT u.id, u.phone, IFNULL(u.display_name, u.username) as nickname, "
-        "IFNULL(p.industry,'') as industry, IFNULL(p.occupation,'') as occupation, "
-        "IFNULL(pa.province_code,'') as province, IFNULL(pa.city_code,'') as city, "
-        "IFNULL(pa.district_code,'') as district, "
+        "SELECT u.id, u.phone, COALESCE(u.display_name, u.username) as nickname, "
+        "COALESCE(p.industry,'') as industry, COALESCE(p.occupation,'') as occupation, "
+        "COALESCE(pa.province_code,'') as province, COALESCE(pa.city_code,'') as city, "
+        "COALESCE(pa.district_code,'') as district, "
         "'' as tier, u.created_at "
         "FROM users u "
         "LEFT JOIN user_profiles p ON u.id=p.user_id "
@@ -1876,10 +1878,10 @@ def update_brand_settings():
     updates = {k: data[k] for k in allowed if k in data}
     if not updates:
         return jsonify({'success': False, 'error': '无有效更新字段'}), 400
-    sets = ', '.join(f'{k}=?' for k in updates)
+    sets = ', '.join(f'{k}=%s' for k in updates)
     vals = list(updates.values()) + [1]
     with get_db() as conn:
-        conn.execute(f'UPDATE brand_settings SET {sets}, updated_at=datetime(\'now\') WHERE id=?', vals)
+        conn.execute(f'UPDATE brand_settings SET {sets}, updated_at=NOW() WHERE id=%s', vals)
         conn.commit()
     _log(admin['user_id'], 'update_brand', detail=str(list(updates.keys())))
     return jsonify({'success': True})
@@ -1925,7 +1927,7 @@ def upload_brand_logo():
     if error:
         return jsonify({'success': False, 'error': error}), 400
     with get_db() as conn:
-        conn.execute("UPDATE brand_settings SET logo_url=?, logo_full_url=?, updated_at=datetime('now') WHERE id=1", (url, url))
+        conn.execute("UPDATE brand_settings SET logo_url=%s, logo_full_url=%s, updated_at=NOW() WHERE id=1", (url, url))
         conn.commit()
     _log(admin['user_id'], 'upload_brand_logo', detail=url)
     return jsonify({'success': True, 'logo_url': url})
@@ -1936,7 +1938,7 @@ def delete_brand_logo():
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute("UPDATE brand_settings SET logo_url='', logo_full_url='', updated_at=datetime('now') WHERE id=1")
+        conn.execute("UPDATE brand_settings SET logo_url='', logo_full_url='', updated_at=NOW() WHERE id=1")
         conn.commit()
     _log(admin['user_id'], 'delete_brand_logo')
     return jsonify({'success': True})
@@ -1950,7 +1952,7 @@ def upload_brand_favicon():
     if error:
         return jsonify({'success': False, 'error': error}), 400
     with get_db() as conn:
-        conn.execute("UPDATE brand_settings SET favicon_url=?, updated_at=datetime('now') WHERE id=1", (url,))
+        conn.execute("UPDATE brand_settings SET favicon_url=%s, updated_at=NOW() WHERE id=1", (url,))
         conn.commit()
     _log(admin['user_id'], 'upload_brand_favicon', detail=url)
     return jsonify({'success': True, 'favicon_url': url})
@@ -1961,7 +1963,7 @@ def delete_brand_favicon():
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute("UPDATE brand_settings SET favicon_url='', updated_at=datetime('now') WHERE id=1")
+        conn.execute("UPDATE brand_settings SET favicon_url='', updated_at=NOW() WHERE id=1")
         conn.commit()
     _log(admin['user_id'], 'delete_brand_favicon')
     return jsonify({'success': True})
@@ -1977,7 +1979,7 @@ def upload_brand_logo_icon():
     if error:
         return jsonify({'success': False, 'error': error}), 400
     with get_db() as conn:
-        conn.execute("UPDATE brand_settings SET logo_icon_url=?, updated_at=datetime('now') WHERE id=1", (url,))
+        conn.execute("UPDATE brand_settings SET logo_icon_url=%s, updated_at=NOW() WHERE id=1", (url,))
         conn.commit()
     _log(admin['user_id'], 'upload_brand_logo_icon', detail=url)
     return jsonify({'success': True, 'logo_icon_url': url})
@@ -1988,7 +1990,7 @@ def delete_brand_logo_icon():
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute("UPDATE brand_settings SET logo_icon_url='', updated_at=datetime('now') WHERE id=1")
+        conn.execute("UPDATE brand_settings SET logo_icon_url='', updated_at=NOW() WHERE id=1")
         conn.commit()
     _log(admin['user_id'], 'delete_brand_logo_icon')
     return jsonify({'success': True})
@@ -2068,7 +2070,7 @@ def _check_domain_quota(user_id):
     """检查用户是否还能添加子域名"""
     with get_db() as conn:
         sub = conn.execute(
-            "SELECT plan_key FROM subscriptions WHERE user_id=? AND status='active'",
+            "SELECT plan_key FROM subscriptions WHERE user_id=%s AND status='active'",
             (user_id,)
         ).fetchone()
         if not sub:
@@ -2145,14 +2147,14 @@ def admin_create_domain():
     with get_db() as conn:
         # 检查是否已存在
         exists = conn.execute(
-            "SELECT id FROM site_domains WHERE full_domain=?", (full_domain,)
+            "SELECT id FROM site_domains WHERE full_domain=%s", (full_domain,)
         ).fetchone()
         if exists:
             return jsonify({'success': False, 'error': f'子域名 {full_domain} 已存在'}), 400
 
         conn.execute(
             "INSERT INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, service_port) "
-            "VALUES (1, ?, ?, ?, ?, ?)",
+            "VALUES (1, %s, %s, %s, %s, %s)",
             (subdomain, full_domain, display_name, template, service_port)
         )
         conn.commit()
@@ -2181,13 +2183,13 @@ def admin_update_domain(did):
 
     # 先读取旧 full_domain
     with get_db() as conn:
-        old_row = conn.execute("SELECT full_domain, subdomain FROM site_domains WHERE id=?", (did,)).fetchone()
+        old_row = conn.execute("SELECT full_domain, subdomain FROM site_domains WHERE id=%s", (did,)).fetchone()
 
-    sets = ', '.join(f'{k}=?' for k in updates)
+    sets = ', '.join(f'{k}=%s' for k in updates)
     vals = list(updates.values()) + [did]
     with get_db() as conn:
         conn.execute(
-            f'UPDATE site_domains SET {sets}, updated_at=datetime(\'now\') WHERE id=?',
+            f'UPDATE site_domains SET {sets}, updated_at=NOW() WHERE id=%s',
             vals
         )
         conn.commit()
@@ -2214,12 +2216,12 @@ def admin_delete_domain(did):
         return err
     with get_db() as conn:
         row = conn.execute(
-            "SELECT full_domain, service_port FROM site_domains WHERE id=?", (did,)
+            "SELECT full_domain, service_port FROM site_domains WHERE id=%s", (did,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '子域名不存在'}), 404
         full_domain = row['full_domain']
-        conn.execute("DELETE FROM site_domains WHERE id=?", (did,))
+        conn.execute("DELETE FROM site_domains WHERE id=%s", (did,))
         conn.commit()
     # 删除 Nginx 配置文件
     _remove_domain_nginx_config(full_domain)
@@ -2244,7 +2246,7 @@ def admin_domain_nginx_config(did):
         return err
     with get_db() as conn:
         row = conn.execute(
-            "SELECT full_domain, subdomain, service_port FROM site_domains WHERE id=?", (did,)
+            "SELECT full_domain, subdomain, service_port FROM site_domains WHERE id=%s", (did,)
         ).fetchone()
     if not row:
         return jsonify({'success': False, 'error': '子域名不存在'}), 404
@@ -2303,7 +2305,7 @@ def admin_notif_templates_create():
     with get_db() as conn:
         try:
             cur = conn.execute(
-                'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (?,?,?,?,?)',
+                'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (%s,%s,%s,%s,%s)',
                 (event_type, title_tmpl, content_tmpl, link_url_tmpl, ntype)
             )
             conn.commit()
@@ -2323,13 +2325,13 @@ def admin_notif_templates_update(tid):
     vals = []
     for key in ('event_type', 'title_template', 'content_template', 'link_url_template', 'type', 'is_active'):
         if key in data:
-            fields.append(f'{key}=?')
+            fields.append(f'{key}=%s')
             vals.append(data[key])
     if not fields:
         return jsonify({'success': False, 'error': '无更新字段'}), 400
     vals.append(tid)
     with get_db() as conn:
-        conn.execute(f'UPDATE notification_templates SET {", ".join(fields)}, updated_at=datetime("now") WHERE id=?', vals)
+        conn.execute(f'UPDATE notification_templates SET {", ".join(fields)}, updated_at=NOW() WHERE id=%s', vals)
         conn.commit()
     _log(admin['user_id'], 'update_notif_template', detail=f'{tid}')
     return jsonify({'success': True})
@@ -2340,7 +2342,7 @@ def admin_notif_templates_delete(tid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute('DELETE FROM notification_templates WHERE id=?', (tid,))
+        conn.execute('DELETE FROM notification_templates WHERE id=%s', (tid,))
         conn.commit()
     _log(admin['user_id'], 'delete_notif_template', detail=f'{tid}')
     return jsonify({'success': True})
@@ -2413,7 +2415,7 @@ def admin_notif_test():
 
 @admin_bp.route('/tickets', methods=['GET'])
 def admin_tickets_list():
-    """管理员查看工单列表，支持 ?status=open&type=complaint 多维筛选"""
+    """管理员查看工单列表，支持 %sstatus=open&type=complaint 多维筛选"""
     admin, err = _require_admin()
     if err: return err
     status = request.args.get('status', '').strip()
@@ -2423,10 +2425,10 @@ def admin_tickets_list():
         where = []
         params = []
         if status:
-            where.append("t.status=?")
+            where.append("t.status=%s")
             params.append(status)
         if ttype and ttype in ("presale","aftersale","complaint","suggestion"):
-            where.append("t.type=?")
+            where.append("t.type=%s")
             params.append(ttype)
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = conn.execute(
@@ -2463,17 +2465,17 @@ def admin_tickets_update(tid):
             if not reply:
                 return jsonify({'success': False, 'error': '回复内容不能为空'}), 400
             conn.execute(
-                "UPDATE user_tickets SET admin_reply=?, status='replied', replied_at=datetime('now'), updated_at=datetime('now') WHERE id=?",
+                "UPDATE user_tickets SET admin_reply=%s, status='replied', replied_at=NOW(), updated_at=NOW() WHERE id=%s",
                 (reply, tid)
             )
         elif action == 'close':
             conn.execute(
-                "UPDATE user_tickets SET status='closed', updated_at=datetime('now') WHERE id=?",
+                "UPDATE user_tickets SET status='closed', updated_at=NOW() WHERE id=%s",
                 (tid,)
             )
         elif action == 'reopen':
             conn.execute(
-                "UPDATE user_tickets SET status='open', updated_at=datetime('now') WHERE id=?",
+                "UPDATE user_tickets SET status='open', updated_at=NOW() WHERE id=%s",
                 (tid,)
             )
         conn.commit()
@@ -2507,7 +2509,7 @@ def admin_reward_rules_create():
         return jsonify({'success': False, 'error': '规则名称不能为空'}), 400
     with get_db() as conn:
         cur = conn.execute(
-            'INSERT INTO reward_rules (name, condition_key, condition_value, reward_type, reward_id, reward_name, sort_order, is_active) VALUES (?,?,?,?,?,?,?,?)',
+            'INSERT INTO reward_rules (name, condition_key, condition_value, reward_type, reward_id, reward_name, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
             (name, data.get('condition_key', ''), data.get('condition_value', ''),
              data.get('reward_type', 'coupon'), data.get('reward_id'), data.get('reward_name', ''),
              data.get('sort_order', 0), 1 if data.get('is_active', True) else 0)
@@ -2530,10 +2532,10 @@ def admin_reward_rules_update(rid):
             updates[k] = data[k]
     if not updates:
         return jsonify({'success': False, 'error': '没有可更新的字段'}), 400
-    sets = ', '.join(f'{k}=?' for k in updates.keys())
+    sets = ', '.join(f'{k}=%s' for k in updates.keys())
     vals = list(updates.values()) + [rid]
     with get_db() as conn:
-        conn.execute(f'UPDATE reward_rules SET {sets} WHERE id=?', vals)
+        conn.execute(f'UPDATE reward_rules SET {sets} WHERE id=%s', vals)
         conn.commit()
     _log(admin['user_id'], 'update_reward_rule', detail=f'id={rid}')
     return jsonify({'success': True})
@@ -2544,8 +2546,8 @@ def admin_reward_rules_delete(rid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute('DELETE FROM reward_rules WHERE id=?', (rid,))
-        conn.execute('DELETE FROM reward_claims WHERE rule_id=?', (rid,))
+        conn.execute('DELETE FROM reward_rules WHERE id=%s', (rid,))
+        conn.execute('DELETE FROM reward_claims WHERE rule_id=%s', (rid,))
         conn.commit()
     _log(admin['user_id'], 'delete_reward_rule', detail=f'id={rid}')
     return jsonify({'success': True})
@@ -2564,7 +2566,7 @@ def admin_reward_claims_list():
             FROM reward_claims rc
             LEFT JOIN reward_rules r ON rc.rule_id = r.id
             LEFT JOIN users u ON rc.user_id = u.id
-            ORDER BY rc.id DESC LIMIT ? OFFSET ?
+            ORDER BY rc.id DESC LIMIT %s OFFSET %s
         """, (page_size, offset)).fetchall()
         total = conn.execute('SELECT COUNT(*) as c FROM reward_claims').fetchone()['c']
     return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total})
@@ -2580,7 +2582,7 @@ def admin_interests_list():
     with get_db() as conn:
         if category:
             rows = conn.execute(
-                'SELECT * FROM interests WHERE category=? ORDER BY sort_order, id', (category,)
+                'SELECT * FROM interests WHERE category=%s ORDER BY sort_order, id', (category,)
             ).fetchall()
         else:
             rows = conn.execute(
@@ -2599,11 +2601,11 @@ def admin_interests_create():
     if not name or not category:
         return jsonify({'success': False, 'error': '名称和分类不能为空'}), 400
     with get_db() as conn:
-        existing = conn.execute('SELECT id FROM interests WHERE name=?', (name,)).fetchone()
+        existing = conn.execute('SELECT id FROM interests WHERE name=%s', (name,)).fetchone()
         if existing:
             return jsonify({'success': False, 'error': f'标签"{name}"已存在'}), 409
         cursor = conn.execute(
-            'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (?,?,?,?,?)',
+            'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s)',
             (name, category, data.get('sort_order', 0), data.get('is_hot', 0), data.get('is_active', 1))
         )
         conn.commit()
@@ -2623,10 +2625,10 @@ def admin_interests_update(iid):
             updates[k] = data[k]
     if not updates:
         return jsonify({'success': False, 'error': '没有可更新的字段'}), 400
-    sets = ', '.join(f'{k}=?' for k in updates)
+    sets = ', '.join(f'{k}=%s' for k in updates)
     vals = list(updates.values()) + [iid]
     with get_db() as conn:
-        conn.execute(f'UPDATE interests SET {sets} WHERE id=?', vals)
+        conn.execute(f'UPDATE interests SET {sets} WHERE id=%s', vals)
         conn.commit()
     _log(admin['user_id'], 'update_interest', detail=f'id={iid}')
     return jsonify({'success': True})
@@ -2637,8 +2639,8 @@ def admin_interests_delete(iid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute('DELETE FROM interests WHERE id=?', (iid,))
-        conn.execute('DELETE FROM user_interests WHERE interest_id=?', (iid,))
+        conn.execute('DELETE FROM interests WHERE id=%s', (iid,))
+        conn.execute('DELETE FROM user_interests WHERE interest_id=%s', (iid,))
         conn.commit()
     _log(admin['user_id'], 'delete_interest', detail=f'id={iid}')
     return jsonify({'success': True})
@@ -2823,7 +2825,7 @@ def list_providers():
         ).fetchall()]
         for p in providers:
             p['models'] = [dict(r) for r in conn.execute(
-                'SELECT * FROM provider_models WHERE provider_id=? ORDER BY sort_order, id',
+                'SELECT * FROM provider_models WHERE provider_id=%s ORDER BY sort_order, id',
                 (p['id'],)
             ).fetchall()]
     return jsonify({'success': True, 'data': providers})
@@ -2836,14 +2838,14 @@ def update_provider(pid):
     if err: return err
     data = request.get_json(force=True) or {}
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM providers WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT * FROM providers WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '不存在'}), 404
         name = (data.get('name') or row['name']).strip()
         desc = data.get('description', row['description'])
         is_active = data.get('is_active', row['is_active'])
         conn.execute(
-            "UPDATE providers SET name=?, description=?, is_active=?, updated_at=datetime('now') WHERE id=?",
+            "UPDATE providers SET name=%s, description=%s, is_active=%s, updated_at=NOW() WHERE id=%s",
             (name, desc, int(is_active) if is_active is not None else 1, pid))
         conn.commit()
         _log(admin['user_id'], 'update', 'provider', str(pid), f'更新提供商: {name}')
@@ -2861,7 +2863,7 @@ def list_provider_models():
     with get_db() as conn:
         if pid:
             rows = conn.execute(
-                'SELECT pm.*, p.name as provider_name, p.slug as provider_slug FROM provider_models pm JOIN providers p ON p.id=pm.provider_id WHERE pm.provider_id=? ORDER BY pm.sort_order, pm.id',
+                'SELECT pm.*, p.name as provider_name, p.slug as provider_slug FROM provider_models pm JOIN providers p ON p.id=pm.provider_id WHERE pm.provider_id=%s ORDER BY pm.sort_order, pm.id',
                 (pid,)
             ).fetchall()
         else:
@@ -2887,7 +2889,7 @@ def create_provider_model():
         return jsonify({'success': False, 'error': '名称和提供商不能为空'}), 400
     with get_db() as conn:
         cur = conn.execute(
-            'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (?,?,?,?,?,?)',
+            'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (%s,%s,%s,%s,%s,%s)',
             (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities))
         conn.commit()
         mid = cur.lastrowid
@@ -2902,7 +2904,7 @@ def update_provider_model(mid):
     if err: return err
     data = request.get_json(force=True) or {}
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM provider_models WHERE id=?', (mid,)).fetchone()
+        row = conn.execute('SELECT * FROM provider_models WHERE id=%s', (mid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '不存在'}), 404
         name = (data.get('name') or row['name']).strip()
@@ -2914,9 +2916,9 @@ def update_provider_model(mid):
         is_active = data.get('is_active', row['is_active'])
         sort_order = data.get('sort_order', row['sort_order'])
         conn.execute(
-            '''UPDATE provider_models SET provider_id=?, name=?, model_name=?, endpoint_url=?,
-               api_key_ref=?, capabilities=?, is_active=?, sort_order=?,
-               updated_at=datetime('now') WHERE id=?''',
+            '''UPDATE provider_models SET provider_id=%s, name=%s, model_name=%s, endpoint_url=%s,
+               api_key_ref=%s, capabilities=%s, is_active=%s, sort_order=%s,
+               updated_at=NOW() WHERE id=%s''',
             (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities,
              int(is_active) if is_active is not None else 1, sort_order, mid))
         conn.commit()
@@ -2930,10 +2932,10 @@ def delete_provider_model(mid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        row = conn.execute('SELECT name FROM provider_models WHERE id=?', (mid,)).fetchone()
+        row = conn.execute('SELECT name FROM provider_models WHERE id=%s', (mid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM provider_models WHERE id=?', (mid,))
+        conn.execute('DELETE FROM provider_models WHERE id=%s', (mid,))
         conn.commit()
         _log(admin['user_id'], 'delete', 'provider_model', str(mid), f'删除模型: {row["name"]}')
         return jsonify({'success': True})
@@ -2971,7 +2973,7 @@ def media_voice_clone():
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO voice_templates (user_id, name, sample_url, provider, status)
-               VALUES (?,?,?,?,'pending')""",
+               VALUES (%s,%s,%s,%s,'pending')""",
             (admin['user_id'], name, audio_url, 'volcengine'))
         conn.commit()
         vid = cur.lastrowid
@@ -2995,21 +2997,21 @@ def media_voice_clone():
             voice_id = result.get('data', {}).get('voice_id', '')
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE voice_templates SET external_voice_id=?, status='ready', updated_at=datetime('now') WHERE id=?",
+                    "UPDATE voice_templates SET external_voice_id=%s, status='ready', updated_at=NOW() WHERE id=%s",
                     (voice_id, vid))
                 conn.commit()
             return jsonify({'success': True, 'data': {'id': vid, 'voice_id': voice_id, 'status': 'ready'}})
         else:
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE voice_templates SET status='failed', error_msg=?, updated_at=datetime('now') WHERE id=?",
+                    "UPDATE voice_templates SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                     (result.get('data', {}).get('error', result.get('error', '未知错误')), vid))
                 conn.commit()
             return jsonify({'success': False, 'error': result.get('data', {}).get('error', result.get('error', ''))}), 500
     except Exception as e:
         with get_db() as conn:
             conn.execute(
-                "UPDATE voice_templates SET status='failed', error_msg=?, updated_at=datetime('now') WHERE id=?",
+                "UPDATE voice_templates SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                 (str(e), vid))
             conn.commit()
         return jsonify({'success': False, 'error': f'Agent 调用失败: {e}'}), 500
@@ -3022,7 +3024,7 @@ def media_voice_list():
     if err: return err
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM voice_templates WHERE user_id=? ORDER BY created_at DESC",
+            "SELECT * FROM voice_templates WHERE user_id=%s ORDER BY created_at DESC",
             (admin['user_id'],)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -3034,7 +3036,7 @@ def media_voice_delete(vid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute("DELETE FROM voice_templates WHERE id=? AND user_id=?", (vid, admin['user_id']))
+        conn.execute("DELETE FROM voice_templates WHERE id=%s AND user_id=%s", (vid, admin['user_id']))
         conn.commit()
     return jsonify({'success': True})
 
@@ -3061,7 +3063,7 @@ def media_video_create():
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO video_tasks (user_id, title, voice_template_id, text_content,
-               avatar_image_url, provider, status) VALUES (?,?,?,?,?,?,'pending')""",
+               avatar_image_url, provider, status) VALUES (%s,%s,%s,%s,%s,%s,'pending')""",
             (admin['user_id'], title, int(voice_id) if voice_id.isdigit() else 0,
              text, image_url, 'volcengine'))
         conn.commit()
@@ -3086,21 +3088,21 @@ def media_video_create():
             ext_task_id = result.get('data', {}).get('task_id', '')
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE video_tasks SET external_task_id=?, status='processing', updated_at=datetime('now') WHERE id=?",
+                    "UPDATE video_tasks SET external_task_id=%s, status='processing', updated_at=NOW() WHERE id=%s",
                     (ext_task_id, tid))
                 conn.commit()
             return jsonify({'success': True, 'data': {'id': tid, 'status': 'processing', 'external_task_id': ext_task_id}})
         else:
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE video_tasks SET status='failed', error_msg=?, updated_at=datetime('now') WHERE id=?",
+                    "UPDATE video_tasks SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                     (result.get('data', {}).get('error', result.get('error', '未知错误')), tid))
                 conn.commit()
             return jsonify({'success': False, 'error': result.get('data', {}).get('error', result.get('error', ''))}), 500
     except Exception as e:
         with get_db() as conn:
             conn.execute(
-                "UPDATE video_tasks SET status='failed', error_msg=?, updated_at=datetime('now') WHERE id=?",
+                "UPDATE video_tasks SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                 (str(e), tid))
             conn.commit()
         return jsonify({'success': False, 'error': f'Agent 调用失败: {e}'}), 500
@@ -3119,7 +3121,7 @@ def media_video_list():
         ai_rows = conn.execute(
             """SELECT v.*, vt.name as voice_name, vt.external_voice_id
                FROM video_tasks v LEFT JOIN voice_templates vt ON vt.id=v.voice_template_id
-               WHERE v.user_id=? ORDER BY v.created_at DESC""",
+               WHERE v.user_id=%s ORDER BY v.created_at DESC""",
             (admin['user_id'],)
         ).fetchall()
         # 媒体库视频
@@ -3161,7 +3163,7 @@ def media_video_status(tid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        task = conn.execute("SELECT * FROM video_tasks WHERE id=? AND user_id=?", (tid, admin['user_id'])).fetchone()
+        task = conn.execute("SELECT * FROM video_tasks WHERE id=%s AND user_id=%s", (tid, admin['user_id'])).fetchone()
         if not task:
             return jsonify({'success': False, 'error': '不存在'}), 404
         task = dict(task)
@@ -3197,7 +3199,7 @@ def media_video_status(tid):
                         output_url = video_url
                     with get_db() as conn:
                         conn.execute(
-                            "UPDATE video_tasks SET status='done', output_url=?, updated_at=datetime('now') WHERE id=?",
+                            "UPDATE video_tasks SET status='done', output_url=%s, updated_at=NOW() WHERE id=%s",
                             (output_url, tid))
                         conn.commit()
                     task['status'] = 'done'
@@ -3205,7 +3207,7 @@ def media_video_status(tid):
                 elif qdata.get('status') == 'failed':
                     with get_db() as conn:
                         conn.execute(
-                            "UPDATE video_tasks SET status='failed', error_msg=?, updated_at=datetime('now') WHERE id=?",
+                            "UPDATE video_tasks SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                             (qdata.get('error', '生成失败'), tid))
                         conn.commit()
                     task['status'] = 'failed'
@@ -3225,7 +3227,7 @@ def media_video_download(tid):
     if tid > 100000:
         real_id = tid - 100000
         with get_db() as conn:
-            row = conn.execute("SELECT * FROM media_files WHERE id=?", (real_id,)).fetchone()
+            row = conn.execute("SELECT * FROM media_files WHERE id=%s", (real_id,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '文件不存在'}), 404
         fp = os.path.join(MEDIA_LIB_DIR, row['filename'])
@@ -3246,7 +3248,7 @@ def media_video_delete(tid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute("DELETE FROM video_tasks WHERE id=? AND user_id=?", (tid, admin['user_id']))
+        conn.execute("DELETE FROM video_tasks WHERE id=%s AND user_id=%s", (tid, admin['user_id']))
         conn.commit()
     # 删除本地文件
     local_path = _os_media.path.join(MEDIA_DIR, 'videos', f'{tid}.mp4')
@@ -3261,11 +3263,11 @@ def media_video_retry(tid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        task = conn.execute("SELECT * FROM video_tasks WHERE id=? AND user_id=?", (tid, admin['user_id'])).fetchone()
+        task = conn.execute("SELECT * FROM video_tasks WHERE id=%s AND user_id=%s", (tid, admin['user_id'])).fetchone()
         if not task:
             return jsonify({'success': False, 'error': '不存在'}), 404
         task = dict(task)
-        conn.execute("UPDATE video_tasks SET status='pending', error_msg='', updated_at=datetime('now') WHERE id=?", (tid,))
+        conn.execute("UPDATE video_tasks SET status='pending', error_msg='', updated_at=NOW() WHERE id=%s", (tid,))
         conn.commit()
 
     # 重新 dispatch
@@ -3289,20 +3291,20 @@ def media_video_retry(tid):
             ext_task_id = result.get('data', {}).get('task_id', '')
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE video_tasks SET external_task_id=?, status='processing', updated_at=datetime('now') WHERE id=?",
+                    "UPDATE video_tasks SET external_task_id=%s, status='processing', updated_at=NOW() WHERE id=%s",
                     (ext_task_id, tid))
                 conn.commit()
             return jsonify({'success': True, 'data': {'id': tid, 'status': 'processing'}})
         else:
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE video_tasks SET status='failed', error_msg=? WHERE id=?",
+                    "UPDATE video_tasks SET status='failed', error_msg=%s WHERE id=%s",
                     (result.get('data', {}).get('error', '重试失败'), tid))
                 conn.commit()
             return jsonify({'success': False, 'error': result.get('data', {}).get('error', '')}), 500
     except Exception as e:
         with get_db() as conn:
-            conn.execute("UPDATE video_tasks SET status='failed', error_msg=? WHERE id=?", (str(e), tid))
+            conn.execute("UPDATE video_tasks SET status='failed', error_msg=%s WHERE id=%s", (str(e), tid))
             conn.commit()
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -3313,11 +3315,11 @@ def media_video_toggle_homepage(tid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        task = conn.execute("SELECT is_homepage FROM video_tasks WHERE id=?", (tid,)).fetchone()
+        task = conn.execute("SELECT is_homepage FROM video_tasks WHERE id=%s", (tid,)).fetchone()
         if not task:
             return jsonify({'success': False, 'error': '不存在'}), 404
         new_val = 0 if task['is_homepage'] else 1
-        conn.execute("UPDATE video_tasks SET is_homepage=?, updated_at=datetime('now') WHERE id=?", (new_val, tid))
+        conn.execute("UPDATE video_tasks SET is_homepage=%s, updated_at=NOW() WHERE id=%s", (new_val, tid))
         conn.commit()
     return jsonify({'success': True, 'data': {'is_homepage': new_val}})
 
@@ -3378,7 +3380,7 @@ def media_library_upload():
     with get_db() as conn:
         cursor = conn.execute(
             "INSERT INTO media_files (filename, original_name, mime_type, file_size, file_path, thumb_path) "
-            "VALUES (?,?,?,?,?,?)",
+            "VALUES (%s,%s,%s,%s,%s,%s)",
             (safe_name, f.filename, mime, file_size, 'media/' + safe_name,
              'media/thumbs/' + thumb_name if thumb_name else '')
         )
@@ -3405,7 +3407,7 @@ def media_library_list():
     with get_db() as conn:
         total = conn.execute("SELECT COUNT(*) as c FROM media_files").fetchone()['c']
         rows = conn.execute(
-            "SELECT id, filename, original_name, mime_type, file_size, file_path, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, filename, original_name, mime_type, file_size, file_path, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT %s OFFSET %s",
             (limit, offset)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total, 'page': page, 'limit': limit})
@@ -3416,7 +3418,7 @@ def media_library_delete(fid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM media_files WHERE id=?", (fid,)).fetchone()
+        row = conn.execute("SELECT * FROM media_files WHERE id=%s", (fid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '文件不存在'}), 404
         fp = os.path.join(MEDIA_LIB_DIR, row['filename'])
@@ -3426,7 +3428,7 @@ def media_library_delete(fid):
             tp = os.path.join(MEDIA_LIB_DIR, '..', row['thumb_path'])
             if os.path.exists(tp):
                 os.remove(tp)
-        conn.execute("DELETE FROM media_files WHERE id=?", (fid,))
+        conn.execute("DELETE FROM media_files WHERE id=%s", (fid,))
         conn.commit()
     return jsonify({'success': True})
 
@@ -3436,7 +3438,7 @@ def media_library_download(fid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM media_files WHERE id=?", (fid,)).fetchone()
+        row = conn.execute("SELECT * FROM media_files WHERE id=%s", (fid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '文件不存在'}), 404
     fp = os.path.join(MEDIA_LIB_DIR, row['filename'])
@@ -3452,7 +3454,7 @@ def media_library_push(fid):
     data = request.get_json(silent=True) or {}
     target = data.get('target', 'feishu')
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM media_files WHERE id=?", (fid,)).fetchone()
+        row = conn.execute("SELECT * FROM media_files WHERE id=%s", (fid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '文件不存在'}), 404
 
@@ -3478,8 +3480,8 @@ def media_library_push(fid):
     if result['success']:
         with get_db() as conn:
             conn.execute(
-                "UPDATE media_files SET push_status='done', push_target=?, "
-                "pushed_at=datetime('now'), updated_at=datetime('now') WHERE id=?",
+                "UPDATE media_files SET push_status='done', push_target=%s, "
+                "pushed_at=NOW(), updated_at=NOW() WHERE id=%s",
                 (target, fid)
             )
             conn.commit()
@@ -3558,7 +3560,7 @@ def quota_stats():
     with get_db() as conn:
         total_keys = conn.execute('SELECT COUNT(*) as c FROM api_keys').fetchone()['c']
         active_keys = conn.execute('SELECT COUNT(*) as c FROM api_keys WHERE active=1').fetchone()['c']
-        today_calls = conn.execute("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=date('now')").fetchone()['c']
+        today_calls = conn.execute("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=CURRENT_DATE").fetchone()['c']
         total_calls = conn.execute('SELECT COALESCE(SUM(calls_total),0) as c FROM api_keys').fetchone()['c']
         user_tiers = conn.execute(
             "SELECT a.tier, COUNT(DISTINCT a.user_id) as count FROM app_authorizations a WHERE a.active=1 GROUP BY a.tier"
@@ -3592,7 +3594,7 @@ def quota_users():
         where = ''
         params = []
         if search:
-            where = "WHERE (u.username LIKE ? OR u.display_name LIKE ?)"
+            where = "WHERE (u.username LIKE %s OR u.display_name LIKE %s)"
             params = [f'%{search}%', f'%{search}%']
         total = conn.execute(f'SELECT COUNT(*) as c FROM users u {where}', params).fetchone()['c']
         rows = conn.execute(f"""
@@ -3605,7 +3607,7 @@ def quota_users():
             LEFT JOIN app_authorizations a ON u.id=a.user_id AND a.active=1
             {where}
             ORDER BY u.created_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """, params + [limit, offset]).fetchall()
         users = [dict(r) for r in rows]
         for u in users:
@@ -3630,13 +3632,13 @@ def quota_set_user_tier(uid):
         return jsonify({'success': False, 'error': f'无效的等级: {tier}'}), 400
     with get_db() as conn:
         existing = conn.execute(
-            "SELECT id FROM app_authorizations WHERE user_id=? AND active=1", (uid,)
+            "SELECT id FROM app_authorizations WHERE user_id=%s AND active=1", (uid,)
         ).fetchone()
         if existing:
-            conn.execute("UPDATE app_authorizations SET tier=?, last_reset=date('now') WHERE id=?", (tier, existing['id']))
+            conn.execute("UPDATE app_authorizations SET tier=%s, last_reset=CURRENT_DATE WHERE id=%s", (tier, existing['id']))
         else:
             conn.execute(
-                "INSERT INTO app_authorizations (user_id, app_name, tier, active) VALUES (?, 'platform', ?, 1)",
+                "INSERT INTO app_authorizations (user_id, app_name, tier, active) VALUES (%s, 'platform', %s, 1)",
                 (uid, tier)
             )
         conn.commit()
@@ -3664,7 +3666,7 @@ def quota_keys():
             LEFT JOIN users u ON k.user_id=u.id
             LEFT JOIN app_authorizations a ON u.id=a.user_id AND a.active=1
             ORDER BY k.created_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """, (limit, offset)).fetchall()
     return jsonify({'success': True, 'data': {
         'total': total, 'page': page, 'limit': limit, 'keys': [dict(r) for r in rows]
@@ -3678,7 +3680,7 @@ def quota_reset_key(kid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute("UPDATE api_keys SET calls_today=0, last_reset=date('now') WHERE id=?", (kid,))
+        conn.execute("UPDATE api_keys SET calls_today=0, last_reset=CURRENT_DATE WHERE id=%s", (kid,))
         conn.commit()
     _log(admin['user_id'], 'reset_key_quota', 'api_key', str(kid))
     return jsonify({'success': True, 'message': '已重置该密钥的日调用量'})
@@ -3694,7 +3696,7 @@ def quota_overview():
         # 每日总调用量最近7天
         daily = conn.execute("""
             SELECT last_reset as date, SUM(calls_today) as calls_count
-            FROM api_keys WHERE last_reset >= date('now', '-7 days')
+            FROM api_keys WHERE last_reset >= CURRENT_DATE - INTERVAL '7 days'
             GROUP BY last_reset ORDER BY last_reset
         """).fetchall()
         daily_stats = [dict(r) for r in daily]
@@ -3713,7 +3715,7 @@ def quota_overview():
             tier_key = 'free'
             with get_db() as conn2:
                 tr = conn2.execute(
-                    "SELECT tier FROM app_authorizations WHERE user_id=? AND active=1",
+                    "SELECT tier FROM app_authorizations WHERE user_id=%s AND active=1",
                     (r['user_id'],)
                 ).fetchone()
                 if tr:
@@ -3749,7 +3751,7 @@ def customer_list():
     params = []
 
     if search:
-        where.append("(u.phone LIKE ? OR IFNULL(u.display_name, u.username) LIKE ? OR u.enterprise_name LIKE ?)")
+        where.append("(u.phone LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s OR u.enterprise_name LIKE %s)")
         s = '%' + search + '%'
         params.extend([s, s, s])
 
@@ -3766,12 +3768,12 @@ def customer_list():
     wsql = 'WHERE ' + ' AND '.join(where) if where else ''
 
     from_sql = ("FROM users u")
-    sql = ("SELECT u.id, u.phone, IFNULL(u.display_name, u.username) as nickname, u.email, "
+    sql = ("SELECT u.id, u.phone, COALESCE(u.display_name, u.username) as nickname, u.email, "
            "u.created_at, u.last_login, u.active, "
            "u.is_real_name_verified, u.real_name_verified_at, u.verified_by, "
            "u.enterprise_name, u.enterprise_tax_id, u.enterprise_verified, u.enterprise_verified_at, "
            "'' as plan_key, NULL as sub_expires "
-           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?')
+           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
     csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
 
     with get_db() as conn:
@@ -3856,11 +3858,11 @@ def admin_i18n_update(tid):
     is_auto = data.get('is_auto', 0)
 
     with get_db() as conn:
-        exist = conn.execute('SELECT id FROM i18n_strings WHERE id=?', (tid,)).fetchone()
+        exist = conn.execute('SELECT id FROM i18n_strings WHERE id=%s', (tid,)).fetchone()
         if not exist:
             return jsonify({'success': False, 'error': _('翻译不存在')}), 404
         conn.execute(
-            "UPDATE i18n_strings SET translation=?, is_auto=?, updated_at=datetime('now') WHERE id=?",
+            "UPDATE i18n_strings SET translation=%s, is_auto=%s, updated_at=NOW() WHERE id=%s",
             (translation, is_auto, tid)
         )
         conn.commit()

@@ -135,7 +135,7 @@ def api_user_info():
     with get_db() as conn:
         user = conn.execute(
             'SELECT id, username, display_name, phone, email, avatar_url, is_admin, created_at '
-            'FROM users WHERE id=?', (uid,)
+            'FROM users WHERE id=%s', (uid,)
         ).fetchone()
     if not user:
         return jsonify({'success': False, 'error': '用户不存在'}), 404
@@ -201,7 +201,7 @@ def api_product_detail(pid):
         row = conn.execute(
             '''SELECT p.*, c.name as category_name FROM products p
                LEFT JOIN categories c ON p.category_id=c.id
-               WHERE p.id=? AND p.is_active=1''', (pid,)
+               WHERE p.id=%s AND p.is_active=1''', (pid,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在或已下架'}), 404
@@ -220,7 +220,7 @@ def api_product_skus(pid):
     """获取商品SKU（公共）"""
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT id, sku_code, spec_path, price, stock FROM product_skus WHERE product_id=? AND is_active=1',
+            'SELECT id, sku_code, spec_path, price, stock FROM product_skus WHERE product_id=%s AND is_active=1',
             (pid,)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -242,7 +242,7 @@ def api_get_cart():
                FROM carts c
                JOIN products p ON c.product_id=p.id
                LEFT JOIN product_skus sk ON c.sku_id=sk.id
-               WHERE c.user_id=? ORDER BY c.created_at DESC''', (uid,)
+               WHERE c.user_id=%s ORDER BY c.created_at DESC''', (uid,)
         ).fetchall()
         items = []
         total = 0
@@ -271,7 +271,7 @@ def api_add_to_cart():
         return jsonify({'success': False, 'error': '数量不能小于1'}), 400
 
     with get_db() as conn:
-        prod = conn.execute('SELECT id, stock, is_active FROM products WHERE id=?', (pid,)).fetchone()
+        prod = conn.execute('SELECT id, stock, is_active FROM products WHERE id=%s', (pid,)).fetchone()
         if not prod:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         if not prod['is_active']:
@@ -281,7 +281,7 @@ def api_add_to_cart():
         sku_info = None
         if sku_id:
             sku_info = conn.execute(
-                'SELECT id, price, stock FROM product_skus WHERE id=? AND product_id=? AND is_active=1',
+                'SELECT id, price, stock FROM product_skus WHERE id=%s AND product_id=%s AND is_active=1',
                 (sku_id, pid)
             ).fetchone()
             if not sku_info:
@@ -292,15 +292,15 @@ def api_add_to_cart():
             return jsonify({'success': False, 'error': '商品已售罄'}), 400
 
         existing = conn.execute(
-            'SELECT id, quantity FROM carts WHERE user_id=? AND product_id=? AND sku_id=?',
+            'SELECT id, quantity FROM carts WHERE user_id=%s AND product_id=%s AND sku_id=%s',
             (uid, pid, sku_id)
         ).fetchone()
         if existing:
             new_qty = existing['quantity'] + qty
-            conn.execute('UPDATE carts SET quantity=? WHERE id=?', (new_qty, existing['id']))
+            conn.execute('UPDATE carts SET quantity=%s WHERE id=%s', (new_qty, existing['id']))
         else:
             conn.execute(
-                'INSERT INTO carts (user_id, product_id, quantity, sku_id) VALUES (?,?,?,?)',
+                'INSERT INTO carts (user_id, product_id, quantity, sku_id) VALUES (%s,%s,%s,%s)',
                 (uid, pid, qty, sku_id)
             )
         conn.commit()
@@ -319,7 +319,7 @@ def api_update_cart():
     if qty < 1:
         return jsonify({'success': False, 'error': '数量不能小于1'}), 400
     with get_db() as conn:
-        conn.execute('UPDATE carts SET quantity=? WHERE id=? AND user_id=?', (qty, cid, uid))
+        conn.execute('UPDATE carts SET quantity=%s WHERE id=%s AND user_id=%s', (qty, cid, uid))
         conn.commit()
     return jsonify({'success': True, 'message': '已更新'})
 
@@ -333,7 +333,7 @@ def api_remove_from_cart():
     data = request.get_json() or {}
     cid = data.get('cart_id')
     with get_db() as conn:
-        conn.execute('DELETE FROM carts WHERE id=? AND user_id=?', (cid, uid))
+        conn.execute('DELETE FROM carts WHERE id=%s AND user_id=%s', (cid, uid))
         conn.commit()
     return jsonify({'success': True, 'message': '已移除'})
 
@@ -350,11 +350,11 @@ def api_addresses():
     uid = payload['user_id']
     with get_db() as conn:
         cn_rows = conn.execute(
-            'SELECT id, recipient_name, phone, province_code, city_code, district_code, street_code, street_address, postal_code, is_default FROM user_addresses WHERE user_id=? AND status=1',
+            'SELECT id, recipient_name, phone, province_code, city_code, district_code, street_code, street_address, postal_code, is_default FROM user_addresses WHERE user_id=%s AND status=1',
             (uid,)
         ).fetchall()
         intl_rows = conn.execute(
-            'SELECT id, recipient_name, phone, country, state, city, address_line1, address_line2, postal_code, is_default FROM user_addresses_intl WHERE user_id=? AND status=1',
+            'SELECT id, recipient_name, phone, country, state, city, address_line1, address_line2, postal_code, is_default FROM user_addresses_intl WHERE user_id=%s AND status=1',
             (uid,)
         ).fetchall()
     cn_list = []
@@ -394,7 +394,7 @@ def api_checkout():
     if idempotency_key:
         with get_db() as conn:
             existing = conn.execute(
-                'SELECT order_id, total, status FROM order_items WHERE idempotency_key=? LIMIT 1',
+                'SELECT order_id, total, status FROM order_items WHERE idempotency_key=%s LIMIT 1',
                 (idempotency_key,)
             ).fetchone()
             if existing:
@@ -423,7 +423,7 @@ def api_checkout():
         with get_db() as conn:
             if address_type == 'intl':
                 addr = conn.execute(
-                    'SELECT * FROM user_addresses_intl WHERE id=? AND user_id=?',
+                    'SELECT * FROM user_addresses_intl WHERE id=%s AND user_id=%s',
                     (address_id, uid)
                 ).fetchone()
                 if addr:
@@ -434,7 +434,7 @@ def api_checkout():
                     receiver_address = ', '.join(p for p in parts if p)
             else:
                 addr = conn.execute(
-                    'SELECT * FROM user_addresses WHERE id=? AND user_id=?',
+                    'SELECT * FROM user_addresses WHERE id=%s AND user_id=%s',
                     (address_id, uid)
                 ).fetchone()
                 if addr:
@@ -453,7 +453,7 @@ def api_checkout():
             cart_rows = conn.execute(
                 '''SELECT c.product_id, c.quantity, p.title, p.price, p.stock, p.is_active
                    FROM carts c JOIN products p ON c.product_id=p.id
-                   WHERE c.user_id=?''', (uid,)
+                   WHERE c.user_id=%s''', (uid,)
             ).fetchall()
             if not cart_rows:
                 return jsonify({'success': False, 'error': '购物车为空'}), 400
@@ -470,7 +470,7 @@ def api_checkout():
                 if qty < 1:
                     return jsonify({'success': False, 'error': '数量不能小于1'}), 400
                 prod = conn.execute(
-                    'SELECT id, title, price, stock, is_active FROM products WHERE id=?', (pid,)
+                    'SELECT id, title, price, stock, is_active FROM products WHERE id=%s', (pid,)
                 ).fetchone()
                 if not prod or not prod['is_active']:
                     return jsonify({'success': False, 'error': f'商品不存在或已下架: {pid}'}), 400
@@ -492,7 +492,7 @@ def api_checkout():
 
         if coupon_code:
             cpn = conn.execute(
-                'SELECT * FROM coupons WHERE code=? AND is_active=1', (coupon_code,)
+                'SELECT * FROM coupons WHERE code=%s AND is_active=1', (coupon_code,)
             ).fetchone()
             if not cpn:
                 return jsonify({'success': False, 'error': '优惠券无效'}), 400
@@ -508,7 +508,7 @@ def api_checkout():
             else:
                 discount = round(subtotal * cpn['value'] / 100, 2)
             # ← used_count+1 在事务内，下行插入后提交
-            conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=?', (coupon_id,))
+            conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=%s', (coupon_id,))
 
         total = round(subtotal - discount, 2)
 
@@ -517,7 +517,7 @@ def api_checkout():
                 '''INSERT INTO order_items (order_id, user_id, product_id, product_title,
                    quantity, unit_price, subtotal, coupon_id, discount, status, idempotency_key, created_at,
                    receiver_name, receiver_phone, receiver_address)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),?,?,?)''',
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,%s)''',
                 (order_id, uid, item['product_id'], (item.get('title', '') or '')[:200],
                  int(item.get('quantity', 1)), float(item.get('price', 0)),
                  round(float(item.get('price', 0)) * int(item.get('quantity', 1)), 2),
@@ -526,14 +526,14 @@ def api_checkout():
                  receiver_name, receiver_phone, receiver_address)
             )
             # 增加销量 + 扣减库存
-            conn.execute('UPDATE products SET sales_count=sales_count+?, stock=MAX(0,stock-?) WHERE id=?',
+            conn.execute('UPDATE products SET sales_count=sales_count+%s, stock=MAX(0,stock-%s) WHERE id=%s',
                          (int(item.get('quantity', 1)), int(item.get('quantity', 1)), item['product_id']))
         # 优惠券使用计数 — 与订单创建在同一事务中
         if coupon_id:
-            conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=?', (coupon_id,))
+            conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=%s', (coupon_id,))
         # 清空购物车
         if not data.get('keep_cart'):
-            conn.execute('DELETE FROM carts WHERE user_id=?', (uid,))
+            conn.execute('DELETE FROM carts WHERE user_id=%s', (uid,))
         conn.commit()
 
     # 触发事件：订单创建
@@ -566,7 +566,7 @@ def api_orders():
     uid = payload['user_id']
     with get_db() as conn:
         rows = conn.execute(
-            '''SELECT * FROM order_items WHERE user_id=? AND user_deleted=0
+            '''SELECT * FROM order_items WHERE user_id=%s AND user_deleted=0
                ORDER BY created_at DESC LIMIT 50''', (uid,)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -581,7 +581,7 @@ def api_delete_order(oid):
     uid = payload['user_id']
     with get_db() as conn:
         order = conn.execute(
-            'SELECT * FROM order_items WHERE order_id=? AND user_id=?',
+            'SELECT * FROM order_items WHERE order_id=%s AND user_id=%s',
             (oid, uid)).fetchone()
         if not order:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
@@ -589,7 +589,7 @@ def api_delete_order(oid):
         if order['status'] not in allowed:
             return jsonify({'success': False, 'error': f'当前状态({order["status"]})的订单不可删除'}), 400
         conn.execute(
-            'UPDATE order_items SET user_deleted=1 WHERE order_id=? AND user_id=?',
+            'UPDATE order_items SET user_deleted=1 WHERE order_id=%s AND user_id=%s',
             (oid, uid))
         conn.commit()
     return jsonify({'success': True, 'message': '已删除'})
@@ -603,13 +603,13 @@ def api_cancel_order(oid):
     uid = payload['user_id']
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM order_items WHERE order_id=? AND user_id=?', (oid, uid)
+            'SELECT * FROM order_items WHERE order_id=%s AND user_id=%s', (oid, uid)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
         if row['status'] != 'pending':
             return jsonify({'success': False, 'error': '只能取消待支付订单'}), 400
-        conn.execute("UPDATE order_items SET status='cancelled' WHERE order_id=?", (oid,))
+        conn.execute("UPDATE order_items SET status='cancelled' WHERE order_id=%s", (oid,))
         conn.commit()
     get_event_bus().emit(EventName.ORDER_CANCELLED, order_id=oid, user_id=uid)
     return jsonify({'success': True, 'message': _('Cancelled')})
@@ -625,7 +625,7 @@ def api_confirm_receipt(oid):
     from datetime import datetime
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM order_items WHERE order_id=? AND user_id=?', (oid, uid)
+            'SELECT * FROM order_items WHERE order_id=%s AND user_id=%s', (oid, uid)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
@@ -635,7 +635,7 @@ def api_confirm_receipt(oid):
             return jsonify({'success': False, 'error': '订单尚未发货'}), 400
         now = datetime.now().isoformat()
         conn.execute(
-            "UPDATE order_items SET status='completed', completed_at=? WHERE order_id=?",
+            "UPDATE order_items SET status='completed', completed_at=%s WHERE order_id=%s",
             (now, oid)
         )
         conn.commit()
@@ -657,7 +657,7 @@ def api_request_refund(oid):
     from datetime import datetime
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM order_items WHERE order_id=? AND user_id=?', (oid, uid)
+            'SELECT * FROM order_items WHERE order_id=%s AND user_id=%s', (oid, uid)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
@@ -667,7 +667,7 @@ def api_request_refund(oid):
             return jsonify({'success': False, 'error': '已申请退款，请等待处理'}), 400
         now = datetime.now().isoformat()
         conn.execute(
-            "UPDATE order_items SET status='refunding', refund_reason=?, refund_requested_at=? WHERE order_id=?",
+            "UPDATE order_items SET status='refunding', refund_reason=%s, refund_requested_at=%s WHERE order_id=%s",
             (reason, now, oid)
         )
         conn.commit()
@@ -686,7 +686,7 @@ def track_order_user(oid):
         row = conn.execute(
             'SELECT oi.*, ec.kdniao_code FROM order_items oi '
             'LEFT JOIN express_companies ec ON oi.tracking_company=ec.code '
-            'WHERE oi.id=? AND oi.user_id=?', (oid, uid)
+            'WHERE oi.id=%s AND oi.user_id=%s', (oid, uid)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
@@ -731,7 +731,7 @@ def api_pay_order(oid):
     uid = payload['user_id']
     with get_db() as conn:
         items = conn.execute(
-            'SELECT * FROM order_items WHERE order_id=? AND user_id=?',
+            'SELECT * FROM order_items WHERE order_id=%s AND user_id=%s',
             (oid, uid)
         ).fetchall()
         if not items:
@@ -752,13 +752,13 @@ def api_pay_order(oid):
         notify_base = os.environ.get('NOTIFY_BASE', '')
         if not notify_base:
             try:
-                import sqlite3
-                _db_path = os.environ.get('DB_PATH', os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'x7k2m9a4.db'))
-                conn = sqlite3.connect(_db_path)
-                row = conn.execute("SELECT value FROM system_config WHERE key='payment.notify_base'").fetchone()
-                if row:
-                    notify_base = row[0]
-                conn.close()
+                with get_db() as pgconn:
+                    row = pgconn.execute(
+                        "SELECT value FROM system_config WHERE key=%s",
+                        ('payment.notify_base',)
+                    ).fetchone()
+                    if row:
+                        notify_base = row[0]
             except Exception:
                 pass
         shop_notify_url = notify_base.rstrip('/') + '/shop/api/pay/wechat-notify' if notify_base else ''
@@ -816,7 +816,7 @@ def api_stub_confirm(oid):
         success, msg = confirm_shop_order(oid, f'STUB_{oid}', 'stub')
     with get_db() as conn:
         row = conn.execute(
-            'SELECT status FROM order_items WHERE order_id=? AND user_id=?', (oid, uid)
+            'SELECT status FROM order_items WHERE order_id=%s AND user_id=%s', (oid, uid)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
@@ -916,7 +916,7 @@ def api_pay_status(oid):
         return err
     with get_db() as conn:
         row = conn.execute(
-            'SELECT status, paid_at, payment_method, payment_trade_no FROM order_items WHERE order_id=?',
+            'SELECT status, paid_at, payment_method, payment_trade_no FROM order_items WHERE order_id=%s',
             (oid,)
         ).fetchone()
         if not row:

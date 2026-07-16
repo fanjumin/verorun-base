@@ -187,23 +187,22 @@ def get_default_app() -> Optional[object]:
 
 def scan_tables(db_path: Optional[str] = None) -> List[dict]:
     """
-    Scan a SQLite database for all tables and their metadata.
+    Scan a PostgreSQL database for all tables and their metadata.
 
     For each table, extracts:
       - name
       - column names and types
       - row count
-      - auto-increment state (sqlite_sequence)
 
     Returns list of dicts:
       {
         'name': 'users',
-        'columns': [{'name': 'id', 'type': 'INTEGER'}, ...],
+        'columns': [{'name': 'id', 'type': 'bigint'}, ...],
         'row_count': 100,
-        'auto_increment_id': 101,
+        'auto_increment_id': None,
       }
     """
-    import sqlite3
+    import psycopg2
 
     if not db_path:
         db_path = os.environ.get(
@@ -211,42 +210,40 @@ def scan_tables(db_path: Optional[str] = None) -> List[dict]:
             os.path.join(PROJECT_ROOT, 'data', 'x7k2m9a4.db')
         )
 
-    if not os.path.isfile(db_path):
-        return []
-
     tables = []
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        conn.execute("CREATE SCHEMA IF NOT EXISTS health")
+        conn.execute("SET search_path TO health")
         cursor = conn.cursor()
 
         # Get all user tables
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-        all_tables = [r['name'] for r in cursor.fetchall()]
-
-        # Get auto-increment state
-        auto_inc_map = {}
-        try:
-            cursor.execute("SELECT name, seq FROM sqlite_sequence")
-            for r in cursor.fetchall():
-                auto_inc_map[r['name']] = r['seq']
-        except sqlite3.OperationalError:
-            pass  # No auto-increment tables
+        cursor.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_name"
+        )
+        all_tables = [r[0] for r in cursor.fetchall()]
 
         for tname in all_tables:
-            # Skip internal tables
-            if tname.startswith('sqlite_') or tname.startswith('_'):
-                continue
-
             # Columns
-            cursor.execute(f'PRAGMA table_info("{tname}")')
-            columns = [{'name': r['name'], 'type': r['type']} for r in cursor.fetchall()]
+            cursor.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_name = %s ORDER BY ordinal_position",
+                (tname,)
+            )
+            columns = [{'name': r[0], 'type': r[1]} for r in cursor.fetchall()]
 
             # Row count
             try:
-                cursor.execute(f'SELECT COUNT(*) as c FROM "{tname}"')
-                row_count = cursor.fetchone()['c']
-            except sqlite3.OperationalError:
+                cursor.execute(f'SELECT COUNT(*) FROM "{tname}"')
+                row_count = cursor.fetchone()[0]
+            except psycopg2.Error:
                 row_count = -1
 
             tables.append({
@@ -254,7 +251,7 @@ def scan_tables(db_path: Optional[str] = None) -> List[dict]:
                 'columns': columns,
                 'column_count': len(columns),
                 'row_count': row_count,
-                'auto_increment_id': auto_inc_map.get(tname),
+                'auto_increment_id': None,
             })
 
         conn.close()

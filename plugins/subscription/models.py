@@ -10,7 +10,7 @@ Subscription Plugin — 数据模型
 """
 
 import os
-import sqlite3
+import psycopg2
 import threading
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field, asdict
@@ -28,10 +28,16 @@ def get_db():
     """获取独立数据库连接"""
     db_path = get_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    conn.autocommit = False
+    conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
+    conn.execute("SET search_path TO subscription")
     return conn
 
 
@@ -62,48 +68,48 @@ class IntervalType(str, Enum):
 SUBSCRIPTION_DDL = """
 -- SKU 目录（可订阅项定义）
 CREATE TABLE IF NOT EXISTS sub_items (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     item_key        TEXT UNIQUE NOT NULL,
     category        TEXT NOT NULL DEFAULT 'plugin',
     name_zh         TEXT NOT NULL,
     name_en         TEXT NOT NULL,
     description_zh  TEXT DEFAULT '',
     description_en  TEXT DEFAULT '',
-    price_month     INTEGER NOT NULL DEFAULT 0,
-    price_year      INTEGER NOT NULL DEFAULT 0,
-    is_active       INTEGER NOT NULL DEFAULT 1,
+    price_month     BIGINT NOT NULL DEFAULT 0,
+    price_year      BIGINT NOT NULL DEFAULT 0,
+    is_active       BIGINT NOT NULL DEFAULT 1,
     auto_activate   TEXT DEFAULT '',     -- 自动开通的 item_key 列表（逗号分隔）
-    sort_order      INTEGER DEFAULT 0,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    sort_order      BIGINT DEFAULT 0,
+    created_at      TEXT DEFAULT (NOW()),
+    updated_at      TEXT DEFAULT (NOW())
 );
 
 -- 用户订阅记录
 CREATE TABLE IF NOT EXISTS user_subscriptions (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT NOT NULL,
     item_key        TEXT NOT NULL,
     interval_type   TEXT NOT NULL DEFAULT 'month',
-    amount_fen      INTEGER NOT NULL,
+    amount_fen      BIGINT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'active'
                     CHECK(status IN ('active','canceled','expired','suspended')),
     period_start    TEXT NOT NULL,
     period_end      TEXT NOT NULL,
-    auto_renew      INTEGER NOT NULL DEFAULT 1,
+    auto_renew      BIGINT NOT NULL DEFAULT 1,
     order_no        TEXT DEFAULT '',
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now')),
+    created_at      TEXT DEFAULT (NOW()),
+    updated_at      TEXT DEFAULT (NOW()),
     UNIQUE(user_id, item_key)
 );
 
 -- 订阅订单
 CREATE TABLE IF NOT EXISTS sub_orders (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     order_no        TEXT UNIQUE NOT NULL,
-    user_id         INTEGER NOT NULL,
+    user_id         BIGINT NOT NULL,
     item_key        TEXT NOT NULL,
     interval_type   TEXT NOT NULL DEFAULT 'month',
-    amount_fen      INTEGER NOT NULL,
+    amount_fen      BIGINT NOT NULL,
     channel         TEXT NOT NULL DEFAULT 'alipay',
     status          TEXT NOT NULL DEFAULT 'pending'
                     CHECK(status IN ('pending','paid','failed','refunded','expired')),
@@ -111,8 +117,8 @@ CREATE TABLE IF NOT EXISTS sub_orders (
     qr_code         TEXT DEFAULT '',
     redirect_url    TEXT DEFAULT '',
     paid_at         TEXT,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now')),
+    created_at      TEXT DEFAULT (NOW()),
+    updated_at      TEXT DEFAULT (NOW()),
     extra           TEXT DEFAULT '{}'
 );
 
@@ -130,8 +136,17 @@ def init_tables():
     """初始化所有表"""
     db_path = get_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.executescript(SUBSCRIPTION_DDL)
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    conn.autocommit = False
+    conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
+    conn.execute("SET search_path TO subscription")
+    conn.execute(SUBSCRIPTION_DDL)
     conn.commit()
     conn.close()
 
@@ -323,15 +338,24 @@ DEFAULT_ITEMS = [
 
 
 def seed_default_items():
-    """种子 SKU 目录（INSERT OR IGNORE，不覆盖已有数据）"""
-    conn = sqlite3.connect(get_db_path())
-    conn.execute("PRAGMA journal_mode=WAL")
+    """种子 SKU 目录（INSERT ... ON CONFLICT，不覆盖已有数据）"""
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    conn.autocommit = False
+    conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
+    conn.execute("SET search_path TO subscription")
     for item in DEFAULT_ITEMS:
         conn.execute("""
-            INSERT OR IGNORE INTO sub_items
+            INSERT INTO sub_items
                 (item_key, category, name_zh, name_en, description_zh, description_en,
                  price_month, price_year, sort_order, auto_activate)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (item_key) DO NOTHING
         """, (
             item['item_key'], item['category'],
             item['name_zh'], item['name_en'],

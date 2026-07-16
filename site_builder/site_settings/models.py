@@ -79,14 +79,14 @@ def init_tables():
     with get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS design_tokens (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 site_key    TEXT NOT NULL DEFAULT 'platform',
                 token_json  TEXT DEFAULT '{}',
                 generated_by TEXT DEFAULT 'manual',
                 prompt_id   INTEGER DEFAULT NULL,
                 version     INTEGER DEFAULT 1,
-                created_at  TEXT DEFAULT (datetime('now')),
-                updated_at  TEXT DEFAULT (datetime('now')),
+                created_at  TEXT DEFAULT NOW(),
+                updated_at  TEXT DEFAULT NOW(),
                 UNIQUE(site_key)
             )
         """)
@@ -286,7 +286,7 @@ def save_draft_tokens(site_key, token_dict):
         ).fetchone()
         if existing:
             conn.execute(
-                "UPDATE design_tokens SET draft_json=?, updated_at=datetime('now') WHERE site_key=?",
+                "UPDATE design_tokens SET draft_json=%s, updated_at=NOW() WHERE site_key=%s",
                 (draft_json, site_key)
             )
         else:

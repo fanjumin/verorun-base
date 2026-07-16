@@ -399,7 +399,7 @@ class LicenseManager:
         # 本地移除
         with get_registry_db() as conn:
             conn.execute(
-                'DELETE FROM plugin_licenses WHERE plugin_id = ?',
+                'DELETE FROM plugin_licenses WHERE plugin_id = %s',
                 (plugin_id,)
             )
             conn.commit()
@@ -425,7 +425,7 @@ class LicenseManager:
         """检查插件是否是付费插件（在 store_plugins 中查 price_type）"""
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT price_type FROM store_plugins WHERE identifier = ?',
+                'SELECT price_type FROM store_plugins WHERE identifier = %s',
                 (plugin_id,)
             ).fetchone()
             if row:
@@ -442,7 +442,7 @@ class LicenseManager:
     def _get_license(self, plugin_id: str) -> Optional[LicenseRecord]:
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT * FROM plugin_licenses WHERE plugin_id = ?',
+                'SELECT * FROM plugin_licenses WHERE plugin_id = %s',
                 (plugin_id,)
             ).fetchone()
             if row is None:
@@ -452,7 +452,7 @@ class LicenseManager:
     def _save_license(self, record: LicenseRecord):
         with get_registry_db() as conn:
             # 先删除已有记录（插件级别，保证一个插件只有一条）
-            conn.execute('DELETE FROM plugin_licenses WHERE plugin_id=?', (record.plugin_id,))
+            conn.execute('DELETE FROM plugin_licenses WHERE plugin_id=%s', (record.plugin_id,))
             conn.execute("""
                 INSERT INTO plugin_licenses (
                     plugin_id, license_key, license_type, license_status,
@@ -460,7 +460,7 @@ class LicenseManager:
                     activated_at, expires_at, trial_ends_at, last_validated,
                     offline_token, grace_until, order_id, subscription_id,
                     auto_renew, metadata
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 record.plugin_id, record.license_key,
                 record.license_type.value, record.license_status.value,
@@ -478,7 +478,7 @@ class LicenseManager:
     def _update_status(self, plugin_id: str, status: LicenseStatus):
         with get_registry_db() as conn:
             conn.execute(
-                "UPDATE plugin_licenses SET license_status=?, updated_at=datetime('now') WHERE plugin_id=?",
+                "UPDATE plugin_licenses SET license_status=%s, updated_at=NOW() WHERE plugin_id=%s",
                 (status.value, plugin_id)
             )
             conn.commit()
@@ -486,7 +486,7 @@ class LicenseManager:
     def _update_last_validated(self, plugin_id: str):
         with get_registry_db() as conn:
             conn.execute(
-                "UPDATE plugin_licenses SET last_validated=datetime('now'), updated_at=datetime('now') WHERE plugin_id=?",
+                "UPDATE plugin_licenses SET last_validated=NOW(), updated_at=NOW() WHERE plugin_id=%s",
                 (plugin_id,)
             )
             conn.commit()

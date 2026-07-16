@@ -4,44 +4,13 @@
 import json
 import re
 import time
-import sqlite3
-import os
 
-_DB_PATH = None
+import psycopg2.extras
+from models.database import get_db
 
 # ── Rate limiting ──
 _rate_limit_cache = {}  # { user_id: [timestamps...] }
 RATE_LIMIT_PER_MIN = 10
-
-
-def _get_db_path():
-    global _DB_PATH
-    if _DB_PATH:
-        return _DB_PATH
-    # Env var or auto-detect
-    env_path = os.environ.get('DB_PATH', '')
-    if env_path and os.path.exists(env_path):
-        _DB_PATH = env_path
-        return _DB_PATH
-    # Auto-detect from project structure
-    base = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(5):
-        candidate = os.path.join(base, 'data', 'x7k2m9a4.db')
-        if os.path.exists(candidate):
-            _DB_PATH = candidate
-            return candidate
-        base = os.path.dirname(base)
-    # Final fallback
-    _DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'x7k2m9a4.db')
-    return _DB_PATH
-
-
-def _get_conn():
-    conn = sqlite3.connect(_get_db_path())
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
 
 
 def _check_rate_limit(user_id):
@@ -75,18 +44,17 @@ def create_notification(user_id, ntype, title, content, link_url=None, extra_dat
         return None
     if extra_data is None:
         extra_data = {}
-    conn = _get_conn()
     try:
-        cur = conn.execute(
-            'INSERT INTO user_notifications (user_id, type, title, content, link_url, extra_data) VALUES (?,?,?,?,?,?)',
-            (user_id, ntype, title, content, link_url or '', json.dumps(extra_data, ensure_ascii=False))
-        )
-        conn.commit()
-        return cur.lastrowid
+        with get_db() as conn:
+            conn.cursor_factory = psycopg2.extras.RealDictCursor
+            cur = conn.execute(
+                'INSERT INTO user_notifications (user_id, type, title, content, link_url, extra_data) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
+                (user_id, ntype, title, content, link_url or '', json.dumps(extra_data, ensure_ascii=False))
+            )
+            row = cur.fetchone()
+            return row['id'] if row else None
     except Exception:
         return None
-    finally:
-        conn.close()
 
 
 def send_notification_by_event(event_type, user_id, context_vars=None):
@@ -98,17 +66,15 @@ def send_notification_by_event(event_type, user_id, context_vars=None):
     """
     if context_vars is None:
         context_vars = {}
-    conn = _get_conn()
-    try:
+    with get_db() as conn:
+        conn.cursor_factory = psycopg2.extras.RealDictCursor
         # Find the active template for this event_type
         template = conn.execute(
-            'SELECT * FROM notification_templates WHERE event_type=? AND is_active=1',
+            'SELECT * FROM notification_templates WHERE event_type=%s AND is_active=1',
             (event_type,)
         ).fetchone()
         if not template:
             return {'success': False, 'error': f'No active template for event: {event_type}'}
-
-        template = dict(template)
 
         # Substitute variables
         title = _substitute_vars(template['title_template'], context_vars)
@@ -131,52 +97,42 @@ def send_notification_by_event(event_type, user_id, context_vars=None):
 
         # Log the send
         conn.execute(
-            'INSERT INTO notification_logs (template_id, user_id, event_type, notification_id, result) VALUES (?,?,?,?,?)',
+            'INSERT INTO notification_logs (template_id, user_id, event_type, notification_id, result) VALUES (%s,%s,%s,%s,%s)',
             (template['id'], user_id, event_type, nid, 'success')
         )
-        conn.commit()
 
         return {'success': True, 'notification_id': nid}
-
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
-    finally:
-        conn.close()
 
 
 def get_unread_count(user_id):
     """Return the number of unread notifications for a user."""
-    conn = _get_conn()
-    try:
+    with get_db() as conn:
+        conn.cursor_factory = psycopg2.extras.RealDictCursor
         row = conn.execute(
-            'SELECT COUNT(*) as c FROM user_notifications WHERE user_id=? AND is_read=0',
+            'SELECT COUNT(*) as c FROM user_notifications WHERE user_id=%s AND is_read=0',
             (user_id,)
         ).fetchone()
         return row['c'] if row else 0
-    finally:
-        conn.close()
 
 
 def mark_read(user_id, nid=None):
     """Mark a notification (or all) as read. Updates read_at timestamp."""
-    conn = _get_conn()
     try:
-        if nid:
-            conn.execute(
-                "UPDATE user_notifications SET is_read=1, read_at=datetime('now') WHERE user_id=? AND id=?",
-                (user_id, nid)
-            )
-        else:
-            conn.execute(
-                "UPDATE user_notifications SET is_read=1, read_at=datetime('now') WHERE user_id=?",
-                (user_id,)
-            )
-        conn.commit()
+        with get_db() as conn:
+            conn.cursor_factory = psycopg2.extras.RealDictCursor
+            if nid:
+                conn.execute(
+                    "UPDATE user_notifications SET is_read=1, read_at=NOW() WHERE user_id=%s AND id=%s",
+                    (user_id, nid)
+                )
+            else:
+                conn.execute(
+                    "UPDATE user_notifications SET is_read=1, read_at=NOW() WHERE user_id=%s",
+                    (user_id,)
+                )
         return True
     except Exception:
         return False
-    finally:
-        conn.close()
 
 
 def send_to_all_users(ntype, title, content, link_url=None, limit=1000):
@@ -184,10 +140,10 @@ def send_to_all_users(ntype, title, content, link_url=None, limit=1000):
     Send a notification to all active users.
     Returns count of notifications sent.
     """
-    conn = _get_conn()
-    try:
+    with get_db() as conn:
+        conn.cursor_factory = psycopg2.extras.RealDictCursor
         users = conn.execute(
-            'SELECT id FROM users WHERE active=1 ORDER BY id LIMIT ?',
+            'SELECT id FROM users WHERE active=1 ORDER BY id LIMIT %s',
             (limit,)
         ).fetchall()
         sent = 0
@@ -196,5 +152,3 @@ def send_to_all_users(ntype, title, content, link_url=None, limit=1000):
             if nid:
                 sent += 1
         return sent
-    finally:
-        conn.close()

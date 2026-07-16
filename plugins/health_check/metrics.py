@@ -85,7 +85,7 @@ def _get_db_metrics():
     try:
         with get_db() as conn:
             r = conn.execute(
-                "SELECT COUNT(*) as c FROM sqlite_master WHERE type='table'"
+                "SELECT COUNT(*) as c FROM pg_catalog.pg_tables WHERE schemaname='public'"
             ).fetchone()
             metrics['db_table_count'] = r['c'] if r else 0
     except Exception:

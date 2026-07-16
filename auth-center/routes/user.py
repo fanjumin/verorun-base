@@ -42,9 +42,9 @@ def _get_user_app(payload):
     user_id = payload['user_id']
     app_name = payload.get('app_name', 'platform')
     with get_db() as conn:
-        user = conn.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE id=%s', (user_id,)).fetchone()
         authz = conn.execute(
-            'SELECT * FROM app_authorizations WHERE user_id=? AND app_name=?',
+            'SELECT * FROM app_authorizations WHERE user_id=%s AND app_name=%s',
             (user_id, app_name)).fetchone()
     return dict(user) if user else None, dict(authz) if authz else None
 
@@ -110,15 +110,15 @@ def update_profile():
     display_name = data.get('display_name', '').strip()
     with get_db() as conn:
         user = conn.execute(
-            'SELECT is_real_name_verified FROM users WHERE id=?',
+            'SELECT is_real_name_verified FROM users WHERE id=%s',
             (payload['user_id'],)
         ).fetchone()
         if user and user['is_real_name_verified']:
             return jsonify({'success': False, 'error': 'Verified account, display name cannot be modified'}), 403
         if nickname:
-            conn.execute('UPDATE users SET display_name=? WHERE id=?', (nickname, payload['user_id']))
+            conn.execute('UPDATE users SET display_name=%s WHERE id=%s', (nickname, payload['user_id']))
         elif display_name:
-            conn.execute('UPDATE users SET display_name=? WHERE id=?', (display_name, payload['user_id']))
+            conn.execute('UPDATE users SET display_name=%s WHERE id=%s', (display_name, payload['user_id']))
         conn.commit()
     # Trigger completion refresh
     try:
@@ -154,11 +154,11 @@ def update_username():
     user_id = payload['user_id']
     with get_db() as conn:
         # Check existing
-        existing = conn.execute('SELECT id FROM users WHERE username=? AND id!=?', (username, user_id)).fetchone()
+        existing = conn.execute('SELECT id FROM users WHERE username=%s AND id!=%s', (username, user_id)).fetchone()
         if existing:
             return jsonify({'success': False, 'error': 'Username already in use'}), 400
         # Check 30-day limit
-        row = conn.execute('SELECT username_changed_at FROM users WHERE id=?', (user_id,)).fetchone()
+        row = conn.execute('SELECT username_changed_at FROM users WHERE id=%s', (user_id,)).fetchone()
         if row and row['username_changed_at']:
             from datetime import datetime, timedelta
             changed = datetime.fromisoformat(row['username_changed_at'])
@@ -168,7 +168,7 @@ def update_username():
         # Update
         from models import now_iso
         now = now_iso()
-        conn.execute('UPDATE users SET username=?, username_changed_at=? WHERE id=?',
+        conn.execute('UPDATE users SET username=%s, username_changed_at=%s WHERE id=%s',
                      (username, now, user_id))
         conn.commit()
     return jsonify({'success': True, 'data': {'username': username, 'next_change_after': '30 days later'}})
@@ -213,7 +213,7 @@ def upload_avatar():
     avatar_url = f'/static/avatars/{filename}'
     from models import get_db
     with get_db() as conn:
-        conn.execute('UPDATE users SET avatar_url=? WHERE id=?', (avatar_url, user_id))
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, user_id))
         conn.commit()
 
     # Trigger completion refresh
@@ -238,7 +238,7 @@ def list_keys():
     with get_db() as conn:
         rows = conn.execute(
             'SELECT id, key_prefix, name, calls_today, calls_total, created_at, expire_at, last_used, active '
-            'FROM api_keys WHERE user_id=? AND app_name=? ORDER BY created_at DESC',
+            'FROM api_keys WHERE user_id=%s AND app_name=%s ORDER BY created_at DESC',
             (payload['user_id'], app_name)).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
@@ -258,7 +258,7 @@ def generate_key():
     # Determine max tier
     with get_db() as conn:
         authz = conn.execute(
-            'SELECT * FROM app_authorizations WHERE user_id=? AND app_name=?',
+            'SELECT * FROM app_authorizations WHERE user_id=%s AND app_name=%s',
             (user_id, app_name)).fetchone()
     max_tier = authz['tier'] if authz else 'free'
     # Generate key
@@ -269,7 +269,7 @@ def generate_key():
     with get_db() as conn:
         conn.execute(
             'INSERT INTO api_keys (user_id, app_name, key_hash, key_prefix, name, created_at) '
-            'VALUES (?,?,?,?,?,?)',
+            'VALUES (%s,%s,%s,%s,%s,%s)',
             (user_id, app_name, key_hash, key_prefix, name, now))
         conn.commit()
     return jsonify({
@@ -293,7 +293,7 @@ def revoke_key(key_id):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('UPDATE api_keys SET active=0 WHERE id=? AND user_id=?',
+        conn.execute('UPDATE api_keys SET active=0 WHERE id=%s AND user_id=%s',
                      (key_id, payload['user_id']))
         conn.commit()
     return jsonify({'success': True})
@@ -330,7 +330,7 @@ def update_key(key_id):
     name = data.get('name', '').strip()
     with get_db() as conn:
         cur = conn.execute(
-            'UPDATE api_keys SET name=? WHERE id=? AND user_id=?',
+            'UPDATE api_keys SET name=%s WHERE id=%s AND user_id=%s',
             (name, key_id, payload['user_id']))
         conn.commit()
         if cur.rowcount == 0:
@@ -360,30 +360,30 @@ def set_password():
     now = now_iso()
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
             (phone, code, 'modify_password', now)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Invalid or expired verification code'}), 400
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (row['id'],))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
         # Hash password
         salt = secrets.token_hex(8)
         pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
         stored = f'pbkdf2:sha256:100000:{salt}:{pw_hash}'
-        conn.execute('UPDATE users SET password_hash=? WHERE phone=?', (stored, phone))
+        conn.execute('UPDATE users SET password_hash=%s WHERE phone=%s', (stored, phone))
         # IAM v2: force logout all other sessions, update password_changed_at
-        user_row = conn.execute('SELECT id FROM users WHERE phone=?', (phone,)).fetchone()
+        user_row = conn.execute('SELECT id FROM users WHERE phone=%s', (phone,)).fetchone()
         if user_row:
             user_id = user_row['id']
             auth_hdr = request.headers.get('Authorization', '')
             cur_token = auth_hdr.replace('Bearer ', '') if auth_hdr.startswith('Bearer ') else auth_hdr
             if cur_token:
                 cur_token_hash = hashlib.sha256(cur_token.encode()).hexdigest()
-                conn.execute("DELETE FROM user_sessions WHERE user_id=? AND token_hash!=?",
+                conn.execute("DELETE FROM user_sessions WHERE user_id=%s AND token_hash!=%s",
                              (user_id, cur_token_hash))
             else:
-                conn.execute("DELETE FROM user_sessions WHERE user_id=?",
+                conn.execute("DELETE FROM user_sessions WHERE user_id=%s",
                              (user_id,))
-            conn.execute("UPDATE users SET password_changed_at=? WHERE id=?",
+            conn.execute("UPDATE users SET password_changed_at=%s WHERE id=%s",
                          (now, user_id))
         conn.commit()
     return jsonify({'success': True, 'message': 'Password changed, other devices logged out'})
@@ -409,25 +409,25 @@ def change_phone():
     with get_db() as conn:
         # Verify old phone code
         old_row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
             (old_phone, old_code, 'change_phone', now)).fetchone()
         if not old_row:
             return jsonify({'success': False, 'error': 'Invalid old phone verification code'}), 400
         # Verify new phone code
         new_row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
             (new_phone, new_code, 'change_phone', now)).fetchone()
         if not new_row:
             return jsonify({'success': False, 'error': 'Invalid new phone verification code'}), 400
         # Check if new phone already taken
-        existing = conn.execute('SELECT id FROM users WHERE phone=? AND id!=?', (new_phone, payload['user_id'])).fetchone()
+        existing = conn.execute('SELECT id FROM users WHERE phone=%s AND id!=%s', (new_phone, payload['user_id'])).fetchone()
         if existing:
             return jsonify({'success': False, 'error': 'This phone is already bound'}), 400
         # Mark codes used
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (old_row['id'],))
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (new_row['id'],))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (old_row['id'],))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (new_row['id'],))
         # Update phone
-        conn.execute('UPDATE users SET phone=?, phone_verified=1 WHERE id=?', (new_phone, payload['user_id']))
+        conn.execute('UPDATE users SET phone=%s, phone_verified=1 WHERE id=%s', (new_phone, payload['user_id']))
         conn.commit()
     return jsonify({'success': True, 'message': 'Phone number updated'})
 
@@ -447,7 +447,7 @@ def password_login():
     ip = request.remote_addr or 'unknown'
     with get_db() as conn:
         recent = conn.execute(
-            "SELECT COUNT(*) as c FROM login_attempts WHERE ip=? AND success=0 AND created_at > datetime('now', '-15 minutes')",
+            "SELECT COUNT(*) as c FROM login_attempts WHERE ip=%s AND success=0 AND created_at > NOW() - INTERVAL '15 minutes'",
             (ip,)).fetchone()
         need_captcha = recent['c'] >= 3
     captcha_id = data.get('captcha_id', '')
@@ -468,7 +468,7 @@ def password_login():
     if recent['c'] >= 10:
         return jsonify({'success': False, 'error': 'Too many login attempts, please retry in 15 minutes'}), 429
     with get_db() as conn:
-        user = conn.execute('SELECT * FROM users WHERE username=? OR email=? OR phone=?', (login_field, login_field, login_field)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE username=%s OR email=%s OR phone=%s', (login_field, login_field, login_field)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': 'Account not found'}), 400
         stored = user['password_hash']
@@ -491,13 +491,13 @@ def password_login():
             except Exception:
                 pass
         if not pw_ok:
-            conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (?,?,0)',
+            conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (%s,%s,0)',
                          (login_field, request.remote_addr or 'unknown'))
             conn.commit()
             return jsonify({'success': False, 'error': 'Incorrect password'}), 400
         now = now_iso()
-        conn.execute('UPDATE users SET last_login=? WHERE id=?', (now, user['id']))
-        conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (?,?,1)',
+        conn.execute('UPDATE users SET last_login=%s WHERE id=%s', (now, user['id']))
+        conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (%s,%s,1)',
                      (login_field, request.remote_addr or 'unknown'))
         conn.commit()
     token = create_token(user['id'], phone=user['phone'], app_name='platform', is_admin=user['is_admin'])
@@ -506,7 +506,7 @@ def password_login():
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         conn.execute(
             "INSERT INTO user_sessions (user_id, token_hash, device_name, device_type, ip_address, user_agent, is_current, last_active, created_at) "
-            "VALUES (?,?,?,?,?,?,1, datetime('now'), datetime('now'))",
+            "VALUES (%s,%s,%s,%s,%s,%s,1, NOW(), NOW())",
             (user['id'], token_hash, 'Password Login', 'web', request.remote_addr or '',
              (request.headers.get('User-Agent', '')[:200]))
         )
@@ -537,11 +537,11 @@ def usage_history():
     # Simple approach: return the current snapshot
     with get_db() as conn:
         authz = conn.execute(
-            'SELECT * FROM app_authorizations WHERE user_id=? AND app_name=?',
+            'SELECT * FROM app_authorizations WHERE user_id=%s AND app_name=%s',
             (user_id, app_name)).fetchone()
         keys = conn.execute(
             'SELECT id, name, key_prefix, calls_today, calls_total, last_used, created_at, active '
-            'FROM api_keys WHERE user_id=? AND app_name=? ORDER BY created_at DESC',
+            'FROM api_keys WHERE user_id=%s AND app_name=%s ORDER BY created_at DESC',
             (user_id, app_name)).fetchall()
         total_keys = len(keys)
         active_keys = sum(1 for k in keys if k['active'])
@@ -612,7 +612,7 @@ def get_configs():
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        user = conn.execute('SELECT is_admin FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT is_admin FROM users WHERE id=%s', (user_id,)).fetchone()
     if not user or not user['is_admin']:
         return jsonify({'success': False, 'error': chr(20165)+chr(31649)+chr(29702)+chr(21592)+chr(21487)+chr(20316)+chr(20316)}), 403
     with get_db() as conn:
@@ -639,7 +639,7 @@ def update_config():
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        user = conn.execute('SELECT is_admin FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT is_admin FROM users WHERE id=%s', (user_id,)).fetchone()
     if not user or not user['is_admin']:
         return jsonify({'success': False, 'error': chr(20165)+chr(31649)+chr(29702)+chr(21592)+chr(21487)+chr(20316)+chr(20316)}), 403
     data = request.get_json(force=True)
@@ -647,7 +647,7 @@ def update_config():
     value = data.get('value', '').strip()
     if not key:
         return jsonify({'success': False, 'error': 'key ' + chr(19981)+chr(33021)+chr(20026)+chr(31354)}), 400
-    sql = "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (?, ?, datetime('now'), ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
+    sql = "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (%s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by"
     with get_db() as conn:
         conn.execute(sql, (key, value, user_id))
         conn.commit()
@@ -663,7 +663,7 @@ def upload_config_csv():
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        user = conn.execute('SELECT is_admin FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT is_admin FROM users WHERE id=%s', (user_id,)).fetchone()
     if not user or not user['is_admin']:
         return jsonify({'success': False, 'error': 'Admin only'}), 403
     if 'file' not in request.files:
@@ -681,11 +681,11 @@ def upload_config_csv():
             return jsonify({'success': False, 'error': 'CSV missing AccessKey ID / AccessKey Secret columns'}), 400
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (?, ?, ?, datetime('now'), ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
+                "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
                 ('aliyun_sms_access_key', access_key, '阿里云短信 AccessKey ID', user_id)
             )
             conn.execute(
-                "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (?, ?, ?, datetime('now'), ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
+                "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
                 ('aliyun_sms_secret', access_secret, '阿里云短信 AccessKey Secret', user_id)
             )
             conn.commit()
@@ -702,17 +702,17 @@ def seed_config_defaults():
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        user = conn.execute('SELECT is_admin FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT is_admin FROM users WHERE id=%s', (user_id,)).fetchone()
     if not user or not user['is_admin']:
         return jsonify({'success': False, 'error': 'Admin only'}), 403
     created = []
     with get_db() as conn:
         for key, meta in CONFIG_SCHEMA.items():
-            existing = conn.execute('SELECT value FROM system_config WHERE key=?', (key,)).fetchone()
+            existing = conn.execute('SELECT value FROM system_config WHERE key=%s', (key,)).fetchone()
             if not existing:
                 default_desc = meta.get('label', key)
                 conn.execute(
-                    "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (?, ?, ?, datetime('now'), ?)",
+                    "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s)",
                     (key, '', default_desc, user_id)
                 )
                 created.append(key)
@@ -735,11 +735,11 @@ def get_notifications():
     offset = (page - 1) * page_size
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT id, type, title, content, link_url, is_read, read_at, created_at FROM user_notifications WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            'SELECT id, type, title, content, link_url, is_read, read_at, created_at FROM user_notifications WHERE user_id=%s ORDER BY created_at DESC LIMIT %s OFFSET %s',
             (user_id, page_size, offset)
         ).fetchall()
-        total = conn.execute('SELECT COUNT(*) as c FROM user_notifications WHERE user_id=?', (user_id,)).fetchone()
-        unread = conn.execute('SELECT COUNT(*) as c FROM user_notifications WHERE user_id=? AND is_read=0', (user_id,)).fetchone()
+        total = conn.execute('SELECT COUNT(*) as c FROM user_notifications WHERE user_id=%s', (user_id,)).fetchone()
+        unread = conn.execute('SELECT COUNT(*) as c FROM user_notifications WHERE user_id=%s AND is_read=0', (user_id,)).fetchone()
     data = [dict(r) for r in rows]
     return jsonify({'success': True, 'data': data, 'total': total['c'], 'unread': unread['c'], 'page': page, 'pageSize': page_size})
 
@@ -786,7 +786,7 @@ def delete_notification(nid):
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        conn.execute('DELETE FROM user_notifications WHERE user_id=? AND id=?', (user_id, nid))
+        conn.execute('DELETE FROM user_notifications WHERE user_id=%s AND id=%s', (user_id, nid))
         conn.commit()
     return jsonify({'success': True})
 
@@ -803,12 +803,12 @@ def get_tickets():
     with get_db() as conn:
         if filter_type and filter_type in ("presale","aftersale","complaint","suggestion"):
             rows = conn.execute(
-                'SELECT id, type, category, title, content, contact, status, priority, admin_reply, replied_at, created_at, updated_at FROM user_tickets WHERE user_id=? AND type=? ORDER BY updated_at DESC',
+                'SELECT id, type, category, title, content, contact, status, priority, admin_reply, replied_at, created_at, updated_at FROM user_tickets WHERE user_id=%s AND type=%s ORDER BY updated_at DESC',
                 (user_id, filter_type)
             ).fetchall()
         else:
             rows = conn.execute(
-                'SELECT id, type, category, title, content, contact, status, priority, admin_reply, replied_at, created_at, updated_at FROM user_tickets WHERE user_id=? ORDER BY updated_at DESC',
+                'SELECT id, type, category, title, content, contact, status, priority, admin_reply, replied_at, created_at, updated_at FROM user_tickets WHERE user_id=%s ORDER BY updated_at DESC',
                 (user_id,)
             ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -829,7 +829,7 @@ def create_ticket():
     if not content: return jsonify({'success': False, 'error': 'Content cannot be empty'}), 400
     with get_db() as conn:
         cur = conn.execute(
-            'INSERT INTO user_tickets (user_id, type, category, title, content, contact, priority) VALUES (?,?,?,?,?,?,?)',
+            'INSERT INTO user_tickets (user_id, type, category, title, content, contact, priority) VALUES (%s,%s,%s,%s,%s,%s,%s)',
             (user_id, ttype, category, title, content, contact, priority)
         )
         conn.commit()
@@ -848,7 +848,7 @@ def get_activity():
     limit = request.args.get('limit', 10, type=int)
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT id, type, title, content, created_at FROM user_activity WHERE user_id=? ORDER BY created_at DESC LIMIT ?',
+            'SELECT id, type, title, content, created_at FROM user_activity WHERE user_id=%s ORDER BY created_at DESC LIMIT %s',
             (user_id, limit)
         ).fetchall()
     # If no activity table yet, return empty
@@ -865,12 +865,12 @@ def agent_stats():
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        user = conn.execute('SELECT agent_id, agent_nickname, created_at FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT agent_id, agent_nickname, created_at FROM users WHERE id=%s', (user_id,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
-        key_count = conn.execute('SELECT COUNT(*) as c FROM api_keys WHERE user_id=?', (user_id,)).fetchone()
-        exp_count = conn.execute('SELECT COUNT(*) as c FROM agent_experiences WHERE user_id=?', (user_id,)).fetchone()
-        fav_count = conn.execute('SELECT COUNT(*) as c FROM favorites WHERE user_id=?', (user_id,)).fetchone()
+        key_count = conn.execute('SELECT COUNT(*) as c FROM api_keys WHERE user_id=%s', (user_id,)).fetchone()
+        exp_count = conn.execute('SELECT COUNT(*) as c FROM agent_experiences WHERE user_id=%s', (user_id,)).fetchone()
+        fav_count = conn.execute('SELECT COUNT(*) as c FROM favorites WHERE user_id=%s', (user_id,)).fetchone()
     return jsonify({'success': True, 'data': {
         'agent_id': user['agent_id'] or '',
         'agent_nickname': user['agent_nickname'] or '',
@@ -893,10 +893,10 @@ def user_posts():
     limit = min(request.args.get('limit', 20, type=int), 100)
     offset = (page - 1) * limit
     with get_db() as conn:
-        total = conn.execute('SELECT COUNT(*) as c FROM agent_experiences WHERE user_id=?', (user_id,)).fetchone()
+        total = conn.execute('SELECT COUNT(*) as c FROM agent_experiences WHERE user_id=%s', (user_id,)).fetchone()
         rows = conn.execute(
             'SELECT id, title, category, status, like_count, view_count, created_at '
-            'FROM agent_experiences WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            'FROM agent_experiences WHERE user_id=%s ORDER BY created_at DESC LIMIT %s OFFSET %s',
             (user_id, limit, offset)
         ).fetchall()
     return jsonify({'success': True, 'data': {
@@ -917,7 +917,7 @@ def key_stats(key_id):
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        key = conn.execute('SELECT id, name, key_prefix, calls_today, calls_total, created_at FROM api_keys WHERE id=? AND user_id=?', (key_id, user_id)).fetchone()
+        key = conn.execute('SELECT id, name, key_prefix, calls_today, calls_total, created_at FROM api_keys WHERE id=%s AND user_id=%s', (key_id, user_id)).fetchone()
     if not key:
         return jsonify({'success': False, 'error': 'API key not found'}), 404
     return jsonify({'success': True, 'data': dict(key)})
@@ -938,10 +938,10 @@ def profile_detail():
             FROM user_profiles up
             LEFT JOIN industries ind ON up.industry_id = ind.id
             LEFT JOIN career_options co ON up.career_id = co.id
-            WHERE up.user_id=?
+            WHERE up.user_id=%s
         ''', (user_id,)).fetchone()
         addr_count = conn.execute(
-            'SELECT COUNT(*) as c FROM user_addresses WHERE user_id=? AND status=1', (user_id,)
+            'SELECT COUNT(*) as c FROM user_addresses WHERE user_id=%s AND status=1', (user_id,)
         ).fetchone()['c']
     if prof:
         p = dict(prof)
@@ -997,18 +997,18 @@ def update_profile_detail():
     updates['updated_at'] = now_iso()
     with get_db() as conn:
         existing = conn.execute(
-            'SELECT id FROM user_profiles WHERE user_id=?', (user_id,)
+            'SELECT id FROM user_profiles WHERE user_id=%s', (user_id,)
         ).fetchone()
         if existing:
-            sets = ', '.join(f'{k}=?' for k in updates.keys())
+            sets = ', '.join(f'{k}=%s' for k in updates.keys())
             vals = list(updates.values()) + [user_id]
             conn.execute(
-                f'UPDATE user_profiles SET {sets} WHERE user_id=?', vals
+                f'UPDATE user_profiles SET {sets} WHERE user_id=%s', vals
             )
         else:
             updates['user_id'] = user_id
             cols = ', '.join(updates.keys())
-            placeholders = ', '.join('?' for _ in updates)
+            placeholders = ', '.join('%s' for _ in updates)
             conn.execute(
                 f'INSERT INTO user_profiles ({cols}) VALUES ({placeholders})',
                 list(updates.values())
@@ -1019,7 +1019,7 @@ def update_profile_detail():
             FROM user_profiles up
             LEFT JOIN industries ind ON up.industry_id = ind.id
             LEFT JOIN career_options co ON up.career_id = co.id
-            WHERE up.user_id=?
+            WHERE up.user_id=%s
         ''', (user_id,)).fetchone()
     p = dict(prof)
     try:
@@ -1065,7 +1065,7 @@ def get_user_interests():
             SELECT i.id, i.name, i.category, i.is_hot
             FROM user_interests ui
             JOIN interests i ON ui.interest_id = i.id
-            WHERE ui.user_id=? AND i.is_active=1
+            WHERE ui.user_id=%s AND i.is_active=1
             ORDER BY i.category, i.sort_order
         """, (user_id,)).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -1087,26 +1087,26 @@ def update_user_interests():
     if total < 3 or total > 5:
         return jsonify({'success': False, 'error': 'Please select 3-5 interest tags'}), 400
     with get_db() as conn:
-        conn.execute('DELETE FROM user_interests WHERE user_id=?', (user_id,))
+        conn.execute('DELETE FROM user_interests WHERE user_id=%s', (user_id,))
         # Existing interests
         for iid in ids:
             conn.execute(
-                'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (?,?)',
+                'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (%s,%s)',
                 (user_id, iid)
             )
         # Custom tags: find or create interest record, then link
         for name in custom:
-            row = conn.execute('SELECT id FROM interests WHERE name=?', (name,)).fetchone()
+            row = conn.execute('SELECT id FROM interests WHERE name=%s', (name,)).fetchone()
             if row:
                 iid = row['id']
             else:
                 cursor = conn.execute(
-                    'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (?,?,?,?,?)',
+                    'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s)',
                     (name, '自定义', 999, 0, 1)
                 )
                 iid = cursor.lastrowid
             conn.execute(
-                'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (?,?)',
+                'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (%s,%s)',
                 (user_id, iid)
             )
         conn.commit()
@@ -1137,7 +1137,7 @@ def list_industries():
 
 # =============================================
 # GET /user/career-options — 职业/自由职业选项
-# ?parent_id=xxx  返回子选项；不传返回常规职位
+# %sparent_id=xxx  返回子选项；不传返回常规职位
 # =============================================
 @user_bp.route('/career-options', methods=['GET'])
 def list_career_options():
@@ -1148,7 +1148,7 @@ def list_career_options():
     with get_db() as conn:
         if parent_id is not None:
             rows = conn.execute(
-                'SELECT id, category, name, parent_id FROM career_options WHERE parent_id=? ORDER BY sort_order, id',
+                'SELECT id, category, name, parent_id FROM career_options WHERE parent_id=%s ORDER BY sort_order, id',
                 (parent_id,)
             ).fetchall()
         else:
@@ -1162,7 +1162,7 @@ def list_career_options():
 
 # =============================================
 # GET /user/regions — 行政区划级联查询
-# ?parent_code=xxx  返回下级区域；不传返回 top-level
+# %sparent_code=xxx  返回下级区域；不传返回 top-level
 # =============================================
 @user_bp.route('/regions', methods=['GET'])
 def regions_cascade():
@@ -1175,7 +1175,7 @@ def regions_cascade():
             ).fetchall()
         else:
             rows = conn.execute(
-                'SELECT code, name, level, parent_code, full_name FROM regions WHERE parent_code=? ORDER BY code',
+                'SELECT code, name, level, parent_code, full_name FROM regions WHERE parent_code=%s ORDER BY code',
                 (parent_code,)
             ).fetchall()
     return jsonify({'success': True, 'data': {
@@ -1197,7 +1197,7 @@ def address_list():
         if market == 'intl':
             rows = conn.execute(
                 '''SELECT * FROM user_addresses_intl
-                WHERE user_id=? AND status=1
+                WHERE user_id=%s AND status=1
                 ORDER BY is_default DESC, created_at DESC''',
                 (user_id,)
             ).fetchall()
@@ -1213,7 +1213,7 @@ def address_list():
                 LEFT JOIN regions c ON ua.city_code = c.code
                 LEFT JOIN regions d ON ua.district_code = d.code
                 LEFT JOIN regions s ON ua.street_code = s.code
-                WHERE ua.user_id=? AND ua.status=1
+                WHERE ua.user_id=%s AND ua.status=1
                 ORDER BY ua.is_default DESC, ua.created_at DESC''',
                 (user_id,)
             ).fetchall()
@@ -1244,18 +1244,18 @@ def address_create():
         is_default = 1 if data.get('is_default') else 0
         with get_db() as conn:
             if is_default:
-                conn.execute('UPDATE user_addresses SET is_default=0 WHERE user_id=? AND status=1', (user_id,))
+                conn.execute('UPDATE user_addresses SET is_default=0 WHERE user_id=%s AND status=1', (user_id,))
             cols = ['user_id', 'recipient_name', 'phone', 'street_address', 'postal_code', 'is_default']
             vals = [user_id, recipient, phone, street_addr,
                     (data.get('postal_code', '') or '').strip(), is_default]
             conn.execute(
-                f'INSERT INTO user_addresses ({", ".join(cols)}) VALUES ({", ".join("?" for _ in vals)})',
+                f'INSERT INTO user_addresses ({", ".join(cols)}) VALUES ({", ".join("%s" for _ in vals)})',
                 vals
             )
             conn.commit()
-            addr_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            addr_id = conn.execute('SELECT lastval()').fetchone()[0]
             addr = conn.execute(
-                'SELECT * FROM user_addresses WHERE id=?', (addr_id,)
+                'SELECT * FROM user_addresses WHERE id=%s', (addr_id,)
             ).fetchone()
         return jsonify({'success': True, 'data': {'address': dict(addr)}})
 
@@ -1268,17 +1268,17 @@ def address_create():
         # Validate region codes exist
         for code_field in ['province_code', 'city_code', 'district_code']:
             code = data[code_field].strip()
-            exist = conn.execute('SELECT 1 FROM regions WHERE code=?', (code,)).fetchone()
+            exist = conn.execute('SELECT 1 FROM regions WHERE code=%s', (code,)).fetchone()
             if not exist:
                 return jsonify({'success': False, 'error': f'Invalid {code_field}: {code}'}), 400
         street_code = (data.get('street_code', '') or '').strip()
         if street_code:
-            exist = conn.execute('SELECT 1 FROM regions WHERE code=?', (street_code,)).fetchone()
+            exist = conn.execute('SELECT 1 FROM regions WHERE code=%s', (street_code,)).fetchone()
             if not exist:
                 return jsonify({'success': False, 'error': f'Invalid street_code: {street_code}'}), 400
         if is_default:
             conn.execute(
-                'UPDATE user_addresses SET is_default=0 WHERE user_id=? AND status=1',
+                'UPDATE user_addresses SET is_default=0 WHERE user_id=%s AND status=1',
                 (user_id,)
             )
         cols = ['user_id', 'recipient_name', 'phone', 'province_code', 'city_code', 'district_code',
@@ -1294,11 +1294,11 @@ def address_create():
                 (data.get('postal_code', '') or '').strip(),
                 is_default]
         conn.execute(
-            f'INSERT INTO user_addresses ({", ".join(cols)}) VALUES ({", ".join("?" for _ in vals)})',
+            f'INSERT INTO user_addresses ({", ".join(cols)}) VALUES ({", ".join("%s" for _ in vals)})',
             vals
         )
         conn.commit()
-        addr_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        addr_id = conn.execute('SELECT lastval()').fetchone()[0]
         addr = conn.execute(
             '''SELECT ua.*,
                 p.name as province_name, c.name as city_name,
@@ -1308,7 +1308,7 @@ def address_create():
             LEFT JOIN regions c ON ua.city_code = c.code
             LEFT JOIN regions d ON ua.district_code = d.code
             LEFT JOIN regions s ON ua.street_code = s.code
-            WHERE ua.id=?''', (addr_id,)
+            WHERE ua.id=%s''', (addr_id,)
         ).fetchone()
     return jsonify({'success': True, 'data': {'address': dict(addr)}})
 
@@ -1326,7 +1326,7 @@ def address_update(addr_id):
     market = os.environ.get('DEPLOY_MARKET', 'cn')
     with get_db() as conn:
         exist = conn.execute(
-            'SELECT * FROM user_addresses WHERE id=? AND user_id=? AND status=1',
+            'SELECT * FROM user_addresses WHERE id=%s AND user_id=%s AND status=1',
             (addr_id, user_id)
         ).fetchone()
         if not exist:
@@ -1345,7 +1345,7 @@ def address_update(addr_id):
                 if f in data:
                     code = (data[f] or '').strip()
                     if code:
-                        rc = conn.execute('SELECT 1 FROM regions WHERE code=?', (code,)).fetchone()
+                        rc = conn.execute('SELECT 1 FROM regions WHERE code=%s', (code,)).fetchone()
                         if not rc:
                             return jsonify({'success': False, 'error': f'Invalid {f}: {code}'}), 400
                     updates[f] = code
@@ -1356,16 +1356,16 @@ def address_update(addr_id):
             is_def = 1 if data['is_default'] else 0
             if is_def:
                 conn.execute(
-                    'UPDATE user_addresses SET is_default=0 WHERE user_id=? AND status=1',
+                    'UPDATE user_addresses SET is_default=0 WHERE user_id=%s AND status=1',
                     (user_id,)
                 )
             updates['is_default'] = is_def
         if not updates:
             return jsonify({'success': False, 'error': 'No fields to update'}), 400
         updates['updated_at'] = now_iso()
-        sets = ', '.join(f'{k}=?' for k in updates.keys())
+        sets = ', '.join(f'{k}=%s' for k in updates.keys())
         vals = list(updates.values()) + [addr_id]
-        conn.execute(f'UPDATE user_addresses SET {sets} WHERE id=?', vals)
+        conn.execute(f'UPDATE user_addresses SET {sets} WHERE id=%s', vals)
         conn.commit()
         addr = conn.execute(
             '''SELECT ua.*,
@@ -1376,7 +1376,7 @@ def address_update(addr_id):
             LEFT JOIN regions c ON ua.city_code = c.code
             LEFT JOIN regions d ON ua.district_code = d.code
             LEFT JOIN regions s ON ua.street_code = s.code
-            WHERE ua.id=?''', (addr_id,)
+            WHERE ua.id=%s''', (addr_id,)
         ).fetchone()
     return jsonify({'success': True, 'data': {'address': dict(addr)}})
 
@@ -1394,24 +1394,24 @@ def address_delete(addr_id):
     table = 'user_addresses_intl' if market == 'intl' else 'user_addresses'
     with get_db() as conn:
         exist = conn.execute(
-            f'SELECT * FROM {table} WHERE id=? AND user_id=? AND status=1',
+            f'SELECT * FROM {table} WHERE id=%s AND user_id=%s AND status=1',
             (addr_id, user_id)
         ).fetchone()
         if not exist:
             return jsonify({'success': False, 'error': 'Address not found or no permission'}), 403
         was_default = exist['is_default']
         conn.execute(
-            f'UPDATE {table} SET status=0, is_default=0, updated_at=? WHERE id=?',
+            f'UPDATE {table} SET status=0, is_default=0, updated_at=%s WHERE id=%s',
             (now_iso(), addr_id)
         )
         if was_default:
             latest = conn.execute(
-                f'SELECT id FROM {table} WHERE user_id=? AND status=1 ORDER BY created_at DESC LIMIT 1',
+                f'SELECT id FROM {table} WHERE user_id=%s AND status=1 ORDER BY created_at DESC LIMIT 1',
                 (user_id,)
             ).fetchone()
             if latest:
                 conn.execute(
-                    f'UPDATE {table} SET is_default=1 WHERE id=?',
+                    f'UPDATE {table} SET is_default=1 WHERE id=%s',
                     (latest['id'],)
                 )
         conn.commit()
@@ -1431,17 +1431,17 @@ def address_set_default(addr_id):
     table = 'user_addresses_intl' if market == 'intl' else 'user_addresses'
     with get_db() as conn:
         exist = conn.execute(
-            f'SELECT * FROM {table} WHERE id=? AND user_id=? AND status=1',
+            f'SELECT * FROM {table} WHERE id=%s AND user_id=%s AND status=1',
             (addr_id, user_id)
         ).fetchone()
         if not exist:
             return jsonify({'success': False, 'error': 'Address not found or no permission'}), 403
         conn.execute(
-            f'UPDATE {table} SET is_default=0 WHERE user_id=? AND status=1',
+            f'UPDATE {table} SET is_default=0 WHERE user_id=%s AND status=1',
             (user_id,)
         )
         conn.execute(
-            f'UPDATE {table} SET is_default=1, updated_at=? WHERE id=?',
+            f'UPDATE {table} SET is_default=1, updated_at=%s WHERE id=%s',
             (now_iso(), addr_id)
         )
         conn.commit()
@@ -1459,7 +1459,7 @@ def totp_setup():
         return err
     user_id = payload['user_id']
     with get_db() as conn:
-        user = conn.execute('SELECT id, username, phone FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT id, username, phone FROM users WHERE id=%s', (user_id,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
         if user.get('totp_enabled'):
@@ -1484,7 +1484,7 @@ def totp_setup():
         qr_b64 = base64.b64encode(buf.getvalue()).decode()
 
         # Save secret temporarily (NOT enabled until verified)
-        conn.execute('UPDATE users SET totp_secret=? WHERE id=?', (secret, user_id))
+        conn.execute('UPDATE users SET totp_secret=%s WHERE id=%s', (secret, user_id))
         conn.commit()
 
     return jsonify({
@@ -1511,7 +1511,7 @@ def totp_verify():
         return jsonify({'success': False, 'error': 'Please enter a 6-digit code'}), 400
 
     with get_db() as conn:
-        user = conn.execute('SELECT totp_secret FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT totp_secret FROM users WHERE id=%s', (user_id,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
         if not user['totp_secret']:
@@ -1523,7 +1523,7 @@ def totp_verify():
             return jsonify({'success': False, 'error': 'Invalid or expired verification code'}), 400
 
         conn.execute(
-            'UPDATE users SET totp_enabled=1, updated_at=? WHERE id=?',
+            'UPDATE users SET totp_enabled=1, updated_at=%s WHERE id=%s',
             (now_iso(), user_id)
         )
         conn.commit()
@@ -1542,7 +1542,7 @@ def totp_disable():
     token = (data.get('token') or '').strip()
 
     with get_db() as conn:
-        user = conn.execute('SELECT totp_secret, totp_enabled FROM users WHERE id=?', (user_id,)).fetchone()
+        user = conn.execute('SELECT totp_secret, totp_enabled FROM users WHERE id=%s', (user_id,)).fetchone()
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
         if not user['totp_enabled']:
@@ -1556,7 +1556,7 @@ def totp_disable():
                 return jsonify({'success': False, 'error': 'Invalid code, verify current code to disable 2FA'}), 400
 
         conn.execute(
-            'UPDATE users SET totp_secret=NULL, totp_enabled=0, updated_at=? WHERE id=?',
+            'UPDATE users SET totp_secret=NULL, totp_enabled=0, updated_at=%s WHERE id=%s',
             (now_iso(), user_id)
         )
         conn.commit()
@@ -1584,12 +1584,12 @@ def oauth_unbind():
     with get_db() as conn:
         if provider == 'wechat':
             conn.execute(
-                'UPDATE users SET wechat_openid=NULL, wechat_unionid=NULL, wechat_nickname=NULL, updated_at=? WHERE id=?',
+                'UPDATE users SET wechat_openid=NULL, wechat_unionid=NULL, wechat_nickname=NULL, updated_at=%s WHERE id=%s',
                 (now_iso(), user_id)
             )
         else:
             conn.execute(
-                'UPDATE users SET douyin_open_id=NULL, douyin_nickname=NULL, douyin_avatar=NULL, updated_at=? WHERE id=?',
+                'UPDATE users SET douyin_open_id=NULL, douyin_nickname=NULL, douyin_avatar=NULL, updated_at=%s WHERE id=%s',
                 (now_iso(), user_id)
             )
         conn.commit()
@@ -1622,7 +1622,7 @@ def notification_preferences():
     if request.method == 'GET':
         with get_db() as conn:
             row = conn.execute(
-                'SELECT prefs FROM notification_preferences WHERE user_id=?', (user_id,)
+                'SELECT prefs FROM notification_preferences WHERE user_id=%s', (user_id,)
             ).fetchone()
         if row:
             prefs = json.loads(row['prefs'])
@@ -1642,7 +1642,7 @@ def notification_preferences():
     with get_db() as conn:
         conn.execute(
             '''INSERT INTO notification_preferences (user_id, prefs, updated_at)
-               VALUES (?, ?, ?)
+               VALUES (%s, %s, %s)
                ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at''',
             (user_id, json.dumps(prefs, ensure_ascii=False), now_iso())
         )
@@ -1668,10 +1668,10 @@ def user_activity():
 
     with get_db() as conn:
         total = conn.execute(
-            'SELECT COUNT(*) as cnt FROM user_activity WHERE user_id=?', (user_id,)
+            'SELECT COUNT(*) as cnt FROM user_activity WHERE user_id=%s', (user_id,)
         ).fetchone()['cnt']
         rows = conn.execute(
-            'SELECT id, type, title, content, created_at FROM user_activity WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            'SELECT id, type, title, content, created_at FROM user_activity WHERE user_id=%s ORDER BY created_at DESC LIMIT %s OFFSET %s',
             (user_id, page_size, offset)
         ).fetchall()
 
@@ -1713,7 +1713,7 @@ def get_verification():
 
     with get_db() as conn:
         user = conn.execute(
-            'SELECT verified_by, verified_at, display_name, is_real_name_verified, real_name_verified_at FROM users WHERE id=?',
+            'SELECT verified_by, verified_at, display_name, is_real_name_verified, real_name_verified_at FROM users WHERE id=%s',
             (user_id,)
         ).fetchone()
     if not user:
@@ -1756,7 +1756,7 @@ def apply_verification():
             return jsonify({'success': False, 'error': 'Please provide real name and ID number'}), 400
         if not return_url:
             from urllib.parse import urljoin
-            return_url = urljoin(request.host_url, '/?section=account')
+            return_url = urljoin(request.host_url, '/%ssection=account')
 
         result = initiate_verification(user_id, return_url, cert_name=cert_name, cert_no=cert_no)
         if result['success']:
@@ -1793,7 +1793,7 @@ def verification_callback():
         # 尝试从 verification_requests 表查询
         with get_db() as conn:
             row = conn.execute(
-                "SELECT user_id FROM verification_requests WHERE request_id=?",
+                "SELECT user_id FROM verification_requests WHERE request_id=%s",
                 (request_id,)
             ).fetchone()
         if row:

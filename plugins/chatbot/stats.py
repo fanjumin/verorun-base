@@ -42,7 +42,7 @@ def log_session(session_id, user_query='', ai_reply='', escalated=False,
                 """INSERT INTO chatbot_sessions
                    (session_id, user_query, ai_reply, escalated, source,
                     intent, sentiment, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())""",
                 (session_id, user_query, ai_reply, 1 if escalated else 0, source,
                  intent, sentiment)
             )
@@ -101,7 +101,7 @@ def get_today_stats():
             trend_raw = conn.execute(
                 "SELECT date(created_at) as d, COUNT(DISTINCT session_id) as cnt "
                 "FROM chatbot_sessions WHERE source='chatbot' "
-                "AND created_at >= datetime('now', '-7 days') "
+                "AND created_at >= NOW() - INTERVAL '7 days' "
                 "GROUP BY d ORDER BY d"
             ).fetchall()
 

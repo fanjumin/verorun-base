@@ -31,7 +31,7 @@ def _log(agent_id, user_id, action, detail=''):
     ip = request.remote_addr or ''
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO agent_logs (agent_id, user_id, action, detail, ip_address) VALUES (?,?,?,?,?)',
+            'INSERT INTO agent_logs (agent_id, user_id, action, detail, ip_address) VALUES (%s,%s,%s,%s,%s)',
             (agent_id, user_id, action, detail, ip)
         )
         conn.commit()
@@ -51,7 +51,7 @@ def agent_list():
             "SELECT ua.id, ua.agent_name, ua.agent_type, ua.avatar_url, ua.status, "
             "       ua.default_scopes, ua.metadata, ua.last_active_at, ua.created_at, "
             "       (SELECT COUNT(*) FROM agent_api_keys WHERE agent_id=ua.id AND status='active') as active_keys "
-            "FROM user_agents ua WHERE ua.user_id=? ORDER BY ua.created_at DESC",
+            "FROM user_agents ua WHERE ua.user_id=%s ORDER BY ua.created_at DESC",
             (uid,)
         ).fetchall()
     agents = []
@@ -91,16 +91,16 @@ def agent_create():
     
     with get_db() as conn:
         # Check agent limit per tier
-        user = conn.execute("SELECT u.id, COALESCE(aa.tier,'free') as tier FROM users u LEFT JOIN app_authorizations aa ON u.id=aa.user_id AND aa.app_name='trademind' WHERE u.id=?", (uid,)).fetchone()
+        user = conn.execute("SELECT u.id, COALESCE(aa.tier,'free') as tier FROM users u LEFT JOIN app_authorizations aa ON u.id=aa.user_id AND aa.app_name='trademind' WHERE u.id=%s", (uid,)).fetchone()
         tier = user['tier'] if user else 'free'
         max_agents = TIERS.get(tier, {}).get('max_agents', 1)
-        existing_count = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE user_id=?", (uid,)).fetchone()['c']
+        existing_count = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE user_id=%s", (uid,)).fetchone()['c']
         if existing_count >= max_agents:
             return jsonify({'success': False, 'error': f'你的{tier}套餐最多创建{max_agents}个Agent，当前已有{existing_count}个'}), 400
         
         # Check duplicate name for this user
         existing = conn.execute(
-            "SELECT id FROM user_agents WHERE user_id=? AND agent_name=?",
+            "SELECT id FROM user_agents WHERE user_id=%s AND agent_name=%s",
             (uid, agent_name)
         ).fetchone()
         if existing:
@@ -111,7 +111,7 @@ def agent_create():
         
         cur = conn.execute(
             "INSERT INTO user_agents (user_id, agent_name, agent_type, avatar_url, default_scopes, metadata) "
-            "VALUES (?,?,?,?,?,?)",
+            "VALUES (%s,%s,%s,%s,%s,%s)",
             (uid, agent_name, agent_type, f'/avatar/gen/{agent_name}', scopes_str, metadata_str)
         )
         conn.commit()
@@ -144,7 +144,7 @@ def agent_detail(aid):
             "SELECT id, user_id, agent_name, agent_type, avatar_url, status, "
             "       default_scopes, metadata, last_active_ip, last_active_at, "
             "       created_at, updated_at "
-            "FROM user_agents WHERE id=? AND user_id=?",
+            "FROM user_agents WHERE id=%s AND user_id=%s",
             (aid, uid)
         ).fetchone()
         if not row:
@@ -164,7 +164,7 @@ def agent_detail(aid):
         keys = conn.execute(
             "SELECT id, key_prefix, name, scopes, status, expire_at, "
             "       last_used_at, rotated_at, calls_today, calls_total, created_at "
-            "FROM agent_api_keys WHERE agent_id=? ORDER BY created_at DESC",
+            "FROM agent_api_keys WHERE agent_id=%s ORDER BY created_at DESC",
             (aid,)
         ).fetchall()
         d['api_keys'] = [dict(k) for k in keys]
@@ -195,22 +195,22 @@ def agent_update(aid):
             val = data[key]
             if key in ('default_scopes', 'metadata') and isinstance(val, (list, dict)):
                 val = _json.dumps(val)
-            fields.append(f'{key}=?')
+            fields.append(f'{key}=%s')
             params.append(val)
     
     if not fields:
         return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
     
-    fields.append("updated_at=datetime('now')")
+    fields.append("updated_at=NOW()")
     params.extend([aid, uid])
     
     with get_db() as conn:
         # Verify ownership
-        row = conn.execute("SELECT id FROM user_agents WHERE id=? AND user_id=?", (aid, uid)).fetchone()
+        row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
         conn.execute(
-            f'UPDATE user_agents SET {", ".join(fields)} WHERE id=? AND user_id=?',
+            f'UPDATE user_agents SET {", ".join(fields)} WHERE id=%s AND user_id=%s',
             params
         )
         conn.commit()
@@ -230,22 +230,22 @@ def agent_delete(aid):
     uid = payload['user_id']
     
     with get_db() as conn:
-        row = conn.execute("SELECT id, agent_name FROM user_agents WHERE id=? AND user_id=?", (aid, uid)).fetchone()
+        row = conn.execute("SELECT id, agent_name FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
         
         agent_name = row['agent_name']
         # Delete in FK order: api_keys → logs → agent
-        conn.execute("DELETE FROM agent_api_keys WHERE agent_id=?", (aid,))
-        conn.execute("DELETE FROM agent_logs WHERE agent_id=?", (aid,))
-        conn.execute("DELETE FROM user_agents WHERE id=? AND user_id=?", (aid, uid))
+        conn.execute("DELETE FROM agent_api_keys WHERE agent_id=%s", (aid,))
+        conn.execute("DELETE FROM agent_logs WHERE agent_id=%s", (aid,))
+        conn.execute("DELETE FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid))
         conn.commit()
     
     # Log without FK reference (use user_id only)
     ip = request.remote_addr or ''
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO agent_logs (agent_id, user_id, action, detail, ip_address) VALUES (NULL,?,?,?,?)',
+            'INSERT INTO agent_logs (agent_id, user_id, action, detail, ip_address) VALUES (NULL,%s,%s,%s,%s)',
             (uid, 'delete', f'Agent "{agent_name}" deleted (id={aid})', ip)
         )
         conn.commit()
@@ -263,14 +263,14 @@ def agent_keys_list(aid):
         return err
     uid = payload['user_id']
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM user_agents WHERE id=? AND user_id=?", (aid, uid)).fetchone()
+        row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
         
         keys = conn.execute(
             "SELECT id, key_prefix, name, scopes, status, expire_at, "
             "       last_used_at, rotated_at, calls_today, calls_total, created_at "
-            "FROM agent_api_keys WHERE agent_id=? ORDER BY created_at DESC",
+            "FROM agent_api_keys WHERE agent_id=%s ORDER BY created_at DESC",
             (aid,)
         ).fetchall()
     
@@ -302,7 +302,7 @@ def agent_key_create(aid):
     
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, agent_name FROM user_agents WHERE id=? AND user_id=?",
+            "SELECT id, agent_name FROM user_agents WHERE id=%s AND user_id=%s",
             (aid, uid)
         ).fetchone()
         if not row:
@@ -322,11 +322,11 @@ def agent_key_create(aid):
     with get_db() as conn:
         conn.execute(
             "INSERT INTO agent_api_keys (agent_id, user_id, key_hash, key_prefix, name, scopes, expire_at) "
-            "VALUES (?,?,?,?,?,?,datetime('now', ?))",
-            (aid, uid, key_hash, key_prefix, name, scopes_str, f'+{expire_days} days')
+            "VALUES (%s,%s,%s,%s,%s,%s,NOW() + (%s * INTERVAL '1 second'))",
+            (aid, uid, key_hash, key_prefix, name, scopes_str, expire_days * 86400)
         )
         conn.commit()
-        kid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        kid = conn.execute('SELECT lastval()').fetchone()[0]
     
     _log(aid, uid, 'create_key', f'Key "{name or "unnamed"}" created (expires in {expire_days}d)')
     
@@ -351,14 +351,14 @@ def agent_key_revoke(aid, kid):
     uid = payload['user_id']
     with get_db() as conn:
         # Verify agent belongs to user
-        row = conn.execute("SELECT id FROM user_agents WHERE id=? AND user_id=?", (aid, uid)).fetchone()
+        row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
         # Verify key belongs to agent
-        key = conn.execute("SELECT id, name FROM agent_api_keys WHERE id=? AND agent_id=?", (kid, aid)).fetchone()
+        key = conn.execute("SELECT id, name FROM agent_api_keys WHERE id=%s AND agent_id=%s", (kid, aid)).fetchone()
         if not key:
             return jsonify({'success': False, 'error': '密钥不存在'}), 404
-        conn.execute("UPDATE agent_api_keys SET status='revoked' WHERE id=?", (kid,))
+        conn.execute("UPDATE agent_api_keys SET status='revoked' WHERE id=%s", (kid,))
         conn.commit()
     
     _log(aid, uid, 'revoke_key', f'Key "{key["name"] or kid}" revoked')
@@ -376,12 +376,12 @@ def agent_key_rotate(aid, kid):
     uid = payload['user_id']
     
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM user_agents WHERE id=? AND user_id=?", (aid, uid)).fetchone()
+        row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
         
         key = conn.execute(
-            "SELECT id, name, key_prefix FROM agent_api_keys WHERE id=? AND agent_id=? AND status='active'",
+            "SELECT id, name, key_prefix FROM agent_api_keys WHERE id=%s AND agent_id=%s AND status='active'",
             (kid, aid)
         ).fetchone()
         if not key:
@@ -395,19 +395,19 @@ def agent_key_rotate(aid, kid):
     with get_db() as conn:
         # Mark old key as revoked and record rotation
         conn.execute(
-            "UPDATE agent_api_keys SET status='revoked', rotated_at=datetime('now') WHERE id=?",
+            "UPDATE agent_api_keys SET status='revoked', rotated_at=NOW() WHERE id=%s",
             (kid,)
         )
         # Create new key with rotation link
         conn.execute(
             "INSERT INTO agent_api_keys (agent_id, user_id, key_hash, key_prefix, name, "
             "  scopes, status, expire_at, rotated_from_key_id) "
-            "SELECT ?, ?, ?, ?, name, scopes, 'active', expire_at, ? "
-            "FROM agent_api_keys WHERE id=?",
+            "SELECT %s, %s, %s, %s, name, scopes, 'active', expire_at, %s "
+            "FROM agent_api_keys WHERE id=%s",
             (aid, uid, new_hash, new_prefix, kid, kid)
         )
         conn.commit()
-        new_kid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        new_kid = conn.execute('SELECT lastval()').fetchone()[0]
     
     _log(aid, uid, 'rotate_key', f'Key {kid} rotated → {new_kid}')
     
@@ -430,29 +430,29 @@ def agent_stats(aid):
         return err
     uid = payload['user_id']
     with get_db() as conn:
-        row = conn.execute("SELECT id, agent_name FROM user_agents WHERE id=? AND user_id=?", (aid, uid)).fetchone()
+        row = conn.execute("SELECT id, agent_name FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
         
         # Total calls
         total_calls = conn.execute(
-            "SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys WHERE agent_id=?",
+            "SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys WHERE agent_id=%s",
             (aid,)
         ).fetchone()
         today_calls = conn.execute(
-            "SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE agent_id=? AND last_reset=date('now')",
+            "SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE agent_id=%s AND last_reset=CURRENT_DATE",
             (aid,)
         ).fetchone()
         active_keys = conn.execute(
-            "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=? AND status='active'",
+            "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=%s AND status='active'",
             (aid,)
         ).fetchone()
         revoked_keys = conn.execute(
-            "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=? AND status='revoked'",
+            "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=%s AND status='revoked'",
             (aid,)
         ).fetchone()
         log_count = conn.execute(
-            "SELECT COUNT(*) as c FROM agent_logs WHERE agent_id=?",
+            "SELECT COUNT(*) as c FROM agent_logs WHERE agent_id=%s",
             (aid,)
         ).fetchone()
     

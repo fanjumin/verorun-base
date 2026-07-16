@@ -19,7 +19,7 @@ def get_header_nav():
         return jsonify({'success': False, 'error': '无效的 site 参数'}), 400
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT id, site, title, url, sort_order, is_enabled FROM header_nav WHERE site=? ORDER BY sort_order ASC, id ASC',
+            'SELECT id, site, title, url, sort_order, is_enabled FROM header_nav WHERE site=%s ORDER BY sort_order ASC, id ASC',
             (site,)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
@@ -39,10 +39,10 @@ def create_header_nav():
     if not title or not url:
         return jsonify({'success': False, 'error': 'title、url 为必填'}), 400
     with get_db() as conn:
-        m = conn.execute('SELECT MAX(sort_order) as m FROM header_nav WHERE site=?', (site,)).fetchone()
+        m = conn.execute('SELECT MAX(sort_order) as m FROM header_nav WHERE site=%s', (site,)).fetchone()
         order = (m['m'] or 0) + 1 if m else 1
         cursor = conn.execute(
-            'INSERT INTO header_nav (site, title, url, sort_order, is_enabled) VALUES (?,?,?,?,?)',
+            'INSERT INTO header_nav (site, title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s)',
             (site, title, url, order, 1 if data.get('is_enabled', True) else 0)
         )
         conn.commit()
@@ -58,11 +58,11 @@ def update_header_nav(item_id):
     if err: return err
     data = request.get_json(force=True) or {}
     with get_db() as conn:
-        existing = conn.execute('SELECT id FROM header_nav WHERE id=?', (item_id,)).fetchone()
+        existing = conn.execute('SELECT id FROM header_nav WHERE id=%s', (item_id,)).fetchone()
         if not existing:
             return jsonify({'success': False, 'error': '不存在'}), 404
         conn.execute(
-            'UPDATE header_nav SET title=?, url=?, is_enabled=?, sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            'UPDATE header_nav SET title=%s, url=%s, is_enabled=%s, sort_order=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
             (data.get('title', '').strip(), data.get('url', '').strip(),
              1 if data.get('is_enabled', True) else 0,
              data.get('sort_order', 0), item_id)
@@ -78,10 +78,10 @@ def delete_header_nav(item_id):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        r = conn.execute('SELECT title FROM header_nav WHERE id=?', (item_id,)).fetchone()
+        r = conn.execute('SELECT title FROM header_nav WHERE id=%s', (item_id,)).fetchone()
         if not r:
             return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM header_nav WHERE id=?', (item_id,))
+        conn.execute('DELETE FROM header_nav WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'header_nav', str(item_id), r['title'])
     return jsonify({'success': True, 'message': '已删除'})
@@ -98,7 +98,7 @@ def reorder_header_nav():
         return jsonify({'success': False, 'error': 'items 不能为空'}), 400
     with get_db() as conn:
         for i, item in enumerate(items):
-            conn.execute('UPDATE header_nav SET sort_order=? WHERE id=?', (i, item.get('id')))
+            conn.execute('UPDATE header_nav SET sort_order=%s WHERE id=%s', (i, item.get('id')))
         conn.commit()
     _log(admin['user_id'], 'reorder', 'header_nav', '', f'{len(items)} items')
     return jsonify({'success': True, 'message': '排序已保存'})

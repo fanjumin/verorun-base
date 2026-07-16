@@ -20,18 +20,18 @@ from .models import get_registry_db
 
 COUPON_DDL = """
 CREATE TABLE IF NOT EXISTS coupon_codes (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code            TEXT NOT NULL UNIQUE,
     discount_type   TEXT NOT NULL CHECK(discount_type IN ('percentage', 'fixed')),
     discount_value  INTEGER NOT NULL,
-    max_uses        INTEGER DEFAULT 0,
-    used_count      INTEGER DEFAULT 0,
-    min_amount_fen  INTEGER DEFAULT 0,
+    max_uses        BIGINT DEFAULT 0,
+    used_count      BIGINT DEFAULT 0,
+    min_amount_fen  BIGINT DEFAULT 0,
     applicable_plugins TEXT DEFAULT '[]',
     expires_at      TEXT,
-    is_active       INTEGER DEFAULT 1,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    is_active       BIGINT DEFAULT 1,
+    created_at      TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_coupon_code ON coupon_codes(code);
@@ -67,7 +67,7 @@ class CouponManager:
                     INSERT INTO coupon_codes
                         (code, discount_type, discount_value, max_uses,
                          min_amount_fen, applicable_plugins, expires_at)
-                    VALUES (?,?,?,?,?,?,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
                 """, (
                     code, discount_type, discount_value, max_uses,
                     min_amount_fen,
@@ -145,7 +145,7 @@ class CouponManager:
             with get_registry_db() as conn:
                 conn.execute(
                     "UPDATE coupon_codes SET used_count = used_count + 1, "
-                    "updated_at = datetime('now') WHERE code=?",
+                    "updated_at = NOW() WHERE code=%s",
                     (code,)
                 )
                 conn.commit()
@@ -164,7 +164,7 @@ class CouponManager:
     def _find(self, code: str) -> Optional[dict]:
         with get_registry_db() as conn:
             row = conn.execute(
-                "SELECT * FROM coupon_codes WHERE code=?", (code,)
+                "SELECT * FROM coupon_codes WHERE code=%s", (code,)
             ).fetchone()
             return dict(row) if row else None
 

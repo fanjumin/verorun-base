@@ -49,7 +49,7 @@ class PriceInterval(str, Enum):
 LICENSE_STORE_DDL = """
 -- License 记录表
 CREATE TABLE IF NOT EXISTS plugin_licenses (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     plugin_id       TEXT NOT NULL,                  -- 插件 identifier
     license_key     TEXT NOT NULL UNIQUE,            -- License Key
     license_type    TEXT NOT NULL DEFAULT 'free'
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS plugin_licenses (
     site_id         TEXT NOT NULL,                   -- 站点唯一标识
     site_name       TEXT DEFAULT '',                 -- 站点名称（客户自定义）
     customer_email  TEXT DEFAULT '',                 -- 购买者邮箱
-    max_sites       INTEGER NOT NULL DEFAULT 1,      -- 最大激活站点数
+    max_sites       BIGINT NOT NULL DEFAULT 1,      -- 最大激活站点数
     activated_at    TEXT,                            -- 首次激活时间
     expires_at      TEXT,                            -- 过期时间
     trial_ends_at   TEXT,                            -- 试用截止时间
@@ -68,10 +68,10 @@ CREATE TABLE IF NOT EXISTS plugin_licenses (
     grace_until     TEXT,                            -- 离线宽容截止时间
     order_id        TEXT DEFAULT '',                 -- 关联订单号
     subscription_id TEXT DEFAULT '',                 -- 关联订阅 ID
-    auto_renew      INTEGER NOT NULL DEFAULT 0,      -- 是否自动续费
+    auto_renew      BIGINT NOT NULL DEFAULT 0,      -- 是否自动续费
     metadata        TEXT DEFAULT '{}',               -- 扩展信息 JSON
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    created_at      TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_plugin_licenses_plugin
@@ -83,7 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_plugin_licenses_site
 
 -- 商店插件缓存表
 CREATE TABLE IF NOT EXISTS store_plugins (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     identifier      TEXT NOT NULL UNIQUE,            -- 插件标识
     name            TEXT NOT NULL,                   -- 显示名称
     description     TEXT DEFAULT '',
@@ -93,39 +93,39 @@ CREATE TABLE IF NOT EXISTS store_plugins (
     icon_url        TEXT DEFAULT '',
     price_type      TEXT NOT NULL DEFAULT 'free'
                     CHECK(price_type IN ('free','onetime','sub','trial')),
-    price_amount    INTEGER DEFAULT 0,               -- 价格（分）
+    price_amount    BIGINT DEFAULT 0,               -- 价格（分）
     price_interval  TEXT DEFAULT 'onetime'
                     CHECK(price_interval IN ('onetime','month','year')),
-    trial_days      INTEGER DEFAULT 0,               -- 试用天数
+    trial_days      BIGINT DEFAULT 0,               -- 试用天数
     download_url    TEXT DEFAULT '',                 -- 下载地址
     package_hash    TEXT DEFAULT '',                 -- 包签名哈希
-    file_size       INTEGER DEFAULT 0,               -- 文件大小（bytes）
+    file_size       BIGINT DEFAULT 0,               -- 文件大小（bytes）
     category        TEXT DEFAULT '',
     tags            TEXT DEFAULT '[]',               -- JSON array
     min_app_version TEXT DEFAULT '0.10.0',
     depends_on      TEXT DEFAULT '{}',               -- JSON
     screenshots     TEXT DEFAULT '[]',
     readme_url      TEXT DEFAULT '',
-    downloads       INTEGER DEFAULT 0,
-    rating          REAL DEFAULT 0.0,
-    review_count    INTEGER DEFAULT 0,               -- 评价总数
-    enabled         INTEGER NOT NULL DEFAULT 1,      -- 是否上架
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    downloads       BIGINT DEFAULT 0,
+    rating          DOUBLE PRECISION DEFAULT 0.0,
+    review_count    BIGINT DEFAULT 0,               -- 评价总数
+    enabled         BIGINT NOT NULL DEFAULT 1,      -- 是否上架
+    created_at      TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS plugin_reviews (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     plugin_identifier TEXT NOT NULL,
-    user_id           INTEGER NOT NULL,
+    user_id           BIGINT NOT NULL,
     user_name         TEXT DEFAULT '',
-    rating            INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+    rating            BIGINT NOT NULL CHECK(rating >= 1 AND rating <= 5),
     content           TEXT DEFAULT '',
     version           TEXT DEFAULT '',
-    is_active         INTEGER DEFAULT 1,
+    is_active         BIGINT DEFAULT 1,
     reply_content     TEXT DEFAULT '',
     reply_at          TEXT,
-    created_at        TEXT DEFAULT (datetime('now')),
+    created_at        TEXT DEFAULT NOW(),
     UNIQUE(plugin_identifier, user_id)
 );
 

@@ -5,7 +5,8 @@ Reviews Plugin — 独立数据库
 """
 
 import os
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,10 +16,16 @@ DB_PATH = os.path.join(PLUGIN_DIR, 'reviews.db')
 @contextmanager
 def get_db():
     """连接插件自己的数据库。"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST','localhost'),
+        port=int(os.environ.get('PG_PORT',5432)),
+        dbname=os.environ.get('PG_DB','verorun'),
+        user=os.environ.get('PG_USER','verorun'),
+        password=os.environ.get('PG_PASSWORD',''),
+        cursor_factory=RealDictCursor
+    )
+    conn.execute("CREATE SCHEMA IF NOT EXISTS reviews")
+    conn.execute("SET search_path TO reviews")
     try:
         yield conn
     finally:
@@ -30,21 +37,21 @@ def init_db():
     with get_db() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS product_reviews (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL,
-                product_id      INTEGER NOT NULL,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL,
+                product_id      BIGINT NOT NULL,
                 order_id        TEXT DEFAULT '',
-                rating          INTEGER NOT NULL DEFAULT 5 CHECK(rating >= 1 AND rating <= 5),
+                rating          BIGINT NOT NULL DEFAULT 5 CHECK(rating >= 1 AND rating <= 5),
                 content         TEXT DEFAULT '',
                 images          TEXT DEFAULT '[]',
                 spec_info       TEXT DEFAULT '',
-                is_anonymous    INTEGER DEFAULT 0,
-                is_verified     INTEGER DEFAULT 0,
+                is_anonymous    BIGINT DEFAULT 0,
+                is_verified     BIGINT DEFAULT 0,
                 reply_content   TEXT DEFAULT '',
                 reply_at        TEXT,
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now','localtime')),
-                updated_at      TEXT DEFAULT (datetime('now','localtime')),
+                is_active       BIGINT DEFAULT 1,
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW(),
                 UNIQUE(user_id, product_id, order_id)
             )
         ''')

@@ -6,15 +6,14 @@ Agent Matrix — 数据库模型
 复用 auth-center/models/database.py 的 get_db() 模式。
 """
 import json, os, sys, re
-import sqlite3
 from datetime import datetime
-from contextlib import contextmanager
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROLES_DIR = os.path.join(BASE_DIR, 'roles')
-DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
-DB_PATH = os.environ.get('DB_PATH', os.path.join(DATA_DIR, 'x7k2m9a4.db'))
-os.makedirs(DATA_DIR, exist_ok=True)
+
+# ── 复用主应用 PostgreSQL 连接 ──
+sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center', 'models'))
+from database import get_db, get_table_columns
 
 
 # ── 轻量 YAML 解析器（仅支持角色定义所需子集） ──
@@ -86,19 +85,6 @@ def _load_all_role_yamls():
     return roles
 
 
-@contextmanager
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
 # ============================================================
 # Task ID 生成器
 # ============================================================
@@ -111,7 +97,7 @@ def _init_task_counter():
         with get_db() as conn:
             row = conn.execute(
                 "SELECT MAX(CAST(SUBSTR(task_id, -4) AS INTEGER)) AS max_id FROM agent_tasks "
-                "WHERE task_id LIKE 'AT-' || strftime('%Y%m%d', 'now') || '-%'"
+                "WHERE task_id LIKE 'AT-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-%'"
             ).fetchone()
             _task_counter = row['max_id'] if row and row['max_id'] else 0
     except Exception:
@@ -145,7 +131,7 @@ def init_agent_matrix_tables():
             -- 1. Agent 矩阵配置表
             -- ================================================
             CREATE TABLE IF NOT EXISTS agent_matrix (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 slug            TEXT DEFAULT '',
                 role_type       TEXT NOT NULL DEFAULT 'sub'
@@ -157,24 +143,24 @@ def init_agent_matrix_tables():
                 model_name      TEXT NOT NULL DEFAULT 'qwen-turbo',
                 api_key_ref     TEXT DEFAULT 'dashscope_text_key',
                 base_url        TEXT DEFAULT '',
-                model_provider_id INTEGER DEFAULT NULL,  -- deprecated
-                provider_model_id INTEGER DEFAULT NULL,
+                model_provider_id BIGINT DEFAULT NULL,  -- deprecated
+                provider_model_id BIGINT DEFAULT NULL,
                 system_prompt   TEXT DEFAULT '',
                 role_prompt     TEXT DEFAULT '',
                 task_template   TEXT DEFAULT '',
                 capabilities    TEXT DEFAULT '[]',
                 allowed_tools   TEXT DEFAULT '[]',
-                max_concurrency INTEGER DEFAULT 1,
-                priority        INTEGER DEFAULT 5,
-                auto_approve    INTEGER DEFAULT 0,
-                is_active       INTEGER DEFAULT 1,
-                is_system       INTEGER DEFAULT 0,
-                tasks_total     INTEGER DEFAULT 0,
-                tasks_success   INTEGER DEFAULT 0,
-                tasks_failed    INTEGER DEFAULT 0,
+                max_concurrency BIGINT DEFAULT 1,
+                priority        BIGINT DEFAULT 5,
+                auto_approve    BIGINT DEFAULT 0,
+                is_active       BIGINT DEFAULT 1,
+                is_system       BIGINT DEFAULT 0,
+                tasks_total     BIGINT DEFAULT 0,
+                tasks_success   BIGINT DEFAULT 0,
+                tasks_failed    BIGINT DEFAULT 0,
                 last_run_at     TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now')),
+                created_at      TEXT DEFAULT (NOW()),
+                updated_at      TEXT DEFAULT (NOW()),
                 UNIQUE(name, role_type)
             );
 
@@ -182,12 +168,12 @@ def init_agent_matrix_tables():
             -- 2. 任务调度表
             -- ================================================
             CREATE TABLE IF NOT EXISTS agent_tasks (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 task_id         TEXT UNIQUE NOT NULL,
                 parent_task_id  TEXT DEFAULT NULL,
                 master_task_id  TEXT DEFAULT NULL,
-                source_agent_id INTEGER NOT NULL,
-                target_agent_id INTEGER NOT NULL,
+                source_agent_id BIGINT NOT NULL,
+                target_agent_id BIGINT NOT NULL,
                 task_type       TEXT NOT NULL DEFAULT 'execute'
                                 CHECK(task_type IN ('execute','review','approve','composite','cron')),
                 title           TEXT NOT NULL,
@@ -196,22 +182,22 @@ def init_agent_matrix_tables():
                 expected_output TEXT DEFAULT '{}',
                 target_module   TEXT DEFAULT '',
                 target_api      TEXT DEFAULT '',
-                priority        INTEGER DEFAULT 5,
-                max_retries     INTEGER DEFAULT 3,
-                retry_count     INTEGER DEFAULT 0,
-                timeout_seconds INTEGER DEFAULT 300,
+                priority        BIGINT DEFAULT 5,
+                max_retries     BIGINT DEFAULT 3,
+                retry_count     BIGINT DEFAULT 0,
+                timeout_seconds BIGINT DEFAULT 300,
                 status          TEXT NOT NULL DEFAULT 'pending'
                                 CHECK(status IN ('pending','running','completed','failed',
                                                  'cancelled','needs_review','retrying')),
                 result_data     TEXT DEFAULT '{}',
-                confidence      REAL DEFAULT 0.0,
+                confidence      DOUBLE PRECISION DEFAULT 0.0,
                 error_message   TEXT DEFAULT '',
                 self_review     TEXT DEFAULT '',
                 cross_review    TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now')),
+                created_at      TEXT DEFAULT (NOW()),
                 started_at      TEXT DEFAULT '',
                 completed_at    TEXT DEFAULT '',
-                updated_at      TEXT DEFAULT (datetime('now'))
+                updated_at      TEXT DEFAULT (NOW())
             );
 
             CREATE INDEX IF NOT EXISTS idx_at_status ON agent_tasks(status);
@@ -224,16 +210,16 @@ def init_agent_matrix_tables():
             -- 3. 执行日志表
             -- ================================================
             CREATE TABLE IF NOT EXISTS task_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 task_id         TEXT NOT NULL,
-                agent_id        INTEGER NOT NULL,
+                agent_id        BIGINT NOT NULL,
                 log_level       TEXT NOT NULL DEFAULT 'info'
                                 CHECK(log_level IN ('debug','info','warn','error')),
                 log_type        TEXT NOT NULL DEFAULT 'execution'
                                 CHECK(log_type IN ('execution','self_review','cross_review','approval','api_call')),
                 message         TEXT NOT NULL,
                 metadata        TEXT DEFAULT '{}',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT (NOW())
             );
 
             CREATE INDEX IF NOT EXISTS idx_tl_task ON task_logs(task_id);
@@ -243,15 +229,15 @@ def init_agent_matrix_tables():
             -- 4. 对话记录表
             -- ================================================
             CREATE TABLE IF NOT EXISTS agent_conversations (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 master_task_id  TEXT DEFAULT '',
                 session_id      TEXT NOT NULL,
                 role            TEXT NOT NULL CHECK(role IN ('user','master','sub','system')),
-                agent_id        INTEGER DEFAULT NULL,
+                agent_id        BIGINT DEFAULT NULL,
                 agent_name      TEXT DEFAULT '',
                 content         TEXT NOT NULL,
                 metadata        TEXT DEFAULT '{}',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT (NOW())
             );
 
             CREATE INDEX IF NOT EXISTS idx_ac_session ON agent_conversations(session_id);
@@ -261,20 +247,20 @@ def init_agent_matrix_tables():
             -- 5. Token 消耗日志表 (2026-05-16)
             -- ================================================
             CREATE TABLE IF NOT EXISTS agent_token_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                agent_id        INTEGER NOT NULL,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                agent_id        BIGINT NOT NULL,
                 agent_name      TEXT DEFAULT '',
                 model_name      TEXT DEFAULT '',
                 provider        TEXT DEFAULT '',
-                prompt_tokens   INTEGER DEFAULT 0,
-                completion_tokens INTEGER DEFAULT 0,
-                total_tokens    INTEGER DEFAULT 0,
+                prompt_tokens   BIGINT DEFAULT 0,
+                completion_tokens BIGINT DEFAULT 0,
+                total_tokens    BIGINT DEFAULT 0,
                 call_type       TEXT DEFAULT 'chat',
                 dimension       TEXT DEFAULT 'text',
-                user_id         INTEGER DEFAULT NULL,
+                user_id         BIGINT DEFAULT NULL,
                 task_id         TEXT DEFAULT '',
                 session_id      TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now','localtime'))
+                created_at      TEXT DEFAULT (NOW())
             );
 
             CREATE INDEX IF NOT EXISTS idx_tkl_agent_id   ON agent_token_logs(agent_id);
@@ -286,15 +272,15 @@ def init_agent_matrix_tables():
             -- 6. Token 每日汇总表 (2026-05-16)
             -- ================================================
             CREATE TABLE IF NOT EXISTS agent_token_daily (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                agent_id        INTEGER NOT NULL,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                agent_id        BIGINT NOT NULL,
                 agent_name      TEXT DEFAULT '',
-                stat_date       TEXT NOT NULL DEFAULT (date('now')),
-                prompt_tokens   INTEGER DEFAULT 0,
-                completion_tokens INTEGER DEFAULT 0,
-                total_tokens    INTEGER DEFAULT 0,
-                call_count      INTEGER DEFAULT 0,
-                updated_at      TEXT DEFAULT (datetime('now','localtime')),
+                stat_date       TEXT NOT NULL DEFAULT (CURRENT_DATE),
+                prompt_tokens   BIGINT DEFAULT 0,
+                completion_tokens BIGINT DEFAULT 0,
+                total_tokens    BIGINT DEFAULT 0,
+                call_count      BIGINT DEFAULT 0,
+                updated_at      TEXT DEFAULT (NOW()),
                 UNIQUE(agent_id, stat_date)
             );
 
@@ -304,16 +290,16 @@ def init_agent_matrix_tables():
 
     # 会话标题字段 (v2 迁移) — 单独执行，不能放 executescript 内
     with get_db() as conn:
-        cols = [r['name'] for r in conn.execute("PRAGMA table_info(agent_conversations)").fetchall()]
+        cols = get_table_columns(conn, 'agent_conversations')
         if 'session_name' not in cols:
             conn.execute("ALTER TABLE agent_conversations ADD COLUMN session_name TEXT DEFAULT ''")
             conn.commit()
 
     # ── Migration: add provider_model_id to agent_matrix ──
     with get_db() as conn:
-        cols = [r['name'] for r in conn.execute("PRAGMA table_info(agent_matrix)").fetchall()]
+        cols = get_table_columns(conn, 'agent_matrix')
         if 'provider_model_id' not in cols:
-            conn.execute("ALTER TABLE agent_matrix ADD COLUMN provider_model_id INTEGER DEFAULT NULL")
+            conn.execute("ALTER TABLE agent_matrix ADD COLUMN provider_model_id BIGINT DEFAULT NULL")
             conn.commit()
             print('[Migration] Added agent_matrix.provider_model_id')
         # Migrate old model_provider_id → provider_model_id
@@ -321,7 +307,7 @@ def init_agent_matrix_tables():
             "SELECT id, model_provider_id FROM agent_matrix WHERE provider_model_id IS NULL AND model_provider_id IS NOT NULL"
         ).fetchall()
         for a in rows:
-            conn.execute("UPDATE agent_matrix SET provider_model_id=? WHERE id=?",
+            conn.execute("UPDATE agent_matrix SET provider_model_id=%s WHERE id=%s",
                          (a['model_provider_id'], a['id']))
         if rows:
             conn.commit()
@@ -329,7 +315,7 @@ def init_agent_matrix_tables():
 
     # ── Migration: add dimension to agent_token_logs ──
     with get_db() as conn:
-        cols = [r['name'] for r in conn.execute("PRAGMA table_info(agent_token_logs)").fetchall()]
+        cols = get_table_columns(conn, 'agent_token_logs')
         if 'dimension' not in cols:
             conn.execute("ALTER TABLE agent_token_logs ADD COLUMN dimension TEXT DEFAULT 'text'")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tkl_dimension ON agent_token_logs(dimension)")
@@ -338,11 +324,11 @@ def init_agent_matrix_tables():
 
     # ── Migration: add slug & is_system to agent_matrix ──
     with get_db() as conn:
-        cols = [r['name'] for r in conn.execute("PRAGMA table_info(agent_matrix)").fetchall()]
+        cols = get_table_columns(conn, 'agent_matrix')
         if 'slug' not in cols:
             conn.execute("ALTER TABLE agent_matrix ADD COLUMN slug TEXT DEFAULT ''")
         if 'is_system' not in cols:
-            conn.execute("ALTER TABLE agent_matrix ADD COLUMN is_system INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE agent_matrix ADD COLUMN is_system BIGINT DEFAULT 0")
         if 'slug' not in cols or 'is_system' not in cols:
             conn.commit()
             print('[Migration] Added agent_matrix.slug / is_system')
@@ -381,7 +367,7 @@ def seed_default_agents():
             yaml_slugs.add(slug)
 
             exists = conn.execute(
-                "SELECT id FROM agent_matrix WHERE slug=?", (slug,)
+                "SELECT id FROM agent_matrix WHERE slug=%s", (slug,)
             ).fetchone()
 
             if not exists:
@@ -390,7 +376,7 @@ def seed_default_agents():
                     INSERT INTO agent_matrix
                     (name, slug, role_type, description, domain, managed_modules,
                      provider, model_name, system_prompt, auto_approve, is_active, is_system)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (
                     a.get('name', ''), slug, a.get('role_type', 'sub'),
                     a.get('description', ''), a.get('domain', 'general'),
@@ -404,11 +390,11 @@ def seed_default_agents():
                 # UPDATE existing system role — sync all fields from YAML
                 conn.execute("""
                     UPDATE agent_matrix SET
-                        name=?, description=?, domain=?,
-                        managed_modules=?, provider=?, model_name=?,
-                        auto_approve=?, is_system=1,
-                        updated_at=datetime('now')
-                    WHERE slug=?
+                        name=%s, description=%s, domain=%s,
+                        managed_modules=%s, provider=%s, model_name=%s,
+                        auto_approve=%s, is_system=1,
+                        updated_at=NOW()
+                    WHERE slug=%s
                 """, (
                     a.get('name', ''), a.get('description', ''),
                     a.get('domain', 'general'),
@@ -424,7 +410,7 @@ def seed_default_agents():
             DELETE FROM agent_matrix
             WHERE is_system=1 AND slug NOT IN ({})
             AND slug != ''
-        """.format(','.join('?' * len(yaml_slugs))),
+        """.format(','.join('%s' * len(yaml_slugs))),
             tuple(yaml_slugs)
         ).rowcount
         if deleted:
@@ -447,14 +433,14 @@ def register_plugin_roles(plugin_id, declare_roles_list):
         for r in declare_roles_list:
             slug = r.get('slug') or r.get('name', '').lower().replace(' ', '-')
             exists = conn.execute(
-                "SELECT id FROM agent_matrix WHERE slug=?", (slug,)
+                "SELECT id FROM agent_matrix WHERE slug=%s", (slug,)
             ).fetchone()
             if not exists:
                 conn.execute("""
                     INSERT INTO agent_matrix
                     (name, slug, role_type, description, domain, managed_modules,
                      provider, model_name, system_prompt, is_active, is_system)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,0)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0)
                 """, (
                     r.get('name', ''), slug, r.get('role_type', 'sub'),
                     r.get('description', ''), r.get('domain', 'general'),
@@ -479,7 +465,7 @@ def unregister_plugin_roles(plugin_id, declare_roles_list):
     ]
     with get_db() as conn:
         for slug in slugs:
-            conn.execute("DELETE FROM agent_matrix WHERE slug=? AND is_system=0", (slug,))
+            conn.execute("DELETE FROM agent_matrix WHERE slug=%s AND is_system=0", (slug,))
             print(f'[PluginRoles] 卸载插件角色: {slug} (from {plugin_id})')
         conn.commit()
 
@@ -490,10 +476,10 @@ def list_agents(role_type=None, domain=None, active_only=False):
         sql = "SELECT * FROM agent_matrix WHERE 1=1"
         params = []
         if role_type:
-            sql += " AND role_type=?"
+            sql += " AND role_type=%s"
             params.append(role_type)
         if domain:
-            sql += " AND domain=?"
+            sql += " AND domain=%s"
             params.append(domain)
         if active_only:
             sql += " AND is_active=1"
@@ -504,14 +490,14 @@ def list_agents(role_type=None, domain=None, active_only=False):
 
 def get_agent(agent_id):
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM agent_matrix WHERE id=?", (agent_id,)).fetchone()
+        row = conn.execute("SELECT * FROM agent_matrix WHERE id=%s", (agent_id,)).fetchone()
         return dict(row) if row else None
 
 
 def get_agent_by_name(name, role_type='sub'):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM agent_matrix WHERE name=? AND role_type=?",
+            "SELECT * FROM agent_matrix WHERE name=%s AND role_type=%s",
             (name, role_type)
         ).fetchone()
         return dict(row) if row else None
@@ -520,21 +506,22 @@ def get_agent_by_name(name, role_type='sub'):
 def get_agent_by_slug(slug):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM agent_matrix WHERE slug=?", (slug,)
+            "SELECT * FROM agent_matrix WHERE slug=%s", (slug,)
         ).fetchone()
         return dict(row) if row else None
 
 
 def create_agent(data):
     with get_db() as conn:
-        conn.execute("""
+        row = conn.execute("""
             INSERT INTO agent_matrix
             (name, role_type, description, domain, managed_modules,
              provider, model_name, api_key_ref, base_url, model_provider_id,
              system_prompt, role_prompt, task_template,
              capabilities, allowed_tools,
              max_concurrency, priority, auto_approve, is_active)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
         """, (
             data.get('name', ''),
             data.get('role_type', 'sub'),
@@ -555,9 +542,10 @@ def create_agent(data):
             data.get('priority', 5),
             data.get('auto_approve', 0),
             data.get('is_active', 1)
-        ))
+        )).fetchone()
         conn.commit()
-        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return row[0]
+
 
 
 def update_agent(agent_id, data):
@@ -569,18 +557,18 @@ def update_agent(agent_id, data):
                      'system_prompt', 'role_prompt', 'task_template',
                      'max_concurrency', 'priority', 'auto_approve', 'is_active']:
             if key in data:
-                fields.append(f"{key}=?")
+                fields.append(f"{key}=%s")
                 values.append(data[key])
         for key in ['managed_modules', 'capabilities', 'allowed_tools']:
             if key in data:
-                fields.append(f"{key}=?")
+                fields.append(f"{key}=%s")
                 values.append(json.dumps(data[key]) if isinstance(data[key], list) else data[key])
         if not fields:
             return False
-        fields.append("updated_at=datetime('now')")
+        fields.append("updated_at=NOW()")
         values.append(agent_id)
         conn.execute(
-            f"UPDATE agent_matrix SET {','.join(fields)} WHERE id=?",
+            f"UPDATE agent_matrix SET {','.join(fields)} WHERE id=%s",
             values
         )
         conn.commit()
@@ -591,13 +579,13 @@ def delete_agent(agent_id):
     """删除 Agent。系统角色（is_system=1）不可删除。"""
     with get_db() as conn:
         row = conn.execute(
-            "SELECT is_system FROM agent_matrix WHERE id=?", (agent_id,)
+            "SELECT is_system FROM agent_matrix WHERE id=%s", (agent_id,)
         ).fetchone()
         if not row:
             return False
         if row['is_system']:
             raise PermissionError("系统角色不可删除，仅允许禁用")
-        conn.execute("DELETE FROM agent_matrix WHERE id=?", (agent_id,))
+        conn.execute("DELETE FROM agent_matrix WHERE id=%s", (agent_id,))
         conn.commit()
         return True
 
@@ -605,11 +593,11 @@ def delete_agent(agent_id):
 def toggle_agent(agent_id):
     """切换启用/禁用状态"""
     with get_db() as conn:
-        row = conn.execute("SELECT is_active FROM agent_matrix WHERE id=?", (agent_id,)).fetchone()
+        row = conn.execute("SELECT is_active FROM agent_matrix WHERE id=%s", (agent_id,)).fetchone()
         if not row:
             return None
         new = 0 if row['is_active'] else 1
-        conn.execute("UPDATE agent_matrix SET is_active=?, updated_at=datetime('now') WHERE id=?", (new, agent_id))
+        conn.execute("UPDATE agent_matrix SET is_active=%s, updated_at=NOW() WHERE id=%s", (new, agent_id))
         conn.commit()
         return new
 
@@ -629,7 +617,7 @@ def create_task(data):
              input_data, expected_output,
              target_module, target_api,
              priority, max_retries, timeout_seconds, status)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             task_id,
             data.get('parent_task_id'),
@@ -654,7 +642,7 @@ def create_task(data):
 
 def get_task(task_id):
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM agent_tasks WHERE task_id=?", (task_id,)).fetchone()
+        row = conn.execute("SELECT * FROM agent_tasks WHERE task_id=%s", (task_id,)).fetchone()
         return dict(row) if row else None
 
 
@@ -663,15 +651,15 @@ def list_tasks(status=None, module=None, agent_id=None, limit=50):
         sql = "SELECT * FROM agent_tasks WHERE 1=1"
         params = []
         if status:
-            sql += " AND status=?"
+            sql += " AND status=%s"
             params.append(status)
         if module:
-            sql += " AND target_module=?"
+            sql += " AND target_module=%s"
             params.append(module)
         if agent_id:
-            sql += " AND (source_agent_id=? OR target_agent_id=?)"
+            sql += " AND (source_agent_id=%s OR target_agent_id=%s)"
             params.extend([agent_id, agent_id])
-        sql += " ORDER BY created_at DESC LIMIT ?"
+        sql += " ORDER BY created_at DESC LIMIT %s"
         params.append(limit)
         rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
@@ -680,27 +668,27 @@ def list_tasks(status=None, module=None, agent_id=None, limit=50):
 def update_task_status(task_id, status, result_data=None, confidence=None,
                        error_message=None, self_review=None):
     with get_db() as conn:
-        fields = ["status=?", "updated_at=datetime('now')"]
+        fields = ["status=%s", "updated_at=NOW()"]
         values = [status]
         if result_data is not None:
-            fields.append("result_data=?")
+            fields.append("result_data=%s")
             values.append(json.dumps(result_data) if not isinstance(result_data, str) else result_data)
         if confidence is not None:
-            fields.append("confidence=?")
+            fields.append("confidence=%s")
             values.append(confidence)
         if error_message is not None:
-            fields.append("error_message=?")
+            fields.append("error_message=%s")
             values.append(error_message)
         if self_review is not None:
-            fields.append("self_review=?")
+            fields.append("self_review=%s")
             values.append(self_review)
         if status == 'running':
-            fields.append("started_at=datetime('now')")
+            fields.append("started_at=NOW()")
         if status in ('completed', 'failed', 'cancelled'):
-            fields.append("completed_at=datetime('now')")
+            fields.append("completed_at=NOW()")
         values.append(task_id)
         conn.execute(
-            f"UPDATE agent_tasks SET {','.join(fields)} WHERE task_id=?",
+            f"UPDATE agent_tasks SET {','.join(fields)} WHERE task_id=%s",
             values
         )
         conn.commit()
@@ -709,7 +697,7 @@ def update_task_status(task_id, status, result_data=None, confidence=None,
 def get_sub_tasks(master_task_id):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM agent_tasks WHERE master_task_id=? ORDER BY created_at ASC",
+            "SELECT * FROM agent_tasks WHERE master_task_id=%s ORDER BY created_at ASC",
             (master_task_id,)
         ).fetchall()
         return [dict(r) for r in rows]
@@ -727,7 +715,7 @@ def add_log(task_id, agent_id, level='info', log_type='execution', message='', m
     with get_db() as conn:
         conn.execute("""
             INSERT INTO task_logs (task_id, agent_id, log_level, log_type, message, metadata)
-            VALUES (?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s)
         """, (task_id, agent_id, level, log_type, message,
               json.dumps(metadata or {})))
         conn.commit()
@@ -736,7 +724,7 @@ def add_log(task_id, agent_id, level='info', log_type='execution', message='', m
 def get_task_logs(task_id):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM task_logs WHERE task_id=? ORDER BY created_at ASC",
+            "SELECT * FROM task_logs WHERE task_id=%s ORDER BY created_at ASC",
             (task_id,)
         ).fetchall()
         return [dict(r) for r in rows]
@@ -755,19 +743,19 @@ def add_message(session_id, role, content, agent_id=None, agent_name='', master_
         conn.execute("""
             INSERT INTO agent_conversations
             (session_id, role, agent_id, agent_name, content, master_task_id, metadata)
-            VALUES (?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
         """, (session_id, role, agent_id, agent_name, content,
               master_task_id, json.dumps(metadata or {})))
         # 第一条用户消息设为会话标题
         if role == 'user':
             existing = conn.execute(
-                "SELECT COUNT(*) as c FROM agent_conversations WHERE session_id=? AND role='user'",
+                "SELECT COUNT(*) as c FROM agent_conversations WHERE session_id=%s AND role='user'",
                 (session_id,)
             ).fetchone()['c']
             if existing == 1:
                 title = content.strip()[:40]
                 conn.execute(
-                    "UPDATE agent_conversations SET session_name=? WHERE session_id=?",
+                    "UPDATE agent_conversations SET session_name=%s WHERE session_id=%s",
                     (title, session_id)
                 )
         conn.commit()
@@ -776,7 +764,7 @@ def add_message(session_id, role, content, agent_id=None, agent_name='', master_
 def get_conversation(session_id):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM agent_conversations WHERE session_id=? ORDER BY created_at ASC",
+            "SELECT * FROM agent_conversations WHERE session_id=%s ORDER BY created_at ASC",
             (session_id,)
         ).fetchall()
         return [dict(r) for r in rows]
@@ -792,7 +780,7 @@ def list_sessions(limit=20):
             FROM agent_conversations ac
             GROUP BY session_id
             ORDER BY last_msg DESC
-            LIMIT ?
+            LIMIT %s
         """, (limit,)).fetchall()
         return [dict(r) for r in rows]
 
@@ -807,9 +795,9 @@ def search_conversations(keyword, limit=50):
                     WHERE session_id=ac.session_id AND session_name!=''
                     LIMIT 1) as session_name
             FROM agent_conversations ac
-            WHERE content LIKE ?
+            WHERE content LIKE %s
             ORDER BY created_at DESC
-            LIMIT ?
+            LIMIT %s
         """, (like, limit)).fetchall()
         return [dict(r) for r in rows]
 
@@ -819,7 +807,7 @@ def batch_delete_sessions(session_ids):
     if not session_ids:
         return 0
     with get_db() as conn:
-        placeholders = ','.join('?' * len(session_ids))
+        placeholders = ','.join('%s' * len(session_ids))
         count = conn.execute(
             f"DELETE FROM agent_conversations WHERE session_id IN ({placeholders})",
             session_ids
@@ -840,9 +828,9 @@ def update_agent_stats(agent_id, success=True):
             UPDATE agent_matrix
             SET tasks_total = tasks_total + 1,
                 {field} = {field} + 1,
-                last_run_at = datetime('now'),
-                updated_at = datetime('now')
-            WHERE id = ?
+                last_run_at = NOW(),
+                updated_at = NOW()
+            WHERE id = %s
         """, (agent_id,))
         conn.commit()
 
@@ -861,7 +849,7 @@ def get_matrix_stats():
         total_tasks = conn.execute("SELECT COUNT(*) as c FROM agent_tasks").fetchone()['c']
         today = datetime.now().strftime('%Y-%m-%d')
         today_tasks = conn.execute(
-            "SELECT COUNT(*) as c FROM agent_tasks WHERE created_at >= ?", (today,)
+            "SELECT COUNT(*) as c FROM agent_tasks WHERE created_at >= %s", (today,)
         ).fetchone()['c']
         completed = conn.execute(
             "SELECT COUNT(*) as c FROM agent_tasks WHERE status='completed'"
@@ -905,6 +893,6 @@ def get_recent_tasks(limit=10):
             LEFT JOIN agent_matrix s ON t.source_agent_id = s.id
             LEFT JOIN agent_matrix tg ON t.target_agent_id = tg.id
             ORDER BY t.created_at DESC
-            LIMIT ?
+            LIMIT %s
         """, (limit,)).fetchall()
         return [dict(r) for r in rows]

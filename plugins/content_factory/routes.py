@@ -401,7 +401,7 @@ def review_content():
         return jsonify({'success': False, 'error': f'状态 {cur} 不允许执行 {action}'})
 
     conn.execute(
-        "UPDATE processed_contents SET status=?, reviewed_by=?, reviewed_at=datetime('now') WHERE id=?",
+        "UPDATE processed_contents SET status=%s, reviewed_by=%s, reviewed_at=NOW() WHERE id=%s",
         (target, admin['user_id'], pid)
     )
     conn.commit()

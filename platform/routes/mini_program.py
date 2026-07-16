@@ -188,7 +188,7 @@ def _wechat_login(data):
             else:
                 conn.execute(
                     "INSERT INTO users (username, display_name, platform, platform_user_id, created_at) "
-                    "VALUES (?, ?, 'wechat', ?, datetime('now'))",
+                    "VALUES (%s, %s, 'wechat', %s, NOW())",
                     (username, data.get('nickname', 'WeChat User'), unionid)
                 )
                 conn.commit()
@@ -294,7 +294,7 @@ def _telegram_login(data):
             else:
                 conn.execute(
                     "INSERT INTO users (username, display_name, platform, platform_user_id, created_at) "
-                    "VALUES (?, ?, 'telegram', ?, datetime('now'))",
+                    "VALUES (%s, %s, 'telegram', %s, NOW())",
                     (username, display_name, tg_user_id)
                 )
                 conn.commit()
@@ -355,7 +355,7 @@ def _line_login(data):
             else:
                 conn.execute(
                     "INSERT INTO users (username, display_name, platform, platform_user_id, created_at) "
-                    "VALUES (?, ?, 'line', ?, datetime('now'))",
+                    "VALUES (%s, %s, 'line', %s, NOW())",
                     (username, display_name, user_id)
                 )
                 conn.commit()

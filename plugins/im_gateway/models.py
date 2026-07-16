@@ -4,7 +4,8 @@
 独立数据库 im_gateway.db，存放频道配置表 channel_configs。
 从主库迁移而来（feishu/wecom/qq/dingtalk），主库结构保持一致。
 """
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'im_gateway.db')
@@ -24,10 +25,16 @@ def get_im_db():
     """获取 IM Gateway 插件独立数据库连接"""
     global _im_conn
     if _im_conn is None:
-        _im_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _im_conn.row_factory = sqlite3.Row
-        _im_conn.execute("PRAGMA journal_mode=WAL")
-        _im_conn.execute("PRAGMA busy_timeout=1000")
+        _im_conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST','localhost'),
+            port=int(os.environ.get('PG_PORT',5432)),
+            dbname=os.environ.get('PG_DB','verorun'),
+            user=os.environ.get('PG_USER','verorun'),
+            password=os.environ.get('PG_PASSWORD',''),
+            cursor_factory=RealDictCursor
+        )
+        _im_conn.execute("CREATE SCHEMA IF NOT EXISTS im_gateway")
+        _im_conn.execute("SET search_path TO im_gateway")
     return _im_conn
 
 
@@ -39,21 +46,21 @@ def init_im_db():
     conn = get_im_db()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS channel_configs (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             channel         TEXT NOT NULL UNIQUE,
             config_json     TEXT NOT NULL DEFAULT '{}',
-            is_enabled      INTEGER DEFAULT 0,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now'))
+            is_enabled      BIGINT DEFAULT 0,
+            created_at      TEXT DEFAULT NOW(),
+            updated_at      TEXT DEFAULT NOW()
         )
     """)
     for channel, is_enabled in _SEED_CHANNELS:
         exists = conn.execute(
-            "SELECT id FROM channel_configs WHERE channel=?", (channel,)
+            "SELECT id FROM channel_configs WHERE channel=%s", (channel,)
         ).fetchone()
         if not exists:
             conn.execute(
-                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES (?, '{}', ?)",
+                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES (%s, '{}', %s)",
                 (channel, is_enabled)
             )
     conn.commit()
@@ -75,7 +82,7 @@ def migrate_from_main_db():
     try:
         with get_main_db() as main:
             has_table = main.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='channel_configs'"
+                "SELECT tablename FROM pg_catalog.pg_tables WHERE tablename='channel_configs'"
             ).fetchone()
             if not has_table:
                 return 0
@@ -91,17 +98,17 @@ def migrate_from_main_db():
         config_json = r['config_json'] or '{}'
         is_enabled = r['is_enabled']
         local = conn.execute(
-            "SELECT config_json FROM channel_configs WHERE channel=?", (channel,)
+            "SELECT config_json FROM channel_configs WHERE channel=%s", (channel,)
         ).fetchone()
         if local is None:
             conn.execute(
-                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES (?, ?, ?)",
+                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES (%s, %s, %s)",
                 (channel, config_json, is_enabled)
             )
             migrated += 1
         elif (local['config_json'] or '{}') == '{}' and config_json != '{}':
             conn.execute(
-                "UPDATE channel_configs SET config_json=?, is_enabled=?, updated_at=datetime('now') WHERE channel=?",
+                "UPDATE channel_configs SET config_json=%s, is_enabled=%s, updated_at=NOW() WHERE channel=%s",
                 (config_json, is_enabled, channel)
             )
             migrated += 1

@@ -28,7 +28,7 @@ def submit_comment():
 
     # Verify post exists
     with get_db() as conn:
-        post = conn.execute('SELECT id FROM cms_posts WHERE id=? AND is_published=1', (post_id,)).fetchone()
+        post = conn.execute('SELECT id FROM cms_posts WHERE id=%s AND is_published=1', (post_id,)).fetchone()
         if not post:
             return jsonify({'success': False, 'error': 'Post not found'}), 404
 
@@ -39,11 +39,11 @@ def submit_comment():
     with get_db() as conn:
         conn.execute('INSERT INTO article_comments'
             ' (post_id, parent_id, nickname, content, status, ai_review, ai_score, ip_address)'
-            ' VALUES (?,?,?,?,?,?,?,?)',
+            ' VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
             (post_id, parent_id, nickname, content, status, ai_review, score,
              request.remote_addr or ''))
         conn.commit()
-        comment_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        comment_id = conn.execute('SELECT lastval()').fetchone()[0]
 
     msg_map = {
         'approved': 'Comment posted successfully',
@@ -65,12 +65,12 @@ def get_comments(post_id):
 
     with get_db() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM article_comments WHERE post_id=? AND status='approved'",
+            "SELECT COUNT(*) FROM article_comments WHERE post_id=%s AND status='approved'",
             (post_id,)
         ).fetchone()[0]
         rows = conn.execute(
             "SELECT id, parent_id, nickname, content, created_at FROM article_comments "
-            "WHERE post_id=? AND status='approved' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "WHERE post_id=%s AND status='approved' ORDER BY created_at DESC LIMIT %s OFFSET %s",
             (post_id, limit, offset)
         ).fetchall()
 
@@ -101,10 +101,10 @@ def admin_list_comments():
     where = ['1=1']
     params = []
     if status:
-        where.append('c.status=?')
+        where.append('c.status=%s')
         params.append(status)
     if post_id:
-        where.append('c.post_id=?')
+        where.append('c.post_id=%s')
         params.append(post_id)
 
     with get_db() as conn:
@@ -115,7 +115,7 @@ def admin_list_comments():
             f"""SELECT c.*, p.title as post_title FROM article_comments c
                 LEFT JOIN cms_posts p ON c.post_id=p.id
                 WHERE {' AND '.join(where)}
-                ORDER BY c.created_at DESC LIMIT ? OFFSET ?""",
+                ORDER BY c.created_at DESC LIMIT %s OFFSET %s""",
             params + [limit, offset]
         ).fetchall()
 
@@ -142,7 +142,7 @@ def admin_review_comment(cid):
 
     if action == 'delete':
         with get_db() as conn:
-            conn.execute('DELETE FROM article_comments WHERE id=?', (cid,))
+            conn.execute('DELETE FROM article_comments WHERE id=%s', (cid,))
             conn.commit()
         _log(admin['user_id'], 'comment_delete', 'comment', str(cid))
         return jsonify({'success': True})
@@ -153,7 +153,7 @@ def admin_review_comment(cid):
     new_status = 'approved' if action == 'approve' else 'rejected'
     with get_db() as conn:
         conn.execute(
-            "UPDATE article_comments SET status=?, reviewed_at=datetime('now'), reviewed_by=? WHERE id=?",
+            "UPDATE article_comments SET status=%s, reviewed_at=NOW(), reviewed_by=%s WHERE id=%s",
             (new_status, admin['user_id'], cid)
         )
         conn.commit()

@@ -120,13 +120,13 @@ class PageGenerator:
             ).fetchone()
             if existing:
                 conn.execute(
-                    "UPDATE cms_posts SET title=?, content=?, is_published=?, updated_at=datetime('now') WHERE slug=?",
+                    "UPDATE cms_posts SET title=%s, content=%s, is_published=%s, updated_at=NOW() WHERE slug=%s",
                     (title, html_content, is_pub, slug)
                 )
             else:
                 conn.execute(
                     """INSERT INTO cms_posts (slug, title, content, category, status, is_published, created_at)
-                       VALUES (?,?,?,'legal','published',?,datetime('now'))""",
+                       VALUES (%s,%s,%s,'legal','published',%s,NOW())""",
                     (slug, title, html_content, is_pub)
                 )
             conn.commit()

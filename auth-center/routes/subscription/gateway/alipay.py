@@ -13,7 +13,8 @@ from datetime import datetime
 from flask import request
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from models import DB_PATH
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+from database import get_db
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTS_DIR = os.path.join(BASE_DIR, '..', '..', '..', 'certs')
@@ -22,15 +23,12 @@ CERTS_DIR = os.path.join(BASE_DIR, '..', '..', '..', 'certs')
 def _get_alipay_db_config():
     """从 system_config 读取支付宝网关配置"""
     try:
-        import sqlite3
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT key, value FROM system_config WHERE key IN "
-            "('alipay_app_id', 'alipay_private_key', 'alipay_public_key', 'payment.notify_base')"
-        ).fetchall()
-        conn.close()
-        return {r['key']: r['value'] for r in rows}
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM system_config WHERE key IN "
+                "('alipay_app_id', 'alipay_private_key', 'alipay_public_key', 'payment.notify_base')"
+            ).fetchall()
+            return {r['key']: r['value'] for r in rows}
     except Exception:
         return {}
 
@@ -167,7 +165,7 @@ def call_alipay_page_pay(order_no, description, amount_fen):
     query_parts = []
     for k, v in params.items():
         query_parts.append(urllib.parse.quote(k) + '=' + urllib.parse.quote(str(v)))
-    pay_url = ALIPAY_GATEWAY + '?' + '&'.join(query_parts)
+    pay_url = ALIPAY_GATEWAY + '%s' + '&'.join(query_parts)
 
     return {
         'stub': False,
@@ -224,7 +222,7 @@ def create_cycle_sign_request(user_id, plan_key, period, price_fen):
     params['sign'] = sign
 
     # 生成签约链接（用户跳转到支付宝签约页）
-    sign_url = ALIPAY_GATEWAY + '?' + '&'.join([f'{k}={params[k]}' for k in params])
+    sign_url = ALIPAY_GATEWAY + '%s' + '&'.join([f'{k}={params[k]}' for k in params])
 
     return {
         'stub': False,

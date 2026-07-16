@@ -19,7 +19,8 @@ import hashlib
 import hmac
 import base64
 import secrets
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import threading
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple, List
@@ -42,46 +43,74 @@ TOKEN_TTL_HOURS = int(os.getenv('LICENSE_TOKEN_TTL_HOURS', '8760'))  # 默认 1 
 
 # ── 数据库 ────────────────────────────────────────────────────────────
 
-def _get_db() -> sqlite3.Connection:
-    """获取数据库连接（线程安全）"""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+class _LSDb:
+    """轻量封装，保持 conn.execute(sql, params) 接口兼容"""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=None):
+        cursor = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cursor.execute(sql, params)
+        else:
+            cursor.execute(sql)
+        return cursor
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
+def _get_db() -> _LSDb:
+    """获取 PG 数据库连接（线程安全）"""
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=os.environ.get('PG_PORT', '5432'),
+        dbname=os.environ.get('PG_DATABASE', 'license_server'),
+        user=os.environ.get('PG_USER', 'postgres'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    return _LSDb(conn)
 
 
 def _init_db():
     """初始化表结构"""
     os.makedirs(DATA_DIR, exist_ok=True)
-    conn = _get_db()
-    conn.executescript("""
+    db = _get_db()
+    # 多语句 DDL 用 raw cursor 执行
+    raw_conn = db._conn
+    cur = raw_conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS license_keys (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             license_key     TEXT NOT NULL UNIQUE,
             plugin_id       TEXT NOT NULL,
             license_type    TEXT NOT NULL DEFAULT 'onetime'
                             CHECK(license_type IN ('free','onetime','sub','trial')),
             customer_email  TEXT DEFAULT '',
             customer_name   TEXT DEFAULT '',
-            max_sites       INTEGER NOT NULL DEFAULT 3,
+            max_sites       BIGINT NOT NULL DEFAULT 3,
             expires_at      TEXT,
-            trial_days      INTEGER DEFAULT 0,
-            enabled         INTEGER NOT NULL DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now')),
+            trial_days      BIGINT DEFAULT 0,
+            enabled         BIGINT NOT NULL DEFAULT 1,
+            created_at      TEXT DEFAULT NOW(),
+            updated_at      TEXT DEFAULT NOW(),
             metadata        TEXT DEFAULT '{}'
         );
         CREATE INDEX IF NOT EXISTS idx_lk_plugin ON license_keys(plugin_id);
         CREATE INDEX IF NOT EXISTS idx_lk_key ON license_keys(license_key);
 
         CREATE TABLE IF NOT EXISTS license_activations (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             license_key     TEXT NOT NULL,
             plugin_id       TEXT NOT NULL,
             site_id         TEXT NOT NULL,
             site_name       TEXT DEFAULT '',
             ip_address      TEXT DEFAULT '',
-            activated_at    TEXT DEFAULT (datetime('now')),
-            last_seen_at    TEXT DEFAULT (datetime('now')),
+            activated_at    TEXT DEFAULT NOW(),
+            last_seen_at    TEXT DEFAULT NOW(),
             deactivated_at  TEXT,
             status          TEXT NOT NULL DEFAULT 'active'
                             CHECK(status IN ('active','deactivated')),
@@ -90,21 +119,22 @@ def _init_db():
         CREATE INDEX IF NOT EXISTS idx_la_license ON license_activations(license_key);
 
         CREATE TABLE IF NOT EXISTS purchase_orders (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             order_no        TEXT NOT NULL UNIQUE,
             plugin_id       TEXT NOT NULL,
             license_key     TEXT NOT NULL,
-            amount_fen      INTEGER NOT NULL,
+            amount_fen      BIGINT NOT NULL,
             channel         TEXT DEFAULT 'alipay',
             status          TEXT DEFAULT 'paid'
                             CHECK(status IN ('paid','refunded','cancelled')),
             customer_email  TEXT DEFAULT '',
-            paid_at         TEXT DEFAULT (datetime('now')),
-            created_at      TEXT DEFAULT (datetime('now'))
+            paid_at         TEXT DEFAULT NOW(),
+            created_at      TEXT DEFAULT NOW()
         );
     """)
-    conn.commit()
-    conn.close()
+    raw_conn.commit()
+    cur.close()
+    db.close()
 
 
 # ── License 核心逻辑 ──────────────────────────────────────────────────
@@ -169,11 +199,11 @@ class LicenseService:
                     INSERT INTO license_keys
                         (license_key, plugin_id, license_type, customer_email,
                          customer_name, max_sites, expires_at, trial_days)
-                    VALUES (?,?,?,?,?,?,?,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (license_key, plugin_id, license_type, customer_email,
                       customer_name, max_sites, expires_at, trial_days))
                 conn.commit()
-            except sqlite3.IntegrityError:
+            except psycopg2.errors.UniqueViolation:
                 return {'success': False, 'error': 'Duplicate license_key'}
             finally:
                 conn.close()
@@ -198,7 +228,7 @@ class LicenseService:
             try:
                 # 查找 License
                 lk_row = conn.execute(
-                    "SELECT * FROM license_keys WHERE license_key=? AND enabled=1",
+                    "SELECT * FROM license_keys WHERE license_key=%s AND enabled=1",
                     (license_key,)
                 ).fetchone()
                 if not lk_row:
@@ -221,13 +251,13 @@ class LicenseService:
 
                 # 检查站点数
                 active_count = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM license_activations WHERE license_key=? AND status='active'",
+                    "SELECT COUNT(*) as cnt FROM license_activations WHERE license_key=%s AND status='active'",
                     (license_key,)
                 ).fetchone()['cnt']
 
                 # 检查该站点是否已激活
                 existing = conn.execute(
-                    "SELECT * FROM license_activations WHERE license_key=? AND site_id=?",
+                    "SELECT * FROM license_activations WHERE license_key=%s AND site_id=%s",
                     (license_key, site_id)
                 ).fetchone()
 
@@ -235,13 +265,13 @@ class LicenseService:
                     # 重新激活已停用的站点
                     if existing['status'] == 'deactivated':
                         conn.execute(
-                            "UPDATE license_activations SET status='active', last_seen_at=datetime('now') WHERE id=?",
+                            "UPDATE license_activations SET status='active', last_seen_at=NOW() WHERE id=%s",
                             (existing['id'],)
                         )
                     else:
                         # 已激活则更新最后活跃时间
                         conn.execute(
-                            "UPDATE license_activations SET last_seen_at=datetime('now') WHERE id=?",
+                            "UPDATE license_activations SET last_seen_at=NOW() WHERE id=%s",
                             (existing['id'],)
                         )
                 elif active_count >= lk['max_sites']:
@@ -251,7 +281,7 @@ class LicenseService:
                     conn.execute("""
                         INSERT INTO license_activations
                             (license_key, plugin_id, site_id, site_name, ip_address)
-                        VALUES (?,?,?,?,?)
+                        VALUES (%s,%s,%s,%s,%s)
                     """, (license_key, plugin_id, site_id, site_name, ip_address))
 
                 # 生成离线 token
@@ -285,7 +315,7 @@ class LicenseService:
         conn = _get_db()
         try:
             lk = conn.execute(
-                "SELECT * FROM license_keys WHERE license_key=? AND enabled=1",
+                "SELECT * FROM license_keys WHERE license_key=%s AND enabled=1",
                 (license_key,)
             ).fetchone()
             if not lk:
@@ -308,7 +338,7 @@ class LicenseService:
             # 更新激活记录的最后活跃时间
             if site_id:
                 conn.execute(
-                    "UPDATE license_activations SET last_seen_at=datetime('now') WHERE license_key=? AND site_id=?",
+                    "UPDATE license_activations SET last_seen_at=NOW() WHERE license_key=%s AND site_id=%s",
                     (license_key, site_id)
                 )
                 conn.commit()
@@ -332,8 +362,8 @@ class LicenseService:
         try:
             conn.execute("""
                 UPDATE license_activations SET
-                    status='deactivated', deactivated_at=datetime('now')
-                WHERE license_key=? AND plugin_id=? AND site_id=?
+                    status='deactivated', deactivated_at=NOW()
+                WHERE license_key=%s AND plugin_id=%s AND site_id=%s
             """, (license_key, plugin_id, site_id))
             conn.commit()
             return {'success': True}
@@ -347,7 +377,7 @@ class LicenseService:
         try:
             if plugin_id:
                 rows = conn.execute(
-                    "SELECT * FROM license_keys WHERE plugin_id=? ORDER BY created_at DESC",
+                    "SELECT * FROM license_keys WHERE plugin_id=%s ORDER BY created_at DESC",
                     (plugin_id,)
                 ).fetchall()
             else:
@@ -362,7 +392,7 @@ class LicenseService:
         conn = _get_db()
         try:
             rows = conn.execute(
-                "SELECT * FROM license_activations WHERE license_key=? ORDER BY activated_at DESC",
+                "SELECT * FROM license_activations WHERE license_key=%s ORDER BY activated_at DESC",
                 (license_key,)
             ).fetchall()
             return [dict(r) for r in rows]

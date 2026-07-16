@@ -51,7 +51,7 @@ def _get_system_key(key_name):
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
     from models import get_db
     with get_db() as conn:
-        row = conn.execute("SELECT value FROM system_config WHERE key=?", (key_name,)).fetchone()
+        row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key_name,)).fetchone()
     val = row['value'] if row and row['value'] else ''
     return val
 
@@ -70,7 +70,7 @@ def _resolve_agent_model_config(config: dict) -> dict:
             pm = conn.execute(
                 "SELECT pm.*, p.slug as provider_slug FROM provider_models pm "
                 "JOIN providers p ON p.id=pm.provider_id "
-                "WHERE pm.id=? AND pm.is_active=1 AND p.is_active=1",
+                "WHERE pm.id=%s AND pm.is_active=1 AND p.is_active=1",
                 (pm_id,)
             ).fetchone()
         if pm:
@@ -371,7 +371,7 @@ def _log_token_usage(agent_id, agent_name, model_name, provider,
                 (agent_id, agent_name, model_name, provider,
                  prompt_tokens, completion_tokens, total_tokens,
                  call_type, dimension, user_id, task_id, session_id, created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
             """, (agent_id, agent_name, model_name, provider,
                   prompt_tokens, completion_tokens, total_tokens,
                   call_type, dimension, user_id, task_id, session_id))
@@ -379,13 +379,13 @@ def _log_token_usage(agent_id, agent_name, model_name, provider,
                 INSERT INTO agent_token_daily
                 (agent_id, agent_name, stat_date,
                  prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
-                VALUES (?,?,date('now'),?,?,?,1,datetime('now','localtime'))
+                VALUES (%s,%s,CURRENT_DATE,%s,%s,%s,1,NOW())
                 ON CONFLICT(agent_id, stat_date) DO UPDATE SET
                     prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
                     completion_tokens  = completion_tokens + excluded.completion_tokens,
                     total_tokens       = total_tokens + excluded.total_tokens,
                     call_count         = call_count + 1,
-                    updated_at         = datetime('now','localtime')
+                    updated_at         = NOW()
             """, (agent_id, agent_name, prompt_tokens, completion_tokens, total_tokens))
             conn.commit()
     except Exception:
@@ -442,7 +442,7 @@ def _today_token_usage() -> int:
         with get_db() as conn:
             row = conn.execute(
                 "SELECT COALESCE(SUM(total_tokens),0) AS c "
-                "FROM agent_token_daily WHERE stat_date = date('now')"
+                "FROM agent_token_daily WHERE stat_date = CURRENT_DATE"
             ).fetchone()
         if row is None:
             return 0

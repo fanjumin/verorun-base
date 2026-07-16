@@ -30,7 +30,7 @@ def run_renewal_scan():
             JOIN users u ON u.id = s.user_id
             WHERE s.auto_renew = 1
               AND s.status = 'active'
-              AND date(s.current_period_end) = date('now')
+              AND date(s.current_period_end) = CURRENT_DATE
         """).fetchall()
 
         print(f'[renewal] {len(due)} subscription(s) due for renewal')
@@ -55,7 +55,7 @@ def run_dunning_scan():
             JOIN users u ON u.id = s.user_id
             WHERE s.status = 'past_due'
               AND s.auto_renew = 1
-              AND date(s.current_period_end) >= date('now', '-' || ? || ' days')
+              AND date(s.current_period_end) >= CURRENT_DATE - (%s * INTERVAL '1 day')
         """, (GRACE_DAYS,)).fetchall()
 
         print(f'[dunning] {len(past_due)} past_due subscription(s) to check')
@@ -72,21 +72,21 @@ def run_dunning_scan():
             JOIN users u ON u.id = s.user_id
             JOIN subscription_plans sp ON sp.plan_key = s.plan_key
             WHERE s.status='past_due'
-              AND date(s.current_period_end) < date('now', '-' || ? || ' days')
+              AND date(s.current_period_end) < CURRENT_DATE - (%s * INTERVAL '1 day')
         """, (GRACE_DAYS,)).fetchall()
 
         if expired_users:
             expired_ids = [u['user_id'] for u in expired_users]
-            placeholders = ','.join(['?'] * len(expired_ids))
+            placeholders = ','.join(['%s'] * len(expired_ids))
             print(f'[dunning] {len(expired_users)} user(s) downgraded to free after grace period')
 
             conn.execute(f"""
-                UPDATE subscriptions SET status='expired', plan_key='free', period='month', auto_renew=0, updated_at=datetime('now')
+                UPDATE subscriptions SET status='expired', plan_key='free', period='month', auto_renew=0, updated_at=NOW()
                 WHERE user_id IN ({placeholders})
             """, expired_ids)
             # 同步降级 app_authorizations 和 skill_keys
             conn.execute(f"""
-                UPDATE app_authorizations SET tier='free', tier_expire_at=datetime('now','+365 days')
+                UPDATE app_authorizations SET tier='free', tier_expire_at=NOW() + INTERVAL '365 days'
                 WHERE user_id IN ({placeholders}) AND app_name='trademind'
             """, expired_ids)
             conn.execute(f"""
@@ -115,7 +115,7 @@ def _process_renewal(conn, sub):
     wechat_contract = sub.get('wechat_contract_id', '')
 
     # 获取套餐价格
-    plan = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=?', (plan_key,)).fetchone()
+    plan = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=%s', (plan_key,)).fetchone()
     if not plan:
         print(f'[renewal] ERROR: plan not found {plan_key} for user {uid}')
         return
@@ -130,7 +130,7 @@ def _process_renewal(conn, sub):
 
     # 创建续费订单
     conn.execute(
-        'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
         (order_no, uid, amount_fen, 'renew', plan_key, period, payment_method, 'pending'))
     conn.commit()
 
@@ -178,7 +178,7 @@ def _retry_charge(conn, sub):
     alipay_agreement = sub.get('alipay_agreement_id', '')
     wechat_contract = sub.get('wechat_contract_id', '')
 
-    plan = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=?', (plan_key,)).fetchone()
+    plan = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=%s', (plan_key,)).fetchone()
     if not plan: return
     plan = dict(plan)
 
@@ -188,7 +188,7 @@ def _retry_charge(conn, sub):
     desc = f"{brand} {plan['name']}续费(重试)"
     order_no = new_order_no('RET')
     conn.execute(
-        'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
         (order_no, uid, amount_fen, 'renew', plan_key, period, payment_method, 'pending'))
     conn.commit()
 
@@ -208,7 +208,7 @@ def _retry_charge(conn, sub):
         print(f'[dunning] RETRY OK user={uid} ¥{amount_fen/100:.2f}')
     else:
         conn.execute(
-            "UPDATE subscription_orders SET status='failed', fail_reason=?, updated_at=datetime('now') WHERE order_no=?",
+            "UPDATE subscription_orders SET status='failed', fail_reason=%s, updated_at=NOW() WHERE order_no=%s",
             (fail_reason, order_no))
         conn.commit()
         # 记录事件
@@ -219,10 +219,10 @@ def _retry_charge(conn, sub):
 def _mark_past_due(conn, sub, order_no, fail_reason):
     """将订阅标记为 past_due"""
     conn.execute(
-        "UPDATE subscription_orders SET status='failed', fail_reason=?, updated_at=datetime('now') WHERE order_no=?",
+        "UPDATE subscription_orders SET status='failed', fail_reason=%s, updated_at=NOW() WHERE order_no=%s",
         (fail_reason, order_no))
     conn.execute(
-        "UPDATE subscriptions SET status='past_due', updated_at=datetime('now') WHERE id=?",
+        "UPDATE subscriptions SET status='past_due', updated_at=NOW() WHERE id=%s",
         (sub['id'],))
     conn.commit()
 
@@ -234,14 +234,14 @@ def _mark_past_due(conn, sub, order_no, fail_reason):
 
 def _log_payment_event(conn, user_id, sub_id, event_type, channel, amount_fen, fail_reason=''):
     conn.execute(
-        'INSERT INTO payment_events (user_id, sub_id, event_type, channel, amount_fen, result, fail_reason) VALUES (?,?,?,?,?,?,?)',
+        'INSERT INTO payment_events (user_id, sub_id, event_type, channel, amount_fen, result, fail_reason) VALUES (%s,%s,%s,%s,%s,%s,%s)',
         (user_id, sub_id, event_type, channel, amount_fen, 'fail' if fail_reason else 'success', fail_reason))
     conn.commit()
 
 
 def _log_audit(conn, user_id, action, detail, sub_id=None, admin_id=None):
     conn.execute(
-        'INSERT INTO subscription_audit_log (user_id, sub_id, action, detail, admin_id) VALUES (?,?,?,?,?)',
+        'INSERT INTO subscription_audit_log (user_id, sub_id, action, detail, admin_id) VALUES (%s,%s,%s,%s,%s)',
         (user_id, sub_id, action, detail, admin_id))
     conn.commit()
 

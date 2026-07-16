@@ -424,7 +424,7 @@ def store_admin_save():
                 author_url, icon_url, price_type, price_amount,
                 price_interval, trial_days, download_url, package_hash,
                 file_size, category, tags, screenshots, readme_url, enabled
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
             ON CONFLICT(identifier) DO UPDATE SET
                 name=excluded.name,
                 description=excluded.description,
@@ -444,7 +444,7 @@ def store_admin_save():
                 screenshots=excluded.screenshots,
                 readme_url=excluded.readme_url,
                 enabled=excluded.enabled,
-                updated_at=datetime('now')
+                updated_at=NOW()
         """, (
             identifier,
             data.get('name', ''),
@@ -476,8 +476,8 @@ def store_admin_save():
 def store_admin_delete(identifier: str):
     """管理员：删除商店插件商品"""
     with get_registry_db() as conn:
-        conn.execute('DELETE FROM store_plugins WHERE identifier=?', (identifier,))
-        conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=?', (identifier,))
+        conn.execute('DELETE FROM store_plugins WHERE identifier=%s', (identifier,))
+        conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=%s', (identifier,))
         conn.commit()
     return _json_result(True, data={'deleted': True})
 
@@ -488,11 +488,11 @@ def store_admin_delete(identifier: str):
 def store_admin_toggle(identifier: str):
     """管理员：切换插件上架/下架状态"""
     with get_registry_db() as conn:
-        row = conn.execute('SELECT enabled FROM store_plugins WHERE identifier=?', (identifier,)).fetchone()
+        row = conn.execute('SELECT enabled FROM store_plugins WHERE identifier=%s', (identifier,)).fetchone()
         if not row:
             return _json_result(False, error='Plugin not found', code=404)
         new_enabled = 0 if row['enabled'] else 1
-        conn.execute('UPDATE store_plugins SET enabled=?, updated_at=datetime("now") WHERE identifier=?',
+        conn.execute('UPDATE store_plugins SET enabled=%s, updated_at=NOW() WHERE identifier=%s',
                      (new_enabled, identifier))
         conn.commit()
     return _json_result(True, data={'identifier': identifier, 'enabled': bool(new_enabled)})
@@ -1036,13 +1036,13 @@ def store_reviews_list(identifier: str):
 
     with get_registry_db() as conn:
         total = conn.execute(
-            'SELECT COUNT(*) as cnt FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1',
+            'SELECT COUNT(*) as cnt FROM plugin_reviews WHERE plugin_identifier=%s AND is_active=1',
             (identifier,)
         ).fetchone()['cnt']
 
         offset = (page - 1) * page_size
         rows = conn.execute(
-            f'SELECT * FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1 ORDER BY {order_by} LIMIT ? OFFSET ?',
+            f'SELECT * FROM plugin_reviews WHERE plugin_identifier=%s AND is_active=1 ORDER BY {order_by} LIMIT %s OFFSET %s',
             (identifier, page_size, offset)
         ).fetchall()
 
@@ -1103,32 +1103,32 @@ def store_review_create(identifier: str):
     with get_registry_db() as conn:
         # 检查是否已评价过
         existing = conn.execute(
-            'SELECT id FROM plugin_reviews WHERE plugin_identifier=? AND user_id=?',
+            'SELECT id FROM plugin_reviews WHERE plugin_identifier=%s AND user_id=%s',
             (identifier, user_id)
         ).fetchone()
         if existing:
             # 更新已有评价
             conn.execute(
-                'UPDATE plugin_reviews SET rating=?, content=?, is_active=1 WHERE id=?',
+                'UPDATE plugin_reviews SET rating=%s, content=%s, is_active=1 WHERE id=%s',
                 (rating, content, existing['id'])
             )
             conn.commit()
             return _json_result(True, data={'id': existing['id'], 'updated': True})
 
         cur = conn.execute(
-            'INSERT INTO plugin_reviews (plugin_identifier, user_id, user_name, rating, content) VALUES (?,?,?,?,?)',
+            'INSERT INTO plugin_reviews (plugin_identifier, user_id, user_name, rating, content) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (identifier, user_id, user_name, rating, content)
         )
         conn.commit()
-        review_id = cur.lastrowid
+        review_id = cur.fetchone()['id']
 
         # 更新 store_plugins 的评分聚合
         agg = conn.execute(
-            'SELECT COUNT(*) as cnt, AVG(rating) as avg FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1',
+            'SELECT COUNT(*) as cnt, AVG(rating) as avg FROM plugin_reviews WHERE plugin_identifier=%s AND is_active=1',
             (identifier,)
         ).fetchone()
         conn.execute(
-            'UPDATE store_plugins SET rating=?, review_count=? WHERE identifier=?',
+            'UPDATE store_plugins SET rating=%s, review_count=%s WHERE identifier=%s',
             (round(agg['avg'], 1) if agg['avg'] else 0.0, agg['cnt'], identifier)
         )
         conn.commit()
@@ -1156,20 +1156,20 @@ def store_review_delete(identifier: str, review_id: int):
         pass
 
     with get_registry_db() as conn:
-        review = conn.execute('SELECT * FROM plugin_reviews WHERE id=?', (review_id,)).fetchone()
+        review = conn.execute('SELECT * FROM plugin_reviews WHERE id=%s', (review_id,)).fetchone()
         if not review:
             return _json_result(False, error='评价不存在', code=404)
         if review['user_id'] != user_id and not is_admin:
             return _json_result(False, error='无权删除此评价', code=403)
 
-        conn.execute('UPDATE plugin_reviews SET is_active=0 WHERE id=?', (review_id,))
+        conn.execute('UPDATE plugin_reviews SET is_active=0 WHERE id=%s', (review_id,))
         # 重新计算评分
         agg = conn.execute(
-            'SELECT COUNT(*) as cnt, AVG(rating) as avg FROM plugin_reviews WHERE plugin_identifier=? AND is_active=1',
+            'SELECT COUNT(*) as cnt, AVG(rating) as avg FROM plugin_reviews WHERE plugin_identifier=%s AND is_active=1',
             (identifier,)
         ).fetchone()
         conn.execute(
-            'UPDATE store_plugins SET rating=?, review_count=? WHERE identifier=?',
+            'UPDATE store_plugins SET rating=%s, review_count=%s WHERE identifier=%s',
             (round(agg['avg'], 1) if agg['avg'] else 0.0, agg['cnt'], identifier)
         )
         conn.commit()
@@ -1190,12 +1190,12 @@ def store_review_reply(identifier: str, review_id: int):
         return _json_result(False, error='回复内容不能为空', code=400)
 
     with get_registry_db() as conn:
-        review = conn.execute('SELECT * FROM plugin_reviews WHERE id=?', (review_id,)).fetchone()
+        review = conn.execute('SELECT * FROM plugin_reviews WHERE id=%s', (review_id,)).fetchone()
         if not review:
             return _json_result(False, error='评价不存在', code=404)
 
         conn.execute(
-            'UPDATE plugin_reviews SET reply_content=?, reply_at=datetime("now") WHERE id=?',
+            'UPDATE plugin_reviews SET reply_content=%s, reply_at=NOW() WHERE id=%s',
             (reply_content, review_id)
         )
         conn.commit()

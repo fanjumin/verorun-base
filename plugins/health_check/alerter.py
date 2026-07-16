@@ -86,8 +86,8 @@ def _is_in_silence_window(conn, check_key: str) -> bool:
 def _is_in_cooldown(conn, check_key: str, cooldown_minutes: int) -> bool:
     """Check if same check_key already alerted within cooldown window."""
     row = conn.execute(
-        "SELECT id FROM alert_history WHERE check_key=? "
-        "AND created_at >= datetime('now', ?) LIMIT 1",
+        "SELECT id FROM alert_history WHERE check_key=%s "
+        "AND created_at >= NOW() + %s::INTERVAL LIMIT 1",
         (check_key, f'-{cooldown_minutes} minutes')
     ).fetchone()
     return row is not None
@@ -277,7 +277,7 @@ def _send_internal_message(message: str, alert_level: str = 'P2'):
             for admin in admins:
                 conn.execute(
                     "INSERT INTO admin_notifications (user_id, title, content, is_read, created_at) "
-                    "VALUES (?, ?, ?, 0, datetime('now'))",
+                    "VALUES (%s, %s, %s, 0, NOW())",
                     (admin['id'], title, message)
                 )
             conn.commit()

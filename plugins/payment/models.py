@@ -5,7 +5,8 @@ Payment Plugin — 独立数据库模型
 - payment_logs: 支付交易日志（已有）
 - payment_configs: 支付提供商凭证（新增，替代主库 system_config）
 """
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 import json
 
@@ -26,59 +27,71 @@ def _rebuild_db():
         os.remove(_DB_PATH)
     except OSError:
         pass
-    # 清理旧的 WAL/SHM 文件
-    for ext in ('-wal', '-shm'):
-        try:
-            os.remove(_DB_PATH + ext)
-        except OSError:
-            pass
-    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST','localhost'),
+        port=int(os.environ.get('PG_PORT',5432)),
+        dbname=os.environ.get('PG_DB','verorun'),
+        user=os.environ.get('PG_USER','verorun'),
+        password=os.environ.get('PG_PASSWORD',''),
+        cursor_factory=RealDictCursor
+    )
+    conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
+    conn.execute("SET search_path TO payment")
     # 重建表
     conn.execute('''CREATE TABLE IF NOT EXISTS payment_logs (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         order_id        TEXT NOT NULL,
         subject         TEXT DEFAULT '',
         amount          REAL DEFAULT 0,
         provider        TEXT DEFAULT '',
         status          TEXT DEFAULT 'pending',
         raw_response    TEXT DEFAULT '',
-        created_at      TEXT DEFAULT (datetime('now')),
+        created_at      TEXT DEFAULT NOW(),
         completed_at    TEXT
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_payment_logs_order ON payment_logs(order_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_payment_logs_created ON payment_logs(created_at)')
     conn.execute('''CREATE TABLE IF NOT EXISTS payment_configs (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         provider    TEXT NOT NULL,
         config_key  TEXT NOT NULL,
         config_value TEXT NOT NULL DEFAULT '',
-        updated_at  TEXT DEFAULT (datetime('now')),
+        updated_at  TEXT DEFAULT NOW(),
         UNIQUE(provider, config_key)
     )''')
     conn.commit()
     conn.close()
-    print(f'[PaymentPlugin] 🛠️ 数据库已重建（{_DB_PATH}）')
+    print(f'[PaymentPlugin] 🛠️ Schema payment 已重建')
 
 
 def _connect_db():
     """连接数据库，失败时自动重建"""
     try:
-        conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
+        conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST','localhost'),
+            port=int(os.environ.get('PG_PORT',5432)),
+            dbname=os.environ.get('PG_DB','verorun'),
+            user=os.environ.get('PG_USER','verorun'),
+            password=os.environ.get('PG_PASSWORD',''),
+            cursor_factory=RealDictCursor
+        )
+        conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
+        conn.execute("SET search_path TO payment")
         conn.execute("SELECT 1").fetchone()
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
         return conn
-    except sqlite3.DatabaseError as e:
+    except psycopg2.DatabaseError as e:
         print(f'[PaymentPlugin] ⚠️ 数据库损坏，自动重建: {e}')
         _rebuild_db()
-        conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST','localhost'),
+            port=int(os.environ.get('PG_PORT',5432)),
+            dbname=os.environ.get('PG_DB','verorun'),
+            user=os.environ.get('PG_USER','verorun'),
+            password=os.environ.get('PG_PASSWORD',''),
+            cursor_factory=RealDictCursor
+        )
+        conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
+        conn.execute("SET search_path TO payment")
         return conn
 
 
@@ -91,9 +104,9 @@ def get_payment_db():
         else:
             try:
                 _payment_conn.execute("SELECT 1").fetchone()
-            except sqlite3.ProgrammingError:
+            except psycopg2.ProgrammingError:
                 _payment_conn = _connect_db()
-            except sqlite3.DatabaseError:
+            except psycopg2.DatabaseError:
                 _payment_conn = None
                 _payment_conn = _connect_db()
     return _payment_conn
@@ -105,14 +118,14 @@ def init_payment_tables():
 
     # 交易日志（已有）
     conn.execute('''CREATE TABLE IF NOT EXISTS payment_logs (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         order_id        TEXT NOT NULL,
         subject         TEXT DEFAULT '',
         amount          REAL DEFAULT 0,
         provider        TEXT DEFAULT '',
         status          TEXT DEFAULT 'pending',
         raw_response    TEXT DEFAULT '',
-        created_at      TEXT DEFAULT (datetime('now')),
+        created_at      TEXT DEFAULT NOW(),
         completed_at    TEXT
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_payment_logs_order ON payment_logs(order_id)')
@@ -120,15 +133,15 @@ def init_payment_tables():
 
     # 支付提供商凭证（替代主库 system_config）
     conn.execute('''CREATE TABLE IF NOT EXISTS payment_configs (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         provider    TEXT NOT NULL,           -- 'alipay' | 'wechat' | 'stripe' | 'paypal'
         config_key  TEXT NOT NULL,           -- e.g. 'app_id', 'secret_key', 'public_key'
         config_value TEXT NOT NULL DEFAULT '',
-        updated_at  TEXT DEFAULT (datetime('now')),
+        updated_at  TEXT DEFAULT NOW(),
         UNIQUE(provider, config_key)
     )''')
     conn.commit()
-    print(f'[PaymentPlugin] ✅ 独立数据库已就绪（{_DB_PATH}）')
+    print(f'[PaymentPlugin] ✅ Schema payment 已就绪')
 
 
 # ── 配置读写（替代主库 scfg/gc） ──
@@ -137,7 +150,7 @@ def get_payment_config(provider: str, config_key: str, default=''):
     """读取单条支付配置"""
     conn = get_payment_db()
     r = conn.execute(
-        'SELECT config_value FROM payment_configs WHERE provider=? AND config_key=?',
+        'SELECT config_value FROM payment_configs WHERE provider=%s AND config_key=%s',
         (provider, config_key)
     ).fetchone()
     return r['config_value'] if r else default
@@ -147,7 +160,7 @@ def get_provider_configs(provider: str) -> dict:
     """读取某提供商全部配置"""
     conn = get_payment_db()
     rows = conn.execute(
-        'SELECT config_key, config_value FROM payment_configs WHERE provider=?',
+        'SELECT config_key, config_value FROM payment_configs WHERE provider=%s',
         (provider,)
     ).fetchall()
     return {r['config_key']: r['config_value'] for r in rows}
@@ -158,10 +171,10 @@ def set_payment_config(provider: str, config_key: str, config_value: str):
     conn = get_payment_db()
     conn.execute('''
         INSERT INTO payment_configs (provider, config_key, config_value, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
-        ON CONFLICT(provider, config_key) DO UPDATE SET
-            config_value=excluded.config_value,
-            updated_at=datetime('now')
+        VALUES (%s, %s, %s, NOW())
+        ON CONFLICT (provider, config_key) DO UPDATE SET
+            config_value=EXCLUDED.config_value,
+            updated_at=NOW()
     ''', (provider, config_key, config_value))
     conn.commit()
 
@@ -195,7 +208,7 @@ def migrate_from_main_db():
         with get_db() as conn:
             # 支付宝
             for key in ['alipay_app_id', 'alipay_private_key', 'alipay_public_key']:
-                r = conn.execute('SELECT value FROM system_config WHERE key=?', (key,)).fetchone()
+                r = conn.execute('SELECT value FROM system_config WHERE key=%s', (key,)).fetchone()
                 if r and r['value']:
                     set_payment_config('alipay', key.replace('alipay_', ''), r['value'])
             # 回调域名
@@ -204,7 +217,7 @@ def migrate_from_main_db():
                 set_payment_config('alipay', 'notify_base', r['value'])
             # 微信
             for key in ['wechat_app_id', 'wechat_mchid', 'wechat_api_v3_key', 'wechat_cert_serial', 'wechat_plan_id']:
-                r = conn.execute('SELECT value FROM system_config WHERE key=?', (key,)).fetchone()
+                r = conn.execute('SELECT value FROM system_config WHERE key=%s', (key,)).fetchone()
                 if r and r['value']:
                     set_payment_config('wechat', key.replace('wechat_', ''), r['value'])
         print('[PaymentPlugin] ✅ 主库支付凭证已迁移至独立库')

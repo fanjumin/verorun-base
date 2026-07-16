@@ -46,7 +46,7 @@ def list_all_blocks(page):
     from models import get_db
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM cms_blocks WHERE page=? ORDER BY position", (page,)
+            "SELECT * FROM cms_blocks WHERE page=%s ORDER BY position", (page,)
         ).fetchall()
     return _ok([dict(r) for r in rows])
 
@@ -134,7 +134,7 @@ def publish_post(post_id):
     data = request.get_json(force=True) or {}
     from models import get_db
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM cms_posts WHERE id=?', (post_id,)).fetchone()
+        row = conn.execute('SELECT * FROM cms_posts WHERE id=%s', (post_id,)).fetchone()
     if not row:
         return _err('Post not found')
     post = dict(row)
@@ -258,7 +258,7 @@ def remove_category(cat_id):
     from models import get_db
     with get_db() as conn:
         refs = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE category IN "
-                           "(SELECT name FROM cms_categories WHERE id=?)", (cat_id,)).fetchone()
+                           "(SELECT name FROM cms_categories WHERE id=%s)", (cat_id,)).fetchone()
         if refs and refs['c'] > 0:
             return _err(f'该分类下有 {refs["c"]} 篇文章，请先迁移或删除后再操作')
     delete_category(cat_id)
@@ -291,7 +291,7 @@ def preview_post(slug):
     from models.cms import get_post_by_slug
     from models import get_db
     with get_db() as conn:
-        post = conn.execute("SELECT * FROM cms_posts WHERE slug=?", (slug,)).fetchone()
+        post = conn.execute("SELECT * FROM cms_posts WHERE slug=%s", (slug,)).fetchone()
     post = dict(post) if post else None
     if not post:
         return _err('文章不存在'), 404

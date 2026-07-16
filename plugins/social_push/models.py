@@ -4,10 +4,8 @@
 独立数据库 social_push.db，存放社媒发布日志表 social_push_logs。
 从主库迁移而来，表结构保持一致。
 """
-import sqlite3
+import psycopg2
 import os
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'social_push.db')
 
 _sp_conn = None
 
@@ -16,10 +14,16 @@ def get_sp_db():
     """获取 Social Push 插件独立数据库连接"""
     global _sp_conn
     if _sp_conn is None:
-        _sp_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _sp_conn.row_factory = sqlite3.Row
-        _sp_conn.execute("PRAGMA journal_mode=WAL")
-        _sp_conn.execute("PRAGMA busy_timeout=1000")
+        _sp_conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        _sp_conn.autocommit = False
+        _sp_conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")
+        _sp_conn.execute("SET search_path TO social_push")
     return _sp_conn
 
 
@@ -33,7 +37,7 @@ def init_sp_db():
     conn = get_sp_db()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS social_push_logs (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             platform        TEXT NOT NULL DEFAULT 'wechat',
             content_type    TEXT DEFAULT 'article',
             title           TEXT DEFAULT '',
@@ -43,9 +47,9 @@ def init_sp_db():
             publish_id      TEXT DEFAULT '',
             status          TEXT DEFAULT 'draft',
             push_time       TEXT,
-            admin_id        INTEGER,
+            admin_id        BIGINT,
             error_msg       TEXT DEFAULT '',
-            created_at      TEXT DEFAULT (datetime('now'))
+            created_at      TEXT DEFAULT (NOW())
         )
     """)
     conn.commit()
@@ -71,7 +75,7 @@ def migrate_from_main_db():
     try:
         with get_main_db() as main:
             has_table = main.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='social_push_logs'"
+                "SELECT table_name FROM information_schema.tables WHERE table_name='social_push_logs'"
             ).fetchone()
             if not has_table:
                 return 0
@@ -89,7 +93,7 @@ def migrate_from_main_db():
             """INSERT INTO social_push_logs
                (platform, content_type, title, summary, article_json, media_id,
                 publish_id, status, push_time, admin_id, error_msg, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (r['platform'], r['content_type'], r['title'], r['summary'],
              r['article_json'], r['media_id'], r['publish_id'], r['status'],
              r['push_time'], r['admin_id'], r['error_msg'], r['created_at'])

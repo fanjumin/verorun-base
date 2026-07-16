@@ -567,7 +567,7 @@ def update_system_agent(agent_id):
                 'base_url', 'system_prompt', 'capabilities', 'max_concurrency',
                 'is_active'):
         if key in data:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             v = data[key]
             if isinstance(v, (dict, list)):
                 v = m.to_json(v)
@@ -580,7 +580,7 @@ def update_system_agent(agent_id):
     with m.get_db() as conn:
         conn.execute(
             f"UPDATE system_agents SET {', '.join(fields)}, "
-            f"updated_at=datetime('now') WHERE id=?",
+            f"updated_at=NOW() WHERE id=%s",
             values
         )
     return _success(None, '系统 Agent 已更新')

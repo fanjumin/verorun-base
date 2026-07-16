@@ -59,7 +59,7 @@ class StoreAPIClient:
             with get_registry_db() as conn:
                 if category:
                     rows = conn.execute(
-                        'SELECT * FROM store_plugins WHERE enabled=1 AND category=? ORDER BY downloads DESC',
+                        'SELECT * FROM store_plugins WHERE enabled=1 AND category=%s ORDER BY downloads DESC',
                         (category,)
                     ).fetchall()
                 else:
@@ -80,7 +80,7 @@ class StoreAPIClient:
         # 降级：本地缓存
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT * FROM store_plugins WHERE identifier=?',
+                'SELECT * FROM store_plugins WHERE identifier=%s',
                 (identifier,)
             ).fetchone()
             if row:
@@ -97,7 +97,7 @@ class StoreAPIClient:
                 return self._get_review_summary(identifier, c)
         row = conn.execute(
             "SELECT COUNT(*) as cnt, AVG(rating) as avg_rating FROM plugin_reviews "
-            "WHERE plugin_identifier=? AND is_active=1",
+            "WHERE plugin_identifier=%s AND is_active=1",
             (identifier,)
         ).fetchone()
         return {
@@ -115,7 +115,7 @@ class StoreAPIClient:
         # 本地缓存
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT download_url FROM store_plugins WHERE identifier=?',
+                'SELECT download_url FROM store_plugins WHERE identifier=%s',
                 (identifier,)
             ).fetchone()
             return row['download_url'] if row else None
@@ -132,14 +132,14 @@ class StoreAPIClient:
                 params = []
 
                 if query:
-                    sql += ' AND (s.name LIKE ? OR s.description LIKE ? OR s.identifier LIKE ?)'
+                    sql += ' AND (s.name LIKE %s OR s.description LIKE %s OR s.identifier LIKE %s)'
                     like = f'%{query}%'
                     params.extend([like, like, like])
                 if category:
-                    sql += ' AND s.category=?'
+                    sql += ' AND s.category=%s'
                     params.append(category)
                 if price_type:
-                    sql += ' AND s.price_type=?'
+                    sql += ' AND s.price_type=%s'
                     params.append(price_type)
 
                 # 排序
@@ -158,7 +158,7 @@ class StoreAPIClient:
 
                 # 分页
                 offset = (page - 1) * page_size
-                sql += ' LIMIT ? OFFSET ?'
+                sql += ' LIMIT %s OFFSET %s'
                 params.extend([page_size, offset])
 
                 rows = conn.execute(sql, params).fetchall()
@@ -186,7 +186,7 @@ class StoreAPIClient:
                         price_interval, trial_days, download_url, package_hash,
                         file_size, category, tags, min_app_version, depends_on,
                         screenshots, readme_url, downloads, rating, review_count, enabled
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
                     ON CONFLICT(identifier) DO UPDATE SET
                         name=excluded.name,
                         description=excluded.description,
@@ -202,7 +202,7 @@ class StoreAPIClient:
                         downloads=excluded.downloads,
                         rating=excluded.rating,
                         review_count=excluded.review_count,
-                        updated_at=datetime('now')
+                        updated_at=NOW()
                 """, (
                     pdata.get('identifier', ''),
                     pdata.get('name', ''),

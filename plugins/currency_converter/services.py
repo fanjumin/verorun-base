@@ -249,7 +249,7 @@ def set_user_preferred_currency(user_id: int, currency: str) -> bool:
         conn = get_db()
         conn.execute('''
             INSERT INTO user_currency_prefs (user_id, preferred_currency, updated_at)
-            VALUES (?, ?, datetime('now'))
+            VALUES (%s, %s, NOW())
             ON CONFLICT(user_id) DO UPDATE SET
                 preferred_currency=excluded.preferred_currency,
                 updated_at=excluded.updated_at

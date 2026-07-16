@@ -43,7 +43,7 @@ def check_expired_subscriptions():
                 # 3 天后重试，暂时标记 suspended
                 with svc._get_conn() as conn:
                     conn.execute(
-                        "UPDATE user_subscriptions SET status='suspended', updated_at=datetime('now') WHERE id=?",
+                        "UPDATE user_subscriptions SET status='suspended', updated_at=NOW() WHERE id=%s",
                         (sub.id,)
                     )
                     conn.commit()
@@ -56,7 +56,7 @@ def notify_expiring_soon():
 
     with svc._get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM user_subscriptions WHERE status='active' AND auto_renew=1 AND period_end < ?",
+            "SELECT * FROM user_subscriptions WHERE status='active' AND auto_renew=1 AND period_end < %s",
             (warn_date,)
         ).fetchall()
 
@@ -85,7 +85,7 @@ def cleanup_old_orders():
 
     with svc._get_conn() as conn:
         conn.execute(
-            "UPDATE sub_orders SET status='expired', updated_at=datetime('now') WHERE status='pending' AND created_at < ?",
+            "UPDATE sub_orders SET status='expired', updated_at=NOW() WHERE status='pending' AND created_at < %s",
             (cutoff,)
         )
         conn.commit()
@@ -127,7 +127,7 @@ def seed_subscription_schedules():
     使用 INSERT OR IGNORE，不覆盖已有同名任务。
     """
     try:
-        import sqlite3
+        import psycopg2
 
         # orchestrator 数据库路径（与 orchestrator/models.py 一致）
         data_dir = os.path.join(
@@ -140,28 +140,37 @@ def seed_subscription_schedules():
             print(f'[Subscription/Scheduler] Orchestrator DB not found: {orch_db}, skipping')
             return
 
-        conn = sqlite3.connect(orch_db)
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        conn.autocommit = False
+        conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
+        conn.execute("SET search_path TO subscription")
 
         # 确保 cron_jobs 表存在
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cron_jobs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 func TEXT,
                 trigger TEXT DEFAULT 'cron',
-                hour INTEGER DEFAULT 0,
-                minute INTEGER DEFAULT 0,
+                hour BIGINT DEFAULT 0,
+                minute BIGINT DEFAULT 0,
                 description TEXT DEFAULT '',
-                enabled INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (datetime('now'))
+                enabled BIGINT DEFAULT 1,
+                created_at TEXT DEFAULT (NOW())
             )
         """)
 
         for job in SUBSCRIPTION_JOBS:
             conn.execute("""
-                INSERT OR IGNORE INTO cron_jobs (name, func, trigger, hour, minute, description, enabled)
-                VALUES (?,?,?,?,?,?,1)
+                INSERT INTO cron_jobs (name, func, trigger, hour, minute, description, enabled)
+                VALUES (%s,%s,%s,%s,%s,%s,1)
+                ON CONFLICT (name) DO NOTHING
             """, (
                 job['name'],
                 f"plugins.subscription.scheduler.{job['func'].__name__}",

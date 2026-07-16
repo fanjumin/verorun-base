@@ -53,7 +53,7 @@ def run_collection(source_id: int, source_type: str = None,
 
     conn.execute(
         """INSERT INTO content_tasks (source_id, task_type, trigger_type, status, started_at, created_by)
-           VALUES (?, 'crawl', 'manual', 'running', datetime('now'), ?)""",
+           VALUES (%s, 'crawl', 'manual', 'running', NOW(), %s)""",
         (source_id, kwargs.get('admin_id', 1))
     )
     conn.commit()
@@ -72,12 +72,12 @@ def run_collection(source_id: int, source_type: str = None,
         log = str(e)
 
     conn.execute(
-        """UPDATE content_tasks SET status=?, finished_at=datetime('now'),
-           total_items=?, done_items=?, log_text=? WHERE id=?""",
+        """UPDATE content_tasks SET status=%s, finished_at=NOW(),
+           total_items=%s, done_items=%s, log_text=%s WHERE id=%s""",
         (status, inserted + skipped, inserted, log, task_id)
     )
     if status == 'completed':
-        conn.execute("UPDATE content_sources SET last_crawled_at=datetime('now') WHERE id=?", (source_id,))
+        conn.execute("UPDATE content_sources SET last_crawled_at=NOW() WHERE id=%s", (source_id,))
     conn.commit()
 
     return {'success': status == 'completed', 'total': inserted + skipped,

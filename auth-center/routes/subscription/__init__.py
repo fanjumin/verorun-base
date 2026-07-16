@@ -3,27 +3,16 @@
 Subscription Module — Blueprint Registration
 Admin backend = admin backend | VeroRon = user portal
 """
-import os, sys, json, secrets, hashlib, time, sqlite3
+import os, sys, json, secrets, hashlib, time
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from flask import Blueprint, request, jsonify, render_template, redirect, make_response, send_file
 from i18n import _
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'models'))
+from database import get_db
+
 sub_bp = Blueprint('subscription', __name__, url_prefix='/subscription')
-
-# ── DB 路径（直接从文件位置推导，避免与 community.models 的 import 冲突） ──
-DB_PATH = os.environ.get('DB_PATH', os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'x7k2m9a4.db'))
-
-@contextmanager
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    try:
-        yield conn
-    finally:
-        conn.close()
 
 def now_iso():
     return datetime.now().isoformat()
@@ -67,14 +56,14 @@ def _audit_log(user_id, action, detail='', admin_id=None, sub_id=None):
     ip = request.remote_addr or ''
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO subscription_audit_log (user_id, sub_id, action, detail, ip_address, admin_id) VALUES (?,?,?,?,?,?)',
+            'INSERT INTO subscription_audit_log (user_id, sub_id, action, detail, ip_address, admin_id) VALUES (%s,%s,%s,%s,%s,%s)',
             (user_id, sub_id, action, detail, ip, admin_id))
         conn.commit()
 
 # ── Plan definitions (can be overridden by DB) ──
 def get_plan(plan_key):
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=?', (plan_key,)).fetchone()
+        row = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=%s', (plan_key,)).fetchone()
         if row: return dict(row)
     return None
 
@@ -88,7 +77,7 @@ def get_all_plans(active_only=True):
 
 def get_user_subscription(user_id):
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM subscriptions WHERE user_id=?', (user_id,)).fetchone()
+        row = conn.execute('SELECT * FROM subscriptions WHERE user_id=%s', (user_id,)).fetchone()
         if row: return dict(row)
     return None
 
@@ -180,7 +169,7 @@ def my_subscription():
     recent_orders = []
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM subscription_orders WHERE user_id=? AND user_deleted=0 ORDER BY created_at DESC LIMIT 5',
+            'SELECT * FROM subscription_orders WHERE user_id=%s AND user_deleted=0 ORDER BY created_at DESC LIMIT 5',
             (uid,)).fetchall()
         recent_orders = [dict(r) for r in rows]
 
@@ -215,7 +204,7 @@ def my_invoices():
 
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM invoices WHERE user_id=? ORDER BY created_at DESC LIMIT ?',
+            'SELECT * FROM invoices WHERE user_id=%s ORDER BY created_at DESC LIMIT %s',
             (uid, limit)).fetchall()
     return api_res({'invoices': [dict(r) for r in rows]})
 
@@ -229,7 +218,7 @@ def download_invoice(invoice_no):
 
     with get_db() as conn:
         inv = conn.execute(
-            'SELECT * FROM invoices WHERE invoice_no=? AND user_id=?',
+            'SELECT * FROM invoices WHERE invoice_no=%s AND user_id=%s',
             (invoice_no, uid)).fetchone()
         if not inv:
             return api_err(_('Invoice Not Found'), 404)
@@ -275,7 +264,7 @@ def update_payment_method():
 
     with get_db() as conn:
         conn.execute(
-            'UPDATE subscriptions SET payment_method=?, updated_at=datetime(\'now\') WHERE user_id=?',
+            'UPDATE subscriptions SET payment_method=%s, updated_at=NOW() WHERE user_id=%s',
             (method, uid))
         conn.commit()
     _audit_log(uid, 'update_payment_method', f'更换为 {method}')
@@ -285,7 +274,7 @@ def update_payment_method():
 def create_subscription():
     """
     创建新订阅订单
-    POST: { plan_key, period, payment_method, coupon? }
+    POST: { plan_key, period, payment_method, coupon%s }
     返回支付参数
     """
     payload = _require_auth()
@@ -352,7 +341,7 @@ def create_subscription():
     with get_db() as conn:
         # 创建订单
         conn.execute(
-            'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (?,?,?,?,?,?,?,?)',
+            'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
             (order_no, uid, final_amount, 'new', plan_key, period, payment_method, 'pending'))
         conn.commit()
 
@@ -399,19 +388,19 @@ def _handle_upgrade(uid, existing, new_plan, new_period, payment_method):
         if is_upgrade:
             # 升级：立即生效，生成差价订单
             conn.execute(
-                'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (?,?,?,?,?,?,?,?)',
+                'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
                 (order_no, uid, amount_due, item_type, new_plan['plan_key'], new_period, payment_method, 'pending'))
             # 立即更新套餐（差价支付成功后, 在 fulfill 里确认）
             conn.execute(
-                "UPDATE subscriptions SET plan_key=?, period=?, pending_plan_key=NULL, pending_period=NULL, updated_at=datetime('now') WHERE user_id=?",
+                "UPDATE subscriptions SET plan_key=%s, period=%s, pending_plan_key=NULL, pending_period=NULL, updated_at=NOW() WHERE user_id=%s",
                 (new_plan['plan_key'], new_period, uid))
         else:
             # 降级：下个周期生效
             conn.execute(
-                'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (?,?,?,?,?,?,?,?)',
+                'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
                 (order_no, uid, amount_due, item_type, new_plan['plan_key'], new_period, payment_method, 'pending'))
             conn.execute(
-                'UPDATE subscriptions SET pending_plan_key=?, pending_period=?, pending_at=? WHERE user_id=?',
+                'UPDATE subscriptions SET pending_plan_key=%s, pending_period=%s, pending_at=%s WHERE user_id=%s',
                 (new_plan['plan_key'], new_period, period_end.isoformat(), uid))
         conn.commit()
 
@@ -521,12 +510,12 @@ def _fulfill_order(order_no, payment_method=None, channel_order_id=None, notify_
     幂等安全：已履约的订单跳过
     """
     with get_db() as conn:
-        order = conn.execute('SELECT * FROM subscription_orders WHERE order_no=?', (order_no,)).fetchone()
+        order = conn.execute('SELECT * FROM subscription_orders WHERE order_no=%s', (order_no,)).fetchone()
         if not order or order['status'] != 'pending':
             return True  # 幂等：已处理
 
         conn.execute(
-            "UPDATE subscription_orders SET status='paid', paid_at=datetime('now'), payment_method=COALESCE(?,payment_method), channel_order_id=COALESCE(?,channel_order_id), notify_id=COALESCE(?,notify_id), notify_raw=COALESCE(?,notify_raw), updated_at=datetime('now') WHERE order_no=?",
+            "UPDATE subscription_orders SET status='paid', paid_at=NOW(), payment_method=COALESCE(%s,payment_method), channel_order_id=COALESCE(%s,channel_order_id), notify_id=COALESCE(%s,notify_id), notify_raw=COALESCE(%s,notify_raw), updated_at=NOW() WHERE order_no=%s",
             (payment_method, channel_order_id, notify_id, notify_raw, order_no))
         order = dict(order)
 
@@ -544,38 +533,38 @@ def _fulfill_order(order_no, payment_method=None, channel_order_id=None, notify_
             period_start = now.isoformat()
             period_end = (now + timedelta(days=expire_days)).isoformat()
             conn.execute(
-                "INSERT OR REPLACE INTO subscriptions (user_id, plan_key, period, status, current_period_start, current_period_end, created_at, updated_at) VALUES (?,?,?,'active',?,?,datetime('now'),datetime('now'))",
+                "INSERT OR REPLACE INTO subscriptions (user_id, plan_key, period, status, current_period_start, current_period_end, created_at, updated_at) VALUES (%s,%s,%s,'active',%s,%s,NOW(),NOW())",
                 (uid, plan_key, period, period_start, period_end))
 
         elif item_type in ('upgrade',):
             # 升级：已更新 plan_key，但需要更新 period_end
-            existing = conn.execute('SELECT * FROM subscriptions WHERE user_id=?', (uid,)).fetchone()
+            existing = conn.execute('SELECT * FROM subscriptions WHERE user_id=%s', (uid,)).fetchone()
             if existing:
                 old_end = datetime.fromisoformat(existing['current_period_end'])
                 new_end = max(old_end, (now + timedelta(days=expire_days)))
                 conn.execute(
-                    'UPDATE subscriptions SET plan_key=?, period=?, current_period_end=?, updated_at=datetime(\'now\') WHERE user_id=?',
+                    'UPDATE subscriptions SET plan_key=%s, period=%s, current_period_end=%s, updated_at=NOW() WHERE user_id=%s',
                     (plan_key, period, new_end.isoformat(), uid))
 
         elif item_type == 'renew':
             # 续费：延长周期
             conn.execute(
-                "UPDATE subscriptions SET current_period_start=current_period_end, current_period_end=datetime('now','+' || ? || ' days'), status='active', auto_renew=1, updated_at=datetime('now') WHERE user_id=?",
+                "UPDATE subscriptions SET current_period_start=current_period_end, current_period_end=NOW() + (%s * INTERVAL '1 day'), status='active', auto_renew=1, updated_at=NOW() WHERE user_id=%s",
                 (expire_days, uid))
 
         # 更新 app_authorizations（供 Trademind/其他服务使用）
         tier = plan['tier']
         expire_at = (now + timedelta(days=expire_days)).isoformat()
         conn.execute(
-            "UPDATE app_authorizations SET tier=?, tier_expire_at=? WHERE user_id=? AND app_name='trademind'",
+            "UPDATE app_authorizations SET tier=%s, tier_expire_at=%s WHERE user_id=%s AND app_name='trademind'",
             (tier, expire_at, uid))
         if conn.total_changes == 0:
             conn.execute(
-                "INSERT INTO app_authorizations (user_id, app_name, tier, tier_expire_at) VALUES (?,'trademind',?,?)",
+                "INSERT INTO app_authorizations (user_id, app_name, tier, tier_expire_at) VALUES (%s,'trademind',%s,%s)",
                 (uid, tier, expire_at))
 
         # 更新 skill_keys 的 tier（社区使用）
-        conn.execute("UPDATE skill_keys SET tier=? WHERE user_id=?", (tier, uid))
+        conn.execute("UPDATE skill_keys SET tier=%s WHERE user_id=%s", (tier, uid))
 
         conn.commit()
 
@@ -630,7 +619,7 @@ def cancel_subscription():
 
     with get_db() as conn:
         conn.execute(
-            "UPDATE subscriptions SET status='canceled', canceled_at=datetime('now'), auto_renew=0, cancel_reason=?, cancel_feedback=?, updated_at=datetime('now') WHERE user_id=?",
+            "UPDATE subscriptions SET status='canceled', canceled_at=NOW(), auto_renew=0, cancel_reason=%s, cancel_feedback=%s, updated_at=NOW() WHERE user_id=%s",
             (reason, feedback, uid))
         conn.commit()
 
@@ -673,7 +662,7 @@ def reactivate_subscription():
 
     with get_db() as conn:
         conn.execute(
-            "UPDATE subscriptions SET auto_renew=1, canceled_at=NULL, cancel_reason='', updated_at=datetime('now') WHERE user_id=?",
+            "UPDATE subscriptions SET auto_renew=1, canceled_at=NULL, cancel_reason='', updated_at=NOW() WHERE user_id=%s",
             (uid,))
         conn.commit()
 
@@ -688,7 +677,7 @@ def stub_confirm(order_no):
         return api_err(_('Please log in first'), 401)
     if _fulfill_order(order_no):
         with get_db() as conn:
-            row = conn.execute('SELECT * FROM subscription_orders WHERE order_no=?', (order_no,)).fetchone()
+            row = conn.execute('SELECT * FROM subscription_orders WHERE order_no=%s', (order_no,)).fetchone()
         plan = get_plan(row['plan_key']) if row else None
         msg = f'🎉 {plan["name"] if plan else ""} 订阅成功！' if row and row['item_type'] == 'new' else '订单已完成'
         return api_res({'message': msg, 'order_no': order_no})
@@ -704,7 +693,7 @@ def list_my_orders():
 
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM subscription_orders WHERE user_id=? AND user_deleted=0 ORDER BY created_at DESC LIMIT ?',
+            'SELECT * FROM subscription_orders WHERE user_id=%s AND user_deleted=0 ORDER BY created_at DESC LIMIT %s',
             (uid, limit)).fetchall()
     return api_res({'orders': [dict(r) for r in rows]})
 
@@ -718,7 +707,7 @@ def delete_my_order(order_no):
 
     with get_db() as conn:
         order = conn.execute(
-            'SELECT * FROM subscription_orders WHERE order_no=? AND user_id=?',
+            'SELECT * FROM subscription_orders WHERE order_no=%s AND user_id=%s',
             (order_no, uid)).fetchone()
         if not order:
             return api_err(_('Order Not Found'), 404)
@@ -729,7 +718,7 @@ def delete_my_order(order_no):
             return api_err(_('Current Status (') + order["status"] + _(')的订单不可删除，仅 ') + ",".join(allowed) + _(' 状态可删除'))
 
         conn.execute(
-            "UPDATE subscription_orders SET user_deleted=1, updated_at=datetime('now') WHERE order_no=?",
+            "UPDATE subscription_orders SET user_deleted=1, updated_at=NOW() WHERE order_no=%s",
             (order_no,))
         conn.commit()
     return api_res({'message': '订单已删除'})
@@ -763,7 +752,7 @@ def retry_payment():
     order_no = new_order_no('RET')
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
             (order_no, uid, amount_fen, 'renew', plan_key, period, payment_method, 'pending'))
         conn.commit()
 
@@ -790,7 +779,7 @@ def subscription_portal():
     from services.brand_service import get_brand_settings
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if not token:
-        return redirect('/login?redirect=/subscription/portal')
+        return redirect('/login%sredirect=/subscription/portal')
     try:
         brand = get_brand_settings()
     except:
@@ -820,7 +809,7 @@ def admin_plan_create():
     with get_db() as conn:
         try:
             conn.execute(
-            'INSERT INTO subscription_plans (plan_key, name, description, price_month, price_quarter, price_semi_annual, price_year, trial_days, tier, features_json, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO subscription_plans (plan_key, name, description, price_month, price_quarter, price_semi_annual, price_year, trial_days, tier, features_json, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
             (pk, name, data.get('description', ''),
              int(data.get('price_month', 0)), int(data.get('price_quarter', 0)),
              int(data.get('price_semi_annual', 0)), int(data.get('price_year', 0)),
@@ -841,13 +830,13 @@ def admin_plan_update(pid):
     values = []
     for key in ('plan_key', 'name', 'description', 'price_month', 'price_quarter', 'price_semi_annual', 'price_year', 'trial_days', 'tier', 'features_json', 'sort_order', 'is_active'):
         if key in data:
-            fields.append(f'{key}=?')
+            fields.append(f'{key}=%s')
             values.append(data[key])
     if not fields: return api_err(_('No Fields to Update'))
-    fields.append("updated_at=datetime('now')")
+    fields.append("updated_at=NOW()")
     values.append(pid)
     with get_db() as conn:
-        conn.execute(f'UPDATE subscription_plans SET {", ".join(fields)} WHERE id=?', values)
+        conn.execute(f'UPDATE subscription_plans SET {", ".join(fields)} WHERE id=%s', values)
         conn.commit()
     _audit_log(admin['user_id'], 'update_plan', f'plan_id={pid}', admin_id=admin['user_id'])
     return api_res({'message': '已更新'})
@@ -857,7 +846,7 @@ def admin_plan_delete(pid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        conn.execute('DELETE FROM subscription_plans WHERE id=?', (pid,))
+        conn.execute('DELETE FROM subscription_plans WHERE id=%s', (pid,))
         conn.commit()
     _audit_log(admin['user_id'], 'delete_plan', f'plan_id={pid}', admin_id=admin['user_id'])
     return api_res({'message': '已删除'})
@@ -875,10 +864,10 @@ def admin_subscription_list():
     where = []
     params = []
     if status:
-        where.append('s.status=?')
+        where.append('s.status=%s')
         params.append(status)
     if search:
-        where.append('(u.display_name LIKE ? OR u.phone LIKE ?)')
+        where.append('(u.display_name LIKE %s OR u.phone LIKE %s)')
         s = f'%{search}%'
         params.extend([s, s])
 
@@ -888,7 +877,7 @@ def admin_subscription_list():
             f'SELECT COUNT(*) as c FROM subscriptions s JOIN users u ON u.id=s.user_id {wsql}',
             params).fetchone()
         rows = conn.execute(
-            f'SELECT s.*, u.display_name, u.phone, u.agent_id FROM subscriptions s JOIN users u ON u.id=s.user_id {wsql} ORDER BY s.created_at DESC LIMIT ? OFFSET ?',
+            f'SELECT s.*, u.display_name, u.phone, u.agent_id FROM subscriptions s JOIN users u ON u.id=s.user_id {wsql} ORDER BY s.created_at DESC LIMIT %s OFFSET %s',
             params + [limit, offset]).fetchall()
     return api_res({
         'total': total['c'],
@@ -903,15 +892,15 @@ def admin_manual_renew(sid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        sub = conn.execute('SELECT * FROM subscriptions WHERE id=?', (sid,)).fetchone()
+        sub = conn.execute('SELECT * FROM subscriptions WHERE id=%s', (sid,)).fetchone()
         if not sub: return api_err(_('Subscription Not Found'), 404)
-        plan = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=?', (sub['plan_key'],)).fetchone()
+        plan = conn.execute('SELECT * FROM subscription_plans WHERE plan_key=%s', (sub['plan_key'],)).fetchone()
         expire_days = 365 if sub['period'] == 'year' else 30
         conn.execute(
-            "UPDATE subscriptions SET current_period_start=current_period_end, current_period_end=datetime('now','+' || ? || ' days'), updated_at=datetime('now') WHERE id=?",
+            "UPDATE subscriptions SET current_period_start=current_period_end, current_period_end=NOW() + (%s * INTERVAL '1 day'), updated_at=NOW() WHERE id=%s",
             (expire_days, sid))
         if plan:
-            conn.execute("UPDATE app_authorizations SET tier=?, tier_expire_at=current_period_end WHERE user_id=? AND app_name='trademind'",
+            conn.execute("UPDATE app_authorizations SET tier=%s, tier_expire_at=current_period_end WHERE user_id=%s AND app_name='trademind'",
                          (plan['tier'], sub['user_id']))
         conn.commit()
     _audit_log(sub['user_id'], 'manual_renew', f'管理员手动续费 subscription_id={sid}', admin_id=admin['user_id'])
@@ -923,14 +912,14 @@ def admin_force_cancel(sid):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        sub = conn.execute('SELECT * FROM subscriptions WHERE id=?', (sid,)).fetchone()
+        sub = conn.execute('SELECT * FROM subscriptions WHERE id=%s', (sid,)).fetchone()
         if not sub: return api_err(_('Subscription Not Found'), 404)
         conn.execute(
-            "UPDATE subscriptions SET status='expired', auto_renew=0, updated_at=datetime('now') WHERE id=?",
+            "UPDATE subscriptions SET status='expired', auto_renew=0, updated_at=NOW() WHERE id=%s",
             (sid,))
-        conn.execute("UPDATE app_authorizations SET tier='free' WHERE user_id=? AND app_name='trademind'",
+        conn.execute("UPDATE app_authorizations SET tier='free' WHERE user_id=%s AND app_name='trademind'",
                      (sub['user_id'],))
-        conn.execute("UPDATE skill_keys SET tier='free' WHERE user_id=?", (sub['user_id'],))
+        conn.execute("UPDATE skill_keys SET tier='free' WHERE user_id=%s", (sub['user_id'],))
         conn.commit()
     _audit_log(sub['user_id'], 'force_cancel', f'管理员强制取消 subscription_id={sid}', admin_id=admin['user_id'])
     return api_res({'message': '已强制取消，用户已降级为免费版'})
@@ -945,14 +934,14 @@ def admin_order_list():
     offset = (page - 1) * limit
     with get_db() as conn:
         if status:
-            total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders WHERE status=?', (status,)).fetchone()
+            total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders WHERE status=%s', (status,)).fetchone()
             rows = conn.execute(
-                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.status=? ORDER BY o.created_at DESC LIMIT ? OFFSET ?',
+                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.status=%s ORDER BY o.created_at DESC LIMIT %s OFFSET %s',
                 (status, limit, offset)).fetchall()
         else:
             total = conn.execute('SELECT COUNT(*) as c FROM subscription_orders').fetchone()
             rows = conn.execute(
-                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT ? OFFSET ?',
+                'SELECT o.id, o.order_no, o.user_id, o.amount_fen, o.currency, o.item_type, o.plan_key, o.period, o.payment_method, o.status, o.paid_at, o.created_at, u.nickname, u.phone FROM subscription_orders o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT %s OFFSET %s',
                 (limit, offset)).fetchall()
     return api_res({'total': total['c'], 'page': page, 'orders': [dict(r) for r in rows]})
 
@@ -963,7 +952,7 @@ def admin_refund_order(order_no):
     if err: return err
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM subscription_orders WHERE order_no=? AND status='paid'",
+            "SELECT * FROM subscription_orders WHERE order_no=%s AND status='paid'",
             (order_no,)
         ).fetchone()
         if not row:
@@ -994,11 +983,11 @@ def admin_refund_order(order_no):
     # 更新订单状态 + 取消订阅
     with get_db() as conn:
         conn.execute(
-            "UPDATE subscription_orders SET status='refunded', updated_at=datetime('now') WHERE order_no=?",
+            "UPDATE subscription_orders SET status='refunded', updated_at=NOW() WHERE order_no=%s",
             (order_no,)
         )
         conn.execute(
-            "UPDATE subscriptions SET status='canceled', updated_at=datetime('now') WHERE id=?",
+            "UPDATE subscriptions SET status='canceled', updated_at=NOW() WHERE id=%s",
             (row['sub_id'],)
         )
         conn.commit()
@@ -1022,15 +1011,15 @@ def admin_stats():
         # 本月新增（范围查询，避免 strftime 函数包裹索引列）
         new = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
-            WHERE created_at >= datetime('now','start of month','localtime')
-              AND created_at < datetime('now','start of month','+1 month','localtime')
+            WHERE created_at >= date_trunc('month', NOW())
+              AND created_at < date_trunc('month', NOW()) + INTERVAL '1 month'
         """).fetchone()
         # 本月取消
         canceled = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='canceled'
-              AND canceled_at >= datetime('now','start of month','localtime')
-              AND canceled_at < datetime('now','start of month','+1 month','localtime')
+              AND canceled_at >= date_trunc('month', NOW())
+              AND canceled_at < date_trunc('month', NOW()) + INTERVAL '1 month'
         """).fetchone()
         # 总活跃
         active = conn.execute("""
@@ -1040,15 +1029,15 @@ def admin_stats():
         today_revenue = conn.execute("""
             SELECT COALESCE(SUM(amount_fen),0) as rev FROM subscription_orders
             WHERE status='paid'
-              AND paid_at >= datetime('now','start of day','localtime')
-              AND paid_at < datetime('now','start of day','+1 day','localtime')
+              AND paid_at >= date_trunc('day', NOW())
+              AND paid_at < date_trunc('day', NOW()) + INTERVAL '1 day'
         """).fetchone()
         # 本月收入
         month_revenue = conn.execute("""
             SELECT COALESCE(SUM(amount_fen),0) as rev FROM subscription_orders
             WHERE status='paid'
-              AND paid_at >= datetime('now','start of month','localtime')
-              AND paid_at < datetime('now','start of month','+1 month','localtime')
+              AND paid_at >= date_trunc('month', NOW())
+              AND paid_at < date_trunc('month', NOW()) + INTERVAL '1 month'
         """).fetchone()
         # 各套餐分布
         dist = conn.execute("""
@@ -1093,7 +1082,7 @@ def admin_payment_events():
     limit = int(request.args.get('limit', 50))
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT e.*, u.nickname FROM payment_events e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.created_at DESC LIMIT ?',
+            'SELECT e.*, u.nickname FROM payment_events e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.created_at DESC LIMIT %s',
             (limit,)).fetchall()
     return api_res({'events': [dict(r) for r in rows]})
 
@@ -1104,7 +1093,7 @@ def admin_audit_log():
     limit = int(request.args.get('limit', 50))
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT l.*, u.nickname FROM subscription_audit_log l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.created_at DESC LIMIT ?',
+            'SELECT l.*, u.nickname FROM subscription_audit_log l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.created_at DESC LIMIT %s',
             (limit,)).fetchall()
     return api_res({'logs': [dict(r) for r in rows]})
 
@@ -1118,7 +1107,7 @@ def _apply_coupon(code, user_id, plan_key, amount_fen):
     """
     with get_db() as conn:
         coupon = conn.execute(
-            'SELECT * FROM coupons WHERE code=? AND is_active=1 AND (expires_at IS NULL OR expires_at > datetime("now"))',
+            'SELECT * FROM coupons WHERE code=%s AND is_active=1 AND (expires_at IS NULL OR expires_at > NOW())',
             (code,)).fetchone()
         if not coupon:
             return 0
@@ -1139,7 +1128,7 @@ def _apply_coupon(code, user_id, plan_key, amount_fen):
             return 0
         # 检查每人使用次数
         user_uses = conn.execute(
-            'SELECT COUNT(*) as c FROM coupon_redemptions WHERE coupon_id=? AND user_id=?',
+            'SELECT COUNT(*) as c FROM coupon_redemptions WHERE coupon_id=%s AND user_id=%s',
             (coupon['id'], user_id)).fetchone()
         if user_uses['c'] >= coupon['max_per_user']:
             return 0
@@ -1158,7 +1147,7 @@ def _apply_coupon(code, user_id, plan_key, amount_fen):
         if not stackable:
             # 不可叠加：检查该用户是否已有其他不可叠加的优惠券应用于此订单
             existing_stacked = conn.execute(
-                "SELECT COUNT(*) as c FROM coupon_redemptions WHERE user_id=? AND order_no LIKE 'SUB%' AND created_at > datetime('now','-1 hour')",
+                "SELECT COUNT(*) as c FROM coupon_redemptions WHERE user_id=%s AND order_no LIKE 'SUB%' AND created_at > NOW() - INTERVAL '1 hour'",
                 (user_id,)).fetchone()
             if existing_stacked and existing_stacked['c'] > 0:
                 return 0  # 已有其他优惠券，不可叠加
@@ -1179,7 +1168,7 @@ def _apply_coupon(code, user_id, plan_key, amount_fen):
             return 0
 
         # 记录使用
-        conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=?', (coupon['id'],))
+        conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=%s', (coupon['id'],))
         conn.commit()
 
     return discount_fen

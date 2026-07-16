@@ -45,7 +45,7 @@ def create_social_media():
         max_order = (max_order_row['m'] or 0) + 1 if max_order_row else 1
         
         cursor = conn.execute(
-            'INSERT INTO social_media_links (platform_name, icon_type, icon_value, url, display_order, is_enabled, hover_text) VALUES (?,?,?,?,?,?,?)',
+            'INSERT INTO social_media_links (platform_name, icon_type, icon_value, url, display_order, is_enabled, hover_text) VALUES (%s,%s,%s,%s,%s,%s,%s)',
             (platform_name, icon_type, icon_value, url, max_order, is_enabled, hover_text)
         )
         conn.commit()
@@ -74,7 +74,7 @@ def update_social_media(sm_id):
     
     with get_db() as conn:
         conn.execute(
-            'UPDATE social_media_links SET platform_name=?, icon_type=?, icon_value=?, url=?, is_enabled=?, hover_text=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            'UPDATE social_media_links SET platform_name=%s, icon_type=%s, icon_value=%s, url=%s, is_enabled=%s, hover_text=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
             (platform_name, icon_type, icon_value, url, is_enabled, hover_text, sm_id)
         )
         conn.commit()
@@ -92,11 +92,11 @@ def delete_social_media(sm_id):
     
     with get_db() as conn:
         # 获取要删除的记录名称
-        row = conn.execute('SELECT platform_name FROM social_media_links WHERE id=?', (sm_id,)).fetchone()
+        row = conn.execute('SELECT platform_name FROM social_media_links WHERE id=%s', (sm_id,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '记录不存在'}), 404
         
-        conn.execute('DELETE FROM social_media_links WHERE id=?', (sm_id,))
+        conn.execute('DELETE FROM social_media_links WHERE id=%s', (sm_id,))
         conn.commit()
     
     _log(admin['user_id'], 'delete', 'social_media', str(sm_id), row['platform_name'])
@@ -120,7 +120,7 @@ def reorder_social_media():
             sm_id = item.get('id')
             order = item.get('order', 0)
             if sm_id:
-                conn.execute('UPDATE social_media_links SET display_order=? WHERE id=?', (order, sm_id))
+                conn.execute('UPDATE social_media_links SET display_order=%s WHERE id=%s', (order, sm_id))
         conn.commit()
     
     _log(admin['user_id'], 'reorder', 'social_media', '', f'已排序 {len(order_list)} 条')

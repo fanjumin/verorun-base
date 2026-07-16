@@ -329,7 +329,7 @@ def api_history():
             params.append(trigger_filter)
         if since:
             cond = 'WHERE' if not where else 'AND'
-            where += f" {cond} created_at >= datetime('now', ?)"
+            where += f" {cond} created_at >= NOW() + %s::INTERVAL"
             params.append(since)
 
         total = conn.execute(
@@ -424,7 +424,7 @@ def api_update_check(check_id):
             updates.append('config=?')
             params.append(json.dumps(data['config'], ensure_ascii=False))
 
-        updates.append("updated_at=datetime('now')")
+        updates.append("updated_at=NOW()")
         params.append(check_id)
 
         conn.execute(

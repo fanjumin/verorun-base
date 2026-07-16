@@ -14,73 +14,74 @@ TABLE_MINIAPP_VERSIONS = 'mini_app_versions'
 def init_tables():
     """Create site_builder DB tables (idempotent)"""
     with get_db() as conn:
-        conn.executescript("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS site_builder_prompts (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 identifier      TEXT UNIQUE NOT NULL,
                 name            TEXT NOT NULL,
                 description     TEXT DEFAULT '',
                 icon            TEXT DEFAULT '📄',
                 industry        TEXT DEFAULT '',
                 tags_json       TEXT DEFAULT '[]',
-                is_builtin      INTEGER DEFAULT 1,
-                is_active       INTEGER DEFAULT 1,
+                is_builtin      BIGINT DEFAULT 1,
+                is_active       BIGINT DEFAULT 1,
                 defaults_json   TEXT DEFAULT '{}',
                 pages_json      TEXT DEFAULT '[]',
                 documents_json  TEXT DEFAULT '[]',
                 prompts_json    TEXT DEFAULT '{}',
-                created_by      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
-            );
-
+                created_by      BIGINT DEFAULT 0,
+                created_at      TEXT DEFAULT (NOW()),
+                updated_at      TEXT DEFAULT (NOW())
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS site_builder_tasks (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 task_id         TEXT UNIQUE NOT NULL,
-                user_id         INTEGER NOT NULL,
-                site_config_id  INTEGER DEFAULT 1,
-                prompt_id       INTEGER,
+                user_id         BIGINT NOT NULL,
+                site_config_id  BIGINT DEFAULT 1,
+                prompt_id       BIGINT,
                 user_input      TEXT DEFAULT '',
                 status          TEXT DEFAULT 'pending',
                 plan_json       TEXT DEFAULT '{}',
                 result_json     TEXT DEFAULT '{}',
                 current_step    TEXT DEFAULT '',
                 error_message   TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now')),
+                created_at      TEXT DEFAULT (NOW()),
+                updated_at      TEXT DEFAULT (NOW()),
                 finished_at     TEXT DEFAULT ''
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_sbp_identifier ON site_builder_prompts(identifier);
-            CREATE INDEX IF NOT EXISTS idx_sbp_industry ON site_builder_prompts(industry);
-            CREATE INDEX IF NOT EXISTS idx_sbt_user ON site_builder_tasks(user_id);
-            CREATE INDEX IF NOT EXISTS idx_sbt_status ON site_builder_tasks(status);
-
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sbp_identifier ON site_builder_prompts(identifier)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sbp_industry ON site_builder_prompts(industry)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sbt_user ON site_builder_tasks(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sbt_status ON site_builder_tasks(status)")
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS mini_app_projects (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 slug            TEXT UNIQUE NOT NULL,
                 description     TEXT DEFAULT '',
-                created_by      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
-            );
-
+                created_by      BIGINT DEFAULT 0,
+                created_at      TEXT DEFAULT (NOW()),
+                updated_at      TEXT DEFAULT (NOW())
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS mini_app_versions (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id      INTEGER NOT NULL,
-                version_no      INTEGER NOT NULL,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id      BIGINT NOT NULL,
+                version_no      BIGINT NOT NULL,
                 platforms_json  TEXT DEFAULT '[]',
                 options_json    TEXT DEFAULT '{}',
                 result_json     TEXT DEFAULT '{}',
                 output_path     TEXT DEFAULT '',
                 status          TEXT DEFAULT 'completed',
-                created_at      TEXT DEFAULT (datetime('now'))
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_map_slug ON mini_app_projects(slug);
-            CREATE INDEX IF NOT EXISTS idx_mav_project ON mini_app_versions(project_id);
+                created_at      TEXT DEFAULT (NOW())
+            )
         """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_map_slug ON mini_app_projects(slug)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_mav_project ON mini_app_versions(project_id)")
         conn.commit()
     print('[SiteBuilder] ✅ Tables initialized')
 
@@ -106,17 +107,18 @@ def seed_default_prompts():
         identifier = data.get('identifier', fname.replace('.yml', ''))
         with get_db() as conn:
             exist = conn.execute(
-                f"SELECT id FROM {TABLE_PROMPTS} WHERE identifier=?",
+                f"SELECT id FROM {TABLE_PROMPTS} WHERE identifier=%s",
                 (identifier,)
             ).fetchone()
             if exist:
                 continue
 
             conn.execute(
-                f'''INSERT OR IGNORE INTO {TABLE_PROMPTS}
+                f'''INSERT INTO {TABLE_PROMPTS}
                     (identifier, name, description, icon, industry, tags_json,
                      is_builtin, defaults_json, pages_json, documents_json, prompts_json)
-                    VALUES (?,?,?,?,?,?,1,?,?,?,?)''',
+                    VALUES (%s,%s,%s,%s,%s,%s,1,%s,%s,%s,%s)
+                    ON CONFLICT (identifier) DO NOTHING''',
                 (
                     identifier,
                     data.get('name', identifier),
@@ -144,11 +146,11 @@ def get_prompt(identifier_or_id):
     with get_db() as conn:
         if isinstance(identifier_or_id, int):
             row = conn.execute(
-                f"SELECT * FROM {TABLE_PROMPTS} WHERE id=?", (identifier_or_id,)
+                f"SELECT * FROM {TABLE_PROMPTS} WHERE id=%s", (identifier_or_id,)
             ).fetchone()
         else:
             row = conn.execute(
-                f"SELECT * FROM {TABLE_PROMPTS} WHERE identifier=?", (identifier_or_id,)
+                f"SELECT * FROM {TABLE_PROMPTS} WHERE identifier=%s", (identifier_or_id,)
             ).fetchone()
         if not row:
             return None
@@ -163,7 +165,7 @@ def list_prompts(active_only=False, industry=None):
         if active_only:
             conditions.append("is_active=1")
         if industry:
-            conditions.append("industry=?")
+            conditions.append("industry=%s")
             params.append(industry)
         where = " AND ".join(conditions) if conditions else "1=1"
         rows = conn.execute(
@@ -183,7 +185,7 @@ def create_prompt(data: dict) -> int:
             f'''INSERT INTO {TABLE_PROMPTS}
                 (identifier, name, description, icon, industry, tags_json,
                  is_builtin, is_active, defaults_json, pages_json, documents_json, prompts_json, created_by)
-                VALUES (?,?,?,?,?,?,0,1,?,?,?,?,?)''',
+                VALUES (%s,%s,%s,%s,%s,%s,0,1,%s,%s,%s,%s,%s)''',
             (
                 identifier,
                 data.get('name', ''),
@@ -199,7 +201,7 @@ def create_prompt(data: dict) -> int:
             )
         )
         conn.commit()
-        new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        new_id = conn.execute("SELECT lastval()").fetchone()[0]
     return new_id
 
 
@@ -209,18 +211,18 @@ def update_prompt(prompt_id: int, data: dict):
     params = []
     for key in ['name', 'description', 'icon', 'industry', 'is_active']:
         if key in data:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             params.append(data[key])
     for key in ['tags', 'defaults', 'pages', 'documents', 'prompts']:
         json_key = f"{key}_json" if key == 'tags' else f"{key}_json"
         if key in data:
-            fields.append(f"{json_key}=?")
+            fields.append(f"{json_key}=%s")
             params.append(json.dumps(data[key], ensure_ascii=False))
-    fields.append("updated_at=datetime('now')")
+    fields.append("updated_at=NOW()")
     params.append(prompt_id)
     with get_db() as conn:
         conn.execute(
-            f"UPDATE {TABLE_PROMPTS} SET {', '.join(fields)} WHERE id=?",
+            f"UPDATE {TABLE_PROMPTS} SET {', '.join(fields)} WHERE id=%s",
             params
         )
         conn.commit()
@@ -230,7 +232,7 @@ def delete_prompt(prompt_id: int):
     """Delete prompt template (only user-created)"""
     with get_db() as conn:
         conn.execute(
-            f"DELETE FROM {TABLE_PROMPTS} WHERE id=? AND is_builtin=0",
+            f"DELETE FROM {TABLE_PROMPTS} WHERE id=%s AND is_builtin=0",
             (prompt_id,)
         )
         conn.commit()
@@ -246,7 +248,7 @@ def create_task(user_id: int, prompt_id: int, user_input: str, site_config_id: i
         conn.execute(
             f'''INSERT INTO {TABLE_TASKS}
                 (task_id, user_id, site_config_id, prompt_id, user_input, status)
-                VALUES (?,?,?,?,?,'pending')''',
+                VALUES (%s,%s,%s,%s,%s,'pending')''',
             (task_id, user_id, site_config_id, prompt_id, user_input)
         )
         conn.commit()
@@ -260,18 +262,18 @@ def update_task(task_id: str, **kwargs):
     params = []
     for key in allowed:
         if key in kwargs:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             val = kwargs[key]
             if isinstance(val, (dict, list)):
                 val = json.dumps(val, ensure_ascii=False)
             params.append(val)
     if kwargs.get('status') in ('completed', 'failed'):
-        fields.append("finished_at=datetime('now')")
-    fields.append("updated_at=datetime('now')")
+        fields.append("finished_at=NOW()")
+    fields.append("updated_at=NOW()")
     params.append(task_id)
     with get_db() as conn:
         conn.execute(
-            f"UPDATE {TABLE_TASKS} SET {', '.join(fields)} WHERE task_id=?",
+            f"UPDATE {TABLE_TASKS} SET {', '.join(fields)} WHERE task_id=%s",
             params
         )
         conn.commit()
@@ -281,7 +283,7 @@ def get_task(task_id: str):
     """Get task details"""
     with get_db() as conn:
         row = conn.execute(
-            f"SELECT * FROM {TABLE_TASKS} WHERE task_id=?", (task_id,)
+            f"SELECT * FROM {TABLE_TASKS} WHERE task_id=%s", (task_id,)
         ).fetchone()
         if not row:
             return None
@@ -300,12 +302,12 @@ def list_tasks(user_id=None, limit=20):
     with get_db() as conn:
         if user_id:
             rows = conn.execute(
-                f"SELECT * FROM {TABLE_TASKS} WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+                f"SELECT * FROM {TABLE_TASKS} WHERE user_id=%s ORDER BY created_at DESC LIMIT %s",
                 (user_id, limit)
             ).fetchall()
         else:
             rows = conn.execute(
-                f"SELECT * FROM {TABLE_TASKS} ORDER BY created_at DESC LIMIT ?",
+                f"SELECT * FROM {TABLE_TASKS} ORDER BY created_at DESC LIMIT %s",
                 (limit,)
             ).fetchall()
     return [dict(r) for r in rows]
@@ -350,13 +352,13 @@ def create_project(name: str, description: str = '', created_by: int = 0) -> dic
         slug = base_slug
         n = 1
         while conn.execute(
-            f"SELECT id FROM {TABLE_MINIAPP_PROJECTS} WHERE slug=?", (slug,)
+            f"SELECT id FROM {TABLE_MINIAPP_PROJECTS} WHERE slug=%s", (slug,)
         ).fetchone():
             n += 1
             slug = f'{base_slug}-{n}'
         cur = conn.execute(
             f"""INSERT INTO {TABLE_MINIAPP_PROJECTS} (name, slug, description, created_by)
-                VALUES (?, ?, ?, ?)""",
+                VALUES (%s, %s, %s, %s)""",
             (name, slug, description, created_by)
         )
         conn.commit()
@@ -368,13 +370,13 @@ def get_project(project_id: int) -> dict:
     """Get a project by id, including its version count."""
     with get_db() as conn:
         row = conn.execute(
-            f"SELECT * FROM {TABLE_MINIAPP_PROJECTS} WHERE id=?", (project_id,)
+            f"SELECT * FROM {TABLE_MINIAPP_PROJECTS} WHERE id=%s", (project_id,)
         ).fetchone()
         if not row:
             return None
         d = dict(row)
         d['version_count'] = conn.execute(
-            f"SELECT COUNT(*) c FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=?",
+            f"SELECT COUNT(*) c FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=%s",
             (project_id,)
         ).fetchone()['c']
     return d
@@ -384,7 +386,7 @@ def get_project_by_slug(slug: str) -> dict:
     """Get a project by slug."""
     with get_db() as conn:
         row = conn.execute(
-            f"SELECT * FROM {TABLE_MINIAPP_PROJECTS} WHERE slug=?", (slug,)
+            f"SELECT * FROM {TABLE_MINIAPP_PROJECTS} WHERE slug=%s", (slug,)
         ).fetchone()
     return dict(row) if row else None
 
@@ -397,7 +399,7 @@ def list_projects(created_by=None, limit=100) -> list:
                 f"""SELECT p.*, (SELECT COUNT(*) FROM {TABLE_MINIAPP_VERSIONS} v
                         WHERE v.project_id=p.id) AS version_count
                     FROM {TABLE_MINIAPP_PROJECTS} p
-                    WHERE p.created_by=? ORDER BY p.updated_at DESC LIMIT ?""",
+                    WHERE p.created_by=%s ORDER BY p.updated_at DESC LIMIT %s""",
                 (created_by, limit)
             ).fetchall()
         else:
@@ -405,7 +407,7 @@ def list_projects(created_by=None, limit=100) -> list:
                 f"""SELECT p.*, (SELECT COUNT(*) FROM {TABLE_MINIAPP_VERSIONS} v
                         WHERE v.project_id=p.id) AS version_count
                     FROM {TABLE_MINIAPP_PROJECTS} p
-                    ORDER BY p.updated_at DESC LIMIT ?""",
+                    ORDER BY p.updated_at DESC LIMIT %s""",
                 (limit,)
             ).fetchall()
     return [dict(r) for r in rows]
@@ -415,10 +417,10 @@ def delete_project(project_id: int) -> bool:
     """Delete a project and all its version records (DB only; caller handles files)."""
     with get_db() as conn:
         conn.execute(
-            f"DELETE FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=?", (project_id,)
+            f"DELETE FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=%s", (project_id,)
         )
         cur = conn.execute(
-            f"DELETE FROM {TABLE_MINIAPP_PROJECTS} WHERE id=?", (project_id,)
+            f"DELETE FROM {TABLE_MINIAPP_PROJECTS} WHERE id=%s", (project_id,)
         )
         conn.commit()
     return cur.rowcount > 0
@@ -428,7 +430,7 @@ def next_version_no(project_id: int) -> int:
     """Return the next version number for a project (1-based)."""
     with get_db() as conn:
         row = conn.execute(
-            f"SELECT COALESCE(MAX(version_no), 0) mx FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=?",
+            f"SELECT COALESCE(MAX(version_no), 0) mx FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=%s",
             (project_id,)
         ).fetchone()
     return (row['mx'] or 0) + 1
@@ -443,7 +445,7 @@ def create_version(project_id: int, version_no: int, platforms: list,
             f"""INSERT INTO {TABLE_MINIAPP_VERSIONS}
                 (project_id, version_no, platforms_json, options_json,
                  result_json, output_path, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             (project_id, version_no,
              json.dumps(platforms, ensure_ascii=False),
              json.dumps(options, ensure_ascii=False),
@@ -451,7 +453,7 @@ def create_version(project_id: int, version_no: int, platforms: list,
              output_path, status)
         )
         conn.execute(
-            f"UPDATE {TABLE_MINIAPP_PROJECTS} SET updated_at=datetime('now') WHERE id=?",
+            f"UPDATE {TABLE_MINIAPP_PROJECTS} SET updated_at=NOW() WHERE id=%s",
             (project_id,)
         )
         conn.commit()
@@ -462,7 +464,7 @@ def list_versions(project_id: int) -> list:
     """List all versions of a project, newest first, with JSON fields parsed."""
     with get_db() as conn:
         rows = conn.execute(
-            f"SELECT * FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=? ORDER BY version_no DESC",
+            f"SELECT * FROM {TABLE_MINIAPP_VERSIONS} WHERE project_id=%s ORDER BY version_no DESC",
             (project_id,)
         ).fetchall()
     result = []
@@ -483,7 +485,7 @@ def get_version(version_id: int) -> dict:
     """Get a single version by id with JSON fields parsed."""
     with get_db() as conn:
         row = conn.execute(
-            f"SELECT * FROM {TABLE_MINIAPP_VERSIONS} WHERE id=?", (version_id,)
+            f"SELECT * FROM {TABLE_MINIAPP_VERSIONS} WHERE id=%s", (version_id,)
         ).fetchone()
     if not row:
         return None

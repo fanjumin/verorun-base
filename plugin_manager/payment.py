@@ -81,11 +81,11 @@ class PaymentResult:
 
 PLUGIN_PAYMENT_DDL = """
 CREATE TABLE IF NOT EXISTS plugin_payment_orders (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     order_no        TEXT NOT NULL UNIQUE,
     plugin_id       TEXT NOT NULL,
     channel         TEXT NOT NULL DEFAULT 'alipay',
-    amount_fen      INTEGER NOT NULL,
+    amount_fen      BIGINT NOT NULL,
     subject         TEXT NOT NULL,
     description     TEXT DEFAULT '',
     customer_email  TEXT DEFAULT '',
@@ -94,8 +94,8 @@ CREATE TABLE IF NOT EXISTS plugin_payment_orders (
     trade_no        TEXT DEFAULT '',
     qr_code         TEXT DEFAULT '',
     paid_at         TEXT,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now')),
+    created_at      TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW(),
     extra           TEXT DEFAULT '{}'
 );
 
@@ -796,7 +796,7 @@ class PaymentRouter:
         try:
             with get_registry_db() as conn:
                 row = conn.execute(
-                    'SELECT channel FROM plugin_payment_orders WHERE plugin_id=? AND status="paid" ORDER BY created_at DESC LIMIT 1',
+                    'SELECT channel FROM plugin_payment_orders WHERE plugin_id=%s AND status="paid" ORDER BY created_at DESC LIMIT 1',
                     (plugin_id,)
                 ).fetchone()
                 if row:
@@ -832,7 +832,7 @@ def create_payment_order(plugin_id: str, channel: str, amount_fen: int,
             INSERT INTO plugin_payment_orders
                 (order_no, plugin_id, channel, amount_fen, subject,
                  description, customer_email, status, extra)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             order.order_no, order.plugin_id, order.channel,
             order.amount_fen, order.subject, order.description,
@@ -851,11 +851,11 @@ def update_payment_order(order_no: str, **kwargs) -> bool:
         return False
     updates['updated_at'] = datetime.now().isoformat()
 
-    set_clause = ', '.join(f'{k}=?' for k in updates)
+    set_clause = ', '.join(f'{k}=%s' for k in updates)
     values = list(updates.values()) + [order_no]
     with get_registry_db() as conn:
         conn.execute(
-            f'UPDATE plugin_payment_orders SET {set_clause} WHERE order_no=?',
+            f'UPDATE plugin_payment_orders SET {set_clause} WHERE order_no=%s',
             values
         )
         conn.commit()
@@ -865,7 +865,7 @@ def update_payment_order(order_no: str, **kwargs) -> bool:
 def get_payment_order(order_no: str) -> Optional[PaymentOrder]:
     with get_registry_db() as conn:
         row = conn.execute(
-            'SELECT * FROM plugin_payment_orders WHERE order_no=?',
+            'SELECT * FROM plugin_payment_orders WHERE order_no=%s',
             (order_no,)
         ).fetchone()
         if not row:

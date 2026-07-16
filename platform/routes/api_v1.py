@@ -1061,15 +1061,15 @@ def increment_visit():
             result = db.execute("""
                 UPDATE mp_profiles 
                 SET visit_count = visit_count + 1, 
-                    updated_at = datetime('now')
-                WHERE openid = ?
+                    updated_at = NOW()
+                WHERE openid = %s
             """, (openid,)).rowcount
             
             # 如果没有更新任何行，说明是首次访问，需要插入新记录
             if result == 0:
                 db.execute("""
                     INSERT INTO mp_profiles (openid, visit_count, created_at, updated_at)
-                    VALUES (?, 1, datetime('now'), datetime('now'))
+                    VALUES (%s, 1, NOW(), NOW())
                 """, (openid,))
             
             db.commit()

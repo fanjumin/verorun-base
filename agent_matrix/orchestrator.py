@@ -824,9 +824,9 @@ def update_agent_stats(agent_id, success=True):
                 UPDATE agent_matrix
                 SET tasks_total = tasks_total + 1,
                     {field} = {field} + 1,
-                    last_run_at = datetime('now'),
-                    updated_at = datetime('now')
-                WHERE id = ?
+                    last_run_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
             """, (agent_id,))
             conn.commit()
     except Exception:

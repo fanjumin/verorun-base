@@ -2,6 +2,11 @@
 """
 Schema Sync Script — 主库 Schema 同步/创建
 ============================================
+.. deprecated:: 2026-07
+    This script uses SQLite and is no longer maintained.
+    Schema is now managed via PostgreSQL (see auth-center/models/database.py).
+    Kept for historical reference only — do NOT use for production.
+
 可重复运行，幂等。只创建缺失的表，不碰已有数据。
 
 用法:

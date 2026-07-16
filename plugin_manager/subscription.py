@@ -30,22 +30,22 @@ class SubscriptionStatus(str, Enum):
 
 PLUGIN_SUBSCRIPTION_DDL = """
 CREATE TABLE IF NOT EXISTS plugin_subscriptions (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     plugin_id       TEXT NOT NULL,
     license_key     TEXT NOT NULL,
     order_no        TEXT NOT NULL,
     interval_type   TEXT NOT NULL CHECK(interval_type IN ('month', 'year')),
-    amount_fen      INTEGER NOT NULL,
+    amount_fen      BIGINT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'active'
                     CHECK(status IN ('active','canceled','expired','suspended')),
     current_period_start TEXT,
     current_period_end   TEXT,
-    auto_renew      INTEGER NOT NULL DEFAULT 1,
-    retry_count     INTEGER NOT NULL DEFAULT 0,
+    auto_renew      BIGINT NOT NULL DEFAULT 1,
+    retry_count     BIGINT NOT NULL DEFAULT 0,
     last_charge_at  TEXT,
     canceled_at     TEXT,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now')),
+    created_at      TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW(),
     extra           TEXT DEFAULT '{}'
 );
 
@@ -139,7 +139,8 @@ class SubscriptionManager:
                     (plugin_id, license_key, order_no, interval_type,
                      amount_fen, current_period_start, current_period_end,
                      auto_renew, extra)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id
             """, (
                 sub.plugin_id, sub.license_key, sub.order_no,
                 sub.interval_type, sub.amount_fen,
@@ -147,7 +148,7 @@ class SubscriptionManager:
                 int(sub.auto_renew), json.dumps(sub.extra),
             ))
             conn.commit()
-            sub.id = cur.lastrowid
+            sub.id = cur.fetchone()['id']
 
         return sub
 
@@ -173,23 +174,23 @@ class SubscriptionManager:
                     conn.execute("""
                         UPDATE plugin_subscriptions SET
                             status='expired', auto_renew=0,
-                            canceled_at=datetime('now'),
-                            updated_at=datetime('now')
-                        WHERE plugin_id=?
+                            canceled_at=NOW(),
+                            updated_at=NOW()
+                        WHERE plugin_id=%s
                     """, (plugin_id,))
                     # 同步标记 License 已过期
                     conn.execute("""
                         UPDATE plugin_licenses SET
                             license_status='expired',
-                            updated_at=datetime('now')
-                        WHERE plugin_id=?
+                            updated_at=NOW()
+                        WHERE plugin_id=%s
                     """, (plugin_id,))
                 else:
                     conn.execute("""
                         UPDATE plugin_subscriptions SET
-                            auto_renew=0, canceled_at=datetime('now'),
-                            updated_at=datetime('now')
-                        WHERE plugin_id=?
+                            auto_renew=0, canceled_at=NOW(),
+                            updated_at=NOW()
+                        WHERE plugin_id=%s
                     """, (plugin_id,))
                 conn.commit()
         return True
@@ -213,20 +214,20 @@ class SubscriptionManager:
         with get_registry_db() as conn:
             conn.execute("""
                 UPDATE plugin_subscriptions SET
-                    current_period_start=?,
-                    current_period_end=?,
-                    last_charge_at=datetime('now'),
+                    current_period_start=%s,
+                    current_period_end=%s,
+                    last_charge_at=NOW(),
                     retry_count=0,
-                    updated_at=datetime('now')
-                WHERE plugin_id=?
+                    updated_at=NOW()
+                WHERE plugin_id=%s
             """, (new_start.isoformat(), new_end.isoformat(), plugin_id))
             # 同步续期 License
             conn.execute("""
                 UPDATE plugin_licenses SET
-                    expires_at=?,
+                    expires_at=%s,
                     license_status='active',
-                    updated_at=datetime('now')
-                WHERE plugin_id=?
+                    updated_at=NOW()
+                WHERE plugin_id=%s
             """, (new_end.isoformat(), plugin_id))
             conn.commit()
         return True
@@ -240,7 +241,7 @@ class SubscriptionManager:
 
         with get_registry_db() as conn:
             rows = conn.execute(
-                "SELECT * FROM plugin_subscriptions WHERE status='active' AND current_period_end < ?",
+                "SELECT * FROM plugin_subscriptions WHERE status='active' AND current_period_end < %s",
                 (now,)
             ).fetchall()
             for row in rows:
@@ -251,11 +252,11 @@ class SubscriptionManager:
                 else:
                     # 不续费：标记过期
                     conn.execute(
-                        "UPDATE plugin_subscriptions SET status='expired', updated_at=datetime('now') WHERE id=?",
+                        "UPDATE plugin_subscriptions SET status='expired', updated_at=NOW() WHERE id=%s",
                         (sub.id,)
                     )
                     conn.execute(
-                        "UPDATE plugin_licenses SET license_status='expired', updated_at=datetime('now') WHERE plugin_id=?",
+                        "UPDATE plugin_licenses SET license_status='expired', updated_at=NOW() WHERE plugin_id=%s",
                         (sub.plugin_id,)
                     )
                     conn.commit()
@@ -268,7 +269,7 @@ class SubscriptionManager:
     def get_subscription(self, plugin_id: str) -> Optional[PluginSubscription]:
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT * FROM plugin_subscriptions WHERE plugin_id=?',
+                'SELECT * FROM plugin_subscriptions WHERE plugin_id=%s',
                 (plugin_id,)
             ).fetchone()
             if row:
@@ -344,7 +345,7 @@ def _auto_renew_task(app=None):
                     else:
                         conn = get_registry_db().__enter__()
                         conn.execute(
-                            'UPDATE plugin_subscriptions SET retry_count=retry_count+1, updated_at=datetime("now") WHERE id=?',
+                            'UPDATE plugin_subscriptions SET retry_count=retry_count+1, updated_at=NOW() WHERE id=%s',
                             (sub.id,)
                         )
                         conn.commit()

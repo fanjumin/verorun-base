@@ -109,7 +109,7 @@ def enterprise_verify_approve(ev_id):
         return jsonify({'success': False, 'error': 'Verification record not found'}), 404
 
     ev_conn.execute(
-        "UPDATE enterprise_verifications SET status='approved', review_notes=?, reviewed_by=?, reviewed_at=datetime('now'), updated_at=datetime('now') WHERE id=?",
+        "UPDATE enterprise_verifications SET status='approved', review_notes=%s, reviewed_by=%s, reviewed_at=NOW(), updated_at=NOW() WHERE id=%s",
         (notes, admin['user_id'], ev_id)
     )
     ev_conn.commit()
@@ -117,7 +117,7 @@ def enterprise_verify_approve(ev_id):
     # 更新主系统 users 表
     with _get_main_db() as conn:
         conn.execute(
-            "UPDATE users SET enterprise_name=?, enterprise_tax_id=?, enterprise_verified=1, enterprise_verified_at=datetime('now') WHERE id=?",
+            "UPDATE users SET enterprise_name=%s, enterprise_tax_id=%s, enterprise_verified=1, enterprise_verified_at=NOW() WHERE id=%s",
             (ev['enterprise_name'], ev['tax_id'], ev['user_id'])
         )
         conn.commit()
@@ -146,7 +146,7 @@ def enterprise_verify_reject(ev_id):
         return jsonify({'success': False, 'error': 'Verification record not found'}), 404
 
     ev_conn.execute(
-        "UPDATE enterprise_verifications SET status='rejected', review_notes=?, reviewed_by=?, reviewed_at=datetime('now'), updated_at=datetime('now') WHERE id=?",
+        "UPDATE enterprise_verifications SET status='rejected', review_notes=%s, reviewed_by=%s, reviewed_at=NOW(), updated_at=NOW() WHERE id=%s",
         (notes, admin['user_id'], ev_id)
     )
     ev_conn.commit()

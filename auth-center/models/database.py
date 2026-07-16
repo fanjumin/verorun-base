@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""auth-center: Unified Database Manager - all 易站智能 apps share one DB."""
-import os, sqlite3
+"""auth-center: Unified Database Manager - PostgreSQL edition."""
+import os, logging
+import psycopg2
+from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from contextlib import contextmanager
 
@@ -13,213 +16,295 @@ os.makedirs(DATA_DIR, exist_ok=True)
 # 国际化：当前市场
 MARKET = os.environ.get('DEPLOY_MARKET', 'cn')
 
-# ── Shop 表名列表（用于 init_shop_db 和 ATTACH 场景判断）──
+# ── Shop 表名列表 ──
 SHOP_TABLES = [
     'products', 'categories', 'carts', 'user_purchases', 'order_items',
     'product_specs', 'product_spec_values', 'product_skus',
     'pricing_rules', 'express_companies', 'order_shipping',
 ]
 
+# PostgreSQL 连接配置
+PG_CONFIG = {
+    'host': os.environ.get('PG_HOST', 'localhost'),
+    'port': int(os.environ.get('PG_PORT', 5432)),
+    'dbname': os.environ.get('PG_DB', 'verorun'),
+    'user': os.environ.get('PG_USER', 'verorun'),
+    'password': os.environ.get('PG_PASSWORD', ''),
+    'application_name': 'verorun',
+}
+
+# ── 全局连接池 ──
+_pool: ThreadedConnectionPool | None = None
+
+
+def _ensure_pool() -> ThreadedConnectionPool:
+    global _pool
+    if _pool is None or _pool.closed:
+        _pool = ThreadedConnectionPool(minconn=3, maxconn=20, **PG_CONFIG)
+    return _pool
+
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
-    # ATTACH shop database (allows cross-DB JOINs with main DB)
-    if os.path.exists(SHOP_DB_PATH):
-        try:
-            conn.execute(f"ATTACH DATABASE '{SHOP_DB_PATH}' AS shop")
-        except sqlite3.OperationalError:
-            pass  # already attached
+    """Get PostgreSQL connection from pool, with schema search_path set."""
+    pool = _ensure_pool()
+    conn = pool.getconn()
+    conn.autocommit = False
+    with conn.cursor() as cur:
+        cur.execute(
+            "SET search_path TO public, shop, analytics, health, payment, order_notify"
+        )
     try:
         yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
-        conn.close()
+        pool.putconn(conn)
+
+
+# ── 列信息兼容层：替代 PRAGMA table_info() ──
+def get_table_columns(conn, table: str) -> list[str]:
+    """Return list of column names for a table (PG-compatible)."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name=%s AND table_schema=ANY(current_schemas(false)) "
+        "ORDER BY ordinal_position",
+        (table,),
+    )
+    return [r[0] for r in cur.fetchall()]
 
 
 def init_shop_db():
-    """Create shop tables in separate shop.db"""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    conn = sqlite3.connect(SHOP_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS products (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            title           TEXT NOT NULL,
-            subtitle        TEXT DEFAULT '',
-            product_type    TEXT NOT NULL DEFAULT 'service',
-            category        TEXT DEFAULT '',
-            price           REAL NOT NULL DEFAULT 0,
-            original_price  REAL DEFAULT 0,
-            stock           INTEGER DEFAULT 0,
-            sales_count     INTEGER DEFAULT 0,
-            thumbnail       TEXT DEFAULT '',
-            description     TEXT DEFAULT '',
-            features        TEXT DEFAULT '[]',
-            ai_config       TEXT DEFAULT '{}',
-            sort_order      INTEGER DEFAULT 0,
-            is_active       INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now','localtime')),
-            updated_at      TEXT DEFAULT (datetime('now','localtime')),
-            images          TEXT DEFAULT '[]',
-            category_id     INTEGER DEFAULT 0
-        );
-        CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);
-        CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
+    """Create shop tables in shop schema."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("CREATE SCHEMA IF NOT EXISTS shop")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.products (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                title           TEXT NOT NULL,
+                subtitle        TEXT DEFAULT '',
+                product_type    TEXT NOT NULL DEFAULT 'service',
+                category        TEXT DEFAULT '',
+                price           DOUBLE PRECISION NOT NULL DEFAULT 0,
+                original_price  DOUBLE PRECISION DEFAULT 0,
+                stock           BIGINT DEFAULT 0,
+                sales_count     BIGINT DEFAULT 0,
+                thumbnail       TEXT DEFAULT '',
+                description     TEXT DEFAULT '',
+                features        TEXT DEFAULT '[]',
+                ai_config       TEXT DEFAULT '{}',
+                sort_order      BIGINT DEFAULT 0,
+                is_active       BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW(),
+                images          TEXT DEFAULT '[]',
+                category_id     BIGINT DEFAULT 0
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_products_type ON shop.products(product_type)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_products_active ON shop.products(is_active)"
+        )
 
-        CREATE TABLE IF NOT EXISTS categories (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            slug        TEXT UNIQUE,
-            parent_id   INTEGER DEFAULT 0,
-            level       INTEGER DEFAULT 0,
-            icon        TEXT DEFAULT '',
-            sort_order  INTEGER DEFAULT 0,
-            is_active   INTEGER DEFAULT 1,
-            created_at  TEXT DEFAULT (datetime('now','localtime')),
-            updated_at  TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id);
-        CREATE INDEX IF NOT EXISTS idx_cat_level ON categories(level);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.categories (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                name        TEXT NOT NULL,
+                slug        TEXT UNIQUE,
+                parent_id   BIGINT DEFAULT 0,
+                level       BIGINT DEFAULT 0,
+                icon        TEXT DEFAULT '',
+                sort_order  BIGINT DEFAULT 0,
+                is_active   BIGINT DEFAULT 1,
+                created_at  TIMESTAMP DEFAULT NOW(),
+                updated_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cat_parent ON shop.categories(parent_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cat_level ON shop.categories(level)"
+        )
 
-        CREATE TABLE IF NOT EXISTS carts (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id         INTEGER NOT NULL,
-            product_id      INTEGER NOT NULL,
-            sku_id          INTEGER DEFAULT 0,
-            quantity        INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now','localtime')),
-            UNIQUE(user_id, product_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_carts_user ON carts(user_id);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.carts (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL,
+                product_id      BIGINT NOT NULL,
+                sku_id          BIGINT DEFAULT 0,
+                quantity        BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, product_id)
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_carts_user ON shop.carts(user_id)"
+        )
 
-        CREATE TABLE IF NOT EXISTS user_purchases (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id         INTEGER NOT NULL,
-            product_id      INTEGER NOT NULL,
-            order_id        TEXT DEFAULT '',
-            purchase_type   TEXT NOT NULL DEFAULT 'once',
-            expire_at       TEXT,
-            status          TEXT DEFAULT 'active',
-            created_at      TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_up_user ON user_purchases(user_id);
-        CREATE INDEX IF NOT EXISTS idx_up_status ON user_purchases(status);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.user_purchases (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL,
+                product_id      BIGINT NOT NULL,
+                order_id        TEXT DEFAULT '',
+                purchase_type   TEXT NOT NULL DEFAULT 'once',
+                expire_at       TIMESTAMP,
+                status          TEXT DEFAULT 'active',
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_up_user ON shop.user_purchases(user_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_up_status ON shop.user_purchases(status)"
+        )
 
-        CREATE TABLE IF NOT EXISTS order_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id        TEXT NOT NULL,
-            user_id         INTEGER NOT NULL,
-            product_id      INTEGER NOT NULL,
-            product_title   TEXT NOT NULL DEFAULT '',
-            quantity        INTEGER DEFAULT 1,
-            unit_price      REAL NOT NULL DEFAULT 0,
-            subtotal        REAL NOT NULL DEFAULT 0,
-            coupon_id       INTEGER DEFAULT NULL,
-            discount        REAL DEFAULT 0,
-            status          TEXT DEFAULT 'pending',
-            created_at      TEXT DEFAULT (datetime('now','localtime')),
-            paid_at         TEXT,
-            idempotency_key TEXT DEFAULT '',
-            payment_method  TEXT DEFAULT '',
-            payment_trade_no TEXT DEFAULT '',
-            tracking_company TEXT DEFAULT '',
-            tracking_number  TEXT DEFAULT '',
-            shipping_status  TEXT DEFAULT '',
-            shipped_at       TEXT,
-            completed_at     TEXT,
-            refund_reason    TEXT DEFAULT '',
-            refund_requested_at TEXT,
-            refunded_at      TEXT,
-            user_deleted     INTEGER DEFAULT 0
-        );
-        CREATE INDEX IF NOT EXISTS idx_oi_order ON order_items(order_id);
-        CREATE INDEX IF NOT EXISTS idx_oi_user ON order_items(user_id);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_oi_idempotency ON order_items(idempotency_key) WHERE idempotency_key != '';
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.order_items (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                order_id        TEXT NOT NULL,
+                user_id         BIGINT NOT NULL,
+                product_id      BIGINT NOT NULL,
+                product_title   TEXT NOT NULL DEFAULT '',
+                quantity        BIGINT DEFAULT 1,
+                unit_price      DOUBLE PRECISION NOT NULL DEFAULT 0,
+                subtotal        DOUBLE PRECISION NOT NULL DEFAULT 0,
+                coupon_id       BIGINT DEFAULT NULL,
+                discount        DOUBLE PRECISION DEFAULT 0,
+                status          TEXT DEFAULT 'pending',
+                created_at      TIMESTAMP DEFAULT NOW(),
+                paid_at         TIMESTAMP,
+                idempotency_key TEXT DEFAULT '',
+                payment_method  TEXT DEFAULT '',
+                payment_trade_no TEXT DEFAULT '',
+                tracking_company TEXT DEFAULT '',
+                tracking_number  TEXT DEFAULT '',
+                shipping_status  TEXT DEFAULT '',
+                shipped_at       TIMESTAMP,
+                completed_at     TIMESTAMP,
+                refund_reason    TEXT DEFAULT '',
+                refund_requested_at TIMESTAMP,
+                refunded_at      TIMESTAMP,
+                user_deleted     BIGINT DEFAULT 0
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_oi_order ON shop.order_items(order_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_oi_user ON shop.order_items(user_id)"
+        )
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_oi_idempotency ON shop.order_items(idempotency_key) WHERE idempotency_key != ''"
+        )
 
-        CREATE TABLE IF NOT EXISTS order_shipping (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_item_id   INTEGER NOT NULL,
-            tracking_company TEXT DEFAULT '',
-            tracking_number  TEXT DEFAULT '',
-            shipping_status  TEXT DEFAULT '',
-            shipped_at       TEXT,
-            created_at      TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_os_orderitem ON order_shipping(order_item_id);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.order_shipping (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                order_item_id   BIGINT NOT NULL,
+                tracking_company TEXT DEFAULT '',
+                tracking_number  TEXT DEFAULT '',
+                shipping_status  TEXT DEFAULT '',
+                shipped_at       TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_os_orderitem ON shop.order_shipping(order_item_id)"
+        )
 
-        CREATE TABLE IF NOT EXISTS product_specs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id  INTEGER NOT NULL,
-            spec_name   TEXT NOT NULL,
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_ps_product ON product_specs(product_id);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.product_specs (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                product_id  BIGINT NOT NULL,
+                spec_name   TEXT NOT NULL,
+                sort_order  BIGINT DEFAULT 0,
+                created_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ps_product ON shop.product_specs(product_id)"
+        )
 
-        CREATE TABLE IF NOT EXISTS product_spec_values (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            spec_id     INTEGER NOT NULL,
-            spec_value  TEXT NOT NULL,
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_psv_spec ON product_spec_values(spec_id);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.product_spec_values (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                spec_id     BIGINT NOT NULL,
+                spec_value  TEXT NOT NULL,
+                sort_order  BIGINT DEFAULT 0,
+                created_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_psv_spec ON shop.product_spec_values(spec_id)"
+        )
 
-        CREATE TABLE IF NOT EXISTS product_skus (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id  INTEGER NOT NULL,
-            sku_code    TEXT NOT NULL,
-            spec_path   TEXT NOT NULL DEFAULT '{}',
-            price       REAL NOT NULL DEFAULT 0,
-            stock       INTEGER DEFAULT 0,
-            image       TEXT DEFAULT '',
-            is_active   INTEGER DEFAULT 1,
-            created_at  TEXT DEFAULT (datetime('now','localtime')),
-            updated_at  TEXT DEFAULT (datetime('now','localtime'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_psk_product ON product_skus(product_id);
-        CREATE INDEX IF NOT EXISTS idx_psk_code ON product_skus(sku_code);
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.product_skus (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                product_id  BIGINT NOT NULL,
+                sku_code    TEXT NOT NULL,
+                spec_path   TEXT NOT NULL DEFAULT '{}',
+                price       DOUBLE PRECISION NOT NULL DEFAULT 0,
+                stock       BIGINT DEFAULT 0,
+                image       TEXT DEFAULT '',
+                is_active   BIGINT DEFAULT 1,
+                created_at  TIMESTAMP DEFAULT NOW(),
+                updated_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_psk_product ON shop.product_skus(product_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_psk_code ON shop.product_skus(sku_code)"
+        )
 
-        CREATE TABLE IF NOT EXISTS pricing_rules (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            rule_key    TEXT UNIQUE NOT NULL,
-            label       TEXT NOT NULL,
-            rule_type   TEXT NOT NULL DEFAULT 'radio',
-            options_json TEXT NOT NULL DEFAULT '[]',
-            sort_order  INTEGER DEFAULT 0,
-            is_active   INTEGER DEFAULT 1,
-            created_at  TEXT DEFAULT CURRENT_TIMESTAMP
-        );
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.pricing_rules (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                rule_key    TEXT UNIQUE NOT NULL,
+                label       TEXT NOT NULL,
+                rule_type   TEXT NOT NULL DEFAULT 'radio',
+                options_json TEXT NOT NULL DEFAULT '[]',
+                sort_order  BIGINT DEFAULT 0,
+                is_active   BIGINT DEFAULT 1,
+                created_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
 
-        CREATE TABLE IF NOT EXISTS express_companies (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            code        TEXT NOT NULL UNIQUE,
-            name        TEXT NOT NULL,
-            kdniao_code TEXT DEFAULT '',
-            is_active   INTEGER DEFAULT 1,
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        );
-    """)
-    conn.commit()
-    conn.close()
-    print(f'[ShopDB] shop.db initialized at {SHOP_DB_PATH}')
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.express_companies (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                code        TEXT NOT NULL UNIQUE,
+                name        TEXT NOT NULL,
+                kdniao_code TEXT DEFAULT '',
+                is_active   BIGINT DEFAULT 1,
+                sort_order  BIGINT DEFAULT 0,
+                created_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    print('[ShopDB] shop schema initialized in PostgreSQL')
 
 
 def init_db():
     with get_db() as conn:
-        conn.executescript("""
+        cur = conn.cursor()
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 username        TEXT UNIQUE,
                 phone           TEXT UNIQUE,
-                phone_verified  INTEGER DEFAULT 0,
+                phone_verified  BIGINT DEFAULT 0,
                 email           TEXT UNIQUE,
                 password_hash   TEXT,
                 wechat_openid   TEXT UNIQUE,
@@ -229,29 +314,29 @@ def init_db():
                 douyin_nickname TEXT,
                 douyin_avatar   TEXT,
                 avatar_url      TEXT,
-                created_at      TEXT DEFAULT (datetime('now')),
-                last_login      TEXT,
-                active          INTEGER DEFAULT 1,
-                is_admin        INTEGER DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                last_login      TIMESTAMP,
+                active          BIGINT DEFAULT 1,
+                is_admin        BIGINT DEFAULT 0,
                 agent_id        TEXT UNIQUE,
                 agent_nickname  TEXT DEFAULT '',
                 agent_avatar_url TEXT DEFAULT '',
                 display_name      TEXT DEFAULT '',
-                email_verified    INTEGER DEFAULT 0,
-                password_changed_at TEXT,
+                email_verified    BIGINT DEFAULT 0,
+                password_changed_at TIMESTAMP,
                 totp_secret       TEXT DEFAULT '',
-                totp_enabled      INTEGER DEFAULT 0,
-                security_level    INTEGER DEFAULT 0,
-                completion_percentage  INTEGER DEFAULT 0,
-                completion_last_updated TEXT,
+                totp_enabled      BIGINT DEFAULT 0,
+                security_level    BIGINT DEFAULT 0,
+                completion_percentage  BIGINT DEFAULT 0,
+                completion_last_updated TIMESTAMP,
                 alipay_user_id          TEXT UNIQUE,
                 telegram_open_id        TEXT UNIQUE
             );
             CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
             CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
             CREATE TABLE IF NOT EXISTS user_profiles (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL UNIQUE REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL UNIQUE REFERENCES users(id),
                 gender          TEXT DEFAULT '' CHECK(gender IN ('', 'male', 'female', 'other', 'secret')),
                 birth_date      TEXT DEFAULT NULL,
                 age_group       TEXT DEFAULT '',
@@ -259,29 +344,29 @@ def init_db():
                 industry        TEXT DEFAULT '',
                 interests       TEXT DEFAULT '[]',
                 bio             TEXT DEFAULT '',
-                industry_id     INTEGER DEFAULT NULL,
-                career_id       INTEGER DEFAULT NULL,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                industry_id     BIGINT DEFAULT NULL,
+                career_id       BIGINT DEFAULT NULL,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS industries (
-                id          INTEGER PRIMARY KEY,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name        TEXT NOT NULL UNIQUE,
-                sort_order  INTEGER DEFAULT 0
+                sort_order  BIGINT DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS career_options (
-                id          INTEGER PRIMARY KEY,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 category    TEXT NOT NULL CHECK(category IN ('job', 'freelance')),
                 name        TEXT NOT NULL UNIQUE,
-                industry_id INTEGER DEFAULT NULL REFERENCES industries(id) ON DELETE SET NULL,
-                parent_id   INTEGER DEFAULT NULL REFERENCES career_options(id) ON DELETE CASCADE,
-                sort_order  INTEGER DEFAULT 0
+                industry_id BIGINT DEFAULT NULL REFERENCES industries(id) ON DELETE SET NULL,
+                parent_id   BIGINT DEFAULT NULL REFERENCES career_options(id) ON DELETE CASCADE,
+                sort_order  BIGINT DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_career_options_category ON career_options(category);
             CREATE INDEX IF NOT EXISTS idx_career_options_parent   ON career_options(parent_id);
             CREATE TABLE IF NOT EXISTS user_addresses (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL REFERENCES users(id),
                 recipient_name  TEXT NOT NULL DEFAULT '',
                 phone           TEXT NOT NULL DEFAULT '',
                 province_code   TEXT NOT NULL DEFAULT '',
@@ -290,66 +375,66 @@ def init_db():
                 street_code     TEXT NOT NULL DEFAULT '',
                 street_address  TEXT NOT NULL DEFAULT '',
                 postal_code     TEXT DEFAULT '',
-                is_default      INTEGER DEFAULT 0,
-                status          INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_default      BIGINT DEFAULT 0,
+                status          BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_user_addresses_user ON user_addresses(user_id);
             CREATE TABLE IF NOT EXISTS app_authorizations (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 app_name        TEXT NOT NULL,
                 tier            TEXT DEFAULT 'free',
-                tier_expire_at  TEXT,
-                calls_today     INTEGER DEFAULT 0,
-                calls_total     INTEGER DEFAULT 0,
-                last_reset      TEXT,
-                active          INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
+                tier_expire_at  TIMESTAMP,
+                calls_today     BIGINT DEFAULT 0,
+                calls_total     BIGINT DEFAULT 0,
+                last_reset      TIMESTAMP,
+                active          BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
                 UNIQUE(user_id, app_name)
             );
             CREATE TABLE IF NOT EXISTS api_keys (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 app_name        TEXT NOT NULL,
                 key_hash        TEXT UNIQUE NOT NULL,
                 key_prefix      TEXT NOT NULL,
                 name            TEXT DEFAULT '',
-                calls_today     INTEGER DEFAULT 0,
-                calls_total     INTEGER DEFAULT 0,
-                last_reset      TEXT,
-                created_at      TEXT DEFAULT (datetime('now')),
-                expire_at       TEXT,
-                last_used       TEXT,
-                active          INTEGER DEFAULT 1
+                calls_today     BIGINT DEFAULT 0,
+                calls_total     BIGINT DEFAULT 0,
+                last_reset      TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                expire_at       TIMESTAMP,
+                last_used       TIMESTAMP,
+                active          BIGINT DEFAULT 1
             );
             CREATE TABLE IF NOT EXISTS system_config (
                 key             TEXT PRIMARY KEY,
                 value           TEXT NOT NULL DEFAULT '',
                 description     TEXT DEFAULT '',
-                updated_at      TEXT DEFAULT (datetime('now')),
-                updated_by      INTEGER DEFAULT 0
+                updated_at      TIMESTAMP DEFAULT NOW(),
+                updated_by      BIGINT DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS user_notifications (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 type            TEXT NOT NULL DEFAULT 'system',
                 title           TEXT NOT NULL,
                 content         TEXT DEFAULT '',
                 link_url        TEXT DEFAULT '',
-                is_read         INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now'))
+                is_read         BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS notification_preferences (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL UNIQUE REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL UNIQUE REFERENCES users(id),
                 prefs           TEXT DEFAULT '{}',   -- JSON: {"system_site":true,"system_mail":true,"order_site":true,"order_mail":true,"activity_site":true,"activity_mail":false}
-                updated_at      TEXT DEFAULT (datetime('now'))
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS user_agents (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL REFERENCES users(id),
                 agent_name      TEXT NOT NULL DEFAULT '',
                 agent_type      TEXT NOT NULL DEFAULT 'personal',  -- personal / trading
                 avatar_url      TEXT DEFAULT '',
@@ -357,124 +442,125 @@ def init_db():
                 default_scopes  TEXT DEFAULT '[]',      -- JSON: ["stock:read","market:alert"]
                 metadata        TEXT DEFAULT '{}',      -- JSON: non-privacy business data
                 last_active_ip  TEXT DEFAULT '',
-                last_active_at  TEXT,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                last_active_at  TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_user_agents_user ON user_agents(user_id);
             CREATE INDEX IF NOT EXISTS idx_user_agents_name ON user_agents(user_id, agent_name);
             
             CREATE TABLE IF NOT EXISTS agent_api_keys (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                agent_id        INTEGER NOT NULL REFERENCES user_agents(id),
-                user_id         INTEGER NOT NULL REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                agent_id        BIGINT NOT NULL REFERENCES user_agents(id),
+                user_id         BIGINT NOT NULL REFERENCES users(id),
                 key_hash        TEXT UNIQUE NOT NULL,
                 key_prefix      TEXT NOT NULL,
                 name            TEXT DEFAULT '',
                 scopes          TEXT DEFAULT '[]',      -- JSON override, empty=inherit from agent
                 status          TEXT DEFAULT 'active',   -- active / revoked / expired
-                expire_at       TEXT,
-                last_used_at    TEXT,
-                rotated_at      TEXT,
-                rotated_from_key_id INTEGER DEFAULT 0,
-                calls_today     INTEGER DEFAULT 0,
-                calls_total     INTEGER DEFAULT 0,
-                last_reset      TEXT,
-                created_at      TEXT DEFAULT (datetime('now'))
+                expire_at       TIMESTAMP,
+                last_used_at    TIMESTAMP,
+                rotated_at      TIMESTAMP,
+                rotated_from_key_id BIGINT DEFAULT 0,
+                calls_today     BIGINT DEFAULT 0,
+                calls_total     BIGINT DEFAULT 0,
+                last_reset      TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_agent_keys_agent ON agent_api_keys(agent_id);
             CREATE INDEX IF NOT EXISTS idx_agent_keys_user ON agent_api_keys(user_id);
             CREATE INDEX IF NOT EXISTS idx_agent_keys_hash ON agent_api_keys(key_hash);
 
             CREATE TABLE IF NOT EXISTS agent_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                agent_id        INTEGER REFERENCES user_agents(id),
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                agent_id        BIGINT REFERENCES user_agents(id),
+                user_id         BIGINT REFERENCES users(id),
                 action          TEXT NOT NULL,  -- create / revoke_key / rotate_key / suspend / activate
                 detail          TEXT DEFAULT '',
                 ip_address      TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_agent_logs_agent ON agent_logs(agent_id);
             CREATE INDEX IF NOT EXISTS idx_agent_logs_user ON agent_logs(user_id);
 
             CREATE TABLE IF NOT EXISTS user_sessions (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL REFERENCES users(id),
                 token_hash      TEXT NOT NULL,
                 device_name     TEXT DEFAULT '',
                 device_type     TEXT DEFAULT '',  -- mobile / desktop / api
                 ip_address      TEXT DEFAULT '',
                 user_agent      TEXT DEFAULT '',
                 location        TEXT DEFAULT '',
-                is_current      INTEGER DEFAULT 0,
+                is_current      BIGINT DEFAULT 0,
                 last_active     TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now')),
-                expired_at      TEXT
+                created_at      TIMESTAMP DEFAULT NOW(),
+                expired_at      TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
             
             CREATE TABLE IF NOT EXISTS agent_experiences (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 agent_id        TEXT NOT NULL,
                 title           TEXT NOT NULL,
                 content         TEXT NOT NULL,
                 category        TEXT DEFAULT 'analysis',
                 tags            TEXT DEFAULT '',
                 status          TEXT DEFAULT 'draft',
-                is_published    INTEGER DEFAULT 0,
-                like_count      INTEGER DEFAULT 0,
-                view_count      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_published    BIGINT DEFAULT 0,
+                like_count      BIGINT DEFAULT 0,
+                view_count      BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS favorites (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 target_type     TEXT NOT NULL,
-                target_id       INTEGER NOT NULL,
-                created_at      TEXT DEFAULT (datetime('now')),
+                target_id       BIGINT NOT NULL,
+                created_at      TIMESTAMP DEFAULT NOW(),
                 UNIQUE(user_id, target_type, target_id)
             );
             CREATE TABLE IF NOT EXISTS user_activity (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 type            TEXT NOT NULL DEFAULT 'system',
                 title           TEXT NOT NULL,
                 content         TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS admin_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                admin_id        INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                admin_id        BIGINT REFERENCES users(id),
                 action          TEXT NOT NULL,
                 target_type     TEXT DEFAULT '',
                 target_id       TEXT DEFAULT '',
                 detail          TEXT DEFAULT '',
                 ip_address      TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS sms_templates (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 category        TEXT NOT NULL,
                 name            TEXT NOT NULL,
                 template_code   TEXT NOT NULL,
                 note            TEXT DEFAULT '',
-                sort_order      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now')),
+                sort_order      BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW(),
                 UNIQUE(category, name)
             );
-            INSERT OR IGNORE INTO sms_templates (category, name, template_code, note, sort_order) VALUES
+            INSERT INTO sms_templates (category, name, template_code, note, sort_order) VALUES
                 ('captcha', '新用户注册',   'SMS_506350148', '新用户注册验证码', 1),
                 ('captcha', '用户登录',     'SMS_506430157', '用户登录验证码', 2),
                 ('captcha', '忘记/重置密码', 'SMS_506140192', '密码重置验证码', 3),
                 ('captcha', '变更手机号',   'SMS_506175167', '手机号变更验证码', 4),
                 ('notice',  '订阅通知',     'SMS_506235155', '会员订阅成功通知', 5),
-                ('promo',   '新用户礼包',   'SMS_506455152', '新用户注册赠送优惠券通知', 6);
+                ('promo',   '新用户礼包',   'SMS_506455152', '新用户注册赠送优惠券通知', 6)
+            ON CONFLICT (category, name) DO NOTHING;
                         CREATE TABLE IF NOT EXISTS agents (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 type            TEXT NOT NULL DEFAULT 'child',
                 alias           TEXT NOT NULL,
                 mission         TEXT NOT NULL DEFAULT '',
@@ -486,114 +572,114 @@ def init_db():
                 api_key_enc     TEXT NOT NULL DEFAULT '',
                 capabilities    TEXT NOT NULL DEFAULT 'text',
                 -- ↑ 废弃字段
-                provider_model_id INTEGER DEFAULT NULL,
+                provider_model_id BIGINT DEFAULT NULL,
                 -- ↓ 旧迁移兼容，废弃
-                model_provider_id INTEGER DEFAULT NULL,
+                model_provider_id BIGINT DEFAULT NULL,
                 -- ↑ 废弃
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_active       BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             -- 模型提供商（顶层级联）
             CREATE TABLE IF NOT EXISTS providers (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 slug            TEXT NOT NULL UNIQUE DEFAULT '',
                 name            TEXT NOT NULL DEFAULT '',
                 description     TEXT NOT NULL DEFAULT '',
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_active       BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             -- 提供商下的模型（端点 + Key + model_name）
             CREATE TABLE IF NOT EXISTS provider_models (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                provider_id     INTEGER NOT NULL REFERENCES providers(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                provider_id     BIGINT NOT NULL REFERENCES providers(id),
                 name            TEXT NOT NULL DEFAULT '',
                 model_name      TEXT NOT NULL DEFAULT '',
                 endpoint_url    TEXT NOT NULL DEFAULT '',
                 api_key_ref     TEXT NOT NULL DEFAULT '',
                 capabilities    TEXT NOT NULL DEFAULT 'text',
-                sort_order      INTEGER DEFAULT 0,
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                sort_order      BIGINT DEFAULT 0,
+                is_active       BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_pm_provider ON provider_models(provider_id);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_provider_model_unique ON provider_models(provider_id, model_name);
             CREATE TABLE IF NOT EXISTS billing_orders (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 order_no        TEXT UNIQUE NOT NULL,
-                amount          REAL NOT NULL DEFAULT 0,
+                amount          DOUBLE PRECISION NOT NULL DEFAULT 0,
                 currency        TEXT DEFAULT 'CNY',
                 item_type       TEXT NOT NULL,
                 item_desc       TEXT DEFAULT '',
                 status          TEXT DEFAULT 'pending',
                 payment_method  TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now')),
-                paid_at         TEXT
+                created_at      TIMESTAMP DEFAULT NOW(),
+                paid_at         TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_billing_orders_status ON billing_orders(status);
             CREATE INDEX IF NOT EXISTS idx_billing_orders_paid ON billing_orders(status, paid_at);
 
 
             CREATE TABLE IF NOT EXISTS sms_codes (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 phone           TEXT NOT NULL,
                 code            TEXT NOT NULL,
                 purpose         TEXT DEFAULT 'login',
                 expires_at      TEXT NOT NULL,
-                used            INTEGER DEFAULT 0,
-                attempts        INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now'))
+                used            BIGINT DEFAULT 0,
+                attempts        BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS sms_rate_limits (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 phone           TEXT NOT NULL,
                 hour_bucket     TEXT NOT NULL,
-                count           INTEGER DEFAULT 0,
+                count           BIGINT DEFAULT 0,
                 UNIQUE(phone, hour_bucket)
             );
             CREATE TABLE IF NOT EXISTS email_codes (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 email           TEXT NOT NULL,
                 code            TEXT NOT NULL,
                 purpose         TEXT DEFAULT 'login',
                 expires_at      TEXT NOT NULL,
-                used            INTEGER DEFAULT 0,
-                attempts        INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now'))
+                used            BIGINT DEFAULT 0,
+                attempts        BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_email_code ON email_codes(email, code, purpose);
             CREATE TABLE IF NOT EXISTS login_attempts (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 phone           TEXT DEFAULT '',
                 ip              TEXT NOT NULL DEFAULT '',
-                success         INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now'))
+                success         BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip);
             CREATE INDEX IF NOT EXISTS idx_login_attempts_phone ON login_attempts(phone);
             CREATE TABLE IF NOT EXISTS orders (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 app_name        TEXT NOT NULL,
                 order_id        TEXT UNIQUE NOT NULL,
                 tier_bought     TEXT,
-                amount          REAL,
+                amount          DOUBLE PRECISION,
                 pay_method      TEXT,
                 status          TEXT DEFAULT 'pending',
-                created_at      TEXT DEFAULT (datetime('now')),
-                paid_at         TEXT
+                created_at      TIMESTAMP DEFAULT NOW(),
+                paid_at         TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS chat_history (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 app_name        TEXT DEFAULT 'trademind',
                 session_id      TEXT,
                 role            TEXT,
                 content         TEXT,
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_app_auth_user ON app_authorizations(user_id);
             CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
@@ -602,7 +688,7 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
             CREATE TABLE IF NOT EXISTS site_configs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 domain          TEXT NOT NULL UNIQUE,
                 name            TEXT NOT NULL,
                 industry        TEXT NOT NULL DEFAULT '',
@@ -612,18 +698,18 @@ def init_db():
                 favicon_url     TEXT DEFAULT '',
                 tier            TEXT DEFAULT 'free',
                 features        TEXT DEFAULT '[]',
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_site_configs_domain ON site_configs(domain);
 
             CREATE TABLE IF NOT EXISTS site_blocks (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                site_id         INTEGER NOT NULL REFERENCES site_configs(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                site_id         BIGINT NOT NULL REFERENCES site_configs(id),
                 page            TEXT NOT NULL,
                 section         TEXT NOT NULL,
                 block_type      TEXT NOT NULL DEFAULT 'text',
-                position        INTEGER NOT NULL DEFAULT 0,
+                position        BIGINT NOT NULL DEFAULT 0,
                 title           TEXT DEFAULT '',
                 subtitle        TEXT DEFAULT '',
                 content         TEXT DEFAULT '',
@@ -632,39 +718,39 @@ def init_db():
                 link_text       TEXT DEFAULT '',
                 icon            TEXT DEFAULT '',
                 extra_json      TEXT DEFAULT '{}',
-                is_published    INTEGER NOT NULL DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_published    BIGINT NOT NULL DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_site_blocks_site ON site_blocks(site_id, page, position);
 
             CREATE TABLE IF NOT EXISTS site_plans (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                site_id         INTEGER NOT NULL REFERENCES site_configs(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                site_id         BIGINT NOT NULL REFERENCES site_configs(id),
                 name            TEXT NOT NULL,
                 tier            TEXT NOT NULL DEFAULT 'free',
-                price           REAL NOT NULL DEFAULT 0,
+                price           DOUBLE PRECISION NOT NULL DEFAULT 0,
                 period          TEXT DEFAULT 'month',
                 features        TEXT DEFAULT '[]',
-                sort_order      INTEGER DEFAULT 0,
-                is_published    INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now'))
+                sort_order      BIGINT DEFAULT 0,
+                is_published    BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_site_plans_site ON site_plans(site_id);
             CREATE TABLE IF NOT EXISTS contact_messages (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 email           TEXT NOT NULL,
                 subject         TEXT NOT NULL,
                 message         TEXT NOT NULL,
                 status          TEXT DEFAULT 'unread',
                 admin_reply     TEXT,
-                replied_at      TEXT,
-                created_at      TEXT DEFAULT (datetime('now'))
+                replied_at      TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS user_feedback (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 type            TEXT NOT NULL DEFAULT 'suggestion',
                 category        TEXT NOT NULL DEFAULT 'other',
                 title           TEXT NOT NULL,
@@ -672,11 +758,11 @@ def init_db():
                 contact         TEXT DEFAULT '',
                 status          TEXT DEFAULT 'pending',
                 admin_note      TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS user_tickets (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT REFERENCES users(id),
                 type            TEXT DEFAULT 'aftersale',
                 category        TEXT DEFAULT '',
                 title           TEXT NOT NULL,
@@ -685,27 +771,27 @@ def init_db():
                 status          TEXT DEFAULT 'open',
                 priority        TEXT DEFAULT 'normal',
                 admin_reply     TEXT DEFAULT '',
-                replied_at      TEXT,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                replied_at      TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_user_tickets_user ON user_tickets(user_id);
             CREATE INDEX IF NOT EXISTS idx_user_tickets_status ON user_tickets(status);
             CREATE TABLE IF NOT EXISTS email_sent (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 from_addr       TEXT NOT NULL,
                 to_addr         TEXT NOT NULL,
                 subject         TEXT NOT NULL,
                 body_text       TEXT,
                 body_html       TEXT,
-                in_reply_to     INTEGER,
-                sent_at         TEXT DEFAULT (datetime('now'))
+                in_reply_to     BIGINT,
+                sent_at         TIMESTAMP DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_contact_status ON contact_messages(status);
             CREATE INDEX IF NOT EXISTS idx_email_sent_from ON email_sent(from_addr);
             CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
             CREATE TABLE IF NOT EXISTS social_push_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 platform        TEXT NOT NULL DEFAULT 'wechat',
                 content_type    TEXT DEFAULT 'article',
                 title           TEXT DEFAULT '',
@@ -714,13 +800,13 @@ def init_db():
                 media_id        TEXT DEFAULT '',
                 publish_id      TEXT DEFAULT '',
                 status          TEXT DEFAULT 'draft',
-                push_time       TEXT,
-                admin_id        INTEGER REFERENCES users(id),
+                push_time       TIMESTAMP,
+                admin_id        BIGINT REFERENCES users(id),
                 error_msg       TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS brand_settings (
-                id              INTEGER PRIMARY KEY CHECK (id = 1),
+                id              BIGINT PRIMARY KEY CHECK (id = 1),
                 company_name    TEXT NOT NULL DEFAULT '',
                 site_name_cn    TEXT NOT NULL DEFAULT '',
                 site_name_en    TEXT NOT NULL DEFAULT '',
@@ -737,9 +823,9 @@ def init_db():
                 contact_email   TEXT NOT NULL DEFAULT '',
                 software_name   TEXT NOT NULL DEFAULT '',
                 software_slogan TEXT NOT NULL DEFAULT '',
-                updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+                updated_at      TIMESTAMP DEFAULT NOW()
             );
-            INSERT OR IGNORE INTO brand_settings (id) VALUES (1);
+            INSERT INTO brand_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
         """)
         # ── 迁移：为已有 user_tickets 表补字段 ──
         import logging
@@ -763,15 +849,15 @@ def init_db():
         with get_db() as c2:
             c2.execute("""
                 CREATE TABLE IF NOT EXISTS social_links (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     name            TEXT NOT NULL,
                     url             TEXT NOT NULL DEFAULT '#',
                     icon_url        TEXT NOT NULL DEFAULT '',
                     platform        TEXT NOT NULL DEFAULT '',
-                    sort_order      INTEGER DEFAULT 0,
-                    is_active       INTEGER DEFAULT 1,
-                    created_at      TEXT DEFAULT (datetime('now')),
-                    updated_at      TEXT DEFAULT (datetime('now'))
+                    sort_order      BIGINT DEFAULT 0,
+                    is_active       BIGINT DEFAULT 1,
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
                 )
             """)
             c2.commit()
@@ -779,51 +865,51 @@ def init_db():
         with get_db() as c3:
             c3.execute("""
                 CREATE TABLE IF NOT EXISTS service_plans (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     plan_key        TEXT UNIQUE NOT NULL,
                     name            TEXT NOT NULL,
                     description     TEXT DEFAULT '',
-                    price_month     REAL DEFAULT 0,
-                    price_year      REAL DEFAULT 0,
-                    daily_limit     INTEGER DEFAULT 0,
+                    price_month     DOUBLE PRECISION DEFAULT 0,
+                    price_year      DOUBLE PRECISION DEFAULT 0,
+                    daily_limit     BIGINT DEFAULT 0,
                     features        TEXT DEFAULT '[]',
-                    sort_order      INTEGER DEFAULT 0,
-                    is_active       INTEGER DEFAULT 1,
-                    created_at      TEXT DEFAULT (datetime('now')),
-                    updated_at      TEXT DEFAULT (datetime('now'))
+                    sort_order      BIGINT DEFAULT 0,
+                    is_active       BIGINT DEFAULT 1,
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
                 )
             """)
-            c3.execute("INSERT OR IGNORE INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
-                       "('free', 'Free', '每日20次调用', 0, 0, 20, '[\"basic\"]', 1)")
-            c3.execute("INSERT OR IGNORE INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
-                       "('standard', 'Standard', '每日100次调用', 88, 888, 100, '[\"basic\",\"sentiment\",\"market\"]', 2)")
-            c3.execute("INSERT OR IGNORE INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
-                       "('pro', 'Pro', '每日1000次调用', 188, 1888, 1000, '[\"all\"]', 3)")
+            c3.execute("INSERT INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
+                       "('free', 'Free', '每日20次调用', 0, 0, 20, '[\"basic\"]', 1) ON CONFLICT (plan_key) DO NOTHING")
+            c3.execute("INSERT INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
+                       "('standard', 'Standard', '每日100次调用', 88, 888, 100, '[\"basic\",\"sentiment\",\"market\"]', 2) ON CONFLICT (plan_key) DO NOTHING")
+            c3.execute("INSERT INTO service_plans (plan_key, name, description, price_month, price_year, daily_limit, features, sort_order) VALUES "
+                       "('pro', 'Pro', '每日1000次调用', 188, 1888, 1000, '[\"all\"]', 3) ON CONFLICT (plan_key) DO NOTHING")
             c3.commit()
         # ── 管理员配置表 (2026-05-10) ──
         with get_db() as c_adm:
-            c_adm.executescript("""
+            c_adm.execute("""
                 CREATE TABLE IF NOT EXISTS admin_profiles (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id         INTEGER UNIQUE REFERENCES users(id),
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    user_id         BIGINT UNIQUE REFERENCES users(id),
                     role            TEXT DEFAULT 'admin',           -- super_admin / admin / operator
                     permissions     TEXT DEFAULT '[]',              -- JSON array
                     real_name       TEXT DEFAULT '',
                     internal_phone  TEXT DEFAULT '',
                     internal_email  TEXT DEFAULT '',
                     notes           TEXT DEFAULT '',
-                    created_by      INTEGER DEFAULT 0,
+                    created_by      BIGINT DEFAULT 0,
                     last_login_ip   TEXT DEFAULT '',
-                    last_login_at   TEXT,
-                    created_at      TEXT DEFAULT (datetime('now')),
-                    updated_at      TEXT DEFAULT (datetime('now'))
+                    last_login_at   TIMESTAMP,
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
                 )
             """)
             # 种子：***REMOVED*** (user_id=7) 为 super_admin，全部权限
             try:
                 c_adm.execute(
-                    "INSERT OR IGNORE INTO admin_profiles (user_id, role, permissions, real_name, notes) "
-                    "VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes) "
+                    "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING",
                     (7, 'super_admin', '["users","content","finance","system","matrix","admins"]', '***REMOVED***', '初始超级管理员')
                 )
             except Exception:
@@ -831,9 +917,9 @@ def init_db():
             c_adm.commit()
         # ── 主题管理 (2026-05-16) ──
         with get_db() as c_th:
-            c_th.executescript("""
+            c_th.execute("""
                 CREATE TABLE IF NOT EXISTS themes (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     name            TEXT NOT NULL,
                     slug            TEXT UNIQUE NOT NULL,
                     version         TEXT DEFAULT '1.0.0',
@@ -844,22 +930,24 @@ def init_db():
                     tags            TEXT DEFAULT '[]',
                     config_json     TEXT DEFAULT '{}',
                     dir_name        TEXT NOT NULL,
-                    installed_at    TEXT DEFAULT (datetime('now')),
-                    updated_at      TEXT DEFAULT (datetime('now'))
-                );
+                    installed_at    TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            c_th.execute("""
                 CREATE TABLE IF NOT EXISTS site_theme_config (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     site_key        TEXT UNIQUE NOT NULL,
-                    theme_id        INTEGER,
+                    theme_id        BIGINT,
                     overrides_json  TEXT DEFAULT '{}',
-                    updated_at      TEXT DEFAULT (datetime('now')),
+                    updated_at      TIMESTAMP DEFAULT NOW(),
                     FOREIGN KEY (theme_id) REFERENCES themes(id) ON DELETE SET NULL
-                );
+                )
             """)
             # 种子：默认主题
             c_th.execute(
-                "INSERT OR IGNORE INTO themes (id, name, slug, version, author, description, industry, tags, config_json, dir_name) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO themes (id, name, slug, version, author, description, industry, tags, config_json, dir_name) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
                 (0, '默认主题', 'default', '1.0.0', '', 
                  '内置默认主题 — FinTech/AI 暗色科幻风格',
                  'finance', '["dark","fintech","ai"]',
@@ -867,62 +955,72 @@ def init_db():
                  'default')
             )
             # 种子：4 个站点默认使用默认主题（theme_id=NULL）
-            c_th.execute("INSERT OR IGNORE INTO site_theme_config (site_key) VALUES ('main')")
-            c_th.execute("INSERT OR IGNORE INTO site_theme_config (site_key) VALUES ('platform')")
-            c_th.execute("INSERT OR IGNORE INTO site_theme_config (site_key) VALUES ('admin')")
+            c_th.execute("INSERT INTO site_theme_config (site_key) VALUES ('main') ON CONFLICT (site_key) DO NOTHING")
+            c_th.execute("INSERT INTO site_theme_config (site_key) VALUES ('platform') ON CONFLICT (site_key) DO NOTHING")
+            c_th.execute("INSERT INTO site_theme_config (site_key) VALUES ('admin') ON CONFLICT (site_key) DO NOTHING")
             # community site key removed (智体广场已下线)
             c_th.commit()
         with get_db() as cs:
-            cs.executescript('''
+            cs.execute('''
                 CREATE TABLE IF NOT EXISTS subscription_plans (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     plan_key        TEXT UNIQUE NOT NULL,
                     name            TEXT NOT NULL,
                     description     TEXT DEFAULT '',
-                    price_month     INTEGER NOT NULL DEFAULT 0,
-                    price_year      INTEGER NOT NULL DEFAULT 0,
-                    trial_days      INTEGER DEFAULT 0,
+                    price_month     BIGINT NOT NULL DEFAULT 0,
+                    price_year      BIGINT NOT NULL DEFAULT 0,
+                    trial_days      BIGINT DEFAULT 0,
                     tier            TEXT NOT NULL DEFAULT 'premium',
                     features_json   TEXT DEFAULT '[]',
-                    sort_order      INTEGER DEFAULT 0,
-                    is_active       INTEGER DEFAULT 1,
-                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-                    updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                INSERT OR IGNORE INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES
-                    ('deploy_basic', '基础版', '个人创业者/小微企业快速建站', 19900, 199900, 0, 'basic', '["AI智能建站(响应式+自定义域名)","AI智能客服(基础问答)","AI内容生成","基础SEO优化","CMS内容管理","多AI供应商切换(可自配APIKey)","AI分析报告","赠送¥50 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 1);
-                INSERT OR IGNORE INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES
-                    ('deploy_pro', '专业版', '小微企业/电商卖家线上业务首选', 39900, 399900, 0, 'popular', '["AI智能建站","AI客服RAG知识库","CMS内容管理","完整电商商城(商品/购物车/订单/支付)","1688供应链对接(采集→AI优化→商城发布)","知识库+RAG检索","AI持续SEO+排名跟踪","用户画像+分析报告","赠送¥80 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 2);
-                INSERT OR IGNORE INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES
-                    ('deploy_enterprise', '企业版', '品牌企业全链路AI运营', 69900, 699900, 0, 'premium', '["AI智能建站","AI高级客服(多轮对话+CRM+飞书通知)","AI内容工厂(RSS→AI加工→CMS→社媒推送)","Agent矩阵(1+12智能体协作)","1688批量供应链管理+自动铺货","社媒自动发布(微信/微博/头条/抖音)","云服务自动开通","12维用户画像+意向分级","数据看板+AI洞察报告","月度巡检+专属客服","赠送¥120 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 3);
+                    sort_order      BIGINT DEFAULT 0,
+                    is_active       BIGINT DEFAULT 1,
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            cs.execute(
+                "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES "
+                "(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (plan_key) DO NOTHING",
+                ('deploy_basic', '基础版', '个人创业者/小微企业快速建站', 19900, 199900, 0, 'basic', '["AI智能建站(响应式+自定义域名)","AI智能客服(基础问答)","AI内容生成","基础SEO优化","CMS内容管理","多AI供应商切换(可自配APIKey)","AI分析报告","赠送¥50 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 1))
+            cs.execute(
+                "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES "
+                "(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (plan_key) DO NOTHING",
+                ('deploy_pro', '专业版', '小微企业/电商卖家线上业务首选', 39900, 399900, 0, 'popular', '["AI智能建站","AI客服RAG知识库","CMS内容管理","完整电商商城(商品/购物车/订单/支付)","1688供应链对接(采集→AI优化→商城发布)","知识库+RAG检索","AI持续SEO+排名跟踪","用户画像+分析报告","赠送¥80 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 2))
+            cs.execute(
+                "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES "
+                "(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (plan_key) DO NOTHING",
+                ('deploy_enterprise', '企业版', '品牌企业全链路AI运营', 69900, 699900, 0, 'premium', '["AI智能建站","AI高级客服(多轮对话+CRM+飞书通知)","AI内容工厂(RSS→AI加工→CMS→社媒推送)","Agent矩阵(1+12智能体协作)","1688批量供应链管理+自动铺货","社媒自动发布(微信/微博/头条/抖音)","云服务自动开通","12维用户画像+意向分级","数据看板+AI洞察报告","月度巡检+专属客服","赠送¥120 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 3))
+            cs.execute('''
                 CREATE TABLE IF NOT EXISTS subscriptions (
-                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id             INTEGER NOT NULL UNIQUE,
+                    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    user_id             BIGINT NOT NULL UNIQUE,
                     plan_key            TEXT NOT NULL,
                     period              TEXT NOT NULL,
                     status              TEXT NOT NULL DEFAULT 'active',
                     current_period_start TEXT NOT NULL,
                     current_period_end   TEXT NOT NULL,
-                    trial_end           TEXT,
-                    canceled_at         TEXT,
+                    trial_end           TIMESTAMP,
+                    canceled_at         TIMESTAMP,
                     cancel_reason       TEXT DEFAULT '',
                     cancel_feedback     TEXT DEFAULT '',
-                    auto_renew          INTEGER DEFAULT 1,
+                    auto_renew          BIGINT DEFAULT 1,
                     payment_method      TEXT,
                     alipay_agreement_id TEXT,
                     wechat_contract_id  TEXT,
                     pending_plan_key    TEXT,
                     pending_period      TEXT,
-                    pending_at          TEXT,
-                    created_at          TEXT DEFAULT CURRENT_TIMESTAMP,
-                    updated_at          TEXT DEFAULT CURRENT_TIMESTAMP
-                );
+                    pending_at          TIMESTAMP,
+                    created_at          TIMESTAMP DEFAULT NOW(),
+                    updated_at          TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            cs.execute('''
                 CREATE TABLE IF NOT EXISTS subscription_orders (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     order_no        TEXT UNIQUE NOT NULL,
-                    user_id         INTEGER NOT NULL,
-                    sub_id          INTEGER REFERENCES subscriptions(id),
-                    amount_fen      INTEGER NOT NULL,
+                    user_id         BIGINT NOT NULL,
+                    sub_id          BIGINT REFERENCES subscriptions(id),
+                    amount_fen      BIGINT NOT NULL,
                     currency        TEXT DEFAULT 'CNY',
                     item_type       TEXT NOT NULL,
                     plan_key        TEXT NOT NULL,
@@ -930,56 +1028,60 @@ def init_db():
                     payment_method  TEXT,
                     channel_order_id TEXT,
                     status          TEXT NOT NULL DEFAULT 'pending',
-                    paid_at         TEXT,
+                    paid_at         TIMESTAMP,
                     fail_reason     TEXT,
                     notify_id       TEXT,
                     notify_raw      TEXT,
-                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-                    updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_sub_orders_user ON subscription_orders(user_id);
-                CREATE INDEX IF NOT EXISTS idx_sub_orders_status ON subscription_orders(status);
-                CREATE INDEX IF NOT EXISTS idx_sub_orders_notify ON subscription_orders(notify_id);
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_orders_user ON subscription_orders(user_id)')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_orders_status ON subscription_orders(status)')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_orders_notify ON subscription_orders(notify_id)')
+            cs.execute('''
                 CREATE TABLE IF NOT EXISTS payment_events (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id         INTEGER NOT NULL,
-                    sub_id          INTEGER REFERENCES subscriptions(id),
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    user_id         BIGINT NOT NULL,
+                    sub_id          BIGINT REFERENCES subscriptions(id),
                     event_type      TEXT NOT NULL,
                     channel         TEXT NOT NULL,
                     channel_event_id TEXT,
-                    amount_fen      INTEGER,
+                    amount_fen      BIGINT,
                     result          TEXT,
                     fail_reason     TEXT,
                     raw_response    TEXT,
-                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_pay_events_sub ON payment_events(sub_id);
+                    created_at      TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_pay_events_sub ON payment_events(sub_id)')
 
+            cs.execute('''
                 CREATE TABLE IF NOT EXISTS subscription_audit_log (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id         INTEGER NOT NULL,
-                    sub_id          INTEGER,
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    user_id         BIGINT NOT NULL,
+                    sub_id          BIGINT,
                     action          TEXT NOT NULL,
                     detail          TEXT,
                     ip_address      TEXT,
-                    admin_id        INTEGER,
-                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_sub_audit_user ON subscription_audit_log(user_id);
-                CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status);
-                CREATE INDEX IF NOT EXISTS idx_subs_canceled_at ON subscriptions(status, canceled_at, created_at);
+                    admin_id        BIGINT,
+                    created_at      TIMESTAMP DEFAULT NOW()
+                )
             ''')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_audit_user ON subscription_audit_log(user_id)')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status)')
+            cs.execute('CREATE INDEX IF NOT EXISTS idx_subs_canceled_at ON subscriptions(status, canceled_at, created_at)')
             cs.commit()
         conn.commit()
     # ── 品牌设置字段迁移：logo_url → logo_full_url + 新增 logo_icon_url ──
     with get_db() as bm:
         try:
             bm.execute("ALTER TABLE brand_settings ADD COLUMN logo_full_url TEXT NOT NULL DEFAULT ''")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         try:
             bm.execute("ALTER TABLE brand_settings ADD COLUMN logo_icon_url TEXT NOT NULL DEFAULT ''")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         bm.execute("UPDATE brand_settings SET logo_full_url = logo_url WHERE logo_full_url = '' AND logo_url != ''")
         bm.commit()
@@ -994,12 +1096,12 @@ def init_db():
         ]:
             try:
                 bm.execute(f"ALTER TABLE brand_settings ADD COLUMN {col} TEXT NOT NULL DEFAULT {default_val}")
-            except sqlite3.OperationalError:
+            except Exception:
                 pass
         bm.commit()
     # ── Migration: brand_settings site_domain ──
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(brand_settings)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'brand_settings')]
         if 'site_domain' not in cols:
             m.execute("ALTER TABLE brand_settings ADD COLUMN site_domain TEXT NOT NULL DEFAULT ''")
             m.commit()
@@ -1007,7 +1109,7 @@ def init_db():
     # ── Migration: migrate users.agent_id → user_agents (2026-05-10) ──
     with get_db() as m:
         # Check if legacy agent_id column exists in users table
-        user_cols = [c['name'] for c in m.execute('PRAGMA table_info(users)').fetchall()]
+        user_cols = [c['name'] for c in get_table_columns(m, 'users')]
         has_legacy_agent = 'agent_id' in user_cols
         
         if has_legacy_agent:
@@ -1021,9 +1123,9 @@ def init_db():
                 for r in rows:
                     agent_name = r['agent_nickname'] or r['display_name'] or f"agent_{r['id']}"
                     m.execute(
-                        "INSERT OR IGNORE INTO user_agents "
+                        "INSERT INTO user_agents "
                         "(user_id, agent_name, agent_type, avatar_url, status, created_at) "
-                        "VALUES (?, ?, 'personal', ?, 'active', datetime('now'))",
+                        "VALUES (%s, %s, 'personal', %s, 'active', NOW())",
                         (r['id'], agent_name, r['agent_avatar_url'] or '')
                     )
                     migrated += 1
@@ -1036,10 +1138,10 @@ def init_db():
             print('[Migration] No legacy agent_id column — skipping migration')
         
         # Add agent_id FK column to api_keys if not present
-        cols = [c['name'] for c in m.execute('PRAGMA table_info(api_keys)').fetchall()]
+        cols = [c['name'] for c in get_table_columns(m, 'api_keys')]
         if 'associated_agent_id' not in cols:
             try:
-                m.execute('ALTER TABLE api_keys ADD COLUMN associated_agent_id INTEGER DEFAULT 0')
+                m.execute('ALTER TABLE api_keys ADD COLUMN associated_agent_id BIGINT DEFAULT 0')
                 m.commit()
                 print('[Migration] api_keys.associated_agent_id added')
             except Exception:
@@ -1055,7 +1157,7 @@ def init_db():
         )
         m.commit()
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'users')]
         if 'agent_avatar_url' not in cols:
             m.execute('ALTER TABLE users ADD COLUMN agent_avatar_url TEXT DEFAULT \'\'')
             m.commit()
@@ -1063,16 +1165,16 @@ def init_db():
 
     # ── IAM v2 migration: add new columns (2026-05-11) ──
     with get_db() as m:
-        cur = m.execute('PRAGMA table_info(users)')
+        cur = get_table_columns(m, 'users')
         cols = [r['name'] for r in cur.fetchall()]
         if 'display_name' not in cols:
             for col_def in [
                 ("display_name", "TEXT DEFAULT ''"),
-                ("email_verified", "INTEGER DEFAULT 0"),
+                ("email_verified", "BIGINT DEFAULT 0"),
                 ("password_changed_at", "TEXT"),
                 ("totp_secret", "TEXT DEFAULT ''"),
-                ("totp_enabled", "INTEGER DEFAULT 0"),
-                ("security_level", "INTEGER DEFAULT 0"),
+                ("totp_enabled", "BIGINT DEFAULT 0"),
+                ("security_level", "BIGINT DEFAULT 0"),
             ]:
                 try:
                     m.execute(f"ALTER TABLE users ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -1088,13 +1190,13 @@ def init_db():
     # ── Real-name verification migration v2 (2026-05-19) ──
     # 合规要求：不存储身份证号（明文或加密），只存认证状态标记
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'users')]
         # 保留旧字段以兼容，但不再写入 id_number_encrypted
         for col_name, col_def in [
             ('verified_by', "TEXT DEFAULT ''"),
             ('verified_at', "TEXT"),
             ('id_number_encrypted', "TEXT DEFAULT ''"),
-            ('is_real_name_verified', "INTEGER DEFAULT 0"),
+            ('is_real_name_verified', "BIGINT DEFAULT 0"),
             ('real_name_verified_at', "TEXT"),
         ]:
             if col_name not in cols:
@@ -1124,7 +1226,7 @@ def init_db():
         ]
         for key, value, desc in provider_seeds:
             m.execute(
-                "INSERT OR IGNORE INTO system_config (key, value, description) VALUES (?,?,?)",
+                "INSERT INTO system_config (key, value, description) VALUES (%s,%s,%s) ON CONFLICT (key) DO NOTHING",
                 (key, value, desc)
             )
         m.commit()
@@ -1134,13 +1236,13 @@ def init_db():
     with get_db() as m:
         m.execute("""
             CREATE TABLE IF NOT EXISTS verification_requests (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER NOT NULL REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL REFERENCES users(id),
                 request_id      TEXT UNIQUE NOT NULL,
                 provider        TEXT NOT NULL DEFAULT '',
                 return_url      TEXT DEFAULT '',
                 status          TEXT DEFAULT 'pending',
-                created_at      TEXT DEFAULT (datetime('now')),
+                created_at      TIMESTAMP DEFAULT NOW(),
                 completed_at    TEXT
             )
         """)
@@ -1164,11 +1266,11 @@ def init_db():
         ]
         for slug, name, desc in provider_seeds:
             m.execute(
-                "INSERT OR IGNORE INTO providers (slug, name, description) VALUES (?,?,?)",
+                "INSERT INTO providers (slug, name, description) VALUES (%s,%s,%s) ON CONFLICT (slug) DO NOTHING",
                 (slug, name, desc)
             )
         # Resolve provider IDs
-        pids = {slug: m.execute("SELECT id FROM providers WHERE slug=?", (slug,)).fetchone()['id']
+        pids = {slug: m.execute("SELECT id FROM providers WHERE slug = %s", (slug,)).fetchone()['id']
                 for slug, _, _ in provider_seeds}
         # Seed provider_models — 每个提供商下多个模型
         model_seeds = [
@@ -1206,7 +1308,7 @@ def init_db():
         ]
         for pid, name, model, url, key_ref, caps, sort in model_seeds:
             m.execute(
-                "INSERT OR IGNORE INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities, sort_order) VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (provider_id, model_name) DO NOTHING",
                 (pid, name, model, url, key_ref, caps, sort)
             )
         m.commit()
@@ -1214,16 +1316,16 @@ def init_db():
 
     # ── Migration: add provider_model_id to agents table ──
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(agents)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'agents')]
         if 'provider_model_id' not in cols:
-            m.execute('ALTER TABLE agents ADD COLUMN provider_model_id INTEGER DEFAULT NULL')
+            m.execute('ALTER TABLE agents ADD COLUMN provider_model_id BIGINT DEFAULT NULL')
             print('[Migration] Added agents.provider_model_id')
         # Migrate OLD model_provider_id → provider_model_id
         rows = m.execute(
             "SELECT id, model_provider_id FROM agents WHERE provider_model_id IS NULL AND model_provider_id IS NOT NULL"
         ).fetchall()
         for a in rows:
-            m.execute("UPDATE agents SET provider_model_id=? WHERE id=?",
+            m.execute("UPDATE agents SET provider_model_id = %s WHERE id = %s",
                       (a['model_provider_id'], a['id']))
         if rows:
             m.commit()
@@ -1264,7 +1366,7 @@ def init_db():
             ]
             for pid_val, name, model, url, key_ref, caps, sort in or_free_models:
                 m.execute(
-                    "INSERT OR IGNORE INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities, sort_order) VALUES (?,?,?,?,?,?,?)",
+                    "INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (provider_id, model_name) DO NOTHING",
                     (pid_val, name, model, url, key_ref, caps, sort)
                 )
             m.commit()
@@ -1272,7 +1374,7 @@ def init_db():
 
     # Check and add username_changed_at
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'users')]
         for col_name in ('username_changed_at',):
             if col_name not in cols:
                 m.execute(f'ALTER TABLE users ADD COLUMN {col_name} TEXT')
@@ -1281,7 +1383,7 @@ def init_db():
 
     # Migration: add social_links.platform column (2026-05-14)
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(social_links)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'social_links')]
         if 'platform' not in cols:
             m.execute("ALTER TABLE social_links ADD COLUMN platform TEXT NOT NULL DEFAULT ''")
             m.commit()
@@ -1291,12 +1393,12 @@ def init_db():
     with get_db() as m:
         m.execute("""
             CREATE TABLE IF NOT EXISTS channel_configs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 channel         TEXT NOT NULL UNIQUE,
                 config_json     TEXT NOT NULL DEFAULT '{}',
-                is_enabled      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_enabled      BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             )
         """)
         # seed feishu record if not exists
@@ -1304,7 +1406,7 @@ def init_db():
         if not existing:
             import os as _os
             m.execute(
-                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('feishu', ?, 1)",
+                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('feishu', %s, 1) ON CONFLICT (channel) DO NOTHING",
                 ('{}',)
             )
             m.commit()
@@ -1314,7 +1416,7 @@ def init_db():
         existing_wecom = m.execute("SELECT id FROM channel_configs WHERE channel='wecom'").fetchone()
         if not existing_wecom:
             m.execute(
-                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('wecom', '{}', 1)"
+                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('wecom', '{}', 1) ON CONFLICT (channel) DO NOTHING"
             )
             m.commit()
             print('[Migration] channel_configs wecom seed created')
@@ -1323,7 +1425,7 @@ def init_db():
         existing_qq = m.execute("SELECT id FROM channel_configs WHERE channel='qq'").fetchone()
         if not existing_qq:
             m.execute(
-                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('qq', '{}', 0)"
+                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('qq', '{}', 0) ON CONFLICT (channel) DO NOTHING"
             )
             m.commit()
             print('[Migration] channel_configs qq seed created')
@@ -1332,7 +1434,7 @@ def init_db():
         existing_dingtalk = m.execute("SELECT id FROM channel_configs WHERE channel='dingtalk'").fetchone()
         if not existing_dingtalk:
             m.execute(
-                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('dingtalk', '{}', 0)"
+                "INSERT INTO channel_configs (channel, config_json, is_enabled) VALUES ('dingtalk', '{}', 0) ON CONFLICT (channel) DO NOTHING"
             )
             m.commit()
             print('[Migration] channel_configs dingtalk seed created')
@@ -1358,7 +1460,7 @@ def init_db():
         ]
         for key, value, desc in payment_seeds:
             m.execute(
-                "INSERT OR IGNORE INTO system_config (key, value, description) VALUES (?,?,?)",
+                "INSERT INTO system_config (key, value, description) VALUES (%s,%s,%s) ON CONFLICT (key) DO NOTHING",
                 (key, value, desc)
             )
         m.commit()
@@ -1372,7 +1474,7 @@ def init_db():
         ]
         for key, value, desc in shop_ai_seeds:
             m.execute(
-                "INSERT OR IGNORE INTO system_config (key, value, description) VALUES (?,?,?)",
+                "INSERT INTO system_config (key, value, description) VALUES (%s,%s,%s) ON CONFLICT (key) DO NOTHING",
                 (key, value, desc)
             )
         m.commit()
@@ -1382,20 +1484,20 @@ def init_db():
     with get_db() as m2:
         m2.execute("""
             CREATE TABLE IF NOT EXISTS cluster_services (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 service_name    TEXT NOT NULL UNIQUE,
                 display_name    TEXT NOT NULL,
                 domain          TEXT NOT NULL,
-                port            INTEGER NOT NULL,
+                port            BIGINT NOT NULL,
                 health_url      TEXT DEFAULT '/health',
                 manager_type    TEXT NOT NULL DEFAULT 'tmux',
                 manager_name    TEXT NOT NULL,
                 workdir         TEXT,
                 start_cmd       TEXT,
-                sort_order      INTEGER DEFAULT 0,
-                is_enabled      INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                sort_order      BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
             )
         """)
         m2.commit()
@@ -1403,28 +1505,28 @@ def init_db():
     with get_db() as m:
         m.execute("""
             CREATE TABLE IF NOT EXISTS notification_templates (
-                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 event_type          TEXT NOT NULL UNIQUE,
                 title_template      TEXT NOT NULL,
                 content_template    TEXT NOT NULL,
                 link_url_template   TEXT DEFAULT '',
                 type                TEXT NOT NULL DEFAULT 'system',
-                is_active           INTEGER DEFAULT 1,
-                sort_order          INTEGER DEFAULT 0,
-                created_at          TEXT DEFAULT (datetime('now')),
-                updated_at          TEXT DEFAULT (datetime('now'))
+                is_active           BIGINT DEFAULT 1,
+                sort_order          BIGINT DEFAULT 0,
+                created_at          TIMESTAMP DEFAULT NOW(),
+                updated_at          TIMESTAMP DEFAULT NOW()
             )
         """)
         m.execute("""
             CREATE TABLE IF NOT EXISTS notification_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                template_id     INTEGER DEFAULT NULL,
-                user_id         INTEGER REFERENCES users(id),
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                template_id     BIGINT DEFAULT NULL,
+                user_id         BIGINT REFERENCES users(id),
                 event_type      TEXT DEFAULT '',
-                notification_id INTEGER DEFAULT NULL,
+                notification_id BIGINT DEFAULT NULL,
                 result          TEXT DEFAULT 'success',
                 error_msg       TEXT DEFAULT '',
-                sent_at         TEXT DEFAULT (datetime('now'))
+                sent_at         TIMESTAMP DEFAULT NOW()
             )
         """)
         m.execute("CREATE INDEX IF NOT EXISTS idx_notif_logs_user ON notification_logs(user_id)")
@@ -1432,7 +1534,7 @@ def init_db():
         m.commit()
     # Migration: add read_at + extra_data to user_notifications
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(user_notifications)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'user_notifications')]
         if 'read_at' not in cols:
             m.execute("ALTER TABLE user_notifications ADD COLUMN read_at TEXT DEFAULT NULL")
         if 'extra_data' not in cols:
@@ -1442,9 +1544,9 @@ def init_db():
 
     # ── Migration: completion_percentage on users ──
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'users')]
         if 'completion_percentage' not in cols:
-            m.execute("ALTER TABLE users ADD COLUMN completion_percentage INTEGER DEFAULT 0")
+            m.execute("ALTER TABLE users ADD COLUMN completion_percentage BIGINT DEFAULT 0")
         if 'completion_last_updated' not in cols:
             m.execute("ALTER TABLE users ADD COLUMN completion_last_updated TEXT")
         m.commit()
@@ -1454,25 +1556,25 @@ def init_db():
     with get_db() as m:
         m.execute("""
             CREATE TABLE IF NOT EXISTS reward_rules (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 condition_key   TEXT NOT NULL,
                 condition_value TEXT NOT NULL,
                 reward_type     TEXT NOT NULL DEFAULT 'coupon',
-                reward_id       INTEGER DEFAULT NULL,
+                reward_id       BIGINT DEFAULT NULL,
                 reward_name     TEXT DEFAULT '',
-                sort_order      INTEGER DEFAULT 0,
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now'))
+                sort_order      BIGINT DEFAULT 0,
+                is_active       BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW()
             )
         """)
         m.execute("""
             CREATE TABLE IF NOT EXISTS reward_claims (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id     INTEGER REFERENCES users(id),
-                rule_id     INTEGER NOT NULL,
-                claimed_at  TEXT DEFAULT (datetime('now')),
-                coupon_id   INTEGER DEFAULT NULL,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id     BIGINT REFERENCES users(id),
+                rule_id     BIGINT NOT NULL,
+                claimed_at  TIMESTAMP DEFAULT NOW(),
+                coupon_id   BIGINT DEFAULT NULL,
                 UNIQUE(user_id, rule_id)
             )
         """)
@@ -1483,22 +1585,24 @@ def init_db():
 
     # ── Interests + user_interests tables ──
     with get_db() as m:
-        m.executescript("""
+        m.execute("""
             CREATE TABLE IF NOT EXISTS interests (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name        TEXT NOT NULL UNIQUE,
                 category    TEXT NOT NULL,
-                sort_order  INTEGER DEFAULT 0,
-                is_hot      INTEGER DEFAULT 0,
-                is_active   INTEGER DEFAULT 1
-            );
+                sort_order  BIGINT DEFAULT 0,
+                is_hot      BIGINT DEFAULT 0,
+                is_active   BIGINT DEFAULT 1
+            )
+        """)
+        m.execute("""
             CREATE TABLE IF NOT EXISTS user_interests (
-                user_id     INTEGER NOT NULL,
-                interest_id INTEGER NOT NULL,
-                created_at  TEXT DEFAULT (datetime('now')),
+                user_id     BIGINT NOT NULL,
+                interest_id BIGINT NOT NULL,
+                created_at  TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (user_id, interest_id),
                 FOREIGN KEY (interest_id) REFERENCES interests(id) ON DELETE CASCADE
-            );
+            )
         """)
         m.execute("CREATE INDEX IF NOT EXISTS idx_user_interests_user ON user_interests(user_id)")
         m.execute("CREATE INDEX IF NOT EXISTS idx_interests_category ON interests(category, sort_order)")
@@ -1511,7 +1615,7 @@ def init_db():
         if existing < 10:
             tags = _get_default_interests()
             m.executemany(
-                "INSERT OR IGNORE INTO interests (name, category, sort_order, is_hot) VALUES (?,?,?,?)",
+                "INSERT INTO interests (name, category, sort_order, is_hot) VALUES (%s,%s,%s,%s) ON CONFLICT (name) DO NOTHING",
                 tags
             )
             m.commit()
@@ -1529,10 +1633,10 @@ def init_db():
             ('coupon.expiring',             '优惠券即将过期', '您有一张 {coupon_name} 即将在 {expire_days} 天后过期，请尽快使用。',                         '',                   'promo',  7, 7),
         ]
         for t in templates:
-            existing = m.execute("SELECT id FROM notification_templates WHERE event_type=?", (t[0],)).fetchone()
+            existing = m.execute("SELECT id FROM notification_templates WHERE event_type = %s", (t[0],)).fetchone()
             if not existing:
                 m.execute(
-                    "INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type, sort_order, is_active) VALUES (?,?,?,?,?,?,?)",
+                    "INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (event_type) DO NOTHING",
                     t
                 )
         m.commit()
@@ -1543,39 +1647,39 @@ def init_db():
     # ── Migration: voice_templates + video_tasks (口播视频 — 2026-05-22) ──
     with get_db() as m:
         m.execute('''CREATE TABLE IF NOT EXISTS voice_templates (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id             INTEGER NOT NULL DEFAULT 1,
+            id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            user_id             BIGINT NOT NULL DEFAULT 1,
             name                TEXT NOT NULL,
             sample_url          TEXT DEFAULT '',
             external_voice_id   TEXT DEFAULT '',
             provider            TEXT DEFAULT 'volcengine',
-            provider_model_id   INTEGER DEFAULT NULL,
+            provider_model_id   BIGINT DEFAULT NULL,
             status              TEXT DEFAULT 'pending',
-            duration_seconds    REAL DEFAULT 0,
+            duration_seconds    DOUBLE PRECISION DEFAULT 0,
             error_msg           TEXT DEFAULT '',
-            created_at          TEXT DEFAULT (datetime('now')),
-            updated_at          TEXT DEFAULT (datetime('now'))
+            created_at          TIMESTAMP DEFAULT NOW(),
+            updated_at          TIMESTAMP DEFAULT NOW()
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_vt_status ON voice_templates(status)')
         m.execute('''CREATE TABLE IF NOT EXISTS video_tasks (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id             INTEGER NOT NULL DEFAULT 1,
+            id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            user_id             BIGINT NOT NULL DEFAULT 1,
             title               TEXT NOT NULL,
-            voice_template_id   INTEGER DEFAULT NULL,
+            voice_template_id   BIGINT DEFAULT NULL,
             text_content        TEXT NOT NULL,
             avatar_image_url    TEXT DEFAULT '',
             output_url          TEXT DEFAULT '',
             provider            TEXT DEFAULT 'volcengine',
-            provider_model_id   INTEGER DEFAULT NULL,
+            provider_model_id   BIGINT DEFAULT NULL,
             external_task_id    TEXT DEFAULT '',
             status              TEXT DEFAULT 'pending',
             error_msg           TEXT DEFAULT '',
-            published_douyin    INTEGER DEFAULT 0,
+            published_douyin    BIGINT DEFAULT 0,
             douyin_video_id     TEXT DEFAULT '',
-            is_homepage         INTEGER DEFAULT 0,
+            is_homepage         BIGINT DEFAULT 0,
             media_type          TEXT DEFAULT 'avatar_video',
-            created_at          TEXT DEFAULT (datetime('now')),
-            updated_at          TEXT DEFAULT (datetime('now'))
+            created_at          TIMESTAMP DEFAULT NOW(),
+            updated_at          TIMESTAMP DEFAULT NOW()
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_vdt_status ON video_tasks(status)')
         m.execute('CREATE INDEX IF NOT EXISTS idx_vdt_homepage ON video_tasks(is_homepage)')
@@ -1585,18 +1689,18 @@ def init_db():
     # ── Migration: media_files table（本地媒体库 — 2026-05-24）──
     with get_db() as m:
         m.execute('''CREATE TABLE IF NOT EXISTS media_files (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             filename        TEXT NOT NULL,
             original_name   TEXT NOT NULL,
             mime_type       TEXT NOT NULL DEFAULT 'application/octet-stream',
-            file_size       INTEGER DEFAULT 0,
+            file_size       BIGINT DEFAULT 0,
             file_path       TEXT NOT NULL,
             thumb_path      TEXT DEFAULT '',
             push_status     TEXT DEFAULT 'none',
             push_target     TEXT DEFAULT '',
             pushed_at       TEXT DEFAULT NULL,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now'))
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_mf_push_status ON media_files(push_status)')
         m.execute('CREATE INDEX IF NOT EXISTS idx_mf_created ON media_files(created_at)')
@@ -1610,8 +1714,8 @@ def init_db():
             content         TEXT NOT NULL,
             keywords        TEXT DEFAULT '',
             category        TEXT DEFAULT '',
-            priority        INTEGER DEFAULT 0,
-            created_at      TEXT DEFAULT (datetime('now','localtime'))
+            priority        BIGINT DEFAULT 0,
+            created_at      TEXT DEFAULT NOW()
         )""")
         m.execute('CREATE INDEX IF NOT EXISTS idx_kb_category ON knowledge_blocks(category)')
         # Seed knowledge blocks from mini-program
@@ -1641,7 +1745,7 @@ def init_db():
                 ('kb_faq_004','域名和服务器说明','平台可协助客户完成域名注册和服务器配置。客户可使用自有域名，也可通过平台代购。服务器采用云部署方案，自动扩容，保障稳定运行。域名和服务器费用不包含在套餐内。','域名,服务器,云部署,扩容,注册,代购,备案','faq',7),
             ]
             for s in kb_seeds:
-                m.execute('INSERT OR IGNORE INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (?,?,?,?,?,?)', s)
+                m.execute('INSERT INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING', s)
             m.commit()
             print(f'[Migration] knowledge_blocks seeded: {len(kb_seeds)} blocks')
 
@@ -1665,21 +1769,21 @@ def init_db():
                 ('kb_faq_whitepaper_tech', '技术架构说明', '系统采用Python 3.12 + Flask多服务微架构，SQLite (WAL模式)数据库，Vanilla JS SPA前端。支持SSO统一登录、多种支付网关、SSE流式对话、RAG知识库检索、Agent矩阵智能体编排等核心技术。', '技术,架构,Flask,Python,SSO,支付', 'tech', 8),
             ]
             for s in faq_seeds_data:
-                ms.execute('INSERT OR IGNORE INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (?,?,?,?,?,?)', s)
+                ms.execute('INSERT INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING', s)
             ms.commit()
             print(f'[Migration] FAQ & whitepaper seeded: {len(faq_seeds_data)} blocks')
 
     # ── Migration: knowledge_queue（数据清洗 — 2026-06-10）──
     with get_db() as m:
         m.execute('''CREATE TABLE IF NOT EXISTS knowledge_queue (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             source          TEXT DEFAULT 'manual',
             raw_content     TEXT NOT NULL,
             status          TEXT DEFAULT 'pending',
             cleaned_id      TEXT,
             error_msg       TEXT DEFAULT '',
-            admin_id        INTEGER DEFAULT 0,
-            created_at      TEXT DEFAULT (datetime('now','localtime'))
+            admin_id        BIGINT DEFAULT 0,
+            created_at      TEXT DEFAULT NOW()
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_kq_status ON knowledge_queue(status)')
         m.commit()
@@ -1689,15 +1793,13 @@ def init_db():
 
     # ── Migration: add receiver fields to order_items (shop.db) ──
     try:
-        shop_conn = sqlite3.connect(SHOP_DB_PATH)
-        shop_conn.row_factory = sqlite3.Row
-        for col in ['receiver_name', 'receiver_phone', 'receiver_address']:
-            try:
-                shop_conn.execute(f"ALTER TABLE order_items ADD COLUMN {col} TEXT DEFAULT ''")
-            except Exception:
-                pass  # already exists
-        shop_conn.commit()
-        shop_conn.close()
+        with get_db() as shop_conn:
+            for col in ['receiver_name', 'receiver_phone', 'receiver_address']:
+                try:
+                    shop_conn.execute(f"ALTER TABLE shop.order_items ADD COLUMN {col} TEXT DEFAULT ''")
+                except Exception:
+                    pass  # already exists
+            shop_conn.commit()
     except Exception:
         pass  # shop.db may not exist yet (first run)
 
@@ -1723,8 +1825,8 @@ def init_db():
         ]
         for slug, name, ver, author, desc, industry, tags in theme_seeds:
             m.execute(
-                "INSERT OR IGNORE INTO themes (slug, name, version, author, description, industry, tags, config_json, dir_name) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO themes (slug, name, version, author, description, industry, tags, config_json, dir_name) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (slug) DO NOTHING",
                 (slug, name, ver, author, desc, industry, tags,
                  '{"name":"' + name + '","slug":"' + slug + '","version":"' + ver + '","builtin":false}', slug)
             )
@@ -1733,7 +1835,7 @@ def init_db():
 
     # ── Migration: brand_settings software_name + software_slogan ──
     with get_db() as m:
-        cols = [r['name'] for r in m.execute('PRAGMA table_info(brand_settings)').fetchall()]
+        cols = [r['name'] for r in get_table_columns(m, 'brand_settings')]
         if 'software_name' not in cols:
             m.execute("ALTER TABLE brand_settings ADD COLUMN software_name TEXT NOT NULL DEFAULT 'VeroRon 维洛智能'")
             m.commit()
@@ -1765,7 +1867,7 @@ def init_db():
         old_plans = m.execute("SELECT * FROM service_plans").fetchall()
         migrated_plans = 0
         for p in old_plans:
-            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (p['plan_key'],)).fetchone()
+            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key = %s", (p['plan_key'],)).fetchone()
             if not exists:
                 # daily_limit 合并到 features_json
                 import json as _j
@@ -1773,7 +1875,7 @@ def init_db():
                 old_features.append(f"每日{p['daily_limit']}次调用")
                 m.execute(
                     "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, tier, features_json, sort_order, is_active, created_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (plan_key) DO NOTHING",
                     (p['plan_key'], p['name'], p['description'],
                      int(p['price_month'] * 100), int(p['price_year'] * 100),
                      'premium', _j.dumps(old_features, ensure_ascii=False),
@@ -1790,11 +1892,11 @@ def init_db():
         old_bills = m.execute("SELECT * FROM billing_orders").fetchall()
         migrated_bills = 0
         for b in old_bills:
-            exists = m.execute("SELECT id FROM subscription_orders WHERE order_no=?", (b['order_no'],)).fetchone()
+            exists = m.execute("SELECT id FROM subscription_orders WHERE order_no = %s", (b['order_no'],)).fetchone()
             if not exists:
                 m.execute(
                     "INSERT INTO subscription_orders (order_no, user_id, amount_fen, currency, item_type, plan_key, period, status, payment_method, created_at, paid_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (order_no) DO NOTHING",
                     (b['order_no'], b['user_id'], int(b['amount'] * 100), b['currency'],
                      b['item_type'], 'unknown', 'once', b['status'],
                      b['payment_method'] or '', b['created_at'], b['paid_at'])
@@ -1810,11 +1912,11 @@ def init_db():
         old_orders = m.execute("SELECT * FROM orders").fetchall()
         migrated_ord = 0
         for o in old_orders:
-            exists = m.execute("SELECT id FROM subscription_orders WHERE order_no=?", (o['order_id'],)).fetchone()
+            exists = m.execute("SELECT id FROM subscription_orders WHERE order_no = %s", (o['order_id'],)).fetchone()
             if not exists:
                 m.execute(
                     "INSERT INTO subscription_orders (order_no, user_id, amount_fen, currency, item_type, plan_key, period, status, payment_method, created_at, paid_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (order_no) DO NOTHING",
                     (o['order_id'], o['user_id'], int((o['amount'] or 0) * 100), 'CNY',
                      'subscription', o['tier_bought'] or 'unknown', 'once', o['status'],
                      o['pay_method'] or '', o['created_at'], o['paid_at'])
@@ -1843,7 +1945,7 @@ def init_db():
                 openid      TEXT PRIMARY KEY,
                 profile     TEXT DEFAULT '{}',
                 summary     TEXT DEFAULT '',
-                visit_count INTEGER DEFAULT 0,
+                visit_count BIGINT DEFAULT 0,
                 created_at  TEXT,
                 updated_at  TEXT
             )
@@ -1854,7 +1956,7 @@ def init_db():
     # 迁移：为 mp_profiles 表添加 visit_count 字段
     try:
         with get_db() as m:
-            m.execute("ALTER TABLE mp_profiles ADD COLUMN visit_count INTEGER DEFAULT 0")
+            m.execute("ALTER TABLE mp_profiles ADD COLUMN visit_count BIGINT DEFAULT 0")
     except Exception as e:
         import logging
         logging.debug(f"[Migration] mp_profiles visit_count column may already exist: {e}")
@@ -1903,14 +2005,14 @@ def init_db():
              '["AI智能建站","AI高级客服(多轮对话+CRM+飞书通知)","AI内容工厂(RSS→AI加工→CMS→社媒推送)","Agent矩阵(1+12智能体协作)","1688批量供应链管理+自动铺货","社媒自动发布(微信/微博/头条/抖音)","云服务自动开通","12维用户画像+意向分级","数据看板+AI洞察报告","月度巡检+专属客服","赠送¥120 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 3),
         ]
         for pk, nm, desc, pm, py, td, tier, feats, so in site_plans:
-            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (pk,)).fetchone()
+            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key = %s", (pk,)).fetchone()
             if exists:
                 m.execute(
-                    "UPDATE subscription_plans SET name=?, description=?, price_month=?, price_year=?, trial_days=?, tier=?, features_json=?, sort_order=? WHERE plan_key=?",
+                    "UPDATE subscription_plans SET name = %s, description = %s, price_month = %s, price_year = %s, trial_days = %s, tier = %s, features_json = %s, sort_order = %s WHERE plan_key = %s",
                     (nm, desc, pm, py, td, tier, feats, so, pk))
             else:
                 m.execute(
-                    "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES (?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (plan_key) DO NOTHING",
                     (pk, nm, desc, pm, py, td, tier, feats, so))
         m.commit()
         print(f'[Migration] 独立部署套餐 subscription_plans 已更新')
@@ -1922,18 +2024,18 @@ def init_db():
     with get_db() as m:
         m.execute("""
             CREATE TABLE IF NOT EXISTS invoices (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 invoice_no      TEXT UNIQUE NOT NULL,
                 order_no        TEXT NOT NULL,
-                user_id         INTEGER NOT NULL REFERENCES users(id),
-                amount_fen      INTEGER NOT NULL DEFAULT 0,
-                amount_yuan     REAL NOT NULL DEFAULT 0,
+                user_id         BIGINT NOT NULL REFERENCES users(id),
+                amount_fen      BIGINT NOT NULL DEFAULT 0,
+                amount_yuan     DOUBLE PRECISION NOT NULL DEFAULT 0,
                 plan_name       TEXT DEFAULT '',
                 period_text     TEXT DEFAULT '',
                 status          TEXT NOT NULL DEFAULT 'issued',
                                 -- issued / cancelled
                 pdf_path        TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TIMESTAMP DEFAULT NOW()
             )
         """)
         m.execute('CREATE INDEX IF NOT EXISTS idx_inv_user ON invoices(user_id)')
@@ -1944,10 +2046,10 @@ def init_db():
     # ── Migration: orders user_deleted soft-delete ──
     with get_db() as m:
         for table in ['subscription_orders']:  # order_items user_deleted handled by init_shop_db()
-            cols = [r['name'] for r in m.execute(f'PRAGMA table_info({table})').fetchall()]
+            cols = [r['name'] for r in m.execute(f'get_table_columns(conn, table)').fetchall()]
             if 'user_deleted' not in cols:
                 try:
-                    m.execute(f"ALTER TABLE {table} ADD COLUMN user_deleted INTEGER DEFAULT 0")
+                    m.execute(f"ALTER TABLE {table} ADD COLUMN user_deleted BIGINT DEFAULT 0")
                     print(f'[Migration] {table}.user_deleted added')
                 except Exception as e:
                     print(f'[Migration] {table}.user_deleted skipped: {e}')
@@ -1957,14 +2059,14 @@ def init_db():
     with get_db() as m:
         m.execute("""
             CREATE TABLE IF NOT EXISTS chatbot_sessions (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 session_id  TEXT NOT NULL,
                 user_query  TEXT DEFAULT '',
                 ai_reply    TEXT DEFAULT '',
-                escalated   INTEGER DEFAULT 0,
-                csat_score  INTEGER DEFAULT 0,
+                escalated   BIGINT DEFAULT 0,
+                csat_score  BIGINT DEFAULT 0,
                 source      TEXT DEFAULT 'chatbot',
-                created_at  TEXT DEFAULT (datetime('now'))
+                created_at  TIMESTAMP DEFAULT NOW()
             )
         """)
         m.execute('CREATE INDEX IF NOT EXISTS idx_cs_created ON chatbot_sessions(created_at)')
@@ -1974,7 +2076,7 @@ def init_db():
 
     # ── Migration: chatbot_sessions intent/sentiment 字段 (2026-07-12) ──
     with get_db() as m:
-        existing = [r['name'] for r in m.execute('PRAGMA table_info(chatbot_sessions)').fetchall()]
+        existing = [r['name'] for r in get_table_columns(m, 'chatbot_sessions')]
         for col, col_def in {'intent': "intent TEXT DEFAULT ''",
                              'sentiment': "sentiment TEXT DEFAULT ''"}.items():
             if col not in existing:
@@ -1988,10 +2090,10 @@ def init_db():
 
     # ── Migration: user_tickets.assigned_to 座席字段 (2026-07-12) ──
     with get_db() as m:
-        cols_t = [r['name'] for r in m.execute('PRAGMA table_info(user_tickets)').fetchall()]
+        cols_t = [r['name'] for r in get_table_columns(m, 'user_tickets')]
         if 'assigned_to' not in cols_t:
             try:
-                m.execute("ALTER TABLE user_tickets ADD COLUMN assigned_to INTEGER DEFAULT 0 REFERENCES users(id)")
+                m.execute("ALTER TABLE user_tickets ADD COLUMN assigned_to BIGINT DEFAULT 0 REFERENCES users(id)")
                 print('[Migration] user_tickets.assigned_to added')
             except Exception as e:
                 print(f'[Migration] user_tickets.assigned_to skipped: {e}')
@@ -2024,12 +2126,12 @@ def _get_default_interests():
 # ── Migration: deployment_codes 独立部署订阅表 (2026-06-27) ──
 with get_db() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         code            TEXT UNIQUE NOT NULL,
         code_hash       TEXT NOT NULL,
-        user_id         INTEGER NOT NULL,
+        user_id         BIGINT NOT NULL,
         plan_key        TEXT NOT NULL DEFAULT 'deploy_basic',
-        duration_days   INTEGER NOT NULL DEFAULT 365,
+        duration_days   BIGINT NOT NULL DEFAULT 365,
         expires_at      TEXT NOT NULL,
         status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
         last_heartbeat  TEXT,
@@ -2049,7 +2151,7 @@ try:
     with get_db() as m:
         old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
         for pk in old_plan_keys:
-            m.execute("DELETE FROM subscription_plans WHERE plan_key=?", (pk,))
+            m.execute("DELETE FROM subscription_plans WHERE plan_key = %s", (pk,))
         # 更新已存在的老 plan_key 的订阅记录
         m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
         m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
@@ -2063,7 +2165,7 @@ except Exception as e:
 if MARKET == 'intl':
     with get_db() as m:
         # INTL 用户表补充 OAuth 字段（CN 已有的 wechat/douyin 字段在 INTL 中保持空值）
-        intl_cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+        intl_cols = [r['name'] for r in get_table_columns(m, 'users')]
         intl_additions = {
             'country_code': "country_code TEXT DEFAULT ''",
             'google_id': "google_id TEXT",
@@ -2080,8 +2182,8 @@ if MARKET == 'intl':
 
         # INTL 地址表（自由文本）
         m.execute('''CREATE TABLE IF NOT EXISTS user_addresses_intl (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id         INTEGER NOT NULL REFERENCES users(id),
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            user_id         BIGINT NOT NULL REFERENCES users(id),
             label           TEXT DEFAULT '',
             recipient_name  TEXT NOT NULL DEFAULT '',
             phone           TEXT NOT NULL DEFAULT '',
@@ -2091,10 +2193,10 @@ if MARKET == 'intl':
             address_line1   TEXT NOT NULL DEFAULT '',
             address_line2   TEXT DEFAULT '',
             postal_code     TEXT DEFAULT '',
-            is_default      INTEGER DEFAULT 0,
-            status          INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now'))
+            is_default      BIGINT DEFAULT 0,
+            status          BIGINT DEFAULT 1,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_addr_intl_user ON user_addresses_intl(user_id)')
 
@@ -2109,10 +2211,10 @@ if MARKET == 'intl':
         ]
         try:
             for pk, nm, desc, pm, py, td, tier, feats, so in intl_plans:
-                exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key=?", (pk,)).fetchone()
+                exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key = %s", (pk,)).fetchone()
                 if not exists:
                     m.execute(
-                        "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (?,?,?,?,?,?,?,?,?,'USD')",
+                        "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'USD') ON CONFLICT (plan_key) DO NOTHING",
                         (pk, nm, desc, pm, py, td, tier, feats, so))
             m.commit()
         except Exception as e:
@@ -2121,7 +2223,7 @@ if MARKET == 'intl':
 else:
     # CN 区: subscription_plans 增加 currency 字段（向后兼容）
     with get_db() as m:
-        plan_cols = [r['name'] for r in m.execute('PRAGMA table_info(subscription_plans)').fetchall()]
+        plan_cols = [r['name'] for r in get_table_columns(m, 'subscription_plans')]
         if 'currency' not in plan_cols:
             try:
                 m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
@@ -2131,7 +2233,7 @@ else:
 
 # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
 with get_db() as m:
-    user_cols = [r['name'] for r in m.execute('PRAGMA table_info(users)').fetchall()]
+    user_cols = [r['name'] for r in get_table_columns(m, 'users')]
     enterprise_fields = {
         'enterprise_name': "enterprise_name TEXT DEFAULT ''",
         'enterprise_tax_id': "enterprise_tax_id TEXT DEFAULT ''",
@@ -2139,7 +2241,7 @@ with get_db() as m:
         'enterprise_phone': "enterprise_phone TEXT DEFAULT ''",
         'enterprise_bank': "enterprise_bank TEXT DEFAULT ''",
         'enterprise_bank_acct': "enterprise_bank_acct TEXT DEFAULT ''",
-        'enterprise_verified': "enterprise_verified INTEGER DEFAULT 0",
+        'enterprise_verified': "enterprise_verified BIGINT DEFAULT 0",
         'enterprise_verified_at': "enterprise_verified_at TEXT",
     }
     for col_name, col_def in enterprise_fields.items():
@@ -2165,14 +2267,14 @@ with get_db() as m:
 # ── i18n 翻译表 (2026-06-30) ──
 with get_db() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS i18n_strings (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         locale      TEXT NOT NULL DEFAULT 'zh-CN',
         source_hash TEXT NOT NULL,
         source      TEXT NOT NULL,
         translation TEXT NOT NULL DEFAULT '',
-        is_auto     INTEGER DEFAULT 0,
-        updated_at  TEXT DEFAULT (datetime('now')),
-        created_at  TEXT DEFAULT (datetime('now')),
+        is_auto     BIGINT DEFAULT 0,
+        updated_at  TIMESTAMP DEFAULT NOW(),
+        created_at  TIMESTAMP DEFAULT NOW(),
         UNIQUE(locale, source_hash)
     )''')
     m.execute('CREATE INDEX IF NOT EXISTS idx_i18n_locale ON i18n_strings(locale)')
@@ -2181,18 +2283,18 @@ with get_db() as m:
 # ── Migration: site_domains 子域名管理表 (2026-07-06) ──
 with get_db() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS site_domains (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        site_config_id  INTEGER NOT NULL DEFAULT 1,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        site_config_id  BIGINT NOT NULL DEFAULT 1,
         subdomain       TEXT NOT NULL,
         full_domain     TEXT NOT NULL UNIQUE,
         display_name    TEXT NOT NULL DEFAULT '',
         template        TEXT DEFAULT 'default',
-        is_published    INTEGER DEFAULT 1,
+        is_published    BIGINT DEFAULT 1,
         page_keys_json  TEXT DEFAULT '["home"]',
-        sort_order      INTEGER DEFAULT 0,
-        service_port    INTEGER DEFAULT NULL,
-        created_at      TEXT DEFAULT (datetime('now')),
-        updated_at      TEXT DEFAULT (datetime('now')),
+        sort_order      BIGINT DEFAULT 0,
+        service_port    BIGINT DEFAULT NULL,
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (site_config_id) REFERENCES site_configs(id)
     )''')
     m.execute('CREATE INDEX IF NOT EXISTS idx_sd_config ON site_domains(site_config_id)')
@@ -2203,7 +2305,7 @@ with get_db() as m:
 # ── Migration: site_domains 新增 service_port 列 (2026-07-06) ──
 try:
     with get_db() as m:
-        m.execute("ALTER TABLE site_domains ADD COLUMN service_port INTEGER DEFAULT NULL")
+        m.execute("ALTER TABLE site_domains ADD COLUMN service_port BIGINT DEFAULT NULL")
         m.commit()
         print('[Migration] ✅ site_domains 新增 service_port 列')
 except Exception:
@@ -2215,7 +2317,7 @@ _default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
 try:
     with get_db() as m:
         m.execute(
-            "INSERT OR IGNORE INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, ?, ?, 'ai', 'self_hosted', '[\"main\"]')",
+            "INSERT INTO site_configs (id, domain, name, industry, tier, features) VALUES (1, %s, %s, 'ai', 'self_hosted', '[\"main\"]') ON CONFLICT (id) DO NOTHING",
             (_default_domain, _default_brand)
         )
         m.commit()
@@ -2232,7 +2334,7 @@ try:
     with get_db() as m:
         for sub, full, name, template, pub, so in _defaults:
             m.execute(
-                "INSERT OR IGNORE INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, %s, %s, %s, %s, %s, %s) ON CONFLICT (full_domain) DO NOTHING",
                 (sub, full, name, template, pub, so)
             )
         m.commit()
@@ -2244,28 +2346,28 @@ except Exception:
 # ── Site Builder 模块表 (2026-07-11) ──
 with get_db() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS site_builder_prompts (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         identifier      TEXT UNIQUE NOT NULL,
         name            TEXT NOT NULL,
         description     TEXT DEFAULT '',
         icon            TEXT DEFAULT '📄',
         industry        TEXT DEFAULT '',
         tags_json       TEXT DEFAULT '[]',
-        is_builtin      INTEGER DEFAULT 1,
-        is_active       INTEGER DEFAULT 1,
+        is_builtin      BIGINT DEFAULT 1,
+        is_active       BIGINT DEFAULT 1,
         defaults_json   TEXT DEFAULT '{}',
         pages_json      TEXT DEFAULT '[]',
         documents_json  TEXT DEFAULT '[]',
         prompts_json    TEXT DEFAULT '{}',
-        created_by      INTEGER DEFAULT 0,
-        created_at      TEXT DEFAULT (datetime('now')),
-        updated_at      TEXT DEFAULT (datetime('now'))
+        created_by      BIGINT DEFAULT 0,
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW()
     )''')
     m.execute('''CREATE TABLE IF NOT EXISTS site_builder_tasks (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         task_id         TEXT UNIQUE NOT NULL,
-        user_id         INTEGER NOT NULL,
-        site_config_id  INTEGER DEFAULT 1,
+        user_id         BIGINT NOT NULL,
+        site_config_id  BIGINT DEFAULT 1,
         prompt_id       INTEGER,
         user_input      TEXT DEFAULT '',
         status          TEXT DEFAULT 'pending',
@@ -2273,8 +2375,8 @@ with get_db() as m:
         result_json     TEXT DEFAULT '{}',
         current_step    TEXT DEFAULT '',
         error_message   TEXT DEFAULT '',
-        created_at      TEXT DEFAULT (datetime('now')),
-        updated_at      TEXT DEFAULT (datetime('now')),
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW(),
         finished_at     TEXT DEFAULT ''
     )''')
     m.execute('CREATE INDEX IF NOT EXISTS idx_sbp_identifier ON site_builder_prompts(identifier)')
@@ -2288,14 +2390,14 @@ with get_db() as m:
     try:
         m.execute("""
             CREATE TABLE IF NOT EXISTS design_tokens (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 site_key        TEXT NOT NULL DEFAULT 'platform',
                 token_json      TEXT DEFAULT '{}',
                 generated_by    TEXT DEFAULT 'manual',
-                prompt_id       INTEGER DEFAULT NULL,
-                version         INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now')),
+                prompt_id       BIGINT DEFAULT NULL,
+                version         BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW(),
                 UNIQUE(site_key)
             );
         """)

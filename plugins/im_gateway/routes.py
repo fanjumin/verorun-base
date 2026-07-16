@@ -125,10 +125,10 @@ def update_channel(channel):
 
     conn.execute(
         """INSERT INTO channel_configs (channel, config_json, is_enabled)
-           VALUES (?, ?, ?)
+           VALUES (%s, %s, %s)
            ON CONFLICT(channel) DO UPDATE SET
            config_json=excluded.config_json, is_enabled=excluded.is_enabled,
-           updated_at=datetime('now')""",
+           updated_at=NOW()""",
         (channel, json.dumps(merged, ensure_ascii=False), is_enabled)
     )
     conn.commit()

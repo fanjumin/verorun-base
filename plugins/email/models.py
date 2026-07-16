@@ -1,28 +1,53 @@
 #!/usr/bin/env python3
 """
-Email Plugin Models — 独立数据库 email.db
-==========================================
-完全独立于主库，不依赖主系统 models。
-参考 ads 插件模式设计。
+Email Plugin Models — PostgreSQL schema: email
+===============================================
+完全独立于主库，使用独立 PG schema。
 """
 
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'email.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'email.db')  # 保留用于迁移
 
 _email_conn = None
 
 
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql, params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
+
 def get_email_db():
-    """获取邮件插件独立数据库连接（单例）"""
+    """获取邮件插件数据库连接（单例，PG schema: email）"""
     global _email_conn
     if _email_conn is None:
-        _email_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _email_conn.row_factory = sqlite3.Row
-        _email_conn.execute("PRAGMA journal_mode=WAL")
-        _email_conn.execute("PRAGMA busy_timeout=1000")
-        _email_conn.execute("PRAGMA foreign_keys=ON")
+        raw = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        raw.autocommit = False
+        raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS email")
+        raw.commit()
+        raw.cursor().execute("SET search_path TO email")
+        raw.commit()
+        _email_conn = _PgConnection(raw)
     return _email_conn
 
 
@@ -30,19 +55,19 @@ def init_email_db():
     """初始化邮件插件数据库表（幂等）"""
     conn = get_email_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS email_sent (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         from_addr       TEXT NOT NULL,
         to_addr         TEXT NOT NULL,
         subject         TEXT NOT NULL,
         body_text       TEXT,
         body_html       TEXT,
-        in_reply_to     INTEGER,
-        sent_at         TEXT DEFAULT (datetime('now'))
+        in_reply_to     BIGINT,
+        sent_at         TIMESTAMPTZ DEFAULT NOW()
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_email_sent_from ON email_sent(from_addr)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_email_sent_sent_at ON email_sent(sent_at)')
     conn.commit()
-    print('[EmailPlugin] email.db 已初始化')
+    print('[EmailPlugin] PG schema email 已初始化')
 
 
 # 兼容旧接口名

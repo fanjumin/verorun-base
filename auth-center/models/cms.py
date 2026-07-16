@@ -6,14 +6,16 @@ from models import get_db
 
 def init_cms_tables():
     """Create CMS tables if not exist."""
+    from models.database import get_table_columns
     with get_db() as conn:
-        conn.executescript("""
+        cur = conn.cursor()
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS cms_blocks (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 page            TEXT NOT NULL,
                 section         TEXT NOT NULL,
                 block_type      TEXT NOT NULL DEFAULT 'text',
-                position        INTEGER NOT NULL DEFAULT 0,
+                position        BIGINT NOT NULL DEFAULT 0,
                 title           TEXT DEFAULT '',
                 subtitle        TEXT DEFAULT '',
                 content         TEXT DEFAULT '',
@@ -22,26 +24,32 @@ def init_cms_tables():
                 link_text       TEXT DEFAULT '',
                 icon            TEXT DEFAULT '',
                 extra_json      TEXT DEFAULT '{}',
-                is_published    INTEGER NOT NULL DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
-            );
+                is_published    BIGINT NOT NULL DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
 
-            CREATE INDEX IF NOT EXISTS idx_cms_blocks_page ON cms_blocks(page, position);
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cms_blocks_page ON cms_blocks(page, position)"
+        )
 
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS cms_categories (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 icon            TEXT DEFAULT '📄',
                 slug            TEXT DEFAULT '',
                 audience        TEXT NOT NULL DEFAULT 'public',
-                sort_order      INTEGER NOT NULL DEFAULT 0,
-                is_active       INTEGER NOT NULL DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now'))
-            );
+                sort_order      BIGINT NOT NULL DEFAULT 0,
+                is_active       BIGINT NOT NULL DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
 
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS cms_posts (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 slug            TEXT UNIQUE NOT NULL,
                 category        TEXT NOT NULL DEFAULT 'insights',
                 title           TEXT NOT NULL DEFAULT '',
@@ -52,25 +60,31 @@ def init_cms_tables():
                 author          TEXT DEFAULT '',
                 tags            TEXT DEFAULT '[]',
                 audience        TEXT NOT NULL DEFAULT 'public',
-                is_published    INTEGER NOT NULL DEFAULT 0,
+                is_published    BIGINT NOT NULL DEFAULT 0,
                 publish_channels TEXT DEFAULT '[]',
-                published_at    TEXT DEFAULT NULL,
+                published_at    TIMESTAMP DEFAULT NULL,
                 source          TEXT DEFAULT 'manual',
-                source_id       INTEGER DEFAULT NULL,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
-            );
+                source_id       BIGINT DEFAULT NULL,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
 
-            CREATE INDEX IF NOT EXISTS idx_cms_posts_cat ON cms_posts(category, published_at);
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cms_posts_cat ON cms_posts(category, published_at)"
+        )
 
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS cms_settings (
                 key             TEXT PRIMARY KEY,
                 value           TEXT NOT NULL DEFAULT '',
                 description     TEXT DEFAULT ''
-            );
+            )
+        """)
 
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS downloads (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 slug            TEXT UNIQUE NOT NULL,
                 name            TEXT NOT NULL,
                 tagline         TEXT DEFAULT '',
@@ -89,15 +103,18 @@ def init_cms_tables():
                 requirements    TEXT DEFAULT '',
                 tags            TEXT DEFAULT '[]',
                 icon            TEXT DEFAULT '📦',
-                sort_order      INTEGER NOT NULL DEFAULT 0,
-                is_published    INTEGER NOT NULL DEFAULT 1,
-                download_count  INTEGER NOT NULL DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_downloads_cat ON downloads(category, sort_order);
+                sort_order      BIGINT NOT NULL DEFAULT 0,
+                is_published    BIGINT NOT NULL DEFAULT 1,
+                download_count  BIGINT NOT NULL DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
         """)
+
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_downloads_cat ON downloads(category, sort_order)"
+        )
+        conn.commit()
         # Seed default categories if empty
         existing = conn.execute("SELECT COUNT(*) FROM cms_categories").fetchone()[0]
         if existing == 0:
@@ -113,15 +130,15 @@ def init_cms_tables():
             ]
             for cid, name, icon, slug, audience, sort in cats:
                 conn.execute(
-                    "INSERT INTO cms_categories (id, name, icon, slug, audience, sort_order) VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO cms_categories (id, name, icon, slug, audience, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
                     (cid, name, icon, slug, audience, sort)
                 )
         # Migration: add source/source_id columns for existing DBs (idempotent)
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(cms_posts)").fetchall()]
+        cols = get_table_columns(conn, 'cms_posts')
         if 'source' not in cols:
             conn.execute("ALTER TABLE cms_posts ADD COLUMN source TEXT DEFAULT 'manual'")
         if 'source_id' not in cols:
-            conn.execute("ALTER TABLE cms_posts ADD COLUMN source_id INTEGER DEFAULT NULL")
+            conn.execute("ALTER TABLE cms_posts ADD COLUMN source_id BIGINT DEFAULT NULL")
         conn.commit()
 
 
@@ -131,7 +148,7 @@ def get_page_blocks(page: str):
     """Get all published blocks for a page, ordered by position."""
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM cms_blocks WHERE page=? AND is_published=1 ORDER BY position",
+            "SELECT * FROM cms_blocks WHERE page=%s AND is_published=1 ORDER BY position",
             (page,)
         ).fetchall()
         return [dict(r) for r in rows]
@@ -143,11 +160,11 @@ def upsert_block(data: dict):
         if data.get('id'):
             conn.execute("""
                 UPDATE cms_blocks SET
-                    page=?, section=?, block_type=?, position=?,
-                    title=?, subtitle=?, content=?, image_url=?,
-                    link_url=?, link_text=?, icon=?, extra_json=?,
-                    is_published=?, updated_at=datetime('now')
-                WHERE id=?
+                    page=%s, section=%s, block_type=%s, position=%s,
+                    title=%s, subtitle=%s, content=%s, image_url=%s,
+                    link_url=%s, link_text=%s, icon=%s, extra_json=%s,
+                    is_published=%s, updated_at=NOW()
+                WHERE id=%s
             """, (
                 data.get('page', ''), data.get('section', ''), data.get('block_type', 'text'),
                 data.get('position', 0), data.get('title', ''), data.get('subtitle', ''),
@@ -159,7 +176,7 @@ def upsert_block(data: dict):
             cur = conn.execute("""
                 INSERT INTO cms_blocks (page, section, block_type, position, title, subtitle,
                     content, image_url, link_url, link_text, icon, extra_json, is_published)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 data.get('page', ''), data.get('section', ''), data.get('block_type', 'text'),
                 data.get('position', 0), data.get('title', ''), data.get('subtitle', ''),
@@ -174,14 +191,14 @@ def upsert_block(data: dict):
 
 def delete_block(block_id: int):
     with get_db() as conn:
-        conn.execute("DELETE FROM cms_blocks WHERE id=?", (block_id,))
+        conn.execute("DELETE FROM cms_blocks WHERE id=%s", (block_id,))
         conn.commit()
 
 
 def reorder_blocks(page: str, block_ids: list):
     with get_db() as conn:
         for i, bid in enumerate(block_ids):
-            conn.execute("UPDATE cms_blocks SET position=?, updated_at=datetime('now') WHERE id=? AND page=?",
+            conn.execute("UPDATE cms_blocks SET position=%s, updated_at=NOW() WHERE id=%s AND page=%s",
                          (i, bid, page))
         conn.commit()
 
@@ -194,14 +211,14 @@ def get_posts(category: str = None, limit: int = 20, offset: int = 0, published_
         sql = "SELECT * FROM cms_posts WHERE 1=1 "
         params = []
         if category:
-            sql += "AND category=? "
+            sql += "AND category=%s "
             params.append(category)
         if audience:
-            sql += "AND audience=? "
+            sql += "AND audience=%s "
             params.append(audience)
         if published_only:
             sql += "AND is_published=1 "
-        sql += "ORDER BY published_at DESC LIMIT ? OFFSET ?"
+        sql += "ORDER BY published_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
         rows = conn.execute(sql, params).fetchall()
         posts = [dict(r) for r in rows]
@@ -213,14 +230,14 @@ def get_posts(category: str = None, limit: int = 20, offset: int = 0, published_
 
 def get_post_by_slug(slug: str):
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM cms_posts WHERE slug=? AND is_published=1", (slug,)).fetchone()
+        row = conn.execute("SELECT * FROM cms_posts WHERE slug=%s AND is_published=1", (slug,)).fetchone()
         return dict(row) if row else None
 
 
 def get_post_by_slug_preview(slug: str):
     """Get article by slug for preview (bypass is_published filter for admin preview)."""
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM cms_posts WHERE slug=?", (slug,)).fetchone()
+        row = conn.execute("SELECT * FROM cms_posts WHERE slug=%s", (slug,)).fetchone()
         return dict(row) if row else None
 
 
@@ -235,14 +252,14 @@ def get_all_posts(limit: int = 50, offset: int = 0, status_filter: str = None, a
         elif status_filter == 'published':
             conditions.append("is_published=1")
         if source and source != 'all':
-            conditions.append("source=?")
+            conditions.append("source=%s")
             params.append(source)
         if audience:
-            conditions.append(f"audience=?" if '?' not in audience else "audience IN ({})".format(audience))
+            conditions.append(f"audience=%s" if '?' not in audience else "audience IN ({})".format(audience))
             params.append(audience)
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
-        sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        sql += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
         rows = conn.execute(sql, params).fetchall()
         posts = [dict(r) for r in rows]
@@ -339,15 +356,15 @@ def upsert_post(data: dict):
         if data.get('id'):
             conn.execute("""
                 UPDATE cms_posts SET
-                    slug=?, category=?, title=?, excerpt=?, content=?,
-                    content_format=?, cover_image=?, author=?,
-                    tags=?, audience=?,
-                    is_published=?,
-                    publish_channels=?,
-                    source=?, source_id=?,
-                    published_at=COALESCE(?, published_at),
-                    updated_at=datetime('now')
-                WHERE id=?
+                    slug=%s, category=%s, title=%s, excerpt=%s, content=%s,
+                    content_format=%s, cover_image=%s, author=%s,
+                    tags=%s, audience=%s,
+                    is_published=%s,
+                    publish_channels=%s,
+                    source=%s, source_id=%s,
+                    published_at=COALESCE(%s, published_at),
+                    updated_at=NOW()
+                WHERE id=%s
             """, (
                 data.get('slug', ''), data.get('category', 'insights'),
                 data.get('title', ''), data.get('excerpt', ''), data.get('content', ''),
@@ -362,7 +379,7 @@ def upsert_post(data: dict):
         else:
             cur = conn.execute("""
                 INSERT INTO cms_posts (slug, category, title, excerpt, content, content_format, cover_image, author, tags, audience, is_published, publish_channels, source, source_id, published_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ? THEN datetime('now') ELSE NULL END)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, CASE WHEN %s THEN NOW() ELSE NULL END)
             """, (
                 data.get('slug', ''), data.get('category', 'insights'),
                 data.get('title', ''), data.get('excerpt', ''), data.get('content', ''),
@@ -380,7 +397,7 @@ def upsert_post(data: dict):
 
 def delete_post(post_id: int):
     with get_db() as conn:
-        conn.execute("DELETE FROM cms_posts WHERE id=?", (post_id,))
+        conn.execute("DELETE FROM cms_posts WHERE id=%s", (post_id,))
         conn.commit()
 
 
@@ -388,14 +405,14 @@ def delete_post(post_id: int):
 
 def get_setting(key: str, default: str = ''):
     with get_db() as conn:
-        row = conn.execute("SELECT value FROM cms_settings WHERE key=?", (key,)).fetchone()
+        row = conn.execute("SELECT value FROM cms_settings WHERE key=%s", (key,)).fetchone()
         return row['value'] if row else default
 
 
 def set_setting(key: str, value: str):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO cms_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            "INSERT INTO cms_settings (key, value) VALUES (%s,%s) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, value)
         )
         conn.commit()
@@ -417,7 +434,7 @@ def get_categories(active_only=True, audience: str = None):
         if active_only:
             conditions.append("is_active=1")
         if audience:
-            conditions.append("audience=?")
+            conditions.append("audience=%s")
             params.append(audience)
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
@@ -430,14 +447,14 @@ def upsert_category(data: dict):
     with get_db() as conn:
         if data.get('id'):
             conn.execute(
-                "UPDATE cms_categories SET name=?, icon=?, slug=?, audience=?, sort_order=?, is_active=? WHERE id=?",
+                "UPDATE cms_categories SET name=%s, icon=%s, slug=%s, audience=%s, sort_order=%s, is_active=%s WHERE id=%s",
                 (data['name'], data.get('icon', '📄'), data.get('slug', ''),
                  data.get('audience', 'public'), int(data.get('sort_order', 0)),
                  data.get('is_active', 1), data['id'])
             )
         else:
             cur = conn.execute(
-                "INSERT INTO cms_categories (name, icon, slug, audience, sort_order, is_active) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO cms_categories (name, icon, slug, audience, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s)",
                 (data['name'], data.get('icon', '📄'), data.get('slug', ''),
                  data.get('audience', 'public'), int(data.get('sort_order', 0)),
                  data.get('is_active', 1))
@@ -451,19 +468,19 @@ def delete_category(cat_id: int):
     with get_db() as conn:
         # 检查是否有文章引用此分类
         ref_count = conn.execute(
-            "SELECT COUNT(*) FROM cms_posts WHERE category=(SELECT name FROM cms_categories WHERE id=?)",
+            "SELECT COUNT(*) FROM cms_posts WHERE category=(SELECT name FROM cms_categories WHERE id=%s)",
             (cat_id,)
         ).fetchone()[0]
         if ref_count > 0:
             raise ValueError(f'该分类下有 {ref_count} 篇文章，请先移除或更改文章分类后再删除')
-        conn.execute("DELETE FROM cms_categories WHERE id=?", (cat_id,))
+        conn.execute("DELETE FROM cms_categories WHERE id=%s", (cat_id,))
         conn.commit()
 
 
 def reorder_categories(ids: list):
     with get_db() as conn:
         for i, cid in enumerate(ids):
-            conn.execute("UPDATE cms_categories SET sort_order=? WHERE id=?", (i, cid))
+            conn.execute("UPDATE cms_categories SET sort_order=%s WHERE id=%s", (i, cid))
         conn.commit()
 
 
@@ -475,11 +492,11 @@ def get_downloads(category: str = None, published_only: bool = True, limit: int 
         sql = "SELECT * FROM downloads WHERE 1=1 "
         params = []
         if category:
-            sql += "AND category=? "
+            sql += "AND category=%s "
             params.append(category)
         if published_only:
             sql += "AND is_published=1 "
-        sql += "ORDER BY sort_order, id LIMIT ?"
+        sql += "ORDER BY sort_order, id LIMIT %s"
         params.append(limit)
         rows = conn.execute(sql, params).fetchall()
         items = [dict(r) for r in rows]
@@ -497,7 +514,7 @@ def get_download_by_slug(slug: str):
     """Get a single download item by slug."""
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM downloads WHERE slug=? AND is_published=1", (slug,)
+            "SELECT * FROM downloads WHERE slug=%s AND is_published=1", (slug,)
         ).fetchone()
     if not row:
         return None
@@ -512,7 +529,7 @@ def get_download_by_slug(slug: str):
 def get_download(dl_id: int):
     """Get a single download item by ID."""
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM downloads WHERE id=?", (dl_id,)).fetchone()
+        row = conn.execute("SELECT * FROM downloads WHERE id=%s", (dl_id,)).fetchone()
     if not row:
         return None
     item = dict(row)
@@ -527,7 +544,7 @@ def get_all_downloads(limit: int = 100):
     """Get all downloads (including unpublished) for admin."""
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM downloads ORDER BY sort_order, id LIMIT ?", (limit,)
+            "SELECT * FROM downloads ORDER BY sort_order, id LIMIT %s", (limit,)
         ).fetchall()
         items = [dict(r) for r in rows]
         for it in items:
@@ -548,13 +565,13 @@ def upsert_download(data: dict):
         if data.get('id'):
             conn.execute("""
                 UPDATE downloads SET
-                    slug=?, name=?, tagline=?, description=?, category=?,
-                    platforms=?, version=?, release_date=?, repo_url=?,
-                    download_url=?, docs_url=?, changelog_url=?,
-                    file_size=?, checksum_sha256=?, license=?, requirements=?,
-                    tags=?, icon=?, sort_order=?, is_published=?,
-                    updated_at=datetime('now')
-                WHERE id=?
+                    slug=%s, name=%s, tagline=%s, description=%s, category=%s,
+                    platforms=%s, version=%s, release_date=%s, repo_url=%s,
+                    download_url=%s, docs_url=%s, changelog_url=%s,
+                    file_size=%s, checksum_sha256=%s, license=%s, requirements=%s,
+                    tags=%s, icon=%s, sort_order=%s, is_published=%s,
+                    updated_at=NOW()
+                WHERE id=%s
             """, (
                 data.get('slug', ''), data.get('name', ''), data.get('tagline', ''),
                 data.get('description', ''), data.get('category', 'skills'),
@@ -573,7 +590,7 @@ def upsert_download(data: dict):
                     platforms, version, release_date, repo_url, download_url,
                     docs_url, changelog_url, file_size, checksum_sha256,
                     license, requirements, tags, icon, sort_order, is_published)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 data.get('slug', ''), data.get('name', ''), data.get('tagline', ''),
                 data.get('description', ''), data.get('category', 'skills'),
@@ -592,19 +609,19 @@ def upsert_download(data: dict):
 
 def delete_download(dl_id: int):
     with get_db() as conn:
-        conn.execute("DELETE FROM downloads WHERE id=?", (dl_id,))
+        conn.execute("DELETE FROM downloads WHERE id=%s", (dl_id,))
         conn.commit()
 
 
 def reorder_downloads(ids: list):
     with get_db() as conn:
         for i, did in enumerate(ids):
-            conn.execute("UPDATE downloads SET sort_order=?, updated_at=datetime('now') WHERE id=?",
+            conn.execute("UPDATE downloads SET sort_order=%s, updated_at=NOW() WHERE id=%s",
                          (i, did))
         conn.commit()
 
 
 def increment_download_count(slug: str):
     with get_db() as conn:
-        conn.execute("UPDATE downloads SET download_count=download_count+1 WHERE slug=?", (slug,))
+        conn.execute("UPDATE downloads SET download_count=download_count+1 WHERE slug=%s", (slug,))
         conn.commit()

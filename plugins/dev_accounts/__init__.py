@@ -31,7 +31,7 @@ class DevAccountsPlugin(BasePlugin):
         with get_db() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS dev_accounts (
-                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id               SERIAL PRIMARY KEY,
                     platform         TEXT NOT NULL,
                     account_name     TEXT NOT NULL,
                     app_id           TEXT DEFAULT '',
@@ -42,8 +42,8 @@ class DevAccountsPlugin(BasePlugin):
                     access_token     TEXT DEFAULT '',
                     extra_config     TEXT DEFAULT '{}',
                     is_active        INTEGER DEFAULT 1,
-                    created_at       TEXT DEFAULT (datetime('now')),
-                    updated_at       TEXT DEFAULT (datetime('now'))
+                    created_at       TEXT DEFAULT NOW(),
+                    updated_at       TEXT DEFAULT NOW()
                 );
                 CREATE INDEX IF NOT EXISTS idx_dev_accounts_platform
                     ON dev_accounts(platform);

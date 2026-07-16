@@ -335,7 +335,7 @@ class DatabaseHealthCheck(BaseHealthCheck):
                 conn.execute('SELECT 1')
                 elapsed = int((time.time() - start) * 1000)
                 tables = conn.execute(
-                    "SELECT COUNT(*) as c FROM sqlite_master WHERE type='table'"
+                    "SELECT COUNT(*) as c FROM pg_catalog.pg_tables WHERE schemaname='public'"
                 ).fetchone()['c']
                 db_path = os.environ.get('DB_PATH', os.path.join(BASE_DIR, '..', 'data', 'x7k2m9a4.db'))
                 db_size = os.path.getsize(db_path) if os.path.exists(db_path) else 0
@@ -623,7 +623,7 @@ class WorkflowHealthCheck(BaseHealthCheck):
                 wf_total = conn.execute('SELECT COUNT(*) as c FROM workflow_definitions').fetchone()['c']
                 recent_failed = conn.execute(
                     "SELECT COUNT(*) as c FROM workflow_instances "
-                    "WHERE status='failed' AND created_at>=datetime('now', '-1 day')"
+                    "WHERE status='failed' AND created_at>=NOW() - INTERVAL '1 day'"
                 ).fetchone()['c']
             elapsed = int((time.time() - start) * 1000)
             detail = {'cron_total': cron_total, 'cron_active': cron_active,
@@ -662,8 +662,8 @@ class AgentMatrixHealthCheck(BaseHealthCheck):
 
         try:
             with am_get_db() as conn:
-                tables = [t['name'] for t in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
+                tables = [t['tablename'] for t in conn.execute(
+                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'"
                 ).fetchall()]
                 detail = {'tables_found': [t for t in tables if 'agent' in t.lower()]}
 
@@ -701,8 +701,8 @@ class ContentFactoryHealthCheck(BaseHealthCheck):
         try:
             from models import get_db as main_db
             with main_db() as conn:
-                tables = [t['name'] for t in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
+                tables = [t['tablename'] for t in conn.execute(
+                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'"
                 ).fetchall()]
                 detail = {}
                 channels = conn.execute('SELECT COUNT(*) as c FROM collection_channels WHERE is_active=1').fetchone()['c'] if 'collection_channels' in tables else 0
@@ -788,10 +788,10 @@ class ErrorLogHealthCheck(BaseHealthCheck):
         try:
             from models import get_db as main_db
             with main_db() as conn:
-                if conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='admin_logs'").fetchone():
+                if conn.execute("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='health' AND tablename='admin_logs'").fetchone():
                     errors = conn.execute(
                         "SELECT COUNT(*) as c FROM admin_logs WHERE (action LIKE '%error%' OR action LIKE '%fail%') "
-                        "AND created_at>=datetime('now', '-{} hours')".format(hours)
+                        "AND created_at>=NOW() - INTERVAL '{} hours'".format(hours)
                     ).fetchone()['c']
                 else:
                     errors = 0
@@ -1100,8 +1100,8 @@ class MediaIntegrityChecker(BaseHealthCheck):
             return CheckResult('warning', 0, 'Main DB models not available, skipping media check')
 
         with main_db() as conn:
-            tables_found = [t['name'] for t in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
+            tables_found = [t['tablename'] for t in conn.execute(
+                "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'"
             ).fetchall()]
 
             # ── 1. media_files table ──
@@ -1326,10 +1326,10 @@ class InternalLinkChecker(BaseHealthCheck):
 
         # Check which tables exist
         existing = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
+            "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'"
         ).fetchall()
         for r in existing:
-            seen_tables.add(r['name'])
+            seen_tables.add(r['tablename'])
 
         for table, field, id_field, title_field, source_type in _LINK_SOURCES:
             if table not in seen_tables:

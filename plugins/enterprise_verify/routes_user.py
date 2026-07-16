@@ -108,7 +108,7 @@ def enterprise_verify_submit():
     ev_conn.execute(
         """INSERT INTO enterprise_verifications
            (user_id, enterprise_name, tax_id, ocr_raw, status, review_notes, reviewed_at)
-           VALUES (?,?,?,?,?,?, datetime('now'))""",
+           VALUES (%s,%s,%s,%s,%s,%s, NOW())""",
         (user_id, company_name, tax_id, ocr_raw, status, review_notes)
     )
 
@@ -117,9 +117,9 @@ def enterprise_verify_submit():
         with _get_main_db() as conn:
             conn.execute(
                 """UPDATE users SET
-                   enterprise_name=?, enterprise_tax_id=?, enterprise_address=?,
-                   enterprise_verified=1, enterprise_verified_at=datetime('now')
-                   WHERE id=?""",
+                   enterprise_name=%s, enterprise_tax_id=%s, enterprise_address=%s,
+                   enterprise_verified=1, enterprise_verified_at=NOW()
+                   WHERE id=%s""",
                 (company_name, tax_id, address, user_id)
             )
             conn.commit()

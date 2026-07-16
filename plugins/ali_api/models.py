@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-阿里巴巴API数据模型
+阿里巴巴API数据模型 — PostgreSQL schema: ali_api
 
 包含：
 1. ali_api_items - 阿里巴巴商品缓存表
@@ -9,7 +9,8 @@
 """
 
 import json
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from contextlib import contextmanager
@@ -17,25 +18,50 @@ from contextlib import contextmanager
 import sys
 import os
 
-# 插件独立数据库路径（本插件所有 ali_api_* 表均存于此，卸载时随 .db 删除，零残留）
+# 插件独立数据库路径（保留用于迁移）
 ALI_DB_PATH = os.environ.get(
     "ALIBABA_DB_PATH", os.path.join(os.path.dirname(__file__), "ali_api.db")
 )
 
 
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql, params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
+
 @contextmanager
 def get_db():
-    """连接插件自有数据库 ali_api.db（写入 ali_api_* 表）。"""
-    conn = sqlite3.connect(ALI_DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA foreign_keys=ON")
+    """连接插件自有数据库（PG schema: ali_api）。"""
+    raw = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    raw.autocommit = False
+    raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS ali_api")
+    raw.commit()
+    raw.cursor().execute("SET search_path TO ali_api")
+    raw.commit()
+    conn = _PgConnection(raw)
     try:
         yield conn
         conn.commit()
     finally:
-        conn.close()
+        raw.close()
 
 
 @contextmanager
@@ -59,8 +85,8 @@ class AliApiItem:
         """创建商品缓存表"""
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_items (
-                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id             INTEGER DEFAULT 0,
+                id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id             BIGINT DEFAULT 0,
                 product_id          TEXT UNIQUE NOT NULL,
                 source_url          TEXT DEFAULT '',
                 title               TEXT NOT NULL DEFAULT '',
@@ -74,11 +100,11 @@ class AliApiItem:
                 product_sku         TEXT DEFAULT '[]',
                 description         TEXT DEFAULT '',
                 -- B2B 增强字段
-                moq                 INTEGER DEFAULT 0,              -- 最小起订量
+                moq                 BIGINT DEFAULT 0,              -- 最小起订量
                 wholesale_price     TEXT DEFAULT '[]',              -- 批发阶梯价 JSON
-                is_support_agent    INTEGER DEFAULT 0,              -- 是否支持一件代发
-                seller_credit       INTEGER DEFAULT 0,              -- 卖家诚信通等级
-                shop_level          INTEGER DEFAULT 0,              -- 店铺等级
+                is_support_agent    BIGINT DEFAULT 0,              -- 是否支持一件代发
+                seller_credit       BIGINT DEFAULT 0,              -- 卖家诚信通等级
+                shop_level          BIGINT DEFAULT 0,              -- 店铺等级
                 seller_name         TEXT DEFAULT '',                -- 卖家名称
                 seller_id           TEXT DEFAULT '',                -- 卖家 ID
                 location            TEXT DEFAULT '',                -- 所在地
@@ -89,17 +115,17 @@ class AliApiItem:
                 ai_description      TEXT DEFAULT '',
                 -- 发布状态
                 publish_status      TEXT DEFAULT 'draft',
-                target_product_id   INTEGER DEFAULT NULL,
+                target_product_id   BIGINT DEFAULT NULL,
                 -- 统计
-                api_call_count      INTEGER DEFAULT 0,
+                api_call_count      BIGINT DEFAULT 0,
                 -- 原始API响应
                 api_response        TEXT DEFAULT '{}',
                 status              TEXT DEFAULT 'active',
-                last_synced_at      TEXT DEFAULT NULL,
+                last_synced_at      TIMESTAMPTZ DEFAULT NULL,
                 error_msg           TEXT DEFAULT '',
-                created_at          TEXT DEFAULT (datetime('now','localtime')),
-                updated_at          TEXT DEFAULT (datetime('now','localtime')),
-                processed_at        TEXT DEFAULT NULL
+                created_at          TIMESTAMPTZ DEFAULT NOW(),
+                updated_at          TIMESTAMPTZ DEFAULT NOW(),
+                processed_at        TIMESTAMPTZ DEFAULT NULL
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_items_product_id ON ali_api_items(product_id)')
@@ -119,7 +145,7 @@ class AliApiItem:
             raise ValueError("product_id 不能为空")
         
         # 检查是否存在
-        cursor = conn.execute('SELECT id FROM ali_api_items WHERE product_id = ?', (product_id,))
+        cursor = conn.execute('SELECT id FROM ali_api_items WHERE product_id = %s', (product_id,))
         existing = cursor.fetchone()
         
         now_iso = datetime.now().isoformat()
@@ -162,21 +188,21 @@ class AliApiItem:
             # 更新
             conn.execute('''
                 UPDATE ali_api_items SET
-                    user_id = ?, title = ?, original_title = ?,
-                    ai_title = ?, ai_title_options = ?, selected_title = ?,
-                    description = ?, ai_description = ?,
-                    price = ?, original_price = ?, currency = ?,
-                    category = ?, images = ?, specs = ?, product_sku = ?,
-                    moq = ?, wholesale_price = ?, is_support_agent = ?,
-                    seller_credit = ?, shop_level = ?,
-                    seller_name = ?, seller_id = ?, location = ?,
-                    source_url = ?, api_response = ?, status = ?,
-                    publish_status = ?, target_product_id = ?,
-                    api_call_count = api_call_count + ?,
-                    last_synced_at = ?, error_msg = ?,
-                    processed_at = COALESCE(?, processed_at),
-                    updated_at = ?
-                WHERE product_id = ?
+                    user_id = %s, title = %s, original_title = %s,
+                    ai_title = %s, ai_title_options = %s, selected_title = %s,
+                    description = %s, ai_description = %s,
+                    price = %s, original_price = %s, currency = %s,
+                    category = %s, images = %s, specs = %s, product_sku = %s,
+                    moq = %s, wholesale_price = %s, is_support_agent = %s,
+                    seller_credit = %s, shop_level = %s,
+                    seller_name = %s, seller_id = %s, location = %s,
+                    source_url = %s, api_response = %s, status = %s,
+                    publish_status = %s, target_product_id = %s,
+                    api_call_count = api_call_count + %s,
+                    last_synced_at = %s, error_msg = %s,
+                    processed_at = COALESCE(%s, processed_at),
+                    updated_at = %s
+                WHERE product_id = %s
             ''', (
                 _user_id, _title, _original_title,
                 _ai_title, _ai_title_options, _selected_title,
@@ -213,10 +239,11 @@ class AliApiItem:
                     api_call_count, error_msg,
                     last_synced_at, processed_at,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s)
+                RETURNING id
             ''', (
                 _user_id, product_id, _source_url,
                 _title, _original_title,
@@ -233,12 +260,12 @@ class AliApiItem:
                 now_iso, _processed_at,
                 now_iso, now_iso
             ))
-            return cursor.lastrowid
+            return cursor.fetchone()['id']
     
     @staticmethod
     def get_by_id(conn, item_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取商品"""
-        row = conn.execute('SELECT * FROM ali_api_items WHERE id = ?', (item_id,)).fetchone()
+        row = conn.execute('SELECT * FROM ali_api_items WHERE id = %s', (item_id,)).fetchone()
         if not row:
             return None
         return dict(row)
@@ -246,7 +273,7 @@ class AliApiItem:
     @staticmethod
     def get_by_product_id(conn, product_id: str) -> Optional[Dict[str, Any]]:
         """根据阿里巴巴商品ID获取"""
-        row = conn.execute('SELECT * FROM ali_api_items WHERE product_id = ?', (product_id,)).fetchone()
+        row = conn.execute('SELECT * FROM ali_api_items WHERE product_id = %s', (product_id,)).fetchone()
         if not row:
             return None
         return dict(row)
@@ -254,7 +281,7 @@ class AliApiItem:
     @staticmethod
     def list_items(conn, status: str = 'active', limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """列出商品"""
-        query = 'SELECT * FROM ali_api_items WHERE status = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
+        query = 'SELECT * FROM ali_api_items WHERE status = %s ORDER BY updated_at DESC LIMIT %s OFFSET %s'
         rows = conn.execute(query, (status, limit, offset)).fetchall()
         return [dict(row) for row in rows]
     
@@ -265,10 +292,10 @@ class AliApiItem:
         escaped = keyword.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         query = '''
             SELECT * FROM ali_api_items 
-            WHERE (title LIKE ? ESCAPE '\\' OR original_title LIKE ? ESCAPE '\\' 
-                   OR ai_title LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')
+            WHERE (title LIKE %s ESCAPE '\\' OR original_title LIKE %s ESCAPE '\\' 
+                   OR ai_title LIKE %s ESCAPE '\\' OR description LIKE %s ESCAPE '\\')
             AND status = 'active'
-            ORDER BY updated_at DESC LIMIT ?
+            ORDER BY updated_at DESC LIMIT %s
         '''
         pattern = f'%{escaped}%'
         rows = conn.execute(query, (pattern, pattern, pattern, pattern, limit)).fetchall()
@@ -281,15 +308,15 @@ class AliApiItem:
         if target_product_id:
             conn.execute('''
                 UPDATE ali_api_items SET
-                    publish_status = ?, target_product_id = ?,
-                    processed_at = ?, updated_at = ?
-                WHERE id = ?
+                    publish_status = %s, target_product_id = %s,
+                    processed_at = %s, updated_at = %s
+                WHERE id = %s
             ''', (publish_status, target_product_id, now_iso, now_iso, item_id))
         else:
             conn.execute('''
                 UPDATE ali_api_items SET
-                    publish_status = ?, processed_at = ?, updated_at = ?
-                WHERE id = ?
+                    publish_status = %s, processed_at = %s, updated_at = %s
+                WHERE id = %s
             ''', (publish_status, now_iso, now_iso, item_id))
         return conn.rowcount > 0
     
@@ -297,7 +324,7 @@ class AliApiItem:
     def migrate_b2b_fields(conn) -> bool:
         """迁移旧数据，增加 B2B 字段（幂等）"""
         try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN moq INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN moq BIGINT DEFAULT 0")
         except Exception:
             pass  # 已存在
         try:
@@ -305,15 +332,15 @@ class AliApiItem:
         except Exception:
             pass
         try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN is_support_agent INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN is_support_agent BIGINT DEFAULT 0")
         except Exception:
             pass
         try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_credit INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_credit BIGINT DEFAULT 0")
         except Exception:
             pass
         try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN shop_level INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE ali_api_items ADD COLUMN shop_level BIGINT DEFAULT 0")
         except Exception:
             pass
         try:
@@ -337,9 +364,9 @@ class AliApiItem:
         now_iso = datetime.now().isoformat()
         conn.execute('''
             UPDATE ali_api_items SET
-                ai_title_options = ?, selected_title = ?,
-                ai_title = ?, updated_at = ?
-            WHERE id = ?
+                ai_title_options = %s, selected_title = %s,
+                ai_title = %s, updated_at = %s
+            WHERE id = %s
         ''', (
             json.dumps(ai_title_options, ensure_ascii=False),
             selected_title,
@@ -353,7 +380,7 @@ class AliApiItem:
     def list_by_publish_status(conn, publish_status: str = 'draft', limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """按发布状态列出商品"""
         rows = conn.execute(
-            'SELECT * FROM ali_api_items WHERE publish_status = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?',
+            'SELECT * FROM ali_api_items WHERE publish_status = %s ORDER BY updated_at DESC LIMIT %s OFFSET %s',
             (publish_status, limit, offset)
         ).fetchall()
         return [dict(row) for row in rows]
@@ -366,21 +393,21 @@ class AliApiReview:
     def create_table(conn):
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_reviews (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 product_id      TEXT NOT NULL,
                 review_id       TEXT UNIQUE NOT NULL,
-                user_id         INTEGER DEFAULT 0,
+                user_id         BIGINT DEFAULT 0,
                 buyer_name      TEXT DEFAULT '',
-                rating          INTEGER DEFAULT 5,
+                rating          BIGINT DEFAULT 5,
                 content         TEXT DEFAULT '',
                 review_time     TEXT DEFAULT '',
                 spec_info       TEXT DEFAULT '',
                 images          TEXT DEFAULT '[]',
-                is_anonymous    INTEGER DEFAULT 0,
+                is_anonymous    BIGINT DEFAULT 0,
                 reply_content   TEXT DEFAULT '',
                 reply_time      TEXT DEFAULT '',
                 raw_data        TEXT DEFAULT '{}',
-                created_at      TEXT DEFAULT (datetime('now','localtime'))
+                created_at      TIMESTAMPTZ DEFAULT NOW()
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_reviews_product ON ali_api_reviews(product_id)')
@@ -393,11 +420,12 @@ class AliApiReview:
         for r in reviews:
             try:
                 conn.execute('''
-                    INSERT OR IGNORE INTO ali_api_reviews
+                    INSERT INTO ali_api_reviews
                         (product_id, review_id, buyer_name, rating, content,
                          review_time, spec_info, images, is_anonymous,
                          reply_content, reply_time, raw_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(review_id) DO NOTHING
                 ''', (
                     product_id,
                     r.get('review_id', ''),
@@ -421,7 +449,7 @@ class AliApiReview:
     @staticmethod
     def get_by_product(conn, product_id: str, limit: int = 20, offset: int = 0) -> list:
         rows = conn.execute(
-            'SELECT * FROM ali_api_reviews WHERE product_id = ? ORDER BY review_time DESC LIMIT ? OFFSET ?',
+            'SELECT * FROM ali_api_reviews WHERE product_id = %s ORDER BY review_time DESC LIMIT %s OFFSET %s',
             (product_id, limit, offset)
         ).fetchall()
         return [dict(r) for r in rows]
@@ -435,7 +463,7 @@ class AliApiReview:
                    SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END) as positive,
                    SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as neutral,
                    SUM(CASE WHEN rating <= 2 THEN 1 ELSE 0 END) as negative
-            FROM ali_api_reviews WHERE product_id = ?
+            FROM ali_api_reviews WHERE product_id = %s
         ''', (product_id,)).fetchone()
         return dict(row) if row else {'total': 0, 'avg_rating': 0, 'positive': 0, 'neutral': 0, 'negative': 0}
 
@@ -448,17 +476,17 @@ class AliApiLog:
         """创建API日志表"""
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                api_key_id INTEGER,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id BIGINT,
+                api_key_id BIGINT,
                 endpoint TEXT NOT NULL,
                 params TEXT DEFAULT '{}',
-                response_code INTEGER,
-                response_time INTEGER,
-                success INTEGER DEFAULT 0,
+                response_code BIGINT,
+                response_time BIGINT,
+                success BIGINT DEFAULT 0,
                 error_msg TEXT,
                 ip_address TEXT,
-                created_at TEXT DEFAULT (datetime('now'))
+                created_at TIMESTAMPTZ DEFAULT NOW()
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_logs_user ON ali_api_logs(user_id)')
@@ -474,7 +502,8 @@ class AliApiLog:
                 user_id, api_key_id, endpoint, params,
                 response_code, response_time, success,
                 error_msg, ip_address, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         ''', (
             log_data.get('user_id'),
             log_data.get('api_key_id'),
@@ -487,7 +516,7 @@ class AliApiLog:
             log_data.get('ip_address', ''),
             datetime.now().isoformat()
         ))
-        return cursor.lastrowid
+        return cursor.fetchone()['id']
     
     @staticmethod
     def get_stats(conn, hours: int = 24) -> Dict[str, Any]:
@@ -502,8 +531,8 @@ class AliApiLog:
         # 最近24小时调用
         recent = conn.execute('''
             SELECT COUNT(*) as count FROM ali_api_logs 
-            WHERE datetime(created_at) > datetime('now', ?)
-        ''', (f'-{hours} hours',)).fetchone()['count']
+            WHERE created_at > NOW() - INTERVAL '%s hours'
+        ''', (str(hours),)).fetchone()['count']
         
         # 按端点统计
         endpoint_stats = conn.execute('''
@@ -532,14 +561,14 @@ class AliApiUserStats:
         """创建用户统计表"""
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_user_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER UNIQUE,
-                calls_today INTEGER DEFAULT 0,
-                calls_total INTEGER DEFAULT 0,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id BIGINT UNIQUE,
+                calls_today BIGINT DEFAULT 0,
+                calls_total BIGINT DEFAULT 0,
                 last_reset_date TEXT,
-                last_call_at TEXT,
-                created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
+                last_call_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_user_stats_user ON ali_api_user_stats(user_id)')
@@ -554,7 +583,7 @@ class AliApiUserStats:
         
         # 获取或创建用户统计
         row = conn.execute(
-            'SELECT * FROM ali_api_user_stats WHERE user_id = ?', 
+            'SELECT * FROM ali_api_user_stats WHERE user_id = %s', 
             (user_id,)
         ).fetchone()
         
@@ -562,7 +591,7 @@ class AliApiUserStats:
             # 新用户
             conn.execute('''
                 INSERT INTO ali_api_user_stats (user_id, calls_today, calls_total, last_reset_date, last_call_at)
-                VALUES (?, 1, 1, ?, ?)
+                VALUES (%s, 1, 1, %s, %s)
             ''', (user_id, today, datetime.now().isoformat()))
             return True
         
@@ -573,10 +602,10 @@ class AliApiUserStats:
                 UPDATE ali_api_user_stats SET
                     calls_today = 1,
                     calls_total = calls_total + 1,
-                    last_reset_date = ?,
-                    last_call_at = ?,
-                    updated_at = ?
-                WHERE user_id = ?
+                    last_reset_date = %s,
+                    last_call_at = %s,
+                    updated_at = %s
+                WHERE user_id = %s
             ''', (today, datetime.now().isoformat(), datetime.now().isoformat(), user_id))
             return True
         
@@ -589,9 +618,9 @@ class AliApiUserStats:
             UPDATE ali_api_user_stats SET
                 calls_today = calls_today + 1,
                 calls_total = calls_total + 1,
-                last_call_at = ?,
-                updated_at = ?
-            WHERE user_id = ?
+                last_call_at = %s,
+                updated_at = %s
+            WHERE user_id = %s
         ''', (datetime.now().isoformat(), datetime.now().isoformat(), user_id))
         return True
     
@@ -599,7 +628,7 @@ class AliApiUserStats:
     def get_user_stats(conn, user_id: int) -> Optional[Dict[str, Any]]:
         """获取用户统计信息"""
         row = conn.execute(
-            'SELECT * FROM ali_api_user_stats WHERE user_id = ?', 
+            'SELECT * FROM ali_api_user_stats WHERE user_id = %s', 
             (user_id,)
         ).fetchone()
         if not row:
@@ -614,30 +643,30 @@ class AliApiToken:
     def create_table(conn):
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_api_tokens (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         INTEGER DEFAULT 0,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT DEFAULT 0,
                 app_key         TEXT NOT NULL DEFAULT '',
                 access_token    TEXT NOT NULL DEFAULT '',
                 refresh_token   TEXT NOT NULL DEFAULT '',
                 ali_id          TEXT DEFAULT '',
                 resource_owner  TEXT DEFAULT '',
-                expires_in      INTEGER DEFAULT 0,
+                expires_in      BIGINT DEFAULT 0,
                 token_type      TEXT DEFAULT 'bearer',
                 scope           TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now','localtime')),
-                updated_at      TEXT DEFAULT (datetime('now','localtime'))
+                created_at      TIMESTAMPTZ DEFAULT NOW(),
+                updated_at      TIMESTAMPTZ DEFAULT NOW()
             )
         ''')
     
     @staticmethod
     def save(conn, token_data: dict, user_id: int = 0):
         now = datetime.now().isoformat()
-        conn.execute('DELETE FROM ali_api_tokens WHERE user_id=?', (user_id,))
+        conn.execute('DELETE FROM ali_api_tokens WHERE user_id=%s', (user_id,))
         conn.execute('''
             INSERT INTO ali_api_tokens 
                 (user_id, app_key, access_token, refresh_token, ali_id, 
                  resource_owner, expires_in, token_type, scope, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ''', (
             user_id,
             token_data.get('app_key', ''),
@@ -655,14 +684,14 @@ class AliApiToken:
     @staticmethod
     def get(conn, user_id: int = 0):
         row = conn.execute(
-            'SELECT * FROM ali_api_tokens WHERE user_id=? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM ali_api_tokens WHERE user_id=%s ORDER BY id DESC LIMIT 1',
             (user_id,)
         ).fetchone()
         return dict(row) if row else None
     
     @staticmethod
     def delete(conn, user_id: int = 0):
-        conn.execute('DELETE FROM ali_api_tokens WHERE user_id=?', (user_id,))
+        conn.execute('DELETE FROM ali_api_tokens WHERE user_id=%s', (user_id,))
         conn.commit()
 
 
@@ -673,12 +702,12 @@ class OAuthState:
     def create_table(conn):
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_oauth_states (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 state       TEXT UNIQUE NOT NULL,
                 redirect_uri TEXT NOT NULL DEFAULT '',
-                user_id     INTEGER DEFAULT 0,
-                created_at  TEXT DEFAULT (datetime('now', 'localtime')),
-                used        INTEGER DEFAULT 0
+                user_id     BIGINT DEFAULT 0,
+                created_at  TIMESTAMPTZ DEFAULT NOW(),
+                used        BIGINT DEFAULT 0
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_oauth_state ON ali_oauth_states(state)')
@@ -686,7 +715,7 @@ class OAuthState:
     @staticmethod
     def save(conn, state: str, redirect_uri: str, user_id: int = 0):
         conn.execute(
-            'INSERT INTO ali_oauth_states (state, redirect_uri, user_id) VALUES (?, ?, ?)',
+            'INSERT INTO ali_oauth_states (state, redirect_uri, user_id) VALUES (%s, %s, %s)',
             (state, redirect_uri, user_id)
         )
         conn.commit()
@@ -695,7 +724,7 @@ class OAuthState:
     def validate_and_consume(conn, state: str, max_age_seconds: int = 600) -> bool:
         """验证 state 并标记为已使用（防重放攻击）"""
         row = conn.execute(
-            'SELECT * FROM ali_oauth_states WHERE state = ? AND used = 0', (state,)
+            'SELECT * FROM ali_oauth_states WHERE state = %s AND used = 0', (state,)
         ).fetchone()
         if not row:
             return False
@@ -703,11 +732,11 @@ class OAuthState:
         from datetime import datetime, timedelta
         created = datetime.fromisoformat(row['created_at'])
         if datetime.now() - created > timedelta(seconds=max_age_seconds):
-            conn.execute('DELETE FROM ali_oauth_states WHERE id = ?', (row['id'],))
+            conn.execute('DELETE FROM ali_oauth_states WHERE id = %s', (row['id'],))
             conn.commit()
             return False
         # 标记已使用
-        conn.execute('UPDATE ali_oauth_states SET used = 1 WHERE id = ?', (row['id'],))
+        conn.execute('UPDATE ali_oauth_states SET used = 1 WHERE id = %s', (row['id'],))
         conn.commit()
         return True
 
@@ -719,17 +748,17 @@ class OAuthState:
         改由 state 记录中保存的 user_id / redirect_uri 完成鉴权与校验。
         """
         row = conn.execute(
-            'SELECT * FROM ali_oauth_states WHERE state = ? AND used = 0', (state,)
+            'SELECT * FROM ali_oauth_states WHERE state = %s AND used = 0', (state,)
         ).fetchone()
         if not row:
             return None
         from datetime import datetime, timedelta
         created = datetime.fromisoformat(row['created_at'])
         if datetime.now() - created > timedelta(seconds=max_age_seconds):
-            conn.execute('DELETE FROM ali_oauth_states WHERE id = ?', (row['id'],))
+            conn.execute('DELETE FROM ali_oauth_states WHERE id = %s', (row['id'],))
             conn.commit()
             return None
-        conn.execute('UPDATE ali_oauth_states SET used = 1 WHERE id = ?', (row['id'],))
+        conn.execute('UPDATE ali_oauth_states SET used = 1 WHERE id = %s', (row['id'],))
         conn.commit()
         return dict(row)
 
@@ -738,7 +767,7 @@ class OAuthState:
         """清理过期 state"""
         from datetime import datetime, timedelta
         cutoff = (datetime.now() - timedelta(seconds=max_age_seconds)).isoformat()
-        conn.execute('DELETE FROM ali_oauth_states WHERE created_at < ?', (cutoff,))
+        conn.execute('DELETE FROM ali_oauth_states WHERE created_at < %s', (cutoff,))
         conn.commit()
 
 
@@ -766,8 +795,8 @@ class AliApiConfig:
                 key             TEXT PRIMARY KEY,
                 value           TEXT NOT NULL DEFAULT '',
                 description     TEXT DEFAULT '',
-                encrypted       INTEGER DEFAULT 0,
-                updated_at      TEXT DEFAULT (datetime('now','localtime'))
+                encrypted       BIGINT DEFAULT 0,
+                updated_at      TIMESTAMPTZ DEFAULT NOW()
             )
         ''')
 
@@ -775,7 +804,7 @@ class AliApiConfig:
     def get(conn, key: str, default: str = '') -> str:
         """获取配置值"""
         row = conn.execute(
-            'SELECT value FROM ali_api_config WHERE key = ?', (key,)
+            'SELECT value FROM ali_api_config WHERE key = %s', (key,)
         ).fetchone()
         return row['value'] if row else default
 
@@ -785,18 +814,18 @@ class AliApiConfig:
         """设置配置值（UPSERT）"""
         conn.execute('''
             INSERT INTO ali_api_config (key, value, description, encrypted, updated_at)
-            VALUES (?, ?, ?, ?, datetime('now','localtime'))
+            VALUES (%s, %s, %s, %s, NOW())
             ON CONFLICT(key) DO UPDATE SET
                 value = excluded.value,
                 description = COALESCE(excluded.description, ali_api_config.description),
                 encrypted = COALESCE(excluded.encrypted, ali_api_config.encrypted),
-                updated_at = datetime('now','localtime')
+                updated_at = NOW()
         ''', (key, value, description, encrypted))
 
     @staticmethod
     def delete(conn, key: str):
         """删除配置"""
-        conn.execute('DELETE FROM ali_api_config WHERE key = ?', (key,))
+        conn.execute('DELETE FROM ali_api_config WHERE key = %s', (key,))
 
     @staticmethod
     def get_all(conn) -> Dict[str, str]:
@@ -825,7 +854,7 @@ class AliApiConfig:
             from .models import get_main_db
             with get_main_db() as main_conn:
                 table_check = main_conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='system_config'"
+                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename='system_config'"
                 ).fetchone()
                 if table_check:
                     for key in AliApiConfig.SYSTEM_CONFIG_KEYS:
@@ -861,24 +890,24 @@ class AliPurchaseOrder:
     def create_table(conn):
         conn.execute('''
             CREATE TABLE IF NOT EXISTS ali_purchase_orders (
-                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 local_order_id      TEXT NOT NULL,
-                local_order_item_id INTEGER NOT NULL,
-                product_id          INTEGER NOT NULL,
+                local_order_item_id BIGINT NOT NULL,
+                product_id          BIGINT NOT NULL,
                 ali_product_id      TEXT NOT NULL,
                 ali_sku_id          TEXT DEFAULT '',
-                quantity            INTEGER DEFAULT 1,
-                price               REAL DEFAULT 0,
-                total_fee           REAL DEFAULT 0,
+                quantity            BIGINT DEFAULT 1,
+                price               DOUBLE PRECISION DEFAULT 0,
+                total_fee           DOUBLE PRECISION DEFAULT 0,
                 ali_order_id        TEXT DEFAULT '',
                 ali_order_status    TEXT DEFAULT 'pending',
                 supplier_name       TEXT DEFAULT '',
                 supplier_id         TEXT DEFAULT '',
                 tracking_company    TEXT DEFAULT '',
                 tracking_number     TEXT DEFAULT '',
-                created_at          TEXT DEFAULT (datetime('now','localtime')),
-                ordered_at          TEXT,
-                shipped_at          TEXT,
+                created_at          TIMESTAMPTZ DEFAULT NOW(),
+                ordered_at          TIMESTAMPTZ,
+                shipped_at          TIMESTAMPTZ,
                 remark              TEXT DEFAULT '',
                 UNIQUE(local_order_item_id, ali_product_id)
             )
@@ -894,7 +923,8 @@ class AliPurchaseOrder:
                 (local_order_id, local_order_item_id, product_id,
                  ali_product_id, ali_sku_id, quantity, price, total_fee,
                  supplier_name, supplier_id, remark)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
         ''', (
             data['local_order_id'], data['local_order_item_id'], data['product_id'],
             data['ali_product_id'], data.get('ali_sku_id',''), data.get('quantity',1),
@@ -902,16 +932,16 @@ class AliPurchaseOrder:
             data.get('supplier_name',''), data.get('supplier_id',''),
             data.get('remark',''),
         ))
-        return cursor.lastrowid
+        return cursor.fetchone()['id']
 
     @staticmethod
     def get_by_id(conn, po_id: int) -> Optional[dict]:
-        row = conn.execute('SELECT * FROM ali_purchase_orders WHERE id=?', (po_id,)).fetchone()
+        row = conn.execute('SELECT * FROM ali_purchase_orders WHERE id=%s', (po_id,)).fetchone()
         return dict(row) if row else None
 
     @staticmethod
     def get_by_local_item(conn, local_order_item_id: int) -> Optional[dict]:
-        row = conn.execute('SELECT * FROM ali_purchase_orders WHERE local_order_item_id=?',
+        row = conn.execute('SELECT * FROM ali_purchase_orders WHERE local_order_item_id=%s',
                            (local_order_item_id,)).fetchone()
         return dict(row) if row else None
 
@@ -920,12 +950,12 @@ class AliPurchaseOrder:
         where = ''
         params = []
         if status and status != 'all':
-            where = 'WHERE ali_order_status=?'
+            where = 'WHERE ali_order_status=%s'
             params.append(status)
         total = conn.execute(f'SELECT COUNT(*) as c FROM ali_purchase_orders {where}',
                              params).fetchone()['c']
         rows = conn.execute(
-            f'SELECT * FROM ali_purchase_orders {where} ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            f'SELECT * FROM ali_purchase_orders {where} ORDER BY created_at DESC LIMIT %s OFFSET %s',
             params + [limit, offset]
         ).fetchall()
         return [dict(r) for r in rows], total
@@ -938,9 +968,9 @@ class AliPurchaseOrder:
         sets = {k:v for k,v in updates.items() if k in allowed}
         if not sets:
             return False
-        set_clause = ','.join(f'{k}=?' for k in sets)
+        set_clause = ','.join(f'{k}=%s' for k in sets)
         vals = list(sets.values()) + [po_id]
-        conn.execute(f'UPDATE ali_purchase_orders SET {set_clause} WHERE id=?', vals)
+        conn.execute(f'UPDATE ali_purchase_orders SET {set_clause} WHERE id=%s', vals)
         return conn.rowcount > 0
 
 
@@ -954,10 +984,10 @@ ALI_TABLES = [
 
 
 def migrate_data_from_main_db():
-    """一次性把主库中遗留的 ali_api_* 表数据复制到独立库 ali_api.db。
+    """一次性把主库中遗留的 ali_api_* 表数据复制到 PG ali_api schema。
 
-    - 幂等：独立库中某表已有数据则跳过该表。
-    - 非破坏：只读主库、只写独立库，绝不删除或修改主库任何数据。
+    - 幂等：PG schema 中某表已有数据则跳过该表。
+    - 非破坏：只读主库、只写 PG，绝不删除或修改主库任何数据。
     - 脱离主项目运行（无法 import 主库）时静默跳过。
     """
     try:
@@ -966,10 +996,10 @@ def migrate_data_from_main_db():
                 for t in ALI_TABLES:
                     # 主库该表存在才迁移
                     if not main_conn.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)
+                        "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename=%s", (t,)
                     ).fetchone():
                         continue
-                    # 独立库已有数据 → 跳过（幂等）
+                    # PG schema 已有数据 → 跳过（幂等）
                     local_cnt = local_conn.execute(f"SELECT COUNT(*) AS c FROM {t}").fetchone()['c']
                     if local_cnt > 0:
                         continue
@@ -977,19 +1007,21 @@ def migrate_data_from_main_db():
                     if not src_rows:
                         continue
                     # 只复制两库都存在的列，避免结构差异导致失败
-                    local_cols = [r[1] for r in local_conn.execute(f"PRAGMA table_info({t})").fetchall()]
+                    local_cols = [r['column_name'] for r in local_conn.execute(
+                        f"SELECT column_name FROM information_schema.columns WHERE table_name=%s", (t,)
+                    ).fetchall()]
                     main_cols = [r[1] for r in main_conn.execute(f"PRAGMA table_info({t})").fetchall()]
                     cols = [c for c in main_cols if c in local_cols]
                     if not cols:
                         continue
                     collist = ','.join(cols)
-                    placeholders = ','.join('?' for _ in cols)
+                    placeholders = ','.join('%s' for _ in cols)
                     for row in src_rows:
                         local_conn.execute(
-                            f"INSERT OR IGNORE INTO {t} ({collist}) VALUES ({placeholders})",
+                            f"INSERT INTO {t} ({collist}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
                             [row[c] for c in cols],
                         )
-                    print(f"[AliApi] 迁移遗留数据 {t}: {len(src_rows)} 行 → ali_api.db")
+                    print(f"[AliApi] 迁移遗留数据 {t}: {len(src_rows)} 行 → PG schema ali_api")
                 local_conn.commit()
     except ImportError:
         pass  # 脱离主项目，无需迁移
@@ -998,7 +1030,7 @@ def migrate_data_from_main_db():
 
 
 def init_tables():
-    """初始化独立库所有表，并迁移遗留数据与配置"""
+    """初始化 PG schema 所有表，并迁移遗留数据与配置"""
     with get_db() as conn:
         AliApiItem.create_table(conn)
         AliApiItem.migrate_b2b_fields(conn)  # 幂等迁移 B2B 字段
@@ -1018,7 +1050,7 @@ def init_tables():
             AliApiConfig.migrate_from_system_config(conn)
         except Exception as e:
             print(f"[AliApi] 配置迁移跳过: {e}")
-    print("[AliApi] 数据表初始化完成（独立库 ali_api.db）")
+    print("[AliApi] 数据表初始化完成（PG schema ali_api）")
 
 if __name__ == "__main__":
     # 测试数据库初始化

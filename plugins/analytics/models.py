@@ -17,7 +17,8 @@ analytics/models.py — Analytics 数据库 Schema + 完整 CRUD
 """
 
 import os
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import sys
 import json
 import hashlib
@@ -27,23 +28,39 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from services.deployment_config import deploy
 
-# ─── 数据库路径（独立 DB，插件目录内）──────────────────────────────────────────
+# ─── 数据库路径（PG schema）─────────────────────────────────────────────────────
 
-# analytics 使用独立数据库 analytics/data/analytics.db，不依赖主库
+# analytics 使用 PG schema analytics，不依赖主库
 _ANALYTICS_DB = None
 
 def resolve_db_path():
-    """按优先级确定 analytics 独立数据库路径（插件目录内）"""
+    """按优先级确定 analytics 独立数据库路径（插件目录内，用于迁移参考）"""
     global _ANALYTICS_DB
     if _ANALYTICS_DB:
         return _ANALYTICS_DB
-    # 数据库位于 analytics/data/ 目录内
     base = os.path.dirname(os.path.abspath(__file__))
     db_dir = os.path.join(base, 'data')
     os.makedirs(db_dir, exist_ok=True)
     db_path = os.path.join(db_dir, 'analytics.db')
     _ANALYTICS_DB = db_path
     return db_path
+
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql, params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
 
 
 # ─── Schema ───────────────────────────────────────────────────────────────────
@@ -53,8 +70,8 @@ SCHEMA_SQL = """
 -- 1. 原始访问日志（短存 — 默认保留 7 天）
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp INTEGER NOT NULL,          -- 请求时间戳（秒）
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    timestamp BIGINT NOT NULL,          -- 请求时间戳（秒）
     visitor_hash TEXT NOT NULL,          -- 匿名访客哈希
     session_hash TEXT,                   -- 会话哈希
     ip_prefix TEXT,                      -- 匿名 IP（前三段，如 "192.168.1.x"）
@@ -65,7 +82,7 @@ CREATE TABLE IF NOT EXISTS analytics_logs (
     browser_version TEXT,                -- 浏览器版本
     os_name TEXT,                        -- 操作系统
     device_type TEXT DEFAULT 'desktop',  -- desktop / mobile / tablet / bot
-    is_bot INTEGER DEFAULT 0,           -- 是否爬虫/搜索引擎
+    is_bot BIGINT DEFAULT 0,           -- 是否爬虫/搜索引擎
     path TEXT NOT NULL,                  -- 请求路径
     query_string TEXT,                   -- 查询参数
     referer TEXT,                        -- 来源
@@ -74,8 +91,8 @@ CREATE TABLE IF NOT EXISTS analytics_logs (
     utm_medium TEXT,
     utm_campaign TEXT,
     language TEXT,                       -- 浏览器语言
-    status_code INTEGER DEFAULT 200,     -- HTTP 状态码
-    response_time INTEGER DEFAULT 0,     -- 响应耗时（毫秒）
+    status_code BIGINT DEFAULT 200,     -- HTTP 状态码
+    response_time BIGINT DEFAULT 0,     -- 响应耗时（毫秒）
     request_method TEXT DEFAULT 'GET',   -- 请求方法
     service_name TEXT DEFAULT '',        -- 来源服务名（platform / admin）
     full_url TEXT,                       -- 完整 URL（脱敏后）
@@ -90,20 +107,20 @@ CREATE INDEX IF NOT EXISTS idx_analytics_logs_bot ON analytics_logs(is_bot);
 -- 2. 每小时聚合 — 用于实时概览
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_hourly_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date TEXT NOT NULL,            -- "2026-05-09"
-    hour INTEGER NOT NULL,         -- 0-23
+    hour BIGINT NOT NULL,         -- 0-23
     service_name TEXT DEFAULT '',
-    pv INTEGER DEFAULT 0,
-    uv INTEGER DEFAULT 0,
-    ipv INTEGER DEFAULT 0,         -- 独立 IP 数
-    new_visitors INTEGER DEFAULT 0,
-    bounce_count INTEGER DEFAULT 0,   -- 跳出次数（仅1次PV的会话）
-    total_time INTEGER DEFAULT 0,     -- 总停留时间（秒）
-    session_count INTEGER DEFAULT 0,  -- 会话数
-    bot_count INTEGER DEFAULT 0,      -- 爬虫请求数
-    error_count INTEGER DEFAULT 0,    -- 4xx/5xx 错误数
-    avg_response_time INTEGER DEFAULT 0,  -- 平均响应时间（ms）
+    pv BIGINT DEFAULT 0,
+    uv BIGINT DEFAULT 0,
+    ipv BIGINT DEFAULT 0,         -- 独立 IP 数
+    new_visitors BIGINT DEFAULT 0,
+    bounce_count BIGINT DEFAULT 0,   -- 跳出次数（仅1次PV的会话）
+    total_time BIGINT DEFAULT 0,     -- 总停留时间（秒）
+    session_count BIGINT DEFAULT 0,  -- 会话数
+    bot_count BIGINT DEFAULT 0,      -- 爬虫请求数
+    error_count BIGINT DEFAULT 0,    -- 4xx/5xx 错误数
+    avg_response_time BIGINT DEFAULT 0,  -- 平均响应时间（ms）
     UNIQUE(date, hour, service_name)
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_hourly_date ON analytics_hourly_stats(date, hour);
@@ -112,37 +129,37 @@ CREATE INDEX IF NOT EXISTS idx_analytics_hourly_date ON analytics_hourly_stats(d
 -- 3. 每日聚合 — 长期存储
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_daily_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date TEXT NOT NULL UNIQUE,     -- "2026-05-09"
-    pv INTEGER DEFAULT 0,
-    uv INTEGER DEFAULT 0,
-    ipv INTEGER DEFAULT 0,
-    new_visitors INTEGER DEFAULT 0,
-    returning_visitors INTEGER DEFAULT 0,
-    bounce_rate REAL DEFAULT 0.0,
-    avg_session_duration REAL DEFAULT 0.0,  -- 平均会话时长（秒）
-    avg_depth REAL DEFAULT 0.0,            -- 平均访问深度（PV/会话）
-    bot_pv INTEGER DEFAULT 0,
-    error_pv INTEGER DEFAULT 0,
-    avg_response_time INTEGER DEFAULT 0,
-    total_sessions INTEGER DEFAULT 0,
-    peak_concurrent INTEGER DEFAULT 0,     -- 当天最高同时在线
+    pv BIGINT DEFAULT 0,
+    uv BIGINT DEFAULT 0,
+    ipv BIGINT DEFAULT 0,
+    new_visitors BIGINT DEFAULT 0,
+    returning_visitors BIGINT DEFAULT 0,
+    bounce_rate DOUBLE PRECISION DEFAULT 0.0,
+    avg_session_duration DOUBLE PRECISION DEFAULT 0.0,  -- 平均会话时长（秒）
+    avg_depth DOUBLE PRECISION DEFAULT 0.0,            -- 平均访问深度（PV/会话）
+    bot_pv BIGINT DEFAULT 0,
+    error_pv BIGINT DEFAULT 0,
+    avg_response_time BIGINT DEFAULT 0,
+    total_sessions BIGINT DEFAULT 0,
+    peak_concurrent BIGINT DEFAULT 0,     -- 当天最高同时在线
     peak_concurrent_time TEXT DEFAULT '',  -- 峰值时间
-    last_calculated INTEGER DEFAULT 0     -- 最后一次计算时间戳
+    last_calculated BIGINT DEFAULT 0     -- 最后一次计算时间戳
 );
 
 -- ===================================================================
 -- 4. 访客会话
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_visitor_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     session_hash TEXT NOT NULL UNIQUE,     -- 会话标识
     visitor_hash TEXT NOT NULL,            -- 访客标识
     date TEXT NOT NULL,                    -- 会话日期
-    start_time INTEGER NOT NULL,          -- 开始时间戳
-    end_time INTEGER NOT NULL DEFAULT 0,  -- 最后活动时间
-    duration INTEGER DEFAULT 0,           -- 会话时长（秒）
-    page_views INTEGER DEFAULT 1,         -- 浏览页数
+    start_time BIGINT NOT NULL,          -- 开始时间戳
+    end_time BIGINT NOT NULL DEFAULT 0,  -- 最后活动时间
+    duration BIGINT DEFAULT 0,           -- 会话时长（秒）
+    page_views BIGINT DEFAULT 1,         -- 浏览页数
     entry_path TEXT,                      -- 入口页面
     exit_path TEXT,                       -- 退出页面
     referer TEXT,                         -- 来源
@@ -151,8 +168,8 @@ CREATE TABLE IF NOT EXISTS analytics_visitor_sessions (
     device_type TEXT DEFAULT 'desktop',
     country TEXT,
     city TEXT,
-    is_bot INTEGER DEFAULT 0,
-    is_new_visitor INTEGER DEFAULT 0      -- 当日新访客
+    is_bot BIGINT DEFAULT 0,
+    is_new_visitor BIGINT DEFAULT 0      -- 当日新访客
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_hash ON analytics_visitor_sessions(session_hash);
 CREATE INDEX IF NOT EXISTS idx_analytics_sessions_vhash ON analytics_visitor_sessions(visitor_hash);
@@ -163,13 +180,13 @@ CREATE INDEX IF NOT EXISTS idx_analytics_sessions_bot ON analytics_visitor_sessi
 -- 5. 自定义业务事件
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp INTEGER NOT NULL,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    timestamp BIGINT NOT NULL,
     visitor_hash TEXT NOT NULL,
     event_name TEXT NOT NULL,              -- "launch_agent", "view_stock", "create_workflow" 等
     event_category TEXT DEFAULT '',        -- 事件分类
     event_label TEXT DEFAULT '',           -- 事件标签
-    event_value INTEGER DEFAULT 0,         -- 事件数值（可选）
+    event_value BIGINT DEFAULT 0,         -- 事件数值（可选）
     path TEXT DEFAULT '',
     service_name TEXT DEFAULT '',
     metadata TEXT DEFAULT '{}'             -- JSON 额外数据
@@ -182,16 +199,16 @@ CREATE INDEX IF NOT EXISTS idx_analytics_events_cat ON analytics_events(event_ca
 -- 6. 页面级统计
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_page_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date TEXT NOT NULL,
     path TEXT NOT NULL,
-    pv INTEGER DEFAULT 0,
-    uv INTEGER DEFAULT 0,
-    unique_entries INTEGER DEFAULT 0,     -- 作为入口次数
-    unique_exits INTEGER DEFAULT 0,       -- 作为退出次数
-    avg_time_on_page INTEGER DEFAULT 0,   -- 平均停留（秒）
-    exit_rate REAL DEFAULT 0.0,           -- 退出率
-    total_time INTEGER DEFAULT 0,
+    pv BIGINT DEFAULT 0,
+    uv BIGINT DEFAULT 0,
+    unique_entries BIGINT DEFAULT 0,     -- 作为入口次数
+    unique_exits BIGINT DEFAULT 0,       -- 作为退出次数
+    avg_time_on_page BIGINT DEFAULT 0,   -- 平均停留（秒）
+    exit_rate DOUBLE PRECISION DEFAULT 0.0,           -- 退出率
+    total_time BIGINT DEFAULT 0,
     UNIQUE(date, path)
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_page_date ON analytics_page_stats(date);
@@ -201,12 +218,12 @@ CREATE INDEX IF NOT EXISTS idx_analytics_page_path ON analytics_page_stats(path)
 -- 7. 来源统计（Referer / UTM）
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_source_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date TEXT NOT NULL,
     source_type TEXT NOT NULL,             -- "direct", "search", "social", "referral", "email", "utm"
     source_name TEXT NOT NULL,             -- 来源名（如 "google", "wechat", "direct"）
-    pv INTEGER DEFAULT 0,
-    uv INTEGER DEFAULT 0,
+    pv BIGINT DEFAULT 0,
+    uv BIGINT DEFAULT 0,
     UNIQUE(date, source_type, source_name)
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_source_date ON analytics_source_stats(date);
@@ -215,12 +232,12 @@ CREATE INDEX IF NOT EXISTS idx_analytics_source_date ON analytics_source_stats(d
 -- 8. 地理分布统计
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_geo_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date TEXT NOT NULL,
     country TEXT NOT NULL,
     city TEXT DEFAULT '',
-    pv INTEGER DEFAULT 0,
-    uv INTEGER DEFAULT 0,
+    pv BIGINT DEFAULT 0,
+    uv BIGINT DEFAULT 0,
     UNIQUE(date, country, city)
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_geo_date ON analytics_geo_stats(date);
@@ -229,13 +246,13 @@ CREATE INDEX IF NOT EXISTS idx_analytics_geo_date ON analytics_geo_stats(date);
 -- 9. 设备/浏览器统计
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_device_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date TEXT NOT NULL,
     device_type TEXT NOT NULL,             -- "desktop", "mobile", "tablet", "bot"
     browser TEXT DEFAULT '',
     os_name TEXT DEFAULT '',
-    pv INTEGER DEFAULT 0,
-    uv INTEGER DEFAULT 0,
+    pv BIGINT DEFAULT 0,
+    uv BIGINT DEFAULT 0,
     UNIQUE(date, device_type, browser, os_name)
 );
 CREATE INDEX IF NOT EXISTS idx_analytics_device_date ON analytics_device_stats(date);
@@ -244,18 +261,18 @@ CREATE INDEX IF NOT EXISTS idx_analytics_device_date ON analytics_device_stats(d
 -- 10. 告警规则
 -- ===================================================================
 CREATE TABLE IF NOT EXISTS analytics_alerts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name TEXT NOT NULL,                    -- 告警名称
-    enabled INTEGER DEFAULT 1,
+    enabled BIGINT DEFAULT 1,
     metric TEXT NOT NULL,                  -- "uv", "pv", "bounce_rate", "error_rate", "response_time"
     operator TEXT NOT NULL,                -- "gt", "lt", "gte", "lte", "eq", "change_pct"
-    threshold REAL NOT NULL,              -- 阈值
+    threshold DOUBLE PRECISION NOT NULL,              -- 阈值
     time_window TEXT DEFAULT '1h',        -- 时间窗口: "1h", "24h", "7d"
     comparison TEXT DEFAULT 'absolute',    -- "absolute" / "change_pct"
     channels TEXT DEFAULT '["notification"]',  -- 通知渠道
-    last_triggered INTEGER DEFAULT 0,
-    created_at INTEGER DEFAULT 0,
-    updated_at INTEGER DEFAULT 0
+    last_triggered BIGINT DEFAULT 0,
+    created_at BIGINT DEFAULT 0,
+    updated_at BIGINT DEFAULT 0
 );
 
 -- ===================================================================
@@ -264,11 +281,11 @@ CREATE TABLE IF NOT EXISTS analytics_alerts (
 CREATE TABLE IF NOT EXISTS analytics_privacy_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
-    updated_at INTEGER DEFAULT 0
+    updated_at BIGINT DEFAULT 0
 );
 
 -- 默认隐私设置
-INSERT OR IGNORE INTO analytics_privacy_config (key, value, updated_at) VALUES
+INSERT INTO analytics_privacy_config (key, value, updated_at) VALUES
     ('ip_anonymization', 'true', 0),
     ('geo_analysis_enabled', 'true', 0),
     ('ua_parsing_enabled', 'true', 0),
@@ -278,7 +295,8 @@ INSERT OR IGNORE INTO analytics_privacy_config (key, value, updated_at) VALUES
     ('exclude_internal_ips', 'true', 0),
     ('internal_ip_ranges', '["127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"]', 0),
     ('exclude_paths', '["/static/*","/favicon.ico","/robots.txt","/health","/admin/automation/*"]', 0),
-    ('anonymize_query_params', '["token","password","key","secret","auth"]', 0);
+    ('anonymize_query_params', '["token","password","key","secret","auth"]', 0)
+    ON CONFLICT(key) DO NOTHING;
 """
 
 # ─── 连接管理 ──────────────────────────────────────────────────────────────────
@@ -291,16 +309,22 @@ def set_db_func(func):
     _get_db = func
 
 def get_db():
-    """获取数据库连接"""
+    """获取数据库连接（PG schema: analytics）"""
     if _get_db:
         return _get_db()
-    conn = sqlite3.connect(resolve_db_path(), isolation_level=None, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA cache_size=-8000")
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
+    raw = psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )
+    raw.autocommit = False
+    raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS analytics")
+    raw.commit()
+    raw.cursor().execute("SET search_path TO analytics")
+    raw.commit()
+    return _PgConnection(raw)
 
 
 # ─── 初始化 ─────────────────────────────────────────────────────────────────────
@@ -319,7 +343,7 @@ def init_analytics_tables(db_path=None):
             except Exception as e:
                 print(f'[Analytics] ⚠️ Schema error: {e}')
     conn.commit()
-    print(f'[Analytics] ✅ 分析表已初始化 (共 11 张)')
+    print(f'[Analytics] ✅ PG schema analytics 已初始化 (共 11 张)')
 
 
 # ─── 哈希与匿名化工具 ──────────────────────────────────────────────────────────
@@ -493,13 +517,12 @@ def insert_log(conn, data: dict) -> int:
         'content_type': data.get('content_type', ''),
     }
     cols = ', '.join(fields.keys())
-    vals = ', '.join('?' for _ in fields)
-    conn.execute(
-        f'INSERT INTO analytics_logs ({cols}) VALUES ({vals})',
+    vals = ', '.join('%s' for _ in fields)
+    cursor = conn.execute(
+        f'INSERT INTO analytics_logs ({cols}) VALUES ({vals}) RETURNING id',
         list(fields.values())
     )
-    conn.commit()
-    return conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    return cursor.fetchone()['id']
 
 
 def insert_event(conn, data: dict) -> int:
@@ -517,13 +540,12 @@ def insert_event(conn, data: dict) -> int:
         'metadata': json.dumps(data.get('metadata', {}), ensure_ascii=False),
     }
     cols = ', '.join(fields.keys())
-    vals = ', '.join('?' for _ in fields)
-    conn.execute(
-        f'INSERT INTO analytics_events ({cols}) VALUES ({vals})',
+    vals = ', '.join('%s' for _ in fields)
+    cursor = conn.execute(
+        f'INSERT INTO analytics_events ({cols}) VALUES ({vals}) RETURNING id',
         list(fields.values())
     )
-    conn.commit()
-    return conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    return cursor.fetchone()['id']
 
 
 # ─── 聚合写入 ──────────────────────────────────────────────────────────────────
@@ -534,18 +556,18 @@ def upsert_hourly(conn, date_str: str, hour: int, delta: dict, service: str = ''
         INSERT INTO analytics_hourly_stats (date, hour, service_name, pv, uv, ipv,
             new_visitors, bounce_count, total_time, session_count, bot_count,
             error_count, avg_response_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(date, hour, service_name) DO UPDATE SET
-            pv = pv + ?,
-            uv = MAX(uv, ?),
-            ipv = MAX(ipv, ?),
-            new_visitors = new_visitors + ?,
-            bounce_count = bounce_count + ?,
-            total_time = total_time + ?,
-            session_count = session_count + ?,
-            bot_count = bot_count + ?,
-            error_count = error_count + ?,
-            avg_response_time = (avg_response_time + ?) / 2
+            pv = pv + %s,
+            uv = GREATEST(uv, %s),
+            ipv = GREATEST(ipv, %s),
+            new_visitors = new_visitors + %s,
+            bounce_count = bounce_count + %s,
+            total_time = total_time + %s,
+            session_count = session_count + %s,
+            bot_count = bot_count + %s,
+            error_count = error_count + %s,
+            avg_response_time = (avg_response_time + %s) / 2
     """, (
         date_str, hour, service,
         delta.get('pv', 0), delta.get('uv', 0), delta.get('ipv', 0),
@@ -574,12 +596,12 @@ def upsert_daily(conn, date_str: str, stats: dict):
         INSERT INTO analytics_daily_stats (date, pv, uv, ipv, new_visitors,
             returning_visitors, bounce_rate, avg_session_duration, avg_depth,
             bot_pv, error_pv, avg_response_time, total_sessions, last_calculated)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(date) DO UPDATE SET
-            pv = ?, uv = ?, ipv = ?, new_visitors = ?, returning_visitors = ?,
-            bounce_rate = ?, avg_session_duration = ?, avg_depth = ?,
-            bot_pv = ?, error_pv = ?, avg_response_time = ?,
-            total_sessions = ?, last_calculated = ?
+            pv = %s, uv = %s, ipv = %s, new_visitors = %s, returning_visitors = %s,
+            bounce_rate = %s, avg_session_duration = %s, avg_depth = %s,
+            bot_pv = %s, error_pv = %s, avg_response_time = %s,
+            total_sessions = %s, last_calculated = %s
     """, (
         date_str,
         stats['pv'], stats['uv'], stats['ipv'], stats['new_visitors'],
@@ -602,12 +624,12 @@ def upsert_page_stat(conn, date_str: str, path: str, delta: dict):
     conn.execute("""
         INSERT INTO analytics_page_stats (date, path, pv, uv, unique_entries,
             unique_exits, avg_time_on_page, exit_rate, total_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(date, path) DO UPDATE SET
-            pv = pv + ?, uv = MAX(uv, ?),
-            unique_entries = unique_entries + ?,
-            unique_exits = unique_exits + ?,
-            total_time = total_time + ?,
+            pv = pv + %s, uv = GREATEST(uv, %s),
+            unique_entries = unique_entries + %s,
+            unique_exits = unique_exits + %s,
+            total_time = total_time + %s,
             avg_time_on_page = CASE WHEN pv > 0 THEN total_time / pv ELSE 0 END,
             exit_rate = CASE WHEN unique_entries > 0 THEN unique_exits * 1.0 / unique_entries ELSE 0 END
     """, (
@@ -625,9 +647,9 @@ def upsert_source(conn, date_str: str, source_type: str, source_name: str, delta
     """更新或插入来源统计"""
     conn.execute("""
         INSERT INTO analytics_source_stats (date, source_type, source_name, pv, uv)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT(date, source_type, source_name) DO UPDATE SET
-            pv = pv + ?, uv = MAX(uv, ?)
+            pv = pv + %s, uv = GREATEST(uv, %s)
     """, (
         date_str, source_type, source_name,
         delta.get('pv', 0), delta.get('uv', 0),
@@ -640,9 +662,9 @@ def upsert_geo(conn, date_str: str, country: str, city: str, delta: dict):
     """更新或插入地理统计"""
     conn.execute("""
         INSERT INTO analytics_geo_stats (date, country, city, pv, uv)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT(date, country, city) DO UPDATE SET
-            pv = pv + ?, uv = MAX(uv, ?)
+            pv = pv + %s, uv = GREATEST(uv, %s)
     """, (
         date_str, country, city,
         delta.get('pv', 0), delta.get('uv', 0),
@@ -655,9 +677,9 @@ def upsert_device(conn, date_str: str, device_type: str, browser: str, os_name: 
     """更新或插入设备统计"""
     conn.execute("""
         INSERT INTO analytics_device_stats (date, device_type, browser, os_name, pv, uv)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT(date, device_type, browser, os_name) DO UPDATE SET
-            pv = pv + ?, uv = MAX(uv, ?)
+            pv = pv + %s, uv = GREATEST(uv, %s)
     """, (
         date_str, device_type, browser, os_name,
         delta.get('pv', 0), delta.get('uv', 0),
@@ -682,27 +704,27 @@ def get_realtime(conn) -> dict:
                COALESCE(SUM(new_visitors),0) new_visitors,
                COALESCE(AVG(avg_response_time),0) avg_response_time
         FROM analytics_hourly_stats
-        WHERE date=? AND hour=?
+        WHERE date=%s AND hour=%s
     """, (today, hour)).fetchone()
 
     # 当前在线：最近 5 分钟独立访客
     five_min_ago = int(time.time()) - 300
     online = conn.execute("""
         SELECT COUNT(DISTINCT visitor_hash) cnt FROM analytics_logs
-        WHERE timestamp >= ? AND is_bot=0
+        WHERE timestamp >= %s AND is_bot=0
     """, (five_min_ago,)).fetchone()['cnt']
 
     # 今日汇总
     daily = conn.execute("""
         SELECT COALESCE(SUM(pv),0) pv, COALESCE(SUM(uv),0) uv,
                COALESCE(SUM(session_count),0) sessions
-        FROM analytics_hourly_stats WHERE date=?
+        FROM analytics_hourly_stats WHERE date=%s
     """, (today,)).fetchone()
 
     # 今日热门页面
     hot_pages = conn.execute("""
         SELECT path, COUNT(*) cnt FROM analytics_logs
-        WHERE date(timestamp, 'unixepoch')=? AND is_bot=0
+        WHERE to_timestamp(timestamp)::date=%s AND is_bot=0
         GROUP BY path ORDER BY cnt DESC LIMIT 10
     """, (today,)).fetchall()
 
@@ -727,7 +749,7 @@ def get_trend(conn, days: int = 30) -> list:
         SELECT date, pv, uv, total_sessions, bounce_rate, avg_session_duration,
                bot_pv, error_pv
         FROM analytics_daily_stats
-        ORDER BY date DESC LIMIT ?
+        ORDER BY date DESC LIMIT %s
     """, (days,)).fetchall()
     result = []
     for r in reversed(rows):
@@ -749,11 +771,11 @@ def get_event_stats(conn, days: int = 30, category: str = '') -> list:
         SELECT event_name, event_category, COUNT(*) count,
                COALESCE(SUM(event_value), 0) total_value
         FROM analytics_events
-        WHERE timestamp >= ?
+        WHERE timestamp >= %s
     """
     params = [int(time.time()) - days * 86400]
     if category:
-        query += ' AND event_category = ?'
+        query += ' AND event_category = %s'
         params.append(category)
     query += ' GROUP BY event_name, event_category ORDER BY count DESC LIMIT 20'
     rows = conn.execute(query, params).fetchall()
@@ -767,8 +789,8 @@ def get_page_rank(conn, days: int = 30, limit: int = 20) -> list:
         SELECT path, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv,
                ROUND(AVG(response_time), 1) avg_time
         FROM analytics_logs
-        WHERE timestamp >= ? AND is_bot=0
-        GROUP BY path ORDER BY pv DESC LIMIT ?
+        WHERE timestamp >= %s AND is_bot=0
+        GROUP BY path ORDER BY pv DESC LIMIT %s
     """, (since, limit)).fetchall()
     return [dict(r) for r in rows]
 
@@ -779,7 +801,7 @@ def get_geo_distribution(conn, days: int = 30) -> list:
     rows = conn.execute("""
         SELECT country, SUM(pv) pv, SUM(uv) uv
         FROM analytics_geo_stats
-        WHERE date >= ?
+        WHERE date >= %s
         GROUP BY country ORDER BY pv DESC LIMIT 20
     """, (since.strftime('%Y-%m-%d'),)).fetchall()
     return [dict(r) for r in rows]
@@ -789,9 +811,9 @@ def get_city_distribution(conn, days: int = 30, country: str = ''):
     """获取城市分布（可按国家筛选）"""
     since = datetime.now() - timedelta(days=days)
     params = [since.strftime('%Y-%m-%d')]
-    where = "WHERE date >= ?"
+    where = "WHERE date >= %s"
     if country:
-        where += " AND country = ?"
+        where += " AND country = %s"
         params.append(country)
     rows = conn.execute(f"""
         SELECT country, city, SUM(pv) pv, SUM(uv) uv
@@ -827,7 +849,7 @@ def get_china_city_distribution(conn, days: int = 30):
     rows = conn.execute("""
         SELECT city, SUM(pv) pv, SUM(uv) uv
         FROM analytics_geo_stats
-        WHERE date >= ? AND country = 'CN' AND city != ''
+        WHERE date >= %s AND country = 'CN' AND city != ''
         GROUP BY city ORDER BY pv DESC LIMIT 30
     """, (since.strftime('%Y-%m-%d'),)).fetchall()
     result = []
@@ -846,19 +868,19 @@ def get_device_distribution(conn, days: int = 30) -> dict:
     by_device = conn.execute("""
         SELECT device_type, SUM(pv) pv, SUM(uv) uv
         FROM analytics_device_stats
-        WHERE date >= ? GROUP BY device_type ORDER BY pv DESC
+        WHERE date >= %s GROUP BY device_type ORDER BY pv DESC
     """, (ds,)).fetchall()
 
     by_browser = conn.execute("""
         SELECT browser, SUM(pv) pv, SUM(uv) uv
         FROM analytics_device_stats
-        WHERE date >= ? AND browser != '' GROUP BY browser ORDER BY pv DESC LIMIT 10
+        WHERE date >= %s AND browser != '' GROUP BY browser ORDER BY pv DESC LIMIT 10
     """, (ds,)).fetchall()
 
     by_os = conn.execute("""
         SELECT os_name, SUM(pv) pv, SUM(uv) uv
         FROM analytics_device_stats
-        WHERE date >= ? AND os_name != '' GROUP BY os_name ORDER BY pv DESC LIMIT 10
+        WHERE date >= %s AND os_name != '' GROUP BY os_name ORDER BY pv DESC LIMIT 10
     """, (ds,)).fetchall()
 
     return {
@@ -873,9 +895,9 @@ def get_source_analysis(conn, days: int = 30) -> list:
     since = datetime.now() - timedelta(days=days)
     rows = conn.execute("""
         SELECT source_type, source_name, SUM(pv) pv, SUM(uv) uv,
-               ROUND(SUM(pv) * 100.0 / (SELECT SUM(pv) FROM analytics_source_stats WHERE date >= ?), 1) pct
+               ROUND(SUM(pv) * 100.0 / (SELECT SUM(pv) FROM analytics_source_stats WHERE date >= %s), 1) pct
         FROM analytics_source_stats
-        WHERE date >= ?
+        WHERE date >= %s
         GROUP BY source_name ORDER BY pv DESC LIMIT 15
     """, (since.strftime('%Y-%m-%d'), since.strftime('%Y-%m-%d'))).fetchall()
     return [dict(r) for r in rows]
@@ -888,7 +910,7 @@ def get_hourly_breakdown(conn, date_str: str = None) -> list:
     rows = conn.execute("""
         SELECT hour, pv, uv, session_count, bot_count, error_count, avg_response_time
         FROM analytics_hourly_stats
-        WHERE date=? ORDER BY hour
+        WHERE date=%s ORDER BY hour
     """, (date_str,)).fetchall()
     result = []
     for r in rows:
@@ -912,17 +934,16 @@ def get_event_report(conn, days: int = 7) -> dict:
 def cleanup_old_logs(conn, retention_days: int = 30):
     """清理过期原始日志"""
     cutoff = int(time.time()) - retention_days * 86400
-    conn.execute("DELETE FROM analytics_logs WHERE timestamp < ?", (cutoff,))
-    conn.execute("DELETE FROM analytics_visitor_sessions WHERE end_time < ?", (cutoff,))
+    conn.execute("DELETE FROM analytics_logs WHERE timestamp < %s", (cutoff,))
+    conn.execute("DELETE FROM analytics_visitor_sessions WHERE end_time < %s", (cutoff,))
     conn.commit()
-    return conn.execute("SELECT changes()").fetchone()[0]
 
 
 def get_privacy_config(conn, key: str = None) -> dict:
     """获取隐私配置"""
     if key:
         row = conn.execute(
-            "SELECT value FROM analytics_privacy_config WHERE key=?",
+            "SELECT value FROM analytics_privacy_config WHERE key=%s",
             (key,)
         ).fetchone()
         return row['value'] if row else None
@@ -934,8 +955,8 @@ def update_privacy_config(conn, key: str, value: str):
     """更新隐私配置"""
     conn.execute("""
         INSERT INTO analytics_privacy_config (key, value, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET value=?, updated_at=?
+        VALUES (%s, %s, %s)
+        ON CONFLICT(key) DO UPDATE SET value=%s, updated_at=%s
     """, (key, value, int(time.time()), value, int(time.time())))
     conn.commit()
 
@@ -984,7 +1005,7 @@ def check_alerts(conn) -> list:
                     'time_window': alert['time_window'],
                 })
                 conn.execute(
-                    "UPDATE analytics_alerts SET last_triggered=? WHERE id=?",
+                    "UPDATE analytics_alerts SET last_triggered=%s WHERE id=%s",
                     (int(time.time()), alert['id'])
                 )
                 conn.commit()
@@ -1000,43 +1021,43 @@ def _get_metric_value(conn, metric: str, time_window: str) -> float:
 
     if metric == 'uv':
         row = conn.execute(
-            "SELECT COUNT(DISTINCT visitor_hash) v FROM analytics_logs WHERE timestamp>=? AND is_bot=0",
+            "SELECT COUNT(DISTINCT visitor_hash) v FROM analytics_logs WHERE timestamp>=%s AND is_bot=0",
             (since,)
         ).fetchone()
         return row['v']
     elif metric == 'pv':
         row = conn.execute(
-            "SELECT COUNT(*) v FROM analytics_logs WHERE timestamp>=? AND is_bot=0",
+            "SELECT COUNT(*) v FROM analytics_logs WHERE timestamp>=%s AND is_bot=0",
             (since,)
         ).fetchone()
         return row['v']
     elif metric == 'error_rate':
         total = conn.execute(
-            "SELECT COUNT(*) v FROM analytics_logs WHERE timestamp>=?",
+            "SELECT COUNT(*) v FROM analytics_logs WHERE timestamp>=%s",
             (since,)
         ).fetchone()['v']
         if total == 0:
             return 0
         err = conn.execute(
-            "SELECT COUNT(*) v FROM analytics_logs WHERE timestamp>=? AND status_code>=400",
+            "SELECT COUNT(*) v FROM analytics_logs WHERE timestamp>=%s AND status_code>=400",
             (since,)
         ).fetchone()['v']
         return round(err * 100.0 / total, 2)
     elif metric == 'bounce_rate':
         sessions = conn.execute(
-            "SELECT COUNT(*) v FROM analytics_visitor_sessions WHERE start_time>=?",
+            "SELECT COUNT(*) v FROM analytics_visitor_sessions WHERE start_time>=%s",
             (since,)
         ).fetchone()['v']
         if sessions == 0:
             return 0
         bounced = conn.execute(
-            "SELECT COUNT(*) v FROM analytics_visitor_sessions WHERE start_time>=? AND page_views<=1",
+            "SELECT COUNT(*) v FROM analytics_visitor_sessions WHERE start_time>=%s AND page_views<=1",
             (since,)
         ).fetchone()['v']
         return round(bounced * 100.0 / sessions, 2)
     elif metric == 'avg_response_time':
         row = conn.execute(
-            "SELECT ROUND(AVG(response_time), 1) v FROM analytics_logs WHERE timestamp>=?",
+            "SELECT ROUND(AVG(response_time), 1) v FROM analytics_logs WHERE timestamp>=%s",
             (since,)
         ).fetchone()
         return row['v'] or 0
@@ -1064,10 +1085,11 @@ def track_session(conn, session_hash: str, visitor_hash: str, date_str: str,
                    country: str, city: str, is_bot: int, is_new: int):
     """创建新会话"""
     conn.execute("""
-        INSERT OR IGNORE INTO analytics_visitor_sessions
+        INSERT INTO analytics_visitor_sessions
         (session_hash, visitor_hash, date, start_time, end_time, entry_path, referer,
          browser, os_name, device_type, country, city, is_bot, is_new_visitor)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT(session_hash) DO NOTHING
     """, (
         session_hash, visitor_hash, date_str, start_time, start_time,
         entry_path, referer, browser, os_name, device_type,
@@ -1080,7 +1102,7 @@ def update_session(conn, session_hash: str, exit_path: str, page_views: int, dur
     """更新会话（追加浏览记录）"""
     conn.execute("""
         UPDATE analytics_visitor_sessions
-        SET end_time=?, page_views=?, duration=?, exit_path=?
-        WHERE session_hash=?
+        SET end_time=%s, page_views=%s, duration=%s, exit_path=%s
+        WHERE session_hash=%s
     """, (int(time.time()), page_views, duration, exit_path, session_hash))
     conn.commit()

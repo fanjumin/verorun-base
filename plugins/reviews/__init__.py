@@ -168,7 +168,7 @@ class ReviewsPlugin(BasePlugin):
                 conn.execute(
                     '''INSERT INTO product_reviews (user_id, product_id, order_id, rating, content,
                        images, is_anonymous, is_verified, created_at)
-                       VALUES (?,?,?,?,?,?,?,1,datetime('now','localtime'))''',
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,1,NOW())''',
                     (uid, product_id, order_id, rating, content,
                      json.dumps(images, ensure_ascii=False), is_anonymous)
                 )
@@ -319,7 +319,7 @@ class ReviewsPlugin(BasePlugin):
                 return jsonify({'success': False, 'error': _t('请输入回复内容')}), 400
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE product_reviews SET reply_content=?, reply_at=datetime('now','localtime') WHERE id=?",
+                    "UPDATE product_reviews SET reply_content=%s, reply_at=NOW() WHERE id=%s",
                     (reply, rid)
                 )
                 conn.commit()

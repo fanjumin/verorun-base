@@ -42,10 +42,10 @@ def create_ticket_from_chat(title, content, contact='', user_id=None, session_id
                 """INSERT INTO user_tickets
                    (user_id, type, category, title, content, contact,
                     status, priority, created_at, updated_at)
-                   VALUES (?, 'aftersale', 'chatbot_escalation',
-                           ?, ?, ?,
+                   VALUES (%s, 'aftersale', 'chatbot_escalation',
+                           %s, %s, %s,
                            'open', 'normal',
-                           datetime('now'), datetime('now'))""",
+                           NOW(), NOW())""",
                 (user_id, title, content, contact)
             )
             conn.commit()

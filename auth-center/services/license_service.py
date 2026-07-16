@@ -9,8 +9,19 @@ VeroRon 维洛智能 — 本地授权验证服务（运行在客户部署的实�
     status = svc.get_status()  # 返回 {valid, days_remaining, status}
     svc.refresh()              # 主动刷新（调用心跳API）
 """
-import os, json, time, sqlite3, requests
+import os, json, time, requests
 from datetime import datetime, timedelta
+import psycopg2
+import psycopg2.extras
+
+# PostgreSQL 连接配置（复用环境变量）
+_PG_CONFIG = {
+    'host': os.environ.get('PG_HOST', 'localhost'),
+    'port': int(os.environ.get('PG_PORT', 5432)),
+    'dbname': os.environ.get('PG_DB', 'verorun'),
+    'user': os.environ.get('PG_USER', 'verorun'),
+    'password': os.environ.get('PG_PASSWORD', ''),
+}
 
 
 class LicenseService:
@@ -21,16 +32,14 @@ class LicenseService:
     DEFAULT_HEARTBEAT_URL = 'https://localhost/api/subscription/heartbeat'
 
     def __init__(self, db_path=None):
-        self.db_path = db_path or os.environ.get(
-            'DB_PATH',
-            os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'x7k2m9a4.db')
-        )
+        self._pg_config = dict(_PG_CONFIG)
+        if db_path:
+            self._pg_config['dbname'] = db_path
         self._cache = {'result': None, 'timestamp': 0}
         self._ensure_config_table()
 
     def _get_conn(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = psycopg2.connect(**self._pg_config, cursor_factory=psycopg2.extras.RealDictCursor)
         return conn
 
     def _ensure_config_table(self):
@@ -45,7 +54,7 @@ class LicenseService:
 
     def _get_config(self, key, default=None):
         conn = self._get_conn()
-        row = conn.execute('SELECT value FROM system_config WHERE key=?', (key,)).fetchone()
+        row = conn.execute('SELECT value FROM system_config WHERE key=%s', (key,)).fetchone()
         conn.close()
         if row:
             return row['value']
@@ -53,7 +62,9 @@ class LicenseService:
 
     def _set_config(self, key, value):
         conn = self._get_conn()
-        conn.execute('INSERT OR REPLACE INTO system_config (key, value) VALUES (?,?)', (key, str(value)))
+        conn.execute(
+            'INSERT INTO system_config (key, value) VALUES (%s,%s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value',
+            (key, str(value)))
         conn.commit()
         conn.close()
 

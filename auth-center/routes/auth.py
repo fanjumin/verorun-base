@@ -81,7 +81,7 @@ def sms_send():
     with get_db() as conn:
         expires_at = (__import__('datetime').datetime.now() +
                       __import__('datetime').timedelta(minutes=10)).isoformat()
-        cur = conn.execute('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (?,?,?,?)',
+        cur = conn.execute('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (%s,%s,%s,%s)',
                      (phone, code, purpose, expires_at))
         conn.commit()
     result = send_sms(phone, code, purpose)
@@ -113,7 +113,7 @@ def username_check():
     if not un['valid']:
         return api_ok({'available': False, 'error': un['error']})
     with get_db() as conn:
-        row = conn.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone()
+        row = conn.execute('SELECT id FROM users WHERE username=%s', (username,)).fetchone()
     return api_ok({'available': row is None})
 
 
@@ -138,7 +138,7 @@ def sms_register():
     now = now_iso()
     with get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
             (phone, code, 'register', now))
         sms_row = row.fetchone()
         if not sms_row:
@@ -146,7 +146,7 @@ def sms_register():
         sms_row = dict(sms_row)
         if sms_row['attempts'] >= 5:
             return api_err(_('Too many attempts, please request a new code'))
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (sms_row['id'],))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (sms_row['id'],))
 
     # Validate display_name (sanitize first)
     from services.name_validator import check_username, check_display_name, sanitize_name
@@ -180,20 +180,20 @@ def sms_register():
     # Create user
     with get_db() as conn:
         # Check username uniqueness
-        existing = conn.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone()
+        existing = conn.execute('SELECT id FROM users WHERE username=%s', (username,)).fetchone()
         if existing:
             return api_err(_('Username already taken'))
         # Check phone uniqueness
-        existing_phone = conn.execute('SELECT id FROM users WHERE phone=?', (phone,)).fetchone()
+        existing_phone = conn.execute('SELECT id FROM users WHERE phone=%s', (phone,)).fetchone()
         if existing_phone:
             return api_err('This phone is already registered')
         cur = conn.execute(
-            'INSERT INTO users (phone, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (?,?,?,?,1,0,?)',
+            'INSERT INTO users (phone, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (%s,%s,%s,%s,1,0,%s)',
             (phone, username, display_name or username, stored, now))
         user_id = cur.lastrowid
         # Auto-create free-tier authorization
         conn.execute(
-            'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+            'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s)',
             (user_id, 'trademind', 'free'))
         conn.commit()
 
@@ -208,7 +208,7 @@ def sms_register():
     with get_db() as conn:
         conn.execute(
             "INSERT INTO user_sessions (user_id, token_hash, device_name, device_type, ip_address, user_agent, is_current, created_at) "
-            "VALUES (?,?,?,?,?,?,1, datetime('now'))",
+            "VALUES (%s,%s,%s,%s,%s,%s,1, NOW())",
             (user_id, token_hash, device_name, device_type, ip_address, user_agent))
         conn.commit()
 
@@ -243,7 +243,7 @@ def sms_login():
     now = now_iso()
     with get_db() as conn:
         cur = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=? AND code=? AND purpose=? AND used=0 AND expires_at>? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
             (phone, code, 'login', now))
         row = cur.fetchone()
         if not row:
@@ -251,21 +251,21 @@ def sms_login():
         row = dict(row)
         if row['attempts'] >= 5:
             return api_err('Too many attempts, please request a new code')
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=?', (row['id'],))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
         # Find or create user
-        cur = conn.execute('SELECT * FROM users WHERE phone=?', (phone,))
+        cur = conn.execute('SELECT * FROM users WHERE phone=%s', (phone,))
         user = cur.fetchone()
         if user:
             user = dict(user)
-            conn.execute('UPDATE users SET last_login=? WHERE id=?', (now, user['id']))
+            conn.execute('UPDATE users SET last_login=%s WHERE id=%s', (now, user['id']))
         else:
             cur = conn.execute(
-                'INSERT INTO users (phone, phone_verified, last_login) VALUES (?,1,?)',
+                'INSERT INTO users (phone, phone_verified, last_login) VALUES (%s,1,%s)',
                 (phone, now))
             user_id = cur.lastrowid
             # Auto-create free-tier authorization for trademind
             conn.execute(
-                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s)',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'phone': phone}
         conn.commit()
@@ -282,7 +282,7 @@ def sms_login():
     with get_db() as conn:
         conn.execute(
             "INSERT INTO user_sessions (user_id, token_hash, device_name, device_type, ip_address, user_agent, is_current, created_at) "
-            "VALUES (?,?,?,?,?,?,1, datetime('now'))",
+            "VALUES (%s,%s,%s,%s,%s,%s,1, NOW())",
             (user['id'], token_hash, dev_name, dev_type, ip_addr, ua))
         conn.commit()
     resp = make_response(jsonify({'success': True, 'data': {
@@ -341,7 +341,7 @@ def email_send_code():
     with get_db() as conn:
         expires_at = (__import__('datetime').datetime.now() +
                       __import__('datetime').timedelta(minutes=10)).isoformat()
-        conn.execute('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (?,?,?,?)',
+        conn.execute('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (%s,%s,%s,%s)',
                      (email, code, 'email_verify', expires_at))
         conn.commit()
     from plugins.email.services import send_email
@@ -368,7 +368,7 @@ def email_verify():
         return api_err('Email and verification code are required')
     with get_db() as conn:
         row = conn.execute(
-            'SELECT code, expires_at FROM sms_codes WHERE phone=? AND purpose=? ORDER BY id DESC LIMIT 1',
+            'SELECT code, expires_at FROM sms_codes WHERE phone=%s AND purpose=%s ORDER BY id DESC LIMIT 1',
             (email, 'email_verify')
         ).fetchone()
         if not row:
@@ -378,10 +378,10 @@ def email_verify():
         if row['code'] != code:
             return api_err('Invalid verification code')
         # Check if email already used by another user
-        exist = conn.execute('SELECT id FROM users WHERE email=? AND id!=?', (email, payload['user_id'])).fetchone()
+        exist = conn.execute('SELECT id FROM users WHERE email=%s AND id!=%s', (email, payload['user_id'])).fetchone()
         if exist:
             return api_err('This email is already in use')
-        conn.execute('UPDATE users SET email=?, email_verified=1 WHERE id=?', (email, payload['user_id']))
+        conn.execute('UPDATE users SET email=%s, email_verified=1 WHERE id=%s', (email, payload['user_id']))
         conn.commit()
     return api_ok({'email': email, 'email_verified': True})
 
@@ -397,7 +397,7 @@ def auth_logout():
     if token:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         with get_db() as conn:
-            conn.execute("UPDATE user_sessions SET is_current=0 WHERE token_hash=?", (token_hash,))
+            conn.execute("UPDATE user_sessions SET is_current=0 WHERE token_hash=%s", (token_hash,))
             conn.commit()
     # 清除所有相关 cookie
     cd_val = _get_cookie_domain()

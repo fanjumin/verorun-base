@@ -16,23 +16,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTS_DIR = os.path.join(BASE_DIR, '..', '..', 'certs')
 
-# ── DB 路径（与 subscription/__init__.py 一致）──
-_DB_PATH = os.environ.get('DB_PATH', os.path.join(BASE_DIR, '..', '..', '..', '..', 'data', 'x7k2m9a4.db'))
+# ── 配置读取（从 system_config 表）──
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+from database import get_db
 
 
 def _get_payment_db_config():
     """从 system_config 读取微信支付配置"""
     try:
-        import sqlite3
-        conn = sqlite3.connect(_DB_PATH)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT key, value FROM system_config WHERE key IN "
-            "('wechat_mchid', 'wechat_api_v3_key', 'wechat_cert_serial', "
-            " 'wechat_plan_id', 'wechat_app_id', 'payment.notify_base')"
-        ).fetchall()
-        conn.close()
-        return {r['key']: r['value'] for r in rows}
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM system_config WHERE key IN "
+                "('wechat_mchid', 'wechat_api_v3_key', 'wechat_cert_serial', "
+                " 'wechat_plan_id', 'wechat_app_id', 'payment.notify_base')"
+            ).fetchall()
+            return {r['key']: r['value'] for r in rows}
     except Exception:
         return {}
 
@@ -486,7 +484,7 @@ def handle_notify():
             with get_db() as conn:
                 # 根据订单号查找订阅并更新 contract_id
                 result = conn.execute(
-                    "UPDATE subscriptions SET wechat_contract_id=? WHERE order_no=?",
+                    "UPDATE subscriptions SET wechat_contract_id=%s WHERE order_no=%s",
                     (contract_id, out_contract_code)
                 )
                 conn.commit()

@@ -14,46 +14,52 @@ Cron 任务调度系统 + Workflow 工作流引擎的 SQLite 数据模型。
 import json, time
 from datetime import datetime
 from contextlib import contextmanager
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
-DB_PATH = os.environ.get('DB_PATH', os.path.join(DATA_DIR, 'x7k2m9a4.db'))
-os.makedirs(DATA_DIR, exist_ok=True)
+
+# PostgreSQL 连接配置（复用 easykai 主库）
+DB_CONFIG = {
+    'host':     os.environ.get('DB_HOST', 'localhost'),
+    'port':     int(os.environ.get('DB_PORT', 5432)),
+    'dbname':   os.environ.get('DB_NAME', 'easykai'),
+    'user':     os.environ.get('DB_USER', 'easykai'),
+    'password': os.environ.get('DB_PASS', ''),
+}
 
 
 @contextmanager
 def get_db():
-    """获取数据库连接（复用 easykai 主库连接模式）
+    """获取数据库 cursor（PostgreSQL）
 
     正常退出时自动 commit，发生异常时 rollback，最后关闭连接。
-    这样各写函数无需重复显式 commit（已有的显式 commit 亦无害）。
+    返回 RealDictCursor — fetchone/fetchall 得到的行为类似 dict，同时支持下标访问。
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn = psycopg2.connect(**DB_CONFIG)
+    conn.autocommit = False
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
-        yield conn
+        yield cur
         conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
+        cur.close()
         conn.close()
 
 
 def init_orchestrator_tables():
     """初始化调度器所有表（幂等：IF NOT EXISTS）"""
     with get_db() as conn:
-        conn.executescript("""
+        conn.execute("""
             -- =====================================================
             -- 1. 系统 Agent 配置表（平台自己的 AI 执行者）
             -- =====================================================
             CREATE TABLE IF NOT EXISTS system_agents (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL UNIQUE,
                 description     TEXT DEFAULT '',
                 provider        TEXT NOT NULL DEFAULT 'dashscope',
@@ -62,17 +68,17 @@ def init_orchestrator_tables():
                 base_url        TEXT DEFAULT '',
                 system_prompt   TEXT DEFAULT '',
                 capabilities    TEXT DEFAULT '[]',       -- JSON array
-                max_concurrency INTEGER DEFAULT 1,
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                max_concurrency BIGINT DEFAULT 1,
+                is_active       BIGINT DEFAULT 1,
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW()
             );
 
             -- =====================================================
             -- 2. Cron 任务定义表
             -- =====================================================
             CREATE TABLE IF NOT EXISTS cron_jobs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 description     TEXT DEFAULT '',
 
@@ -81,7 +87,7 @@ def init_orchestrator_tables():
                                 CHECK(job_type IN ('cron','interval','once')),
                 cron_expr       TEXT DEFAULT '',          -- 标准Cron: '0 30 9 * * 1-5'
                 natural_expr    TEXT DEFAULT '',          -- 自然语言: '每个交易日 9:30'
-                interval_seconds INTEGER DEFAULT 0,       -- 固定间隔（秒）
+                interval_seconds BIGINT DEFAULT 0,       -- 固定间隔（秒）
                 timezone        TEXT DEFAULT 'Asia/Shanghai',
                 calendar        TEXT DEFAULT '{}',        -- JSON: {workdays_only, exclude_holidays, trade_days_only}
 
@@ -89,12 +95,12 @@ def init_orchestrator_tables():
                 start_at        TEXT DEFAULT '',
                 end_at          TEXT DEFAULT '',
                 next_run_at     TEXT DEFAULT '',
-                max_runs        INTEGER DEFAULT 0,        -- 0 = 无限制
+                max_runs        BIGINT DEFAULT 0,        -- 0 = 无限制
 
                 -- Agent 配置（两种 Agent 区分）
                 agent_type      TEXT NOT NULL DEFAULT 'system'
                                 CHECK(agent_type IN ('system','user')),
-                agent_id        INTEGER DEFAULT NULL,     -- system: system_agents.id | user: agents.id
+                agent_id        BIGINT DEFAULT NULL,     -- system: system_agents.id | user: agents.id
 
                 -- 目标配置
                 target_type     TEXT NOT NULL DEFAULT 'workflow'
@@ -107,24 +113,24 @@ def init_orchestrator_tables():
                 worker_pool     TEXT DEFAULT 'shared',    -- 'shared' | 'dedicated'
 
                 -- 重试策略
-                max_retries     INTEGER DEFAULT 3,
-                retry_delay     INTEGER DEFAULT 10,       -- 初次重试延迟（秒）
-                retry_backoff   REAL DEFAULT 2.0,         -- 指数退避因子
-                timeout_seconds INTEGER DEFAULT 300,
+                max_retries     BIGINT DEFAULT 3,
+                retry_delay     BIGINT DEFAULT 10,       -- 初次重试延迟（秒）
+                retry_backoff   DOUBLE PRECISION DEFAULT 2.0,         -- 指数退避因子
+                timeout_seconds BIGINT DEFAULT 300,
 
                 -- 状态
-                is_active       INTEGER DEFAULT 1,
+                is_active       BIGINT DEFAULT 1,
                 last_run_at     TEXT DEFAULT '',
                 last_status     TEXT DEFAULT ''
                                 CHECK(last_status IN ('','success','failed','running','timeout','cancelled')),
-                last_duration_ms INTEGER DEFAULT 0,
-                run_count       INTEGER DEFAULT 0,
-                fail_count      INTEGER DEFAULT 0,
+                last_duration_ms BIGINT DEFAULT 0,
+                run_count       BIGINT DEFAULT 0,
+                fail_count      BIGINT DEFAULT 0,
 
                 -- 审计
-                created_by      INTEGER DEFAULT 0,        -- users.id
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                created_by      BIGINT DEFAULT 0,        -- users.id
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW()
             );
 
             CREATE INDEX IF NOT EXISTS idx_cron_jobs_active
@@ -136,9 +142,9 @@ def init_orchestrator_tables():
             -- 3. 任务依赖关系表（DAG 边）
             -- =====================================================
             CREATE TABLE IF NOT EXISTS job_dependencies (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id          INTEGER NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
-                depends_on_job_id INTEGER NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                job_id          BIGINT NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+                depends_on_job_id BIGINT NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
                 condition       TEXT NOT NULL DEFAULT 'success'
                                 CHECK(condition IN ('success','failure','any','completed')),
                 UNIQUE(job_id, depends_on_job_id)
@@ -148,16 +154,16 @@ def init_orchestrator_tables():
             -- 4. 工作流定义表
             -- =====================================================
             CREATE TABLE IF NOT EXISTS workflow_definitions (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 description     TEXT DEFAULT '',
-                version         INTEGER DEFAULT 1,
-                is_active       INTEGER DEFAULT 1,
+                version         BIGINT DEFAULT 1,
+                is_active       BIGINT DEFAULT 1,
 
                 -- Agent 配置
                 agent_type      TEXT NOT NULL DEFAULT 'system'
                                 CHECK(agent_type IN ('system','user')),
-                agent_id        INTEGER DEFAULT NULL,
+                agent_id        BIGINT DEFAULT NULL,
 
                 -- DAG 定义（JSON）
                 -- 结构: {
@@ -183,17 +189,17 @@ def init_orchestrator_tables():
                 triggers        TEXT DEFAULT '[]',        -- JSON: [{type:"cron",config:{...}}]
 
                 -- 并发控制
-                max_concurrency INTEGER DEFAULT 1,
-                timeout_minutes INTEGER DEFAULT 60,
+                max_concurrency BIGINT DEFAULT 1,
+                timeout_minutes BIGINT DEFAULT 60,
 
                 -- 错误处理
                 on_error        TEXT DEFAULT 'pause'
                                 CHECK(on_error IN ('pause','skip','retry','abort')),
 
                 -- 审计
-                created_by      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                created_by      BIGINT DEFAULT 0,
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW()
             );
 
             CREATE INDEX IF NOT EXISTS idx_wf_active
@@ -203,9 +209,9 @@ def init_orchestrator_tables():
             -- 5. 工作流运行实例表
             -- =====================================================
             CREATE TABLE IF NOT EXISTS workflow_instances (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                workflow_id     INTEGER NOT NULL REFERENCES workflow_definitions(id),
-                version         INTEGER DEFAULT 1,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                workflow_id     BIGINT NOT NULL REFERENCES workflow_definitions(id),
+                version         BIGINT DEFAULT 1,
 
                 -- 状态机
                 status          TEXT NOT NULL DEFAULT 'pending'
@@ -226,13 +232,13 @@ def init_orchestrator_tables():
                 -- 时间
                 started_at      TEXT DEFAULT '',
                 finished_at     TEXT DEFAULT '',
-                duration_ms     INTEGER DEFAULT 0,
+                duration_ms     BIGINT DEFAULT 0,
 
                 -- Agent 实际执行者
                 executed_by_agent TEXT DEFAULT '',
-                executed_by_agent_id INTEGER DEFAULT NULL,
+                executed_by_agent_id BIGINT DEFAULT NULL,
 
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT NOW()
             );
 
             CREATE INDEX IF NOT EXISTS idx_wfi_status
@@ -244,8 +250,8 @@ def init_orchestrator_tables():
             -- 6. 工作流节点运行实例表
             -- =====================================================
             CREATE TABLE IF NOT EXISTS workflow_node_instances (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                workflow_instance_id INTEGER NOT NULL
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                workflow_instance_id BIGINT NOT NULL
                                     REFERENCES workflow_instances(id) ON DELETE CASCADE,
                 node_id         TEXT NOT NULL,            -- 对应 definition 中的 node.id
                 node_type       TEXT NOT NULL,
@@ -264,24 +270,22 @@ def init_orchestrator_tables():
                 error_detail    TEXT DEFAULT '',
 
                 -- 重试
-                retry_count     INTEGER DEFAULT 0,
-                max_retries     INTEGER DEFAULT 3,
+                retry_count     BIGINT DEFAULT 0,
+                max_retries     BIGINT DEFAULT 3,
 
                 -- 审批
                 approval_status TEXT DEFAULT ''
                                 CHECK(approval_status IN ('','pending','approved','rejected')),
-                approved_by     INTEGER DEFAULT NULL,
+                approved_by     BIGINT DEFAULT NULL,
                 approved_at     TEXT DEFAULT '',
 
                 -- 时间
                 started_at      TEXT DEFAULT '',
                 finished_at     TEXT DEFAULT '',
-                duration_ms     INTEGER DEFAULT 0,
+                duration_ms     BIGINT DEFAULT 0,
 
                 -- 执行上下文（用于调试）
-                log_snippet     TEXT DEFAULT '',
-
-                FOREIGN KEY (workflow_instance_id) REFERENCES workflow_instances(id)
+                log_snippet     TEXT DEFAULT ''
             );
 
             CREATE INDEX IF NOT EXISTS idx_wni_instance
@@ -293,15 +297,15 @@ def init_orchestrator_tables():
             -- 7. 执行日志表
             -- =====================================================
             CREATE TABLE IF NOT EXISTS execution_logs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 source_type     TEXT NOT NULL
                                 CHECK(source_type IN ('cron','workflow','node','system')),
-                source_id       INTEGER DEFAULT 0,        -- cron_jobs.id / workflow_instances.id / workflow_node_instances.id
+                source_id       BIGINT DEFAULT 0,        -- cron_jobs.id / workflow_instances.id / workflow_node_instances.id
                 level           TEXT NOT NULL DEFAULT 'info'
                                 CHECK(level IN ('debug','info','warn','error','fatal')),
                 message         TEXT NOT NULL,
                 details         TEXT DEFAULT '{}',         -- JSON
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT NOW()
             );
 
             CREATE INDEX IF NOT EXISTS idx_el_source
@@ -313,7 +317,7 @@ def init_orchestrator_tables():
             -- 8. 告警配置表
             -- =====================================================
             CREATE TABLE IF NOT EXISTS alerts (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 description     TEXT DEFAULT '',
                 rule_type       TEXT NOT NULL
@@ -323,54 +327,54 @@ def init_orchestrator_tables():
                 channel         TEXT NOT NULL DEFAULT 'notification'
                                 CHECK(channel IN ('email','webhook','sms','notification','all')),
                 channel_config  TEXT DEFAULT '{}',         -- JSON: {webhook_url, email_to, ...}
-                is_active       INTEGER DEFAULT 1,
-                throttle_minutes INTEGER DEFAULT 5,        -- 防重复
+                is_active       BIGINT DEFAULT 1,
+                throttle_minutes BIGINT DEFAULT 5,        -- 防重复
                 last_triggered_at TEXT DEFAULT '',
-                trigger_count   INTEGER DEFAULT 0,
-                created_by      INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now'))
+                trigger_count   BIGINT DEFAULT 0,
+                created_by      BIGINT DEFAULT 0,
+                created_at      TEXT DEFAULT NOW()
             );
 
             -- =====================================================
             -- 9. 调度器节点状态表（分布式支持）
             -- =====================================================
             CREATE TABLE IF NOT EXISTS scheduler_state (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 scheduler_id    TEXT NOT NULL UNIQUE,      -- 实例唯一标识
                 hostname        TEXT DEFAULT '',
-                is_leader       INTEGER DEFAULT 0,
-                last_heartbeat  TEXT DEFAULT (datetime('now')),
-                running_jobs    INTEGER DEFAULT 0,
-                running_workflows INTEGER DEFAULT 0,
+                is_leader       BIGINT DEFAULT 0,
+                last_heartbeat  TEXT DEFAULT NOW(),
+                running_jobs    BIGINT DEFAULT 0,
+                running_workflows BIGINT DEFAULT 0,
                 state_json      TEXT DEFAULT '{}',
-                started_at      TEXT DEFAULT (datetime('now'))
+                started_at      TEXT DEFAULT NOW()
             );
 
             -- =====================================================
             -- 10. 工作流触发器表（事件驱动：发布即触发工作流）
             -- =====================================================
             CREATE TABLE IF NOT EXISTS workflow_triggers (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,
                 trigger_event   TEXT NOT NULL,             -- 事件名, 如 'cms.published'/'content_factory.approved'
-                workflow_id     INTEGER NOT NULL,          -- 要执行的 workflow_definitions.id
+                workflow_id     BIGINT NOT NULL,          -- 要执行的 workflow_definitions.id
                 match_condition TEXT DEFAULT '{}',         -- JSON 匹配条件, 空=无条件. 如 {"category":"news","source":"factory"}
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                is_active       BIGINT DEFAULT 1,
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW()
             );
 
             CREATE INDEX IF NOT EXISTS idx_wt_event
                 ON workflow_triggers(trigger_event, is_active);
 
             -- 预置默认系统 Agent（仅当没有数据时插入）
-            INSERT OR IGNORE INTO system_agents (name, description, provider, model, api_key_ref, system_prompt, capabilities)
+            INSERT INTO system_agents (name, description, provider, model, api_key_ref, system_prompt, capabilities)
             VALUES ('default-system-agent', '平台默认自动调度 Agent，执行内容工厂、市场监控等自动化任务',
                     'dashscope', 'qwen-turbo', 'dashscope_text_key',
                     '你是平台的自动化调度助手。你的职责是执行定时任务、处理工作流、生成内容、监控市场数据。请严格按照任务要求输出结果。',
-                    '["content_factory","market_monitor","data_analysis","report_generation"]');
+                    '["content_factory","market_monitor","data_analysis","report_generation"]')
+            ON CONFLICT (name) DO NOTHING;
         """)
-        conn.commit()
 
 
 # ========== 辅助函数 ==========
@@ -408,7 +412,8 @@ def create_cron_job(data):
                  target_type, target_config, priority, worker_pool,
                  max_retries, retry_delay, retry_backoff, timeout_seconds,
                  is_active, created_by)
-            VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?)
+            VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s, %s,%s)
+            RETURNING id
         """, (
             data.get('name'), data.get('description', ''),
             data.get('job_type', 'cron'), data.get('cron_expr', ''),
@@ -427,7 +432,7 @@ def create_cron_job(data):
             data.get('retry_backoff', 2.0), data.get('timeout_seconds', 300),
             data.get('is_active', 1), data.get('created_by', 0)
         ))
-        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return conn.fetchone()[0]
 
 
 def update_cron_job(job_id, data):
@@ -441,7 +446,7 @@ def update_cron_job(job_id, data):
                 'max_retries','retry_delay','retry_backoff','timeout_seconds',
                 'is_active'):
         if key in data:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             v = data[key]
             if key in ('calendar', 'target_config') and isinstance(v, dict):
                 v = to_json(v)
@@ -450,18 +455,19 @@ def update_cron_job(job_id, data):
         return False
     values.append(job_id)
     with get_db() as conn:
-        fields.append("updated_at=datetime('now')")
+        fields.append("updated_at=NOW()")
         conn.execute(
-            f"UPDATE cron_jobs SET {', '.join(fields)} WHERE id=?",
+            f"UPDATE cron_jobs SET {', '.join(fields)} WHERE id=%s",
             values
         )
-        return conn.execute('SELECT changes()').fetchone()[0] > 0
+        return conn.rowcount > 0
 
 
 def get_cron_job(job_id):
     """获取单个任务"""
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM cron_jobs WHERE id=?", (job_id,)).fetchone()
+        conn.execute("SELECT * FROM cron_jobs WHERE id=%s", (job_id,))
+        row = conn.fetchone()
         return dict(row) if row else None
 
 
@@ -472,18 +478,20 @@ def list_cron_jobs(active_only=False, page=1, limit=50, priority=None):
     if active_only:
         where.append("is_active=1")
     if priority:
-        where.append("priority=?")
+        where.append("priority=%s")
         params.append(priority)
     offset = (page - 1) * limit
     with get_db() as conn:
-        total = conn.execute(
+        conn.execute(
             f"SELECT COUNT(*) FROM cron_jobs WHERE {' AND '.join(where)}", params
-        ).fetchone()[0]
-        rows = conn.execute(
+        )
+        total = conn.fetchone()[0]
+        conn.execute(
             f"SELECT * FROM cron_jobs WHERE {' AND '.join(where)} "
-            f"ORDER BY priority DESC, created_at DESC LIMIT ? OFFSET ?",
+            f"ORDER BY priority DESC, created_at DESC LIMIT %s OFFSET %s",
             params + [limit, offset]
-        ).fetchall()
+        )
+        rows = conn.fetchall()
         return {
             "total": total,
             "page": page,
@@ -495,9 +503,9 @@ def list_cron_jobs(active_only=False, page=1, limit=50, priority=None):
 def delete_cron_job(job_id):
     """删除任务（级联删除依赖）"""
     with get_db() as conn:
-        conn.execute("DELETE FROM job_dependencies WHERE job_id=? OR depends_on_job_id=?", (job_id, job_id))
-        conn.execute("DELETE FROM cron_jobs WHERE id=?", (job_id,))
-        return conn.execute('SELECT changes()').fetchone()[0] > 0
+        conn.execute("DELETE FROM job_dependencies WHERE job_id=%s OR depends_on_job_id=%s", (job_id, job_id))
+        conn.execute("DELETE FROM cron_jobs WHERE id=%s", (job_id,))
+        return conn.rowcount > 0
 
 
 # ========== 工作流 CRUD ==========
@@ -511,7 +519,8 @@ def create_workflow(data):
                  agent_type, agent_id, definition, change_log,
                  triggers, max_concurrency, timeout_minutes, on_error,
                  created_by)
-            VALUES (?,?,?,?, ?,?,?,?, ?,?,?,?, ?)
+            VALUES (%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s, %s)
+            RETURNING id
         """, (
             data.get('name'), data.get('description', ''),
             data.get('version', 1), data.get('is_active', 1),
@@ -524,7 +533,7 @@ def create_workflow(data):
             data.get('on_error', 'pause'),
             data.get('created_by', 0)
         ))
-        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return conn.fetchone()[0]
 
 
 def update_workflow(wf_id, data):
@@ -535,7 +544,7 @@ def update_workflow(wf_id, data):
                 'definition','change_log','triggers','max_concurrency',
                 'timeout_minutes','on_error'):
         if key in data:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             v = data[key]
             if isinstance(v, (dict, list)):
                 v = to_json(v)
@@ -543,22 +552,23 @@ def update_workflow(wf_id, data):
     if not fields:
         return False
     fields.append("version=version+1")
-    fields.append("updated_at=datetime('now')")
+    fields.append("updated_at=NOW()")
     values.append(wf_id)
     with get_db() as conn:
         conn.execute(
-            f"UPDATE workflow_definitions SET {', '.join(fields)} WHERE id=?",
+            f"UPDATE workflow_definitions SET {', '.join(fields)} WHERE id=%s",
             values
         )
-        return conn.execute('SELECT changes()').fetchone()[0] > 0
+        return conn.rowcount > 0
 
 
 def get_workflow(wf_id):
     """获取工作流定义"""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM workflow_definitions WHERE id=?", (wf_id,)
-        ).fetchone()
+        conn.execute(
+            "SELECT * FROM workflow_definitions WHERE id=%s", (wf_id,)
+        )
+        row = conn.fetchone()
         return dict(row) if row else None
 
 
@@ -570,15 +580,17 @@ def list_workflows(active_only=False, page=1, limit=50):
         where.append("is_active=1")
     offset = (page - 1) * limit
     with get_db() as conn:
-        total = conn.execute(
+        conn.execute(
             f"SELECT COUNT(*) FROM workflow_definitions WHERE {' AND '.join(where)}",
             params
-        ).fetchone()[0]
-        rows = conn.execute(
+        )
+        total = conn.fetchone()[0]
+        conn.execute(
             f"SELECT * FROM workflow_definitions WHERE {' AND '.join(where)} "
-            f"ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+            f"ORDER BY updated_at DESC LIMIT %s OFFSET %s",
             params + [limit, offset]
-        ).fetchall()
+        )
+        rows = conn.fetchall()
         return {
             "total": total,
             "page": page,
@@ -592,12 +604,12 @@ def delete_workflow(wf_id):
     with get_db() as conn:
         # 先删除节点实例
         conn.execute("""DELETE FROM workflow_node_instances WHERE workflow_instance_id IN 
-                        (SELECT id FROM workflow_instances WHERE workflow_id=?)""", (wf_id,))
+                        (SELECT id FROM workflow_instances WHERE workflow_id=%s)""", (wf_id,))
         # 再删除实例
-        conn.execute("DELETE FROM workflow_instances WHERE workflow_id=?", (wf_id,))
+        conn.execute("DELETE FROM workflow_instances WHERE workflow_id=%s", (wf_id,))
         # 最后删除定义
-        conn.execute("DELETE FROM workflow_definitions WHERE id=?", (wf_id,))
-        return conn.execute('SELECT changes()').fetchone()[0] > 0
+        conn.execute("DELETE FROM workflow_definitions WHERE id=%s", (wf_id,))
+        return conn.rowcount > 0
 
 
 # ========== 工作流实例 ==========
@@ -613,12 +625,13 @@ def create_workflow_instance(workflow_id, trigger_type='manual', trigger_config=
             INSERT INTO workflow_instances
                 (workflow_id, version, trigger_type, trigger_config,
                  status, context_data, started_at)
-            VALUES (?,?,?,?, 'running', '{}', datetime('now'))
+            VALUES (%s,%s,%s,%s, 'running', '{}', NOW())
+            RETURNING id
         """, (
             workflow_id, wf.get('version', 1),
             trigger_type, to_json(trigger_config or {})
         ))
-        inst_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        inst_id = conn.fetchone()[0]
 
         # 创建所有节点的实例记录
         nodes = defn.get('nodes', [])
@@ -627,14 +640,13 @@ def create_workflow_instance(workflow_id, trigger_type='manual', trigger_config=
                 INSERT INTO workflow_node_instances
                     (workflow_instance_id, node_id, node_type, node_name,
                      status, input_data, max_retries)
-                VALUES (?,?,?,?, 'pending', '{}', ?)
+                VALUES (%s,%s,%s,%s, 'pending', '{}', %s)
             """, (
                 inst_id, node.get('id', ''),
                 node.get('type', ''), node.get('name', ''),
                 node.get('max_retries', 3)
             ))
 
-        conn.commit()
         return inst_id
 
 
@@ -646,25 +658,26 @@ def update_workflow_instance(inst_id, updates):
                 'error_detail','finished_at','duration_ms',
                 'executed_by_agent','executed_by_agent_id'):
         if key in updates:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             values.append(updates[key])
     if not fields:
         return False
     values.append(inst_id)
     with get_db() as conn:
         conn.execute(
-            f"UPDATE workflow_instances SET {', '.join(fields)} WHERE id=?",
+            f"UPDATE workflow_instances SET {', '.join(fields)} WHERE id=%s",
             values
         )
-        return conn.execute('SELECT changes()').fetchone()[0] > 0
+        return conn.rowcount > 0
 
 
 def get_workflow_instance(inst_id):
     """获取工作流实例"""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM workflow_instances WHERE id=?", (inst_id,)
-        ).fetchone()
+        conn.execute(
+            "SELECT * FROM workflow_instances WHERE id=%s", (inst_id,)
+        )
+        row = conn.fetchone()
         return dict(row) if row else None
 
 
@@ -673,22 +686,24 @@ def list_workflow_instances(workflow_id=None, status=None, page=1, limit=50):
     where = ["1=1"]
     params = []
     if workflow_id:
-        where.append("workflow_id=?")
+        where.append("workflow_id=%s")
         params.append(workflow_id)
     if status:
-        where.append("status=?")
+        where.append("status=%s")
         params.append(status)
     offset = (page - 1) * limit
     with get_db() as conn:
-        total = conn.execute(
+        conn.execute(
             f"SELECT COUNT(*) FROM workflow_instances WHERE {' AND '.join(where)}",
             params
-        ).fetchone()[0]
-        rows = conn.execute(
+        )
+        total = conn.fetchone()[0]
+        conn.execute(
             f"SELECT * FROM workflow_instances WHERE {' AND '.join(where)} "
-            f"ORDER BY id DESC LIMIT ? OFFSET ?",
+            f"ORDER BY id DESC LIMIT %s OFFSET %s",
             params + [limit, offset]
-        ).fetchall()
+        )
+        rows = conn.fetchall()
         return {
             "total": total,
             "page": page,
@@ -708,7 +723,7 @@ def update_node_instance(node_inst_id, updates):
                 'duration_ms','log_snippet','approval_status',
                 'approved_by','approved_at'):
         if key in updates:
-            fields.append(f"{key}=?")
+            fields.append(f"{key}=%s")
             v = updates[key]
             if isinstance(v, (dict, list)):
                 v = to_json(v)
@@ -718,28 +733,30 @@ def update_node_instance(node_inst_id, updates):
     values.append(node_inst_id)
     with get_db() as conn:
         conn.execute(
-            f"UPDATE workflow_node_instances SET {', '.join(fields)} WHERE id=?",
+            f"UPDATE workflow_node_instances SET {', '.join(fields)} WHERE id=%s",
             values
         )
-        return conn.execute('SELECT changes()').fetchone()[0] > 0
+        return conn.rowcount > 0
 
 
 def get_node_instance(node_inst_id):
     """获取节点实例"""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM workflow_node_instances WHERE id=?", (node_inst_id,)
-        ).fetchone()
+        conn.execute(
+            "SELECT * FROM workflow_node_instances WHERE id=%s", (node_inst_id,)
+        )
+        row = conn.fetchone()
         return dict(row) if row else None
 
 
 def get_node_instances_by_workflow(inst_id):
     """获取工作流所有节点实例"""
     with get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM workflow_node_instances WHERE workflow_instance_id=? ORDER BY id",
+        conn.execute(
+            "SELECT * FROM workflow_node_instances WHERE workflow_instance_id=%s ORDER BY id",
             (inst_id,)
-        ).fetchall()
+        )
+        rows = conn.fetchall()
         return [dict(r) for r in rows]
 
 
@@ -750,7 +767,7 @@ def add_log(source_type, source_id, level, message, details=None):
     with get_db() as conn:
         conn.execute("""
             INSERT INTO execution_logs (source_type, source_id, level, message, details)
-            VALUES (?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s)
         """, (source_type, source_id, level, message, to_json(details or {})))
 
 
@@ -759,25 +776,27 @@ def query_logs(source_type=None, source_id=None, level=None, page=1, limit=100):
     where = ["1=1"]
     params = []
     if source_type:
-        where.append("source_type=?")
+        where.append("source_type=%s")
         params.append(source_type)
     if source_id:
-        where.append("source_id=?")
+        where.append("source_id=%s")
         params.append(source_id)
     if level:
-        where.append("level=?")
+        where.append("level=%s")
         params.append(level)
     offset = (page - 1) * limit
     with get_db() as conn:
-        total = conn.execute(
+        conn.execute(
             f"SELECT COUNT(*) FROM execution_logs WHERE {' AND '.join(where)}",
             params
-        ).fetchone()[0]
-        rows = conn.execute(
+        )
+        total = conn.fetchone()[0]
+        conn.execute(
             f"SELECT * FROM execution_logs WHERE {' AND '.join(where)} "
-            f"ORDER BY id DESC LIMIT ? OFFSET ?",
+            f"ORDER BY id DESC LIMIT %s OFFSET %s",
             params + [limit, offset]
-        ).fetchall()
+        )
+        rows = conn.fetchall()
         return {
             "total": total,
             "page": page,
@@ -791,30 +810,38 @@ def query_logs(source_type=None, source_id=None, level=None, page=1, limit=100):
 def get_automation_stats():
     """获取自动化系统统计概览"""
     with get_db() as conn:
-        total_jobs = conn.execute("SELECT COUNT(*) FROM cron_jobs").fetchone()[0]
-        active_jobs = conn.execute("SELECT COUNT(*) FROM cron_jobs WHERE is_active=1").fetchone()[0]
-        total_wfs = conn.execute("SELECT COUNT(*) FROM workflow_definitions").fetchone()[0]
-        running_instances = conn.execute(
+        conn.execute("SELECT COUNT(*) FROM cron_jobs")
+        total_jobs = conn.fetchone()[0]
+        conn.execute("SELECT COUNT(*) FROM cron_jobs WHERE is_active=1")
+        active_jobs = conn.fetchone()[0]
+        conn.execute("SELECT COUNT(*) FROM workflow_definitions")
+        total_wfs = conn.fetchone()[0]
+        conn.execute(
             "SELECT COUNT(*) FROM workflow_instances WHERE status IN ('running','paused')"
-        ).fetchone()[0]
-        completed_today = conn.execute(
-            "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND date(finished_at)=date('now')"
-        ).fetchone()[0]
-        failed_today = conn.execute(
-            "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND date(finished_at)=date('now')"
-        ).fetchone()[0]
-        avg_duration = conn.execute(
-            "SELECT COALESCE(AVG(duration_ms),0) FROM workflow_instances WHERE status='completed' AND date(finished_at)=date('now')"
-        ).fetchone()[0]
+        )
+        running_instances = conn.fetchone()[0]
+        conn.execute(
+            "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
+        )
+        completed_today = conn.fetchone()[0]
+        conn.execute(
+            "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND date(finished_at)=CURRENT_DATE"
+        )
+        failed_today = conn.fetchone()[0]
+        conn.execute(
+            "SELECT COALESCE(AVG(duration_ms),0) FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
+        )
+        avg_duration = conn.fetchone()[0]
 
         # 获取最近失败的
-        recent_failures = conn.execute("""
+        conn.execute("""
             SELECT wi.id, w.name, wi.status, wi.error_message, wi.finished_at
             FROM workflow_instances wi
             LEFT JOIN workflow_definitions w ON wi.workflow_id = w.id
             WHERE wi.status IN ('failed','timeout')
             ORDER BY wi.finished_at DESC LIMIT 5
-        """).fetchall()
+        """)
+        recent_failures = conn.fetchall()
 
         return {
             "total_jobs": total_jobs,
@@ -833,14 +860,16 @@ def get_automation_stats():
 def get_default_system_agent():
     """获取默认系统 Agent"""
     with get_db() as conn:
-        row = conn.execute(
+        conn.execute(
             "SELECT * FROM system_agents WHERE is_active=1 ORDER BY id LIMIT 1"
-        ).fetchone()
+        )
+        row = conn.fetchone()
         return dict(row) if row else None
 
 
 def list_system_agents():
     """列出所有系统 Agent"""
     with get_db() as conn:
-        rows = conn.execute("SELECT * FROM system_agents ORDER BY id").fetchall()
+        conn.execute("SELECT * FROM system_agents ORDER BY id")
+        rows = conn.fetchall()
         return [dict(r) for r in rows]

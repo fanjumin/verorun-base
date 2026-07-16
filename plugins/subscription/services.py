@@ -8,7 +8,7 @@ SubscriptionService: 订阅/取消/续费/查询/权限检查
 
 import os
 import json
-import sqlite3
+import psycopg2
 import secrets
 import time
 import hashlib
@@ -62,9 +62,16 @@ class SubscriptionService:
         self._db_path = get_db_path()
 
     def _get_conn(self):
-        conn = sqlite3.connect(self._db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        conn.autocommit = False
+        conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
+        conn.execute("SET search_path TO subscription")
         return conn
 
     # ── SKU 目录查询 ───────────────────────────────────────────────
@@ -86,7 +93,7 @@ class SubscriptionService:
         """获取单个 SKU"""
         with self._get_conn() as conn:
             row = conn.execute(
-                "SELECT * FROM sub_items WHERE item_key=?", (item_key,)
+                "SELECT * FROM sub_items WHERE item_key=%s", (item_key,)
             ).fetchone()
             if row:
                 return SubItem.from_row(dict(row))
@@ -99,7 +106,7 @@ class SubscriptionService:
                 INSERT INTO sub_items
                     (item_key, category, name_zh, name_en, description_zh, description_en,
                      price_month, price_year, is_active, auto_activate, sort_order, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                 ON CONFLICT(item_key) DO UPDATE SET
                     category=excluded.category,
                     name_zh=excluded.name_zh,
@@ -111,7 +118,7 @@ class SubscriptionService:
                     is_active=excluded.is_active,
                     auto_activate=excluded.auto_activate,
                     sort_order=excluded.sort_order,
-                    updated_at=datetime('now')
+                    updated_at=NOW()
             """, (
                 item_data['item_key'],
                 item_data.get('category', 'plugin'),
@@ -134,7 +141,7 @@ class SubscriptionService:
         """获取用户所有订阅"""
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM user_subscriptions WHERE user_id=? ORDER BY created_at DESC",
+                "SELECT * FROM user_subscriptions WHERE user_id=%s ORDER BY created_at DESC",
                 (user_id,)
             ).fetchall()
             return [UserSubscription.from_row(dict(r)) for r in rows]
@@ -143,7 +150,7 @@ class SubscriptionService:
         """获取用户某个订阅"""
         with self._get_conn() as conn:
             row = conn.execute(
-                "SELECT * FROM user_subscriptions WHERE user_id=? AND item_key=?",
+                "SELECT * FROM user_subscriptions WHERE user_id=%s AND item_key=%s",
                 (user_id, item_key)
             ).fetchone()
             if row:
@@ -224,7 +231,7 @@ class SubscriptionService:
             conn.execute("""
                 INSERT INTO sub_orders
                     (order_no, user_id, item_key, interval_type, amount_fen, channel, status, extra)
-                VALUES (?,?,?,?,?,?,'pending','{}')
+                VALUES (%s,%s,%s,%s,%s,%s,'pending','{}')
             """, (order_no, user_id, item_key, interval_type, amount_fen, channel))
             conn.commit()
 
@@ -244,8 +251,8 @@ class SubscriptionService:
             if pay_result.get('qr_code') or pay_result.get('redirect_url'):
                 conn.execute("""
                     UPDATE sub_orders SET
-                        qr_code=?, redirect_url=?, trade_no=?, updated_at=datetime('now')
-                    WHERE order_no=?
+                        qr_code=%s, redirect_url=%s, trade_no=%s, updated_at=NOW()
+                    WHERE order_no=%s
                 """, (
                     pay_result.get('qr_code', ''),
                     pay_result.get('redirect_url', ''),
@@ -273,7 +280,7 @@ class SubscriptionService:
         """支付成功后：标记订单 + 创建/续费用户订阅"""
         with self._get_conn() as conn:
             order_row = conn.execute(
-                "SELECT * FROM sub_orders WHERE order_no=? AND status='pending'",
+                "SELECT * FROM sub_orders WHERE order_no=%s AND status='pending'",
                 (order_no,)
             ).fetchone()
 
@@ -285,8 +292,8 @@ class SubscriptionService:
             # 更新订单状态
             conn.execute("""
                 UPDATE sub_orders SET
-                    status='paid', trade_no=?, paid_at=datetime('now'), updated_at=datetime('now')
-                WHERE order_no=?
+                    status='paid', trade_no=%s, paid_at=NOW(), updated_at=NOW()
+                WHERE order_no=%s
             """, (trade_no, order_no))
 
             # 创建或续费订阅
@@ -295,7 +302,7 @@ class SubscriptionService:
             period_end = self._calc_period_end(now, interval)
 
             existing = conn.execute(
-                "SELECT * FROM user_subscriptions WHERE user_id=? AND item_key=?",
+                "SELECT * FROM user_subscriptions WHERE user_id=%s AND item_key=%s",
                 (order.user_id, order.item_key)
             ).fetchone()
 
@@ -305,20 +312,20 @@ class SubscriptionService:
                     # 重新激活
                     conn.execute("""
                         UPDATE user_subscriptions SET
-                            status='active', interval_type=?, amount_fen=?,
-                            period_start=?, period_end=?, auto_renew=1,
-                            order_no=?, updated_at=datetime('now')
-                        WHERE user_id=? AND item_key=?
+                            status='active', interval_type=%s, amount_fen=%s,
+                            period_start=%s, period_end=%s, auto_renew=1,
+                            order_no=%s, updated_at=NOW()
+                        WHERE user_id=%s AND item_key=%s
                     """, (interval, order.amount_fen, now.isoformat(), period_end.isoformat(),
                           order_no, order.user_id, order.item_key))
                 else:
                     # 续费：延长 period_end
                     conn.execute("""
                         UPDATE user_subscriptions SET
-                            status='active', interval_type=?, amount_fen=?,
-                            period_start=?, period_end=?, auto_renew=1,
-                            order_no=?, updated_at=datetime('now')
-                        WHERE user_id=? AND item_key=?
+                            status='active', interval_type=%s, amount_fen=%s,
+                            period_start=%s, period_end=%s, auto_renew=1,
+                            order_no=%s, updated_at=NOW()
+                        WHERE user_id=%s AND item_key=%s
                     """, (interval, order.amount_fen, now.isoformat(), period_end.isoformat(),
                           order_no, order.user_id, order.item_key))
             else:
@@ -326,7 +333,7 @@ class SubscriptionService:
                     INSERT INTO user_subscriptions
                         (user_id, item_key, interval_type, amount_fen, period_start, period_end,
                          auto_renew, order_no)
-                    VALUES (?,?,?,?,?,?,1,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,1,%s)
                 """, (order.user_id, order.item_key, interval, order.amount_fen,
                       now.isoformat(), period_end.isoformat(), order_no))
 
@@ -337,7 +344,7 @@ class SubscriptionService:
                     auto_items = [x.strip() for x in base_item.auto_activate.split(',') if x.strip()]
                     for ai in auto_items:
                         ai_existing = conn.execute(
-                            "SELECT * FROM user_subscriptions WHERE user_id=? AND item_key=?",
+                            "SELECT * FROM user_subscriptions WHERE user_id=%s AND item_key=%s",
                             (order.user_id, ai)
                         ).fetchone()
                         if not ai_existing:
@@ -345,7 +352,7 @@ class SubscriptionService:
                                 INSERT INTO user_subscriptions
                                     (user_id, item_key, interval_type, amount_fen, period_start,
                                      period_end, auto_renew, order_no, status)
-                                VALUES (?,?,'month',0,?,?,0,?,'active')
+                                VALUES (%s,%s,'month',0,%s,%s,0,%s,'active')
                             """, (order.user_id, ai, now.isoformat(), period_end.isoformat(), order_no))
 
             conn.commit()
@@ -376,14 +383,14 @@ class SubscriptionService:
             if immediate:
                 conn.execute("""
                     UPDATE user_subscriptions SET
-                        status='canceled', auto_renew=0, updated_at=datetime('now')
-                    WHERE user_id=? AND item_key=?
+                        status='canceled', auto_renew=0, updated_at=NOW()
+                    WHERE user_id=%s AND item_key=%s
                 """, (user_id, item_key))
             else:
                 conn.execute("""
                     UPDATE user_subscriptions SET
-                        auto_renew=0, updated_at=datetime('now')
-                    WHERE user_id=? AND item_key=?
+                        auto_renew=0, updated_at=NOW()
+                    WHERE user_id=%s AND item_key=%s
                 """, (user_id, item_key))
             conn.commit()
 
@@ -413,7 +420,7 @@ class SubscriptionService:
             conn.execute("""
                 INSERT INTO sub_orders
                     (order_no, user_id, item_key, interval_type, amount_fen, channel, status, extra)
-                VALUES (?,?,?,?,?,?,'pending','{}')
+                VALUES (%s,%s,%s,%s,%s,%s,'pending','{}')
             """, (order_no, user_id, item_key, interval, amount_fen, channel))
             conn.commit()
 
@@ -447,7 +454,7 @@ class SubscriptionService:
 
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM user_subscriptions WHERE status='active' AND period_end < ?",
+                "SELECT * FROM user_subscriptions WHERE status='active' AND period_end < %s",
                 (now,)
             ).fetchall()
 
@@ -458,7 +465,7 @@ class SubscriptionService:
                     expired.append(sub)
                 else:
                     conn.execute(
-                        "UPDATE user_subscriptions SET status='expired', updated_at=datetime('now') WHERE id=?",
+                        "UPDATE user_subscriptions SET status='expired', updated_at=NOW() WHERE id=%s",
                         (sub.id,)
                     )
                     conn.commit()
@@ -472,7 +479,7 @@ class SubscriptionService:
     def get_order(self, order_no: str) -> Optional[SubOrder]:
         with self._get_conn() as conn:
             row = conn.execute(
-                "SELECT * FROM sub_orders WHERE order_no=?", (order_no,)
+                "SELECT * FROM sub_orders WHERE order_no=%s", (order_no,)
             ).fetchone()
             if row:
                 return SubOrder.from_row(dict(row))
@@ -490,7 +497,7 @@ class SubscriptionService:
         """管理员：全部订单"""
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM sub_orders ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM sub_orders ORDER BY created_at DESC LIMIT %s OFFSET %s",
                 (limit, offset)
             ).fetchall()
             return [SubOrder.from_row(dict(r)) for r in rows]
@@ -528,15 +535,15 @@ class SubscriptionService:
         with self._get_conn() as conn:
             conn.execute("""
                 UPDATE sub_orders SET
-                    status='refunded', updated_at=datetime('now')
-                WHERE order_no=?
+                    status='refunded', updated_at=NOW()
+                WHERE order_no=%s
             """, (order_no,))
 
             # 取消用户订阅
             conn.execute("""
                 UPDATE user_subscriptions SET
-                    status='canceled', auto_renew=0, updated_at=datetime('now')
-                WHERE user_id=? AND item_key=?
+                    status='canceled', auto_renew=0, updated_at=NOW()
+                WHERE user_id=%s AND item_key=%s
             """, (order.user_id, order.item_key))
 
             conn.commit()

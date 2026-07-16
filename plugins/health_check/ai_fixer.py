@@ -264,7 +264,7 @@ class AIFixer:
                         level = sug.params.get('level', 'warning')
                         conn.execute(
                             "INSERT INTO alerts (type, message, severity, created_at) "
-                            "VALUES ('auto_remediation', ?, ?, datetime('now'))",
+                            "VALUES ('auto_remediation', %s, %s, NOW())",
                             (msg, level)
                         )
                     applied += 1

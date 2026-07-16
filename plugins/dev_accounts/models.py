@@ -113,7 +113,7 @@ def update(account_id: int, **kwargs) -> bool:
         return False
 
     values.append(account_id)
-    sql = f"UPDATE dev_accounts SET {', '.join(fields)}, updated_at=datetime('now') WHERE id=?"
+    sql = f"UPDATE dev_accounts SET {', '.join(fields)}, updated_at=NOW() WHERE id=%s"
 
     with get_db() as conn:
         conn.execute(sql, values)

@@ -92,7 +92,7 @@ def login_with_code():
         user = conn.execute(
             'SELECT id, phone, username, display_name, douyin_open_id, douyin_nickname, '
             'douyin_avatar, is_admin, agent_id, agent_nickname, agent_avatar_url '
-            'FROM users WHERE douyin_open_id = ?',
+            'FROM users WHERE douyin_open_id = %s',
             (openid,)
         ).fetchone()
 
@@ -102,10 +102,10 @@ def login_with_code():
             if nickname or avatar:
                 conn.execute('''
                     UPDATE users 
-                    SET douyin_nickname = COALESCE(?, douyin_nickname),
-                        douyin_avatar = COALESCE(?, douyin_avatar),
-                        last_login = ?
-                    WHERE id = ?
+                    SET douyin_nickname = COALESCE(%s, douyin_nickname),
+                        douyin_avatar = COALESCE(%s, douyin_avatar),
+                        last_login = %s
+                    WHERE id = %s
                 ''', (nickname or None, avatar or None, now_iso(), user['id']))
                 conn.commit()
         else:
@@ -118,7 +118,7 @@ def login_with_code():
                 INSERT INTO users (
                     username, display_name, douyin_open_id, douyin_nickname, 
                     douyin_avatar, created_at, last_login
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             ''', (
                 safe_name,
                 display_name,
@@ -134,7 +134,7 @@ def login_with_code():
             user = conn.execute(
                 'SELECT id, phone, username, display_name, douyin_open_id, douyin_nickname, '
                 'douyin_avatar, is_admin, agent_id, agent_nickname, agent_avatar_url '
-                'FROM users WHERE douyin_open_id = ?',
+                'FROM users WHERE douyin_open_id = %s',
                 (openid,)
             ).fetchone()
 
@@ -181,7 +181,7 @@ def user_info():
             SELECT id, phone, username, display_name, 
                    douyin_open_id, douyin_nickname, douyin_avatar,
                    is_admin, agent_id, agent_nickname, agent_avatar_url
-            FROM users WHERE id = ?
+            FROM users WHERE id = %s
         ''', (user_id,)).fetchone()
         if not user:
             return api_err('用户不存在', 404)
@@ -219,7 +219,7 @@ def unbind_douyin():
     with get_db() as conn:
         # Check if user has Douyin bound
         current = conn.execute(
-            'SELECT douyin_open_id FROM users WHERE id = ?', 
+            'SELECT douyin_open_id FROM users WHERE id = %s', 
             (user_id,)
         ).fetchone()
         if not current or not current['douyin_open_id']:
@@ -231,7 +231,7 @@ def unbind_douyin():
             SET douyin_open_id = NULL, 
                 douyin_nickname = NULL, 
                 douyin_avatar = NULL
-            WHERE id = ?
+            WHERE id = %s
         ''', (user_id,))
         conn.commit()
         
@@ -253,7 +253,7 @@ def bind_status():
     
     with get_db() as conn:
         douyin_open_id = conn.execute(
-            'SELECT douyin_open_id FROM users WHERE id = ?', 
+            'SELECT douyin_open_id FROM users WHERE id = %s', 
             (user_id,)
         ).fetchone()
         is_bound = bool(douyin_open_id and douyin_open_id['douyin_open_id'])

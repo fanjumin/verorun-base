@@ -115,11 +115,11 @@ def create_agent():
             with get_db() as conn:
                 if api_key_val:
                     conn.execute(
-                        "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (?, ?, datetime('now'), ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                        "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (%s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
                         (key_name, api_key_val, admin.get('user_id', ''))
                     )
                 else:
-                    conn.execute("DELETE FROM system_config WHERE key=?", (key_name,))
+                    conn.execute("DELETE FROM system_config WHERE key=%s", (key_name,))
             data['api_key_ref'] = key_name if api_key_val else ''
             del data['api_key']
         agent_id = _m().create_agent(data)
@@ -141,7 +141,7 @@ def get_agent(aid):
     agent['key_configured'] = False
     if key_ref:
         with get_db() as conn:
-            row = conn.execute("SELECT value FROM system_config WHERE key=?", (key_ref,)).fetchone()
+            row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key_ref,)).fetchone()
             if row and row['value']:
                 agent['key_configured'] = True
     return _success(agent)
@@ -162,11 +162,11 @@ def update_agent(aid):
         with get_db() as conn:
             if api_key_val:
                 conn.execute(
-                    "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (?, ?, datetime('now'), ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                    "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (%s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
                     (key_name, api_key_val, admin.get('user_id', ''))
                 )
             else:
-                conn.execute("DELETE FROM system_config WHERE key=?", (key_name,))
+                conn.execute("DELETE FROM system_config WHERE key=%s", (key_name,))
         data['api_key_ref'] = key_name if api_key_val else ''
         del data['api_key']
     ok = _m().update_agent(aid, data)
@@ -846,7 +846,7 @@ def clear_chat(session_id):
     if err: return err
 
     with _m().get_db() as conn:
-        conn.execute("DELETE FROM agent_conversations WHERE session_id=?", (session_id,))
+        conn.execute("DELETE FROM agent_conversations WHERE session_id=%s", (session_id,))
         conn.commit()
     return _success(None, '会话已清除')
 
@@ -1317,8 +1317,8 @@ def update_knowledge_base():
     with _m().get_db() as conn:
         conn.execute("""
             INSERT INTO system_config (key, value, description, updated_at)
-            VALUES ('chatbot_knowledge_base', ?, '聊天机器人知识库', datetime('now'))
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')
+            VALUES ('chatbot_knowledge_base', %s, '聊天机器人知识库', NOW())
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=NOW()
         """, (content,))
         conn.commit()
 
@@ -1395,21 +1395,21 @@ def token_stats():
     dim      = request.args.get('dimension', '').strip()  # text/voice/video/image, 空=全部
 
     date_where_base = {
-        'today':  "date(created_at) = date('now')",
-        'week':   "date(created_at) >= date('now','-6 days')",
-        'month':  "date(created_at) >= date('now','start of month')",
+        'today':  "created_at::date = CURRENT_DATE",
+        'week':   "created_at::date >= CURRENT_DATE - INTERVAL '6 days'",
+        'month':  "created_at::date >= DATE_TRUNC('month', CURRENT_DATE)::DATE",
         'all':    "1=1"
-    }.get(period, "date(created_at) = date('now')")
+    }.get(period, "created_at::date = CURRENT_DATE")
     date_where = date_where_base
     if dim:
         date_where += f" AND dimension = '{dim}'"
 
     date_where_t = {
-        'today':  "date(t.created_at) = date('now')",
-        'week':   "date(t.created_at) >= date('now','-6 days')",
-        'month':  "date(t.created_at) >= date('now','start of month')",
+        'today':  "t.created_at::date = CURRENT_DATE",
+        'week':   "t.created_at::date >= CURRENT_DATE - INTERVAL '6 days'",
+        'month':  "t.created_at::date >= DATE_TRUNC('month', CURRENT_DATE)::DATE",
         'all':    "1=1"
-    }.get(period, "date(t.created_at) = date('now')")
+    }.get(period, "t.created_at::date = CURRENT_DATE")
     if dim:
         date_where_t += f" AND t.dimension = '{dim}'"
 
@@ -1490,12 +1490,12 @@ def token_stats():
             # ── 今日预警数据 ──
             today_total = conn.execute("""
                 SELECT COALESCE(SUM(total_tokens),0) AS total
-                FROM agent_token_logs WHERE date(created_at) = date('now')
+                FROM agent_token_logs WHERE created_at::date = CURRENT_DATE
             """).fetchone()
             today_by_agent = conn.execute("""
                 SELECT agent_id, agent_name, COALESCE(SUM(total_tokens),0) AS total
                 FROM agent_token_logs
-                WHERE date(created_at) = date('now')
+                WHERE created_at::date = CURRENT_DATE
                 GROUP BY agent_id
             """).fetchall()
 
@@ -1535,7 +1535,7 @@ def token_logs():
             where = ''
             params = []
             if agent_id:
-                where = 'WHERE agent_id = ?'
+                where = 'WHERE agent_id = %s'
                 params.append(int(agent_id))
 
             total = conn.execute(
@@ -1548,7 +1548,7 @@ def token_logs():
                        call_type, task_id, created_at
                 FROM agent_token_logs {where}
                 ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             """, params + [limit, offset]).fetchall()
 
         return _success({

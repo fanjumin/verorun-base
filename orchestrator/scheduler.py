@@ -412,11 +412,12 @@ class SchedulerEngine:
     def _trigger_dependent_jobs(self, job_id: int):
         """触发依赖当前任务的后继任务"""
         with m.get_db() as conn:
-            deps_row = conn.execute("""
+            conn.execute("""
                 SELECT j.* FROM job_dependencies d
                 JOIN cron_jobs j ON d.job_id = j.id
-                WHERE d.depends_on_job_id = ? AND j.is_active = 1
-            """, (job_id,)).fetchall()
+                WHERE d.depends_on_job_id = %s AND j.is_active = 1
+            """, (job_id,))
+            deps_row = conn.fetchall()
             deps = [dict(r) for r in deps_row]
 
         for dep in deps:
@@ -455,10 +456,16 @@ class SchedulerEngine:
 
             with m.get_db() as conn:
                 conn.execute("""
-                    INSERT OR REPLACE INTO scheduler_state
+                    INSERT INTO scheduler_state
                         (scheduler_id, hostname, is_leader, last_heartbeat,
                          running_jobs, state_json)
-                    VALUES (?,?,1, datetime('now'), ?, '{}')
+                    VALUES (%s,%s,1, NOW(), %s, '{}')
+                    ON CONFLICT (scheduler_id) DO UPDATE SET
+                        hostname = EXCLUDED.hostname,
+                        is_leader = EXCLUDED.is_leader,
+                        last_heartbeat = EXCLUDED.last_heartbeat,
+                        running_jobs = EXCLUDED.running_jobs,
+                        state_json = EXCLUDED.state_json
                 """, (self.scheduler_id, os.uname().nodename, running_count))
 
         except Exception:

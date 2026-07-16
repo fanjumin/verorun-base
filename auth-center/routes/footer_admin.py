@@ -33,10 +33,10 @@ def create_footer_link():
     if not section or not title or not url:
         return jsonify({'success': False, 'error': 'section、title、url 为必填'}), 400
     with get_db() as conn:
-        max_order = conn.execute('SELECT MAX(sort_order) as m FROM footer_links WHERE section=?', (section,)).fetchone()
+        max_order = conn.execute('SELECT MAX(sort_order) as m FROM footer_links WHERE section=%s', (section,)).fetchone()
         order = (max_order['m'] or 0) + 1 if max_order else 1
         cursor = conn.execute(
-            'INSERT INTO footer_links (section, title, url, sort_order, is_enabled) VALUES (?,?,?,?,?)',
+            'INSERT INTO footer_links (section, title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s)',
             (section, title, url, order, is_enabled)
         )
         conn.commit()
@@ -51,7 +51,7 @@ def update_footer_link(item_id):
     data = request.get_json(force=True) or {}
     with get_db() as conn:
         conn.execute(
-            'UPDATE footer_links SET section=?, title=?, url=?, is_enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            'UPDATE footer_links SET section=%s, title=%s, url=%s, is_enabled=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
             (data.get('section','').strip(), data.get('title','').strip(), data.get('url','').strip(),
              1 if data.get('is_enabled',True) else 0, item_id)
         )
@@ -64,9 +64,9 @@ def delete_footer_link(item_id):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        r = conn.execute('SELECT title FROM footer_links WHERE id=?', (item_id,)).fetchone()
+        r = conn.execute('SELECT title FROM footer_links WHERE id=%s', (item_id,)).fetchone()
         if not r: return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM footer_links WHERE id=?', (item_id,))
+        conn.execute('DELETE FROM footer_links WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'footer_links', str(item_id), r['title'])
     return jsonify({'success': True, 'message': '已删除'})
@@ -94,7 +94,7 @@ def create_footer_nav():
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM footer_nav').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
-        cursor = conn.execute('INSERT INTO footer_nav (title, url, sort_order, is_enabled) VALUES (?,?,?,?)',
+        cursor = conn.execute('INSERT INTO footer_nav (title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s)',
             (title, url, order, 1 if data.get('is_enabled', True) else 0))
         conn.commit()
         new_id = cursor.lastrowid
@@ -108,10 +108,10 @@ def update_footer_nav(item_id):
     data = request.get_json(force=True) or {}
     with get_db() as conn:
         if 'sort_order' in data:
-            conn.execute('UPDATE footer_nav SET title=?, url=?, is_enabled=?, sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            conn.execute('UPDATE footer_nav SET title=%s, url=%s, is_enabled=%s, sort_order=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
                 (data.get('title','').strip(), data.get('url','').strip(), 1 if data.get('is_enabled',True) else 0, data['sort_order'], item_id))
         else:
-            conn.execute('UPDATE footer_nav SET title=?, url=?, is_enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            conn.execute('UPDATE footer_nav SET title=%s, url=%s, is_enabled=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
                 (data.get('title','').strip(), data.get('url','').strip(), 1 if data.get('is_enabled',True) else 0, item_id))
         conn.commit()
     _log(admin['user_id'], 'update', 'footer_nav', str(item_id), '')
@@ -122,9 +122,9 @@ def delete_footer_nav(item_id):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        r = conn.execute('SELECT title FROM footer_nav WHERE id=?', (item_id,)).fetchone()
+        r = conn.execute('SELECT title FROM footer_nav WHERE id=%s', (item_id,)).fetchone()
         if not r: return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM footer_nav WHERE id=?', (item_id,))
+        conn.execute('DELETE FROM footer_nav WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'footer_nav', str(item_id), r['title'])
     return jsonify({'success': True, 'message': '已删除'})
@@ -152,7 +152,7 @@ def create_footer_article():
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM footer_articles').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
-        cursor = conn.execute('INSERT INTO footer_articles (title, url, sort_order, is_enabled) VALUES (?,?,?,?)',
+        cursor = conn.execute('INSERT INTO footer_articles (title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s)',
             (title, url, order, 1 if data.get('is_enabled', True) else 0))
         conn.commit()
         new_id = cursor.lastrowid
@@ -165,7 +165,7 @@ def update_footer_article(item_id):
     if err: return err
     data = request.get_json(force=True) or {}
     with get_db() as conn:
-        conn.execute('UPDATE footer_articles SET title=?, url=?, is_enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        conn.execute('UPDATE footer_articles SET title=%s, url=%s, is_enabled=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
             (data.get('title','').strip(), data.get('url','').strip(), 1 if data.get('is_enabled',True) else 0, item_id))
         conn.commit()
     _log(admin['user_id'], 'update', 'footer_articles', str(item_id), '')
@@ -176,9 +176,9 @@ def delete_footer_article(item_id):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        r = conn.execute('SELECT title FROM footer_articles WHERE id=?', (item_id,)).fetchone()
+        r = conn.execute('SELECT title FROM footer_articles WHERE id=%s', (item_id,)).fetchone()
         if not r: return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM footer_articles WHERE id=?', (item_id,))
+        conn.execute('DELETE FROM footer_articles WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'footer_articles', str(item_id), r['title'])
     return jsonify({'success': True, 'message': '已删除'})
@@ -206,7 +206,7 @@ def create_partner():
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM partner_links').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
-        cursor = conn.execute('INSERT INTO partner_links (name, url, icon_url, sort_order, is_enabled) VALUES (?,?,?,?,?)',
+        cursor = conn.execute('INSERT INTO partner_links (name, url, icon_url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s)',
             (name, url, data.get('icon_url','').strip(), order, 1 if data.get('is_enabled', True) else 0))
         conn.commit()
         new_id = cursor.lastrowid
@@ -219,7 +219,7 @@ def update_partner(item_id):
     if err: return err
     data = request.get_json(force=True) or {}
     with get_db() as conn:
-        conn.execute('UPDATE partner_links SET name=?, url=?, icon_url=?, is_enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        conn.execute('UPDATE partner_links SET name=%s, url=%s, icon_url=%s, is_enabled=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
             (data.get('name','').strip(), data.get('url','').strip(), data.get('icon_url','').strip(),
              1 if data.get('is_enabled', True) else 0, item_id))
         conn.commit()
@@ -231,9 +231,9 @@ def delete_partner(item_id):
     admin, err = _require_admin()
     if err: return err
     with get_db() as conn:
-        r = conn.execute('SELECT name FROM partner_links WHERE id=?', (item_id,)).fetchone()
+        r = conn.execute('SELECT name FROM partner_links WHERE id=%s', (item_id,)).fetchone()
         if not r: return jsonify({'success': False, 'error': '不存在'}), 404
-        conn.execute('DELETE FROM partner_links WHERE id=?', (item_id,))
+        conn.execute('DELETE FROM partner_links WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'partner_links', str(item_id), r['name'])
     return jsonify({'success': True, 'message': '已删除'})

@@ -25,26 +25,34 @@ def _get_alipay_config() -> dict:
     # 尝试从主库 system_config 表读取
     if not cfg['app_id']:
         try:
-            import sqlite3
-            db_path = os.environ.get('DB_PATH', '')
-            if db_path and os.path.exists(db_path):
-                conn = sqlite3.connect(db_path)
-                conn.row_factory = sqlite3.Row
-                rows = conn.execute(
-                    "SELECT key, value FROM system_config WHERE key IN "
-                    "('alipay_app_id', 'alipay_private_key', 'alipay_public_key', 'payment.notify_base')"
-                ).fetchall()
-                conn.close()
-                for r in rows:
-                    k = r['key']
-                    if k == 'alipay_app_id':
-                        cfg['app_id'] = r['value']
-                    elif k == 'alipay_private_key':
-                        cfg['private_key'] = r['value']
-                    elif k == 'alipay_public_key':
-                        cfg['public_key'] = r['value']
-                    elif k == 'payment.notify_base':
-                        cfg['notify_base'] = r['value']
+            import psycopg2
+            import psycopg2.extras
+            conn = psycopg2.connect(
+                host=os.environ.get('PG_HOST', 'localhost'),
+                port=int(os.environ.get('PG_PORT', 5432)),
+                dbname=os.environ.get('PG_DB', 'verorun'),
+                user=os.environ.get('PG_USER', 'verorun'),
+                password=os.environ.get('PG_PASSWORD', ''),
+            )
+            conn.autocommit = False
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(
+                "SELECT key, value FROM system_config WHERE key IN "
+                "('alipay_app_id', 'alipay_private_key', 'alipay_public_key', 'payment.notify_base')"
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            for r in rows:
+                k = r['key']
+                if k == 'alipay_app_id':
+                    cfg['app_id'] = r['value']
+                elif k == 'alipay_private_key':
+                    cfg['private_key'] = r['value']
+                elif k == 'alipay_public_key':
+                    cfg['public_key'] = r['value']
+                elif k == 'payment.notify_base':
+                    cfg['notify_base'] = r['value']
         except Exception:
             pass
 

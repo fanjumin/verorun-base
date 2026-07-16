@@ -1,30 +1,57 @@
 #!/usr/bin/env python3
 """
-AI Advisor (Chatbot) Plugin — 独立数据库模型
-============================================
+AI Advisor (Chatbot) Plugin — PostgreSQL schema: chatbot
+=========================================================
 - plugin_configs: 插件配置（替代主库 plugin_configs）
 - agent_registry: 本地 Agent 注册（替代主库 agent_matrix 写入）
 - chatbot_sessions: 对话统计/日志（替代主库 chatbot_sessions）
 """
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import os
 
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
-_DB_PATH = os.path.join(_DATA_DIR, 'chatbot.db')
+_DB_PATH = os.path.join(_DATA_DIR, 'chatbot.db')  # 保留用于迁移
 os.makedirs(_DATA_DIR, exist_ok=True)
 
 _chatbot_conn = None
 
 
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql, params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
+
 def get_chatbot_db():
-    """获取插件独立数据库连接（单例）"""
+    """获取插件数据库连接（单例，PG schema: chatbot）"""
     global _chatbot_conn
     if _chatbot_conn is None:
-        _chatbot_conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
-        _chatbot_conn.row_factory = sqlite3.Row
-        _chatbot_conn.execute("PRAGMA journal_mode=WAL")
-        _chatbot_conn.execute("PRAGMA busy_timeout=5000")
+        raw = psycopg2.connect(
+            host=os.environ.get('PG_HOST', 'localhost'),
+            port=int(os.environ.get('PG_PORT', 5432)),
+            dbname=os.environ.get('PG_DB', 'verorun'),
+            user=os.environ.get('PG_USER', 'verorun'),
+            password=os.environ.get('PG_PASSWORD', ''),
+        )
+        raw.autocommit = False
+        raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS chatbot")
+        raw.commit()
+        raw.cursor().execute("SET search_path TO chatbot")
+        raw.commit()
+        _chatbot_conn = _PgConnection(raw)
     return _chatbot_conn
 
 
@@ -37,13 +64,13 @@ def init_chatbot_tables():
         plugin_name TEXT NOT NULL,
         key         TEXT NOT NULL,
         value       TEXT DEFAULT '',
-        updated_at  TEXT DEFAULT (datetime('now')),
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (plugin_name, key)
     )''')
 
     # 2. Agent 注册表（本地，替代主库 agent_matrix 写入）
     conn.execute('''CREATE TABLE IF NOT EXISTS agent_registry (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name            TEXT NOT NULL,
         identifier      TEXT DEFAULT '',
         role_type       TEXT DEFAULT 'sub',
@@ -53,9 +80,9 @@ def init_chatbot_tables():
         model_name      TEXT DEFAULT 'qwen-turbo',
         system_prompt   TEXT DEFAULT '',
         capabilities    TEXT DEFAULT '[]',
-        is_active       INTEGER DEFAULT 1,
-        created_at      TEXT DEFAULT (datetime('now')),
-        updated_at      TEXT DEFAULT (datetime('now'))
+        is_active       BIGINT DEFAULT 1,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
     )''')
     # 幂等添加 identifier 列（兼容旧表）
     try:
@@ -65,22 +92,22 @@ def init_chatbot_tables():
 
     # 3. 对话会话日志表
     conn.execute('''CREATE TABLE IF NOT EXISTS chatbot_sessions (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         session_id  TEXT NOT NULL,
         user_query  TEXT DEFAULT '',
         ai_reply    TEXT DEFAULT '',
-        escalated   INTEGER DEFAULT 0,
-        csat_score  INTEGER DEFAULT 0,
+        escalated   BIGINT DEFAULT 0,
+        csat_score  BIGINT DEFAULT 0,
         source      TEXT DEFAULT 'chatbot',
         intent      TEXT DEFAULT '',
         sentiment   TEXT DEFAULT '',
-        created_at  TEXT DEFAULT (datetime('now'))
+        created_at  TIMESTAMPTZ DEFAULT NOW()
     )''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_cs_created ON chatbot_sessions(created_at)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_cs_session ON chatbot_sessions(session_id)')
 
     conn.commit()
-    print(f'[ChatbotPlugin] 独立数据库已就绪（{_DB_PATH}）')
+    print(f'[ChatbotPlugin] PG schema chatbot 已就绪（{_DB_PATH}）')
 
 
 # ── 配置读写 ──
@@ -89,7 +116,7 @@ def get_config(plugin_name: str, key: str, default=''):
     """读取单条配置"""
     conn = get_chatbot_db()
     r = conn.execute(
-        'SELECT value FROM plugin_configs WHERE plugin_name=? AND key=?',
+        'SELECT value FROM plugin_configs WHERE plugin_name=%s AND key=%s',
         (plugin_name, key)
     ).fetchone()
     return r['value'] if r else default
@@ -100,10 +127,10 @@ def set_config(plugin_name: str, key: str, value: str):
     conn = get_chatbot_db()
     conn.execute('''
         INSERT INTO plugin_configs (plugin_name, key, value, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
+        VALUES (%s, %s, %s, NOW())
         ON CONFLICT(plugin_name, key) DO UPDATE SET
             value=excluded.value,
-            updated_at=datetime('now')
+            updated_at=NOW()
     ''', (plugin_name, key, str(value)))
     conn.commit()
 
@@ -112,7 +139,7 @@ def get_all_configs(plugin_name: str) -> dict:
     """读取某插件全部配置"""
     conn = get_chatbot_db()
     rows = conn.execute(
-        'SELECT key, value FROM plugin_configs WHERE plugin_name=?',
+        'SELECT key, value FROM plugin_configs WHERE plugin_name=%s',
         (plugin_name,)
     ).fetchall()
     return {r['key']: r['value'] for r in rows}
@@ -123,7 +150,7 @@ def seed_defaults(plugin_name: str, defaults: dict):
     conn = get_chatbot_db()
     existing_keys = {
         r['key'] for r in conn.execute(
-            'SELECT key FROM plugin_configs WHERE plugin_name=?',
+            'SELECT key FROM plugin_configs WHERE plugin_name=%s',
             (plugin_name,)
         ).fetchall()
     }
@@ -140,16 +167,16 @@ def upsert_agent(name: str, role_type: str, description: str, domain: str,
     """注册或更新 Agent"""
     conn = get_chatbot_db()
     exists = conn.execute(
-        'SELECT id FROM agent_registry WHERE name=? AND role_type=?',
+        'SELECT id FROM agent_registry WHERE name=%s AND role_type=%s',
         (name, role_type)
     ).fetchone()
     if exists:
         conn.execute('''
             UPDATE agent_registry
-            SET description=?, domain=?, provider=?, model_name=?,
-                system_prompt=?, capabilities=?, is_active=?,
-                identifier=?, updated_at=datetime('now')
-            WHERE id=?
+            SET description=%s, domain=%s, provider=%s, model_name=%s,
+                system_prompt=%s, capabilities=%s, is_active=%s,
+                identifier=%s, updated_at=NOW()
+            WHERE id=%s
         ''', (description, domain, provider, model_name,
               system_prompt, capabilities, is_active, identifier, exists['id']))
     else:
@@ -157,7 +184,7 @@ def upsert_agent(name: str, role_type: str, description: str, domain: str,
             INSERT INTO agent_registry
             (name, identifier, role_type, description, domain, provider, model_name,
              system_prompt, capabilities, is_active)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ''', (name, identifier, role_type, description, domain, provider, model_name,
               system_prompt, capabilities, is_active))
     conn.commit()
@@ -167,7 +194,7 @@ def get_agent(agent_id: str):
     """按 name 或 identifier 查询 Agent"""
     conn = get_chatbot_db()
     row = conn.execute(
-        'SELECT * FROM agent_registry WHERE (name=? OR identifier=?) AND is_active=1 LIMIT 1',
+        'SELECT * FROM agent_registry WHERE (name=%s OR identifier=%s) AND is_active=1 LIMIT 1',
         (agent_id, agent_id)
     ).fetchone()
     return dict(row) if row else None
@@ -191,7 +218,7 @@ def migrate_from_main():
             if main_rows:
                 local_keys = {
                     r['key'] for r in conn.execute(
-                        'SELECT key FROM plugin_configs WHERE plugin_name=?', ('chatbot',)
+                        'SELECT key FROM plugin_configs WHERE plugin_name=%s', ('chatbot',)
                     ).fetchall()
                 }
                 for r in main_rows:
@@ -221,16 +248,17 @@ def migrate_from_main():
 
             # 迁移 chatbot_sessions（仅最近 30 天）
             session_rows = mc.execute(
-                "SELECT * FROM chatbot_sessions WHERE created_at >= datetime('now', '-30 days')"
+                "SELECT * FROM chatbot_sessions WHERE created_at >= NOW() - INTERVAL '30 days'"
             ).fetchall()
             if session_rows:
                 conn = get_chatbot_db()
                 for r in session_rows:
                     conn.execute(
-                        '''INSERT OR IGNORE INTO chatbot_sessions
+                        '''INSERT INTO chatbot_sessions
                            (session_id, user_query, ai_reply, escalated, csat_score,
                             source, intent, sentiment, created_at)
-                           VALUES (?,?,?,?,?,?,?,?,?)''',
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                           ON CONFLICT DO NOTHING''',
                         (r['session_id'], r.get('user_query', ''), r.get('ai_reply', ''),
                          r.get('escalated', 0), r.get('csat_score', 0),
                          r.get('source', 'chatbot'), r.get('intent', ''),

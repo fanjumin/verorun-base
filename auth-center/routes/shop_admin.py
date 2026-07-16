@@ -57,7 +57,7 @@ def _require_user():
 def _log_admin_action(conn, admin_id, action, target_type, target_id, detail=''):
     try:
         conn.execute(
-            'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail) VALUES (?,?,?,?,?)',
+            'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail) VALUES (%s,%s,%s,%s,%s)',
             (admin_id, action, target_type, str(target_id), detail[:500])
         )
     except Exception:
@@ -133,7 +133,7 @@ def get_product_images(pid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute('SELECT images FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         images = _safe_json(row['images'], [])
@@ -152,12 +152,12 @@ def add_product_image(pid):
         return jsonify({'success': False, 'error': '请提供图片URL'}), 400
 
     with get_db() as conn:
-        row = conn.execute('SELECT images FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         images = _safe_json(row['images'], [])
         images.append({'url': url, 'sort_order': len(images)})
-        conn.execute('UPDATE products SET images=?, updated_at=datetime(\'now\',\'localtime\') WHERE id=?',
+        conn.execute('UPDATE products SET images=%s, updated_at=NOW() WHERE id=%s',
                      (json.dumps(images, ensure_ascii=False), pid))
         conn.commit()
     return jsonify({'success': True, 'data': {'images': images}})
@@ -170,7 +170,7 @@ def delete_product_image(pid, idx):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute('SELECT images FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         images = _safe_json(row['images'], [])
@@ -185,7 +185,7 @@ def delete_product_image(pid, idx):
             if os.path.exists(fpath):
                 os.remove(fpath)
 
-        conn.execute('UPDATE products SET images=?, updated_at=datetime(\'now\',\'localtime\') WHERE id=?',
+        conn.execute('UPDATE products SET images=%s, updated_at=NOW() WHERE id=%s',
                      (json.dumps(images, ensure_ascii=False), pid))
         conn.commit()
     return jsonify({'success': True, 'data': {'images': images}})
@@ -203,7 +203,7 @@ def reorder_product_images(pid):
         return jsonify({'success': False, 'error': '请提供顺序'}), 400
 
     with get_db() as conn:
-        row = conn.execute('SELECT images FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         images = _safe_json(row['images'], [])
@@ -213,7 +213,7 @@ def reorder_product_images(pid):
             reordered = [images[i] for i in order]
         except IndexError:
             return jsonify({'success': False, 'error': '索引超出范围'}), 400
-        conn.execute('UPDATE products SET images=?, updated_at=datetime(\'now\',\'localtime\') WHERE id=?',
+        conn.execute('UPDATE products SET images=%s, updated_at=NOW() WHERE id=%s',
                      (json.dumps(reordered, ensure_ascii=False), pid))
         conn.commit()
     return jsonify({'success': True, 'data': {'images': reordered}})
@@ -235,14 +235,14 @@ def list_products():
         sql = 'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE 1=1'
         params = []
         if search:
-            sql += ' AND (p.title LIKE ? OR p.subtitle LIKE ?)'
+            sql += ' AND (p.title LIKE %s OR p.subtitle LIKE %s)'
             s = f'%{search}%'
             params.extend([s, s])
         if category_id > 0:
-            sql += ' AND p.category_id=?'
+            sql += ' AND p.category_id=%s'
             params.append(category_id)
         if is_active >= 0:
-            sql += ' AND p.is_active=?'
+            sql += ' AND p.is_active=%s'
             params.append(is_active)
         sql += ' ORDER BY p.sort_order ASC, p.id DESC'
         rows = conn.execute(sql, params).fetchall()
@@ -257,7 +257,7 @@ def get_product(pid):
     with get_db() as conn:
         row = conn.execute(
             'SELECT p.*, c.name as category_name FROM products p '
-            'LEFT JOIN categories c ON p.category_id=c.id WHERE p.id=?', (pid,)
+            'LEFT JOIN categories c ON p.category_id=c.id WHERE p.id=%s', (pid,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
@@ -273,7 +273,7 @@ def admin_preview_product(pid):
     with get_db() as conn:
         row = conn.execute(
             'SELECT p.*, c.name as category_name FROM products p '
-            'LEFT JOIN categories c ON p.category_id=c.id WHERE p.id=?', (pid,)
+            'LEFT JOIN categories c ON p.category_id=c.id WHERE p.id=%s', (pid,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
@@ -308,7 +308,7 @@ def create_product():
             '''INSERT INTO products (title, subtitle, product_type, category,
                category_id, price, original_price, stock, thumbnail, description,
                features, images, ai_config, sort_order, is_active)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
             (
                 data.get('title', ''),
                 data.get('subtitle', ''),
@@ -349,10 +349,10 @@ def update_product(pid):
     vals = []
     for f in fields:
         if f in data:
-            sets.append(f'{f}=?')
+            sets.append(f'{f}=%s')
             vals.append(data[f])
     if 'features' in data:
-        sets.append('features=?')
+        sets.append('features=%s')
         vals.append(json.dumps(data['features'], ensure_ascii=False))
     if 'images' in data:
         imgs = data['images']
@@ -361,18 +361,18 @@ def update_product(pid):
                 imgs = json.loads(imgs)
             except:
                 imgs = []
-        sets.append('images=?')
+        sets.append('images=%s')
         vals.append(json.dumps(imgs, ensure_ascii=False))
     if 'ai_config' in data:
-        sets.append('ai_config=?')
+        sets.append('ai_config=%s')
         vals.append(json.dumps(data['ai_config'], ensure_ascii=False))
     if not sets:
         return jsonify({'success': False, 'error': '无有效更新字段'}), 400
 
-    sets.append("updated_at=datetime('now','localtime')")
+    sets.append("updated_at=NOW()")
     vals.append(pid)
     with get_db() as conn:
-        conn.execute(f'UPDATE products SET {",".join(sets)} WHERE id=?', vals)
+        conn.execute(f'UPDATE products SET {",".join(sets)} WHERE id=%s', vals)
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'update', 'product', pid,
                           json.dumps({k: data[k] for k in data if k in fields}, ensure_ascii=False))
@@ -385,7 +385,7 @@ def delete_product(pid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute('SELECT images FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if row:
             images = _safe_json(row['images'], [])
             for img in images:
@@ -395,10 +395,10 @@ def delete_product(pid):
                     if os.path.exists(fpath):
                         os.remove(fpath)
         # 清理关联数据
-        conn.execute('DELETE FROM product_specs WHERE product_id=?', (pid,))
-        conn.execute('DELETE FROM product_spec_values WHERE spec_id IN (SELECT id FROM product_specs WHERE product_id=?)', (pid,))
-        conn.execute('DELETE FROM product_skus WHERE product_id=?', (pid,))
-        conn.execute('DELETE FROM products WHERE id=?', (pid,))
+        conn.execute('DELETE FROM product_specs WHERE product_id=%s', (pid,))
+        conn.execute('DELETE FROM product_spec_values WHERE spec_id IN (SELECT id FROM product_specs WHERE product_id=%s)', (pid,))
+        conn.execute('DELETE FROM product_skus WHERE product_id=%s', (pid,))
+        conn.execute('DELETE FROM products WHERE id=%s', (pid,))
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'delete', 'product', pid)
     return jsonify({'success': True, 'message': '商品已删除'})
@@ -415,13 +415,13 @@ def list_specs(pid):
         return err
     with get_db() as conn:
         specs = conn.execute(
-            'SELECT * FROM product_specs WHERE product_id=? ORDER BY sort_order ASC', (pid,)
+            'SELECT * FROM product_specs WHERE product_id=%s ORDER BY sort_order ASC', (pid,)
         ).fetchall()
         result = []
         for s in specs:
             sd = dict(s)
             vals = conn.execute(
-                'SELECT * FROM product_spec_values WHERE spec_id=? ORDER BY sort_order ASC', (s['id'],)
+                'SELECT * FROM product_spec_values WHERE spec_id=%s ORDER BY sort_order ASC', (s['id'],)
             ).fetchall()
             sd['values'] = [dict(v) for v in vals]
             result.append(sd)
@@ -440,10 +440,10 @@ def create_spec(pid):
         return jsonify({'success': False, 'error': '规格名不能为空'}), 400
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO product_specs (product_id, spec_name, sort_order) VALUES (?,?,?)',
+            'INSERT INTO product_specs (product_id, spec_name, sort_order) VALUES (%s,%s,%s)',
             (pid, name, int(data.get('sort_order', 0)))
         )
-        sid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        sid = conn.execute('SELECT lastval()').fetchone()[0]
         conn.commit()
     return jsonify({'success': True, 'data': {'id': sid}, 'message': '规格已添加'})
 
@@ -459,7 +459,7 @@ def update_spec(pid, sid):
     if not name:
         return jsonify({'success': False, 'error': '规格名不能为空'}), 400
     with get_db() as conn:
-        conn.execute('UPDATE product_specs SET spec_name=?, sort_order=? WHERE id=? AND product_id=?',
+        conn.execute('UPDATE product_specs SET spec_name=%s, sort_order=%s WHERE id=%s AND product_id=%s',
                      (name, int(data.get('sort_order', 0)), sid, pid))
         conn.commit()
     return jsonify({'success': True, 'message': '规格已更新'})
@@ -472,8 +472,8 @@ def delete_spec(pid, sid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('DELETE FROM product_spec_values WHERE spec_id=?', (sid,))
-        conn.execute('DELETE FROM product_specs WHERE id=? AND product_id=?', (sid, pid))
+        conn.execute('DELETE FROM product_spec_values WHERE spec_id=%s', (sid,))
+        conn.execute('DELETE FROM product_specs WHERE id=%s AND product_id=%s', (sid, pid))
         conn.commit()
     return jsonify({'success': True, 'message': '规格已删除'})
 
@@ -491,10 +491,10 @@ def create_spec_value(pid, sid):
         return jsonify({'success': False, 'error': '规格值不能为空'}), 400
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO product_spec_values (spec_id, spec_value, sort_order) VALUES (?,?,?)',
+            'INSERT INTO product_spec_values (spec_id, spec_value, sort_order) VALUES (%s,%s,%s)',
             (sid, value, int(data.get('sort_order', 0)))
         )
-        vid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        vid = conn.execute('SELECT lastval()').fetchone()[0]
         conn.commit()
     return jsonify({'success': True, 'data': {'id': vid}, 'message': '规格值已添加'})
 
@@ -510,7 +510,7 @@ def update_spec_value(pid, vid):
     if not value:
         return jsonify({'success': False, 'error': '规格值不能为空'}), 400
     with get_db() as conn:
-        conn.execute('UPDATE product_spec_values SET spec_value=?, sort_order=? WHERE id=?',
+        conn.execute('UPDATE product_spec_values SET spec_value=%s, sort_order=%s WHERE id=%s',
                      (value, int(data.get('sort_order', 0)), vid))
         conn.commit()
     return jsonify({'success': True, 'message': '规格值已更新'})
@@ -523,7 +523,7 @@ def delete_spec_value(pid, vid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('DELETE FROM product_spec_values WHERE id=?', (vid,))
+        conn.execute('DELETE FROM product_spec_values WHERE id=%s', (vid,))
         conn.commit()
     return jsonify({'success': True, 'message': '规格值已删除'})
 
@@ -539,7 +539,7 @@ def list_skus(pid):
         return err
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM product_skus WHERE product_id=? ORDER BY id ASC', (pid,)
+            'SELECT * FROM product_skus WHERE product_id=%s ORDER BY id ASC', (pid,)
         ).fetchall()
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
@@ -559,7 +559,7 @@ def generate_skus(pid):
     with get_db() as conn:
         # 获取所有规格及其值
         specs = conn.execute(
-            'SELECT * FROM product_specs WHERE product_id=? ORDER BY sort_order ASC', (pid,)
+            'SELECT * FROM product_specs WHERE product_id=%s ORDER BY sort_order ASC', (pid,)
         ).fetchall()
         if not specs:
             return jsonify({'success': False, 'error': '请先添加规格'}), 400
@@ -567,7 +567,7 @@ def generate_skus(pid):
         spec_values = {}
         for s in specs:
             vals = conn.execute(
-                'SELECT * FROM product_spec_values WHERE spec_id=? ORDER BY sort_order ASC', (s['id'],)
+                'SELECT * FROM product_spec_values WHERE spec_id=%s ORDER BY sort_order ASC', (s['id'],)
             ).fetchall()
             if not vals:
                 return jsonify({'success': False, 'error': f'规格"{s["spec_name"]}"缺少规格值'}), 400
@@ -596,16 +596,16 @@ def generate_skus(pid):
 
             # 检查是否已存在
             existing = conn.execute(
-                'SELECT id FROM product_skus WHERE product_id=? AND sku_code=?', (pid, sku_code)
+                'SELECT id FROM product_skus WHERE product_id=%s AND sku_code=%s', (pid, sku_code)
             ).fetchone()
             if existing:
                 continue
 
             conn.execute(
-                'INSERT INTO product_skus (product_id, sku_code, spec_path, price, stock) VALUES (?,?,?,?,?)',
+                'INSERT INTO product_skus (product_id, sku_code, spec_path, price, stock) VALUES (%s,%s,%s,%s,%s)',
                 (pid, sku_code, json.dumps(spec_path, ensure_ascii=False), base_price, 0)
             )
-            sku_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            sku_id = conn.execute('SELECT lastval()').fetchone()[0]
             created_skus.append({'id': sku_id, 'sku_code': sku_code, 'spec_path': spec_path,
                                 'price': base_price, 'stock': 0})
         conn.commit()
@@ -629,14 +629,14 @@ def update_sku(pid, skuid):
     vals = []
     for f in fields:
         if f in data:
-            sets.append(f'{f}=?')
+            sets.append(f'{f}=%s')
             vals.append(data[f])
     if not sets:
         return jsonify({'success': False, 'error': '无更新数据'}), 400
-    sets.append("updated_at=datetime('now','localtime')")
+    sets.append("updated_at=NOW()")
     vals.append(skuid)
     with get_db() as conn:
-        conn.execute(f'UPDATE product_skus SET {",".join(sets)} WHERE id=? AND product_id=?', vals + [pid])
+        conn.execute(f'UPDATE product_skus SET {",".join(sets)} WHERE id=%s AND product_id=%s', vals + [pid])
         conn.commit()
     return jsonify({'success': True, 'message': 'SKU已更新'})
 
@@ -648,7 +648,7 @@ def delete_sku(pid, skuid):
     if err:
         return err
     with get_db() as conn:
-        conn.execute('DELETE FROM product_skus WHERE id=? AND product_id=?', (skuid, pid))
+        conn.execute('DELETE FROM product_skus WHERE id=%s AND product_id=%s', (skuid, pid))
         conn.commit()
     return jsonify({'success': True, 'message': 'SKU已删除'})
 
@@ -697,7 +697,7 @@ def create_category():
     level = 0
     if parent_id:
         with get_db() as conn:
-            parent = conn.execute('SELECT level FROM categories WHERE id=?', (parent_id,)).fetchone()
+            parent = conn.execute('SELECT level FROM categories WHERE id=%s', (parent_id,)).fetchone()
             if parent:
                 level = parent['level'] + 1
 
@@ -705,10 +705,10 @@ def create_category():
     with get_db() as conn:
         try:
             conn.execute(
-                'INSERT INTO categories (name, slug, parent_id, level, icon, sort_order, is_active) VALUES (?,?,?,?,?,?,?)',
+                'INSERT INTO categories (name, slug, parent_id, level, icon, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s)',
                 (name, slug, parent_id, level, data.get('icon', ''), int(data.get('sort_order', 0)), 1)
             )
-            cid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            cid = conn.execute('SELECT lastval()').fetchone()[0]
             conn.commit()
         except Exception as e:
             return jsonify({'success': False, 'error': f'创建失败: {e}'}), 400
@@ -727,7 +727,7 @@ def update_category(cid):
     vals = []
     for f in fields:
         if f in data:
-            sets.append(f'{f}=?')
+            sets.append(f'{f}=%s')
             vals.append(data[f])
     if not sets:
         return jsonify({'success': False, 'error': '无更新数据'}), 400
@@ -737,15 +737,15 @@ def update_category(cid):
         level = 0
         if parent_id:
             with get_db() as conn:
-                parent = conn.execute('SELECT level FROM categories WHERE id=?', (parent_id,)).fetchone()
+                parent = conn.execute('SELECT level FROM categories WHERE id=%s', (parent_id,)).fetchone()
                 if parent:
                     level = parent['level'] + 1
-        sets.append('level=?')
+        sets.append('level=%s')
         vals.append(level)
-    sets.append("updated_at=datetime('now','localtime')")
+    sets.append("updated_at=NOW()")
     vals.append(cid)
     with get_db() as conn:
-        conn.execute(f'UPDATE categories SET {",".join(sets)} WHERE id=?', vals)
+        conn.execute(f'UPDATE categories SET {",".join(sets)} WHERE id=%s', vals)
         conn.commit()
     return jsonify({'success': True, 'message': '分类已更新'})
 
@@ -758,14 +758,14 @@ def delete_category(cid):
         return err
     with get_db() as conn:
         # 检查是否有子分类
-        children = conn.execute('SELECT id FROM categories WHERE parent_id=?', (cid,)).fetchall()
+        children = conn.execute('SELECT id FROM categories WHERE parent_id=%s', (cid,)).fetchall()
         if children:
             return jsonify({'success': False, 'error': '请先删除子分类'}), 400
         # 检查是否有商品使用此分类
-        prods = conn.execute('SELECT id FROM products WHERE category_id=? LIMIT 1', (cid,)).fetchall()
+        prods = conn.execute('SELECT id FROM products WHERE category_id=%s LIMIT 1', (cid,)).fetchall()
         if prods:
             return jsonify({'success': False, 'error': '该分类下有商品，无法删除'}), 400
-        conn.execute('DELETE FROM categories WHERE id=?', (cid,))
+        conn.execute('DELETE FROM categories WHERE id=%s', (cid,))
         conn.commit()
 # =============================================
 # AI 智能优化 — 直接使用 AIEngine，支持 DeepSeek/阿里百炼/硅基流动/OpenAI等
@@ -784,7 +784,7 @@ class ShopAIProcessor:
     def _read_config(self, key, default=''):
         try:
             with get_db() as conn:
-                row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
+                row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key,)).fetchone()
                 return row['value'] if row and row['value'] else default
         except Exception:
             return default
@@ -863,7 +863,7 @@ class ShopAIProcessor:
         try:
             options = json.loads(response)
             if not isinstance(options, list):
-                m = re.search(r'\[[\s\S]*?\]', response)
+                m = re.search(r'\[[\s\S]*%s\]', response)
                 if m:
                     options = json.loads(m.group())
                 else:
@@ -934,7 +934,7 @@ class ShopAIProcessor:
         try:
             points = json.loads(response)
             if not isinstance(points, list):
-                m = re.search(r'\[[\s\S]*?\]', response)
+                m = re.search(r'\[[\s\S]*%s\]', response)
                 if m:
                     points = json.loads(m.group())
                 else:
@@ -998,7 +998,7 @@ def ai_optimize_product(pid):
         return jsonify({'success': False, 'error': 'AI服务不可用，请检查API Key配置'}), 503
 
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         product = _product_to_dict(row)
@@ -1075,7 +1075,7 @@ def ai_optimize_title(pid):
         return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
 
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         product = _product_to_dict(row)
@@ -1106,7 +1106,7 @@ def ai_optimize_description(pid):
         return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
 
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         product = _product_to_dict(row)
@@ -1138,7 +1138,7 @@ def ai_generate_features(pid):
         return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
 
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM products WHERE id=?', (pid,)).fetchone()
+        row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '商品不存在'}), 404
         product = _product_to_dict(row)
@@ -1176,7 +1176,7 @@ def ai_batch_optimize():
 
     results = []
     with get_db() as conn:
-        placeholders = ','.join('?' * len(product_ids))
+        placeholders = ','.join('%s' * len(product_ids))
         rows = conn.execute(
             f'SELECT * FROM products WHERE id IN ({placeholders})',
             product_ids
@@ -1247,7 +1247,7 @@ def list_orders():
                  LEFT JOIN products p ON oi.product_id=p.id'''
         params = []
         if status:
-            sql += ' WHERE oi.status=?'
+            sql += ' WHERE oi.status=%s'
             params.append(status)
         sql += ' ORDER BY oi.created_at DESC'
         rows = conn.execute(sql, params).fetchall()
@@ -1278,7 +1278,7 @@ def order_detail(oid):
                FROM order_items oi
                LEFT JOIN users u ON oi.user_id=u.id
                LEFT JOIN products p ON oi.product_id=p.id
-               WHERE oi.id=?''', (oid,)
+               WHERE oi.id=%s''', (oid,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
@@ -1287,7 +1287,7 @@ def order_detail(oid):
 
         # 支付事件记录
         payments = conn.execute(
-            "SELECT * FROM payment_events WHERE order_no=? ORDER BY created_at DESC",
+            "SELECT * FROM payment_events WHERE order_no=%s ORDER BY created_at DESC",
             (d.get('order_no') or d.get('id'),)
         ).fetchall()
         d['payments'] = [dict(p) for p in payments]
@@ -1297,7 +1297,7 @@ def order_detail(oid):
         if d.get('shipping_status') == 'shipped':
             try:
                 tracking = conn.execute(
-                    "SELECT * FROM order_shipping WHERE order_item_id=? ORDER BY created_at DESC",
+                    "SELECT * FROM order_shipping WHERE order_item_id=%s ORDER BY created_at DESC",
                     (oid,)
                 ).fetchall()
                 d['shipping'] = [dict(t) for t in tracking] if tracking else None
@@ -1314,18 +1314,18 @@ def confirm_order(oid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM order_items WHERE id=?', (oid,)).fetchone()
+        row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
         if row['status'] != 'pending':
             return jsonify({'success': False, 'error': '只能确认待支付订单'}), 400
         conn.execute(
-            "UPDATE order_items SET status='paid', paid_at=datetime('now','localtime') WHERE id=?",
+            "UPDATE order_items SET status='paid', paid_at=NOW() WHERE id=%s",
             (oid,))
         # 添加 user_purchases 记录
         conn.execute('''INSERT OR IGNORE INTO user_purchases
             (user_id, product_id, order_id, purchase_type, status, created_at)
-            VALUES (?,?,?,?,?,datetime('now','localtime'))''',
+            VALUES (%s,%s,%s,%s,%s,NOW())''',
             (row['user_id'], row['product_id'], row['order_id'], 'once', 'active'))
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'confirm_payment', 'order', oid,
@@ -1343,7 +1343,7 @@ def refund_order(oid):
         return err
     data = request.get_json() or {}
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM order_items WHERE id=?', (oid,)).fetchone()
+        row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
         if row['status'] == 'refunded':
@@ -1380,15 +1380,15 @@ def refund_order(oid):
                 print(f'[Shop Refund] Gateway call failed for order {oid}: {e}')
                 # 继续执行数据库操作
 
-        conn.execute('UPDATE products SET sales_count = MAX(0, sales_count - ?) WHERE id=?',
+        conn.execute('UPDATE products SET sales_count = MAX(0, sales_count - %s) WHERE id=%s',
                      (row['quantity'], row['product_id']))
         conn.execute(
-            "UPDATE order_items SET status='refunded', refunded_at=datetime('now','localtime') WHERE id=?",
+            "UPDATE order_items SET status='refunded', refunded_at=NOW() WHERE id=%s",
             (oid,)
         )
         conn.execute(
-            "UPDATE user_purchases SET status='cancelled', expire_at=datetime('now','localtime') "
-            "WHERE product_id=? AND user_id=? AND status='active'",
+            "UPDATE user_purchases SET status='cancelled', expire_at=NOW() "
+            "WHERE product_id=%s AND user_id=%s AND status='active'",
             (row['product_id'], row['user_id'])
         )
         conn.commit()
@@ -1404,13 +1404,13 @@ def complete_order_admin(oid):
     if err:
         return err
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM order_items WHERE id=?', (oid,)).fetchone()
+        row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
         if row['status'] not in ('paid', 'shipped'):
             return jsonify({'success': False, 'error': '当前订单状态不允许标记完成'}), 400
         conn.execute(
-            "UPDATE order_items SET status='completed', completed_at=datetime('now','localtime') WHERE id=?",
+            "UPDATE order_items SET status='completed', completed_at=NOW() WHERE id=%s",
             (oid,)
         )
         conn.commit()
@@ -1447,7 +1447,7 @@ def ship_order(oid):
         return jsonify({'success': False, 'error': '请选择快递公司并填写运单号'}), 400
 
     with get_db() as conn:
-        row = conn.execute('SELECT * FROM order_items WHERE id=?', (oid,)).fetchone()
+        row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404
         if row['status'] != 'paid':
@@ -1456,8 +1456,8 @@ def ship_order(oid):
             return jsonify({'success': False, 'error': '该订单已发货'}), 400
 
         conn.execute(
-            "UPDATE order_items SET tracking_company=?, tracking_number=?, "
-            "shipping_status='shipped', shipped_at=datetime('now','localtime') WHERE id=?",
+            "UPDATE order_items SET tracking_company=%s, tracking_number=%s, "
+            "shipping_status='shipped', shipped_at=NOW() WHERE id=%s",
             (company, tracking, oid)
         )
         conn.commit()
@@ -1485,7 +1485,7 @@ def track_order(oid):
         row = conn.execute(
             'SELECT oi.*, ec.kdniao_code FROM order_items oi '
             'LEFT JOIN express_companies ec ON oi.tracking_company=ec.code '
-            'WHERE oi.id=?', (oid,)
+            'WHERE oi.id=%s', (oid,)
         ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': '订单不存在'}), 404

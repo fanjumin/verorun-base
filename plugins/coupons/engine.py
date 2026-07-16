@@ -54,7 +54,7 @@ class CouponEngine:
                    usage_limit, per_user_limit, expire_at, is_active, description, coupon_category,
                    applicable_products, scene, first_month_only, stackable, active_from, active_to,
                    created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,datetime('now','localtime'))''',
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
                 (
                     data['code'].upper(),
                     data.get('name', ''),
@@ -273,7 +273,7 @@ class CouponEngine:
             conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=?', (cpn['id'],))
             conn.execute(
                 '''INSERT INTO coupon_redemptions (coupon_id, user_id, order_no,
-                   discount_fen, created_at) VALUES (?,?,?,?,datetime('now','localtime'))''',
+                   discount_fen, created_at) VALUES (%s,%s,%s,%s,NOW())''',
                 (cpn['id'], user_id, order_no, int(discount * 100))
             )
             conn.commit()
@@ -294,7 +294,7 @@ class CouponEngine:
                 if not existing:
                     conn.execute(
                         '''INSERT INTO coupon_redemptions (coupon_id, user_id, order_no,
-                           discount_fen, created_at) VALUES (?,?,?,?,datetime('now','localtime'))''',
+                           discount_fen, created_at) VALUES (%s,%s,%s,%s,NOW())''',
                         (coupon_id, uid, f'distribute_{coupon_id}_{uid}', 0)
                     )
                     count += 1

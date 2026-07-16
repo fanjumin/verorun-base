@@ -41,7 +41,7 @@ def create_order(order_no: str, description: str, amount_cents: int) -> dict:
         description=description,
         amount_cents=amount_cents,
         currency='USD',
-        return_url=RETURN_URL + '?order_no=' + order_no,
+        return_url=RETURN_URL + '%sorder_no=' + order_no,
     )
     if result.get('success'):
         return {

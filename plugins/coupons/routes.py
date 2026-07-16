@@ -84,7 +84,7 @@ def _check_rate_limit(uid, action, max_requests=30, window=60):
         with _get_main_db() as conn:
             row = conn.execute(
                 '''SELECT COUNT(*) as c FROM api_logs
-                   WHERE user_id=? AND action=? AND created_at > datetime('now', ?)''',
+                   WHERE user_id=%s AND action=%s AND created_at > NOW() + %s::INTERVAL''',
                 (uid, action, f'-{window} seconds')
             ).fetchone()
             return (row['c'] if row else 0) < max_requests
@@ -96,7 +96,7 @@ def _log_admin_action(conn, admin_id, action, target_type, target_id, detail='')
     try:
         conn.execute(
             '''INSERT INTO admin_actions (admin_id, action, target_type, target_id, detail, ip, created_at)
-               VALUES (?,?,?,?,?,?,datetime('now','localtime'))''',
+               VALUES (%s,%s,%s,%s,%s,%s,NOW())''',
             (admin_id, action, target_type, target_id, detail, request.remote_addr or '')
         )
     except Exception:

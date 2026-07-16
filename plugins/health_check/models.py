@@ -15,7 +15,8 @@ Table structure:
 @package health_monitor
 """
 
-import os, json, time, sqlite3
+import os, json, time, psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from collections import defaultdict
@@ -29,11 +30,16 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn = psycopg2.connect(
+        host=os.environ.get('PG_HOST','localhost'),
+        port=int(os.environ.get('PG_PORT',5432)),
+        dbname=os.environ.get('PG_DB','verorun'),
+        user=os.environ.get('PG_USER','verorun'),
+        password=os.environ.get('PG_PASSWORD',''),
+        cursor_factory=RealDictCursor
+    )
+    conn.execute("CREATE SCHEMA IF NOT EXISTS health")
+    conn.execute("SET search_path TO health")
     try:
         yield conn
     finally:
@@ -43,59 +49,59 @@ def get_db():
 def init_health_tables():
     """Initialize all health check tables (idempotent: IF NOT EXISTS)"""
     with get_db() as conn:
-        conn.executescript("""
+        conn.execute("""
             -- =============================================
             -- 1. Check item definition table
             -- =============================================
             CREATE TABLE IF NOT EXISTS health_checks (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,                    -- Check item name (e.g. "Core API Check")
                 check_key       TEXT NOT NULL UNIQUE,             -- Unique key (e.g. "core_api")
                 category        TEXT NOT NULL DEFAULT 'system',   -- Category: system/external/workflow/agent/cms/ssl/error
                 description     TEXT DEFAULT '',                  -- Description
                 config          TEXT DEFAULT '{}',                -- JSON config (timeout, URLs, etc.)
-                is_active       INTEGER DEFAULT 1,                -- Whether enabled
+                is_active       BIGINT DEFAULT 1,                -- Whether enabled
                 severity        TEXT DEFAULT 'warning'            -- Severity level: info/warning/critical
                     CHECK(severity IN ('info','warning','critical')),
-                sort_order      INTEGER DEFAULT 0,                -- Sort order
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                sort_order      BIGINT DEFAULT 0,                -- Sort order
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW()
             );
 
             -- =============================================
             -- 2. Check run table (each triggered inspection is one batch)
             -- =============================================
             CREATE TABLE IF NOT EXISTS check_runs (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 trigger_type    TEXT NOT NULL DEFAULT 'manual',   -- manual/scheduled/workflow
                 trigger_info    TEXT DEFAULT '',                  -- Trigger details (e.g. cron job id)
-                total_checks    INTEGER DEFAULT 0,                -- Total check items
-                passed          INTEGER DEFAULT 0,                -- Passed count
-                warnings        INTEGER DEFAULT 0,                -- Warning count
-                errors          INTEGER DEFAULT 0,                -- Error count
-                duration_ms     INTEGER DEFAULT 0,                -- Total duration (ms)
+                total_checks    BIGINT DEFAULT 0,                -- Total check items
+                passed          BIGINT DEFAULT 0,                -- Passed count
+                warnings        BIGINT DEFAULT 0,                -- Warning count
+                errors          BIGINT DEFAULT 0,                -- Error count
+                duration_ms     BIGINT DEFAULT 0,                -- Total duration (ms)
                 status          TEXT DEFAULT 'completed'          -- completed/running/failed
                     CHECK(status IN ('running','completed','failed')),
                 summary         TEXT DEFAULT '',                  -- Run summary
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT NOW()
             );
 
             -- =============================================
             -- 3. Check history/details table
             -- =============================================
             CREATE TABLE IF NOT EXISTS check_history (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id          INTEGER NOT NULL,                 -- References check_runs.id
-                check_id        INTEGER NOT NULL,                 -- References health_checks.id
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                run_id          BIGINT NOT NULL,                 -- References check_runs.id
+                check_id        BIGINT NOT NULL,                 -- References health_checks.id
                 check_key       TEXT NOT NULL,                    -- Redundant, for convenient querying
                 check_name      TEXT NOT NULL,                    -- Redundant
                 category        TEXT NOT NULL,                    -- Redundant
                 status          TEXT NOT NULL DEFAULT 'passed'    -- passed/warning/error
                     CHECK(status IN ('passed','warning','error')),
-                response_time_ms INTEGER DEFAULT 0,               -- Response time (ms)
+                response_time_ms BIGINT DEFAULT 0,               -- Response time (ms)
                 message         TEXT DEFAULT '',                  -- Result message
                 detail          TEXT DEFAULT '{}',                -- JSON details
-                checked_at      TEXT DEFAULT (datetime('now'))
+                checked_at      TEXT DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_check_history_run
                 ON check_history(run_id);
@@ -108,64 +114,64 @@ def init_health_tables():
             -- 4. Alert rule configuration table
             -- =============================================
             CREATE TABLE IF NOT EXISTS alert_config (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name            TEXT NOT NULL,                    -- Rule name
                 check_key       TEXT DEFAULT '*',                 -- Associated check item ('*' means all)
                 severity        TEXT DEFAULT 'warning',           -- Trigger severity: warning/critical
-                consecutive     INTEGER DEFAULT 1,                -- Alert after N consecutive failures
+                consecutive     BIGINT DEFAULT 1,                -- Alert after N consecutive failures
                 notify_method   TEXT DEFAULT 'email',             -- email/internal message/webhook/all
                 webhook_url     TEXT DEFAULT '',                  -- Webhook URL
                 alert_level     TEXT DEFAULT 'P3',                -- P0(critical)/P1(major)/P2(minor)/P3(info)
-                aggregation_window INTEGER DEFAULT 300,          -- Aggregation window in seconds (0=instant)
-                cooldown_minutes   INTEGER DEFAULT 60,           -- Min minutes between same-check alerts
-                is_active       INTEGER DEFAULT 1,
-                created_at      TEXT DEFAULT (datetime('now')),
-                updated_at      TEXT DEFAULT (datetime('now'))
+                aggregation_window BIGINT DEFAULT 300,          -- Aggregation window in seconds (0=instant)
+                cooldown_minutes   BIGINT DEFAULT 60,           -- Min minutes between same-check alerts
+                is_active       BIGINT DEFAULT 1,
+                created_at      TEXT DEFAULT NOW(),
+                updated_at      TEXT DEFAULT NOW()
             );
 
             -- =============================================
             -- 5. Alert history table
             -- =============================================
             CREATE TABLE IF NOT EXISTS alert_history (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                alert_config_id INTEGER DEFAULT 0,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                alert_config_id BIGINT DEFAULT 0,
                 check_key       TEXT NOT NULL,
                 check_name      TEXT NOT NULL,
-                run_id          INTEGER DEFAULT 0,
+                run_id          BIGINT DEFAULT 0,
                 status          TEXT NOT NULL,                    -- Status at trigger time
                 alert_level     TEXT DEFAULT 'P3',                -- P0(critical)/P1(major)/P2(minor)/P3(info)
                 message         TEXT DEFAULT '',
                 notify_method   TEXT DEFAULT '',
-                is_read         INTEGER DEFAULT 0,
-                created_at      TEXT DEFAULT (datetime('now'))
+                is_read         BIGINT DEFAULT 0,
+                created_at      TEXT DEFAULT NOW()
             );
 
             -- =============================================
             -- 6a. Alert silences table
             -- =============================================
             CREATE TABLE IF NOT EXISTS alert_silences (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 check_key       TEXT DEFAULT '*',                 -- '*' means all checks
                 starts_at       TEXT NOT NULL,                    -- Silence start time (ISO format)
                 ends_at         TEXT NOT NULL,                    -- Silence end time (ISO format)
                 reason          TEXT DEFAULT '',                  -- Reason for silence
                 created_by      TEXT DEFAULT 'system',            -- Who created the silence
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT NOW()
             );
 
             -- =============================================
             -- 6. Daily health trend table
             -- =============================================
             CREATE TABLE IF NOT EXISTS health_trend (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 date            TEXT NOT NULL,                    -- '2026-05-10'
-                total_checks    INTEGER DEFAULT 0,
-                passed          INTEGER DEFAULT 0,
-                warnings        INTEGER DEFAULT 0,
-                errors          INTEGER DEFAULT 0,
-                avg_response_ms INTEGER DEFAULT 0,
+                total_checks    BIGINT DEFAULT 0,
+                passed          BIGINT DEFAULT 0,
+                warnings        BIGINT DEFAULT 0,
+                errors          BIGINT DEFAULT 0,
+                avg_response_ms BIGINT DEFAULT 0,
                 health_score    REAL DEFAULT 100.0,              -- Health score 0-100
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT NOW()
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_health_trend_date
                 ON health_trend(date);
@@ -174,8 +180,8 @@ def init_health_tables():
             -- 7. Fix audit log table (for rollback)
             -- =============================================
             CREATE TABLE IF NOT EXISTS fix_audit_log (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id          INTEGER DEFAULT 0,
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                run_id          BIGINT DEFAULT 0,
                 check_key       TEXT NOT NULL,
                 action          TEXT NOT NULL,                    -- FIX_ACTION_* constant
                 params_json     TEXT DEFAULT '{}',               -- Parameters used
@@ -183,7 +189,7 @@ def init_health_tables():
                 status          TEXT DEFAULT 'applied'           -- applied / rolled_back
                     CHECK(status IN ('applied','rolled_back')),
                 admin_user      TEXT DEFAULT '',
-                created_at      TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT NOW()
             );
         """)
         print(f'[HealthCheck] ✅ Database tables initialized')
@@ -244,7 +250,7 @@ def seed_default_checks():
         for ck, name, cat, desc, cfg, sev, sort in DEFAULT_CHECKS:
             conn.execute(
                 'INSERT INTO health_checks (check_key, name, category, description, config, severity, sort_order) '
-                'VALUES (?,?,?,?,?,?,?)',
+                'VALUES (%s,%s,%s,%s,%s,%s,%s)',
                 (ck, name, cat, desc, cfg, sev, sort)
             )
         conn.commit()
@@ -266,7 +272,7 @@ def get_recent_runs(limit=20):
     """Retrieve recent inspection batches"""
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM check_runs ORDER BY created_at DESC LIMIT ?',
+            'SELECT * FROM check_runs ORDER BY created_at DESC LIMIT %s',
             (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -276,7 +282,7 @@ def get_history_for_run(run_id):
     """Retrieve detailed results for a specific inspection run"""
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM check_history WHERE run_id=? ORDER BY id',
+            'SELECT * FROM check_history WHERE run_id=%s ORDER BY id',
             (run_id,)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -292,7 +298,7 @@ def get_latest_status():
             return None
         run = dict(run)
         history = conn.execute(
-            'SELECT * FROM check_history WHERE run_id=? ORDER BY category, id',
+            'SELECT * FROM check_history WHERE run_id=%s ORDER BY category, id',
             (run['id'],)
         ).fetchall()
         run['items'] = [dict(h) for h in history]
@@ -304,7 +310,7 @@ def get_health_trend(days=7):
     with get_db() as conn:
         since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         rows = conn.execute(
-            'SELECT * FROM health_trend WHERE date>=? ORDER BY date',
+            'SELECT * FROM health_trend WHERE date>=%s ORDER BY date',
             (since,)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -314,7 +320,7 @@ def get_alerts(limit=50):
     """Retrieve alert history"""
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM alert_history ORDER BY created_at DESC LIMIT ?',
+            'SELECT * FROM alert_history ORDER BY created_at DESC LIMIT %s',
             (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
