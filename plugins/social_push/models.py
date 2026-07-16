@@ -6,25 +6,66 @@
 """
 import psycopg2
 import os
+from psycopg2.extras import RealDictCursor
 
 _sp_conn = None
+
+
+class _SpConnection:
+    """Wrapper around psycopg2 connection that provides .execute() and context manager support."""
+
+    def __init__(self, conn):
+        self._conn = conn
+        self._cur = None
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def execute(self, sql, params=None):
+        if self._cur is None:
+            self._cur = self._conn.cursor(cursor_factory=RealDictCursor)
+        self._cur.execute(sql.replace('?', '%s'), params or ())
+        return self._cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        if self._cur:
+            self._cur.close()
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self._conn.rollback()
+        else:
+            self._conn.commit()
+        self.close()
 
 
 def get_sp_db():
     """获取 Social Push 插件独立数据库连接"""
     global _sp_conn
     if _sp_conn is None:
-        _sp_conn = psycopg2.connect(
+        raw = psycopg2.connect(
             host=os.environ.get('PG_HOST', 'localhost'),
             port=int(os.environ.get('PG_PORT', 5432)),
             dbname=os.environ.get('PG_DB', 'verorun'),
             user=os.environ.get('PG_USER', 'verorun'),
             password=os.environ.get('PG_PASSWORD', ''),
         )
-        _sp_conn.autocommit = False
+        raw.autocommit = False
+        _sp_conn = _SpConnection(raw)
         _sp_conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")
         _sp_conn.execute("SET search_path TO social_push")
-    return _PgConnection(_sp_conn)
+        _sp_conn.commit()
+    return _sp_conn
 
 
 def init_sp_db():
