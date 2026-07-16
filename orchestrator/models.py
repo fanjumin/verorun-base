@@ -22,11 +22,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # PostgreSQL 连接配置（复用 easykai 主库）
 DB_CONFIG = {
-    'host':     os.environ.get('DB_HOST', 'localhost'),
-    'port':     int(os.environ.get('DB_PORT', 5432)),
-    'dbname':   os.environ.get('DB_NAME', 'easykai'),
-    'user':     os.environ.get('DB_USER', 'easykai'),
-    'password': os.environ.get('DB_PASS', ''),
+    'host':     os.environ.get('PG_HOST', 'localhost'),
+    'port':     int(os.environ.get('PG_PORT', 5432)),
+    'dbname':   os.environ.get('PG_DB', 'verorun'),
+    'user':     os.environ.get('PG_USER', 'easykai'),
+    'password': os.environ.get('PG_PASSWORD', ''),
 }
 
 
