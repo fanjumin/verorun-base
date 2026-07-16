@@ -146,7 +146,7 @@ class WishlistPlugin(BasePlugin):
             uid = payload['user_id']
             with get_db() as conn:
                 count = conn.execute(
-                    'SELECT COUNT(*) FROM wishlist WHERE user_id=?', (uid,)
+                    'SELECT COUNT(*) FROM wishlist WHERE user_id=%s', (uid,)
                 ).fetchone()[0]
             return jsonify({'success': True, 'data': {'count': count}})
 

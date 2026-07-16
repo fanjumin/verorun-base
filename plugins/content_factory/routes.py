@@ -68,10 +68,10 @@ def add_source():
         if not d.get(k):
             return jsonify({'success': False, 'error': f'{k} 必填'})
     conn = _get_db()
-    conn.execute(
+    cur = conn.execute(
         """INSERT INTO content_sources (name, source_type, platform, url, config_json,
            crawl_interval, keywords, max_per_run, created_by)
-           VALUES (?,?,?,?,?,?,?,?,?)""",
+           VALUES (?,?,?,?,?,?,?,?,?) RETURNING id""",
         (d['name'], d['source_type'], d.get('platform', ''),
          d['url'], json.dumps(d.get('config', {}), ensure_ascii=False),
          int(d.get('crawl_interval', 0)),
@@ -80,7 +80,7 @@ def add_source():
          admin['user_id'])
     )
     conn.commit()
-    sid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    sid = cur.fetchone()['id']
     _log(admin['user_id'], 'cf_source_add', 'content_source', str(sid), f"来源: {d['name']}")
     return jsonify({'success': True, 'id': sid})
 

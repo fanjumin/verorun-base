@@ -5,6 +5,25 @@ from psycopg2.extras import RealDictCursor
 import threading
 from flask import g
 
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        import psycopg2.extras
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql.replace('?', '%s'), params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
+
 DB_DIR = os.path.join(os.path.dirname(__file__), 'data')
 DB_FILE = os.path.join(DB_DIR, 'order_notify.db')
 _local = threading.local()
@@ -28,7 +47,7 @@ def get_db():
         )
         g.order_notify_db.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
         g.order_notify_db.execute("SET search_path TO order_notify")
-    return g.order_notify_db
+    return _PgConnection(g.order_notify_db)
 
 
 def get_main_db():

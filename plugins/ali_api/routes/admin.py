@@ -747,7 +747,7 @@ def publish_product(item_id):
                         price, original_price, stock, sales_count,
                         thumbnail, description, features, ai_config,
                         sort_order, is_active, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 ''', (
                     final_title,
                     '',
@@ -766,7 +766,7 @@ def publish_product(item_id):
                     now_iso,
                     now_iso,
                 ))
-                target_product_id = cursor.lastrowid
+                target_product_id = cursor.fetchone()['id']
                 
                 # 如果有 SKU，插入到 product_skus 表（主库已存在该表）
                 if product_sku:

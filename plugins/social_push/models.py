@@ -24,7 +24,7 @@ def get_sp_db():
         _sp_conn.autocommit = False
         _sp_conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")
         _sp_conn.execute("SET search_path TO social_push")
-    return _sp_conn
+    return _PgConnection(_sp_conn)
 
 
 def init_sp_db():

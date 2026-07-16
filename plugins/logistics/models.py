@@ -28,7 +28,7 @@ def get_logistics_db():
         )
         _logistics_conn.execute("CREATE SCHEMA IF NOT EXISTS logistics")
         _logistics_conn.execute("SET search_path TO logistics")
-    return _logistics_conn
+    return _PgConnection(_logistics_conn)
 
 
 def init_logistics_db():

@@ -51,13 +51,13 @@ def run_collection(source_id: int, source_type: str = None,
     if not collector:
         return {'success': False, 'error': f'未知采集类型: {source_type}'}
 
-    conn.execute(
+    cur = conn.execute(
         """INSERT INTO content_tasks (source_id, task_type, trigger_type, status, started_at, created_by)
-           VALUES (%s, 'crawl', 'manual', 'running', NOW(), %s)""",
+           VALUES (%s, 'crawl', 'manual', 'running', NOW(), %s) RETURNING id""",
         (source_id, kwargs.get('admin_id', 1))
     )
     conn.commit()
-    task_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    task_id = cur.fetchone()['id']
 
     try:
         results = collector.collect(**kwargs)

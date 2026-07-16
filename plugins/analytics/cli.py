@@ -120,7 +120,7 @@ def cmd_stats():
 
         # 数据库大小
         db_size = conn.execute(
-            "SELECT page_count * page_size as size FROM pragma_page_count, pragma_page_size"
+            "SELECT pg_database_size(current_database()) as size"
         ).fetchone()['size']
 
         print('═' * 45)

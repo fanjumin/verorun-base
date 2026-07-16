@@ -1010,7 +1010,9 @@ def migrate_data_from_main_db():
                     local_cols = [r['column_name'] for r in local_conn.execute(
                         f"SELECT column_name FROM information_schema.columns WHERE table_name=%s", (t,)
                     ).fetchall()]
-                    main_cols = [r[1] for r in main_conn.execute(f"PRAGMA table_info({t})").fetchall()]
+                    main_cols = [r['column_name'] for r in main_conn.execute(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name=%s", (t,)
+                    ).fetchall()]
                     cols = [c for c in main_cols if c in local_cols]
                     if not cols:
                         continue

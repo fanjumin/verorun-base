@@ -182,7 +182,7 @@ def create_zone(data):
     conn = get_ads_db()
     cur = conn.execute('''INSERT INTO ad_zones
         (site_key, name, identifier, description, width, height, is_active, sort_order)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)''',
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
         (data.get('site_key', 'default'),
          data.get('name', ''),
          data.get('identifier', ''),
@@ -192,7 +192,7 @@ def create_zone(data):
          data.get('is_active', 1),
          data.get('sort_order', 0)))
     conn.commit()
-    return cur.lastrowid
+    return cur.fetchone()['id']
 
 
 def update_zone(zone_id, data):

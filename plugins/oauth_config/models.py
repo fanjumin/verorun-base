@@ -6,8 +6,26 @@ oauth_providers 表迁移至插件独立数据库 oauth.db，与主库完全解�
 import os
 import sys
 import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg2.extras
 from contextlib import contextmanager
+
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql.replace('?', '%s'), params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
 
 _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')

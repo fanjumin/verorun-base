@@ -5,8 +5,26 @@
 从主库迁移而来（feishu/wecom/qq/dingtalk），主库结构保持一致。
 """
 import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg2.extras
 import os
+
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql.replace('?', '%s'), params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'im_gateway.db')
 
@@ -35,7 +53,7 @@ def get_im_db():
         )
         _im_conn.execute("CREATE SCHEMA IF NOT EXISTS im_gateway")
         _im_conn.execute("SET search_path TO im_gateway")
-    return _im_conn
+    return _PgConnection(_im_conn)
 
 
 def init_im_db():

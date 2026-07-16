@@ -7,7 +7,26 @@ SMS Plugin Models — 独立数据库 sms.db
 - sms_logs: 短信发送日志
 """
 import psycopg2
+import psycopg2.extras
 import os
+
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql.replace('?', '%s'), params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
 
 _sms_conn = None
 

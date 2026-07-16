@@ -63,7 +63,7 @@ def create(platform: str, account_name: str, **kwargs) -> int:
             """INSERT INTO dev_accounts
                (platform, account_name, app_id, app_secret, bot_token,
                 channel_id, channel_secret, access_token, extra_config, is_active)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (
                 platform,
                 account_name,
@@ -78,7 +78,7 @@ def create(platform: str, account_name: str, **kwargs) -> int:
             )
         )
         conn.commit()
-        return cursor.lastrowid
+        return cursor.fetchone()['id']
 
 
 def update(account_id: int, **kwargs) -> bool:

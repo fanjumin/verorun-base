@@ -71,12 +71,12 @@ def sms_template_create():
     conn = get_sms_db()
     row = conn.execute('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM sms_templates').fetchone()
     sort_order = row['n']
-    conn.execute(
-        'INSERT INTO sms_templates (category, name, template_code, note, sort_order) VALUES (?,?,?,?,?)',
+    cur = conn.execute(
+        'INSERT INTO sms_templates (category, name, template_code, note, sort_order) VALUES (?,?,?,?,?) RETURNING id',
         (category, name, template_code, note, sort_order)
     )
     conn.commit()
-    tid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    tid = cur.fetchone()['id']
     _log(admin['user_id'], 'create_sms_template', 'sms', str(tid), f'{category}/{name}')
     return jsonify({'success': True, 'data': {'id': tid}})
 

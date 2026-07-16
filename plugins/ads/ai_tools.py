@@ -89,7 +89,7 @@ def create_ad(data):
             (name, site_key, zone_id, position, page, ad_type, image_url, link_url, ad_code,
              width, height, targeting_rules, schedule_start, schedule_end, weight, freq_cap,
              click_tag, utm_source, is_active, sort_order)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id''',
             (name,
              data.get('site_key', 'default'),
              data.get('zone_id', 0),
@@ -111,7 +111,7 @@ def create_ad(data):
              data.get('is_active', 1),
              data.get('sort_order', 0)))
         conn.commit()
-        return {'success': True, 'data': {'id': cur.lastrowid}}
+        return {'success': True, 'data': {'id': cur.fetchone()['id']}}
     except Exception as e:
         return {'success': False, 'error': str(e)}
 

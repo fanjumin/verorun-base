@@ -72,16 +72,16 @@ def process_raw_content(raw_id: int, admin_id: int = 1) -> dict:
         result_text = _call_qwen(prompt)
         data = json.loads(result_text)
 
-        conn.execute(
+        cur = conn.execute(
             """INSERT INTO processed_contents (raw_id, content_type, title, summary, body, keywords,
                risk_level, status, created_by)
-               VALUES (?, 'article', ?, ?, ?, ?, ?, 'draft', ?)""",
+               VALUES (?, 'article', ?, ?, ?, ?, ?, 'draft', ?) RETURNING id""",
             (raw_id, (data.get('title') or raw['title'])[:200], (data.get('summary') or '')[:500],
              data.get('body', ''), ','.join(data.get('keywords', [])),
              data.get('risk_level', 'normal'), admin_id)
         )
         conn.commit()
-        pid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        pid = cur.fetchone()['id']
         if cover_url:
             conn.execute("UPDATE processed_contents SET image_url=? WHERE id=?", (cover_url, pid))
             conn.commit()
@@ -100,16 +100,16 @@ def process_raw_content(raw_id: int, admin_id: int = 1) -> dict:
             conn.commit()
             return {'success': False, 'error': f'AI输出格式异常: {result_text[:200]}', 'raw_output': result_text}
 
-        conn.execute(
+        cur = conn.execute(
             """INSERT INTO processed_contents (raw_id, content_type, title, summary, body, keywords,
                risk_level, status, created_by)
-               VALUES (?, 'article', ?, ?, ?, ?, ?, 'draft', ?)""",
+               VALUES (?, 'article', ?, ?, ?, ?, ?, 'draft', ?) RETURNING id""",
             (raw_id, data.get('title', '')[:200], data.get('summary', '')[:500],
              data.get('body', ''), ','.join(data.get('keywords', [])),
              data.get('risk_level', 'normal'), admin_id)
         )
         conn.commit()
-        pid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        pid = cur.fetchone()['id']
         if cover_url:
             conn.execute("UPDATE processed_contents SET image_url=? WHERE id=?", (cover_url, pid))
             conn.commit()

@@ -147,9 +147,9 @@ def oauth_callback(provider):
                              (now, display_name or user.get('display_name', ''), user['id']))
             else:
                 cur = conn.execute(
-                    f'INSERT INTO users ({id_field}, display_name, avatar_url, last_login) VALUES (?,?,?,?)',
+                    f'INSERT INTO users ({id_field}, display_name, avatar_url, last_login) VALUES (?,?,?,?) RETURNING id',
                     (open_id, display_name, avatar, now))
-                user_id = cur.lastrowid
+                user_id = cur.fetchone()['id']
                 conn.execute(
                     'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                     (user_id, 'trademind', 'free'))
@@ -364,9 +364,9 @@ def wechat_callback():
                 pass
             cur = conn.execute(
                 'INSERT INTO users (wechat_openid, wechat_unionid, wechat_nickname, avatar_url, last_login) '
-                'VALUES (?,?,?,?,?)',
+                'VALUES (?,?,?,?,?) RETURNING id',
                 (openid, unionid, nickname, avatar, now))
-            user_id = cur.lastrowid
+            user_id = cur.fetchone()['id']
             conn.execute(
                 'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
@@ -479,9 +479,9 @@ def wechat_login():
             conn.execute('UPDATE users SET last_login=? WHERE id=?', (now, user['id']))
         else:
             cur = conn.execute(
-                'INSERT INTO users (wechat_openid, wechat_unionid, last_login) VALUES (?,?,?)',
+                'INSERT INTO users (wechat_openid, wechat_unionid, last_login) VALUES (?,?,?) RETURNING id',
                 (openid, wx.get('unionid', ''), now))
-            user_id = cur.lastrowid
+            user_id = cur.fetchone()['id']
             conn.execute(
                 'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))

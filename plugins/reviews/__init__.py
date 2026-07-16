@@ -159,7 +159,7 @@ class ReviewsPlugin(BasePlugin):
             with get_db() as conn:
                 # 检查是否已评价
                 existing = conn.execute(
-                    'SELECT id FROM product_reviews WHERE user_id=? AND product_id=? AND order_id=?',
+                    'SELECT id FROM product_reviews WHERE user_id=%s AND product_id=%s AND order_id=%s',
                     (uid, product_id, order_id)
                 ).fetchone()
                 if existing:
@@ -187,12 +187,12 @@ class ReviewsPlugin(BasePlugin):
             uid = payload['user_id']
             with get_db() as conn:
                 row = conn.execute(
-                    'SELECT id FROM product_reviews WHERE id=? AND user_id=?',
+                    'SELECT id FROM product_reviews WHERE id=%s AND user_id=%s',
                     (review_id, uid)
                 ).fetchone()
                 if not row:
                     return jsonify({'success': False, 'error': _t('评价不存在')}), 404
-                conn.execute("UPDATE product_reviews SET is_active=0 WHERE id=?", (review_id,))
+                conn.execute("UPDATE product_reviews SET is_active=0 WHERE id=%s", (review_id,))
                 conn.commit()
             return jsonify({'success': True, 'message': _t('评价删除成功')})
 
@@ -282,13 +282,13 @@ class ReviewsPlugin(BasePlugin):
             pid_set = set(product_ids)
             with get_main_db() as main:
                 if uid_set:
-                    ph = ','.join('?' * len(uid_set))
+                    ph = ','.join('%s' * len(uid_set))
                     for u in main.execute(
                         f'SELECT id, username FROM users WHERE id IN ({ph})', tuple(uid_set)
                     ):
                         user_map[u['id']] = dict(u)
                 if pid_set:
-                    ph = ','.join('?' * len(pid_set))
+                    ph = ','.join('%s' * len(pid_set))
                     for p in main.execute(
                         f'SELECT id, title FROM products WHERE id IN ({ph})', tuple(pid_set)
                     ):

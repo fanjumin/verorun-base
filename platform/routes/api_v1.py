@@ -53,7 +53,7 @@ def _rag_search(query: str, top_k: int = 5, category: str = None) -> list:
             sql = "SELECT * FROM knowledge_blocks"
             params = []
             if category:
-                sql += " WHERE category=?"
+                sql += " WHERE category=%s"
                 params.append(category)
             sql += " ORDER BY priority DESC"
             all_blocks = [dict(r) for r in conn.execute(sql, params).fetchall()]
@@ -153,15 +153,15 @@ def save_messages():
     import json
     with get_db() as conn:
         now = datetime.now().isoformat()
-        existing = conn.execute('SELECT created_at FROM chat_messages WHERE openid=?', (openid,)).fetchone()
+        existing = conn.execute('SELECT created_at FROM chat_messages WHERE openid=%s', (openid,)).fetchone()
         if existing:
             conn.execute(
-                'UPDATE chat_messages SET messages=?, updated_at=? WHERE openid=?',
+                'UPDATE chat_messages SET messages=%s, updated_at=%s WHERE openid=%s',
                 (json.dumps(messages, ensure_ascii=False), now, openid)
             )
         else:
             conn.execute(
-                'INSERT INTO chat_messages (openid, messages, created_at, updated_at) VALUES (?, ?, ?, ?)',
+                'INSERT INTO chat_messages (openid, messages, created_at, updated_at) VALUES (%s, %s, %s, %s)',
                 (openid, json.dumps(messages, ensure_ascii=False), now, now)
             )
         conn.commit()
@@ -180,7 +180,7 @@ def get_chat_history():
     from models import get_db
     import json
     with get_db() as conn:
-        row = conn.execute('SELECT messages FROM chat_messages WHERE openid=?', (openid,)).fetchone()
+        row = conn.execute('SELECT messages FROM chat_messages WHERE openid=%s', (openid,)).fetchone()
         messages = json.loads(row['messages']) if row else []
     
     return api_ok({'messages': messages})
@@ -249,7 +249,7 @@ def chat_request():
             fallback = fallback_keys.get(provider)
             if fallback:
                 with get_db() as conn2:
-                    row = conn2.execute("SELECT value FROM system_config WHERE key=?", (fallback,)).fetchone()
+                    row = conn2.execute("SELECT value FROM system_config WHERE key=%s", (fallback,)).fetchone()
                 api_key = row['value'] if row else ''
             if not api_key:
                 api_key = os.environ.get(f'{provider.upper()}_API_KEY', '')
@@ -346,7 +346,7 @@ def chat_public():
         if not api_key:
             for fk in ['deepseek_api_key', 'dashscope_api_key']:
                 with get_db() as c:
-                    r = c.execute("SELECT value FROM system_config WHERE key=?", (fk,)).fetchone()
+                    r = c.execute("SELECT value FROM system_config WHERE key=%s", (fk,)).fetchone()
                 if r and r['value']:
                     api_key = r['value']
                     break
@@ -425,7 +425,7 @@ def _route_agent_by_intent(intent):
         from agent_matrix.models import get_db
         with get_db() as conn:
             row = conn.execute(
-                "SELECT * FROM agent_matrix WHERE domain=? AND role_type='sub' AND is_active=1 LIMIT 1",
+                "SELECT * FROM agent_matrix WHERE domain=%s AND role_type='sub' AND is_active=1 LIMIT 1",
                 (domain,)
             ).fetchone()
         return dict(row) if row else None
@@ -654,15 +654,15 @@ def save_profile():
     import json
     with get_db() as conn:
         now = datetime.now().isoformat()
-        existing = conn.execute('SELECT created_at FROM mp_profiles WHERE openid=?', (openid,)).fetchone()
+        existing = conn.execute('SELECT created_at FROM mp_profiles WHERE openid=%s', (openid,)).fetchone()
         if existing:
             conn.execute(
-                'UPDATE mp_profiles SET profile=?, updated_at=? WHERE openid=?',
+                'UPDATE mp_profiles SET profile=%s, updated_at=%s WHERE openid=%s',
                 (json.dumps(profile, ensure_ascii=False), now, openid)
             )
         else:
             conn.execute(
-                'INSERT INTO mp_profiles (openid, profile, created_at, updated_at) VALUES (?, ?, ?, ?)',
+                'INSERT INTO mp_profiles (openid, profile, created_at, updated_at) VALUES (%s, %s, %s, %s)',
                 (openid, json.dumps(profile, ensure_ascii=False), now, now)
             )
         conn.commit()
@@ -681,7 +681,7 @@ def get_profile():
     from models import get_db
     import json
     with get_db() as conn:
-        row = conn.execute('SELECT profile FROM mp_profiles WHERE openid=?', (openid,)).fetchone()
+        row = conn.execute('SELECT profile FROM mp_profiles WHERE openid=%s', (openid,)).fetchone()
         profile = json.loads(row['profile']) if row else {}
     
     return api_ok({'profile': profile})
@@ -699,15 +699,15 @@ def save_summary():
     from models import get_db
     with get_db() as conn:
         now = datetime.now().isoformat()
-        existing = conn.execute('SELECT created_at FROM mp_profiles WHERE openid=?', (openid,)).fetchone()
+        existing = conn.execute('SELECT created_at FROM mp_profiles WHERE openid=%s', (openid,)).fetchone()
         if existing:
             conn.execute(
-                'UPDATE mp_profiles SET summary=?, updated_at=? WHERE openid=?',
+                'UPDATE mp_profiles SET summary=%s, updated_at=%s WHERE openid=%s',
                 (summary, now, openid)
             )
         else:
             conn.execute(
-                'INSERT INTO mp_profiles (openid, summary, created_at, updated_at) VALUES (?, ?, ?, ?)',
+                'INSERT INTO mp_profiles (openid, summary, created_at, updated_at) VALUES (%s, %s, %s, %s)',
                 (openid, summary, now, now)
             )
         conn.commit()
@@ -741,18 +741,18 @@ def list_knowledge():
             params = []
             
             if keyword:
-                query += " AND (title LIKE ? OR content LIKE ? OR keywords LIKE ?)"
+                query += " AND (title LIKE %s OR content LIKE %s OR keywords LIKE %s)"
                 params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
             
             if category:
-                query += " AND category = ?"
+                query += " AND category=%s"
                 params.append(category)
             
             query += " ORDER BY priority DESC, created_at DESC"
             
             # 分页
             offset = (page - 1) * page_size
-            query += " LIMIT ? OFFSET ?"
+            query += " LIMIT %s OFFSET %s"
             params.extend([page_size, offset])
             
             rows = db.execute(query, params).fetchall()
@@ -761,10 +761,10 @@ def list_knowledge():
             count_query = "SELECT COUNT(*) as total FROM knowledge_blocks WHERE 1=1"
             count_params = []
             if keyword:
-                count_query += " AND (title LIKE ? OR content LIKE ? OR keywords LIKE ?)"
+                count_query += " AND (title LIKE %s OR content LIKE %s OR keywords LIKE %s)"
                 count_params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
             if category:
-                count_query += " AND category = ?"
+                count_query += " AND category=%s"
                 count_params.append(category)
             
             total = db.execute(count_query, count_params).fetchone()['total']
@@ -818,14 +818,14 @@ def save_knowledge():
         
         with get_db() as db:
             # 检查是否已存在
-            existing = db.execute("SELECT id FROM knowledge_blocks WHERE id = ?", (kb_id,)).fetchone()
+            existing = db.execute("SELECT id FROM knowledge_blocks WHERE id=%s", (kb_id,)).fetchone()
             
             if existing:
                 # 更新
                 db.execute("""
                     UPDATE knowledge_blocks 
-                    SET title=?, content=?, keywords=?, category=?, priority=?
-                    WHERE id=?
+                    SET title=%s, content=%s, keywords=%s, category=%s, priority=%s
+                    WHERE id=%s
                 """, (title, content, keywords_str, category, priority, kb_id))
                 db.commit()
                 return api_ok({'id': kb_id, 'message': '知识块已更新'})
@@ -833,7 +833,7 @@ def save_knowledge():
                 # 新增
                 db.execute("""
                     INSERT INTO knowledge_blocks (id, title, content, keywords, category, priority)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (kb_id, title, content, keywords_str, category, priority))
                 db.commit()
                 return api_ok({'id': kb_id, 'message': '知识块已创建'})
@@ -861,7 +861,7 @@ def delete_knowledge():
         from models import get_db
         
         with get_db() as db:
-            result = db.execute("DELETE FROM knowledge_blocks WHERE id = ?", (kb_id,)).rowcount
+            result = db.execute("DELETE FROM knowledge_blocks WHERE id=%s", (kb_id,)).rowcount
             db.commit()
             
             if result > 0:
@@ -899,7 +899,7 @@ def rag_search():
             sql = "SELECT * FROM knowledge_blocks"
             params = []
             if category:
-                sql += " WHERE category=?"
+                sql += " WHERE category=%s"
                 params.append(category)
             sql += " ORDER BY priority DESC"
             all_blocks = conn.execute(sql, params).fetchall() if not category else \
@@ -1024,7 +1024,7 @@ def save_feedback():
         with get_db() as db:
             db.execute("""
                 INSERT INTO user_feedback (user_id, type, category, title, content, contact, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
             """, (
                 None,  # user_id (抖音用户无 user_id)
                 'rating',  # type
@@ -1035,7 +1035,7 @@ def save_feedback():
                 'pending'
             ))
             db.commit()
-            feedback_id = db.execute("SELECT last_insert_rowid() as id").fetchone()['id']
+            feedback_id = _cur.fetchone()['id']
             return api_ok({'feedbackId': feedback_id, 'message': '反馈已保存'})
     except Exception as e:
         import logging
@@ -1075,7 +1075,7 @@ def increment_visit():
             db.commit()
             
             # 获取最新的访问次数
-            row = db.execute("SELECT visit_count FROM mp_profiles WHERE openid = ?", (openid,)).fetchone()
+            row = db.execute("SELECT visit_count FROM mp_profiles WHERE openid=%s", (openid,)).fetchone()
             visit_count = row['visit_count'] if row else 1
             
             return api_ok({'visitCount': visit_count, 'openid': openid})

@@ -362,7 +362,7 @@ def create_project(name: str, description: str = '', created_by: int = 0) -> dic
             (name, slug, description, created_by)
         )
         conn.commit()
-        pid = cur.lastrowid
+        pid = cur.fetchone()['id']
     return get_project(pid)
 
 
@@ -445,7 +445,7 @@ def create_version(project_id: int, version_no: int, platforms: list,
             f"""INSERT INTO {TABLE_MINIAPP_VERSIONS}
                 (project_id, version_no, platforms_json, options_json,
                  result_json, output_path, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (project_id, version_no,
              json.dumps(platforms, ensure_ascii=False),
              json.dumps(options, ensure_ascii=False),
@@ -457,7 +457,7 @@ def create_version(project_id: int, version_no: int, platforms: list,
             (project_id,)
         )
         conn.commit()
-        return cur.lastrowid
+        return cur.fetchone()['id']
 
 
 def list_versions(project_id: int) -> list:

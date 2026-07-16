@@ -11,11 +11,29 @@ Subscription Plugin — 数据模型
 
 import os
 import psycopg2
+import psycopg2.extras
 import threading
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
+
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql.replace('?', '%s'), params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
 
 
 # ── 数据库路径 ──────────────────────────────────────────────────────────
@@ -38,7 +56,7 @@ def get_db():
     conn.autocommit = False
     conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
     conn.execute("SET search_path TO subscription")
-    return conn
+    return _PgConnection(conn)
 
 
 # ── 状态枚举 ────────────────────────────────────────────────────────────

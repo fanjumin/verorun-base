@@ -45,11 +45,11 @@ def create_ticket_from_chat(title, content, contact='', user_id=None, session_id
                    VALUES (%s, 'aftersale', 'chatbot_escalation',
                            %s, %s, %s,
                            'open', 'normal',
-                           NOW(), NOW())""",
+                           NOW(), NOW()) RETURNING id""",
                 (user_id, title, content, contact)
             )
             conn.commit()
-            ticket_id = cur.lastrowid
+            ticket_id = cur.fetchone()['id']
             logger.info(f'[Chatbot] Ticket created: #{ticket_id} — {title}')
         return {'success': True, 'ticket_id': ticket_id}
     except Exception as e:

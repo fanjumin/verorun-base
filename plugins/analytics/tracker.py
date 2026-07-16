@@ -157,14 +157,14 @@ def create_alert(name: str, metric: str, operator: str,
     conn = am.get_db()
     try:
         channels_json = json.dumps(channels or ['notification'], ensure_ascii=False)
-        conn.execute("""
+        cur = conn.execute("""
             INSERT INTO analytics_alerts
             (name, enabled, metric, operator, threshold, time_window, channels, created_at, updated_at)
-            VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         """, (name, metric, operator, threshold, time_window, channels_json,
               int(time.time()), int(time.time())))
         conn.commit()
-        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return cur.fetchone()['id']
     finally:
         conn.close()
 

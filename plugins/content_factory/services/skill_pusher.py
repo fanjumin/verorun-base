@@ -93,15 +93,15 @@ def push_to_skill(processed_id: int, admin_id: int = 1,
         )
         push_id = existing['id']
     else:
-        conn.execute(
+        cur = conn.execute(
             """INSERT INTO skill_pushes (processed_id, title, description,
                skill_name, skill_category, skill_content, target_agent,
                push_count, last_pushed_at, created_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,1,NOW(),%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,1,NOW(),%s) RETURNING id""",
             (processed_id, pc['title'], pc['summary'] or '',
              skill_name, category, skill_content, target_agent, admin_id)
         )
-        push_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        push_id = cur.fetchone()['id']
     conn.commit()
 
     return {'success': True, 'push_id': push_id, 'skill_name': skill_name,

@@ -49,12 +49,12 @@ class CouponEngine:
             ).fetchone()
             if existing:
                 raise ValueError(self._t('优惠券代码已存在'))
-            conn.execute(
+            cur = conn.execute(
                 '''INSERT INTO coupons (code, name, coupon_type, value, min_amount, min_quantity,
                    usage_limit, per_user_limit, expire_at, is_active, description, coupon_category,
                    applicable_products, scene, first_month_only, stackable, active_from, active_to,
                    created_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s,%s,%s,%s,%s,%s,%s,%s,NOW())''',
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s,%s,%s,%s,%s,%s,%s,%s,NOW()) RETURNING id''',
                 (
                     data['code'].upper(),
                     data.get('name', ''),
@@ -75,7 +75,7 @@ class CouponEngine:
                     data.get('active_to', ''),
                 )
             )
-            cid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            cid = cur.fetchone()['id']
             conn.commit()
             return cid
 

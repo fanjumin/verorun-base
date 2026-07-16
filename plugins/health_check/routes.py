@@ -94,10 +94,11 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         total = len(rows)
         # Create check run batch
         conn.execute(
-            "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (?,?,?,'running')",
-            (trigger_type, trigger_info, total)
-        )
-        run_id = conn.execute('SELECT last_insert_rowid() as id').fetchone()['id']
+        "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (?,?,?,'running') RETURNING id",
+        (trigger_type, trigger_info, total)
+    )
+    run_id = cur.fetchone()['id']
+    # Note: run_id captured above; last_insert_rowid() replaced with RETURNING id
         conn.commit()
 
     # Execute checks one by one
@@ -543,13 +544,13 @@ def api_register_check():
         # Get max sort_order
         max_order = conn.execute('SELECT COALESCE(MAX(sort_order),0)+10 as o FROM health_checks').fetchone()['o']
 
-        conn.execute(
+        cur = conn.execute(
             'INSERT INTO health_checks (check_key, name, category, description, config, severity, sort_order, is_active) '
-            'VALUES (?,?,?,?,?,?,?,1)',
+            'VALUES (?,?,?,?,?,?,?,1) RETURNING id',
             (check_key, name, category, data.get('description', ''), config, severity, max_order)
         )
+        new_id = cur.fetchone()['id']
         conn.commit()
-        new_id = conn.execute('SELECT last_insert_rowid() as id').fetchone()['id']
 
     return jsonify({
         'success': True,

@@ -20,7 +20,7 @@ def get_ev_db():
         )
         _ev_conn.execute("CREATE SCHEMA IF NOT EXISTS enterprise_verify")
         _ev_conn.execute("SET search_path TO enterprise_verify")
-    return _ev_conn
+    return _PgConnection(_ev_conn)
 
 
 def init_ev_db():

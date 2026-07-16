@@ -112,7 +112,7 @@ def create_ad():
         (name, site_key, zone_id, position, page, ad_type, image_url, link_url, ad_code,
          width, height, targeting_rules, schedule_start, schedule_end, weight, freq_cap,
          click_tag, utm_source, is_active, sort_order)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id''',
         (name,
          data.get('site_key', 'default'),
          data.get('zone_id', 0),
@@ -134,7 +134,7 @@ def create_ad():
          data.get('is_active', 1),
          data.get('sort_order', 0)))
     conn.commit()
-    ad_id = cur.lastrowid
+    ad_id = cur.fetchone()['id']
     _log(admin['user_id'], 'create_ad', detail=f'id={ad_id} name={name}')
     return jsonify({'success': True, 'data': {'id': ad_id}})
 

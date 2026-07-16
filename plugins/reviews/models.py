@@ -6,8 +6,26 @@ Reviews Plugin — 独立数据库
 
 import os
 import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg2.extras
 from contextlib import contextmanager
+
+
+class _PgConnection:
+    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if params is not None:
+            cur.execute(sql.replace('?', '%s'), params)
+        else:
+            cur.execute(sql)
+        return cur
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        self._conn.close()
+
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PLUGIN_DIR, 'reviews.db')
@@ -22,12 +40,12 @@ def get_db():
         dbname=os.environ.get('PG_DB','verorun'),
         user=os.environ.get('PG_USER','verorun'),
         password=os.environ.get('PG_PASSWORD',''),
-        cursor_factory=RealDictCursor
+        cursor_factory=psycopg2.extras.RealDictCursor
     )
     conn.execute("CREATE SCHEMA IF NOT EXISTS reviews")
     conn.execute("SET search_path TO reviews")
     try:
-        yield conn
+        yield _PgConnection(conn)
     finally:
         conn.close()
 

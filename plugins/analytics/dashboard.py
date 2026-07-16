@@ -413,7 +413,7 @@ def api_self_stats():
             "SELECT MIN(timestamp) ts FROM analytics_logs"
         ).fetchone()['ts'] or 0
         db_size = conn.execute(
-            "SELECT page_count * page_size as size FROM pragma_page_count, pragma_page_size"
+            "SELECT pg_database_size(current_database()) as size"
         ).fetchone()['size']
 
         return jsonify({'success': True, 'data': {
