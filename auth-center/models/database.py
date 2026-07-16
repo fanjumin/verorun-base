@@ -875,28 +875,22 @@ def init_db():
                 software_slogan TEXT NOT NULL DEFAULT '',
                 updated_at      TIMESTAMP DEFAULT NOW()
             );
-            INSERT INTO brand_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+            INSERT INTO brand_settings (id) OVERRIDING SYSTEM VALUE VALUES (1) ON CONFLICT (id) DO NOTHING;
         """)
         conn.commit()
-        # ── 迁移：为已有 user_tickets 表补字段 (独立连接，不污染主事务) ──
+        # ── 迁移：为已有 user_tickets 表补字段 (每个用独立事务) ──
         import logging
-        with get_db() as m:
+        for alter_sql in [
+            "ALTER TABLE user_tickets ADD COLUMN type TEXT DEFAULT 'aftersale'",
+            "ALTER TABLE user_tickets ADD COLUMN category TEXT DEFAULT ''",
+            "ALTER TABLE user_tickets ADD COLUMN contact TEXT DEFAULT ''",
+            "ALTER TABLE user_tickets ADD COLUMN priority TEXT DEFAULT 'normal'",
+        ]:
             try:
-                m.execute("ALTER TABLE user_tickets ADD COLUMN type TEXT DEFAULT 'aftersale'")
+                with get_db() as m:
+                    m.execute(alter_sql)
             except Exception as e:
-                logging.warning(f"[Migration] Failed to add type column to user_tickets: {e}")
-            try:
-                m.execute("ALTER TABLE user_tickets ADD COLUMN category TEXT DEFAULT ''")
-            except Exception as e:
-                logging.warning(f"[Migration] Failed to add category column to user_tickets: {e}")
-            try:
-                m.execute("ALTER TABLE user_tickets ADD COLUMN contact TEXT DEFAULT ''")
-            except Exception as e:
-                logging.warning(f"[Migration] Failed to add contact column to user_tickets: {e}")
-            try:
-                m.execute("ALTER TABLE user_tickets ADD COLUMN priority TEXT DEFAULT 'normal'")
-            except Exception as e:
-                logging.warning(f"[Migration] Failed to add priority column to user_tickets: {e}")
+                logging.warning(f"[Migration] {alter_sql.split()[-1]}: {e}")
         # -- social_links: 后台社媒图标管理 --
         with get_db() as c2:
             c2.execute("""

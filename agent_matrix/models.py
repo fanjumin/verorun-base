@@ -410,7 +410,7 @@ def seed_default_agents():
             DELETE FROM agent_matrix
             WHERE is_system=1 AND slug NOT IN ({})
             AND slug != ''
-        """.format(','.join('%s' * len(yaml_slugs))),
+        """.format(','.join(['%s'] * len(yaml_slugs))),
             tuple(yaml_slugs)
         ).rowcount
         if deleted:
