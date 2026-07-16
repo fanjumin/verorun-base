@@ -6,47 +6,9 @@
 """
 import psycopg2
 import os
-from psycopg2.extras import RealDictCursor
+from plugins._base.db import PgConnection
 
 _sp_conn = None
-
-
-class _SpConnection:
-    """Wrapper around psycopg2 connection that provides .execute() and context manager support."""
-
-    def __init__(self, conn):
-        self._conn = conn
-        self._cur = None
-
-    def cursor(self):
-        return self._conn.cursor()
-
-    def execute(self, sql, params=None):
-        if self._cur is None:
-            self._cur = self._conn.cursor(cursor_factory=RealDictCursor)
-        self._cur.execute(sql.replace('?', '%s'), params or ())
-        return self._cur
-
-    def commit(self):
-        self._conn.commit()
-
-    def rollback(self):
-        self._conn.rollback()
-
-    def close(self):
-        if self._cur:
-            self._cur.close()
-        self._conn.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self._conn.rollback()
-        else:
-            self._conn.commit()
-        self.close()
 
 
 def get_sp_db():
@@ -61,7 +23,7 @@ def get_sp_db():
             password=os.environ.get('PG_PASSWORD', ''),
         )
         raw.autocommit = False
-        _sp_conn = _SpConnection(raw)
+        _sp_conn = PgConnection(raw)
         _sp_conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")
         _sp_conn.execute("SET search_path TO social_push")
         _sp_conn.commit()
