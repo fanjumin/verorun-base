@@ -284,31 +284,28 @@ def migrate_table(
     inserted = 0
 
     cur = pg_conn.cursor()
-    for row in rows:
-        values = []
-        for i, col_name in enumerate(columns):
-            val = row[col_name]
-            val = convert_value(val, col_name, pg_types[i])
-            values.append(val)
-        batch.append(tuple(values))
+    try:
+        for row in rows:
+            values = []
+            for i, col_name in enumerate(columns):
+                val = row[col_name]
+                val = convert_value(val, col_name, pg_types[i])
+                values.append(val)
+            batch.append(tuple(values))
 
-        if len(batch) >= batch_size:
-            try:
+            if len(batch) >= batch_size:
                 cur.executemany(insert_sql, batch)
                 inserted += len(batch)
-            except Exception as e:
-                log.error(f"  [{schema}] {table_name}: 批量插入失败 - {e}")
-                result['errors'] += len(batch)
-            batch = []
+                batch = []
 
-    # 剩余行
-    if batch:
-        try:
+        # 剩余行
+        if batch:
             cur.executemany(insert_sql, batch)
             inserted += len(batch)
-        except Exception as e:
-            log.error(f"  [{schema}] {table_name}: 最终批量插入失败 - {e}")
-            result['errors'] += len(batch)
+    except Exception as e:
+        log.error(f"  [{schema}] {table_name}: 插入失败 - {e}")
+        result['errors'] = len(rows)
+        return result
 
     result['rows'] = inserted
     return result
@@ -370,6 +367,13 @@ def migrate_main(pg_conn, dry_run: bool):
             r = migrate_table(pg_conn, sqlite_conn, table, 'public', dry_run)
             total += r['rows']
             log.info(f"  [public] {table}: {r['rows']} 行")
+            # 每表独立事务：失败不回滚整个连接，成功则提交
+            if not dry_run:
+                if r['errors'] > 0:
+                    pg_conn.rollback()
+                    log.warning(f"  [public] {table}: 已回滚（{r['errors']} 条错误）")
+                else:
+                    pg_conn.commit()
 
         reset_pg_sequence(pg_conn, 'public', actual_tables)
         pg_conn.commit()
@@ -392,6 +396,13 @@ def migrate_main(pg_conn, dry_run: bool):
                     r = migrate_table(pg_conn, shop_conn, table, 'shop', dry_run)
                     total += r['rows']
                     log.info(f"  [shop] {table}: {r['rows']} 行")
+                    # 每表独立事务
+                    if not dry_run:
+                        if r['errors'] > 0:
+                            pg_conn.rollback()
+                            log.warning(f"  [shop] {table}: 已回滚（{r['errors']} 条错误）")
+                        else:
+                            pg_conn.commit()
                 reset_pg_sequence(pg_conn, 'shop', actual_tables)
                 pg_conn.commit()
                 log.info(f"shop schema 迁移完成：共 {total} 行")
@@ -431,6 +442,13 @@ def migrate_plugins(pg_conn, dry_run: bool):
                 r = migrate_table(pg_conn, sqlite_conn, table, schema_name, dry_run)
                 total += r['rows']
                 log.info(f"    [{schema_name}] {table}: {r['rows']} 行")
+                # 每表独立事务
+                if not dry_run:
+                    if r['errors'] > 0:
+                        pg_conn.rollback()
+                        log.warning(f"    [{schema_name}] {table}: 已回滚（{r['errors']} 条错误）")
+                    else:
+                        pg_conn.commit()
 
             reset_pg_sequence(pg_conn, schema_name, actual_tables)
             pg_conn.commit()
