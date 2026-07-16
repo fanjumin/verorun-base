@@ -116,22 +116,24 @@ def init_cms_tables():
         )
         conn.commit()
         # Seed default categories if empty
-        existing = conn.execute("SELECT COUNT(*) FROM cms_categories").fetchone()[0]
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM cms_categories")
+        existing = cur.fetchone()[0]
         if existing == 0:
             cats = [
                 # ── 公开分类 ──
-                (1, '快速入门', '🔰', 'getting-started', 'public', 1),
-                (2, 'Agent 开发', '🤖', 'agent-dev', 'internal', 2),
-                (3, '金融分析', '📈', 'finance', 'public', 3),
-                (4, '最佳实践', '⭐', 'best-practices', 'internal', 4),
-                (5, '产品动态', '📢', 'insights', 'public', 5),
-                (6, '帮助中心', '❓', 'help', 'public', 6),
-                (7, '法律合规', '⚖️', 'legal', 'public', 90),
+                ('快速入门', '🔰', 'getting-started', 'public', 1),
+                ('Agent 开发', '🤖', 'agent-dev', 'internal', 2),
+                ('金融分析', '📈', 'finance', 'public', 3),
+                ('最佳实践', '⭐', 'best-practices', 'internal', 4),
+                ('产品动态', '📢', 'insights', 'public', 5),
+                ('帮助中心', '❓', 'help', 'public', 6),
+                ('法律合规', '⚖️', 'legal', 'public', 90),
             ]
-            for cid, name, icon, slug, audience, sort in cats:
+            for name, icon, slug, audience, sort in cats:
                 conn.execute(
-                    "INSERT INTO cms_categories (id, name, icon, slug, audience, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
-                    (cid, name, icon, slug, audience, sort)
+                    "INSERT INTO cms_categories (name, icon, slug, audience, sort_order) VALUES (%s,%s,%s,%s,%s)",
+                    (name, icon, slug, audience, sort)
                 )
         # Migration: add source/source_id columns for existing DBs (idempotent)
         cols = get_table_columns(conn, 'cms_posts')

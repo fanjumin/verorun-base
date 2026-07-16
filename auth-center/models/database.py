@@ -52,8 +52,10 @@ class _DbWrapper:
 
     def execute(self, sql, params=None):
         if params is not None:
-            return self._cur.execute(sql, params)
-        return self._cur.execute(sql)
+            self._cur.execute(sql, params)
+        else:
+            self._cur.execute(sql)
+        return self
 
     def executemany(self, sql, params):
         return self._cur.executemany(sql, params)
@@ -865,24 +867,26 @@ def init_db():
             );
             INSERT INTO brand_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
         """)
-        # ── 迁移：为已有 user_tickets 表补字段 ──
+        conn.commit()
+        # ── 迁移：为已有 user_tickets 表补字段 (独立连接，不污染主事务) ──
         import logging
-        try:
-            conn.execute("ALTER TABLE user_tickets ADD COLUMN type TEXT DEFAULT 'aftersale'")
-        except Exception as e:
-            logging.warning(f"[Migration] Failed to add type column to user_tickets: {e}")
-        try:
-            conn.execute("ALTER TABLE user_tickets ADD COLUMN category TEXT DEFAULT ''")
-        except Exception as e:
-            logging.warning(f"[Migration] Failed to add category column to user_tickets: {e}")
-        try:
-            conn.execute("ALTER TABLE user_tickets ADD COLUMN contact TEXT DEFAULT ''")
-        except Exception as e:
-            logging.warning(f"[Migration] Failed to add contact column to user_tickets: {e}")
-        try:
-            conn.execute("ALTER TABLE user_tickets ADD COLUMN priority TEXT DEFAULT 'normal'")
-        except Exception as e:
-            logging.warning(f"[Migration] Failed to add priority column to user_tickets: {e}")
+        with get_db() as m:
+            try:
+                m.execute("ALTER TABLE user_tickets ADD COLUMN type TEXT DEFAULT 'aftersale'")
+            except Exception as e:
+                logging.warning(f"[Migration] Failed to add type column to user_tickets: {e}")
+            try:
+                m.execute("ALTER TABLE user_tickets ADD COLUMN category TEXT DEFAULT ''")
+            except Exception as e:
+                logging.warning(f"[Migration] Failed to add category column to user_tickets: {e}")
+            try:
+                m.execute("ALTER TABLE user_tickets ADD COLUMN contact TEXT DEFAULT ''")
+            except Exception as e:
+                logging.warning(f"[Migration] Failed to add contact column to user_tickets: {e}")
+            try:
+                m.execute("ALTER TABLE user_tickets ADD COLUMN priority TEXT DEFAULT 'normal'")
+            except Exception as e:
+                logging.warning(f"[Migration] Failed to add priority column to user_tickets: {e}")
         # -- social_links: 后台社媒图标管理 --
         with get_db() as c2:
             c2.execute("""
@@ -1139,7 +1143,7 @@ def init_db():
         bm.commit()
     # ── Migration: brand_settings site_domain ──
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'brand_settings')]
+        cols = get_table_columns(m, 'brand_settings')
         if 'site_domain' not in cols:
             m.execute("ALTER TABLE brand_settings ADD COLUMN site_domain TEXT NOT NULL DEFAULT ''")
             m.commit()
@@ -1195,7 +1199,7 @@ def init_db():
         )
         m.commit()
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'users')]
+        cols = get_table_columns(m, 'users')
         if 'agent_avatar_url' not in cols:
             m.execute('ALTER TABLE users ADD COLUMN agent_avatar_url TEXT DEFAULT \'\'')
             m.commit()
@@ -1228,7 +1232,7 @@ def init_db():
     # ── Real-name verification migration v2 (2026-05-19) ──
     # 合规要求：不存储身份证号（明文或加密），只存认证状态标记
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'users')]
+        cols = get_table_columns(m, 'users')
         # 保留旧字段以兼容，但不再写入 id_number_encrypted
         for col_name, col_def in [
             ('verified_by', "TEXT DEFAULT ''"),
@@ -1354,7 +1358,7 @@ def init_db():
 
     # ── Migration: add provider_model_id to agents table ──
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'agents')]
+        cols = get_table_columns(m, 'agents')
         if 'provider_model_id' not in cols:
             m.execute('ALTER TABLE agents ADD COLUMN provider_model_id BIGINT DEFAULT NULL')
             print('[Migration] Added agents.provider_model_id')
@@ -1412,7 +1416,7 @@ def init_db():
 
     # Check and add username_changed_at
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'users')]
+        cols = get_table_columns(m, 'users')
         for col_name in ('username_changed_at',):
             if col_name not in cols:
                 m.execute(f'ALTER TABLE users ADD COLUMN {col_name} TEXT')
@@ -1421,7 +1425,7 @@ def init_db():
 
     # Migration: add social_links.platform column (2026-05-14)
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'social_links')]
+        cols = get_table_columns(m, 'social_links')
         if 'platform' not in cols:
             m.execute("ALTER TABLE social_links ADD COLUMN platform TEXT NOT NULL DEFAULT ''")
             m.commit()
@@ -1572,7 +1576,7 @@ def init_db():
         m.commit()
     # Migration: add read_at + extra_data to user_notifications
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'user_notifications')]
+        cols = get_table_columns(m, 'user_notifications')
         if 'read_at' not in cols:
             m.execute("ALTER TABLE user_notifications ADD COLUMN read_at TEXT DEFAULT NULL")
         if 'extra_data' not in cols:
@@ -1582,7 +1586,7 @@ def init_db():
 
     # ── Migration: completion_percentage on users ──
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'users')]
+        cols = get_table_columns(m, 'users')
         if 'completion_percentage' not in cols:
             m.execute("ALTER TABLE users ADD COLUMN completion_percentage BIGINT DEFAULT 0")
         if 'completion_last_updated' not in cols:
@@ -1873,7 +1877,7 @@ def init_db():
 
     # ── Migration: brand_settings software_name + software_slogan ──
     with get_db() as m:
-        cols = [r['name'] for r in get_table_columns(m, 'brand_settings')]
+        cols = get_table_columns(m, 'brand_settings')
         if 'software_name' not in cols:
             m.execute("ALTER TABLE brand_settings ADD COLUMN software_name TEXT NOT NULL DEFAULT 'VeroRon 维洛智能'")
             m.commit()
@@ -2114,7 +2118,7 @@ def init_db():
 
     # ── Migration: chatbot_sessions intent/sentiment 字段 (2026-07-12) ──
     with get_db() as m:
-        existing = [r['name'] for r in get_table_columns(m, 'chatbot_sessions')]
+        existing = get_table_columns(m, 'chatbot_sessions')
         for col, col_def in {'intent': "intent TEXT DEFAULT ''",
                              'sentiment': "sentiment TEXT DEFAULT ''"}.items():
             if col not in existing:
@@ -2128,7 +2132,7 @@ def init_db():
 
     # ── Migration: user_tickets.assigned_to 座席字段 (2026-07-12) ──
     with get_db() as m:
-        cols_t = [r['name'] for r in get_table_columns(m, 'user_tickets')]
+        cols_t = get_table_columns(m, 'user_tickets')
         if 'assigned_to' not in cols_t:
             try:
                 m.execute("ALTER TABLE user_tickets ADD COLUMN assigned_to BIGINT DEFAULT 0 REFERENCES users(id)")
@@ -2203,7 +2207,7 @@ except Exception as e:
 if MARKET == 'intl':
     with get_db() as m:
         # INTL 用户表补充 OAuth 字段（CN 已有的 wechat/douyin 字段在 INTL 中保持空值）
-        intl_cols = [r['name'] for r in get_table_columns(m, 'users')]
+        intl_cols = get_table_columns(m, 'users')
         intl_additions = {
             'country_code': "country_code TEXT DEFAULT ''",
             'google_id': "google_id TEXT",
@@ -2261,7 +2265,7 @@ if MARKET == 'intl':
 else:
     # CN 区: subscription_plans 增加 currency 字段（向后兼容）
     with get_db() as m:
-        plan_cols = [r['name'] for r in get_table_columns(m, 'subscription_plans')]
+        plan_cols = get_table_columns(m, 'subscription_plans')
         if 'currency' not in plan_cols:
             try:
                 m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
@@ -2271,7 +2275,7 @@ else:
 
 # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
 with get_db() as m:
-    user_cols = [r['name'] for r in get_table_columns(m, 'users')]
+    user_cols = get_table_columns(m, 'users')
     enterprise_fields = {
         'enterprise_name': "enterprise_name TEXT DEFAULT ''",
         'enterprise_tax_id': "enterprise_tax_id TEXT DEFAULT ''",
