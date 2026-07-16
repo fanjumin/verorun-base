@@ -55,7 +55,7 @@ def logistics_history():
     per_page = request.args.get('per_page', 50, type=int)
     offset = (page - 1) * per_page
     conn = get_logistics_db()
-    total = conn.execute('SELECT COUNT(*) FROM logistics_queries').fetchone()[0]
+    total = conn.execute('SELECT COUNT(*) as c FROM logistics_queries').fetchone()['c']
     rows = conn.execute(
         'SELECT * FROM logistics_queries ORDER BY queried_at DESC LIMIT ? OFFSET ?',
         (per_page, offset)

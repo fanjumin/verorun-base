@@ -109,8 +109,8 @@ def admin_list_comments():
 
     with get_db() as conn:
         total = conn.execute(
-            f"SELECT COUNT(*) FROM article_comments c WHERE {' AND '.join(where)}", params
-        ).fetchone()[0]
+            f"SELECT COUNT(*) as c FROM article_comments c WHERE {' AND '.join(where)}", params
+        ).fetchone()['c']
         rows = conn.execute(
             f"""SELECT c.*, p.title as post_title FROM article_comments c
                 LEFT JOIN cms_posts p ON c.post_id=p.id
@@ -170,10 +170,10 @@ def admin_comment_stats():
     if err: return err
 
     with get_db() as conn:
-        total = conn.execute('SELECT COUNT(*) FROM article_comments').fetchone()[0]
-        pending = conn.execute("SELECT COUNT(*) FROM article_comments WHERE status='pending'").fetchone()[0]
-        approved = conn.execute("SELECT COUNT(*) FROM article_comments WHERE status='approved'").fetchone()[0]
-        rejected = conn.execute("SELECT COUNT(*) FROM article_comments WHERE status='rejected'").fetchone()[0]
+        total = conn.execute('SELECT COUNT(*) as c FROM article_comments').fetchone()['c']
+        pending = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='pending'").fetchone()['c']
+        approved = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='approved'").fetchone()['c']
+        rejected = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='rejected'").fetchone()['c']
 
     return jsonify({
         'success': True,

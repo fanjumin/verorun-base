@@ -83,7 +83,7 @@ def list_ads():
         params.append(zone_id)
 
     where_sql = f"WHERE {' AND '.join(where)}" if where else ''
-    total = conn.execute(f'SELECT COUNT(*) FROM ad_placements {where_sql}', params).fetchone()[0]
+    total = conn.execute(f'SELECT COUNT(*) as c FROM ad_placements {where_sql}', params).fetchone()['c']
     rows = conn.execute(
         f'SELECT * FROM ad_placements {where_sql} ORDER BY sort_order, id LIMIT ? OFFSET ?',
         params + [limit, offset]

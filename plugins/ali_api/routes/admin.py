@@ -172,10 +172,10 @@ def dashboard():
             
             # API调用统计
             total_calls = conn.execute('SELECT COUNT(*) as count FROM ali_api_logs').fetchone()['count']
-            today_calls = conn.execute('''
+            today_calls = conn.execute("""
                 SELECT COUNT(*) as count FROM ali_api_logs 
-                WHERE date(created_at) = date('now')
-            ''').fetchone()['count']
+                WHERE created_at::date = CURRENT_DATE
+            """).fetchone()['count']
             
             # 用户统计
             total_users = conn.execute('SELECT COUNT(*) as count FROM ali_api_user_stats').fetchone()['count']
