@@ -406,13 +406,15 @@ def seed_default_agents():
                 ))
 
         # ── Phase 2: DELETE old system roles no longer in YAML ──
-        deleted = conn.execute("""
-            DELETE FROM agent_matrix
-            WHERE is_system=1 AND slug NOT IN ({})
-            AND slug != ''
-        """.format(','.join(['%s'] * len(yaml_slugs))),
-            tuple(yaml_slugs)
-        ).rowcount
+        deleted = 0
+        if yaml_slugs:
+            deleted = conn.execute("""
+                DELETE FROM agent_matrix
+                WHERE is_system=1 AND slug NOT IN ({})
+                AND slug != ''
+            """.format(','.join(['%s'] * len(yaml_slugs))),
+                tuple(yaml_slugs)
+            ).rowcount
         if deleted:
             print(f'[Seed] 清理旧系统角色: {deleted} 个已删除')
 

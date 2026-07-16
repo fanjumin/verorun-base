@@ -199,10 +199,10 @@ def list_translations(locale: str = None, search: str = '',
     locale = locale or DEPLOY_LANG
     try:
         conn = _get_db()
-        where = 'WHERE locale=?'
+        where = 'WHERE locale=%s'
         params = [locale]
         if search:
-            where += ' AND (source LIKE ? OR translation LIKE ?)'
+            where += ' AND (source LIKE %s OR translation LIKE %s)'
             s = f'%{search}%'
             params.extend([s, s])
 
@@ -212,7 +212,7 @@ def list_translations(locale: str = None, search: str = '',
 
         rows = conn.execute(
             f'SELECT id, locale, source, translation, is_auto, updated_at '
-            f'FROM i18n_strings {where} ORDER BY updated_at DESC LIMIT ? OFFSET ?',
+            f'FROM i18n_strings {where} ORDER BY updated_at DESC LIMIT %s OFFSET %s',
             params + [limit, offset]
         ).fetchall()
         conn.close()
@@ -244,12 +244,12 @@ def seed_from_yaml(locale: str = None) -> int:
                 continue  # 跳过无效条目和源=译的条目
             s_hash = _source_hash(source)
             exist = conn.execute(
-                'SELECT id FROM i18n_strings WHERE locale=? AND source_hash=?',
+                'SELECT id FROM i18n_strings WHERE locale=%s AND source_hash=%s',
                 (locale, s_hash)
             ).fetchone()
             if not exist:
                 conn.execute(
-                    'INSERT INTO i18n_strings (locale, source_hash, source, translation, is_auto) VALUES (?,?,?,?,?)',
+                    'INSERT INTO i18n_strings (locale, source_hash, source, translation, is_auto) VALUES (%s,%s,%s,%s,%s)',
                     (locale, s_hash, source, translation, 1)
                 )
                 count += 1
