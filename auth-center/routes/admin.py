@@ -94,7 +94,22 @@ def _qcached(key, ttl=10):
 
 def _build_dashboard_data(conn):
     """执行所有 Dashboard SQL 查询，返回 data dict（可以被 API 和模板预渲染共用）"""
-    data = {}
+    data = {
+        'monthly_revenue': 0,
+        'pending_posts': 0,
+        'pending_contacts': 0,
+        'total_users': 0,
+        'active_users': 0,
+        'today_new_users': 0,
+        'total_agents': 0,
+        'active_agents': 0,
+        'today_calls': 0,
+        'total_calls': 0,
+        'active_subscriptions': 0,
+        'total_orders': 0,
+        'pending_reviews': 0,
+        'today_failed_tasks': 0,
+    }
     _query_cache_ctx = {}
 
     def _safe(sql, params=()):
