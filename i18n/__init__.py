@@ -72,9 +72,26 @@ def _get_db():
         'password': os.environ.get('PG_PASSWORD', ''),
     }
     conn = psycopg2.connect(**PG_CONFIG)
-    conn.cursor_factory = psycopg2.extras.RealDictCursor
     conn.autocommit = False
-    return conn
+
+    class _Wrapper:
+        """Minimal wrapper: provides execute() on a psycopg2 connection."""
+        def __init__(self, conn):
+            self._conn = conn
+            self._cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        def execute(self, sql, params=None):
+            if params is not None:
+                self._cur.execute(sql, params)
+            else:
+                self._cur.execute(sql)
+            return self
+        def fetchone(self): return self._cur.fetchone()
+        def fetchall(self): return self._cur.fetchall()
+        def commit(self):   self._conn.commit()
+        def close(self):
+            self._cur.close()
+            self._conn.close()
+    return _Wrapper(conn)
 
 
 def _source_hash(text: str) -> str:

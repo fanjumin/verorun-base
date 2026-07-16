@@ -99,6 +99,10 @@ def get_db():
     pool = _ensure_pool()
     conn = pool.getconn()
     conn.autocommit = False
+    try:
+        conn.rollback()  # defensive: clear any aborted transaction from prev usage
+    except Exception:
+        pass
     db = _DbWrapper(conn)
     db.execute(
         "SET search_path TO public, shop, analytics, health, payment, order_notify"

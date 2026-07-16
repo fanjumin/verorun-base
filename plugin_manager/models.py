@@ -32,7 +32,7 @@ class _PgConnection:
     def execute(self, sql, params=None):
         cursor = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
-            cursor.execute(sql, params)
+            cursor.execute(sql.replace('?', '%s'), params)
         else:
             cursor.execute(sql)
         return cursor
