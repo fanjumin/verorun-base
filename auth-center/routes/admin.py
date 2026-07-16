@@ -2302,7 +2302,6 @@ def admin_notif_templates_create():
         return jsonify({'success': False, 'error': 'event_type, title_template, content_template 为必填'}), 400
     with get_db() as conn:
         try:
-            cur = conn.execute(
             tid = conn.execute(
                 'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (%s,%s,%s,%s,%s) RETURNING id',
                 (event_type, title_tmpl, content_tmpl, link_url_tmpl, ntype)

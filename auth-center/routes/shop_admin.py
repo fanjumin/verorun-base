@@ -325,7 +325,7 @@ def create_product():
                 json.dumps(data.get('ai_config', {}), ensure_ascii=False),
                 int(data.get('sort_order', 0)),
                 1
-            ).fetchone()[0]
+            )).fetchone()[0]
     return jsonify({'success': True, 'data': {'id': pid}, 'message': '商品已创建'})
 
 

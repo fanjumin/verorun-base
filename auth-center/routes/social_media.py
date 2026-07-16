@@ -44,7 +44,6 @@ def create_social_media():
         max_order_row = conn.execute('SELECT MAX(display_order) as m FROM social_media_links').fetchone()
         max_order = (max_order_row['m'] or 0) + 1 if max_order_row else 1
         
-        cursor = conn.execute(
         new_id = conn.execute(
             'INSERT INTO social_media_links (platform_name, icon_type, icon_value, url, display_order, is_enabled, hover_text) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id',
             (platform_name, icon_type, icon_value, url, max_order, is_enabled, hover_text)
