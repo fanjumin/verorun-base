@@ -93,12 +93,11 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
 
         total = len(rows)
         # Create check run batch
-        conn.execute(
-        "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (?,?,?,'running') RETURNING id",
-        (trigger_type, trigger_info, total)
-    )
-    run_id = cur.fetchone()['id']
-    # Note: run_id captured above; last_insert_rowid() replaced with RETURNING id
+        cur = conn.execute(
+            "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (?,?,?,'running') RETURNING id",
+            (trigger_type, trigger_info, total)
+        )
+        run_id = cur.fetchone()['id']
         conn.commit()
 
     # Execute checks one by one
