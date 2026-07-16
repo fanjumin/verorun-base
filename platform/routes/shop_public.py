@@ -165,13 +165,13 @@ def api_products():
                  WHERE p.is_active=1'''
         params = []
         if category:
-            sql += ' AND p.category LIKE ?'
+            sql += ' AND p.category LIKE %s'
             params.append(f'%{category}%')
         if cat_id:
-            sql += ' AND p.category_id=?'
+            sql += ' AND p.category_id=%s'
             params.append(cat_id)
         if search:
-            sql += ' AND (p.title LIKE ? OR p.subtitle LIKE ? OR p.description LIKE ?)'
+            sql += ' AND (p.title LIKE %s OR p.subtitle LIKE %s OR p.description LIKE %s)'
             s = f'%{search}%'
             params.extend([s, s, s])
         sql += ' ORDER BY p.sort_order ASC, p.id DESC'

@@ -13,6 +13,7 @@ import os, json, time, requests
 from datetime import datetime, timedelta
 import psycopg2
 import psycopg2.extras
+from psycopg2.extras import RealDictCursor
 
 # PostgreSQL 连接配置（复用环境变量）
 _PG_CONFIG = {
@@ -22,6 +23,43 @@ _PG_CONFIG = {
     'user': os.environ.get('PG_USER', 'verorun'),
     'password': os.environ.get('PG_PASSWORD', ''),
 }
+
+
+class _DbWrapper:
+    """psycopg2 connection wrapper that exposes sqlite3-style execute/commit."""
+    def __init__(self, conn):
+        self._conn = conn
+        self._cur = conn.cursor(cursor_factory=RealDictCursor)
+    def execute(self, sql, params=None):
+        if params is not None:
+            self._cur.execute(sql, params)
+        else:
+            self._cur.execute(sql)
+        return self
+    def executemany(self, sql, params):
+        return self._cur.executemany(sql, params)
+    def fetchone(self):
+        return self._cur.fetchone()
+    def fetchall(self):
+        return self._cur.fetchall()
+    def commit(self):
+        self._conn.commit()
+    def rollback(self):
+        self._conn.rollback()
+    def cursor(self):
+        return self._conn.cursor()
+    def close(self):
+        self._cur.close()
+    def executescript(self, sql):
+        from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+        old_level = self._conn.isolation_level
+        self._conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = self._conn.cursor()
+        cur.execute(sql)
+        cur.close()
+        self._conn.set_isolation_level(old_level)
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
 
 
 class LicenseService:
@@ -40,7 +78,7 @@ class LicenseService:
 
     def _get_conn(self):
         conn = psycopg2.connect(**self._pg_config, cursor_factory=psycopg2.extras.RealDictCursor)
-        return conn
+        return _DbWrapper(conn)
 
     def _ensure_config_table(self):
         """确保 system_config 表存在（存储本地授权缓存）"""
