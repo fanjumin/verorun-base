@@ -219,8 +219,8 @@ class AnalyticsProcessor:
 
         # 聚合来源统计
         sources = conn.execute(
-            f"SELECT referer_domain, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv, "
-            f"referer FROM analytics_logs {where} AND is_bot=0 AND referer!='' "
+            f"SELECT referer_domain, MIN(referer) referer, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv "
+            f"FROM analytics_logs {where} AND is_bot=0 AND referer!='' "
             "GROUP BY referer_domain",
             params
         ).fetchall()
