@@ -2319,6 +2319,8 @@ with get_db() as m:
     print('[i18n] ✅ i18n_strings table created')
 
 # ── Migration: site_domains 子域名管理表 (2026-07-06) ──
+# Note: 移除了 FOREIGN KEY 引用 site_configs，因为 site_configs 在 init_db() 中创建
+# 模块级 migration 执行时 site_configs 可能尚未建表
 with get_db() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS site_domains (
         id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -2332,8 +2334,7 @@ with get_db() as m:
         sort_order      BIGINT DEFAULT 0,
         service_port    BIGINT DEFAULT NULL,
         created_at      TIMESTAMP DEFAULT NOW(),
-        updated_at      TIMESTAMP DEFAULT NOW(),
-        FOREIGN KEY (site_config_id) REFERENCES site_configs(id)
+        updated_at      TIMESTAMP DEFAULT NOW()
     )''')
     m.execute('CREATE INDEX IF NOT EXISTS idx_sd_config ON site_domains(site_config_id)')
     m.execute('CREATE INDEX IF NOT EXISTS idx_sd_domain ON site_domains(full_domain)')
