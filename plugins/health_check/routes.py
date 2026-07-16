@@ -208,8 +208,8 @@ def _update_daily_trend():
                 score = round(score, 1)
 
             conn.execute(
-                "INSERT OR REPLACE INTO health_trend (date, total_checks, passed, warnings, errors, avg_response_ms, health_score) "
-                "VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO health_trend (date, total_checks, passed, warnings, errors, avg_response_ms, health_score) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (date) DO UPDATE SET total_checks=EXCLUDED.total_checks, passed=EXCLUDED.passed, warnings=EXCLUDED.warnings, errors=EXCLUDED.errors, avg_response_ms=EXCLUDED.avg_response_ms, health_score=EXCLUDED.health_score",
                 (today, stats['total'], stats['passed'], stats['warnings'], stats['errors'],
                  int(stats['avg_ms']), score)
             )
@@ -1119,7 +1119,7 @@ def api_fix_rollback(audit_id):
         try:
             if action == 'set_log_level' and undo.get('old_level'):
                 conn.execute(
-                    "INSERT OR REPLACE INTO system_config (key, value) VALUES ('log_level', ?)",
+                    "INSERT INTO system_config (key, value) VALUES ('log_level', %s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
                     (undo['old_level'],)
                 )
                 success = True

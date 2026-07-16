@@ -829,11 +829,11 @@ def create_ticket():
     if not content: return jsonify({'success': False, 'error': 'Content cannot be empty'}), 400
     with get_db() as conn:
         cur = conn.execute(
-            'INSERT INTO user_tickets (user_id, type, category, title, content, contact, priority) VALUES (%s,%s,%s,%s,%s,%s,%s)',
+            'INSERT INTO user_tickets (user_id, type, category, title, content, contact, priority) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id',
             (user_id, ttype, category, title, content, contact, priority)
         )
         conn.commit()
-    return jsonify({'success': True, 'id': cur.lastrowid, 'type': ttype, 'priority': priority})
+    return jsonify({'success': True, 'id': cur.fetchone()[0], 'type': ttype, 'priority': priority})
 
 
 # =============================================
@@ -1091,7 +1091,7 @@ def update_user_interests():
         # Existing interests
         for iid in ids:
             conn.execute(
-                'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (%s,%s)',
+                'INSERT INTO user_interests (user_id, interest_id) VALUES (%s,%s) ON CONFLICT (user_id, interest_id) DO NOTHING',
                 (user_id, iid)
             )
         # Custom tags: find or create interest record, then link
@@ -1101,12 +1101,12 @@ def update_user_interests():
                 iid = row['id']
             else:
                 cursor = conn.execute(
-                    'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s)',
+                    'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
                     (name, '自定义', 999, 0, 1)
                 )
-                iid = cursor.lastrowid
+                iid = cursor.fetchone()[0]
             conn.execute(
-                'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (%s,%s)',
+                'INSERT INTO user_interests (user_id, interest_id) VALUES (%s,%s) ON CONFLICT (user_id, interest_id) DO NOTHING',
                 (user_id, iid)
             )
         conn.commit()

@@ -186,7 +186,7 @@ def upsert_block(data: dict):
                 data.get('link_text', ''), data.get('icon', ''), data.get('extra_json', '{}'),
                 data.get('is_published', 1)
             ))
-            data['id'] = cur.lastrowid
+            data['id'] = cur.fetchone()[0]
         conn.commit()
     return data
 
@@ -392,7 +392,7 @@ def upsert_post(data: dict):
                 data.get('source', 'manual'), data.get('source_id'),
                 1 if data.get('is_published') in (1, True) else 0
             ))
-            data['id'] = cur.lastrowid
+            data['id'] = cur.fetchone()[0]
         conn.commit()
     return data
 
@@ -461,7 +461,7 @@ def upsert_category(data: dict):
                  data.get('audience', 'public'), int(data.get('sort_order', 0)),
                  data.get('is_active', 1))
             )
-            data['id'] = cur.lastrowid
+            data['id'] = cur.fetchone()[0]
         conn.commit()
     return data
 
@@ -604,7 +604,7 @@ def upsert_download(data: dict):
                 tags_json, data.get('icon', '📦'),
                 int(data.get('sort_order', 0)), data.get('is_published', 1)
             ))
-            data['id'] = cur.lastrowid
+            data['id'] = cur.fetchone()[0]
         conn.commit()
     return data
 

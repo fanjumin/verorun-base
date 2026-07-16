@@ -969,7 +969,7 @@ class FixSuggestion:
                 # Change log_level in system_config
                 if conn and 'level' in params:
                     conn.execute(
-                        "INSERT OR REPLACE INTO system_config (key, value) VALUES ('log_level', ?)",
+                        "INSERT INTO system_config (key, value) VALUES ('log_level', %s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
                         (params['level'],)
                     )
                     return True

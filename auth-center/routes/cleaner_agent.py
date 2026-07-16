@@ -135,11 +135,10 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
 
     # 写入队列
     with get_db() as conn:
-        c = conn.execute(
-            'INSERT INTO knowledge_queue (source, raw_content, admin_id) VALUES (%s,%s,%s)',
+        qid = conn.execute(
+            'INSERT INTO knowledge_queue (source, raw_content, admin_id) VALUES (%s,%s,%s) RETURNING id',
             ('matrix', raw_content, admin_id)
-        )
-        qid = c.lastrowid
+        ).fetchone()[0]
         conn.commit()
 
     # 调用 LLM
@@ -160,9 +159,10 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
 
         kb_id = 'kb_cleaner_' + str(qid) + '_' + ''.join(re.findall(r'\w', result['title'])[:10])
         conn.execute(
-            '''INSERT OR IGNORE INTO knowledge_blocks
+            '''INSERT INTO knowledge_blocks
                (id, title, content, keywords, category, priority, created_at)
-               VALUES (%s,%s,%s,%s,%s,%s,NOW())''',
+               VALUES (%s,%s,%s,%s,%s,%s,NOW())
+               ON CONFLICT (id) DO NOTHING''',
             (kb_id, result['title'][:200], result['content'],
              result.get('keywords', '')[:500], result.get('category', 'general'), 5)
         )

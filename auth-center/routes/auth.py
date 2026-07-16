@@ -187,13 +187,12 @@ def sms_register():
         existing_phone = conn.execute('SELECT id FROM users WHERE phone=%s', (phone,)).fetchone()
         if existing_phone:
             return api_err('This phone is already registered')
-        cur = conn.execute(
-            'INSERT INTO users (phone, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (%s,%s,%s,%s,1,0,%s)',
-            (phone, username, display_name or username, stored, now))
-        user_id = cur.lastrowid
+        user_id = conn.execute(
+            'INSERT INTO users (phone, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (%s,%s,%s,%s,1,0,%s) RETURNING id',
+            (phone, username, display_name or username, stored, now)).fetchone()[0]
         # Auto-create free-tier authorization
         conn.execute(
-            'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s)',
+            'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
             (user_id, 'trademind', 'free'))
         conn.commit()
 
@@ -259,13 +258,12 @@ def sms_login():
             user = dict(user)
             conn.execute('UPDATE users SET last_login=%s WHERE id=%s', (now, user['id']))
         else:
-            cur = conn.execute(
-                'INSERT INTO users (phone, phone_verified, last_login) VALUES (%s,1,%s)',
-                (phone, now))
-            user_id = cur.lastrowid
+            user_id = conn.execute(
+                'INSERT INTO users (phone, phone_verified, last_login) VALUES (%s,1,%s) RETURNING id',
+                (phone, now)).fetchone()[0]
             # Auto-create free-tier authorization for trademind
             conn.execute(
-                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s)',
+                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'phone': phone}
         conn.commit()

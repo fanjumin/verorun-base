@@ -151,7 +151,7 @@ def oauth_callback(provider):
                     (open_id, display_name, avatar, now))
                 user_id = cur.lastrowid
                 conn.execute(
-                    'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                    'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                     (user_id, 'trademind', 'free'))
                 user = {'id': user_id, id_field: open_id, 'display_name': display_name}
             conn.commit()
@@ -195,7 +195,7 @@ def oauth_callback(provider):
                     (open_id, display_name, email, avatar, now))
                 user_id = cur.lastrowid
                 conn.execute(
-                    'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                    'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                     (user_id, 'trademind', 'free'))
                 user = {'id': user_id, id_field: open_id, 'display_name': display_name}
             conn.commit()
@@ -290,7 +290,7 @@ def oauth_callback(provider):
                 (open_id, display_name, now))
             user_id = cur.lastrowid
             conn.execute(
-                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, id_field: open_id, 'display_name': display_name}
         conn.commit()
@@ -368,7 +368,7 @@ def wechat_callback():
                 (openid, unionid, nickname, avatar, now))
             user_id = cur.lastrowid
             conn.execute(
-                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'wechat_openid': openid, 'wechat_nickname': nickname}
         conn.commit()
@@ -441,7 +441,7 @@ def douyin_callback():
                 (open_id, nickname, avatar, nickname or '', now))
             user_id = cur.lastrowid
             conn.execute(
-                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'douyin_open_id': open_id, 'douyin_nickname': nickname}
         conn.commit()
@@ -483,7 +483,7 @@ def wechat_login():
                 (openid, wx.get('unionid', ''), now))
             user_id = cur.lastrowid
             conn.execute(
-                'INSERT OR IGNORE INTO app_authorizations (user_id, app_name, tier) VALUES (?,?,?)',
+                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'wechat_openid': openid}
         conn.commit()

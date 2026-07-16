@@ -304,11 +304,11 @@ def create_product():
             images = []
 
     with get_db() as conn:
-        c = conn.execute(
+        pid = conn.execute(
             '''INSERT INTO products (title, subtitle, product_type, category,
                category_id, price, original_price, stock, thumbnail, description,
                features, images, ai_config, sort_order, is_active)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
             (
                 data.get('title', ''),
                 data.get('subtitle', ''),
@@ -325,11 +325,7 @@ def create_product():
                 json.dumps(data.get('ai_config', {}), ensure_ascii=False),
                 int(data.get('sort_order', 0)),
                 1
-            )
-        )
-        pid = c.lastrowid
-        conn.commit()
-        _log_admin_action(conn, payload['user_id'], 'create', 'product', pid, data.get('title', ''))
+            ).fetchone()[0]
     return jsonify({'success': True, 'data': {'id': pid}, 'message': '商品已创建'})
 
 
@@ -1323,7 +1319,7 @@ def confirm_order(oid):
             "UPDATE order_items SET status='paid', paid_at=NOW() WHERE id=%s",
             (oid,))
         # 添加 user_purchases 记录
-        conn.execute('''INSERT OR IGNORE INTO user_purchases
+        conn.execute('''INSERT INTO user_purchases
             (user_id, product_id, order_id, purchase_type, status, created_at)
             VALUES (%s,%s,%s,%s,%s,NOW())''',
             (row['user_id'], row['product_id'], row['order_id'], 'once', 'active'))

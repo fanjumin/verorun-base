@@ -1674,12 +1674,11 @@ def admin_user_agent_create(uid):
         ).fetchone()
         if existing:
             return jsonify({'success': False, 'error': '该用户已存在同名Agent'}), 400
-        cur = conn.execute(
-            'INSERT INTO user_agents (user_id, agent_name) VALUES (%s,%s)',
+        aid = conn.execute(
+            'INSERT INTO user_agents (user_id, agent_name) VALUES (%s,%s) RETURNING id',
             (uid, agent_name)
-        )
+        ).fetchone()[0]
         conn.commit()
-        aid = cur.lastrowid
         _log(admin['user_id'], 'create_user_agent', 'user_agent', str(aid),
              f'为 {user["display_name"] or uid} 创建 Agent "{agent_name}"')
     
@@ -1711,12 +1710,11 @@ def create_social_link():
         return jsonify({'success': False, 'error': '名称不能为空'}), 400
     with get_db() as conn:
         max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM social_links').fetchone()[0]
-        cur = conn.execute(
-            'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s)',
+        lid = conn.execute(
+            'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
             (name, url, icon_url, platform, max_sort, is_active)
-        )
+        ).fetchone()[0]
         conn.commit()
-        lid = cur.lastrowid
         _log(admin['user_id'], 'create', 'social_link', str(lid), f'新增社媒图标: {name}')
     return jsonify({'success': True, 'data': {'id': lid}})
 
@@ -2305,11 +2303,11 @@ def admin_notif_templates_create():
     with get_db() as conn:
         try:
             cur = conn.execute(
-                'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (%s,%s,%s,%s,%s)',
+            tid = conn.execute(
+                'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (%s,%s,%s,%s,%s) RETURNING id',
                 (event_type, title_tmpl, content_tmpl, link_url_tmpl, ntype)
-            )
+            ).fetchone()[0]
             conn.commit()
-            tid = cur.lastrowid
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
     _log(admin['user_id'], 'create_notif_template', detail=f'{event_type}')
@@ -2508,14 +2506,12 @@ def admin_reward_rules_create():
     if not name:
         return jsonify({'success': False, 'error': '规则名称不能为空'}), 400
     with get_db() as conn:
-        cur = conn.execute(
-            'INSERT INTO reward_rules (name, condition_key, condition_value, reward_type, reward_id, reward_name, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
+        rid = conn.execute(
+            'INSERT INTO reward_rules (name, condition_key, condition_value, reward_type, reward_id, reward_name, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
             (name, data.get('condition_key', ''), data.get('condition_value', ''),
              data.get('reward_type', 'coupon'), data.get('reward_id'), data.get('reward_name', ''),
              data.get('sort_order', 0), 1 if data.get('is_active', True) else 0)
-        )
-        conn.commit()
-        rid = cur.lastrowid
+        ).fetchone()[0]
     _log(admin['user_id'], 'create_reward_rule', detail=name)
     return jsonify({'success': True, 'data': {'id': rid}})
 
@@ -2604,12 +2600,11 @@ def admin_interests_create():
         existing = conn.execute('SELECT id FROM interests WHERE name=%s', (name,)).fetchone()
         if existing:
             return jsonify({'success': False, 'error': f'标签"{name}"已存在'}), 409
-        cursor = conn.execute(
-            'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s)',
+        new_id = conn.execute(
+            'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (name, category, data.get('sort_order', 0), data.get('is_hot', 0), data.get('is_active', 1))
-        )
+        ).fetchone()[0]
         conn.commit()
-        new_id = cursor.lastrowid
     _log(admin['user_id'], 'create_interest', detail=f'{name} ({category})')
     return jsonify({'success': True, 'data': {'id': new_id}})
 
@@ -2888,11 +2883,10 @@ def create_provider_model():
     if not name or not provider_id:
         return jsonify({'success': False, 'error': '名称和提供商不能为空'}), 400
     with get_db() as conn:
-        cur = conn.execute(
-            'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (%s,%s,%s,%s,%s,%s)',
-            (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities))
+        mid = conn.execute(
+            'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
+            (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities)).fetchone()[0]
         conn.commit()
-        mid = cur.lastrowid
         _log(admin['user_id'], 'create', 'provider_model', str(mid), f'新增模型: {name}')
     return jsonify({'success': True, 'data': {'id': mid}})
 
@@ -2971,12 +2965,11 @@ def media_voice_clone():
 
     # 写入数据库
     with get_db() as conn:
-        cur = conn.execute(
+        vid = conn.execute(
             """INSERT INTO voice_templates (user_id, name, sample_url, provider, status)
-               VALUES (%s,%s,%s,%s,'pending')""",
-            (admin['user_id'], name, audio_url, 'volcengine'))
+               VALUES (%s,%s,%s,%s,'pending') RETURNING id""",
+            (admin['user_id'], name, audio_url, 'volcengine')).fetchone()[0]
         conn.commit()
-        vid = cur.lastrowid
 
     # 通过 Agent 矩阵 dispatch 到 Media Agent
     try:
@@ -3061,13 +3054,12 @@ def media_video_create():
         return jsonify({'success': False, 'error': '请先选择已克隆的声音'}), 400
 
     with get_db() as conn:
-        cur = conn.execute(
+        tid = conn.execute(
             """INSERT INTO video_tasks (user_id, title, voice_template_id, text_content,
-               avatar_image_url, provider, status) VALUES (%s,%s,%s,%s,%s,%s,'pending')""",
+               avatar_image_url, provider, status) VALUES (%s,%s,%s,%s,%s,%s,'pending') RETURNING id""",
             (admin['user_id'], title, int(voice_id) if voice_id.isdigit() else 0,
-             text, image_url, 'volcengine'))
+             text, image_url, 'volcengine')).fetchone()[0]
         conn.commit()
-        tid = cur.lastrowid
 
     # 通过 Agent 矩阵 dispatch
     try:
@@ -3378,13 +3370,12 @@ def media_library_upload():
     thumb_name = ''
 
     with get_db() as conn:
-        cursor = conn.execute(
+        new_id = conn.execute(
             "INSERT INTO media_files (filename, original_name, mime_type, file_size, file_path, thumb_path) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
+            "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
             (safe_name, f.filename, mime, file_size, 'media/' + safe_name,
              'media/thumbs/' + thumb_name if thumb_name else '')
-        )
-        new_id = cursor.lastrowid
+        ).fetchone()[0]
         conn.commit()
     return jsonify({
         'success': True,

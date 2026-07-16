@@ -533,7 +533,7 @@ def _fulfill_order(order_no, payment_method=None, channel_order_id=None, notify_
             period_start = now.isoformat()
             period_end = (now + timedelta(days=expire_days)).isoformat()
             conn.execute(
-                "INSERT OR REPLACE INTO subscriptions (user_id, plan_key, period, status, current_period_start, current_period_end, created_at, updated_at) VALUES (%s,%s,%s,'active',%s,%s,NOW(),NOW())",
+                "INSERT INTO subscriptions (user_id, plan_key, period, status, current_period_start, current_period_end, created_at, updated_at) VALUES (%s,%s,%s,'active',%s,%s,NOW(),NOW()) ON CONFLICT (user_id) DO UPDATE SET plan_key=EXCLUDED.plan_key, period=EXCLUDED.period, status=EXCLUDED.status, current_period_start=EXCLUDED.current_period_start, current_period_end=EXCLUDED.current_period_end, updated_at=NOW()",
                 (uid, plan_key, period, period_start, period_end))
 
         elif item_type in ('upgrade',):

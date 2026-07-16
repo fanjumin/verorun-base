@@ -71,13 +71,12 @@ def session_current():
             # Record this as a new session
             user_agent = request.headers.get('User-Agent', '')[:256]
             ip = request.remote_addr or ''
-            cur = conn.execute(
+            sid = conn.execute(
                 "INSERT INTO user_sessions (user_id, token_hash, device_type, ip_address, user_agent, is_current) "
-                "VALUES (%s,%s,%s,%s,%s,1)",
+                "VALUES (%s,%s,%s,%s,%s,1) RETURNING id",
                 (uid, token_hash, 'api', ip, user_agent)
-            )
+            ).fetchone()[0]
             conn.commit()
-            sid = cur.lastrowid
             return jsonify({'success': True, 'data': {
                 'id': sid,
                 'device_type': 'api',

@@ -109,13 +109,12 @@ def agent_create():
         scopes_str = _json.dumps(default_scopes if isinstance(default_scopes, list) else ['stock:read', 'market:alert'])
         metadata_str = _json.dumps(data.get('metadata', {}))
         
-        cur = conn.execute(
+        aid = conn.execute(
             "INSERT INTO user_agents (user_id, agent_name, agent_type, avatar_url, default_scopes, metadata) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
+            "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
             (uid, agent_name, agent_type, f'/avatar/gen/{agent_name}', scopes_str, metadata_str)
-        )
+        ).fetchone()[0]
         conn.commit()
-        aid = cur.lastrowid
     
     _log(aid, uid, 'create', f'Agent "{agent_name}" created')
     

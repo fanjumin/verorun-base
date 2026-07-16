@@ -84,7 +84,7 @@ def revoke_all_user_tokens(user_id):
     now = int(time.time())
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO system_config (key, value) VALUES (%s, %s)",
+            "INSERT INTO system_config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
             (f'user_token_revoked_at_{user_id}', str(now))
         )
         conn.commit()

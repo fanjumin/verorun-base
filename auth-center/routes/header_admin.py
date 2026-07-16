@@ -41,12 +41,11 @@ def create_header_nav():
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM header_nav WHERE site=%s', (site,)).fetchone()
         order = (m['m'] or 0) + 1 if m else 1
-        cursor = conn.execute(
-            'INSERT INTO header_nav (site, title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s)',
+        new_id = conn.execute(
+            'INSERT INTO header_nav (site, title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (site, title, url, order, 1 if data.get('is_enabled', True) else 0)
-        )
+        ).fetchone()[0]
         conn.commit()
-        new_id = cursor.lastrowid
     _log(admin['user_id'], 'create', 'header_nav', str(new_id), f'{site}/{title}')
     return jsonify({'success': True, 'data': {'id': new_id}})
 

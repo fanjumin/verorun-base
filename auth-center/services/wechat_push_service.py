@@ -56,7 +56,7 @@ def _get_access_token():
     token = data['access_token']
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO system_config (key, value, description) VALUES (%s, %s, %s)",
+            "INSERT INTO system_config (key, value, description) VALUES (%s, %s, %s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, description=EXCLUDED.description",
             ('wechat_access_token', token, '微信 AccessToken (自动缓存)')
         )
         conn.commit()
