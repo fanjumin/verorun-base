@@ -11,29 +11,12 @@ Subscription Plugin — 数据模型
 
 import os
 import psycopg2
-import psycopg2.extras
 import threading
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
-
-
-class _PgConnection:
-    """psycopg2 connection adapter with sqlite3-compatible interface."""
-    def __init__(self, conn):
-        self._conn = conn
-    def execute(self, sql, params=None):
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
-        else:
-            cur.execute(sql)
-        return cur
-    def commit(self):
-        self._conn.commit()
-    def close(self):
-        self._conn.close()
+from plugins._base.db import PgConnection
 
 
 # ── 数据库路径 ──────────────────────────────────────────────────────────
@@ -54,9 +37,10 @@ def get_db():
         password=os.environ.get('PG_PASSWORD', ''),
     )
     conn.autocommit = False
-    conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
-    conn.execute("SET search_path TO subscription")
-    return _PgConnection(conn)
+    wrapped = PgConnection(conn)
+    wrapped.execute("CREATE SCHEMA IF NOT EXISTS subscription")
+    wrapped.execute("SET search_path TO subscription")
+    return wrapped
 
 
 # ── 状态枚举 ────────────────────────────────────────────────────────────
@@ -154,14 +138,13 @@ def init_tables():
     """初始化所有表"""
     db_path = get_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = psycopg2.connect(
+    conn = PgConnection(psycopg2.connect(
         host=os.environ.get('PG_HOST', 'localhost'),
         port=int(os.environ.get('PG_PORT', 5432)),
         dbname=os.environ.get('PG_DB', 'verorun'),
         user=os.environ.get('PG_USER', 'verorun'),
         password=os.environ.get('PG_PASSWORD', ''),
-    )
-    conn.autocommit = False
+    ))
     conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
     conn.execute("SET search_path TO subscription")
     conn.execute(SUBSCRIPTION_DDL)
@@ -294,7 +277,7 @@ DEFAULT_ITEMS = [
         'description_zh': '系统健康监控与自动告警',
         'description_en': 'System health monitoring and auto-alerting',
         'price_month': 1000,
-        'price_year': 10800,
+        'price_year': 16200,
         'sort_order': 25,
     },
     {
@@ -357,14 +340,13 @@ DEFAULT_ITEMS = [
 
 def seed_default_items():
     """种子 SKU 目录（INSERT ... ON CONFLICT，不覆盖已有数据）"""
-    conn = psycopg2.connect(
+    conn = PgConnection(psycopg2.connect(
         host=os.environ.get('PG_HOST', 'localhost'),
         port=int(os.environ.get('PG_PORT', 5432)),
         dbname=os.environ.get('PG_DB', 'verorun'),
         user=os.environ.get('PG_USER', 'verorun'),
         password=os.environ.get('PG_PASSWORD', ''),
-    )
-    conn.autocommit = False
+    ))
     conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
     conn.execute("SET search_path TO subscription")
     for item in DEFAULT_ITEMS:

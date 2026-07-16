@@ -6,6 +6,7 @@ Verification Plugin Models — 独立数据库 verification.db
 """
 import psycopg2
 import os
+from plugins._base.db import PgConnection
 
 _verification_conn = None
 
@@ -13,16 +14,18 @@ _verification_conn = None
 def get_verification_db():
     global _verification_conn
     if _verification_conn is None:
-        _verification_conn = psycopg2.connect(
+        raw = psycopg2.connect(
             host=os.environ.get('PG_HOST', 'localhost'),
             port=int(os.environ.get('PG_PORT', 5432)),
             dbname=os.environ.get('PG_DB', 'verorun'),
             user=os.environ.get('PG_USER', 'verorun'),
             password=os.environ.get('PG_PASSWORD', ''),
         )
-        _verification_conn.autocommit = False
+        raw.autocommit = False
+        _verification_conn = PgConnection(raw)
         _verification_conn.execute("CREATE SCHEMA IF NOT EXISTS verification")
         _verification_conn.execute("SET search_path TO verification")
+        _verification_conn.commit()
     return _verification_conn
 
 

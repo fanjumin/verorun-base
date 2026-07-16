@@ -8,6 +8,7 @@ Logistics Plugin Models — 独立数据库 logistics.db
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+from plugins._base.db import PgConnection
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'logistics.db')
 
@@ -18,7 +19,7 @@ def get_logistics_db():
     """获取物流插件独立数据库连接（单例）"""
     global _logistics_conn
     if _logistics_conn is None:
-        _logistics_conn = psycopg2.connect(
+        raw = psycopg2.connect(
             host=os.environ.get('PG_HOST','localhost'),
             port=int(os.environ.get('PG_PORT',5432)),
             dbname=os.environ.get('PG_DB','verorun'),
@@ -26,9 +27,12 @@ def get_logistics_db():
             password=os.environ.get('PG_PASSWORD',''),
             cursor_factory=RealDictCursor
         )
+        raw.autocommit = False
+        _logistics_conn = PgConnection(raw)
         _logistics_conn.execute("CREATE SCHEMA IF NOT EXISTS logistics")
         _logistics_conn.execute("SET search_path TO logistics")
-    return _PgConnection(_logistics_conn)
+        _logistics_conn.commit()
+    return _logistics_conn
 
 
 def init_logistics_db():

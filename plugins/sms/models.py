@@ -7,25 +7,8 @@ SMS Plugin Models — 独立数据库 sms.db
 - sms_logs: 短信发送日志
 """
 import psycopg2
-import psycopg2.extras
 import os
-
-
-class _PgConnection:
-    """psycopg2 connection adapter with sqlite3-compatible interface."""
-    def __init__(self, conn):
-        self._conn = conn
-    def execute(self, sql, params=None):
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
-        else:
-            cur.execute(sql)
-        return cur
-    def commit(self):
-        self._conn.commit()
-    def close(self):
-        self._conn.close()
+from plugins._base.db import PgConnection
 
 
 _sms_conn = None
@@ -35,16 +18,18 @@ def get_sms_db():
     """获取短信插件独立数据库连接（单例）"""
     global _sms_conn
     if _sms_conn is None:
-        _sms_conn = psycopg2.connect(
+        raw = psycopg2.connect(
             host=os.environ.get('PG_HOST', 'localhost'),
             port=int(os.environ.get('PG_PORT', 5432)),
             dbname=os.environ.get('PG_DB', 'verorun'),
             user=os.environ.get('PG_USER', 'verorun'),
             password=os.environ.get('PG_PASSWORD', ''),
         )
-        _sms_conn.autocommit = False
+        raw.autocommit = False
+        _sms_conn = PgConnection(raw)
         _sms_conn.execute("CREATE SCHEMA IF NOT EXISTS sms")
         _sms_conn.execute("SET search_path TO sms")
+        _sms_conn.commit()
     return _sms_conn
 
 

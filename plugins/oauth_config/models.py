@@ -6,25 +6,8 @@ oauth_providers 表迁移至插件独立数据库 oauth.db，与主库完全解�
 import os
 import sys
 import psycopg2
-import psycopg2.extras
 from contextlib import contextmanager
-
-
-class _PgConnection:
-    """psycopg2 connection adapter with sqlite3-compatible interface."""
-    def __init__(self, conn):
-        self._conn = conn
-    def execute(self, sql, params=None):
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
-        else:
-            cur.execute(sql)
-        return cur
-    def commit(self):
-        self._conn.commit()
-    def close(self):
-        self._conn.close()
+from plugins._base.db import PgConnection
 
 
 _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,12 +25,13 @@ def get_db():
         dbname=os.environ.get('PG_DB','verorun'),
         user=os.environ.get('PG_USER','verorun'),
         password=os.environ.get('PG_PASSWORD',''),
-        cursor_factory=RealDictCursor
     )
-    conn.execute("CREATE SCHEMA IF NOT EXISTS oauth_config")
-    conn.execute("SET search_path TO oauth_config")
+    conn.autocommit = False
     try:
-        yield conn
+        wrapped = PgConnection(conn)
+        wrapped.execute("CREATE SCHEMA IF NOT EXISTS oauth_config")
+        wrapped.execute("SET search_path TO oauth_config")
+        yield wrapped
     finally:
         conn.close()
 

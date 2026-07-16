@@ -5,25 +5,8 @@
 从主库迁移而来（feishu/wecom/qq/dingtalk），主库结构保持一致。
 """
 import psycopg2
-import psycopg2.extras
 import os
-
-
-class _PgConnection:
-    """psycopg2 connection adapter with sqlite3-compatible interface."""
-    def __init__(self, conn):
-        self._conn = conn
-    def execute(self, sql, params=None):
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
-        else:
-            cur.execute(sql)
-        return cur
-    def commit(self):
-        self._conn.commit()
-    def close(self):
-        self._conn.close()
+from plugins._base.db import PgConnection
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'im_gateway.db')
@@ -43,17 +26,19 @@ def get_im_db():
     """获取 IM Gateway 插件独立数据库连接"""
     global _im_conn
     if _im_conn is None:
-        _im_conn = psycopg2.connect(
+        raw = psycopg2.connect(
             host=os.environ.get('PG_HOST','localhost'),
             port=int(os.environ.get('PG_PORT',5432)),
             dbname=os.environ.get('PG_DB','verorun'),
             user=os.environ.get('PG_USER','verorun'),
             password=os.environ.get('PG_PASSWORD',''),
-            cursor_factory=RealDictCursor
         )
+        raw.autocommit = False
+        _im_conn = PgConnection(raw)
         _im_conn.execute("CREATE SCHEMA IF NOT EXISTS im_gateway")
         _im_conn.execute("SET search_path TO im_gateway")
-    return _PgConnection(_im_conn)
+        _im_conn.commit()
+    return _im_conn
 
 
 def init_im_db():

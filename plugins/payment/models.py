@@ -9,6 +9,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 import json
+from plugins._base.db import PgConnection
 
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
@@ -27,14 +28,13 @@ def _rebuild_db():
         os.remove(_DB_PATH)
     except OSError:
         pass
-    conn = psycopg2.connect(
+    conn = PgConnection(psycopg2.connect(
         host=os.environ.get('PG_HOST','localhost'),
         port=int(os.environ.get('PG_PORT',5432)),
         dbname=os.environ.get('PG_DB','verorun'),
         user=os.environ.get('PG_USER','verorun'),
         password=os.environ.get('PG_PASSWORD',''),
-        cursor_factory=RealDictCursor
-    )
+    ))
     conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
     conn.execute("SET search_path TO payment")
     # 重建表
@@ -67,14 +67,13 @@ def _rebuild_db():
 def _connect_db():
     """连接数据库，失败时自动重建"""
     try:
-        conn = psycopg2.connect(
+        conn = PgConnection(psycopg2.connect(
             host=os.environ.get('PG_HOST','localhost'),
             port=int(os.environ.get('PG_PORT',5432)),
             dbname=os.environ.get('PG_DB','verorun'),
             user=os.environ.get('PG_USER','verorun'),
             password=os.environ.get('PG_PASSWORD',''),
-            cursor_factory=RealDictCursor
-        )
+        ))
         conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
         conn.execute("SET search_path TO payment")
         conn.execute("SELECT 1").fetchone()
@@ -82,14 +81,13 @@ def _connect_db():
     except psycopg2.DatabaseError as e:
         print(f'[PaymentPlugin] ⚠️ 数据库损坏，自动重建: {e}')
         _rebuild_db()
-        conn = psycopg2.connect(
+        conn = PgConnection(psycopg2.connect(
             host=os.environ.get('PG_HOST','localhost'),
             port=int(os.environ.get('PG_PORT',5432)),
             dbname=os.environ.get('PG_DB','verorun'),
             user=os.environ.get('PG_USER','verorun'),
             password=os.environ.get('PG_PASSWORD',''),
-            cursor_factory=RealDictCursor
-        )
+        ))
         conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
         conn.execute("SET search_path TO payment")
         return conn

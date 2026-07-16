@@ -20,23 +20,7 @@ import psycopg2.extras
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from collections import defaultdict
-
-
-class _PgConnection:
-    """psycopg2 connection adapter with sqlite3-compatible interface."""
-    def __init__(self, conn):
-        self._conn = conn
-    def execute(self, sql, params=None):
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
-        else:
-            cur.execute(sql)
-        return cur
-    def commit(self):
-        self._conn.commit()
-    def close(self):
-        self._conn.close()
+from plugins._base.db import PgConnection
 
 
 # ── 独立数据库路径（插件目录内）──
@@ -54,12 +38,13 @@ def get_db():
         dbname=os.environ.get('PG_DB','verorun'),
         user=os.environ.get('PG_USER','verorun'),
         password=os.environ.get('PG_PASSWORD',''),
-        cursor_factory=RealDictCursor
     )
-    conn.execute("CREATE SCHEMA IF NOT EXISTS health")
-    conn.execute("SET search_path TO health")
+    conn.autocommit = False
     try:
-        yield conn
+        wrapped = PgConnection(conn)
+        wrapped.execute("CREATE SCHEMA IF NOT EXISTS health")
+        wrapped.execute("SET search_path TO health")
+        yield wrapped
     finally:
         conn.close()
 
