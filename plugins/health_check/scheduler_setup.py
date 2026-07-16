@@ -143,7 +143,7 @@ def seed_health_schedules():
                         (name, description, job_type, cron_expr, natural_expr,
                          interval_seconds, is_active, target_type, target_config,
                          priority, max_retries, retry_delay, max_runs)
-                    VALUES (?,?,?,?,?,?,1,'api',?,?,3,10,0)
+                    VALUES (%s,%s,%s,%s,%s,%s,1,'api',%s,%s,3,10,0)
                 """, (
                     name,
                     schedule['description'],
