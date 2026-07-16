@@ -1642,6 +1642,144 @@ def init_db():
         m.commit()
         print('[Migration] interests + user_interests tables created')
 
+    # ── social_media_links + header_nav + footer_* + partner_links ──
+    with get_db() as m:
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS social_media_links (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                platform_name   TEXT NOT NULL DEFAULT '',
+                icon_type       TEXT NOT NULL DEFAULT 'fontawesome',
+                icon_value      TEXT NOT NULL DEFAULT '',
+                url             TEXT NOT NULL DEFAULT '',
+                display_order   BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                hover_text      TEXT DEFAULT '',
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS header_nav (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                site            TEXT NOT NULL DEFAULT 'platform',
+                title           TEXT NOT NULL DEFAULT '',
+                url             TEXT NOT NULL DEFAULT '',
+                sort_order      BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS footer_links (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                section         TEXT NOT NULL DEFAULT '',
+                title           TEXT NOT NULL DEFAULT '',
+                url             TEXT NOT NULL DEFAULT '',
+                sort_order      BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS footer_nav (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                title           TEXT NOT NULL DEFAULT '',
+                url             TEXT NOT NULL DEFAULT '',
+                sort_order      BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS footer_articles (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                title           TEXT NOT NULL DEFAULT '',
+                url             TEXT NOT NULL DEFAULT '',
+                sort_order      BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS partner_links (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                name            TEXT NOT NULL DEFAULT '',
+                url             TEXT NOT NULL DEFAULT '',
+                icon_url        TEXT DEFAULT '',
+                sort_order      BIGINT DEFAULT 0,
+                is_enabled      BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.commit()
+        print('[Migration] social_media_links + header_nav + footer_* + partner_links tables created')
+
+    # ── regions: 行政区划表（中国省市三级联动）──
+    with get_db() as m:
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS regions (
+                code            BIGINT PRIMARY KEY,
+                name            TEXT NOT NULL,
+                level           BIGINT DEFAULT 0,
+                parent_code     BIGINT DEFAULT 0,
+                full_name       TEXT DEFAULT '',
+                created_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        m.commit()
+        # 检查是否需要 seed（仅空表时写入基础层级）
+        empty = m.execute("SELECT count(*) FROM regions").fetchone()[0]
+        if empty == 0:
+            # 省/自治区/直辖市 level-1（简化 seed，仅基础数据）
+            import json
+            base_regions = [
+                (110000, '北京市', 1, 100000, '中国/北京市'),
+                (120000, '天津市', 1, 100000, '中国/天津市'),
+                (130000, '河北省', 1, 100000, '中国/河北省'),
+                (140000, '山西省', 1, 100000, '中国/山西省'),
+                (150000, '内蒙古自治区', 1, 100000, '中国/内蒙古自治区'),
+                (210000, '辽宁省', 1, 100000, '中国/辽宁省'),
+                (220000, '吉林省', 1, 100000, '中国/吉林省'),
+                (230000, '黑龙江省', 1, 100000, '中国/黑龙江省'),
+                (310000, '上海市', 1, 100000, '中国/上海市'),
+                (320000, '江苏省', 1, 100000, '中国/江苏省'),
+                (330000, '浙江省', 1, 100000, '中国/浙江省'),
+                (340000, '安徽省', 1, 100000, '中国/安徽省'),
+                (350000, '福建省', 1, 100000, '中国/福建省'),
+                (360000, '江西省', 1, 100000, '中国/江西省'),
+                (370000, '山东省', 1, 100000, '中国/山东省'),
+                (410000, '河南省', 1, 100000, '中国/河南省'),
+                (420000, '湖北省', 1, 100000, '中国/湖北省'),
+                (430000, '湖南省', 1, 100000, '中国/湖南省'),
+                (440000, '广东省', 1, 100000, '中国/广东省'),
+                (450000, '广西壮族自治区', 1, 100000, '中国/广西壮族自治区'),
+                (460000, '海南省', 1, 100000, '中国/海南省'),
+                (500000, '重庆市', 1, 100000, '中国/重庆市'),
+                (510000, '四川省', 1, 100000, '中国/四川省'),
+                (520000, '贵州省', 1, 100000, '中国/贵州省'),
+                (530000, '云南省', 1, 100000, '中国/云南省'),
+                (540000, '西藏自治区', 1, 100000, '中国/西藏自治区'),
+                (610000, '陕西省', 1, 100000, '中国/陕西省'),
+                (620000, '甘肃省', 1, 100000, '中国/甘肃省'),
+                (630000, '青海省', 1, 100000, '中国/青海省'),
+                (640000, '宁夏回族自治区', 1, 100000, '中国/宁夏回族自治区'),
+                (650000, '新疆维吾尔自治区', 1, 100000, '中国/新疆维吾尔自治区'),
+                (710000, '台湾省', 1, 100000, '中国/台湾省'),
+                (810000, '香港特别行政区', 1, 100000, '中国/香港特别行政区'),
+                (820000, '澳门特别行政区', 1, 100000, '中国/澳门特别行政区'),
+            ]
+            for b in base_regions:
+                m.execute("INSERT INTO regions (code, name, level, parent_code, full_name) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (code) DO NOTHING", b)
+            m.commit()
+            print(f'[Migration] regions: {len(base_regions)} level-1 regions seeded')
+        else:
+            print(f'[Migration] regions: {empty} rows already exist, skipping seed')
+
     # ── Seed default interest tags ──
     with get_db() as m:
         existing = m.execute("SELECT COUNT(*) FROM interests").fetchone()[0]
