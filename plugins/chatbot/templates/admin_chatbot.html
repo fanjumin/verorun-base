@@ -189,7 +189,13 @@ function saveChatbotSettings(){
   };
   fetch("/admin/chatbot/settings",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.success){showToast("{{ _('Saved') }}","success")}
+      if(d.success){
+      showToast("{{ _('Saved') }}","success");
+      // 刷新头像预览确认保存生效
+      var url = document.getElementById('cb-avatar_url').value.trim();
+      var preview = document.getElementById('cb-avatar-preview');
+      if(url && preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:1px solid var(--bd)">';
+    }
       else showToast(d.error||"{{ _('Failed') }}","error");
     }).catch(function(){showToast("{{ _('Failed') }}","error")});
 }
@@ -265,7 +271,7 @@ function openChatbotMediaPicker(){
 function selectChatbotAvatar(url){
   document.getElementById('cb-avatar_url').value = url;
   var preview = document.getElementById('cb-avatar-preview');
-  if(preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
+  if(preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:1px solid var(--bd)">';
   var overlay = document.getElementById('chatbotMediaPickerOverlay');
   if(overlay) overlay.remove();
   showToast("{{ _('Avatar selected') }}","success");
@@ -283,7 +289,7 @@ function uploadChatbotAvatar(){
     var url = "/admin/static/media/"+d.data.filename;
     document.getElementById('cb-avatar_url').value = url;
     var preview = document.getElementById('cb-avatar-preview');
-    if(preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">';
+    if(preview) preview.innerHTML = '<img src="'+esc(url)+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:1px solid var(--bd)">';
     showToast("{{ _('Uploaded') }}","success");
   }).catch(function(){showToast("{{ _('Upload failed') }}","error")});
 }
