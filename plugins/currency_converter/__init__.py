@@ -92,7 +92,7 @@ class CurrencyConverterPlugin(BasePlugin):
         try:
             from .models import get_db
             conn = get_db()
-            count = conn.execute('SELECT COUNT(*) FROM exchange_rates').fetchone()[0]
+            count = conn.execute('SELECT COUNT(*) FROM exchange_rates').fetchone()['count']
             latest = conn.execute(
                 'SELECT fetched_at FROM exchange_rates ORDER BY fetched_at DESC LIMIT 1'
             ).fetchone()

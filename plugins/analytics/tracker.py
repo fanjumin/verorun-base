@@ -207,9 +207,9 @@ def delete_alert(alert_id: int) -> bool:
     """删除告警规则"""
     conn = am.get_db()
     try:
-        conn.execute("DELETE FROM analytics_alerts WHERE id=?", (alert_id,))
+        cur = conn.execute("DELETE FROM analytics_alerts WHERE id=?", (alert_id,))
         conn.commit()
-        return conn.execute("SELECT changes()").fetchone()['changes'] > 0
+        return cur.rowcount > 0
     finally:
         conn.close()
 

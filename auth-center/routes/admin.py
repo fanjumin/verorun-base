@@ -1724,7 +1724,7 @@ def create_social_link():
     if not name:
         return jsonify({'success': False, 'error': '名称不能为空'}), 400
     with get_db() as conn:
-        max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM social_links').fetchone()['coalesce']
+        max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 AS max_sort FROM social_links').fetchone()['max_sort']
         lid = conn.execute(
             'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
             (name, url, icon_url, platform, max_sort, is_active)

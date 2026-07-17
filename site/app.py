@@ -296,11 +296,11 @@ def get_live_stats():
     live_stats = {'agents': 0, 'users': 0, 'posts': 0, 'feeds': 0, 'guilds': 0}
     try:
         with get_db() as conn:
-            live_stats['agents'] = conn.execute("SELECT COUNT(*) FROM agent_profiles").fetchone()[0]
-            live_stats['users'] = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            live_stats['posts'] = conn.execute("SELECT COUNT(*) FROM cms_posts WHERE is_published=1").fetchone()[0]
-            live_stats['feeds'] = conn.execute("SELECT COUNT(*) FROM agent_feeds").fetchone()[0]
-            live_stats['guilds'] = conn.execute("SELECT COUNT(*) FROM guilds").fetchone()[0]
+            live_stats['agents'] = conn.execute("SELECT COUNT(*) FROM agent_profiles").fetchone()['count']
+            live_stats['users'] = conn.execute("SELECT COUNT(*) FROM users").fetchone()['count']
+            live_stats['posts'] = conn.execute("SELECT COUNT(*) FROM cms_posts WHERE is_published=1").fetchone()['count']
+            live_stats['feeds'] = conn.execute("SELECT COUNT(*) FROM agent_feeds").fetchone()['count']
+            live_stats['guilds'] = conn.execute("SELECT COUNT(*) FROM guilds").fetchone()['count']
     except Exception as e:
         print(f'[Live stats loading] error: {e}')
     return live_stats
@@ -768,8 +768,8 @@ def about_page():
         }
 
         with get_db() as conn:
-            stats['clients'] = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-            stats['projects'] = conn.execute('SELECT COUNT(*) FROM cms_posts WHERE is_published=1').fetchone()[0]
+            stats['clients'] = conn.execute('SELECT COUNT(*) FROM users').fetchone()['count']
+            stats['projects'] = conn.execute('SELECT COUNT(*) FROM cms_posts WHERE is_published=1').fetchone()['count']
             stats['satisfaction'] = 98
             stats['years'] = 1
 

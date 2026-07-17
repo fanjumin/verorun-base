@@ -41,7 +41,7 @@ class WishlistPlugin(BasePlugin):
             with get_db() as conn:
                 total = conn.execute(
                     'SELECT COUNT(*) FROM wishlist WHERE user_id=?', (uid,)
-                ).fetchone()[0]
+                ).fetchone()['count']
                 rows = conn.execute(
                     '''SELECT * FROM wishlist WHERE user_id=?
                        ORDER BY created_at DESC LIMIT ? OFFSET ?''',
@@ -147,7 +147,7 @@ class WishlistPlugin(BasePlugin):
             with get_db() as conn:
                 count = conn.execute(
                     'SELECT COUNT(*) FROM wishlist WHERE user_id=%s', (uid,)
-                ).fetchone()[0]
+                ).fetchone()['count']
             return jsonify({'success': True, 'data': {'count': count}})
 
         return [bp]

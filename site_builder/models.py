@@ -201,7 +201,7 @@ def create_prompt(data: dict) -> int:
             )
         )
         conn.commit()
-        new_id = conn.execute("SELECT lastval()").fetchone()[0]
+        new_id = conn.execute("SELECT lastval()").fetchone()['lastval']
     return new_id
 
 

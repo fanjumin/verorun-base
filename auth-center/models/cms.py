@@ -118,7 +118,7 @@ def init_cms_tables():
         # Seed default categories if empty
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM cms_categories")
-        existing = cur.fetchone()['count']
+        existing = cur.fetchone()[0]
         if existing == 0:
             cats = [
                 # ── 公开分类 ──
@@ -456,7 +456,7 @@ def upsert_category(data: dict):
             )
         else:
             cur = conn.execute(
-                "INSERT INTO cms_categories (name, icon, slug, audience, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO cms_categories (name, icon, slug, audience, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
                 (data['name'], data.get('icon', '📄'), data.get('slug', ''),
                  data.get('audience', 'public'), int(data.get('sort_order', 0)),
                  data.get('is_active', 1))

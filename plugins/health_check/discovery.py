@@ -242,7 +242,7 @@ def scan_tables(db_path: Optional[str] = None) -> List[dict]:
             # Row count
             try:
                 cursor.execute(f'SELECT COUNT(*) FROM "{tname}"')
-                row_count = cursor.fetchone()[0]
+                row_count = cursor.fetchone()['count']
             except psycopg2.Error:
                 row_count = -1
 

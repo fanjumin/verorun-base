@@ -62,7 +62,7 @@ class ReviewsPlugin(BasePlugin):
                 total = conn.execute(
                     f'SELECT COUNT(*) FROM product_reviews r WHERE {" AND ".join(where)}',
                     params
-                ).fetchone()[0]
+                ).fetchone()['count']
 
                 rows = conn.execute(
                     f'''SELECT * FROM product_reviews r
@@ -213,7 +213,7 @@ class ReviewsPlugin(BasePlugin):
                 total = conn.execute(
                     'SELECT COUNT(*) FROM product_reviews WHERE user_id=? AND is_active=1',
                     (uid,)
-                ).fetchone()[0]
+                ).fetchone()['count']
                 rows = conn.execute(
                     '''SELECT * FROM product_reviews r
                         WHERE r.user_id=? AND r.is_active=1
@@ -266,7 +266,7 @@ class ReviewsPlugin(BasePlugin):
             offset = (page - 1) * size
 
             with get_db() as conn:
-                total = conn.execute('SELECT COUNT(*) FROM product_reviews').fetchone()[0]
+                total = conn.execute('SELECT COUNT(*) FROM product_reviews').fetchone()['count']
                 rows = conn.execute(
                     '''SELECT * FROM product_reviews r
                         ORDER BY r.created_at DESC LIMIT ? OFFSET ?''',
