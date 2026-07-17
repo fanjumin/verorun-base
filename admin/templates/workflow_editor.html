@@ -304,23 +304,26 @@ function FlowEditor() {
     }, eds); });
   }, []);
 
-  // 选中节点 → 更新右侧面板
+  // 选中节点 → 更新右侧配置面板
   const onNodeClick = useCallback(function(event, node) {
     setSelectedNode(node);
-    const panel = document.getElementById('node-config-panel');
-    if (!panel) return;
-    panel.innerHTML = '<div class="panel-title" style="margin-bottom:8px">' + (node.data.label || '') + '</div>';
-    panel.innerHTML += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">' + (node.data.description || '') + '</div>';
-    panel.innerHTML += '<div style="font-size:11px;color:var(--text-dim)">Type: ' + (node.data.type || '—') + '</div>';
-    panel.innerHTML += '<div style="font-size:11px;color:var(--text-dim)">ID: ' + node.id + '</div>';
-    panel.innerHTML += '<div style="margin-top:16px;font-size:11px;color:var(--text-muted)">{{ _("Config panel will be available in Phase 4") }}</div>';
+    window.editor.renderConfigPanel(node);
   }, []);
 
   // 点击空白 → 清空右侧面板
   const onPaneClick = useCallback(function() {
     setSelectedNode(null);
-    const panel = document.getElementById('node-config-panel');
-    if (panel) panel.innerHTML = '<div class="panel-empty">{{ _("Select a node to configure") }}</div>';
+    window.editor.renderConfigPanel(null);
+  }, []);
+
+  // 更新节点配置（由 editor.saveNodeConfig 调用）
+  const updateNodeConfig = useCallback(function(nodeId, config, incomplete) {
+    setNodes(function(nds) {
+      return nds.map(function(n) {
+        if (n.id !== nodeId) return n;
+        return { ...n, data: { ...n.data, config: { ...n.data.config, ...config }, incomplete: incomplete } };
+      });
+    });
   }, []);
 
   // 从面板拖入画布
@@ -352,7 +355,12 @@ function FlowEditor() {
 
   // 暴露 state 给全局 editor
   useEffect(function() {
-    window.editor.__flowState = { setNodes, setEdges, rfInstance, getNodes: function() { return nodes; }, getEdges: function() { return edges; } };
+    window.editor.__flowState = {
+      setNodes, setEdges, rfInstance,
+      getNodes: function() { return nodes; },
+      getEdges: function() { return edges; },
+      updateNodeConfig: updateNodeConfig
+    };
     // 注册 accessor
     window.editor.setEdgeAccessor(function() { return nodes; }, function() { return edges; });
   }, [nodes, edges, rfInstance]);

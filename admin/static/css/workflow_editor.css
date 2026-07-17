@@ -273,6 +273,7 @@ body {
 .react-flow__edge-path { stroke: var(--text-muted) !important; }
 .react-flow__edge.selected .react-flow__edge-path { stroke: var(--blue) !important; }
 
+/* 非法连线脉冲 */
 .react-flow__edge.invalid-edge .react-flow__edge-path {
   stroke: #f85149 !important;
   stroke-width: 3px !important;
@@ -283,10 +284,30 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
-#editor-left::-webkit-scrollbar,
-#editor-right::-webkit-scrollbar {
-  width: 4px;
+
+/* ── 配置面板 ── */
+#node-config-panel { padding: 12px; overflow-y: auto; height: calc(100% - 120px); }
+.panel-empty { color: var(--text-dim); font-size: 12px; text-align: center; padding: 40px 12px; }
+.cp-header { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.cp-type { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.cp-fields { display: flex; flex-direction: column; gap: 10px; }
+.cp-field { display: flex; flex-direction: column; gap: 4px; }
+.cp-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
+.cp-input {
+  font-size: 12px; padding: 6px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-input, var(--bg-card));
+  color: var(--text); outline: none; transition: border-color .15s;
 }
+.cp-input:focus { border-color: var(--indigo); }
+.cp-select { cursor: pointer; }
+.cp-textarea { resize: vertical; min-height: 60px; font-family: inherit; line-height: 1.4; }
+.cp-checkbox { width: 16px; height: 16px; cursor: pointer; }
+.cp-actions { margin-top: 16px; display: flex; gap: 6px; }
+#editor-right { overflow: hidden; }
+
+/* ── Scrollbar ── */
+#editor-left::-webkit-scrollbar,
+#editor-right::-webkit-scrollbar { width: 4px; }
 #editor-left::-webkit-scrollbar-track,
 #editor-right::-webkit-scrollbar-track {
   background: transparent;
