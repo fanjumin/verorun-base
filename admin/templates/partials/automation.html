@@ -49,7 +49,9 @@ function renderWorkflowList(){
 
   aWfs.forEach(function(w){
     var nodesCount=0;
-    if(w.definition&&w.definition.nodes) nodesCount=w.definition.nodes.length;
+    var def = w.definition;
+    if (typeof def === 'string') { try { def = JSON.parse(def); } catch(e) { def = null; } }
+    if(def&&def.nodes) nodesCount=def.nodes.length;
     var st=workflowStatusBadge(w.status);
     var lastRun=w.last_run_at||'-';
     if(lastRun!=='-'&&lastRun.length>16) lastRun=lastRun.substring(0,16);
@@ -113,21 +115,20 @@ function deleteWorkflow(id,name){
 function showTemplateMenu(){
   var btn=document.getElementById("aTplBtn");
   if(!aWfs)return;
-  // 模板菜单用简单下拉
   var menu=document.getElementById("aTplMenu");
   if(menu){menu.remove();return}
   menu=document.createElement("div");
   menu.id="aTplMenu";
-  menu.style.cssText="position:absolute;top:100%;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:4px;z-index:100;min-width:200px;box-shadow:var(--shadow-md)";
-  fetch("/admin/automation/templates",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+  menu.style.cssText="position:absolute;top:100%;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:4px;z-index:100;min-width:220px;box-shadow:var(--shadow-md)";
+  fetch("/admin/automation/workflow-templates",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     var tpls=d.data||[];
     tpls.forEach(function(t){
       var item=document.createElement("div");
       item.style.cssText="padding:8px 12px;cursor:pointer;border-radius:4px;font-size:12px;color:var(--text)";
       item.onmouseover=function(){item.style.background="var(--border)"};
       item.onmouseout=function(){item.style.background="transparent"};
-      item.onclick=function(){menu.remove();createFromTemplate(t.id)};
-      item.textContent=(t.name||t.id);
+      item.onclick=function(){menu.remove();createFromTemplate(t)};
+      item.textContent=(t.name||t.key||'—');
       menu.appendChild(item);
     });
     if(tpls.length===0){
@@ -145,12 +146,28 @@ function showTemplateMenu(){
   setTimeout(function(){document.addEventListener("click",function handler(e){if(!menu.contains(e.target)&&e.target!==btn){menu.remove();document.removeEventListener("click",handler)}})},0);
 }
 
-function createFromTemplate(templateId){
-  fetch("/admin/automation/templates/"+templateId+"/create",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success&&d.data&&d.data.id){
-      openWorkflowEditor(d.data.id);
-    }else{
-      alert("{{ _('Failed to create from template') }}");
+function createFromTemplate(tpl){
+  // 前端实现：读取模板 definition → POST 到 workflows API
+  var name = (tpl.name || 'Template Workflow') + ' (' + new Date().toISOString().substring(0,10) + ')';
+  var payload = {
+    name: name,
+    definition: tpl.definition || { nodes: [], edges: [] },
+    triggers: tpl.triggers || [],
+    max_concurrency: tpl.max_concurrency || 1,
+    timeout_minutes: tpl.timeout_minutes || 60,
+    on_error: tpl.on_error || 'pause'
+  };
+  fetch("/admin/automation/workflows", {
+    method: "POST",
+    headers: {"Content-Type":"application/json","Authorization":"Bearer "+T},
+    body: JSON.stringify(payload)
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success && d.data){
+      var newId = d.data.id || d.data.workflow_id;
+      if(newId){ openWorkflowEditor(newId); }
+      else { alert("{{ _('Failed to create from template') }}"); }
+    } else {
+      alert("{{ _('Failed to create from template') }}: " + esc(d.error||''));
     }
   }).catch(function(){alert("{{ _('Network error') }}")});
 }
