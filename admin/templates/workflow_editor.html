@@ -1,0 +1,328 @@
+{# VeroRun — 工作流拖拽编辑器 #}
+{#
+  独立 React 页面，通过 CDN 加载以下库：
+    - React 18.3.1 (production UMD)
+    - ReactDOM 18.3.1 (production UMD)
+    - react-flow-renderer 10.3.17 (UMD)
+
+  路由: /admin/workflow-editor
+  JWT SSO Token 通过 sso_token cookie 或 URL 参数传递
+#}
+<!DOCTYPE html>
+<html lang="{{ g.lang_code or 'zh-CN' }}">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ _('Workflow Editor') }} — {{ _('Admin Panel') }}</title>
+
+{# 设计系统 vars #}
+<link rel="stylesheet" href="{{ url_for('static_files', filename='css/design-system.css') }}"/>
+
+{# 编辑器专用样式 #}
+<link rel="stylesheet" href="{{ url_for('static_files', filename='css/workflow_editor.css') }}"/>
+
+{# React Flow 样式 #}
+<link rel="stylesheet" href="{{ url_for('static_files', filename='lib/workflow/react-flow.css') }}"/>
+
+{# JS 库：按加载顺序 #}
+<script src="{{ url_for('static_files', filename='lib/workflow/react.production.min.js') }}"></script>
+<script src="{{ url_for('static_files', filename='lib/workflow/react-dom.production.min.js') }}"></script>
+<script src="{{ url_for('static_files', filename='lib/workflow/react-flow-renderer.umd.js') }}"></script>
+
+{# 编辑器工具函数 #}
+<script src="{{ url_for('static_files', filename='js/workflow_editor.js') }}"></script>
+
+{# 翻译字典 #}
+<script>
+window.__locale = '{{ g.lang_code or "zh-CN" }}';
+window.__t = {
+  // 通用
+  'editor.title':           '{{ _("Workflow Editor") }}',
+  'editor.back':            '{{ _("← Back to List") }}',
+  'editor.save':            '{{ _("Save") }}',
+  'editor.run':             '{{ _("Run") }}',
+  'editor.cancel':          '{{ _("Cancel") }}',
+  'editor.delete':          '{{ _("Delete") }}',
+  'editor.confirm':         '{{ _("Confirm") }}',
+  'editor.save_as_template':'{{ _("Save as Template") }}',
+
+  // 节点类型分类
+  'panel.category.ai':      '{{ _("AI Processing") }}',
+  'panel.category.flow':    '{{ _("Flow Control") }}',
+  'panel.category.output':  '{{ _("Output Actions") }}',
+  'panel.category.human':   '{{ _("Human Interaction") }}',
+  'panel.category.advanced':'{{ _("Advanced") }}',
+
+  // 12 种节点名称
+  'node.ai_agent':          '{{ _("AI Agent") }}',
+  'node.data_collect':      '{{ _("Data Collection") }}',
+  'node.ai_process':        '{{ _("AI Process") }}',
+  'node.condition':         '{{ _("Condition") }}',
+  'node.wait':              '{{ _("Wait") }}',
+  'node.publish':           '{{ _("Publish") }}',
+  'node.notify':            '{{ _("Notify") }}',
+  'node.approval':          '{{ _("Approval") }}',
+  'node.script':            '{{ _("Script") }}',
+  'node.http_request':      '{{ _("HTTP Request") }}',
+  'node.market_check':      '{{ _("Market Check") }}',
+  'node.sub_workflow':      '{{ _("Sub Workflow") }}',
+
+  // 状态栏
+  'statusbar.nodes':        '{{ _("Nodes: {count}") }}',
+  'statusbar.edges':        '{{ _("Edges: {count}") }}',
+  'statusbar.saved':        '{{ _("Saved") }}',
+  'statusbar.modified':     '{{ _("Modified") }}',
+
+  // Toast
+  'toast.save.success':     '{{ _("Workflow saved successfully") }}',
+  'toast.save.failed':      '{{ _("Failed to save workflow") }}',
+  'toast.load.failed':      '{{ _("Failed to load workflow") }}',
+  'toast.run.success':      '{{ _("Workflow started successfully") }}',
+  'toast.run.failed':       '{{ _("Workflow execution failed") }}',
+  'toast.cycle_detected':   '{{ _("Cycle detected, cannot create this connection") }}',
+  'toast.config.incomplete':'{{ _("Please complete all required fields") }}',
+
+  '_': function(key) { return this[key] || key; }
+};
+</script>
+
+{# SSO Token #}
+<script>window.__SSO_TOKEN = '{{ sso_token }}';</script>
+
+</head>
+<body>
+
+<!-- 顶部工具栏 -->
+<header id="editor-toolbar">
+  <div class="toolbar-left">
+    <a href="/admin#automation" class="toolbar-back" id="btn-back">← {{ _('Back') }}</a>
+    <input type="text" id="workflow-name" class="toolbar-title-input"
+           placeholder="{{ _('Untitled Workflow') }}"/>
+  </div>
+  <div class="toolbar-center">
+    <span id="workflow-status" class="toolbar-status">{{ _('New') }}</span>
+  </div>
+  <div class="toolbar-right">
+    <button class="btn bp bs" id="btn-save" onclick="editor.save()">{{ _('Save') }}</button>
+    <button class="btn bp" id="btn-run" onclick="editor.run()">{{ _('Run') }}</button>
+  </div>
+</header>
+
+<!-- 主体三栏 -->
+<div id="editor-main">
+
+  <!-- 左侧：节点面板 -->
+  <aside id="editor-left">
+    <div class="panel-section">
+      <div class="panel-title">{{ _('Nodes') }}</div>
+      <div id="node-panel-list"></div>
+    </div>
+  </aside>
+
+  <!-- 中间：画布 -->
+  <main id="editor-canvas">
+    <div id="react-flow-root" class="react-flow-wrapper"></div>
+  </main>
+
+  <!-- 右侧：配置面板 -->
+  <aside id="editor-right">
+    <div class="panel-section">
+      <div class="panel-title">{{ _('Node Config') }}</div>
+      <div id="node-config-panel">
+        <div class="panel-empty">{{ _('Select a node to configure') }}</div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- 底部状态栏 -->
+<footer id="editor-footer">
+  <span id="footer-nodes">{{ _("Nodes: 0") }}</span>
+  <span id="footer-edges">{{ _("Edges: 0") }}</span>
+  <span id="footer-status">{{ _("New") }}</span>
+</footer>
+
+{# React 入口 — 使用 Babel Standalone 转译 JSX #}
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script type="text/babel">
+const { createElement: E, useState, useCallback, useRef, useEffect, useMemo } = React;
+const lib = window.ReactFlowRenderer;
+if (!lib) { throw new Error('ReactFlowRenderer not loaded'); }
+
+const RF = lib.default;
+const Provider = lib.ReactFlowProvider;
+const Handle = lib.Handle;
+const Position = lib.Position;
+const Controls = lib.Controls;
+const Background = lib.Background;
+const MiniMap = lib.MiniMap;
+const addEdge = lib.addEdge;
+
+// ── Helper: 更新底部状态栏 ──
+function updateFooter(nodes, edges) {
+  const fn = document.getElementById('footer-nodes');
+  const fe = document.getElementById('footer-edges');
+  const fs = document.getElementById('footer-status');
+  if (fn) fn.textContent = window.__t._('statusbar.nodes').replace('{count}', nodes.length);
+  if (fe) fe.textContent = window.__t._('statusbar.edges').replace('{count}', edges.length);
+  if (fs) { fs.textContent = window.__t._('statusbar.modified'); fs.style.color = 'var(--gold)'; }
+}
+
+// ── Helper: 更新工作流名称输入 ──
+function syncWorkflowName(nodes) {
+  // 将来从 API 加载时使用
+}
+
+// ── 自定义节点组件 ──
+function BaseNode({ data, selected }) {
+  const borderColor = data.color || '#6366f1';
+  return E('div', {
+    className: 'rf-node' + (selected ? ' rf-node-selected' : '') + (data.incomplete ? ' rf-node-incomplete' : ''),
+    style: { borderColor }
+  },
+    data.icon ? E('span', { className: 'rf-node-icon' }, data.icon) : null,
+    E('div', { className: 'rf-node-body' },
+      E('div', { className: 'rf-node-label' }, data.label || ''),
+      data.description ? E('div', { className: 'rf-node-desc' }, data.description) : null
+    ),
+    // 输入端口（如果不是起始节点）
+    data.showInput !== false && E(Handle, {
+      type: 'target', position: Position.Left,
+      className: 'rf-handle', id: 'in'
+    }),
+    // 输出端口（如果不是终止节点）
+    data.showOutput !== false && E(Handle, {
+      type: 'source', position: Position.Right,
+      className: 'rf-handle', id: 'out'
+    })
+  );
+}
+
+// 条件节点：2 个输出端口（true / false）
+function ConditionNode({ data, selected }) {
+  const borderColor = data.color || '#eab308';
+  return E('div', {
+    className: 'rf-node' + (selected ? ' rf-node-selected' : '') + (data.incomplete ? ' rf-node-incomplete' : ''),
+    style: { borderColor }
+  },
+    data.icon ? E('span', { className: 'rf-node-icon' }, data.icon) : null,
+    E('div', { className: 'rf-node-body' },
+      E('div', { className: 'rf-node-label' }, data.label || ''),
+      data.description ? E('div', { className: 'rf-node-desc' }, data.description) : null
+    ),
+    E(Handle, { type: 'target', position: Position.Left, className: 'rf-handle', id: 'in' }),
+    E(Handle, { type: 'source', position: Position.Top, className: 'rf-handle rf-handle-condition', id: 'true', style: { background: '#16a34a' } }),
+    E(Handle, { type: 'source', position: Position.Bottom, className: 'rf-handle rf-handle-condition', id: 'false', style: { background: '#ef4444' } })
+  );
+}
+
+const nodeTypes = { default: BaseNode, condition: ConditionNode };
+
+// ── ReactFlow 应用组件 ──
+function FlowEditor() {
+  const [nodes, setNodes, onNodesChange] = lib.useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = lib.useEdgesState([]);
+  const reactFlowWrapper = useRef(null);
+  const [rfInstance, setRfInstance] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
+
+  // 连线完成
+  const onConnect = useCallback((params) => {
+    setEdges((eds) => addEdge({
+      ...params,
+      animated: true,
+      style: { stroke: '#6366f1', strokeWidth: 2 }
+    }, eds));
+  }, []);
+
+  // 选中节点 → 更新右侧面板
+  const onNodeClick = useCallback((event, node) => {
+    setSelectedNode(node);
+    const panel = document.getElementById('node-config-panel');
+    if (!panel) return;
+    panel.innerHTML = '<div class="panel-title" style="margin-bottom:8px">' + (node.data.label || '') + '</div>';
+    panel.innerHTML += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">' + (node.data.description || '') + '</div>';
+    panel.innerHTML += '<div style="font-size:11px;color:var(--text-dim)">Type: ' + (node.data.type || '—') + '</div>';
+    panel.innerHTML += '<div style="font-size:11px;color:var(--text-dim)">ID: ' + node.id + '</div>';
+    panel.innerHTML += '<div style="margin-top:16px;font-size:11px;color:var(--text-muted)">{{ _("Config panel will be available in Phase 4") }}</div>';
+  }, []);
+
+  // 点击空白 → 清空右侧面板
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+    const panel = document.getElementById('node-config-panel');
+    if (panel) panel.innerHTML = '<div class="panel-empty">{{ _("Select a node to configure") }}</div>';
+  }, []);
+
+  // 从面板拖入画布
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback((event) => {
+    event.preventDefault();
+    const type = event.dataTransfer.getData('application/reactflow');
+    if (!type || !rfInstance) return;
+    const position = rfInstance.screenToFlowPosition({
+      x: event.clientX, y: event.clientY
+    });
+    const defaults = editor.getNodeDefaults(type);
+    const nodeType = type === 'condition' ? 'condition' : 'default';
+    const newNode = {
+      id: 'node_' + Date.now(),
+      type: nodeType,
+      position,
+      data: defaults
+    };
+    setNodes((nds) => nds.concat(newNode));
+  }, [rfInstance]);
+
+  // 节点/边变化时更新状态栏
+  useEffect(() => {
+    updateFooter(nodes, edges);
+  }, [nodes, edges]);
+
+  // 暴露 state 给全局 editor（用于 save/load）
+  useEffect(() => {
+    window.editor.__flowState = { setNodes, setEdges, rfInstance, getNodes: () => nodes, getEdges: () => edges };
+  }, [nodes, edges, rfInstance]);
+
+  return E('div', { style: { width: '100%', height: '100%' }, ref: reactFlowWrapper },
+    E(Provider, null,
+      E(RF, {
+        nodes, edges,
+        onNodesChange, onEdgesChange,
+        onConnect,
+        nodeTypes,
+        fitView: true,
+        onInit: setRfInstance,
+        onDragOver,
+        onDrop,
+        onNodeClick,
+        onPaneClick,
+        deleteKeyCode: ['Backspace', 'Delete'],
+        attributionPosition: 'bottom-left',
+        className: 'react-flow-custom'
+      },
+        E(Controls, { className: 'rf-controls' }),
+        E(Background, { gap: 20, size: 1, color: 'rgba(255,255,255,0.04)' }),
+        E(MiniMap, {
+          style: { width: 140, height: 90 },
+          className: 'rf-minimap',
+          nodeColor: 'rgba(99,102,241,0.6)',
+          maskColor: 'rgba(0,0,0,0.6)'
+        })
+      )
+    )
+  );
+}
+
+// ── 挂载 React 应用 ──
+const root = ReactDOM.createRoot(document.getElementById('react-flow-root'));
+root.render(E(FlowEditor));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,272 @@
+/* ══════════════════════════════════════════════════════════════
+   Workflow Drag Editor — 三栏布局 + 节点样式
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Layout ── */
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font-cn);
+  font-size: 13px;
+}
+
+/* ── Toolbar ── */
+#editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+  flex-shrink: 0;
+}
+.toolbar-left { display: flex; align-items: center; gap: 12px; }
+.toolbar-center { display: flex; align-items: center; }
+.toolbar-right { display: flex; align-items: center; gap: 8px; }
+.toolbar-back {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: color .15s;
+}
+.toolbar-back:hover { color: var(--text); background: var(--border); }
+.toolbar-title-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-cn);
+  padding: 4px 8px;
+  width: 260px;
+  outline: none;
+  transition: border-color .15s;
+}
+.toolbar-title-input:focus { border-bottom-color: var(--indigo); }
+.toolbar-title-input::placeholder { color: var(--text-muted); }
+.toolbar-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--border);
+  color: var(--text-dim);
+}
+
+/* ── Editor Main (三栏) ── */
+#editor-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 左侧面板 */
+#editor-left {
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+#editor-left .panel-section { padding: 12px; }
+#editor-left .panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* 节点面板项 */
+.node-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: grab;
+  transition: all .15s;
+  font-size: 12px;
+  user-select: none;
+}
+.node-panel-item:hover {
+  border-color: var(--border-accent);
+  background: var(--bg-glass);
+  transform: translateX(2px);
+}
+.node-panel-item:active { cursor: grabbing; }
+.node-panel-item .node-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* 中间画布 */
+#editor-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.react-flow-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+/* 右侧面板 */
+#editor-right {
+  width: 300px;
+  min-width: 300px;
+  background: var(--bg-elevated);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+#editor-right .panel-section { padding: 12px; }
+#editor-right .panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.panel-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── Footer ── */
+#editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 28px;
+  padding: 0 16px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── React Flow 自定义节点 ── */
+.rf-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 2px solid var(--indigo);
+  font-size: 12px;
+  min-width: 140px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .15s, border-color .15s;
+  cursor: pointer;
+}
+.rf-node:hover { box-shadow: var(--shadow-md); }
+.rf-node-selected {
+  box-shadow: var(--shadow-glow);
+  border-color: var(--blue);
+}
+.rf-node-incomplete::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rose);
+  box-shadow: 0 0 6px var(--rose);
+}
+.rf-node-icon { font-size: 18px; flex-shrink: 0; }
+.rf-node-body { min-width: 0; }
+.rf-node-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rf-node-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rf-handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: var(--indigo) !important;
+  border: 2px solid var(--bg-card) !important;
+  transition: transform .15s;
+}
+.rf-handle:hover { transform: scale(1.4); }
+.rf-handle-condition {
+  width: 10px !important;
+  height: 10px !important;
+  border-width: 2px !important;
+}
+
+/* ── React Flow 覆写 ── */
+.react-flow__background { background: var(--bg-deep) !important; }
+.react-flow__controls {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.react-flow__controls button {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-dim) !important;
+  fill: var(--text-dim) !important;
+}
+.react-flow__controls button:hover {
+  background: var(--bg-elevated) !important;
+}
+.react-flow__minimap {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  overflow: hidden;
+}
+.react-flow__edge-path { stroke: var(--text-muted) !important; }
+.react-flow__edge.selected .react-flow__edge-path { stroke: var(--blue) !important; }
+
+/* ── Scrollbar ── */
+#editor-left::-webkit-scrollbar,
+#editor-right::-webkit-scrollbar {
+  width: 4px;
+}
+#editor-left::-webkit-scrollbar-track,
+#editor-right::-webkit-scrollbar-track {
+  background: transparent;
+}
+#editor-left::-webkit-scrollbar-thumb,
+#editor-right::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}

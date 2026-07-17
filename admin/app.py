@@ -289,6 +289,24 @@ def admin_page():
     return resp
 
 
+@app.route('/admin/workflow-editor')
+def workflow_editor():
+    """工作流拖拽编辑器 — 独立 React 页面"""
+    from services.jwt_service import validate_token
+    from flask import make_response
+    token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = request.cookies.get('sso_token')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return redirect('/admin/login')
+    resp = make_response(render_template('workflow_editor.html', sso_token=token))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+
 @app.route('/login')
 def login_page():
     return render_template('login.html')
