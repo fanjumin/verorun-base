@@ -175,6 +175,9 @@ function syncWorkflowName(nodes) {
 }
 
 // ── 自定义节点组件 ──
+// 所有 12 种节点类型通过 data 属性 + 少数变体组件覆盖
+
+// 基础节点（单入单出，覆盖 8 种：ai_agent/ai_process/wait/publish/approval/script/http_request/sub_workflow）
 function BaseNode({ data, selected }) {
   const borderColor = data.color || '#6366f1';
   return E('div', {
@@ -186,12 +189,12 @@ function BaseNode({ data, selected }) {
       E('div', { className: 'rf-node-label' }, data.label || ''),
       data.description ? E('div', { className: 'rf-node-desc' }, data.description) : null
     ),
-    // 输入端口（如果不是起始节点）
+    // 输入端口（showInput=false 时为起始节点，如 data_collect）
     data.showInput !== false && E(Handle, {
       type: 'target', position: Position.Left,
       className: 'rf-handle', id: 'in'
     }),
-    // 输出端口（如果不是终止节点）
+    // 输出端口（showOutput=false 时为终止节点，如 notify）
     data.showOutput !== false && E(Handle, {
       type: 'source', position: Position.Right,
       className: 'rf-handle', id: 'out'
@@ -199,9 +202,14 @@ function BaseNode({ data, selected }) {
   );
 }
 
-// 条件节点：2 个输出端口（true / false）
-function ConditionNode({ data, selected }) {
-  const borderColor = data.color || '#eab308';
+// 条件节点：1 入 2 出（true / false）
+function ConditionNode(p) { return DualPortNode(p, '#eab308', 'true', '#16a34a', 'false', '#ef4444'); }
+// 市场检查节点：1 入 2 出（pass / fail）
+function MarketCheckNode(p) { return DualPortNode(p, '#ea580c', 'pass', '#16a34a', 'fail', '#ef4444'); }
+
+// 双输出端口节点（通用实现）
+function DualPortNode({ data, selected }, color, out1Id, out1Color, out2Id, out2Color) {
+  const borderColor = data.color || color || '#eab308';
   return E('div', {
     className: 'rf-node' + (selected ? ' rf-node-selected' : '') + (data.incomplete ? ' rf-node-incomplete' : ''),
     style: { borderColor }
@@ -212,12 +220,18 @@ function ConditionNode({ data, selected }) {
       data.description ? E('div', { className: 'rf-node-desc' }, data.description) : null
     ),
     E(Handle, { type: 'target', position: Position.Left, className: 'rf-handle', id: 'in' }),
-    E(Handle, { type: 'source', position: Position.Top, className: 'rf-handle rf-handle-condition', id: 'true', style: { background: '#16a34a' } }),
-    E(Handle, { type: 'source', position: Position.Bottom, className: 'rf-handle rf-handle-condition', id: 'false', style: { background: '#ef4444' } })
+    E(Handle, { type: 'source', position: Position.Top, className: 'rf-handle rf-handle-condition', id: out1Id, style: { background: out1Color } }),
+    E(Handle, { type: 'source', position: Position.Bottom, className: 'rf-handle rf-handle-condition', id: out2Id, style: { background: out2Color } })
   );
 }
 
-const nodeTypes = { default: BaseNode, condition: ConditionNode };
+// 注：data_collect (start) 和 notify (end) 由 BaseNode 通过 data.showInput/showOutput 控制
+// 12 种节点类型映射表
+const nodeTypes = {
+  default:       BaseNode,      // 通用单入/单出
+  condition:     ConditionNode, // 双输出（true/false）
+  market_check:  MarketCheckNode // 双输出（pass/fail）
+};
 
 // ── ReactFlow 应用组件 ──
 function FlowEditor() {
@@ -269,7 +283,9 @@ function FlowEditor() {
       x: event.clientX, y: event.clientY
     });
     const defaults = editor.getNodeDefaults(type);
-    const nodeType = type === 'condition' ? 'condition' : 'default';
+    // 节点类型映射：双输出节点有独立组件，其余用 default
+    const typeMap = { condition: 'condition', market_check: 'market_check' };
+    const nodeType = typeMap[type] || 'default';
     const newNode = {
       id: 'node_' + Date.now(),
       type: nodeType,
