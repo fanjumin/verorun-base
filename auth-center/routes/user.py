@@ -587,11 +587,15 @@ CONFIG_SCHEMA = {
     'mp_ai_api_key':           {'label': 'API Key',            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': '输入 API Key'},
     # ├─ 支付配置（已迁移至 PaymentPlugin 插件管理） ─
     # ├─ 实名认证（已迁移至 VerificationPlugin 插件管理） ─
+    # ├─ 后台访问控制 ─
+    'admin_allowed_domains':   {'label': '允许的管理后台域名', 'category': 'admin_access', 'sensitive': False,
+                                'placeholder': 'agent.easykai.cn, admin.easykai.cn'},
 }
 
 CONFIG_CATEGORIES = [
     {'id': 'social', 'title': '社媒推送'},
     {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
+    {'id': 'admin_access', 'title': '后台访问控制'},
 ]
 
 
