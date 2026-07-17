@@ -11,6 +11,21 @@ window.editor = (function() {
   var CURRENT_WORKFLOW_ID = null;  // 编辑模式时非 null
   var EDITOR_INSTANCE = null;      // 保存时获取画布状态
 
+  // ── 国际化辅助 ──
+  function _t(key) {
+    return (window.__t && typeof window.__t._ === 'function' && window.__t._(key)) || key;
+  }
+
+  // ── HTML 转义 ──
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escAttr(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   // ── 节点类型配置 ──
   var NODE_CONFIGS = {
     data_collect: { icon: '📡', color: '#2563eb', label: 'node.data_collect', description: 'Get source data', showInput: false },
@@ -106,7 +121,7 @@ window.editor = (function() {
     fields.forEach(function(f) { defaultConfig[f.key] = f.default; });
     return {
       type: type,
-      label: (window.__t && window.__t._(cfg.label)) || cfg.label,
+      label: _t(cfg.label) || cfg.label,
       description: cfg.description,
       color: cfg.color,
       icon: cfg.icon,
@@ -123,14 +138,14 @@ window.editor = (function() {
     if (!container) return;
     var html = '';
     NODE_CATEGORIES.forEach(function(cat) {
-      var catLabel = (window.__t && window.__t._(cat.key)) || cat.name;
+      var catLabel = _t(cat.key) || cat.name;
       html += '<div class="panel-title" style="margin-top:12px">' + catLabel + '</div>';
       cat.nodes.forEach(function(type) {
         var cfg = NODE_CONFIGS[type];
         html += '<div class="node-panel-item" draggable="true" data-node-type="' + type + '"';
         html += ' ondragstart="editor.onNodeDragStart(event)">';
         html += '<span class="node-icon" style="background:' + (cfg.color + '22') + ';color:' + cfg.color + '">' + cfg.icon + '</span>';
-        html += (window.__t && window.__t._(cfg.label)) || cfg.label;
+        html += _t(cfg.label) || cfg.label;
         html += '</div>';
       });
     });
@@ -363,16 +378,16 @@ window.editor = (function() {
 
   function validateConnection(nodes, edges, source, target, sourceHandle) {
     if (source === target) {
-      return { ok: false, reason: window.__t && window.__t._('toast.self_connect') || 'Cannot connect a node to itself' };
+      return { ok: false, reason: _t('toast.self_connect') };
     }
     var dup = edges.some(function(e) {
       return e.source === source && e.target === target && e.sourceHandle === sourceHandle;
     });
     if (dup) {
-      return { ok: false, reason: window.__t && window.__t._('toast.duplicate_edge') || 'Duplicate connection exists' };
+      return { ok: false, reason: _t('toast.duplicate_edge') };
     }
     if (wouldCreateCycle(edges, source, target)) {
-      return { ok: false, reason: window.__t && window.__t._('toast.cycle_detected') || 'Cycle detected' };
+      return { ok: false, reason: _t('toast.cycle_detected') };
     }
     return { ok: true };
   }
@@ -395,8 +410,15 @@ window.editor = (function() {
     var nodes = flowState.getNodes();
     var edges = flowState.getEdges();
     if (!nodes || nodes.length === 0) {
-      alert(window.__t && window.__t._('toast.empty_workflow') || 'Cannot save an empty workflow');
+      alert(_t('toast.empty_workflow'));
       return;
+    }
+
+    // 检查未配置的节点
+    var incompleteNodes = nodes.filter(function(n) { return n.data && n.data.incomplete; });
+    if (incompleteNodes.length > 0) {
+      var msg = _t('toast.config.incomplete') + ': ' + incompleteNodes.map(function(n) { return n.data.label || n.id; }).join(', ');
+      if (!confirm(msg + '\n\n' + _t('editor.save_anyway_confirm') || 'Save anyway?')) return;
     }
 
     var definition = serializeToDefinition(nodes, edges);
@@ -404,10 +426,7 @@ window.editor = (function() {
     var name = nameInput ? nameInput.value.trim() : '';
     if (!name) name = 'Untitled Workflow';
 
-    var payload = {
-      name: name,
-      definition: definition
-    };
+    var payload = { name: name, definition: definition };
 
     var url = API_BASE;
     var method = 'POST';
@@ -419,43 +438,64 @@ window.editor = (function() {
     document.getElementById('btn-save').disabled = true;
     document.getElementById('btn-save').textContent = 'Saving...';
 
-    fetch(url, {
+    doFetch(url, method, payload)
+      .then(function(d) {
+        document.getElementById('btn-save').disabled = false;
+        document.getElementById('btn-save').textContent = _t('editor.save') || 'Save';
+        if (d.success) {
+          var newId = d.data && (d.data.id || d.data.workflow_id);
+          if (newId && !CURRENT_WORKFLOW_ID) {
+            CURRENT_WORKFLOW_ID = newId;
+            if (history.pushState) {
+              var u = new URL(window.location);
+              u.searchParams.set('id', newId);
+              history.pushState({}, '', u);
+            }
+          }
+          var fs = document.getElementById('footer-status');
+          if (fs) { fs.textContent = _t('statusbar.saved') || 'Saved'; fs.style.color = 'var(--green)'; }
+          toast(_t('toast.save.success') || 'Saved');
+        } else {
+          toast(_t('toast.save.failed') + ': ' + (d.error || ''));
+        }
+      })
+      .catch(function() {
+        document.getElementById('btn-save').disabled = false;
+        document.getElementById('btn-save').textContent = _t('editor.save') || 'Save';
+        toast(_t('toast.save.failed') || 'Network error');
+      });
+  }
+
+  // 带重试的 fetch
+  function doFetch(url, method, body, retries) {
+    retries = retries || 2;
+    return fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + T },
-      body: JSON.stringify(payload)
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      document.getElementById('btn-save').disabled = false;
-      document.getElementById('btn-save').textContent = window.__t && window.__t._('editor.save') || 'Save';
-      if (d.success) {
-        if (d.data && d.data.id && !CURRENT_WORKFLOW_ID) {
-          CURRENT_WORKFLOW_ID = d.data.id;
-          // 更新 URL
-          if (history.pushState) {
-            var url = new URL(window.location);
-            url.searchParams.set('id', d.data.id);
-            history.pushState({}, '', url);
-          }
-        }
-        var fs = document.getElementById('footer-status');
-        if (fs) { fs.textContent = window.__t && window.__t._('statusbar.saved') || 'Saved'; fs.style.color = 'var(--green)'; }
-        toast(window.__t && window.__t._('toast.save.success') || 'Saved');
-      } else {
-        toast(window.__t && window.__t._('toast.save.failed') || 'Save failed: ' + (d.error || ''));
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r) {
+      if (!r.ok && r.status === 409) {
+        throw new Error('version_conflict');
       }
+      return r.json();
     }).catch(function(err) {
-      document.getElementById('btn-save').disabled = false;
-      document.getElementById('btn-save').textContent = window.__t && window.__t._('editor.save') || 'Save';
-      toast(window.__t && window.__t._('toast.save.failed') || 'Network error');
+      if (retries > 0 && err.message === 'version_conflict') {
+        // 版本冲突，不重试
+        throw err;
+      }
+      if (retries > 0) {
+        return doFetch(url, method, body, retries - 1);
+      }
+      throw err;
     });
   }
 
   // 加载工作流
   function load(id) {
-    fetch(API_BASE + '/' + id, { headers: { 'Authorization': 'Bearer ' + T } })
-    .then(function(r) { return r.json(); })
+    doFetch(API_BASE + '/' + id, 'GET', null)
     .then(function(d) {
       if (!d.success) {
-        toast(window.__t && window.__t._('toast.load.failed') || 'Load failed');
+        toast(_t('toast.load.failed'));
         return;
       }
       var wf = d.data;
@@ -475,28 +515,27 @@ window.editor = (function() {
       }
       if (state.nodes.length > 0) {
         var fs = document.getElementById('footer-status');
-        if (fs) { fs.textContent = window.__t && window.__t._('statusbar.saved') || 'Loaded'; fs.style.color = 'var(--green)'; }
+        if (fs) { fs.textContent = _t('statusbar.saved') || 'Loaded'; fs.style.color = 'var(--green)'; }
       }
-      toast('Workflow loaded: ' + (wf.name || '#') + wf.id);
+      toast(_t('toast.load.success') || 'Workflow loaded: ' + (wf.name || '#') + wf.id);
     })
     .catch(function() {
-      toast(window.__t && window.__t._('toast.load.failed') || 'Load failed');
+      toast(_t('toast.load.failed'));
     });
   }
 
   function run() {
     if (!CURRENT_WORKFLOW_ID) { save(); return; }
-    fetch(API_BASE + '/' + CURRENT_WORKFLOW_ID + '/run', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + T }
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    doFetch(API_BASE + '/' + CURRENT_WORKFLOW_ID + '/run', 'POST', null)
+    .then(function(d) {
       if (d.success) {
-        toast(window.__t && window.__t._('toast.run.success') || 'Workflow started');
+        toast(_t('toast.run.success') || 'Workflow started');
       } else {
-        toast(window.__t && window.__t._('toast.run.failed') || 'Run failed: ' + (d.error || ''));
+        toast(_t('toast.run.failed') + ': ' + (d.error || ''));
       }
-    }).catch(function() {
-      toast(window.__t && window.__t._('toast.run.failed') || 'Network error');
+    })
+    .catch(function() {
+      toast(_t('toast.run.failed') || 'Network error');
     });
   }
 
@@ -537,7 +576,10 @@ window.editor = (function() {
     validateConnection: validateConnection,
     wouldCreateCycle: wouldCreateCycle,
     setEdgeAccessor: setEdgeAccessor,
-    init: init
+    init: init,
+    _t: _t,
+    esc: esc,
+    escAttr: escAttr
   };
 })();
 

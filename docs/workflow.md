@@ -308,3 +308,85 @@ scheduler, worker_pool = init_automation(app)
 4. `worker_pool.register_scheduler_callbacks(scheduler)` — 打通调度器 → Worker 链路
 5. `scheduler.start()` — 启动心跳 + 从 DB 同步所有活跃任务
 6. `app.register_blueprint(automation_bp)` — 注册 REST 路由
+
+---
+
+## 八、工作流拖拽编辑器（Workflow Drag Editor）
+
+> 位于 `admin/` 模块，独立 React 页面 + UMD 库加载（无 Node 构建工具）。
+
+### 8.1 文件结构
+
+| 文件 | 用途 |
+|------|------|
+| `admin/templates/workflow_editor.html` | 入口页面：三栏布局（节点面板/画布/配置），React 18 + React Flow v10 UMD |
+| `admin/static/css/workflow_editor.css` | 编辑器专用样式：三栏 flex、节点卡片、配置面板、动画 |
+| `admin/static/js/workflow_editor.js` | 非 React 逻辑：配置字段定义、序列化、API 调用、DAG 循环检测 |
+| `admin/static/lib/workflow/` | UMD 库文件（react / react-dom / react-flow-renderer） |
+| `admin/app.py` | 路由 `/admin/workflow-editor` |
+| `admin/templates/partials/automation.html` | 工作流列表页（表格 + 操作按钮 + 模板菜单） |
+
+### 8.2 编辑器架构
+
+```
+┌──────────────┬──────────────────┬──────────────┐
+│  左面板       │     中间画布      │  右面板       │
+│ (节点类型列表) │  (React Flow)    │ (配置表单)    │
+│              │                  │              │
+│  AI Processing│  [节点1]──→[节点2]│  Type:       │
+│  ├─ AI Agent  │       ↓         │  ai_agent    │
+│  ├─ Data Coll │    [节点3]      │  Prompt: ... │
+│  └─ AI Process│                  │  Model: ...  │
+│  Flow Control │  Controls       │              │
+│  ├─ Condition │  MiniMap        │  [Save]      │
+│  └─ Wait      │  Background     │  [Cancel]    │
+│              │                  │              │
+└──────────────┴──────────────────┴──────────────┘
+```
+
+### 8.3 关键数据流
+
+```
+用户拖拽节点 → React Flow 更新 state
+            → onNodeClick → editor.renderConfigPanel(node)
+            → 填写配置 → saveNodeConfig → updateNodeConfig
+            → Ctrl+S / 点击保存 → serializeToDefinition
+            → POST/PUT /admin/automation/workflows
+            → 后端存储 SQLite JSON
+
+加载: ?id=X  → GET /admin/automation/workflows/X
+            → deserializeFromDefinition → setNodes/setEdges
+```
+
+### 8.4 12 种节点配置字段
+
+| 节点类型 | 配置字段 |
+|---------|---------|
+| ai_agent | agent_type(select), agent_id(number), prompt(textarea), model(text) |
+| data_collect | source_ids(tags), max_per_source(number), keywords(text) |
+| ai_process | instruction(textarea), fields(tags), model(text) |
+| condition | expression(textarea) |
+| wait | seconds(number) |
+| publish | platforms(tags), title(text), category(text) |
+| notify | channels(tags), title(text), message(textarea), webhook_url(text), email_to(text) |
+| approval | approver_role(select), require_approval_on_error(checkbox) |
+| script | script(text), lang(select) |
+| http_request | url(text), method(select), headers(textarea), body(textarea) |
+| market_check | symbol(text), metric(select), operator(select), threshold(number) |
+| sub_workflow | workflow_id(number) |
+
+### 8.5 安全与校验
+
+- **DAG 循环检测**：每次连线前 DFS 邻接表遍历，阻止环
+- **自连接禁止**：source === target 拒绝
+- **重复边禁止**：相同 source+target+sourceHandle 拒绝
+- **配置不完整检查**：必填字段为空时保存弹窗确认
+- **JWT 认证**：复用 admin SSO token（`__SSO_TOKEN`）
+- **国际化**：`window.__t` 翻译字典，约 138 条 msgid
+
+### 8.6 依赖
+
+- `React 18.3.1` (UMD)
+- `ReactDOM 18.3.1` (UMD)
+- `react-flow-renderer v10` (UMD)
+- `@babel/standalone 7` — 浏览器端 JSX 转译
