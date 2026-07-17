@@ -735,7 +735,7 @@ function showAddrForm(aid){
     h+='<select id="afStreet" class="sl" onchange="loadRegions(\'village\')"><option value="">{{ _('Town/Street') }}</option></select>';
     h+='<select id="afVillage" class="sl"><option value="">{{ _('Village') }}</option></select>';
     h+='</div></div>';
-    h+='<div class="field"><label>{{ _('Detailed Address') }}</label><input type="text" id="afAddr" class="in" style="flex:1" placeholder="街道/路/巷 + 门牌号" value="'+(addr?addr.street_address||'':'')+'"></div>';
+    h+='<div class="field"><label>{{ _('Detailed Address') }}</label><input type="text" id="afAddr" class="in" style="flex:1" placeholder="{{ _('Street/Road/Lane + House Number') }}" value="'+(addr?addr.street_address||'':'')+'"></div>';
     h+='<div class="field"><label>{{ _('Postal Code') }}</label><input type="text" id="afZip" class="in" style="width:120px" value="'+(addr?addr.postal_code||'':'')+'"></div>';
     h+='<div style="margin-top:12px"><button class="btn btn-primary" onclick="saveAddr('+(isEdit?aid:0)+')">{{ _('Save') }}</button><button class="btn" onclick="closeAddrForm()" style="margin-left:8px">{{ _('Cancel') }}</button><span id="afMsg" style="font-size:11px;margin-left:10px"></span></div>';
     h+='</div>';
@@ -793,7 +793,7 @@ function setDefaultAddr(aid){fetch('/user/addresses/'+aid+'/default',{method:'PU
 
 // ── 原有函数 ──
 function changeUsername(){
-  var newName=prompt({{ _('Enter new username') | tojson }}+'（3-20位字母数字，以字母开头，'+{{ _('Limited to 1/month') | tojson }}+'）：');
+  var newName=prompt({{ _('Enter new username') | tojson }}+{{ _('（3-20位字母数字，以字母开头，') | tojson }}+{{ _('Limited to 1/month') | tojson }}+{{ _('）') | tojson }});
   if(!newName||newName.length<3||newName.length>20){alert({{ _('3-20 characters') | tojson }});return}
   if(!/^[a-zA-Z][a-zA-Z0-9_-]+$/.test(newName)){alert({{ _('Must start with a letter') | tojson }});return}
   fetch('/auth/username/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:newName})})
@@ -854,7 +854,7 @@ function startVerification(){
     overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;font-family:inherit';
     document.body.appendChild(overlay);
   }
-  overlay.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5)"><div style="font-size:20px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">{{ _('ID Verification') }}</div><div style="font-size:13px;color:var(--muted);margin-bottom:16px;text-align:center">请输入您的真实姓名和身份证号，信息将提交至支付宝进行身份核验</div><div style="margin-bottom:12px"><label style="font-size:13px;color:var(--text);display:block;margin-bottom:4px">{{ _('Real Name') }}</label><input id="vCertName" type="text" placeholder="请输入真实姓名" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box"></div><div style="margin-bottom:20px"><label style="font-size:13px;color:var(--text);display:block;margin-bottom:4px">{{ _('ID Number') }}</label><input id="vCertNo" type="text" placeholder="请输入身份证号码" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box"></div><div style="display:flex;gap:10px;justify-content:center"><button id="modalCancelBtn" style="padding:8px 20px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-size:13px;font-family:inherit">{{ _('Cancel') }}</button><button id="modalConfirmBtn" style="padding:8px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-family:inherit">{{ _('Submit Verification') }}</button></div></div>';
+  overlay.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5)"><div style="font-size:20px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">{{ _('ID Verification') }}</div><div style="font-size:13px;color:var(--muted);margin-bottom:16px;text-align:center">{{ _('请输入您的真实姓名和身份证号，信息将提交至支付宝进行身份核验') }}</div><div style="margin-bottom:12px"><label style="font-size:13px;color:var(--text);display:block;margin-bottom:4px">{{ _('Real Name') }}</label><input id="vCertName" type="text" placeholder="{{ _('请输入真实姓名') }}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box"></div><div style="margin-bottom:20px"><label style="font-size:13px;color:var(--text);display:block;margin-bottom:4px">{{ _('ID Number') }}</label><input id="vCertNo" type="text" placeholder="{{ _('请输入身份证号码') }}" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box"></div><div style="display:flex;gap:10px;justify-content:center"><button id="modalCancelBtn" style="padding:8px 20px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-size:13px;font-family:inherit">{{ _('Cancel') }}</button><button id="modalConfirmBtn" style="padding:8px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-family:inherit">{{ _('Submit Verification') }}</button></div></div>';
   document.getElementById('modalConfirmBtn').onclick=function(){
     var name=document.getElementById('vCertName').value.trim();
     var idNo=document.getElementById('vCertNo').value.trim();
@@ -876,14 +876,14 @@ function startVerification(){
           var certifyUrl=d.data.certify_url;
           var overlay=document.createElement('div');
           overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;font-family:inherit';
-          overlay.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);text-align:center"><div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px">打开支付宝扫码认证</div><div style="font-size:13px;color:var(--muted);margin-bottom:20px">请使用支付宝App扫描下方二维码完成实名认证</div><img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(certifyUrl)+'" alt={{ _('Alipay verification QR') | tojson }} style="width:220px;height:220px;border-radius:12px;margin-bottom:16px;background:#fff;padding:8px"><div style="font-size:12px;color:var(--dim);margin-bottom:16px">二维码有效期为5分钟，过期需重新提交</div><button id="qrCloseBtn" style="padding:8px 24px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-size:13px;font-family:inherit">{{ _('Close') }}</button></div>';
+          overlay.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.5);text-align:center"><div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px">{{ _('打开支付宝扫码认证') }}</div><div style="font-size:13px;color:var(--muted);margin-bottom:20px">{{ _('请使用支付宝App扫描下方二维码完成实名认证') }}</div><img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(certifyUrl)+'" alt={{ _('Alipay verification QR') | tojson }} style="width:220px;height:220px;border-radius:12px;margin-bottom:16px;background:#fff;padding:8px"><div style="font-size:12px;color:var(--dim);margin-bottom:16px">{{ _('二维码有效期为5分钟，过期需重新提交') }}</div><button id="qrCloseBtn" style="padding:8px 24px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-size:13px;font-family:inherit">{{ _('Close') }}</button></div>';
           document.body.appendChild(overlay);
           document.getElementById('qrCloseBtn').onclick=function(){document.body.removeChild(overlay)};
         }else if(d.success&&d.data&&d.data.auth_url){
           // 非支付宝模式（如stub）直接跳转
           location.href=d.data.auth_url;
         }else{
-          showAlert({title:{{ _('Verification Failed') | tojson }},message:d.error||'认证服务暂不可用',type:'error'});
+          showAlert({title:{{ _('Verification Failed') | tojson }},message:d.error||{{ _('认证服务暂不可用') | tojson }},type:'error'});
           if(btn){btn.disabled=false;btn.textContent={{ _('Verify Now') | tojson }}}
         }
       });
@@ -911,11 +911,11 @@ function loadServices(){
     var couponCount=(res[1].data||res[1]||[]).length;
     var ticketCount=(res[2].data||res[2]||[]).length;
     var cards=[
-      {icon:'🔔',cls:'blue',title:{{ _('Notifications') | tojson }},desc:'查看站内通知与系统消息',badge:notifUnread>0?notifUnread:null,badgeCls:'red',click:"loadSection('notifications-page')"},
-      {icon:'🎫',cls:'green',title:{{ _('My Coupons') | tojson }},desc:couponCount+' 张可用优惠券',badge:couponCount>0?couponCount:null,badgeCls:'green',click:"loadSection('coupons')"},
-      {icon:'📝',cls:'yellow',title:{{ _('My Tickets') | tojson }},desc:ticketCount+' 个进行中的工单',badge:ticketCount>0?ticketCount:null,badgeCls:'red',click:"loadSection('tickets')"},
+      {icon:'🔔',cls:'blue',title:{{ _('Notifications') | tojson }},desc:{{ _('查看站内通知与系统消息') | tojson }},badge:notifUnread>0?notifUnread:null,badgeCls:'red',click:"loadSection('notifications-page')"},
+      {icon:'🎫',cls:'green',title:{{ _('My Coupons') | tojson }},desc:couponCount+{{ _('张可用优惠券') | tojson }},badge:couponCount>0?couponCount:null,badgeCls:'green',click:"loadSection('coupons')"},
+      {icon:'📝',cls:'yellow',title:{{ _('My Tickets') | tojson }},desc:ticketCount+{{ _('个进行中的工单') | tojson }},badge:ticketCount>0?ticketCount:null,badgeCls:'red',click:"loadSection('tickets')"},
       {icon:'💬',cls:'cyan',title:{{ _('Customer Service Chat') | tojson }},desc:{{ _('Chat with AI advisor in real time') | tojson }},badge:null,click:"loadSection('support-chat')"},
-      {icon:'📖',cls:'purple',title:{{ _('Help Docs') | tojson }},desc:'使用指南、常见问题与 API 文档',badge:null,click:"loadSection('docs')"}
+      {icon:'📖',cls:'purple',title:{{ _('Help Docs') | tojson }},desc:{{ _('使用指南、常见问题与 API 文档') | tojson }},badge:null,click:"loadSection('docs')"}
     ];
     var h='<div class="svc-grid">';
     cards.forEach(function(c){
@@ -926,9 +926,9 @@ function loadServices(){
     h+='</div>';
 
     // 2FA 区域
-    h+='<div class="card"><h3>'+{{ _('2FA') | tojson }}+'（2FA）</h3>';
+    h+='<div class="card"><h3>'+{{ _('2FA') | tojson }}+'</h3>';
     h+='<div class="field"><label>{{ _('Status') }}</label>';
-    h+='<div id="twofaStatus" class="val">'+(u.totp_enabled?'<span class="badge badge-green">✅ 已启用</span>':'<span class="badge badge-yellow">{{ _('Disabled') }}</span>')+'</div>';
+    h+='<div id="twofaStatus" class="val">'+(u.totp_enabled?'<span class="badge badge-green">'+{{ _('✅ 已启用') | tojson }}+'</span>':'<span class="badge badge-yellow">{{ _('Disabled') }}</span>')+'</div>';
     h+='<div id="twofaActions">';
     if(u.totp_enabled){
       h+='<button class="btn btn-sm btn-danger" onclick="disable2FA()" style="margin-left:8px">{{ _('Disable 2FA') }}</button>';
@@ -1010,7 +1010,7 @@ function disable2FA(){
 // ============ 第三方解绑 ============
 function unbindOAuth(provider){
   var labels={wechat:{{ _('WeChat') | tojson }},douyin:{{ _('Douyin') | tojson }}};
-  if(!confirm({{ _('OK to unbind') | tojson }}+labels[provider]+'账号吗？解绑后无法通过该账号登录。'))return;
+  if(!confirm({{ _('OK to unbind') | tojson }}+labels[provider]+{{ _('账号吗？解绑后无法通过该账号登录。') | tojson }}))return;
   fetch('/user/oauth/unbind',{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({provider:provider})})
     .then(function(r){return r.json()}).then(function(d){
       if(d.success){alert(d.message);loadAccount()}
@@ -1028,7 +1028,7 @@ function loadActivityLog(){
         document.getElementById('activityList').innerHTML='<div class="empty">{{ _('No activity records') }}</div>';
         return;
       }
-      var labels={'login':{{ _('Log In') | tojson }},'logout':{{ _('Logout') | tojson }},'password_change':{{ _('Change Password') | tojson }},'email_change':'修改邮箱','phone_change':'修改手机','totp_enable':{{ _('Enable 2FA') | tojson }},'totp_disable':{{ _('Close 2FA') | tojson }},'order':'订单','subscribe':{{ _('Subscribe') | tojson }},'oauth_bind':'第三方绑定','oauth_unbind':{{ _('Unbind account') | tojson }},'system':'系统','api_key':'API密钥','profile':'资料修改','other':'其他'};
+      var labels={'login':{{ _('Log In') | tojson }},'logout':{{ _('Logout') | tojson }},'password_change':{{ _('Change Password') | tojson }},'email_change':{{ _('修改邮箱') | tojson }},'phone_change':{{ _('修改手机') | tojson }},'totp_enable':{{ _('Enable 2FA') | tojson }},'totp_disable':{{ _('Close 2FA') | tojson }},'order':{{ _('订单') | tojson }},'subscribe':{{ _('Subscribe') | tojson }},'oauth_bind':{{ _('第三方绑定') | tojson }},'oauth_unbind':{{ _('Unbind account') | tojson }},'system':{{ _('系统') | tojson }},'api_key':{{ _('API密钥') | tojson }},'profile':{{ _('资料修改') | tojson }},'other':{{ _('其他') | tojson }}};
       var rows='';
       d.data.forEach(function(a){
         var typeLabel=labels[a.type]||a.type||{{ _('Other') | tojson }};
@@ -1040,7 +1040,7 @@ function loadActivityLog(){
         rows+='</tr>';
       });
       document.getElementById('activityList').innerHTML=
-        '<table><tr><th>{{ _('Type') }}</th><th>{{ _('Actions') }}</th><th>详情</th><th>{{ _('Time') }}</th></tr>'+rows+'</table>';
+        '<table><tr><th>{{ _('Type') }}</th><th>{{ _('Actions') }}</th><th>{{ _('详情') }}</th><th>{{ _('Time') }}</th></tr>'+rows+'</table>';
     }).catch(function(){document.getElementById('activityList').innerHTML='<div class="empty">{{ _('Failed to load') }}</div>'});
 }
 
@@ -1055,10 +1055,10 @@ function loadNotifPrefs(){
       var items={
         system_site:{{ _('System Notifications — In-app') | tojson }},
         system_mail:{{ _('System Notifications — Email') | tojson }},
-        order_site:'订单'+{{ _('Notifications') | tojson }}+' — 站内',
-        order_mail:'订单'+{{ _('Notifications') | tojson }}+' — 邮件',
-        activity_site:'活动'+{{ _('Notifications') | tojson }}+' — 站内',
-        activity_mail:'活动'+{{ _('Notifications') | tojson }}+' — 邮件'
+        order_site:{{ _('订单') | tojson }}+{{ _('Notifications') | tojson }}+{{ _(' — 站内') | tojson }},
+        order_mail:{{ _('订单') | tojson }}+{{ _('Notifications') | tojson }}+{{ _(' — 邮件') | tojson }},
+        activity_site:{{ _('活动') | tojson }}+{{ _('Notifications') | tojson }}+{{ _(' — 站内') | tojson }},
+        activity_mail:{{ _('活动') | tojson }}+{{ _('Notifications') | tojson }}+{{ _(' — 邮件') | tojson }}
       };
       var h2='';
       Object.keys(items).forEach(function(k){
@@ -1100,7 +1100,7 @@ function loadNotificationsPage(){
     .then(function(r){return r.json()}).then(function(d){
       if(!d.success||!d.data){document.getElementById('notifPageList').innerHTML='<div class="empty">{{ _('No notifications') }}</div>';return}
       if(!d.data.length){document.getElementById('notifPageList').innerHTML='<div class="empty">{{ _('No notifications') }}</div>';return}
-      var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><span style="font-size:13px;color:var(--muted)">共 '+d.total+' 条，'+d.unread+' 条'+{{ _('Unread') | tojson }}+'</span>';
+      var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><span style="font-size:13px;color:var(--muted)">'+{{ _('共 ') | tojson }}+d.total+{{ _(' 条，') | tojson }}+d.unread+{{ _(' 条 ') | tojson }}+{{ _('Unread') | tojson }}+'</span>';
       if(d.unread>0)h+='<button class="btn btn-sm" onclick="notifReadAllPage()">{{ _('Mark All Read') }}</button>';
       h+='</div><table><tr><th>{{ _('Title') }}</th><th>{{ _('Content') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
       d.data.forEach(function(n){
@@ -1135,7 +1135,7 @@ function loadCoupons(){
       h='<div class="svc-grid" style="margin-bottom:16px">';
       coupons.forEach(function(c){
         var expired=c.expire_at&&new Date(c.expire_at)<new Date();
-        h+='<div class="card" style="border-left:3px solid '+(expired?'var(--dim)':'#22c55e')+'"><div style="font-size:20px;font-weight:700;margin-bottom:4px">'+(c.name||{{ _('Coupons') | tojson }})+'</div><div style="font-size:12px;color:var(--muted)">'+(c.description||'')+'</div><div style="font-size:11px;color:var(--dim);margin-top:8px">'+(c.expire_at?'有效期至 '+c.expire_at.slice(0,10):'')+'</div></div>';
+        h+='<div class="card" style="border-left:3px solid '+(expired?'var(--dim)':'#22c55e')+'"><div style="font-size:20px;font-weight:700;margin-bottom:4px">'+(c.name||{{ _('Coupons') | tojson }})+'</div><div style="font-size:12px;color:var(--muted)">'+(c.description||'')+'</div><div style="font-size:11px;color:var(--dim);margin-top:8px">'+(c.expire_at?{{ _('有效期至 ') | tojson }}+c.expire_at.slice(0,10):'')+'</div></div>';
       });
       h+='</div>';
     }
@@ -1147,7 +1147,7 @@ function loadCoupons(){
 var CATEGORIES={
   presale:[{{ _('Feature Inquiry') | tojson }},{{ _('Plans & Pricing') | tojson }},{{ _('Trial Request') | tojson }},{{ _('Integration Help') | tojson }},{{ _('Other') | tojson }}],
   aftersale:[{{ _('Usage Issues') | tojson }},{{ _('Bug Report') | tojson }},{{ _('Account Issue') | tojson }},{{ _('API Issue') | tojson }},{{ _('Payment Issue') | tojson }},{{ _('Other') | tojson }}],
-  complaint:['服务质量',{{ _('Content') | tojson }},'违规','数据错误','不当行为','其他'],
+  complaint:[{{ _('服务质量') | tojson }},{{ _('Content') | tojson }},{{ _('违规') | tojson }},{{ _('数据错误') | tojson }},{{ _('不当行为') | tojson }},{{ _('其他') | tojson }}],
   suggestion:[{{ _('Feature Request') | tojson }},{{ _('UX Feedback') | tojson }},{{ _('Docs Feedback') | tojson }},{{ _('Other') | tojson }}]
 };
 var TYPE_LABELS={presale:{{ _('Pre-sales') | tojson }},aftersale:{{ _('After-sales') | tojson }},complaint:{{ _('Complaint') | tojson }},suggestion:{{ _('Suggestion') | tojson }}};
@@ -1170,7 +1170,7 @@ function loadTickets(){
       fh+='<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-weight:600;color:var(--text);font-size:13px;cursor:pointer" onclick="var a=this.nextElementSibling;a.style.display=a.style.display===\'none\'?\'\':\'none\'">'+esc(item.q)+'</div><div style="display:none;padding:8px 0 0;font-size:13px;color:var(--dim);line-height:1.6">'+esc(item.a)+'</div></div>';
     });
     document.getElementById('faqPanel').innerHTML=fh||'<div class="empty">'+{{ _('No FAQs') | tojson }}+'</div>';
-  }).catch(function(){document.getElementById('faqPanel').innerHTML='<div class="empty">加载FAQ'+{{ _('Failed') | tojson }}+'</div>'});
+  }).catch(function(){document.getElementById('faqPanel').innerHTML='<div class="empty">'+{{ _('加载FAQ') | tojson }}+{{ _('Failed') | tojson }}+'</div>'});
   ticketLoadList();
 }
 function ticketLoadList(){
@@ -1214,10 +1214,10 @@ function ticketShowForm(){
   sel+='<div class="field"><label>{{ _('Category') }}</label><select id="ticketCategory" style="flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;max-width:220px">'+catOpts+'</select></div>';
   wrap.innerHTML='<div class="card"><h3>{{ _('Submit Ticket') }}</h3>'+
     sel+
-    '<div class="field"><label>{{ _('Title') }}</label><input id="ticketTitle" placeholder="简要描述问题" style="flex:1"></div>'+
-    '<div class="field"><label>{{ _('Description') }}</label><textarea id="ticketContent" rows="4" placeholder="详细描述你遇到的问题..." style="flex:1;min-height:80px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);font-size:13px;font-family:inherit;resize:vertical"></textarea></div>'+
-    '<div class="field"><label>联系方式</label><input id="ticketContact" placeholder="手机或'+{{ _('Email') | tojson }}+'（可选）" style="flex:1"></div>'+
-    '<div class="field"><label></label><button class="btn btn-primary" onclick="ticketSubmit()">提交</button> <button class="btn" onclick="ticketShowForm()">{{ _('Cancel') }}</button><span id="ticketMsg" style="font-size:12px;margin-left:12px;color:var(--accent2)"></span></div>'+
+    '<div class="field"><label>{{ _('Title') }}</label><input id="ticketTitle" placeholder="{{ _('简要描述问题') }}" style="flex:1"></div>'+
+    '<div class="field"><label>{{ _('Description') }}</label><textarea id="ticketContent" rows="4" placeholder="{{ _('详细描述你遇到的问题...') }}" style="flex:1;min-height:80px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);font-size:13px;font-family:inherit;resize:vertical"></textarea></div>'+
+    '<div class="field"><label>{{ _('联系方式') }}</label><input id="ticketContact" placeholder="{{ _('手机或') }}'+{{ _('Email') | tojson }}+'{{ _('（可选）') }}" style="flex:1"></div>'+
+    '<div class="field"><label></label><button class="btn btn-primary" onclick="ticketSubmit()">{{ _('提交') }}</button> <button class="btn" onclick="ticketShowForm()">{{ _('Cancel') }}</button><span id="ticketMsg" style="font-size:12px;margin-left:12px;color:var(--accent2)"></span></div>'+
     '</div>';
   window._ticketType='aftersale';
 }
@@ -1436,11 +1436,11 @@ function loadDocs(){
   var h='<div class="card"><h3>{{ _('Help Docs') }}</h3>';
   h+='<div class="svc-grid" style="margin-top:8px">';
   var docs=[
-    {icon:'🚀',title:{{ _('Quick Start') | tojson }},desc:'5 分钟了解平台基本操作',cls:'blue'},
-    {icon:'🔑',title:{{ _('API Keys') | tojson }},desc:'如何创建和管理 API 密钥',cls:'green'},
+    {icon:'🚀',title:{{ _('Quick Start') | tojson }},desc:{{ _('5 分钟了解平台基本操作') | tojson }},cls:'blue'},
+    {icon:'🔑',title:{{ _('API Keys') | tojson }},desc:{{ _('如何创建和管理 API 密钥') | tojson }},cls:'green'},
     {icon:'🤖',title:{{ _('Agent Guide') | tojson }},desc:{{ _('Create and configure your agent') | tojson }},cls:'cyan'},
-    {icon:'💳',title:{{ _('Subscription') | tojson }},desc:'套餐说明与支付方式',cls:'yellow'},
-    {icon:'❓',title:{{ _('FAQ') | tojson }},desc:'FAQ — 用户常见问题解答',cls:'purple'}
+    {icon:'💳',title:{{ _('Subscription') | tojson }},desc:{{ _('套餐说明与支付方式') | tojson }},cls:'yellow'},
+    {icon:'❓',title:{{ _('FAQ') | tojson }},desc:{{ _('FAQ — 用户常见问题解答') | tojson }},cls:'purple'}
   ];
   docs.forEach(function(d){
     h+='<div class="svc-card" style="cursor:default"><div class="svc-icon '+d.cls+'">'+d.icon+'</div><div class="svc-title">'+d.title+'</div><div class="svc-desc">'+d.desc+'</div></div>';
@@ -1463,7 +1463,7 @@ function loadOrders(){
     var orders=d.data;
     var h='';
     if(!orders||!orders.length){
-      h='<div class="empty" style="padding:60px"><div style="font-size:40px;margin-bottom:12px">📭</div><div>{{ _('No orders yet') }}</div><a href="/shop" style="color:var(--accent);margin-top:8px;display:inline-block">→ 去逛逛</a></div>';
+      h='<div class="empty" style="padding:60px"><div style="font-size:40px;margin-bottom:12px">📭</div><div>{{ _('No orders yet') }}</div><a href="/shop" style="color:var(--accent);margin-top:8px;display:inline-block">{{ _('→ 去逛逛') }}</a></div>';
       document.getElementById('mainContent').innerHTML=h;
       return;
     }
@@ -1476,7 +1476,7 @@ function loadOrders(){
     });
     var stLabels={pending:{{ _('Pending Payment') | tojson }},paid:{{ _('Paid') | tojson }},completed:{{ _('Completed') | tojson }},refunding:{{ _('Refunding') | tojson }},refunded:{{ _('Refunded') | tojson }},cancelled:{{ _('Cancelled') | tojson }}};
     var orderIds=Object.keys(groups);
-    h+='<div style="font-size:13px;color:var(--muted);margin-bottom:16px">'+{{ _('Total: ') | tojson }}+' '+orderIds.length+' 笔订单</div>';
+    h+='<div style="font-size:13px;color:var(--muted);margin-bottom:16px">'+{{ _('Total: ') | tojson }}+' '+orderIds.length+{{ _(' 笔订单') | tojson }}+'</div>';
     orderIds.forEach(function(oid){
       var g=groups[oid];
       h+='<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-family:monospace;font-size:11px;color:var(--muted)">'+esc(oid)+'</span><span class="badge badge-'+(g.status==='paid'||g.status==='completed'?'green':g.status==='pending'?'yellow':'red')+'">'+(stLabels[g.status]||g.status)+'</span></div>';
@@ -1488,7 +1488,7 @@ function loadOrders(){
       if(g.discount>0) h+='<span style="font-size:11px;color:var(--muted);margin-left:6px">('+{{ _('Discount') | tojson }}+' ¥'+g.discount.toFixed(2)+')</span>';
       h+='</div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">'+(g.time||'').slice(0,16).replace('T',' ')+'</span>';
       if(g.status==='pending'){
-        h+='<div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="payShopOrder(\''+oid+'\')">去支付</button><button class="btn btn-sm" onclick="cancelShopOrder(\''+oid+'\')">{{ _('Cancel') }}</button></div>';
+        h+='<div style="display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="payShopOrder(\''+oid+'\')">{{ _('去支付') }}</button><button class="btn btn-sm" onclick="cancelShopOrder(\''+oid+'\')">{{ _('Cancel') }}</button></div>';
       }
       var canDel = g.status==='cancelled' || g.status==='refunded' || g.status==='pending';
       if(canDel){
@@ -1512,7 +1512,7 @@ function payShopOrder(oid){
     })
     .then(function(d){
       if(d.success && d.data && d.data.pay_url){window.location.href=d.data.pay_url}
-      else alert(d.error||'支付创建'+{{ _('Failed') | tojson }}+'');
+      else alert(d.error||{{ _('支付创建') | tojson }}+{{ _('Failed') | tojson }}+'');
     });
 }
 
@@ -1537,7 +1537,7 @@ function deleteShopOrder(oid){
       return r.json();
     })
     .then(function(d){
-      if(d.success){alert('✅ 已'+{{ _('Delete') | tojson }}+'');loadOrders()}
+      if(d.success){alert('✅ '+{{ _('已删除') | tojson }}+'');loadOrders()}
       else alert(d.error||{{ _('Delete Failed') | tojson }});
     });
 }
@@ -1591,11 +1591,11 @@ function loadBilling(){
     if(!allOrders.length){
       oh+='<div class="empty">{{ _('No orders yet') }}</div>';
     }else{
-      oh+='<table><tr><th>订单号</th><th>{{ _('Type') }}</th><th>商品</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
+      oh+='<table><tr><th>{{ _('订单号') }}</th><th>{{ _('Type') }}</th><th>{{ _('商品') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
       allOrders.forEach(function(o){
         var itemsTxt=o.items.map(function(it){return esc(it.title||it.product_title||{{ _('Product') | tojson }})+(it.quantity?' ×'+it.quantity:'')}).join(', ');
         var finalAmt=o.total-o.discount;
-        var typeTxt=o.sub?{{ _('Subscribe') | tojson }}:'商城';
+        var typeTxt=o.sub?{{ _('Subscribe') | tojson }}:{{ _('商城') | tojson }};
         var act='';
         if(o.status==='pending'&&!o.sub){
           act='<button class="btn btn-sm" onclick="payShopOrder(\''+o.id+'\')">{{ _('Pay Now') }}</button>';
@@ -1625,18 +1625,18 @@ function loadSecurity(){
     var pwdDate=u.password_changed_at||'';
     var h='<div class="card"><h3>{{ _('Password Management') }}</h3>' +
       '<div id="pwdForm">' +
-      '<div style="font-size:11px;color:var(--rose);margin-bottom:6px">'+{{ _('Password Rules') | tojson }}+'：至少10位，'+{{ _('Uppercase required') | tojson }}+'、'+{{ _('lowercase') | tojson }}+'、'+{{ _('digits') | tojson }}+'、特殊字符中至少3种</div>' +
-      '<div class="field"><label>{{ _('New Password') }}</label><input type="password" id="pwdNew" placeholder="至少10位，含大写/小写/数字/特殊字符中至少3种" style="flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px" maxlength="128"></div>' +
-      '<div class="field"><label>'+{{ _('Confirm Password') | tojson }}+'</label><input type="password" id="pwdConfirm" placeholder="再次输入新'+{{ _('Password') | tojson }}+'" style="flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px" maxlength="128"></div>' +
+      '<div style="font-size:11px;color:var(--rose);margin-bottom:6px">'+{{ _('Password Rules') | tojson }}+{{ _('：至少10位，') | tojson }}+{{ _('Uppercase required') | tojson }}+{{ _('、') | tojson }}+{{ _('lowercase') | tojson }}+{{ _('、') | tojson }}+{{ _('digits') | tojson }}+{{ _('、特殊字符中至少3种') | tojson }}+'</div>' +
+      '<div class="field"><label>{{ _('New Password') }}</label><input type="password" id="pwdNew" placeholder="{{ _('至少10位，含大写/小写/数字/特殊字符中至少3种') }}" style="flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px" maxlength="128"></div>' +
+      '<div class="field"><label>'+{{ _('Confirm Password') | tojson }}+'</label><input type="password" id="pwdConfirm" placeholder="'+{{ _('再次输入新') | tojson }}+'+{{ _('Password') | tojson }}+'" style="flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px" maxlength="128"></div>' +
       '<div class="field"><label>{{ _('Phone') }}</label><div class="val">' + esc(u.phone||'') + ' <button class="btn btn-sm" id="pwdSendBtn" onclick="pwdSendCode(\'' + esc(u.phone||'') + '\')">{{ _('Send Code') }}</button><span id="pwdSendStatus" style="font-size:11px;color:var(--dim);margin-left:8px"></span></div></div>' +
-      '<div class="field"><label>{{ _('Verification Code') }}</label><input type="text" id="pwdCode" placeholder="6位验证码" maxlength="6" style="width:120px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"></div>' +
+      '<div class="field"><label>{{ _('Verification Code') }}</label><input type="text" id="pwdCode" placeholder="{{ _('6位验证码') }}" maxlength="6" style="width:120px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"></div>' +
       '<div class="field"><label></label><button class="btn btn-primary" id="pwdSubmitBtn" onclick="pwdSubmit()">{{ _('Change Password') }}</button><span id="pwdMsg" style="font-size:12px;margin-left:12px;color:var(--rose)"></span></div>' +
       '</div></div>';
     h+='<div class="card"><h3>{{ _('Login Devices') }}</h3>';
     if(!sessions||!sessions.length){
       h+='<div class="empty">{{ _('No other devices') }}</div>';
     }else{
-      h+='<table><tr><th>设备</th><th>IP</th><th>位置</th><th>最后活跃</th><th>{{ _('Actions') }}</th></tr>';
+      h+='<table><tr><th>{{ _('设备') }}</th><th>{{ _('IP') }}</th><th>{{ _('位置') }}</th><th>{{ _('最后活跃') }}</th><th>{{ _('Actions') }}</th></tr>';
       var currentId=(sessions.find(function(s){return s.is_current})||{}).id||'';
       sessions.forEach(function(s){
         var isCurrent=s.id===currentId||s.is_current;
@@ -1648,7 +1648,7 @@ function loadSecurity(){
         h+='<td>'+(s.last_active_at?s.last_active_at.slice(0,16).replace('T',' '):'-')+'</td>';
         h+='<td>';
         if(!isCurrent){
-          h+='<button class="btn btn-sm" onclick="logoutSession(\''+s.id+'\')">'+{{ _('Sign Out') | tojson }}+'此设备</button>';
+          h+='<button class="btn btn-sm" onclick="logoutSession(\''+s.id+'\')">'+{{ _('Sign Out') | tojson }}+{{ _('此设备') | tojson }}+'</button>';
         }
         h+='</td></tr>';
       });
@@ -1664,18 +1664,18 @@ function loadSecurity(){
   });
 }
 function logoutSession(id){
-  if(!confirm('确认'+{{ _('Sign Out') | tojson }}+'此设备？'))return;
+  if(!confirm({{ _('确认') | tojson }}+{{ _('Sign Out') | tojson }}+{{ _('此设备？') | tojson }}))return;
   fetch('/session/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert('已'+{{ _('Sign Out') | tojson }}+'');loadSecurity()}
+    if(d.success){alert({{ _('已') | tojson }}+{{ _('Sign Out') | tojson }}+'');loadSecurity()}
     else{alert(d.error||{{ _('Operation failed') | tojson }})}
-  }).catch(function(){alert('网络请求'+{{ _('Failed') | tojson }}+'')});
+  }).catch(function(){alert({{ _('网络请求') | tojson }}+{{ _('Failed') | tojson }}+'')});
 }
 function logoutAllSessions(){
-  if(!confirm('确认'+{{ _('Sign Out') | tojson }}+'所有'+{{ _('Other Devices') | tojson }}+'？'+{{ _('Current Device') | tojson }}+'不会受影响。'))return;
+  if(!confirm({{ _('确认') | tojson }}+{{ _('Sign Out') | tojson }}+{{ _('所有') | tojson }}+{{ _('Other Devices') | tojson }}+{{ _('？') | tojson }}+{{ _('Current Device') | tojson }}+{{ _('不会受影响。') | tojson }}))return;
   fetch('/session/logout-all',{method:'POST',headers:{'Authorization':'Bearer '+TOKEN}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert('已'+{{ _('Sign Out') | tojson }}+'所有'+{{ _('Other Devices') | tojson }}+'');loadSecurity()}
+    if(d.success){alert({{ _('已') | tojson }}+{{ _('Sign Out') | tojson }}+{{ _('所有') | tojson }}+{{ _('Other Devices') | tojson }}+'');loadSecurity()}
     else{alert(d.error||{{ _('Operation failed') | tojson }})}
-  }).catch(function(){alert('网络请求'+{{ _('Failed') | tojson }}+'')});
+  }).catch(function(){alert({{ _('网络请求') | tojson }}+{{ _('Failed') | tojson }}+'')});
 }
 
 function uploadAvatar(input){
@@ -1699,7 +1699,7 @@ function pwdSendCode(phone){
   _pwdPhone=phone;
   var btn=document.getElementById('pwdSendBtn');
   var status=document.getElementById('pwdSendStatus');
-  if(!phone){status.textContent='无法获取'+{{ _('Phone') | tojson }}+'';return}
+  if(!phone){status.textContent={{ _('无法获取') | tojson }}+{{ _('Phone') | tojson }}+'';return}
   btn.disabled=true;btn.textContent={{ _('Sending...') | tojson }};status.textContent='';
   fetch('/auth/sms/send',{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},
     body:JSON.stringify({phone:phone,purpose:'modify_password'})})
@@ -1717,7 +1717,7 @@ function pwdSendCode(phone){
       status.textContent='❌ '+d.error;status.style.color='var(--rose)';
       btn.textContent={{ _('Send Code') | tojson }};btn.disabled=false;
     }
-  }).catch(function(){status.textContent='❌ 发送失败';status.style.color='var(--rose)';btn.textContent={{ _('Send Code') | tojson }};btn.disabled=false})
+  }).catch(function(){status.textContent='❌ '+{{ _('发送失败') | tojson }};status.style.color='var(--rose)';btn.textContent={{ _('Send Code') | tojson }};btn.disabled=false})
 }
 function pwdSubmit(){
   var code=document.getElementById('pwdCode').value.trim();
@@ -1753,7 +1753,7 @@ function payShopOrder(oid){
   fetch('/shop/api/pay/'+oid,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({method:'alipay'})})
     .then(function(r){return r.json()}).then(function(d){
       if(d.success&&d.data&&d.data.pay_url){window.location.href=d.data.pay_url}
-      else alert(d.error||'支付创建'+{{ _('Failed') | tojson }}+'');
+      else alert(d.error||{{ _('支付创建') | tojson }}+{{ _('Failed') | tojson }}+'');
     });
 }
 </script>

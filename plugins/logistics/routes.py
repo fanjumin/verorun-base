@@ -12,6 +12,7 @@ if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
+from i18n import _
 
 from .models import get_logistics_db
 from .services import query_track
@@ -37,7 +38,7 @@ def logistics_do_query():
     order_code = data.get('order_code', '').strip()
     customer_name = data.get('customer_name', '').strip()
     if not shipper_code or not logistic_code:
-        return jsonify({'success': False, 'error': '快递公司编码和快递单号不能为空'}), 400
+        return jsonify({'success': False, 'error': _('快递公司编码和快递单号不能为空')}), 400
     success, result, error = query_track(shipper_code, logistic_code, order_code, customer_name)
     if success:
         return jsonify({'success': True, 'data': result})

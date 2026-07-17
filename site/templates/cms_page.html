@@ -99,7 +99,7 @@ body{padding-bottom:0}
       {% endif %}
       <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="{{ _('Menu') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a class="{% if page=='home' %}active{% endif %}" href="/">{{ _('Home') }}</a>
       {% for nav in header_nav %}
@@ -147,9 +147,9 @@ body{padding-bottom:0}
 
         {% if b.link_url %}
           <div class="hero-actions">
-<a class="btn btn-primary" href="{{ b.link_url }}">{{ b.link_text or '立即开始' }} →</a>
+<a class="btn btn-primary" href="{{ b.link_url }}">{{ b.link_text or _('Get Started') }} →</a>
             {% if b.extra_json and b.extra_json.get('secondary_url') %}
-                <a class="btn btn-secondary" href="{{ b.extra_json.secondary_url }}">{{ b.extra_json.secondary_text or '了解更多' }}</a>
+                <a class="btn btn-secondary" href="{{ b.extra_json.secondary_url }}">{{ b.extra_json.secondary_text or _('Learn More') }}</a>
               {% endif %}
             <a class="btn btn-ghost" href="/docs">{{ _('View Docs') }}</a>
 </div>
@@ -191,7 +191,7 @@ body{padding-bottom:0}
 <div class="section-inner">
         {% if b.title %}
           <div style="text-align:center">
-<div class="section-label">{{ b.icon or '产品预览' }}</div>
+<div class="section-label">{{ b.icon or _('Product Preview') }}</div>
 <h2 class="section-title">{{ b.title }}</h2>
             {% if b.subtitle %}<p class="section-subtitle" style="margin:0 auto">{{ b.subtitle }}</p>{% endif %}
           </div>
@@ -245,7 +245,7 @@ body{padding-bottom:0}
 <div class="section-inner">
         {% if b.title %}
           <div style="text-align:center;margin-bottom:8px">
-<div class="section-label">{{ b.icon or '快速开始' }}</div>
+<div class="section-label">{{ b.icon or _('Quick Start') }}</div>
 <h2 class="section-title">{{ b.title }}</h2>
             {% if b.subtitle %}<p class="section-subtitle" style="margin:0 auto">{{ b.subtitle }}</p>{% endif %}
           </div>
@@ -256,7 +256,7 @@ body{padding-bottom:0}
         </div>
         {% if b.link_url %}
           <div class="animate-on-scroll delay-3" style="text-align:center;margin-top:40px">
-<a class="btn btn-primary" href="{{ b.link_url }}">{{ b.link_text or '查看完整指南' }} →</a>
+<a class="btn btn-primary" href="{{ b.link_url }}">{{ b.link_text or _('View Full Guide') }} →</a>
 </div>
         {% endif %}
       </div>
@@ -269,8 +269,8 @@ body{padding-bottom:0}
 <div class="section-inner">
 <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
 <div>
-<div class="section-label">{{ b.icon or '动态' }}</div>
-<h2 class="section-title">{{ b.title or '最新动态' }}</h2>
+<div class="section-label">{{ b.icon or _('Updates') }}</div>
+<h2 class="section-title">{{ b.title or _('Latest Updates') }}</h2>
             {% if b.subtitle %}<p class="section-subtitle">{{ b.subtitle }}</p>{% endif %}
           </div>
 <a class="btn btn-ghost" href="/insights" style="flex-shrink:0">{{ _('View All →') }}</a>
@@ -295,7 +295,7 @@ body{padding-bottom:0}
         {% if b.subtitle %}<p class="section-subtitle" style="margin:0 auto 32px">{{ b.subtitle }}</p>{% endif %}
         {% if b.link_url %}
           <div class="cta-actions">
-<a class="btn btn-primary btn-lg" href="{{ b.link_url }}">{{ b.link_text or '立即开始' }} →</a>
+<a class="btn btn-primary btn-lg" href="{{ b.link_url }}">{{ b.link_text or _('Get Started') }} →</a>
 </div>
         {% endif %}
       </div>
@@ -328,15 +328,15 @@ body{padding-bottom:0}
   fetch("/api/v1/insights/latest")
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if (!d.posts || !d.posts.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;font-size:13px">暂无动态</div>'; return; }
+      if (!d.posts || !d.posts.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;font-size:13px">' + {{ _('暂无动态') | tojson }} + '</div>'; return; }
       var h = '';
       d.posts.forEach(function(p){
         h += '<a href="/insights/' + p.slug + '" class="insight-card animate-on-scroll delay-1">' +
              '<div class="ic-body">' +
-             '<div class="ic-cat">' + (p.category || '动态') + '</div>' +
+             '<div class="ic-cat">' + (p.category || {{ _('动态') | tojson }}) + '</div>' +
              '<h4>' + p.title + '</h4>' +
              '<p>' + (p.excerpt || '') + '</p>' +
-             '<div class="ic-read">阅读更多 →</div>' +
+             '<div class="ic-read">' + {{ _('阅读更多 →') | tojson }} + '</div>' +
              '<div class="ic-meta">' + (p.published_at || '') + '</div>' +
              '</div></a>';
       });
@@ -345,7 +345,7 @@ body{padding-bottom:0}
       if (window.ekaiAnimations) window.ekaiAnimations();
     })
     .catch(function(){
-      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;font-size:13px">加载失败</div>';
+      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;font-size:13px">' + {{ _('加载失败') | tojson }} + '</div>';
     });
 })();
 

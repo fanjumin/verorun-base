@@ -37,6 +37,8 @@ from email.utils import formataddr, parsedate_to_datetime
 
 logger = logging.getLogger(__name__)
 
+from i18n import _
+
 _MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10MB
 
 # ── Config keys ──
@@ -53,13 +55,13 @@ _ENV_MAP = {
 }
 
 CONFIG_DEFS = {
-    'smtp_host':  {'label': 'SMTP 服务器',    'default': 'smtp.qiye.aliyun.com', 'sensitive': False},
-    'smtp_port':  {'label': 'SMTP 端口',      'default': '465',                  'sensitive': False},
-    'smtp_user':  {'label': 'SMTP 账号',      'default': '',                     'sensitive': False},
-    'smtp_pass':  {'label': 'SMTP 密码',      'default': '',                     'sensitive': True},
-    'smtp_from':  {'label': '发件人地址',      'default': '',                     'sensitive': False},
-    'imap_host':  {'label': 'IMAP 服务器',     'default': 'imap.qiye.aliyun.com','sensitive': False},
-    'imap_port':  {'label': 'IMAP 端口',       'default': '993',                  'sensitive': False},
+    'smtp_host':  {'label': _('SMTP 服务器'),    'default': 'smtp.qiye.aliyun.com', 'sensitive': False},
+    'smtp_port':  {'label': _('SMTP 端口'),      'default': '465',                  'sensitive': False},
+    'smtp_user':  {'label': _('SMTP 账号'),      'default': '',                     'sensitive': False},
+    'smtp_pass':  {'label': _('SMTP 密码'),      'default': '',                     'sensitive': True},
+    'smtp_from':  {'label': _('发件人地址'),      'default': '',                     'sensitive': False},
+    'imap_host':  {'label': _('IMAP 服务器'),     'default': 'imap.qiye.aliyun.com','sensitive': False},
+    'imap_port':  {'label': _('IMAP 端口'),       'default': '993',                  'sensitive': False},
 }
 
 
@@ -205,7 +207,7 @@ def _get_email_body(msg):
             plain_text = _decode_body(payload, encoding)
         elif ct == "text/html":
             html_text = _decode_body(payload, encoding)
-    return plain_text or "(无文本内容)", html_text
+    return plain_text or _('(无文本内容)'), html_text
 
 
 def _get_attachments_from_msg(msg):
@@ -249,11 +251,11 @@ def fetch_inbox(page=1, per_page=20):
     try:
         imap = _connect_imap()
     except Exception as e:
-        return {"error": f"IMAP 连接失败: {e}", "items": [], "total": 0}
+        return {"error": _('IMAP 连接失败: {e}', e=e), "items": [], "total": 0}
     try:
         status, data = imap.search(None, "ALL")
         if status != "OK":
-            return {"error": "无法搜索收件箱", "items": [], "total": 0}
+            return {"error": _('无法搜索收件箱'), "items": [], "total": 0}
         all_uids = data[0].split()
         total = len(all_uids)
         start = max(0, total - page * per_page)
@@ -281,7 +283,7 @@ def _fetch_one_inbox(imap, uid):
             return None
         raw_header = msg_data[0][1] if isinstance(msg_data[0], tuple) else b""
         msg = email.message_from_bytes(raw_header)
-        subject = _decode_mime_header(msg.get("Subject", "(无主题)"))
+        subject = _decode_mime_header(msg.get("Subject", _('(无主题)')))
         _from = _decode_mime_header(msg.get("From", ""))
         date_str = msg.get("Date", "")
 
@@ -307,7 +309,7 @@ def read_email(uid):
     try:
         imap = _connect_imap()
     except Exception as e:
-        return {"error": f"IMAP 连接失败: {e}"}
+        return {"error": _('IMAP 连接失败: {error}', error=e)}
     try:
         uid_bytes = str(uid).encode() if isinstance(uid, int) else uid.encode() if isinstance(uid, str) else uid
         status, msg_data = imap.uid("fetch", uid_bytes, "(BODY[])")
@@ -316,7 +318,7 @@ def read_email(uid):
             return {"error": "无法读取邮件"}
         raw_email = msg_data[0][1] if isinstance(msg_data[0], tuple) else b""
         msg = email.message_from_bytes(raw_email)
-        subject = _decode_mime_header(msg.get("Subject", "(无主题)"))
+        subject = _decode_mime_header(msg.get("Subject", _('(无主题)')))
         _from = _decode_mime_header(msg.get("From", ""))
         _to = _decode_mime_header(msg.get("To", ""))
         _cc = _decode_mime_header(msg.get("Cc", ""))
@@ -360,7 +362,7 @@ def get_attachment(uid, filename):
             if att["filename"] == filename and not att.get("too_large"):
                 data = base64.b64decode(att["data"])
                 return data, att["content_type"]
-        return None, "附件不存在"
+        return None, _('附件不存在')
     except Exception as e:
         try:
             imap.logout()
@@ -388,7 +390,7 @@ def send_email(to_addr, subject, body_text, body_html=None, cc=None, reply_to=No
     """
     cfg = _get_mail_config()
     if not cfg['smtp_user'] or not cfg['smtp_pass']:
-        return False, "SMTP 未配置 (请先设置 SMTP_USER/SMTP_PASS 环境变量)"
+        return False, _('SMTP 未配置 (请先设置 SMTP_USER/SMTP_PASS 环境变量)')
 
     if isinstance(to_addr, str):
         to_addr = [to_addr]
@@ -463,17 +465,17 @@ def send_email(to_addr, subject, body_text, body_html=None, cc=None, reply_to=No
         db.commit()
 
         logger.info(f"Email sent to {to_addr}: {subject}")
-        return True, "发送成功"
+        return True, _('发送成功')
 
     except smtplib.SMTPAuthenticationError:
         logger.error("SMTP 认证失败")
-        return False, "SMTP 认证失败，请检查 SMTP_USER/SMTP_PASS"
+        return False, _('SMTP 认证失败，请检查 SMTP_USER/SMTP_PASS')
     except smtplib.SMTPException as e:
         logger.error(f"SMTP 发送失败: {e}")
         return False, f"SMTP 错误: {e}"
     except Exception as e:
         logger.error(f"邮件发送异常: {e}")
-        return False, f"发送异常: {e}"
+        return False, _('发送异常: {error}', error=e)
 
 
 def get_sent_emails(page=1, per_page=20):
@@ -493,7 +495,7 @@ def get_sent_emails(page=1, per_page=20):
 def send_contact_email(name, email_addr, subject, message):
     """发送联系表单邮件到管理员。"""
     admin_email = os.environ.get("CONTACT_TO", "")
-    full_subject = f"[联系表单] {subject}"
+    full_subject = _('[联系表单] {subject}', subject=subject)
 
     try:
         # brand_service 来自主系统，这是跨模块调用（非数据库依赖）
@@ -504,19 +506,14 @@ def send_contact_email(name, email_addr, subject, message):
     site_name_cn = brand.get('site_name_cn', '') or ''
     site_name_en = brand.get('site_name_en', '') or ''
 
-    body_text = f"""来自 {site_name_cn or site_name_en or ''} 联系表单
-
-姓名: {name}
-邮箱: {email_addr}
-主题: {subject}
----
-{message}
-"""
+    body_text = _('来自 {site_name} 联系表单\n\n姓名: {name}\n邮箱: {email_addr}\n主题: {subject}\n---\n{message}\n',
+              site_name=site_name_cn or site_name_en or '', name=name,
+              email_addr=email_addr, subject=subject, message=message)
 
     body_html = (
         '<!DOCTYPE html><html><body style="font-family:sans-serif;'
         'color:#333;max-width:600px;margin:20px auto">'
-        f'<h2 style="color:#00d4aa">📬 来自 {site_name_en or site_name_cn or ""} 联系表单</h2>'
+        f'<h2 style="color:#00d4aa">📬 {_("来自 {site_name} 联系表单", site_name=site_name_en or site_name_cn or "")}</h2>'
         '<table style="width:100%;border-collapse:collapse">'
         f'<tr><td style="padding:8px;color:#888">姓名</td><td style="padding:8px">{name}</td></tr>'
         f'<tr><td style="padding:8px;color:#888">邮箱</td><td style="padding:8px"><a href="mailto:{email_addr}">{email_addr}</a></td></tr>'

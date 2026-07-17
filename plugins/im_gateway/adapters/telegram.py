@@ -5,6 +5,7 @@ import json as _json
 import urllib.request as _ur
 
 from .base import BaseIMAdapter
+from i18n import _
 
 
 class TelegramAdapter(BaseIMAdapter):
@@ -21,7 +22,7 @@ class TelegramAdapter(BaseIMAdapter):
     def test_connection(self, data):
         token = (data.get('bot_token') or '').strip()
         if not token:
-            return False, 'Bot Token 不能为空'
+            return False, _('Bot Token 不能为空')
         try:
             resp = _json.loads(_ur.urlopen(
                 _ur.Request(f'https://api.telegram.org/bot{token}/getMe'),
@@ -29,10 +30,10 @@ class TelegramAdapter(BaseIMAdapter):
             ).read())
             if resp.get('ok'):
                 bot_name = resp['result'].get('first_name', '')
-                return True, f'Telegram 连接成功！Bot: {bot_name}'
-            return False, f"Telegram 返回错误: {resp.get('description', '未知')}"
+                return True, _('Telegram 连接成功！Bot: {name}', name=bot_name)
+            return False, _('Telegram 返回错误: {desc}', desc=resp.get('description', _('未知')))
         except Exception as e:
-            return False, f'连接失败: {str(e)}'
+            return False, _('连接失败: {err}', err=str(e))
 
     def get_env_fallback(self):
         cfg = {}

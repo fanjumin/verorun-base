@@ -4,7 +4,7 @@ window.l_sms=function(){
   h+='<div id="smsForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="smsFormTitle">{{ _('Add Template') }}</div>';
   h+='<div class="g2">';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Categories') }}</div><select class="sl" id="smsCat" style="width:100%"><option value="captcha">{{ _('Verification Code') }}</option><option value="notice">{{ _('SMS Notification') }}</option><option value="promo">{{ _('SMS Promotion') }}</option></select></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }}</div><input class="in" id="smsName" placeholder="如：{{ _('New User Registration') }}" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }}</div><input class="in" id="smsName" placeholder="{{ _('E.g.') }} {{ _('New User Registration') }}" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Templates') }} CODE</div><input class="in" id="smsCode" placeholder="SMS_xxxxxxxxx" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Notes') }}</div><input class="in" id="smsNote" placeholder="{{ _('Usage Description') }}" style="width:100%"></div>';
   h+='</div>';

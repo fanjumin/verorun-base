@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>{{ category or _('Industry Insights') }} — {{ brand.site_name_en if brand else '' }}</title>
-<meta content="{{ brand.seo_desc if brand else '智能体趋势 · 股票市场研究 · Hermes生态 · EasyKai公告' }}" name="description"/>
+<meta content="{{ brand.seo_desc if brand else _('Agent Trends · Stock Market Research · Hermes Ecosystem · EasyKai Announcements') }}" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -41,7 +41,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="{{ _('Menu') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a href="/docs">{{ _('Docs') }}</a>
@@ -55,7 +55,7 @@
 <div class="blog-header">
 <div class="section-label" style="margin-bottom:12px">Insights</div>
 <h1>{{ _('Industry Insights') }}</h1>
-<p class="section-subtitle" style="margin:0 auto">{{ brand.tagline if brand and brand.tagline else '智能体趋势 · 股票市场研究 · Hermes生态' }}</p>
+<p class="section-subtitle" style="margin:0 auto">{{ brand.tagline if brand and brand.tagline else _('Agent Trends · Stock Market Research · Hermes Ecosystem') }}</p>
 </div>
 <div class="post-list">
   {% if posts %}

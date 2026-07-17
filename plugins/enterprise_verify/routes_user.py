@@ -7,6 +7,7 @@ if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
+from i18n import _
 
 ev_user_bp = Blueprint('enterprise_verify_user', __name__, url_prefix='/user/enterprise/verify')
 
@@ -42,13 +43,13 @@ def enterprise_verify_ocr():
     image_base64 = data.get('image', '')
 
     if not image_base64:
-        return jsonify({'success': False, 'error': 'Please upload license image'}), 400
+        return jsonify({'success': False, 'error': _('Please upload license image')}), 400
 
     try:
         from plugins.enterprise_verify.services import ocr_business_license
         result = ocr_business_license(image_base64)
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Business License OCR failed: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': _('Business License OCR failed: {error}', error=str(e))}), 500
 
     return jsonify({
         'success': True,
@@ -79,7 +80,7 @@ def enterprise_verify_submit():
     legal_person = (data.get('legal_person') or '').strip()
 
     if not company_name or not tax_id:
-        return jsonify({'success': False, 'error': 'Company name and Unified Social Credit Code are required'}), 400
+        return jsonify({'success': False, 'error': _('Company name and Unified Social Credit Code are required')}), 400
 
     # 检查是否已有待审/已通过记录
     ev_conn = _get_ev_db()
@@ -89,8 +90,8 @@ def enterprise_verify_submit():
     ).fetchone()
     if existing:
         if existing['status'] == 'approved':
-            return jsonify({'success': False, 'error': 'You are already verified'}), 400
-        return jsonify({'success': False, 'error': 'You already have a pending verification request'}), 400
+            return jsonify({'success': False, 'error': _('You are already verified')}), 400
+        return jsonify({'success': False, 'error': _('You already have a pending verification request')}), 400
 
     ocr_raw = json.dumps({
         'company_name': company_name,
@@ -126,7 +127,7 @@ def enterprise_verify_submit():
     else:
         ev_conn.commit()
 
-    message = 'Enterprise Verified' if status == 'approve' else 'Verification submitted, pending admin review'
+    message = _('Enterprise Verified') if status == 'approve' else _('Verification submitted, pending admin review')
 
     return jsonify({
         'success': True,

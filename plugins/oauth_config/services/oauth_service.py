@@ -12,6 +12,7 @@ NOTE: Douyin uses per-request dynamic credential lookup (multi-tenant).
       Global oauth.register() is only used for WeChat (single-tenant via env).
 """
 import os, json, urllib.request, urllib.parse
+from i18n import _
 from authlib.integrations.flask_client import OAuth
 
 oauth = OAuth()  # shared OAuth object, init with app later
@@ -107,7 +108,7 @@ def get_intl_oauth_provider(provider_name):
 
 # ── Enabled OAuth providers (for dynamic frontend rendering) ──
 PROVIDER_NAMES = {
-    'douyin': '抖音', 'wechat': '微信', 'alipay': '支付宝',
+    'douyin': _('抖音'), 'wechat': _('微信'), 'alipay': _('支付宝'),
     'google': 'Google', 'github': 'GitHub', 'facebook': 'Facebook',
     'telegram': 'Telegram',
 }

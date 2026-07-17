@@ -15,7 +15,7 @@ from .plugin_i18n import set_plugin
 class AliApiPlugin(BasePlugin):
     name = 'ali_api'
     version = '1.0.0'
-    description = '1688 供应链采集插件 — 商品搜索、AI 优化、本地商城发布'
+    description = '1688 Supply Chain Plugin — Product Search, AI Optimization, Local Marketplace Publishing'
     author = 'VeroRun'
 
     def on_enable(self, registry):
@@ -24,7 +24,7 @@ class AliApiPlugin(BasePlugin):
             from .models import init_tables
             init_tables()
         except Exception as e:
-            print(f'[AliApi] DB init warning: {e}')
+            print(f'[AliApi] {self.t("DB init warning")}: {e}')
         set_plugin(self)
         # 注册订单监听
         try:
@@ -32,7 +32,7 @@ class AliApiPlugin(BasePlugin):
             bus = get_event_bus()
             bus.on(EventName.ORDER_PAID, self._on_order_paid)
         except Exception as e:
-            print(f'[AliApi] EventBus init warning: {e}')
+            print(f'[AliApi] {self.t("EventBus init warning")}: {e}')
         return True
 
     def on_disable(self):
@@ -93,9 +93,9 @@ class AliApiPlugin(BasePlugin):
                         'supplier_id': ali_item.get('seller_id', ''),
                     })
                 conn.commit()
-                logger.info(f'[AliApi] 已为订单 {order_id} 创建采购单草稿')
+                logger.info(f'[AliApi] {self.t("Purchase order draft created for order {order_id}", order_id=order_id)}')
         except Exception as e:
-            print(f'[AliApi] 订单监听异常: {e}')
+            print(f'[AliApi] {self.t("Order listener error")}: {e}')
 
     def register_routes(self):
         """注册路由蓝图"""

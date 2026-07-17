@@ -74,7 +74,7 @@ function renderMediaLibrary(items){
   _mlAllItems=items||[];
   setTimeout(function(){mlApplyFilter()},50);
 
-  h+='<div class="cd"><div class="st">{{ _('Media Library') }} <span style="font-weight:400;font-size:11px;color:var(--dim)">共 '+items.length+' {{ _('Files') }}</span></div>';
+  h+='<div class="cd"><div class="st">{{ _('Media Library') }} <span style="font-weight:400;font-size:11px;color:var(--dim)">{{ _('Total:') }} '+items.length+' {{ _('Files') }}</span></div>';
   h+='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
   h+='<input class="in" id="mlFilterText" placeholder="{{ _('Search File Name') }}..." style="flex:1;min-width:120px;font-size:12px;padding:6px 10px" onkeyup="mlApplyFilter()">';
   h+='<select class="sl" id="mlFilterType" onchange="mlApplyFilter()" style="font-size:12px;padding:6px 10px"><option value="">{{ _('All Types') }}</option><option value="image">🖼 {{ _('Image') }}</option><option value="video">🎬 {{ _('Video') }}</option><option value="audio">🎵 {{ _('Audio') }}</option></select>';

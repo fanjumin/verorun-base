@@ -8,7 +8,11 @@ import os
 import sys
 
 
-def create_shop_payment(order_id, total_amount, subject='商城订单'):
+from i18n import _
+
+
+def create_shop_payment(order_id, total_amount, subject=None):
+    subject = subject or _('商城订单')
     _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
     if _auth_dir not in sys.path:
         sys.path.insert(0, _auth_dir)

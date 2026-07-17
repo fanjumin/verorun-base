@@ -290,7 +290,7 @@ function smShowAddForm(){
   var fm=document.getElementById("sm-form");if(fm)fm.remove();
   var h='<div id="sm-form" class="cd" style="margin-top:12px;padding:16px;background:var(--bg2);border-radius:8px;border:1px solid var(--accent)">';
   h+='<div class="st" style="margin-bottom:12px">{{ _('Add Social Media') }}</div>';
-  h+='<div class="fl"><span style="width:80px;font-size:12px">{{ _('Platform Name') }}</span><input class="in" id="sf-platform_name" style="width:200px" placeholder="如：{{ _('WeChat') }}"></div>';
+  h+='<div class="fl"><span style="width:80px;font-size:12px">{{ _('Platform Name') }}</span><input class="in" id="sf-platform_name" style="width:200px" placeholder="{{ _('E.g.') }} {{ _('WeChat') }}"></div>';
   h+='<div class="fl"><span style="width:80px;font-size:12px">{{ _('Icon Type') }}</span><select class="in" id="sf-icon_type" style="width:200px" onchange="smToggleIconInput()"><option value="svg">SVG</option><option value="url">URL{{ _('Image') }}</option></select></div>';
   h+='<div class="fl"><span style="width:80px;font-size:12px">{{ _('Icon Content') }}</span><input class="in" id="sf-icon_value" style="width:400px" placeholder="SVG{{ _('Code or Image') }}URL"></div>';
   h+='<div class="fl"><span style="width:80px;font-size:12px">{{ _('Link') }} URL</span><input class="in" id="sf-url" style="width:400px" placeholder="https://"></div>';

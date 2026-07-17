@@ -5,6 +5,7 @@
 子类实现：连接测试、字段声明、消息/媒体推送。
 """
 from abc import ABC, abstractmethod
+from i18n import _
 
 
 class BaseIMAdapter(ABC):
@@ -46,7 +47,7 @@ class BaseIMAdapter(ABC):
 
     def push_media(self, file_url, filename, mime):
         """向该频道推送媒体文件。默认不支持，子类覆写。"""
-        raise Exception(f'{self.channel} 暂不支持媒体推送')
+        raise Exception(_('{channel} 暂不支持媒体推送', channel=self.channel))
 
     # ── 工具方法 ──
 

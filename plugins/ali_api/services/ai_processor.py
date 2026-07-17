@@ -9,6 +9,7 @@
 
 import json
 import logging
+from i18n import _
 from typing import Dict, Any, Optional, Tuple
 import sys
 import os
@@ -99,18 +100,18 @@ class AIProcessor:
     def optimize_title(self, original_title: str, category: str = None, keywords: str = None) -> Tuple[bool, Optional[str]]:
         """优化商品标题"""
         if not original_title or len(original_title.strip()) == 0:
-            return False, "原始标题不能为空"
+            return False, _('Original title cannot be empty')
         
         # 构建提示词
         prompt = config['ai']['title_prompt'].format(title=original_title)
         
         if category:
-            prompt += f"\n商品类目: {category}"
+            prompt += _("\nProduct category: {category}", category=category)
         
         if keywords:
-            prompt += f"\n关键词: {keywords}"
+            prompt += _("\nKeywords: {keywords}", keywords=keywords)
         
-        prompt += "\n请输出优化后的标题，不要添加任何解释。"
+        prompt += _("\nOutput the optimized title without any explanation.")
         
         # 调用AI
         success, optimized = self._call_ai(prompt, max_tokens=config['ai']['title_max_length'])
@@ -138,7 +139,7 @@ class AIProcessor:
         category = product_info.get('category', '')
         
         if not original_title:
-            return False, "原始标题不能为空"
+            return False, _('Original title cannot be empty')
         
         specs_text = json.dumps(specs, ensure_ascii=False, indent=2) if specs else '无'
         
@@ -197,7 +198,7 @@ class AIProcessor:
     def optimize_description(self, original_description: str, product_features: Dict[str, Any] = None) -> Tuple[bool, Optional[str]]:
         """优化商品描述"""
         if not original_description or len(original_description.strip()) == 0:
-            return False, "原始描述不能为空"
+            return False, _('Original description cannot be empty')
         
         # 构建提示词
         prompt = config['ai']['description_prompt'].format(description=original_description)
@@ -206,7 +207,7 @@ class AIProcessor:
             features_text = json.dumps(product_features, ensure_ascii=False)
             prompt += f"\n商品特征: {features_text}"
         
-        prompt += "\n请输出优化后的描述，突出产品卖点，适合电商平台展示。"
+        prompt += _("\nOutput the optimized description highlighting product features for e-commerce display.")
         
         # 调用AI
         success, optimized = self._call_ai(prompt)

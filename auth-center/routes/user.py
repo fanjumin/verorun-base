@@ -565,37 +565,37 @@ def usage_history():
 CONFIG_SCHEMA = {
     # ├─ 邮箱配置（SMTP/IMAP 已迁移至 Email 插件，由插件独立管理） ─
     # ├─ 短信配置 ─
-    'aliyun_sms_sign_name':    {'label': '短信签名',      'category': 'sms', 'sensitive': False, 'placeholder': '徐州易开网络科技'},
-    'aliyun_sms_access_key':   {'label': 'AccessKey ID',   'category': 'sms', 'sensitive': True,  'placeholder': '输入 AccessKey ID'},
-    'aliyun_sms_secret':       {'label': 'AccessKey Secret','category': 'sms', 'sensitive': True,  'placeholder': '输入 AccessKey Secret'},
+    'aliyun_sms_sign_name':    {'label': _('短信签名'),      'category': 'sms', 'sensitive': False, 'placeholder': _('徐州易开网络科技')},
+    'aliyun_sms_access_key':   {'label': 'AccessKey ID',   'category': 'sms', 'sensitive': True,  'placeholder': _('输入 AccessKey ID')},
+    'aliyun_sms_secret':       {'label': 'AccessKey Secret','category': 'sms', 'sensitive': True,  'placeholder': _('输入 AccessKey Secret')},
     # ├─ 联系邮箱 ─
-    'contact_email':           {'label': '联系邮箱',       'category': 'other', 'sensitive': False, 'placeholder': 'myname@163.com'},
+    'contact_email':           {'label': _('联系邮箱'),       'category': 'other', 'sensitive': False, 'placeholder': 'myname@163.com'},
     # ├─ 社媒推送配置 ─
-    'wechat_token':            {'label': '公众号 Token',       'category': 'social', 'sensitive': True,  'placeholder': '输入 Token (可选)'},
+    'wechat_token':            {'label': _('公众号 Token'),       'category': 'social', 'sensitive': True,  'placeholder': _('输入 Token (可选)')},
     # ├─ 微博推送 ─
-    'weibo_app_key':           {'label': '微博 App Key',       'category': 'social', 'sensitive': False, 'placeholder': 'App Key'},
-    'weibo_app_secret':        {'label': '微博 App Secret',    'category': 'social', 'sensitive': True,  'placeholder': 'App Secret'},
-    'weibo_access_token':      {'label': '微博 Access Token',  'category': 'social', 'sensitive': True,  'placeholder': '用户授权Token'},
+    'weibo_app_key':           {'label': _('微博 App Key'),       'category': 'social', 'sensitive': False, 'placeholder': _('App Key')},
+    'weibo_app_secret':        {'label': _('微博 App Secret'),    'category': 'social', 'sensitive': True,  'placeholder': _('App Secret')},
+    'weibo_access_token':      {'label': _('微博 Access Token'),  'category': 'social', 'sensitive': True,  'placeholder': _('用户授权Token')},
     # ├─ 今日头条推送 ─
-    'toutiao_app_id':          {'label': '头条号 App ID',      'category': 'social', 'sensitive': False, 'placeholder': '头条开放平台 App ID'},
-    'toutiao_app_secret':      {'label': '头条号 App Secret',  'category': 'social', 'sensitive': True,  'placeholder': 'App Secret'},
-    'toutiao_access_token':    {'label': '头条号 Access Token','category': 'social', 'sensitive': True,  'placeholder': '接口调用Token'},
+    'toutiao_app_id':          {'label': _('头条号 App ID'),      'category': 'social', 'sensitive': False, 'placeholder': _('头条开放平台 App ID')},
+    'toutiao_app_secret':      {'label': _('头条号 App Secret'),  'category': 'social', 'sensitive': True,  'placeholder': _('App Secret')},
+    'toutiao_access_token':    {'label': _('头条号 Access Token'),'category': 'social', 'sensitive': True,  'placeholder': _('接口调用Token')},
     # ├─ 小程序 AI 配置 ─
-    'mp_ai_provider':          {'label': 'AI 供应商',          'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek / dashscope / openai / openrouter'},
-    'mp_ai_model':             {'label': '模型名称',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek-chat / qwen-turbo / gpt-4o-mini'},
-    'mp_ai_base_url':          {'label': 'API 地址',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'https://api.deepseek.com'},
-    'mp_ai_api_key':           {'label': 'API Key',            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': '输入 API Key'},
+    'mp_ai_provider':          {'label': _('AI 供应商'),          'category': 'miniapp_ai', 'sensitive': False, 'placeholder': _('deepseek / dashscope / openai / openrouter')},
+    'mp_ai_model':             {'label': _('模型名称'),           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': _('deepseek-chat / qwen-turbo / gpt-4o-mini')},
+    'mp_ai_base_url':          {'label': _('API 地址'),           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': _('https://api.deepseek.com')},
+    'mp_ai_api_key':           {'label': _('API Key'),            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': _('输入 API Key')},
     # ├─ 支付配置（已迁移至 PaymentPlugin 插件管理） ─
     # ├─ 实名认证（已迁移至 VerificationPlugin 插件管理） ─
     # ├─ 后台访问控制 ─
-    'admin_allowed_domains':   {'label': '允许的管理后台域名', 'category': 'admin_access', 'sensitive': False,
-                                'placeholder': 'agent.easykai.cn, admin.easykai.cn'},
+    'admin_allowed_domains':   {'label': _('允许的管理后台域名'), 'category': 'admin_access', 'sensitive': False,
+                                'placeholder': _('agent.easykai.cn, admin.easykai.cn')},
 }
 
 CONFIG_CATEGORIES = [
-    {'id': 'social', 'title': '社媒推送'},
-    {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
-    {'id': 'admin_access', 'title': '后台访问控制'},
+    {'id': 'social', 'title': _('社媒推送')},
+    {'id': 'miniapp_ai', 'title': _('小程序 AI 配置')},
+    {'id': 'admin_access', 'title': _('后台访问控制')},
 ]
 
 
@@ -618,7 +618,7 @@ def get_configs():
     with get_db() as conn:
         user = conn.execute('SELECT is_admin FROM users WHERE id=%s', (user_id,)).fetchone()
     if not user or not user['is_admin']:
-        return jsonify({'success': False, 'error': chr(20165)+chr(31649)+chr(29702)+chr(21592)+chr(21487)+chr(20316)+chr(20316)}), 403
+        return jsonify({'success': False, 'error': _('管理员权限不足')}), 403
     with get_db() as conn:
         rows = conn.execute('SELECT key, value, description FROM system_config ORDER BY key').fetchall()
     configs = [dict(r) for r in rows]
@@ -645,7 +645,7 @@ def update_config():
     with get_db() as conn:
         user = conn.execute('SELECT is_admin FROM users WHERE id=%s', (user_id,)).fetchone()
     if not user or not user['is_admin']:
-        return jsonify({'success': False, 'error': chr(20165)+chr(31649)+chr(29702)+chr(21592)+chr(21487)+chr(20316)+chr(20316)}), 403
+        return jsonify({'success': False, 'error': _('管理员权限不足')}), 403
     data = request.get_json(force=True)
     key = data.get('key', '').strip()
     value = data.get('value', '').strip()
@@ -655,7 +655,7 @@ def update_config():
     with get_db() as conn:
         conn.execute(sql, (key, value, user_id))
         conn.commit()
-    return jsonify({'success': True, 'message': chr(37197)+chr(32622)+chr(24050)+chr(26356)+chr(26032)})
+    return jsonify({'success': True, 'message': _('配置已更新')})
 
 
 @user_bp.route('/config/upload', methods=['POST'])
@@ -686,11 +686,11 @@ def upload_config_csv():
         with get_db() as conn:
             conn.execute(
                 "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
-                ('aliyun_sms_access_key', access_key, '阿里云短信 AccessKey ID', user_id)
+                ('aliyun_sms_access_key', access_key, _('阿里云短信 AccessKey ID'), user_id)
             )
             conn.execute(
                 "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
-                ('aliyun_sms_secret', access_secret, '阿里云短信 AccessKey Secret', user_id)
+                ('aliyun_sms_secret', access_secret, _('阿里云短信 AccessKey Secret'), user_id)
             )
             conn.commit()
         return jsonify({'success': True, 'message': 'AccessKey configuration imported', 'access_key_prefix': access_key[:8]+'...'})

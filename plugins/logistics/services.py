@@ -13,6 +13,7 @@ from typing import Dict, Any, List, Tuple
 from urllib import request, parse
 
 from .models import get_logistics_db
+from i18n import _
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,8 @@ def query_track(shipper_code: str, logistic_code: str,
     if not eid or not api_key:
         eid, api_key = _get_kdniao_config()
     if not eid or not api_key:
-        _log_query(shipper_code, logistic_code, order_code, False, '快递鸟未配置')
-        return False, {}, '快递鸟未配置: 请在系统设置→基本设置→物流配送中填写商户ID和API Key'
+        _log_query(shipper_code, logistic_code, order_code, False, _('快递鸟未配置'))
+        return False, {}, _('快递鸟未配置: 请在系统设置→基本设置→物流配送中填写商户ID和API Key')
 
     req_body = {
         'OrderCode': order_code,
@@ -98,30 +99,30 @@ def query_track(shipper_code: str, logistic_code: str,
                 _log_query(shipper_code, logistic_code, order_code, True)
                 return True, data, ''
             else:
-                reason = result.get('Reason', '查询失败')
+                reason = result.get('Reason', _('查询失败'))
                 _log_query(shipper_code, logistic_code, order_code, False, reason)
-                return False, {}, f'快递鸟查询失败: {reason}'
+                return False, {}, _('快递鸟查询失败: {reason}').format(reason=reason)
     except json.JSONDecodeError as e:
         _log_query(shipper_code, logistic_code, order_code, False, str(e))
-        return False, {}, f'解析响应失败: {e}'
+        return False, {}, _('解析响应失败: {error}').format(error=e)
     except Exception as e:
         _log_query(shipper_code, logistic_code, order_code, False, str(e))
-        return False, {}, f'网络请求失败: {e}'
+        return False, {}, _('网络请求失败: {error}').format(error=e)
 
 
 def _state_text(state: str) -> str:
     return {
-        '0': '无轨迹', '1': '已揽收', '2': '在途中', '3': '签收',
-        '4': '问题件', '5': '转寄', '6': '退签', '7': '待清关',
-        '8': '清关中', '9': '已拒收', '10': '待交付', '11': '已交付', '14': '退货中',
-    }.get(state, f'未知({state})')
+        '0': _('无轨迹'), '1': _('已揽收'), '2': _('在途中'), '3': _('签收'),
+        '4': _('问题件'), '5': _('转寄'), '6': _('退签'), '7': _('待清关'),
+        '8': _('清关中'), '9': _('已拒收'), '10': _('待交付'), '11': _('已交付'), '14': _('退货中'),
+    }.get(state, _('未知({state})').format(state=state))
 
 
 def get_shipping_status_text(shipping_status: str) -> str:
     return {
-        'pending': '待发货',
-        'shipped': '已发货',
-        'delivered': '已签收',
+        'pending': _('待发货'),
+        'shipped': _('已发货'),
+        'delivered': _('已签收'),
     }.get(shipping_status, shipping_status)
 
 

@@ -21,7 +21,7 @@ window.l_sub_stats=function(){
       var maxRev=0;
       trend.forEach(function(t){if(t.revenue>maxRev)maxRev=t.revenue});
       maxRev=maxRev||1;
-      h+='<div class="cd" style="margin-top:16px"><div class="st">近30{{ _('Daily Revenue Trend') }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:140px;padding-top:10px">';
+      h+='<div class="cd" style="margin-top:16px"><div class="st">{{ _('Last 30 Days') }}{{ _('Daily Revenue Trend') }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:140px;padding-top:10px">';
       trend.forEach(function(t){
         var pct=Math.max(3,t.revenue/maxRev*100);
         h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;height:140px;justify-content:flex-end">';
@@ -48,7 +48,7 @@ window.l_sub_stats=function(){
     // 12-month revenue
     var monthly=ds.monthly_12m||[];
     if(monthly.length){
-      h+='<div class="cd" style="margin-top:16px"><div class="st">近12{{ _('Monthly Revenue') }}</div><table><tr><th>{{ _('Month') }}</th><th>{{ _('Revenue') }}</th></tr>';
+      h+='<div class="cd" style="margin-top:16px"><div class="st">{{ _('Last 12 Months') }}{{ _('Monthly Revenue') }}</div><table><tr><th>{{ _('Month') }}</th><th>{{ _('Revenue') }}</th></tr>';
       monthly.forEach(function(m){
         h+='<tr><td>'+esc(m.ym)+'</td><td>¥'+m.revenue+'</td></tr>';
       });

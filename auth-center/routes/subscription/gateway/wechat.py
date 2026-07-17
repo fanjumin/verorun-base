@@ -100,7 +100,7 @@ def _decrypt_wechat_resource(resource: dict) -> dict:
         return json.loads(plaintext.decode('utf-8'))
     except Exception as e:
         import logging
-        logging.error(f"微信支付解密失败: {e}")
+        logging.error(_("微信支付解密失败: {error}", error=e))
         return {}
 
 
@@ -206,7 +206,7 @@ def call_native_pay(order_no, description, amount_fen, notify_url=None):
         }
     except urllib.error.HTTPError as e:
         err_body = e.read().decode()
-        return {'stub': True, 'error': f'微信下单失败: {err_body}'}
+        return {'stub': True, 'error': _('微信下单失败: {body}', body=err_body)}
     except Exception as e:
         return {'stub': True, 'error': str(e)}
 
@@ -275,7 +275,7 @@ def create_contract(user_id, plan_key, period, price_fen, user_nickname):
                 'contract_code': 'STUB_' + secrets.token_hex(8).upper()}
 
     if not WECHAT_PLAN_ID:
-        return {'stub': True, 'error': '未配置扣费计划ID (WECHAT_PLAN_ID)'}
+        return {'stub': True, 'error': _('未配置扣费计划ID (WECHAT_PLAN_ID)')}
 
     import urllib.request
     contract_id = 'WC' + datetime.now().strftime('%Y%m%d%H%M%S') + secrets.token_hex(4).upper()
@@ -305,7 +305,7 @@ def create_contract(user_id, plan_key, period, price_fen, user_nickname):
             'contract_code': contract_id,
         }
     except urllib.error.HTTPError as e:
-        return {'stub': True, 'error': f'签约失败: {e.read().decode()}'}
+        return {'stub': True, 'error': _('签约失败: {body}', body=e.read().decode())}
     except Exception as e:
         return {'stub': True, 'error': str(e)}
 
@@ -352,7 +352,7 @@ def unsign_contract(contract_id):
     import urllib.request
     url = f'https://api.mch.weixin.qq.com/v3/papay/contracts/{contract_id}/terminate'
     body = json.dumps({
-        'contract_termination_remark': '用户主动解约',
+        'contract_termination_remark': _('用户主动解约'),
     }, ensure_ascii=False)
     headers = _build_auth_header('POST', f'/v3/papay/contracts/{contract_id}/terminate', body)
     req = urllib.request.Request(url, data=body.encode(), headers=headers, method='POST')
@@ -458,7 +458,7 @@ def handle_notify():
             if order_no:
                 from .. import _fulfill_order
                 _fulfill_order(order_no, 'wechat', transaction_id, None, json.dumps(data))
-                return jsonify({'code': 'SUCCESS', 'message': '成功'})
+                return jsonify({'code': 'SUCCESS', 'message': _('成功')})
 
     # 委托扣款回调
     elif data.get('event_type') == 'PAPAY.TRANSACTION.SUCCESS':
@@ -469,7 +469,7 @@ def handle_notify():
             if order_no:
                 from .. import _fulfill_order
                 _fulfill_order(order_no, 'wechat', resource_plain.get('transaction_id'), None, json.dumps(data))
-                return jsonify({'code': 'SUCCESS', 'message': '成功'})
+                return jsonify({'code': 'SUCCESS', 'message': _('成功')})
 
     # 签约回调
     elif data.get('event_type') == 'PAPAY.SIGN.SUCCESS':
@@ -489,7 +489,7 @@ def handle_notify():
                 )
                 conn.commit()
                 import logging
-                logging.info(f"更新订阅 contract_id: {contract_id}, 订单: {out_contract_code}, 影响行数: {result.rowcount}")
-        return jsonify({'code': 'SUCCESS', 'message': '成功'})
+                logging.info(_("更新订阅 contract_id: {contract_id}, 订单: {contract_code}, 影响行数: {count}", contract_id=contract_id, contract_code=out_contract_code, count=result.rowcount))
+        return jsonify({'code': 'SUCCESS', 'message': _('成功')})
 
-    return jsonify({'code': 'FAIL', 'message': '未处理'}), 200
+    return jsonify({'code': 'FAIL', 'message': _('未处理')}), 200

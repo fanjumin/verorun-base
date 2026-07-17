@@ -13,6 +13,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import PriorityQueue
 from enum import IntEnum
+from i18n import _
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
@@ -108,7 +109,7 @@ class WorkerPool:
             }
 
         m.add_log('system', 0, 'info',
-                   f'📤 任务已提交: [{task_type}] {task_id} (优先级:{priority})')
+                   _('📤 任务已提交: [{task_type}] {task_id} (优先级:{priority})', task_type=task_type, task_id=task_id, priority=priority))
         return task_id
 
     def _run_task(self, task_id: str, task_type: str, task_data: dict):
@@ -130,7 +131,7 @@ class WorkerPool:
 
         except Exception as e:
             m.add_log('system', 0, 'error',
-                       f'❌ 任务执行失败 [{task_id}]: {str(e)}')
+                       _('❌ 任务执行失败 [{task_id}]: {error}', task_id=task_id, error=str(e)))
             with self._lock:
                 if task_id in self._active_tasks:
                     self._active_tasks[task_id]['status'] = 'failed'
@@ -148,7 +149,7 @@ class WorkerPool:
             trigger_config = {}
 
         if not wf_id:
-            return {'success': False, 'error': 'workflow_id 缺失'}
+            return {'success': False, 'error': _('workflow_id 缺失')}
 
         try:
             inst_id = self._workflow_engine.run_workflow(
@@ -170,7 +171,7 @@ class WorkerPool:
         elif target_type == 'script':
             return self._execute_script_target(target_config)
 
-        return {'success': False, 'error': f'不支持的目标类型: {target_type}'}
+        return {'success': False, 'error': _('不支持的目标类型: {type}', type=target_type)}
 
     def _execute_api_job(self, job: dict, target_config: dict,
                           timeout: int = 300) -> dict:
@@ -187,7 +188,7 @@ class WorkerPool:
         body = config.get('body')
 
         if not url:
-            return {'success': False, 'error': 'URL 为空'}
+            return {'success': False, 'error': _('URL 为空')}
 
         req = urllib.request.Request(url, method=method)
         for k, v in headers.items():
@@ -230,11 +231,11 @@ class WorkerPool:
                     'returncode': result.returncode
                 }
             except subprocess.TimeoutExpired:
-                return {'success': False, 'error': f'脚本执行超时 ({timeout}s)'}
+                return {'success': False, 'error': _('脚本执行超时 ({timeout}s)', timeout=timeout)}
             except Exception as e:
                 return {'success': False, 'error': str(e)}
 
-        return {'success': True, 'message': '无脚本路径, 跳过'}
+        return {'success': True, 'message': _('无脚本路径, 跳过')}
 
     def _execute_agent_job(self, job: dict, target_config: dict = None,
                             timeout: int = 300) -> dict:
@@ -242,7 +243,7 @@ class WorkerPool:
         config = target_config or job.get('target_config', {}) if isinstance(job, dict) else {}
         prompt = config.get('prompt', '')
         if not prompt:
-            return {'success': False, 'error': 'prompt 为空'}
+            return {'success': False, 'error': _('prompt 为空')}
         return node_handlers.handle_ai_agent({'config': config}, {'context': {}})
 
     def _execute_node(self, task_data: dict):
@@ -298,7 +299,7 @@ class WorkerPool:
         self._running = False
         self._dedicated_pool.shutdown(wait=False)
         self._shared_pool.shutdown(wait=False)
-        m.add_log('system', 0, 'info', '🔴 Worker 池已关闭')
+        m.add_log('system', 0, 'info', _('🔴 Worker 池已关闭'))
 
     @property
     def workflow_engine(self) -> WorkflowEngine:

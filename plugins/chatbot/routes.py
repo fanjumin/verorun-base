@@ -100,7 +100,7 @@ def _require_admin():
         token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
-        return (jsonify({'success': False, 'error': '需要管理权限'}), 401)
+        return (jsonify({'success': False, 'error': _('Admin permission required')}), 401)
     return None
 
 
@@ -163,7 +163,7 @@ def log_session_route():
     escalated = data.get('escalated', False)
     source = data.get('source', 'chatbot')
     if not session_id:
-        return jsonify({'success': False, 'error': 'session_id 不能为空'}), 400
+        return jsonify({'success': False, 'error': _('session_id cannot be empty')}), 400
     ls, _, _ = _stats_import()
     ok = ls(session_id, user_query, ai_reply, escalated=escalated, source=source)
     return jsonify({'success': ok})
@@ -223,7 +223,7 @@ def qa_check():
         result = qa_check_conversation(session_id, user_query, ai_reply)
         if result:
             return jsonify({'success': True, 'data': result})
-        return jsonify({'success': False, 'error': '质检失败'}), 500
+        return jsonify({'success': False, 'error': _('Quality check failed')}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -235,7 +235,7 @@ def copilot_suggest():
     user_query = data.get('user_query', '')
     history = data.get('history', '')  # 之前的对话记录
     if not user_query:
-        return jsonify({'success': False, 'error': '缺少用户消息'}), 400
+        return jsonify({'success': False, 'error': _('Missing user message')}), 400
     try:
         import sys as _sys, os as _os, json as _json
         _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..'))
@@ -312,7 +312,7 @@ def csat():
     session_id = data.get('session_id', '')
     score = data.get('score', 0)
     if not session_id:
-        return jsonify({'success': False, 'error': 'session_id 不能为空'}), 400
+        return jsonify({'success': False, 'error': _('session_id cannot be empty')}), 400
     try:
         score = int(score)
         if score < 1 or score > 5:

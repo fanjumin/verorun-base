@@ -12,6 +12,8 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
+from i18n import _
+
 
 def _get_db():
     """获取 ads 插件数据库连接"""
@@ -57,7 +59,7 @@ def get_ad(ad_id):
         conn = _get_db()
         row = conn.execute('SELECT * FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
         if not row:
-            return {'success': False, 'error': '广告不存在'}
+            return {'success': False, 'error': _('广告不存在')}
         d = dict(row)
         try:
             d['targeting_rules'] = json.loads(d.get('targeting_rules') or '{}')
@@ -74,7 +76,7 @@ def create_ad(data):
         # 校验必填
         name = (data.get('name') or '').strip()
         if not name:
-            return {'success': False, 'error': '广告名称不能为空'}
+            return {'success': False, 'error': _('广告名称不能为空')}
 
         targeting = data.get('targeting_rules') or {}
         if isinstance(targeting, str):
@@ -123,7 +125,7 @@ def update_ad(ad_id, data):
         conn = get_ads_db()
         existing = conn.execute('SELECT id FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
         if not existing:
-            return {'success': False, 'error': '广告不存在'}
+            return {'success': False, 'error': _('广告不存在')}
 
         # 构建动态更新字段
         fields = []
@@ -162,7 +164,7 @@ def update_ad(ad_id, data):
             params.append(targeting)
 
         if not fields:
-            return {'success': False, 'error': '没有要更新的字段'}
+            return {'success': False, 'error': _('没有要更新的字段')}
 
         fields.append('updated_at=NOW()')
         params.append(ad_id)
@@ -215,12 +217,12 @@ def analyze_ads(days=7):
         daily = stats.get('daily', [])
 
         lines = [
-            f"=== 广告效果分析（最近 {days} 天）===",
-            f"总展示量: {total.get('impressions', 0)}",
-            f"总点击量: {total.get('clicks', 0)}",
-            f"整体 CTR: {total.get('ctr', 0)}%",
+            _('=== 广告效果分析（最近 {days} 天）===', days=days),
+            _('总展示量: {impressions}', impressions=total.get('impressions', 0)),
+            _('总点击量: {clicks}', clicks=total.get('clicks', 0)),
+            _('整体 CTR: {ctr}%', ctr=total.get('ctr', 0)),
             "",
-            "按广告效果排序:"
+            _('按广告效果排序:')
         ]
 
         # 合并广告与累计数据（用当前累计 impressions/clicks）
@@ -229,23 +231,27 @@ def analyze_ads(days=7):
             imp = a.get('impressions', 0)
             clk = a.get('clicks', 0)
             ctr = round(clk / imp * 100, 2) if imp else 0.0
-            status = '运行中' if a.get('is_active') else '已暂停'
-            lines.append(f"{i}. [{status}] {a.get('name')} | {a.get('position')} | 展示 {imp} | 点击 {clk} | CTR {ctr}%")
+            status = _('运行中') if a.get('is_active') else _('已暂停')
+            lines.append(_('{i}. [{status}] {name} | {position} | 展示 {imp} | 点击 {clk} | CTR {ctr}%',
+                           i=i, status=status, name=a.get('name'), position=a.get('position'),
+                           imp=imp, clk=clk, ctr=ctr))
 
         # 找出异常：高展示低点击
         low_ctr = [a for a in ads if a.get('impressions', 0) > 100 and (a.get('clicks', 0) / a.get('impressions', 0)) < 0.005]
         if low_ctr:
             lines.append("")
-            lines.append("需要优化的广告（展示>100 且 CTR<0.5%）:")
+            lines.append(_('需要优化的广告（展示>100 且 CTR<0.5%）:'))
             for a in low_ctr:
-                lines.append(f"- {a.get('name')} ({a.get('position')}): 建议更换素材或调整定向")
+                lines.append(_('- {name} ({position}): 建议更换素材或调整定向',
+                               name=a.get('name'), position=a.get('position')))
 
         # 趋势
         if daily:
             lines.append("")
-            lines.append("最近趋势:")
+            lines.append(_('最近趋势:'))
             for r in daily[-7:]:
-                lines.append(f"- {r['stat_date']}: 展示 {r.get('impressions', 0)}, 点击 {r.get('clicks', 0)}")
+                lines.append(_('- {date}: 展示 {impressions}, 点击 {clicks}',
+                               date=r['stat_date'], impressions=r.get('impressions', 0), clicks=r.get('clicks', 0)))
 
         return {'success': True, 'data': '\n'.join(lines)}
     except Exception as e:

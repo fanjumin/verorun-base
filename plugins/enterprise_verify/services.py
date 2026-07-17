@@ -4,6 +4,8 @@ import sys, os, json, re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 
+from i18n import _
+
 SILICONFLOW_BASE_URL = 'https://api.siliconflow.cn/v1'
 DEFAULT_OCR_MODEL = 'deepseek-ai/DeepSeek-OCR'
 DEFAULT_AUDIT_MODEL = 'deepseek-ai/DeepSeek-V3'
@@ -114,10 +116,10 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
     返回: {decision: 'approve'|'pending', confidence: float, reason: str}
     """
     if not company_name or not tax_id:
-        return {'decision': 'pending', 'confidence': 0.0, 'reason': '企业名称或税号为空'}
+        return {'decision': 'pending', 'confidence': 0.0, 'reason': _('企业名称或税号为空')}
 
     if not _validate_tax_id(tax_id):
-        return {'decision': 'pending', 'confidence': 0.0, 'reason': '统一社会信用代码格式不正确'}
+        return {'decision': 'pending', 'confidence': 0.0, 'reason': _('统一社会信用代码格式不正确')}
 
     api_key = _get_siliconflow_api_key()
     if api_key:
@@ -138,9 +140,9 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
             result = json.loads(text)
             confidence = result.get('confidence', 0.0)
             if confidence >= 0.8 and result.get('decision') == 'approve':
-                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核通过')}
-            return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', 'AI 审核不确定，需人工复核')}
+                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', _('AI 审核通过'))}
+            return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', _('AI 审核不确定，需人工复核'))}
         except Exception:
             pass
 
-    return {'decision': 'approved', 'confidence': 0.85, 'reason': '格式校验通过，已自动认证'}
+    return {'decision': 'approved', 'confidence': 0.85, 'reason': _('格式校验通过，已自动认证')}

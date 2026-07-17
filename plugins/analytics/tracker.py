@@ -15,6 +15,7 @@ import sys
 import json
 import time
 from datetime import datetime, timedelta
+from i18n import _
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from . import models as am
@@ -268,12 +269,12 @@ def generate_insight_text(report: dict) -> str:
     """
     lines = []
     s = report['summary']
-    lines.append(f"📊 统计分析报告 ({report['period']})")
+    lines.append(f"📊 {_("Analytics Report")} ({report["period"]})")
     lines.append(f"━━━━━━━━━━━━━━━━━━")
-    lines.append(f"总浏览量 (PV): {s['total_pv']}")
-    lines.append(f"独立访客 (UV): {s['total_uv']}")
-    lines.append(f"总会话数: {s['total_sessions']}")
-    lines.append(f"日均 PV: {s['avg_daily_pv']}  |  日均 UV: {s['avg_daily_uv']}")
+    lines.append(f"{_("Total PV")}: {s["total_pv"]}")
+    lines.append(f"{_("Unique Visitors (UV)")}: {s["total_uv"]}")
+    lines.append(f"{_("Total Sessions")}: {s["total_sessions"]}")
+    lines.append(f"{_("Daily Avg PV")}: {s["avg_daily_pv"]}  |  {_("Daily Avg UV")}: {s["avg_daily_uv"]}")
     lines.append("")
 
     # 趋势
@@ -282,21 +283,21 @@ def generate_insight_text(report: dict) -> str:
         first = report['trend'][0] if report['trend'] else {}
         if last and first:
             pv_change = ((last['pv'] - first['pv']) / max(first['pv'], 1)) * 100
-            lines.append(f"📈 流量变化: {pv_change:+.1f}%")
-            lines.append(f"  跳出率: {last.get('bounce_rate', 0):.1f}%")
-            lines.append(f"  平均会话时长: {last.get('avg_duration', 0):.0f}s")
+            lines.append(f"📈 {_("Traffic Change")}: {pv_change:+.1f}%")
+            lines.append(f"  {_("Bounce Rate")}: {last.get("bounce_rate", 0):.1f}%")
+            lines.append(f"  {_("Avg Session Duration")}: {last.get("avg_duration", 0):.0f}s")
     lines.append("")
 
     # 热门来源
     if report['sources']:
-        lines.append("🔗 Top 来源:")
+        lines.append(f"🔗 {_("Top Sources")}:")
         for src in report['sources'][:5]:
             lines.append(f"  • {src['source_name']}: {src['pv']} PV ({src.get('pct', 0):.1f}%)")
     lines.append("")
 
     # 热门页面
     if report['hot_pages']:
-        lines.append("📄 热门页面:")
+        lines.append(f"📄 {_("Hot Pages")}:")
         for pg in report['hot_pages'][:5]:
             lines.append(f"  • {pg['path']}: {pg['pv']} PV / {pg['uv']} UV")
     lines.append("")

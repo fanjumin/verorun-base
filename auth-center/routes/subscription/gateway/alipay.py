@@ -15,6 +15,7 @@ from flask import request
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
 from database import get_db
+from i18n import _
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTS_DIR = os.path.join(BASE_DIR, '..', '..', '..', 'certs')
@@ -241,7 +242,7 @@ def execute_charge(agreement_id, order_no, amount_fen, subject=None):
 
     private_key = _get_private_key()
     if not private_key:
-        return False, '缺少支付宝私钥'
+        return False, _('缺少支付宝私钥')
 
     params = {
         'app_id': ALIPAY_APP_ID,

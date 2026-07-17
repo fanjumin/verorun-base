@@ -17,6 +17,7 @@ import urllib.request
 from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List
 import logging
+from i18n import _
 
 from ..config import config
 
@@ -153,11 +154,11 @@ class AlibabaClient:
                     if 'error' in result:
                         error_msg = result.get('error_message', '未知错误')
                         error_code = result.get('error_code', 'UNKNOWN')
-                        logger.error(f"阿里巴巴API错误: {error_code} - {error_msg}")
+                        logger.error(f"{_('Alibaba API error')}: {error_code} - {error_msg}")
                         return False, result, error_msg
                     
                     # 成功响应
-                    logger.info(f"阿里巴巴API调用成功: {api_name}, 耗时: {response_time}ms")
+                    logger.info(f"{_('Alibaba API call successful')}: {api_name}, {_('耗时')}: {response_time}ms")
                     return True, result, None
                     
             except urllib.error.HTTPError as e:
@@ -179,7 +180,7 @@ class AlibabaClient:
                 time.sleep(delay)
         
         # 所有重试都失败
-        logger.error(f"阿里巴巴API调用失败: {api_name}, 错误: {last_error}")
+        logger.error(f"{_('Alibaba API call failed')}: {api_name}, {_('Error')}: {last_error}")
         return False, {}, last_error
     
     # ===== 具体API方法 =====

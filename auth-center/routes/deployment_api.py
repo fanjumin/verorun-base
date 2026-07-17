@@ -25,6 +25,7 @@ from flask import Blueprint, request, jsonify
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'models'))
 from database import get_db
+from i18n import _
 
 deploy_bp = Blueprint('deployment', __name__, url_prefix='/api/subscription')
 
@@ -38,9 +39,9 @@ def _require_admin():
         token = request.cookies.get('sso_token', '') or request.cookies.get('tm_token', '')
     payload = validate_token(token) if token else None
     if not payload:
-        return None, (jsonify({'success': False, 'error': '请先登录'}), 401)
+        return None, (jsonify({'success': False, 'error': _('请先登录')}), 401)
     if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': '需要管理员权限'}), 403)
+        return None, (jsonify({'success': False, 'error': _('需要管理员权限')}), 403)
     return payload, None
 
 
@@ -73,7 +74,7 @@ def admin_generate_code():
     duration_days = data.get('duration_days', 365)
 
     if not user_id:
-        return jsonify({'success': False, 'error': '缺少 user_id'}), 400
+        return jsonify({'success': False, 'error': _('缺少 user_id')}), 400
 
     # 生成唯一部署码: DC-YYYYMMDD-XXXXXX
     raw = f"{datetime.now().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
@@ -110,7 +111,7 @@ def admin_revoke_code(code_id):
     with get_db() as conn:
         conn.execute("UPDATE deployment_codes SET status='revoked', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (code_id,))
         conn.commit()
-    return jsonify({'success': True, 'message': '部署码已作废'})
+    return jsonify({'success': True, 'message': _('部署码已作废')})
 
 
 # ══════════════════════════════════════════════
@@ -139,7 +140,7 @@ def heartbeat():
     version = data.get('version', '')
 
     if not code:
-        return jsonify({'success': False, 'error': '缺少部署码'}), 400
+        return jsonify({'success': False, 'error': _('缺少部署码')}), 400
 
     now = datetime.now()
 
@@ -152,7 +153,7 @@ def heartbeat():
     if not row:
         return jsonify({
             'success': True,
-            'data': {'valid': False, 'status': 'not_found', 'message': '部署码不存在'}
+            'data': {'valid': False, 'status': 'not_found', 'message': _('部署码不存在')}
         })
 
     d = dict(row)
@@ -161,7 +162,7 @@ def heartbeat():
     if d['status'] == 'revoked':
         return jsonify({
             'success': True,
-            'data': {'valid': False, 'status': 'revoked', 'message': '部署码已被作废'}
+            'data': {'valid': False, 'status': 'revoked', 'message': _('部署码已被作废')}
         })
 
     # 检查有效期
@@ -184,7 +185,7 @@ def heartbeat():
             'valid': is_valid,
             'days_remaining': max(days_remaining, 0),
             'status': 'active' if is_valid else 'expired',
-            'message': '订阅有效' if is_valid else '订阅已过期，请续费',
+            'message': _('订阅有效') if is_valid else _('订阅已过期，请续费'),
             'plan_key': d['plan_key'],
         }
     })
@@ -198,7 +199,7 @@ def check_subscription_public():
     """
     code = request.args.get('code', '').strip()
     if not code:
-        return jsonify({'success': False, 'error': '缺少部署码'}), 400
+        return jsonify({'success': False, 'error': _('缺少部署码')}), 400
 
     with get_db() as conn:
         row = conn.execute(
@@ -207,7 +208,7 @@ def check_subscription_public():
         ).fetchone()
 
     if not row:
-        return jsonify({'success': False, 'error': '部署码不存在'}), 404
+        return jsonify({'success': False, 'error': _('部署码不存在')}), 404
 
     d = dict(row)
     now = datetime.now()

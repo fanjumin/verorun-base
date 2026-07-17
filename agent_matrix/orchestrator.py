@@ -7,6 +7,8 @@ Agent Matrix — 任务协调核心 (Orchestrator)
 import json, os, sys, logging, time
 from datetime import datetime
 
+from i18n import _
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,11 +80,11 @@ class AgentOrchestrator:
         # 2. 获取 Master Agent 配置
         master_config = self.models.get_agent(master_agent_id)
         if not master_config:
-            self.models.update_task_status(master_task_id, 'failed', error_message='Master Agent 不存在')
-            return {'status': 'failed', 'error': 'Master Agent 不存在'}
+            self.models.update_task_status(master_task_id, 'failed', error_message=_('Master Agent 不存在'))
+            return {'status': 'failed', 'error': _('Master Agent 不存在')}
 
         self._add_task_log(master_task_id, master_agent_id, 'info', 'execution',
-                           f'开始处理指令: {instruction[:80]}...')
+                           _('开始处理指令: {instruction}...', instruction=instruction[:80]))
 
         # 3. 任务分解
         try:
@@ -90,11 +92,11 @@ class AgentOrchestrator:
         except Exception as e:
             self.models.update_task_status(master_task_id, 'failed', error_message=str(e))
             self._add_task_log(master_task_id, master_agent_id, 'error', 'execution',
-                               f'任务分解失败: {e}')
-            return {'status': 'failed', 'error': f'任务分解失败: {e}', 'master_task_id': master_task_id}
+                               _('任务分解失败: {e}', e=e))
+            return {'status': 'failed', 'error': _('任务分解失败: {e}', e=e), 'master_task_id': master_task_id}
 
         self._add_task_log(master_task_id, master_agent_id, 'info', 'execution',
-                           f'任务分解完成: {len(decomposed)} 个子任务')
+                           _('任务分解完成: {count} 个子任务', count=len(decomposed)))
 
         # 4. 保存会话消息
         if session_id:
@@ -117,11 +119,11 @@ class AgentOrchestrator:
             self.models.update_task_status(
                 master_task_id,
                 'completed' if failed_count < len(sub_results) else 'failed',
-                self_review=f'{len(sub_results)}个子任务, {failed_count}个失败 ({total_time}s)'
+                self_review=_('{total}个子任务, {failed}个失败 ({time}s)', total=len(sub_results), failed=failed_count, time=total_time)
             )
 
         self._add_task_log(master_task_id, master_agent_id, 'info', 'execution',
-                           f'任务完成 ({total_time}s), 状态: {"全部完成" if all_completed else "部分失败"}')
+                           _('任务完成 ({time}s), 状态: {status}', time=total_time, status=_('全部完成') if all_completed else _('部分失败')))
 
         # 8. 保存会话回复
         summary = self._build_summary(decomposed, sub_results, total_time, all_completed)
@@ -323,7 +325,7 @@ class AgentOrchestrator:
                         a = agent_map[agent_name]
                         target_module = 'image' if kw in _image_kw else a.get('domain', '')
                         matched.append({
-                            'title': f'{a["description"].split("—")[0] if "—" in a["description"] else a["name"]} — 指令相关操作',
+                            'title': _('{name} — 指令相关操作', name=a["description"].split("—")[0] if "—" in a["description"] else a["name"]),
                             'description': instruction[:200],
                             'target_agent_id': a['id'],
                             'target_agent_name': a['name'],
@@ -374,7 +376,7 @@ class AgentOrchestrator:
                     'sub_task_id': None,
                     'agent_name': task_def.get('target_agent_name', '?'),
                     'status': 'failed',
-                    'error': 'Agent 配置不存在',
+                    'error': _('Agent 配置不存在'),
                     'title': task_def.get('title', ''),
                 }
 
@@ -486,7 +488,7 @@ class AgentOrchestrator:
                                 'sub_task_id': None,
                                 'agent_name': task_def.get('target_agent_name', '?'),
                                 'status': 'failed',
-                                'error': '任务执行超时（300s）',
+                                'error': _('任务执行超时（300s）'),
                                 'title': task_def.get('title', ''),
                             })
                             completed_count += 1
@@ -556,7 +558,7 @@ class AgentOrchestrator:
             history = self._compress_history(conv, agent_config)
         if session_id:
             self.models.add_message(
-                session_id, 'sub', f"开始执行: {task_def.get('title', '')}",
+                session_id, 'sub', _('开始执行: {title}', title=task_def.get('title', '')),
                 agent_id=target_id, agent_name=agent_config.get('name', ''),
                 master_task_id=master_task_id
             )
@@ -659,7 +661,7 @@ class AgentOrchestrator:
                 cr = img.crop(box)
                 fn = f'{uuid.uuid4().hex}.png'
                 cr.save(os.path.join(TEMP_DIR, fn))
-                return f'/static/uploads/temp/{fn}', f'已裁剪区域 {box}'
+                return f'/static/uploads/temp/{fn}', _('已裁剪区域 {box}', box=box)
 
             def _op_resize(p, ref_path):
                 from PIL import Image as _PIL
@@ -688,13 +690,13 @@ class AgentOrchestrator:
                 deg = _re.findall(r'(\d+)', p)
                 _PIL.open(ref_path).rotate(int(deg[0]) if deg else 90, expand=True).save(
                     os.path.join(TEMP_DIR, fn := f'{uuid.uuid4().hex}.png'))
-                return f'/static/uploads/temp/{fn}', f'已旋转 {deg[0] if deg else 90}度'
+                return f'/static/uploads/temp/{fn}', _('已旋转 {deg}度', deg=deg[0] if deg else 90)
 
             def _op_compress(p, ref_path):
                 from PIL import Image as _PIL
                 fn = f'{uuid.uuid4().hex}.jpg'
                 _PIL.open(ref_path).convert('RGB').save(os.path.join(TEMP_DIR, fn), quality=60)
-                return f'/static/uploads/temp/{fn}', '已压缩(quality=60)'
+                return f'/static/uploads/temp/{fn}', _('已压缩(quality=60)')
 
             action_map = [
                 (['提取','裁剪','截取','抠图','取出','扣图'], _op_crop),
@@ -726,7 +728,7 @@ class AgentOrchestrator:
                     fn = f'{uuid.uuid4().hex}{ext}'
                     with open(os.path.join(TEMP_DIR, fn), 'wb') as f: f.write(img_data)
                     exec_result['image_url'] = f'/static/uploads/temp/{fn}'
-                    exec_result['response'] = '图片已生成'
+                    exec_result['response'] = _('图片已生成')
             elif prompt:
                 from services.ai_content_generator import generate_image
                 import urllib.request as _urlreq
@@ -737,10 +739,10 @@ class AgentOrchestrator:
                     fn = f'{uuid.uuid4().hex}{ext}'
                     with open(os.path.join(TEMP_DIR, fn), 'wb') as f: f.write(img_data)
                     exec_result['image_url'] = f'/static/uploads/temp/{fn}'
-                    exec_result['response'] = '图片已生成'
+                    exec_result['response'] = _('图片已生成')
         except Exception as img_err:
             exec_result['status'] = 'failed'
-            exec_result['response'] = f'图片生成失败: {str(img_err)}'
+            exec_result['response'] = _('图片生成失败: {err}', err=str(img_err))
             self._add_task_log(sub_task_id, target_id, 'error', 'image_gen', str(img_err))
 
         return exec_result
@@ -752,34 +754,34 @@ class AgentOrchestrator:
     def _build_summary(self, decomposed, sub_results, total_time, all_completed):
         """构建人类可读的汇总报告"""
         parts = []
-        parts.append(f"📋 **任务执行报告**\n")
-        parts.append(f"共 {len(decomposed)} 个子任务 | 耗时 {total_time}s\n")
+        parts.append(_("📋 **任务执行报告**\n"))
+        parts.append(_("共 {count} 个子任务 | 耗时 {time}s\n", count=len(decomposed), time=total_time))
 
         for i, (task, result) in enumerate(zip(decomposed, sub_results), 1):
             icon = '✅' if result.get('status') == 'completed' else '❌'
             agent = task.get('target_agent_name', '?')
             conf = result.get('confidence', 0)
             title = task.get('title', '')
-            parts.append(f"{icon} #{i} [{agent}] {title}")
-            parts.append(f"   ├ 置信度: {conf}")
+            parts.append(_("{icon} #{i} [{agent}] {title}", icon=icon, i=i, agent=agent, title=title))
+            parts.append(_("   ├ 置信度: {conf}", conf=conf))
             if result.get('self_review'):
-                parts.append(f"   └ 自检: {result['self_review']}")
+                parts.append(_("   └ 自检: {review}", review=result['self_review']))
             if result.get('status') == 'failed':
-                parts.append(f"   └ 错误: {result.get('response', '')[:200]}")
+                parts.append(_("   └ 错误: {err}", err=result.get('response', '')[:200]))
             # 添加子任务的实际产出内容
             resp = result.get('response', '')
             if resp and result.get('status') == 'completed' and len(resp) > 5:
                 # 截取合理长度显示
                 display = resp[:1500]
                 if len(resp) > 1500:
-                    display += '\n...（内容较长，已截断）'
-                parts.append(f"   └ 产出:\n{display}")
+                    display += _('\n...（内容较长，已截断）')
+                parts.append(_("   └ 产出:\n{display}", display=display))
 
         if all_completed:
-            parts.append(f"\n✅ **全部 {len(decomposed)} 个子任务完成**")
+            parts.append(_("\n✅ **全部 {count} 个子任务完成**", count=len(decomposed)))
         else:
             failed = sum(1 for r in sub_results if r.get('status') == 'failed')
-            parts.append(f"\n⚠️ **{failed}/{len(decomposed)} 个子任务失败**")
+            parts.append(_("\n⚠️ **{failed}/{total} 个子任务失败**", failed=failed, total=len(decomposed)))
 
         return '\n'.join(parts)
 

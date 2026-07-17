@@ -7,6 +7,7 @@
 2. 环境变量 WECHAT_APP_ID / WECHAT_APP_SECRET（全局兜底）
 """
 import os, json, urllib.request, urllib.parse
+from i18n import _
 
 WECHAT_APP_ID = os.environ.get('WECHAT_APP_ID', '')
 WECHAT_APP_SECRET = os.environ.get('WECHAT_APP_SECRET', '')
@@ -107,7 +108,7 @@ def get_user_info(openid, access_token):
     # stub 模式检查（无 site_domain 时用全局配置）
     if not WECHAT_APP_ID or WECHAT_APP_ID == 'stub':
         return {
-            'nickname': '微信用户_' + openid[-4:],
+            'nickname': _('微信用户_{suffix}').format(suffix=openid[-4:]),
             'avatar': '',
             'openid': openid,
             'unionid': 'stub_union',
@@ -129,6 +130,6 @@ def get_user_info(openid, access_token):
                 'openid': body['openid'],
                 'unionid': body.get('unionid', ''),
             }
-        return {'error': body.get('errmsg', '获取用户信息失败')}
+        return {'error': body.get('errmsg', _('获取用户信息失败'))}
     except Exception as e:
         return {'error': str(e)}

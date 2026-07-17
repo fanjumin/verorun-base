@@ -22,6 +22,7 @@ API 端点概览:
 
 import os, sys, json
 from flask import Blueprint, request, jsonify, g
+from i18n import _
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
@@ -65,7 +66,7 @@ def init_automation(app):
     # 6. 注册蓝图
     app.register_blueprint(automation_bp)
 
-    m.add_log('system', 0, 'info', '✅ 自动化系统初始化完成')
+    m.add_log('system', 0, 'info', _('✅ 自动化系统初始化完成'))
     return _scheduler, _worker_pool
 
 
@@ -154,7 +155,7 @@ def create_job():
 
     data = request.get_json()
     if not data or not data.get('name'):
-        return _error('名称不能为空')
+        return _error(_('名称不能为空'))
 
     data['created_by'] = admin.get('id', 0)
 
@@ -163,7 +164,7 @@ def create_job():
     else:
         job_id = m.create_cron_job(data)
 
-    return _success({'job_id': job_id}, '任务已创建')
+    return _success({'job_id': job_id}, _('任务已创建'))
 
 
 @automation_bp.route('/jobs/<int:job_id>', methods=['GET'])
@@ -175,7 +176,7 @@ def get_job(job_id):
 
     job = m.get_cron_job(job_id)
     if not job:
-        return _error('任务不存在', 404)
+        return _error(_('任务不存在'), 404)
     return _success(job)
 
 
@@ -188,7 +189,7 @@ def update_job(job_id):
 
     data = request.get_json()
     if not data:
-        return _error('更新数据不能为空')
+        return _error(_('更新数据不能为空'))
 
     if _scheduler:
         success = _scheduler.update_job(job_id, data)
@@ -196,8 +197,8 @@ def update_job(job_id):
         success = m.update_cron_job(job_id, data)
 
     if not success:
-        return _error('任务不存在或未更新', 404)
-    return _success(None, '任务已更新')
+        return _error(_('任务不存在或未更新'), 404)
+    return _success(None, _('任务已更新'))
 
 
 @automation_bp.route('/jobs/<int:job_id>', methods=['DELETE'])
@@ -213,8 +214,8 @@ def delete_job(job_id):
         success = m.delete_cron_job(job_id)
 
     if not success:
-        return _error('任务不存在', 404)
-    return _success(None, '任务已删除')
+        return _error(_('任务不存在'), 404)
+    return _success(None, _('任务已删除'))
 
 
 @automation_bp.route('/jobs/<int:job_id>/toggle', methods=['POST'])
@@ -226,7 +227,7 @@ def toggle_job(job_id):
 
     job = m.get_cron_job(job_id)
     if not job:
-        return _error('任务不存在', 404)
+        return _error(_('任务不存在'), 404)
 
     new_active = 0 if job['is_active'] else 1
     if _scheduler:
@@ -237,7 +238,7 @@ def toggle_job(job_id):
     else:
         m.update_cron_job(job_id, {'is_active': new_active})
 
-    return _success({'is_active': new_active}, '任务已' + ('恢复' if new_active else '暂停'))
+    return _success({'is_active': new_active}, _('任务已{action}', action=_('恢复') if new_active else _('暂停')))
 
 
 @automation_bp.route('/jobs/<int:job_id>/run', methods=['POST'])
@@ -249,16 +250,16 @@ def run_job_now(job_id):
 
     job = m.get_cron_job(job_id)
     if not job:
-        return _error('任务不存在', 404)
+        return _error(_('任务不存在'), 404)
 
     # 通过 Worker 池执行
     from .scheduler import SchedulerEngine
     if _scheduler:
         # 直接调用执行包装器
         _scheduler._execute_job_wrapper(job_id)
-        return _success(None, '任务已启动')
+        return _success(None, _('任务已启动'))
 
-    return _error('调度器未初始化', 500)
+    return _error(_('调度器未初始化'), 500)
 
 
 # ============================================================
@@ -300,12 +301,12 @@ def create_workflow():
 
     data = request.get_json()
     if not data or not data.get('name'):
-        return _error('工作流名称不能为空')
+        return _error(_('工作流名称不能为空'))
 
     data['created_by'] = admin.get('id', 0)
     wf_id = m.create_workflow(data)
 
-    return _success({'workflow_id': wf_id}, '工作流已创建')
+    return _success({'workflow_id': wf_id}, _('工作流已创建'))
 
 
 @automation_bp.route('/workflows/<int:wf_id>', methods=['GET'])
@@ -317,7 +318,7 @@ def get_workflow(wf_id):
 
     wf = m.get_workflow(wf_id)
     if not wf:
-        return _error('工作流不存在', 404)
+        return _error(_('工作流不存在'), 404)
 
     # 解析 JSON 字段以便前端使用
     if wf.get('definition'):
@@ -337,7 +338,7 @@ def update_workflow(wf_id):
 
     data = request.get_json()
     if not data:
-        return _error('更新数据不能为空')
+        return _error(_('更新数据不能为空'))
 
     # 确保 definition 存为 JSON 字符串
     if 'definition' in data and isinstance(data['definition'], dict):
@@ -347,9 +348,9 @@ def update_workflow(wf_id):
 
     success = m.update_workflow(wf_id, data)
     if not success:
-        return _error('工作流不存在', 404)
+        return _error(_('工作流不存在'), 404)
 
-    return _success(None, '工作流已更新')
+    return _success(None, _('工作流已更新'))
 
 
 @automation_bp.route('/workflows/<int:wf_id>', methods=['DELETE'])
@@ -361,9 +362,9 @@ def delete_workflow(wf_id):
 
     success = m.delete_workflow(wf_id)
     if not success:
-        return _error('工作流不存在', 404)
+        return _error(_('工作流不存在'), 404)
 
-    return _success(None, '工作流已删除')
+    return _success(None, _('工作流已删除'))
 
 
 # ============================================================
@@ -379,15 +380,15 @@ def run_workflow(wf_id):
 
     wf = m.get_workflow(wf_id)
     if not wf:
-        return _error('工作流不存在', 404)
+        return _error(_('工作流不存在'), 404)
     if not wf['is_active']:
-        return _error('工作流已禁用', 400)
+        return _error(_('工作流已禁用'), 400)
 
     data = request.get_json() or {}
     initial_context = data.get('context', {})
 
     if not _worker_pool:
-        return _error('Worker 池未初始化', 500)
+        return _error(_('Worker 池未初始化'), 500)
 
     try:
         inst_id = _worker_pool.workflow_engine.run_workflow(
@@ -396,9 +397,9 @@ def run_workflow(wf_id):
             trigger_config={'admin_id': admin.get('id')},
             initial_context=initial_context
         )
-        return _success({'instance_id': inst_id}, f'工作流已启动 (实例 #{inst_id})')
+        return _success({'instance_id': inst_id}, _('工作流已启动 (实例 #{id})', id=inst_id))
     except Exception as e:
-        return _error(f'启动失败: {str(e)}', 500)
+        return _error(_('启动失败: {error}', error=str(e)), 500)
 
 
 # ============================================================
@@ -435,7 +436,7 @@ def get_instance(inst_id):
 
     inst = m.get_workflow_instance(inst_id)
     if not inst:
-        return _error('实例不存在', 404)
+        return _error(_('实例不存在'), 404)
 
     # 获取相关节点实例
     nodes = m.get_node_instances_by_workflow(inst_id)
@@ -458,8 +459,8 @@ def pause_instance(inst_id):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if _worker_pool and _worker_pool.workflow_engine.pause_instance(inst_id):
-        return _success(None, '工作流已暂停')
-    return _error('操作失败', 400)
+        return _success(None, _('工作流已暂停'))
+    return _error(_('操作失败'), 400)
 
 
 @automation_bp.route('/instances/<int:inst_id>/resume', methods=['POST'])
@@ -470,8 +471,8 @@ def resume_instance(inst_id):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if _worker_pool and _worker_pool.workflow_engine.resume_instance(inst_id):
-        return _success(None, '工作流已恢复')
-    return _error('操作失败', 400)
+        return _success(None, _('工作流已恢复'))
+    return _error(_('操作失败'), 400)
 
 
 @automation_bp.route('/instances/<int:inst_id>/cancel', methods=['POST'])
@@ -482,8 +483,8 @@ def cancel_instance(inst_id):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if _worker_pool and _worker_pool.workflow_engine.cancel_instance(inst_id):
-        return _success(None, '工作流已取消')
-    return _error('操作失败', 400)
+        return _success(None, _('工作流已取消'))
+    return _error(_('操作失败'), 400)
 
 
 @automation_bp.route('/instances/<int:inst_id>/nodes/<int:node_inst_id>/approve',
@@ -504,8 +505,8 @@ def approve_node(inst_id, node_inst_id):
             reviewer=admin.get('id', 0)
         )
         if ok:
-            return _success(None, '审批' + ('通过' if approved else '驳回'))
-    return _error('操作失败', 400)
+            return _success(None, _('审批{result}', result=_('通过') if approved else _('驳回')))
+    return _error(_('操作失败'), 400)
 
 
 # ============================================================
@@ -559,7 +560,7 @@ def update_system_agent(agent_id):
 
     data = request.get_json()
     if not data:
-        return _error('数据不能为空')
+        return _error(_('数据不能为空'))
 
     fields = []
     values = []
@@ -574,7 +575,7 @@ def update_system_agent(agent_id):
             values.append(v)
 
     if not fields:
-        return _error('无有效字段')
+        return _error(_('无有效字段'))
 
     values.append(agent_id)
     with m.get_db() as conn:
@@ -583,7 +584,7 @@ def update_system_agent(agent_id):
             f"updated_at=NOW() WHERE id=%s",
             values
         )
-    return _success(None, '系统 Agent 已更新')
+    return _success(None, _('系统 Agent 已更新'))
 
 
 # ============================================================
@@ -598,7 +599,7 @@ def scheduler_status():
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if not _scheduler:
-        return _error('调度器未初始化', 500)
+        return _error(_('调度器未初始化'), 500)
 
     return _success(_scheduler.get_status())
 
@@ -612,8 +613,8 @@ def pause_scheduler():
 
     if _scheduler:
         _scheduler.pause()
-        return _success(None, '调度器已暂停')
-    return _error('调度器未初始化', 500)
+        return _success(None, _('调度器已暂停'))
+    return _error(_('调度器未初始化'), 500)
 
 
 @automation_bp.route('/scheduler/resume', methods=['POST'])
@@ -625,8 +626,8 @@ def resume_scheduler():
 
     if _scheduler:
         _scheduler.resume()
-        return _success(None, '调度器已恢复')
-    return _error('调度器未初始化', 500)
+        return _success(None, _('调度器已恢复'))
+    return _error(_('调度器未初始化'), 500)
 
 
 # ============================================================

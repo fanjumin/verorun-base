@@ -2,6 +2,8 @@
 import json
 import logging
 
+from i18n import _
+
 logger = logging.getLogger(__name__)
 
 INTENT_CATEGORIES = ['purchase', 'aftersale', 'complaint', 'consult', 'technical', 'other']

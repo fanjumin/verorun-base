@@ -343,9 +343,9 @@ def email_send_code():
                      (email, code, 'email_verify', expires_at))
         conn.commit()
     from plugins.email.services import send_email
-    subject = 'VeroRun 邮箱验证码'
-    body_text = f'您的验证码是：{code}，10分钟内有效。如非本人操作，请忽略。'
-    body_html = f'<h3>邮箱验证码</h3><p>您的验证码是：<b style="font-size:20px;color:#6366f1">{code}</b></p><p>10分钟内有效。如非本人操作，请忽略。</p>'
+    subject = _('VeroRun 邮箱验证码')
+    body_text = _('您的验证码是：{code}，10分钟内有效。如非本人操作，请忽略。', code=code)
+    body_html = _('<h3>邮箱验证码</h3><p>您的验证码是：<b style="font-size:20px;color:#6366f1">{code}</b></p><p>10分钟内有效。如非本人操作，请忽略。</p>', code=code)
     success, msg = send_email(email, subject, body_text, body_html)
     if not success:
         return api_err('Email send failed: ' + msg)

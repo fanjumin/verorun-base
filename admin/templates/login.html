@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>登录 — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}</title>
+<title>{{ _('登录') }} — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="stylesheet" href="/puzzle-captcha.css">
 <style>

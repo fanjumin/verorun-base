@@ -7,6 +7,7 @@ if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
+from i18n import _
 
 ev_admin_bp = Blueprint('enterprise_verify_admin', __name__, url_prefix='/admin/enterprise-verifications')
 
@@ -152,7 +153,7 @@ def enterprise_verify_reject(ev_id):
     ev_conn.commit()
 
     _log(admin['user_id'], 'reject_enterprise_verify', detail=f'id={ev_id} user={ev["user_id"]}')
-    return jsonify({'success': True, 'message': 'Enterprise Verification Rejected'})
+    return jsonify({'success': True, 'message': _('Enterprise Verification Rejected')})
 
 
 # ─── PluginManager 标准化配置 ─────────────────────────────────────────
@@ -210,7 +211,7 @@ def ev_settings_save():
                 try:
                     filtered[k] = int(v)
                 except (ValueError, TypeError):
-                    return jsonify({'success': False, 'error': f'{k} must be integer'}), 400
+                    return jsonify({'success': False, 'error': _('{k} must be integer', k=k)}), 400
             elif k == 'auto_approve':
                 if isinstance(v, str):
                     filtered[k] = v.lower() in ('1', 'true', 'yes')
@@ -219,7 +220,7 @@ def ev_settings_save():
             else:
                 filtered[k] = str(v) if v is not None else ''
     if not filtered:
-        return jsonify({'success': False, 'error': 'No valid config keys'}), 400
+        return jsonify({'success': False, 'error': _('No valid config keys')}), 400
     result = pm.set_config_batch('enterprise_verify', filtered, coerce=True)
     if result.get('errors'):
         return jsonify({'success': True, 'warning': str(result['errors'])})

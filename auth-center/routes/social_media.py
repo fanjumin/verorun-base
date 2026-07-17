@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify
 from models import get_db
 from routes.admin import _require_admin, _log
+from i18n import _
 
 social_media_bp = Blueprint('social_media', __name__, url_prefix='/admin')
 
@@ -69,7 +70,7 @@ def update_social_media(sm_id):
     is_enabled = 1 if data.get('is_enabled', True) else 0
     
     if not platform_name or not icon_value or not url:
-        return jsonify({'success': False, 'error': '平台名、图标和链接为必填项'}), 400
+        return jsonify({'success': False, 'error': _('平台名、图标和链接为必填项')}), 400
     
     with get_db() as conn:
         conn.execute(
@@ -122,8 +123,8 @@ def reorder_social_media():
                 conn.execute('UPDATE social_media_links SET display_order=%s WHERE id=%s', (order, sm_id))
         conn.commit()
     
-    _log(admin['user_id'], 'reorder', 'social_media', '', f'已排序 {len(order_list)} 条')
-    return jsonify({'success': True, 'message': '排序成功'})
+    _log(admin['user_id'], 'reorder', 'social_media', '', _('已排序 {count} 条', count=len(order_list)))
+    return jsonify({'success': True, 'message': _('排序成功')})
 
 
 # ════════════════════════════════════════════════════════════════

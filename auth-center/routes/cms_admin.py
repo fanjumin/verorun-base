@@ -11,6 +11,7 @@ from models.cms import (
     get_posts
 )
 from routes.admin import _require_admin, _log
+from i18n import _
 
 cms_admin_bp = Blueprint('cms_admin', __name__, url_prefix='/admin/cms')
 
@@ -238,7 +239,7 @@ def create_category():
     if e: return e
     data = request.get_json(force=True)
     if not data.get('name'):
-        return _err("栏目名称不能为空")
+        return _err(_('栏目名称不能为空'))
     return _ok(upsert_category(data))
 
 
@@ -260,7 +261,7 @@ def remove_category(cat_id):
         refs = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE category IN "
                            "(SELECT name FROM cms_categories WHERE id=%s)", (cat_id,)).fetchone()
         if refs and refs['c'] > 0:
-            return _err(f'该分类下有 {refs["c"]} 篇文章，请先迁移或删除后再操作')
+            return _err(_('该分类下有 {count} 篇文章，请先迁移或删除后再操作', count=refs["c"]))
     delete_category(cat_id)
     return _ok({"deleted": cat_id})
 
@@ -294,18 +295,18 @@ def preview_post(slug):
         post = conn.execute("SELECT * FROM cms_posts WHERE slug=%s", (slug,)).fetchone()
     post = dict(post) if post else None
     if not post:
-        return _err('文章不存在'), 404
+        return _err(_('文章不存在')), 404
     return f'''<!DOCTYPE html><html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>预览: {post.get("title","")}</title>
+<title>{_('预览')}: {post.get("title","")}</title>
 <style>body{{font-family:sans-serif;max-width:800px;margin:0 auto;padding:40px 20px;background:#fff;color:#222;line-height:1.8}}
 .preview-banner{{background:#f0f8ff;border:1px solid #cce;padding:8px 16px;border-radius:6px;font-size:13px;color:#558;margin-bottom:24px;text-align:center}}
 h1{{font-size:28px;margin-bottom:8px}}.meta{{color:#888;font-size:13px;margin-bottom:24px}}
 img{{max-width:100%;border-radius:6px}}</style></head><body>
-<div class="preview-banner">🔍 预览模式 — 仅管理员可见</div>
+<div class="preview-banner">{_('🔍 预览模式 — 仅管理员可见')}</div>
 <h1>{post.get("title","")}</h1>
 <div class="meta">{post.get("author","")} · {post.get("created_at","")[:10]}</div>
-{post.get("content","<p>无内容</p>")}
+{post.get("content", f'<p>{_("无内容")}</p>')}
 </body></html>'''
 
 

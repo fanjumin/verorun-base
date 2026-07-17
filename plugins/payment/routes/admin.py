@@ -9,6 +9,7 @@ import os
 import sys
 
 from flask import Blueprint, request, jsonify
+from i18n import _
 
 payment_admin_bp = Blueprint('payment_admin', __name__, url_prefix='/admin/payment')
 
@@ -171,7 +172,7 @@ def delete_provider_config(provider):
     conn.execute('DELETE FROM payment_configs WHERE provider=?', (provider,))
     conn.commit()
     _log(a, 'delete', 'payment_config', provider, f'Cleared {provider} payment config')
-    return jsonify({'success': True, 'message': f'{provider} config cleared'})
+    return jsonify({'success': True, 'message': _('{provider} config cleared', provider=provider)})
 
 
 # ── API: 检查是否已配置（供支付网关调用） ──

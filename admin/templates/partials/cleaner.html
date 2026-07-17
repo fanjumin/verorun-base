@@ -58,7 +58,7 @@ function cleanerViewResult(id){
     if(!d.success)return;
     var item=d.data.find(function(x){return x.id===id});
     if(!item){showToast("{{ _('Record not found') }}","error");return}
-    alert("{{ _('Raw Content') }}:\n"+(item.raw_content||'').substring(0,500)+"...\n\n{{ _('Status') }}: "+item.status+"\n{{ _('Knowledge Base') }}ID: "+(item.cleaned_id||'-')+"\n{{ _('Error') }}: "+(item.error_msg||'无'))
+    alert("{{ _('Raw Content') }}:\n"+(item.raw_content||'').substring(0,500)+"...\n\n{{ _('Status') }}: "+item.status+"\n{{ _('Knowledge Base') }}ID: "+(item.cleaned_id||'-')+"\n{{ _('Error') }}: "+(item.error_msg||'{{ _('None') }}'))
   })
 }
 

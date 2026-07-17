@@ -9,10 +9,10 @@ window.l_shop_categories = function(){
   // {{ _('Form') }}（{{ _('New') }}/{{ _('Edit') }}）
   h += '<div class="cd" id="catForm" style="display:none;margin-top:16px">';
   h += '<div class="st" id="catFormTitle">{{ _('New Category') }}</div>';
-  h += '<div class="g2"><div><label>{{ _('Name') }}</label><input class="in" id="catName" style="width:100%" placeholder="如: AI{{ _('Tools') }}"></div>';
-  h += '<div><label>{{ _('Identifier') }} (slug)</label><input class="in" id="catSlug" style="width:100%" placeholder="如: ai-tools, {{ _('Auto Generate if Empty') }}"></div></div>';
-  h += '<div class="g2"><div><label>{{ _('Parent Category') }}</label><select class="sl" id="catParent" style="width:100%"><option value="0">无（{{ _('Level 1 Category') }}）</option></select></div>';
-  h += '<div><label>{{ _('Icon') }}</label><input class="in" id="catIcon" style="width:100%" placeholder="如: 🤖"></div></div>';
+  h += '<div class="g2"><div><label>{{ _('Name') }}</label><input class="in" id="catName" style="width:100%" placeholder="{{ _('E.g.') }} AI{{ _('Tools') }}"></div>';
+  h += '<div><label>{{ _('Identifier') }} (slug)</label><input class="in" id="catSlug" style="width:100%" placeholder="{{ _('E.g.') }} ai-tools, {{ _('Auto Generate if Empty') }}"></div></div>';
+  h += '<div class="g2"><div><label>{{ _('Parent Category') }}</label><select class="sl" id="catParent" style="width:100%"><option value="0">{{ _('None') }}（{{ _('Level 1 Category') }}）</option></select></div>';
+  h += '<div><label>{{ _('Icon') }}</label><input class="in" id="catIcon" style="width:100%" placeholder="{{ _('E.g.') }} 🤖"></div></div>';
   h += '<div class="g2"><div><label>{{ _('Sort') }}</label><input class="in" id="catSort" type="number" style="width:60px" value="0"></div><div></div></div>';
   h += '<div style="display:flex;gap:8px;margin-top:12px">';
   h += '<button class="btn bp" onclick="saveCategory()">{{ _('Save') }}</button>';
@@ -75,7 +75,7 @@ function loadCategoryList(){
     var parentSel = document.getElementById("catParent");
     if(parentSel){
       var curVal = parentSel.value;
-      parentSel.innerHTML = '<option value="0">无（{{ _('Level 1 Category') }}）</option>';
+      parentSel.innerHTML = '<option value="0">{{ _('None') }}（{{ _('Level 1 Category') }}）</option>';
       function addOpts(items, depth){
         items.forEach(function(c){
           var indent = '';
@@ -169,7 +169,7 @@ function toggleCategory(id, active){
 }
 
 function deleteCategory(id, name){
-  if(!confirm("{{ _('Confirm Delete Category') }}「"+name+"」吗？")) return;
+  if(!confirm("{{ _('Confirm Delete Category') }}「"+name+"」{{ _('?') }}")) return;
   fetch("/shop/categories/"+id, {method:"DELETE", headers:{"Authorization":"Bearer "+T}})
   .then(function(r){return r.json()})
   .then(function(d){
@@ -208,7 +208,7 @@ function renderSpecManagement(pid, specs, skus){
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
   h += '<strong style="font-size:13px">{{ _('Spec Definition') }}</strong>';
   h += '<div style="display:flex;gap:4px">';
-  h += '<input class="in" id="newSpecName" placeholder="如: {{ _('Color') }}" style="font-size:12px;padding:4px 8px;width:120px">';
+  h += '<input class="in" id="newSpecName" placeholder="{{ _('E.g.') }} {{ _('Color') }}" style="font-size:12px;padding:4px 8px;width:120px">';
   h += '<button class="btn bp bs" onclick="addSpec('+pid+')" style="font-size:11px;padding:4px 10px">+ {{ _('Add Spec') }}</button>';
   h += '</div></div>';
 
@@ -325,7 +325,7 @@ function generateSkus(pid){
   fetch("/shop/products/"+pid+"/skus/generate", {method:"POST", headers:{"Authorization":"Bearer "+T}})
   .then(function(r){return r.json()})
   .then(function(d){
-    if(d.success){showToast("✅ {{ _('Generated') }} "+d.count+" 个SKU","success");loadSpecManagement(pid)}
+    if(d.success){showToast("✅ {{ _('Generated') }} "+d.count+"{{ _(' SKUs') }}","success");loadSpecManagement(pid)}
     else showToast(d.error||"{{ _('Generation Failed') }}","error");
   });
 }

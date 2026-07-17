@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>价格计算器 — 易站AI · AI智能建站平台</title>
-<meta name="description" content="根据您的需求自定义AI建站方案，实时查看报价。">
+<title>{{ _('Pricing Calculator') }} — {{ _('EasyKai AI') }} · {{ _('AI Smart Website Platform') }}</title>
+<meta name="description" content="{{ _('Customize your AI website building plan based on your needs and see the real-time quote.') }}">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -88,29 +88,29 @@ body{font-family:Inter,'Noto Sans SC',system-ui,-apple-system,sans-serif;backgro
 <!-- ═══ Nav ═══ -->
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-logo"><div class="icon">AI</div><span>易站AI</span></a>
+    <a href="/" class="nav-logo"><div class="icon">AI</div><span>{{ _('EasyKai AI') }}</span></a>
     <div class="nav-links" id="nl">
-      <a href="/">首页</a>
-      <a href="/ai-matrix">AI矩阵</a>
-      <a href="/services">产品服务</a>
-   <a href="/shop">商城</a>
-   <a href="/cases">案例</a>
-   <a href="/ai-experience">AI体验</a>
-      <a href="/knowledge">帮助</a>
-      <a href="/register" class="nav-cta">免费开始</a>
+      <a href="/">{{ _('Home') }}</a>
+      <a href="/ai-matrix">{{ _('AI Matrix') }}</a>
+      <a href="/services">{{ _('Services') }}</a>
+   <a href="/shop">{{ _('Shop') }}</a>
+   <a href="/cases">{{ _('Cases') }}</a>
+   <a href="/ai-experience">{{ _('AI Experience') }}</a>
+      <a href="/knowledge">{{ _('Help') }}</a>
+      <a href="/register" class="nav-cta">{{ _('Get Started Free') }}</a>
     </div>
-    <button class="nav-toggle" onclick="tNM()" aria-label="菜单">☰</button>
+    <button class="nav-toggle" onclick="tNM()" aria-label="{{ _('Menu') }}">☰</button>
   </div>
 </nav>
 <div id="mb-menu">
-  <a href="/">首页</a>
-  <a href="/ai-matrix">AI矩阵</a>
-  <a href="/services">产品服务</a>
-    <a href="/shop">商城</a>
-    <a href="/cases">案例</a>
-  <a href="/ai-experience">AI体验</a>
-  <a href="/knowledge">帮助</a>
-  <a href="/register" class="mb-cta">免费开始</a>
+  <a href="/">{{ _('Home') }}</a>
+  <a href="/ai-matrix">{{ _('AI Matrix') }}</a>
+  <a href="/services">{{ _('Services') }}</a>
+    <a href="/shop">{{ _('Shop') }}</a>
+    <a href="/cases">{{ _('Cases') }}</a>
+  <a href="/ai-experience">{{ _('AI Experience') }}</a>
+  <a href="/knowledge">{{ _('Help') }}</a>
+  <a href="/register" class="mb-cta">{{ _('Get Started Free') }}</a>
 </div>
 
 <!-- ═══ Hero ═══ -->
@@ -120,8 +120,8 @@ body{font-family:Inter,'Noto Sans SC',system-ui,-apple-system,sans-serif;backgro
     <div class="s s2"></div>
   </div>
   <div class="content">
-    <h1>方案 <span class="g">自定义计算</span></h1>
-    <p>按需选择功能配置，系统自动为您推荐最优方案</p>
+    <h1>{{ _('Plan') }} <span class="g">{{ _('Custom Calculator') }}</span></h1>
+    <p>{{ _('Select features on demand, the system will recommend the optimal plan for you.') }}</p>
   </div>
 </section>
 
@@ -131,67 +131,67 @@ body{font-family:Inter,'Noto Sans SC',system-ui,-apple-system,sans-serif;backgro
   <!-- Options -->
   <div class="options-panel">
 
-    <!-- 页面数量 -->
+    <!-- Page Count -->
     <div class="opt-group">
-      <div class="opt-group-label">页面数量</div>
+      <div class="opt-group-label">{{ _('Pages') }}</div>
       <div class="opt-item selected" data-key="pages" data-value="5" data-price="0">
-        <input type="radio" name="pages" value="5" checked><div class="opt-label">5 页面</div><div class="opt-price">+¥0</div>
+        <input type="radio" name="pages" value="5" checked><div class="opt-label">{{ _('5 Pages') }}</div><div class="opt-price">+¥0</div>
       </div>
       <div class="opt-item" data-key="pages" data-value="10" data-price="2600">
-        <input type="radio" name="pages" value="10"><div class="opt-label">10 页面</div><div class="opt-price">+¥2,600</div>
+        <input type="radio" name="pages" value="10"><div class="opt-label">{{ _('10 Pages') }}</div><div class="opt-price">+¥2,600</div>
       </div>
       <div class="opt-item" data-key="pages" data-value="20" data-price="7400">
-        <input type="radio" name="pages" value="20"><div class="opt-label">20 页面</div><div class="opt-price">+¥7,400</div>
+        <input type="radio" name="pages" value="20"><div class="opt-label">{{ _('20 Pages') }}</div><div class="opt-price">+¥7,400</div>
       </div>
     </div>
 
-    <!-- AI客服  -->
+    <!-- AI Customer Service -->
     <div class="opt-group">
-      <div class="opt-group-label">AI智能客服</div>
+      <div class="opt-group-label">{{ _('AI Smart Customer Service') }}</div>
       <div class="opt-item selected" data-key="service" data-value="basic" data-price="0">
-        <input type="radio" name="service" value="basic" checked><div class="opt-label">基础问答<small style="display:block;color:var(--text-muted);font-size:11px">常见问题自动回复</small></div><div class="opt-price">+¥0</div>
+        <input type="radio" name="service" value="basic" checked><div class="opt-label">{{ _('Basic Q&A') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('Auto-reply to FAQs') }}</small></div><div class="opt-price">+¥0</div>
       </div>
       <div class="opt-item" data-key="service" data-value="rag" data-price="1000">
-        <input type="radio" name="service" value="rag"><div class="opt-label">RAG知识库<small style="display:block;color:var(--text-muted);font-size:11px">基于文档的智能问答+意向识别</small></div><div class="opt-price">+¥1,000</div>
+        <input type="radio" name="service" value="rag"><div class="opt-label">{{ _('RAG Knowledge Base') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('Document-based smart Q&A + lead identification') }}</small></div><div class="opt-price">+¥1,000</div>
       </div>
       <div class="opt-item" data-key="service" data-value="pro" data-price="4800">
-        <input type="radio" name="service" value="pro"><div class="opt-label">高级多轮对话<small style="display:block;color:var(--text-muted);font-size:11px">多轮对话+飞书通知+CRM对接</small></div><div class="opt-price">+¥4,800</div>
+        <input type="radio" name="service" value="pro"><div class="opt-label">{{ _('Advanced Multi-turn Chat') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('Multi-turn chat + Feishu notification + CRM integration') }}</small></div><div class="opt-price">+¥4,800</div>
       </div>
     </div>
 
-    <!-- 小程序 -->
+    <!-- Mini Program -->
     <div class="opt-group">
-      <div class="opt-group-label">小程序</div>
+      <div class="opt-group-label">{{ _('Mini Program') }}</div>
       <div class="opt-item selected" data-key="miniapp" data-value="none" data-price="0">
-        <input type="radio" name="miniapp" value="none" checked><div class="opt-label">不需要</div><div class="opt-price">+¥0</div>
+        <input type="radio" name="miniapp" value="none" checked><div class="opt-label">{{ _('Not Needed') }}</div><div class="opt-price">+¥0</div>
       </div>
       <div class="opt-item" data-key="miniapp" data-value="wechat" data-price="2000">
-        <input type="radio" name="miniapp" value="wechat"><div class="opt-label">微信小程序</div><div class="opt-price">+¥2,000</div>
+        <input type="radio" name="miniapp" value="wechat"><div class="opt-label">{{ _('WeChat Mini Program') }}</div><div class="opt-price">+¥2,000</div>
       </div>
       <div class="opt-item" data-key="miniapp" data-value="both" data-price="4000">
-        <input type="radio" name="miniapp" value="both"><div class="opt-label">微信 + 抖音小程序</div><div class="opt-price">+¥4,000</div>
+        <input type="radio" name="miniapp" value="both"><div class="opt-label">{{ _('WeChat + Douyin Mini Program') }}</div><div class="opt-price">+¥4,000</div>
       </div>
     </div>
 
-    <!-- 内容生成 -->
+    <!-- Content Generation -->
     <div class="opt-group">
-      <div class="opt-group-label">AI内容生成</div>
+      <div class="opt-group-label">{{ _('AI Content Generation') }}</div>
       <div class="opt-item selected" data-key="content" data-value="basic" data-price="0">
-        <input type="radio" name="content" value="basic" checked><div class="opt-label">基础版<small style="display:block;color:var(--text-muted);font-size:11px">AI文案生成（需自行配置API）</small></div><div class="opt-price">+¥0</div>
+        <input type="radio" name="content" value="basic" checked><div class="opt-label">{{ _('Basic') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('AI copy generation (requires API config)') }}</small></div><div class="opt-price">+¥0</div>
       </div>
       <div class="opt-item" data-key="content" data-value="pro" data-price="2000">
-        <input type="radio" name="content" value="pro"><div class="opt-label">专业版<small style="display:block;color:var(--text-muted);font-size:11px">含AI配置+培训+持续优化</small></div><div class="opt-price">+¥2,000</div>
+        <input type="radio" name="content" value="pro"><div class="opt-label">{{ _('Professional') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('Includes AI config + training + continuous optimization') }}</small></div><div class="opt-price">+¥2,000</div>
       </div>
     </div>
 
     <!-- SEO -->
     <div class="opt-group">
-      <div class="opt-group-label">SEO优化</div>
+      <div class="opt-group-label">{{ _('SEO Optimization') }}</div>
       <div class="opt-item selected" data-key="seo" data-value="basic" data-price="0">
-        <input type="radio" name="seo" value="basic" checked><div class="opt-label">基础SEO<small style="display:block;color:var(--text-muted);font-size:11px">标题/描述/结构化数据自动优化</small></div><div class="opt-price">+¥0</div>
+        <input type="radio" name="seo" value="basic" checked><div class="opt-label">{{ _('Basic SEO') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('Auto-optimize title/description/structured data') }}</small></div><div class="opt-price">+¥0</div>
       </div>
       <div class="opt-item" data-key="seo" data-value="ai" data-price="2000">
-        <input type="radio" name="seo" value="ai"><div class="opt-label">AI持续SEO<small style="display:block;color:var(--text-muted);font-size:11px">AI持续监控+关键词建议+排名跟踪</small></div><div class="opt-price">+¥2,000</div>
+        <input type="radio" name="seo" value="ai"><div class="opt-label">{{ _('AI Continuous SEO') }}<small style="display:block;color:var(--text-muted);font-size:11px">{{ _('AI monitoring + keyword suggestions + rank tracking') }}</small></div><div class="opt-price">+¥2,000</div>
       </div>
     </div>
 
@@ -200,18 +200,18 @@ body{font-family:Inter,'Noto Sans SC',system-ui,-apple-system,sans-serif;backgro
   <!-- Result -->
   <div class="result-panel">
     <div class="result-card">
-      <div class="price-label">首年总价</div>
+      <div class="price-label">{{ _('First Year Total') }}</div>
       <div class="price-number" id="totalPrice">¥2,999</div>
-      <div class="price-note">含实施费 + 全年技术服务</div>
+      <div class="price-note">{{ _('Includes setup fee + annual technical service') }}</div>
       <div class="price-breakdown">
-        <div class="bd-item"><span class="bd-label">实施费（一次性）</span><span class="bd-value" id="setupFee">¥2,400</span></div>
-        <div class="bd-item"><span class="bd-label">技术服务（全年）</span><span class="bd-value" id="serviceFee">¥599</span></div>
-        <div class="bd-item"><span class="bd-label">已选增值</span><span class="bd-value" id="addonFee">+¥0</span></div>
+        <div class="bd-item"><span class="bd-label">{{ _('Setup Fee (One-time)') }}</span><span class="bd-value" id="setupFee">¥2,400</span></div>
+        <div class="bd-item"><span class="bd-label">{{ _('Technical Service (Annual)') }}</span><span class="bd-value" id="serviceFee">¥599</span></div>
+        <div class="bd-item"><span class="bd-label">{{ _('Selected Add-ons') }}</span><span class="bd-value" id="addonFee">+¥0</span></div>
         <hr class="bd-divider">
-        <div class="bd-total"><span class="bd-label">首年总计</span><span class="bd-value" id="firstYearTotal">¥2,999</span></div>
+        <div class="bd-total"><span class="bd-label">{{ _('First Year Total') }}</span><span class="bd-value" id="firstYearTotal">¥2,999</span></div>
       </div>
-      <a href="/register" class="result-cta">立即开通</a>
-      <div class="match-note" id="matchNote">💡 匹配：基础版方案</div>
+      <a href="/register" class="result-cta">{{ _('Start Now') }}</a>
+      <div class="match-note" id="matchNote">💡 {{ _('Match: Basic Plan') }}</div>
     </div>
   </div>
 
@@ -220,7 +220,7 @@ body{font-family:Inter,'Noto Sans SC',system-ui,-apple-system,sans-serif;backgro
 <script>
 let config = null;
 
-// 从 API 加载计算器配置
+// Load calculator config from API
 async function loadConfig() {
   try {
     const r = await fetch('/api/pricing/calculator-config');
@@ -235,7 +235,6 @@ async function loadConfig() {
 function buildOptions() {
   if (!config || !config.rules) return;
   const panel = document.querySelector('.options-panel');
-  // 清除旧的 option groups（保留前两个子元素：hero 已在 panel 外，所以 panel 内全是 option groups）
   panel.innerHTML = '';
 
   config.rules.forEach((rule, ri) => {
@@ -290,12 +289,12 @@ function updatePrice() {
   document.getElementById('addonFee').textContent = (addon > 0 ? '+¥' : '¥') + addon.toLocaleString();
   document.getElementById('firstYearTotal').textContent = '¥' + firstYear.toLocaleString();
 
-  // 方案匹配
-  let matched = config.plan_thresholds[config.plan_thresholds.length - 1] || {name: '自定义'};
+  // Plan matching
+  let matched = config.plan_thresholds[config.plan_thresholds.length - 1] || {name: '{{ _("Custom") | tojson }}'};
   for (const p of config.plan_thresholds) {
     if (addon <= p.max_addon) { matched = p; break; }
   }
-  document.getElementById('matchNote').innerHTML = '💡 匹配：' + matched.name + '方案';
+  document.getElementById('matchNote').innerHTML = '💡 {{ _("Match:") | tojson }} ' + matched.name + '{{ _("Plan") | tojson }}';
 }
 
 loadConfig();

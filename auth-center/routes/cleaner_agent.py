@@ -6,6 +6,7 @@
 import sys, os, json, re
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, jsonify, request
+from i18n import _
 from models import get_db
 
 cleaner_bp = Blueprint('cleaner', __name__, url_prefix='/shop/cleaner')
@@ -18,13 +19,13 @@ def _require_admin():
     auth = request.headers.get('Authorization', '')
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
     if not token:
-        return None, (jsonify({'success': False, 'error': '请先登录'}), 401)
+        return None, (jsonify({'success': False, 'error': _('请先登录')}), 401)
     from services.jwt_service import validate_token
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': '无效Token'}), 401)
+        return None, (jsonify({'success': False, 'error': _('无效Token')}), 401)
     if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': '需要管理员权限'}), 403)
+        return None, (jsonify({'success': False, 'error': _('需要管理员权限')}), 403)
     return payload, None
 
 
@@ -65,7 +66,7 @@ def _call_llm(system_prompt: str, user_prompt: str) -> dict:
     """调用 LLM 并返回 JSON 结果"""
     cfg = _get_llm_config()
     if not cfg['api_key']:
-        return {'error': 'AI API Key 未配置，请在系统配置中设置'}
+        return {'error': _('AI API Key 未配置，请在系统配置中设置')}
 
     from openai import OpenAI
     client = OpenAI(api_key=cfg['api_key'], base_url=cfg['base_url'])
@@ -80,7 +81,7 @@ def _call_llm(system_prompt: str, user_prompt: str) -> dict:
     json_match = re.search(r'\{.*\}', text, re.DOTALL)
     result = json.loads(json_match.group()) if json_match else json.loads(text)
     if not result.get('title') or not result.get('content'):
-        return {'error': 'AI 返回结果缺少必填字段', 'raw': text}
+        return {'error': _('AI 返回结果缺少必填字段'), 'raw': text}
     return result
 
 
@@ -105,7 +106,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
            'title': '...', 'category': '...', 'error': '...'}
     """
     if not raw_content or not raw_content.strip():
-        return {'success': False, 'error': '内容不能为空'}
+        return {'success': False, 'error': _('内容不能为空')}
 
     raw_content = raw_content.strip()[:50000]
     existing_titles = _get_existing_titles()
@@ -155,7 +156,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
             conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
             conn.commit()
             return {'success': True, 'kb_id': 'duplicate', 'title': result['title'],
-                    'category': result.get('category', ''), 'message': '检测到重复，已跳过'}
+                    'category': result.get('category', ''), 'message': _('检测到重复，已跳过')}
 
         kb_id = 'kb_cleaner_' + str(qid) + '_' + ''.join(re.findall(r'\w', result['title'])[:10])
         conn.execute(
@@ -173,7 +174,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         'success': True, 'kb_id': kb_id, 'title': result['title'],
         'category': result.get('category', 'general'),
         'keywords': result.get('keywords', ''),
-        'message': '清洗完成，已写入知识库'
+        'message': _('清洗完成，已写入知识库')
     }
 
 
@@ -212,12 +213,12 @@ def submit_content():
     data = request.get_json() or {}
     raw = (data.get('content', '') or '').strip()
     if not raw:
-        return jsonify({'success': False, 'error': '内容不能为空'}), 400
+        return jsonify({'success': False, 'error': _('内容不能为空')}), 400
 
     result = process_clean_content(raw, admin_id=payload['user_id'])
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 500
-    return jsonify({'success': True, 'data': result, 'message': result.get('message', '清洗完成')})
+    return jsonify({'success': True, 'data': result, 'message': result.get('message', _('清洗完成'))})
 
 
 @cleaner_bp.route('/list', methods=['GET'])
@@ -245,14 +246,14 @@ def run_clean(qid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM knowledge_queue WHERE id=%s', (qid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '队列项不存在'}), 404
+            return jsonify({'success': False, 'error': _('队列项不存在')}), 404
         if row['status'] == 'cleaning':
-            return jsonify({'success': False, 'error': '正在清洗中，请勿重复执行'}), 400
+            return jsonify({'success': False, 'error': _('正在清洗中，请勿重复执行')}), 400
 
     result = process_clean_content(row['raw_content'], admin_id=payload['user_id'])
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 500
-    return jsonify({'success': True, 'data': result, 'message': result.get('message', '清洗完成')})
+    return jsonify({'success': True, 'data': result, 'message': result.get('message', _('清洗完成'))})
 
 
 @cleaner_bp.route('/run-all', methods=['POST'])
@@ -264,7 +265,7 @@ def run_all():
         rows = conn.execute("SELECT id, raw_content FROM knowledge_queue WHERE status='pending' ORDER BY id ASC").fetchall()
 
     if not rows:
-        return jsonify({'success': True, 'data': [], 'message': '没有待清洗项'})
+        return jsonify({'success': True, 'data': [], 'message': _('没有待清洗项')})
 
     results = []
     for r in rows:
@@ -280,7 +281,7 @@ def run_all():
     done = sum(1 for r in results if r['status'] == 'done')
     return jsonify({
         'success': True, 'data': results,
-        'message': f'完成 {done}/{len(results)} 项'
+        'message': _('完成 {done}/{len_results} 项', done=done, len_results=len(results))
     })
 
 
