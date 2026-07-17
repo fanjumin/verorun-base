@@ -96,6 +96,68 @@ window.editor = (function() {
     console.log('[' + type + '] ' + message);
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  DAG 循环检测（DFS）
+  // ═══════════════════════════════════════════════════════════
+
+  // 检查添加 source→target 后是否会形成环
+  function wouldCreateCycle(edges, source, target) {
+    // 使用邻接表构建有向图
+    var adj = {};
+    edges.forEach(function(e) {
+      if (!adj[e.source]) adj[e.source] = [];
+      adj[e.source].push(e.target);
+    });
+    // 如果新边已存在，也可以不查循环但先查
+    // BFS/DFS 从 target 出发能否到达 source
+    var visited = {};
+    var stack = [target];
+    while (stack.length > 0) {
+      var node = stack.pop();
+      if (node === source) return true; // 形成环
+      if (visited[node]) continue;
+      visited[node] = true;
+      (adj[node] || []).forEach(function(next) {
+        stack.push(next);
+      });
+    }
+    return false;
+  }
+
+  // 校验连线：返回 { ok: true/false, reason: '...' }
+  function validateConnection(nodes, edges, source, target, sourceHandle) {
+    // 1. 自连接
+    if (source === target) {
+      return { ok: false, reason: window.__t && window.__t._('toast.self_connect') || 'Cannot connect a node to itself' };
+    }
+    // 2. 重复边
+    var dup = edges.some(function(e) {
+      return e.source === source && e.target === target && e.sourceHandle === sourceHandle;
+    });
+    if (dup) {
+      return { ok: false, reason: window.__t && window.__t._('toast.duplicate_edge') || 'Duplicate connection exists' };
+    }
+    // 3. 循环检测
+    if (wouldCreateCycle(edges, source, target)) {
+      return { ok: false, reason: window.__t && window.__t._('toast.cycle_detected') || 'Cycle detected' };
+    }
+    return { ok: true };
+  }
+
+  // 获取当前边集合（从 React state 同步）
+  var _getEdges = function() { return []; };
+  var _getNodes = function() { return []; };
+  function setEdgeAccessor(getNodes, getEdges) {
+    _getNodes = getNodes;
+    _getEdges = getEdges;
+  }
+
+  // 可视化一条非法连线（红线闪烁后消失）
+  var invalidEdgeId = null;
+  function showInvalidEdge(source, target) {
+    // 由 React 组件处理
+  }
+
   // ── 初始化 ──
   function init() {
     renderNodePanel();
@@ -112,6 +174,9 @@ window.editor = (function() {
     save: save,
     run: run,
     toast: toast,
+    validateConnection: validateConnection,
+    wouldCreateCycle: wouldCreateCycle,
+    setEdgeAccessor: setEdgeAccessor,
     init: init
   };
 })();

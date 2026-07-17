@@ -240,18 +240,72 @@ function FlowEditor() {
   const reactFlowWrapper = useRef(null);
   const [rfInstance, setRfInstance] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
+  // 用于快捷键撤销/重做
+  const [history, setHistory] = useState({ undo: [], redo: [] });
+  const historyRef = useRef({ undo: [], redo: [] });
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
 
-  // 连线完成
-  const onConnect = useCallback((params) => {
-    setEdges((eds) => addEdge({
-      ...params,
-      animated: true,
+  // 保存快照到撤销栈
+  const pushUndo = useCallback(function() {
+    const hs = historyRef.current;
+    // 记录当前状态
+    hs.undo.push({ nodes: JSON.parse(JSON.stringify(nodesRef.current)), edges: JSON.parse(JSON.stringify(edgesRef.current)) });
+    // 上限 50
+    if (hs.undo.length > 50) hs.undo.shift();
+    hs.redo = [];
+  }, []);
+
+  // 撤销
+  const undo = useCallback(function() {
+    const hs = historyRef.current;
+    if (hs.undo.length === 0) return;
+    const snap = hs.undo.pop();
+    hs.redo.push({ nodes: JSON.parse(JSON.stringify(nodesRef.current)), edges: JSON.parse(JSON.stringify(edgesRef.current)) });
+    setNodes(snap.nodes); setEdges(snap.edges);
+  }, []);
+
+  // 重做
+  const redo = useCallback(function() {
+    const hs = historyRef.current;
+    if (hs.redo.length === 0) return;
+    const snap = hs.redo.pop();
+    hs.undo.push({ nodes: JSON.parse(JSON.stringify(nodesRef.current)), edges: JSON.parse(JSON.stringify(edgesRef.current)) });
+    setNodes(snap.nodes); setEdges(snap.edges);
+  }, []);
+
+  // 连线完成（含验证）
+  const onConnect = useCallback(function(params) {
+    // 校验
+    const result = editor.validateConnection(nodesRef.current, edgesRef.current, params.source, params.target, params.sourceHandle);
+    if (!result.ok) {
+      // 显示非法连线（红色闪烁）— 临时添加再删除
+      const tempId = 'invalid_' + Date.now();
+      setEdges(function(eds) {
+        return eds.concat({
+          id: tempId, source: params.source, target: params.target,
+          sourceHandle: params.sourceHandle, targetHandle: params.targetHandle,
+          style: { stroke: '#f85149', strokeWidth: 3, strokeDasharray: '6 3' },
+          animated: false, className: 'invalid-edge'
+        });
+      });
+      // 600ms 后移除
+      setTimeout(function() { setEdges(function(eds) { return eds.filter(function(e) { return e.id !== tempId; }); }); }, 600);
+      // Toast
+      console.log('[warn]', result.reason);
+      return;
+    }
+    pushUndo();
+    setEdges(function(eds) { return addEdge({
+      ...params, animated: true,
       style: { stroke: '#6366f1', strokeWidth: 2 }
-    }, eds));
+    }, eds); });
   }, []);
 
   // 选中节点 → 更新右侧面板
-  const onNodeClick = useCallback((event, node) => {
+  const onNodeClick = useCallback(function(event, node) {
     setSelectedNode(node);
     const panel = document.getElementById('node-config-panel');
     if (!panel) return;
@@ -263,19 +317,19 @@ function FlowEditor() {
   }, []);
 
   // 点击空白 → 清空右侧面板
-  const onPaneClick = useCallback(() => {
+  const onPaneClick = useCallback(function() {
     setSelectedNode(null);
     const panel = document.getElementById('node-config-panel');
     if (panel) panel.innerHTML = '<div class="panel-empty">{{ _("Select a node to configure") }}</div>';
   }, []);
 
   // 从面板拖入画布
-  const onDragOver = useCallback((event) => {
+  const onDragOver = useCallback(function(event) {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const onDrop = useCallback((event) => {
+  const onDrop = useCallback(function(event) {
     event.preventDefault();
     const type = event.dataTransfer.getData('application/reactflow');
     if (!type || !rfInstance) return;
@@ -283,33 +337,50 @@ function FlowEditor() {
       x: event.clientX, y: event.clientY
     });
     const defaults = editor.getNodeDefaults(type);
-    // 节点类型映射：双输出节点有独立组件，其余用 default
     const typeMap = { condition: 'condition', market_check: 'market_check' };
     const nodeType = typeMap[type] || 'default';
     const newNode = {
       id: 'node_' + Date.now(),
-      type: nodeType,
-      position,
-      data: defaults
+      type: nodeType, position, data: defaults
     };
-    setNodes((nds) => nds.concat(newNode));
+    pushUndo();
+    setNodes(function(nds) { return nds.concat(newNode); });
   }, [rfInstance]);
 
   // 节点/边变化时更新状态栏
-  useEffect(() => {
-    updateFooter(nodes, edges);
-  }, [nodes, edges]);
+  useEffect(function() { updateFooter(nodes, edges); }, [nodes, edges]);
 
-  // 暴露 state 给全局 editor（用于 save/load）
-  useEffect(() => {
-    window.editor.__flowState = { setNodes, setEdges, rfInstance, getNodes: () => nodes, getEdges: () => edges };
+  // 暴露 state 给全局 editor
+  useEffect(function() {
+    window.editor.__flowState = { setNodes, setEdges, rfInstance, getNodes: function() { return nodes; }, getEdges: function() { return edges; } };
+    // 注册 accessor
+    window.editor.setEdgeAccessor(function() { return nodes; }, function() { return edges; });
   }, [nodes, edges, rfInstance]);
+
+  // 快捷键
+  useEffect(function() {
+    function handler(e) {
+      // Ctrl+Z 撤销
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      // Ctrl+Shift+Z 重做
+      else if (e.ctrlKey && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo(); }
+      // Ctrl+S 保存
+      else if (e.ctrlKey && e.key === 's') { e.preventDefault(); if (window.editor) window.editor.save(); }
+      // Ctrl+A 全选
+      else if (e.ctrlKey && e.key === 'a') { e.preventDefault(); if (rfInstance) rfInstance.fitView(); }
+      // Ctrl+0 fit view
+      else if (e.ctrlKey && e.key === '0') { e.preventDefault(); if (rfInstance) rfInstance.fitView(); }
+    }
+    window.addEventListener('keydown', handler);
+    return function() { window.removeEventListener('keydown', handler); };
+  }, [undo, redo]);
 
   return E('div', { style: { width: '100%', height: '100%' }, ref: reactFlowWrapper },
     E(Provider, null,
       E(RF, {
         nodes, edges,
-        onNodesChange, onEdgesChange,
+        onNodesChange: function(changes) { onNodesChange(changes); },
+        onEdgesChange: function(changes) { onEdgesChange(changes); },
         onConnect,
         nodeTypes,
         fitView: true,

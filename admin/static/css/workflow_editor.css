@@ -273,7 +273,16 @@ body {
 .react-flow__edge-path { stroke: var(--text-muted) !important; }
 .react-flow__edge.selected .react-flow__edge-path { stroke: var(--blue) !important; }
 
-/* ── Scrollbar ── */
+.react-flow__edge.invalid-edge .react-flow__edge-path {
+  stroke: #f85149 !important;
+  stroke-width: 3px !important;
+  stroke-dasharray: 6 3 !important;
+  animation: rf-invalid-pulse 0.3s ease-in-out 2;
+}
+@keyframes rf-invalid-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 #editor-left::-webkit-scrollbar,
 #editor-right::-webkit-scrollbar {
   width: 4px;
