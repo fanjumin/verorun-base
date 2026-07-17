@@ -1454,7 +1454,7 @@ def token_stats():
                        COUNT(*) AS calls
                 FROM agent_token_logs t
                 WHERE {date_where_t}
-                GROUP BY t.agent_id, t.model_name, t.provider, t.dimension
+                GROUP BY t.agent_id, t.agent_name, t.model_name, t.provider, t.dimension
                 ORDER BY total DESC
             """).fetchall()
 
@@ -1476,12 +1476,12 @@ def token_stats():
             """).fetchall()
 
             # ── 费用估算 ──
-            text_tokens  = sum(r['total'] for r in by_dim_rows if r['dimension'] == 'text')
-            voice_calls  = sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'voice')
-            video_calls  = sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'video')
-            image_calls  = sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'image')
+            text_tokens  = float(sum(int(r['total']) if r.get('dimension') == 'text' else 0 for r in by_dim_rows))
+            voice_calls  = int(sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'voice'))
+            video_calls  = int(sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'video'))
+            image_calls  = int(sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'image'))
             cost_est = (
-                float(text_tokens) / 1000 * pricing['text_per_1k'] +
+                text_tokens / 1000 * pricing['text_per_1k'] +
                 voice_calls * pricing['voice_per_call'] +
                 video_calls * pricing['video_per_call'] +
                 image_calls * pricing['image_per_call']
