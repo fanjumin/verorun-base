@@ -258,16 +258,23 @@ def publish_draft():
     except Exception as e:
         logger.warning(f'Backup failed (non-critical): {e}')
 
-    # 4. Promote tokens: draft_json → token_json
+    # 4. Save version snapshot before promoting
+    from site_builder.site_settings.models import save_site_version
+    version_info = save_site_version()
+
+    # 5. Promote tokens: draft_json → token_json
     promote_draft_tokens()
 
-    # 5. Promote blocks: is_published=0 → is_published=1
+    # 6. Promote blocks: is_published=0 → is_published=1
     with get_db() as conn:
         conn.execute("UPDATE cms_blocks SET is_published=1 WHERE is_published=0")
         conn.execute("UPDATE cms_posts SET is_published=1 WHERE is_published=0")
         conn.commit()
 
-    return _success({'published': True}, 'Draft published to production')
+    return _success({
+        'published': True,
+        'version': version_info,
+    }, 'Draft published to production')
 
 
 # ── Get Draft Data (for preview) ───────────────────────
@@ -583,12 +590,12 @@ def add_draft_block():
             (page, position)
         )
 
-        conn.execute(
+        row = conn.execute(
             """INSERT INTO cms_blocks (page, position, block_type, title, content, icon, is_published, created_at, updated_at)
-               VALUES (%s, %s, %s, %s, %s, %s, 0, NOW(), NOW())""",
+               VALUES (%s, %s, %s, %s, %s, %s, 0, NOW(), NOW()) RETURNING id""",
             (page, position, block_type, title, content, icon)
-        )
-        new_id = conn.execute("SELECT LAST_INSERT_ID() as id").fetchone()['id']
+        ).fetchone()
+        new_id = row['id'] if row else None
         conn.commit()
 
     return _success({'block_id': new_id, 'page': page, 'position': position})
@@ -678,6 +685,51 @@ def upload_draft_image():
         save_draft_tokens('platform', tokens)
 
     return _success({'url': url, 'block_id': block_id, 'field': field})
+
+
+# ══════════════════════════════════════════════════════════════
+# ── Site Version History API ──────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+
+
+@site_builder_bp.route('/versions', methods=['GET'])
+def list_versions():
+    """List all site versions (newest first)."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.site_settings.models import list_site_versions
+    versions = list_site_versions()
+    return _success({'versions': versions})
+
+
+@site_builder_bp.route('/versions/<int:version_id>', methods=['GET'])
+def get_version(version_id):
+    """Get full version data (snapshot + blocks) for preview."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.site_settings.models import get_site_version
+    version = get_site_version(version_id)
+    if not version:
+        return _error('Version not found', 404)
+    return _success(version)
+
+
+@site_builder_bp.route('/versions/<int:version_id>/restore', methods=['POST'])
+def restore_version(version_id):
+    """Restore a version snapshot back to draft.
+    
+    Does NOT auto-publish. User can then edit and publish manually.
+    """
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.site_settings.models import restore_site_version
+    ok = restore_site_version(version_id)
+    if not ok:
+        return _error('Version not found or restore failed', 404)
+    return _success({'restored': version_id}, 'Version restored to draft. Edit and publish to make it live.')
 
 
 # ══════════════════════════════════════════════════════════════

@@ -385,3 +385,142 @@
 
 /* Prevent accidental link clicks during editing */
 .editor-editing a { pointer-events: none; }
+
+/* ── Version History Panel ──────────────────────────────── */
+.version-panel {
+  right: 16px; left: auto; top: 52px;
+  transform: none;
+  min-width: 360px; max-width: 420px;
+  max-height: 70vh;
+  display: flex; flex-direction: column;
+}
+.version-panel.visible { display: flex; }
+
+.version-panel .panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0; padding-bottom: 10px;
+  border-bottom: 1px solid #334155;
+}
+.version-panel .panel-header h3 {
+  margin: 0; font-size: 14px;
+}
+.version-panel .panel-close {
+  background: none; border: none; color: #94a3b8;
+  font-size: 20px; cursor: pointer; padding: 0 4px;
+  line-height: 1;
+}
+.version-panel .panel-close:hover { color: #f1f5f9; }
+
+.version-panel .panel-body {
+  flex: 1; overflow-y: auto;
+  padding-top: 10px;
+}
+
+.version-timeline {
+  display: flex; flex-direction: column;
+  gap: 2px;
+}
+
+.version-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  position: relative;
+  border-left: 2px solid #334155;
+  margin-left: 6px;
+  transition: background 0.15s;
+}
+.version-item:hover { background: #0f172a; }
+.version-item.current {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.version-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #475569;
+  flex-shrink: 0;
+  margin-top: 5px;
+  margin-left: -13px;
+  border: 2px solid #1e293b;
+}
+.version-item.current .version-dot { background: #10b981; }
+
+.version-info {
+  flex: 1; display: flex; flex-direction: column;
+  gap: 2px; min-width: 0;
+}
+.version-label {
+  font-weight: 600; font-size: 13px; color: #f1f5f9;
+}
+.version-badge {
+  display: inline-block;
+  font-size: 10px; color: #10b981;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.version-time {
+  font-size: 11px; color: #64748b;
+}
+.version-actions {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+.version-actions button {
+  padding: 4px 8px; border-radius: 4px;
+  border: 1px solid #475569; background: transparent;
+  color: #cbd5e1; font-size: 11px; cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.version-actions button:hover { background: #334155; color: #f1f5f9; }
+.version-actions .version-preview-btn { border-color: #6366f1; color: #818cf8; }
+.version-actions .version-preview-btn:hover { background: #312e81; }
+.version-actions .version-restore-btn { border-color: #10b981; color: #34d399; }
+.version-actions .version-restore-btn:hover { background: #064e3b; }
+
+.version-loading { padding: 20px; text-align: center; color: #64748b; font-size: 13px; }
+.version-empty { padding: 20px; text-align: center; color: #64748b; font-size: 12px; }
+.version-error { padding: 16px; text-align: center; color: #fca5a5; font-size: 12px; }
+
+.version-back-btn {
+  display: block; width: 100%; padding: 6px 12px;
+  border: 1px solid #475569; border-radius: 6px;
+  background: transparent; color: #94a3b8;
+  font-size: 12px; cursor: pointer;
+  text-align: center; margin-bottom: 12px;
+  transition: all 0.15s;
+}
+.version-back-btn:hover { background: #334155; color: #f1f5f9; }
+
+.version-detail {
+  padding: 8px 0;
+}
+.version-detail h4 {
+  font-size: 14px; font-weight: 600; margin-bottom: 12px;
+  color: #f1f5f9;
+}
+.version-summary-table {
+  width: 100%; font-size: 12px;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+.version-summary-table tr td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #334155;
+}
+.version-summary-table tr td:first-child {
+  color: #64748b; width: 100px;
+}
+.version-summary-table tr td:last-child {
+  color: #e2e8f0;
+}
+.version-detail-actions {
+  display: flex; gap: 6px; margin-top: 12px;
+}
+.version-detail-actions button {
+  padding: 6px 14px; border-radius: 6px;
+  border: 1px solid #10b981; background: transparent;
+  color: #34d399; font-size: 12px; cursor: pointer;
+  transition: all 0.15s;
+}
+.version-detail-actions button:hover { background: #064e3b; }

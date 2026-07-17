@@ -75,7 +75,7 @@ DEFAULT_TOKENS = {
 
 
 def init_tables():
-    """Create design_tokens table"""
+    """Create design_tokens table + site_versions table"""
     with get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS design_tokens (
@@ -97,6 +97,8 @@ def init_tables():
         except Exception:
             conn.rollback()  # column already exists
         conn.commit()
+    # Also init site_versions table
+    init_versions_table()
 
 
 def get_tokens(site_key='platform'):
@@ -122,7 +124,7 @@ def save_tokens(site_key, token_dict, generated_by='manual', prompt_id=None):
         if existing:
             new_version = existing['version'] + 1
             conn.execute(
-                'UPDATE design_tokens SET token_json=%s, generated_by=%s, prompt_id=%s, version=%s, updated_at=datetime(\'now\') WHERE site_key=%s',
+                'UPDATE design_tokens SET token_json=%s, generated_by=%s, prompt_id=%s, version=%s, updated_at=NOW() WHERE site_key=%s',
                 (token_json, generated_by, prompt_id, new_version, site_key)
             )
         else:
@@ -324,6 +326,166 @@ def backup_tokens(site_key='platform'):
 
 
 # ── Editor Draft API Helpers ────────────────────────────────
+
+
+# ── Site Version History ──────────────────────────────────────
+
+
+def init_versions_table():
+    """Create site_versions table (idempotent)"""
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS site_versions (
+                id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                site_key      TEXT NOT NULL DEFAULT 'platform',
+                version_label TEXT NOT NULL,
+                snapshot_json TEXT DEFAULT '{}',
+                blocks_json   TEXT DEFAULT '[]',
+                is_current    INTEGER DEFAULT 0,
+                created_at    TEXT DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sv_site_key ON site_versions(site_key)")
+        conn.commit()
+
+
+def save_site_version(site_key='platform', label=None):
+    """Snapshot current draft tokens + draft blocks into site_versions.
+
+    Called automatically during publish. Returns the new version id.
+    """
+    draft = get_draft_tokens(site_key)
+    if draft is None:
+        return None
+
+    # Get draft blocks
+    blocks = []
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, page, section, position, block_type, title, subtitle, content, "
+            "icon, image_url, link_text, link_url, extra_json "
+            "FROM cms_blocks WHERE is_published=0 ORDER BY page, position"
+        ).fetchall()
+        blocks = [dict(r) for r in rows]
+
+    # Determine next version label
+    if not label:
+        with get_db() as conn:
+            last = conn.execute(
+                "SELECT version_label FROM site_versions WHERE site_key=%s "
+                "ORDER BY id DESC LIMIT 1", (site_key,)
+            ).fetchone()
+        if last and last['version_label']:
+            try:
+                num = int(last['version_label'].lstrip('v'))
+                label = f'v{num + 1}'
+            except (ValueError, IndexError):
+                label = 'v1'
+        else:
+            label = 'v1'
+
+    # Mark all existing versions as not current
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE site_versions SET is_current=0 WHERE site_key=%s",
+            (site_key,)
+        )
+        row = conn.execute(
+            "INSERT INTO site_versions (site_key, version_label, snapshot_json, blocks_json, is_current) "
+            "VALUES (%s, %s, %s, %s, 1) RETURNING id",
+            (site_key, label,
+             json.dumps(draft, ensure_ascii=False),
+             json.dumps(blocks, ensure_ascii=False))
+        ).fetchone()
+        new_id = row['id'] if row else None
+        conn.commit()
+
+    # Enforce max 30 versions (delete oldest)
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM site_versions WHERE site_key=%s AND id NOT IN "
+            "(SELECT id FROM site_versions WHERE site_key=%s ORDER BY id DESC LIMIT 30)",
+            (site_key, site_key)
+        )
+        conn.commit()
+
+    return {'id': new_id, 'label': label}
+
+
+def list_site_versions(site_key='platform'):
+    """Return all versions for this site_key, ordered newest first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, version_label, is_current, created_at "
+            "FROM site_versions WHERE site_key=%s ORDER BY id DESC",
+            (site_key,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_site_version(version_id):
+    """Return full version data including snapshot + blocks."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM site_versions WHERE id=%s", (version_id,)
+        ).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    try:
+        data['snapshot_json'] = json.loads(data['snapshot_json'])
+    except (json.JSONDecodeError, TypeError):
+        data['snapshot_json'] = {}
+    try:
+        data['blocks_json'] = json.loads(data['blocks_json'])
+    except (json.JSONDecodeError, TypeError):
+        data['blocks_json'] = []
+    return data
+
+
+def restore_site_version(version_id, site_key='platform'):
+    """Restore a version: copy snapshot back to draft_json.
+
+    Does NOT auto-publish; user can then edit and publish manually.
+    """
+    version = get_site_version(version_id)
+    if not version:
+        return False
+
+    # Restore draft tokens from snapshot
+    save_draft_tokens(site_key, version['snapshot_json'])
+
+    # Restore draft blocks: delete current drafts, re-insert saved ones
+    with get_db() as conn:
+        conn.execute("DELETE FROM cms_blocks WHERE is_published=0 AND page IN "
+                     "(SELECT DISTINCT page FROM cms_blocks WHERE is_published=0)")
+        for b in version['blocks_json']:
+            conn.execute(
+                "INSERT INTO cms_blocks (page, section, position, block_type, title, subtitle, "
+                "content, icon, image_url, link_text, link_url, extra_json, is_published) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)",
+                (b.get('page', 'home'),
+                 b.get('section', b.get('block_type', 'section')),
+                 b.get('position', 0),
+                 b.get('block_type', 'section'),
+                 b.get('title', ''),
+                 b.get('subtitle', ''),
+                 b.get('content', ''),
+                 b.get('icon', ''),
+                 b.get('image_url', ''),
+                 b.get('link_text', ''),
+                 b.get('link_url', ''),
+                 b.get('extra_json', '{}'))
+            )
+        conn.commit()
+
+    # Mark as current
+    with get_db() as conn:
+        conn.execute("UPDATE site_versions SET is_current=0 WHERE site_key=%s", (site_key,))
+        conn.execute("UPDATE site_versions SET is_current=1 WHERE id=%s", (version_id,))
+        conn.commit()
+
+    return True
 
 
 def update_draft_token_field(block_id, field, value):

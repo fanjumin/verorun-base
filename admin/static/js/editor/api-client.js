@@ -106,5 +106,50 @@ var ApiClient = (function() {
     return this.upload('/upload-image', fd);
   };
 
+  /* ── Version History ── */
+
+  /** GET /admin/site-builder/versions - list all versions */
+  ApiClient.prototype.listVersions = function() {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+      fetch('/admin/site-builder/versions', {
+        headers: { 'Authorization': 'Bearer ' + getToken() }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.success === false) {
+          reject(data.error || 'Failed to load versions');
+        } else {
+          resolve(data && data.data ? data.data.versions : []);
+        }
+      })
+      .catch(function(err) { reject(err); });
+    });
+  };
+
+  /** GET /admin/site-builder/versions/<id> - get full version data */
+  ApiClient.prototype.getVersion = function(versionId) {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+      fetch('/admin/site-builder/versions/' + versionId, {
+        headers: { 'Authorization': 'Bearer ' + getToken() }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.success === false) {
+          reject(data.error || 'Failed to load version');
+        } else {
+          resolve(data && data.data ? data.data : null);
+        }
+      })
+      .catch(function(err) { reject(err); });
+    });
+  };
+
+  /** POST /admin/site-builder/versions/<id>/restore - restore version to draft */
+  ApiClient.prototype.restoreVersion = function(versionId) {
+    return this._post('/../../versions/' + versionId + '/restore', {});
+  };
+
   return ApiClient;
 })();
