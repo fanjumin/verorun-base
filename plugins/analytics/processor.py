@@ -299,7 +299,7 @@ class AnalyticsProcessor:
                 (day_start, day_end)
             ).fetchone()['c']
 
-            sessions = rows['sessions']
+            sessions = int(rows['sessions'])
             bounce_rate = 0.0
             avg_duration = 0.0
             avg_depth = 0.0
