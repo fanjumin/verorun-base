@@ -2525,7 +2525,7 @@ def admin_reward_rules_create():
             (name, data.get('condition_key', ''), data.get('condition_value', ''),
              data.get('reward_type', 'coupon'), data.get('reward_id'), data.get('reward_name', ''),
              data.get('sort_order', 0), 1 if data.get('is_active', True) else 0)
-        ).fetchone()[0]
+        ).fetchone()['id']
     _log(admin['user_id'], 'create_reward_rule', detail=name)
     return jsonify({'success': True, 'data': {'id': rid}})
 
@@ -3778,7 +3778,7 @@ def customer_list():
            "u.is_real_name_verified, u.real_name_verified_at, u.verified_by, "
            "u.enterprise_name, u.enterprise_tax_id, u.enterprise_verified, u.enterprise_verified_at, "
            "'' as plan_key, NULL as sub_expires "
-           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
+           + from_sql + ' ' + wsql + ' ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
     csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
 
     with get_db() as conn:

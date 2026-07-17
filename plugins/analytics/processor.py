@@ -306,9 +306,9 @@ class AnalyticsProcessor:
             returning_visitors = 0
 
             if sessions > 0:
-                bounce_rate = round(rows['bounce_count'] * 100.0 / sessions, 2)
-                avg_duration = round(rows['total_time'] / sessions, 1)
-                avg_depth = round(rows['pv'] / sessions, 1)
+                bounce_rate = round(float(rows['bounce_count']) * 100.0 / sessions, 2)
+                avg_duration = round(float(rows['total_time']) / sessions, 1)
+                avg_depth = round(float(rows['pv']) / sessions, 1)
 
             # 回访用户
             if daily_uv > 0:

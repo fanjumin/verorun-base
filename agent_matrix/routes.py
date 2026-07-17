@@ -1481,7 +1481,7 @@ def token_stats():
             video_calls  = sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'video')
             image_calls  = sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'image')
             cost_est = (
-                text_tokens / 1000 * pricing['text_per_1k'] +
+                float(text_tokens) / 1000 * pricing['text_per_1k'] +
                 voice_calls * pricing['voice_per_call'] +
                 video_calls * pricing['video_per_call'] +
                 image_calls * pricing['image_per_call']

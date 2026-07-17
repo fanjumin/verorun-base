@@ -152,8 +152,11 @@ class StoreAPIClient:
                 }
                 sql += f' ORDER BY {sort_map.get(sort_by, "s.downloads DESC")}'
 
-                # 总数
+                # 总数（去掉 ORDER BY，PG 不允许 count 查询带排序列）
                 count_sql = sql.replace('SELECT s.* FROM', 'SELECT COUNT(*) as cnt FROM')
+                order_pos = count_sql.find(' ORDER BY ')
+                if order_pos != -1:
+                    count_sql = count_sql[:order_pos]
                 total = conn.execute(count_sql, params).fetchone()['cnt']
 
                 # 分页

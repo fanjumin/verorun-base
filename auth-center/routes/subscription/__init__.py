@@ -1082,7 +1082,7 @@ def admin_payment_events():
     limit = int(request.args.get('limit', 50))
     with get_db() as conn:
         rows = conn.execute(
-            'SELECT e.*, u.nickname FROM payment_events e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.created_at DESC LIMIT %s',
+            'SELECT e.*, COALESCE(u.display_name, u.username) AS nickname FROM payment_events e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.created_at DESC LIMIT %s',
             (limit,)).fetchall()
     return api_res({'events': [dict(r) for r in rows]})
 

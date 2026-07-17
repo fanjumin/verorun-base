@@ -1,6 +1,6 @@
 function refundFeatureOrder(orderNo) {
   if (!confirm("{{ _('Refund this order? This action cannot be undone!') }}")) return;
-  fetch("/plugin/subscription/admin/subscription/orders/" + encodeURIComponent(orderNo) + "/refund", {
+  fetch("/subscription/admin/orders/" + encodeURIComponent(orderNo) + "/refund", {
     method: "POST",
     headers: { "Authorization": "Bearer " + T, "Content-Type": "application/json" },
   })
@@ -15,7 +15,7 @@ window.l_feature_orders = function () {
   document.getElementById("pt").textContent = "{{ _('Feature Orders') }}";
   var h = '<div id="featureOrderList"><div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div></div>';
   document.getElementById("mc").innerHTML = h;
-  fetch("/plugin/subscription/admin/subscription/orders?limit=100", { headers: { "Authorization": "Bearer " + T } }).then(function (r) { return r.json(); }).then(function (d) {
+  fetch("/subscription/admin/orders?limit=100", { headers: { "Authorization": "Bearer " + T } }).then(function (r) { return r.json(); }).then(function (d) {
     var orders = d.orders || [];
     var h = '<div class="cd"><div class="st">{{ _('Feature Orders') }} (' + orders.length + ')</div><table><tr><th>{{ _('Order No.') }}</th><th>{{ _('User') }}</th><th>{{ _('Item') }}</th><th>{{ _('Interval') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Channel') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
     if (!orders.length) h += '<tr><td colspan="9"><div class="em">{{ _('No orders yet') }}</div></td></tr>';
