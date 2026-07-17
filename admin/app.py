@@ -10,7 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
-from models import init_db, init_shop_db
+from models import init_db, init_shop_db, get_db
 from services.deployment_config import DeployConfig, deploy
 from routes.auth import auth_bp
 from routes.admin import admin_bp
@@ -159,7 +159,7 @@ init_cms_tables()
 
 # ===== PluginManager（新插件系统）=====
 try:
-    app.version = '0.20.0'
+    app.version = '0.3.0'
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
@@ -262,6 +262,37 @@ if os.environ.get('EASYKAI_MODE', 'main') == 'client':
         print(f'[License] ⚠️ 订阅检查未启用: {e}')
 else:
     print('[License] 主服务器模式，跳过订阅过期检查')
+
+# ══ 域名白名单：仅允许配置的域名访问管理后台 ══
+@app.before_request
+def _check_admin_domain():
+    """域名白名单：仅允许 system_config 中 admin_allowed_domains 配置的域名访问管理后台"""
+    path = request.path
+    if not path.startswith('/admin'):
+        return None
+    # 静态文件不锁定
+    if path.startswith('/admin/static/'):
+        return None
+    # 登录页和登录 API 不锁定（否则无法进入设置页面配置域名）
+    if path == '/admin/login' or path == '/admin' or path == '/':
+        return None
+    if path.startswith('/api/auth/'):
+        return None
+    try:
+        conn = get_db()
+        row = conn.execute(
+            "SELECT value FROM system_config WHERE key='admin_allowed_domains'"
+        ).fetchone()
+        conn.close()
+        if row and row['value']:
+            allowed = [d.strip().lower() for d in row['value'].split(',') if d.strip()]
+            if allowed:
+                host = request.host.split(':')[0].lower()
+                if host not in allowed:
+                    return jsonify({'success': False, 'error': 'Forbidden: admin access not allowed from this domain'}), 403
+    except Exception:
+        pass  # 数据库不可用时放行，避免锁死
+    return None
 
 @app.route('/')
 def index():
