@@ -1470,7 +1470,7 @@ def token_stats():
                 FROM agent_token_logs t
                 LEFT JOIN users u ON u.id = t.user_id
                 WHERE {date_where_t}
-                GROUP BY t.user_id, t.agent_id, t.model_name
+                GROUP BY t.user_id, t.agent_id, t.agent_name, t.model_name, t.dimension, COALESCE(u.username, u.phone, '未知用户')
                 ORDER BY total DESC
                 LIMIT 50
             """).fetchall()
@@ -1496,7 +1496,7 @@ def token_stats():
                 SELECT agent_id, agent_name, COALESCE(SUM(total_tokens),0) AS total
                 FROM agent_token_logs
                 WHERE created_at::date = CURRENT_DATE
-                GROUP BY agent_id
+                GROUP BY agent_id, agent_name
             """).fetchall()
 
         return _success({
