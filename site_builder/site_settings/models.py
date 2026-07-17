@@ -321,3 +321,32 @@ def backup_tokens(site_key='platform'):
         except Exception:
             pass  # column may not exist — non-critical
         conn.commit()
+
+
+# ── Editor Draft API Helpers ────────────────────────────────
+
+
+def update_draft_token_field(block_id, field, value):
+    """Update a specific field within design_tokens.draft_json
+
+    Special block_id values:
+      - hero_title, hero_subtitle, hero_cta, site_name -> brand.*
+      - footer_copyright -> footer.copyright
+    """
+    mapping = {
+        'hero_title': ('brand', 'slogan'),
+        'hero_subtitle': ('brand', 'brand_story'),
+        'hero_cta': ('brand', 'site_name'),
+        'site_name': ('brand', 'site_name'),
+        'footer_copyright': ('footer', 'copyright'),
+    }
+
+    tokens = get_draft_tokens() or {}
+    if block_id in mapping:
+        section, key = mapping[block_id]
+        if section not in tokens:
+            tokens[section] = {}
+        tokens[section][key] = value
+        save_draft_tokens('platform', tokens)
+        return True, tokens
+    return False, tokens

@@ -325,9 +325,23 @@ def preview_site_page():
     from models import get_db
     from services.brand_service import get_brand_settings
 
-    draft_tokens = get_draft_tokens()
-    if draft_tokens is None:
+    raw_tokens = get_draft_tokens()
+    if raw_tokens is None:
         return 'No draft to preview. Generate a plan and execute first.', 404
+
+    # Ensure nested keys exist to prevent Jinja2 UndefinedError
+    draft_tokens = {
+        'brand': raw_tokens.get('brand', {
+            'site_name': 'Site Name',
+            'slogan': 'Welcome',
+            'brand_story': '',
+        }),
+        'colors': raw_tokens.get('colors', {}),
+        'typography': raw_tokens.get('typography', {}),
+        'spacing': raw_tokens.get('spacing', {}),
+        'navigation': raw_tokens.get('navigation', {'items': []}),
+        'footer': raw_tokens.get('footer', {'copyright': '\u00a9 AI Generated Preview'}),
+    }
 
     brand = get_brand_settings()
 
@@ -427,6 +441,243 @@ def page_summary(page):
     from site_builder.generators.pages import PageGenerator
     summary = PageGenerator.get_page_summary(page)
     return _success(summary)
+
+
+# ══════════════════════════════════════════════════════════════
+# ── Draft Editor API (Preview-as-Editor) ────────────────────
+# ══════════════════════════════════════════════════════════════
+
+
+@site_builder_bp.route('/api/draft/update-block', methods=['POST'])
+def update_draft_block():
+    """Update a single draft block field (text edit, visibility, etc.)"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    block_id = data.get('block_id')
+    field = data.get('field', '')
+    value = data.get('value', '')
+    scope = data.get('scope', 'block')  # 'block' | 'token'
+
+    if not block_id:
+        return _error('block_id is required')
+
+    # Whitelist: allowed fields to update
+    allowed_fields = {'title', 'subtitle', 'content', 'link_text', 'link_url', 'image_url', 'icon', 'extra_json'}
+    if field not in allowed_fields:
+        return _error(f'Field "{field}" is not editable')
+
+    if scope == 'token':
+        # Special block_id -> update design_tokens.draft_json
+        from site_builder.site_settings.models import update_draft_token_field
+        ok, tokens = update_draft_token_field(block_id, field, value)
+        if not ok:
+            return _error(f'Unknown token block_id: {block_id}')
+        return _success({'block_id': block_id, 'field': field, 'value': value})
+    else:
+        # Numeric block_id -> update cms_blocks
+        from models import get_db
+        with get_db() as conn:
+            if field == 'extra_json':
+                # Merge extra_json (don't overwrite entire field)
+                existing = conn.execute(
+                    "SELECT extra_json FROM cms_blocks WHERE id=%s AND is_published=0",
+                    (block_id,)
+                ).fetchone()
+                if not existing:
+                    return _error('Block not found', 404)
+                current = json.loads(existing['extra_json'] or '{}')
+                if isinstance(value, dict):
+                    current.update(value)
+                else:
+                    current = value
+                value = json.dumps(current, ensure_ascii=False)
+
+            conn.execute(
+                f"UPDATE cms_blocks SET {field}=%s, updated_at=NOW() WHERE id=%s AND is_published=0",
+                (value, block_id)
+            )
+            conn.commit()
+        return _success({'block_id': block_id, 'field': field, 'value': value})
+
+
+@site_builder_bp.route('/api/draft/update-block-order', methods=['POST'])
+def update_draft_block_order():
+    """Batch update block positions (drag-sort result)"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    order = data.get('order', [])  # [{block_id: 1, position: 0}, ...]
+
+    if not order or not isinstance(order, list):
+        return _error('order must be a non-empty array')
+
+    from models import get_db
+    with get_db() as conn:
+        for item in order:
+            bid = item.get('block_id')
+            pos = item.get('position')
+            if bid is not None and pos is not None:
+                conn.execute(
+                    "UPDATE cms_blocks SET position=%s, updated_at=NOW() WHERE id=%s AND is_published=0",
+                    (pos, bid)
+                )
+        conn.commit()
+
+    return _success({'updated': len(order)})
+
+
+@site_builder_bp.route('/api/draft/delete-block', methods=['POST'])
+def delete_draft_block():
+    """Soft-delete a draft block (set extra_json.deleted=true)"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    block_id = data.get('block_id')
+
+    if not block_id:
+        return _error('block_id is required')
+
+    from models import get_db
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT extra_json FROM cms_blocks WHERE id=%s AND is_published=0",
+            (block_id,)
+        ).fetchone()
+        if not existing:
+            return _error('Block not found', 404)
+
+        current = json.loads(existing['extra_json'] or '{}')
+        current['deleted'] = True
+        conn.execute(
+            "UPDATE cms_blocks SET extra_json=%s, updated_at=NOW() WHERE id=%s AND is_published=0",
+            (json.dumps(current, ensure_ascii=False), block_id)
+        )
+        conn.commit()
+
+    return _success({'block_id': block_id, 'deleted': True})
+
+
+@site_builder_bp.route('/api/draft/add-block', methods=['POST'])
+def add_draft_block():
+    """Insert a new block at a specified position"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    page = data.get('page', 'home')
+    position = data.get('position', 0)
+    block_type = data.get('block_type', 'feature-card')
+    title = data.get('title', 'New Section')
+    content = data.get('content', '')
+    icon = data.get('icon', '')
+
+    from models import get_db
+    with get_db() as conn:
+        # Shift existing blocks' positions to make room
+        conn.execute(
+            "UPDATE cms_blocks SET position=position+1 WHERE page=%s AND position>=%s AND is_published=0",
+            (page, position)
+        )
+
+        conn.execute(
+            """INSERT INTO cms_blocks (page, position, block_type, title, content, icon, is_published, created_at, updated_at)
+               VALUES (%s, %s, %s, %s, %s, %s, 0, NOW(), NOW())""",
+            (page, position, block_type, title, content, icon)
+        )
+        new_id = conn.execute("SELECT LAST_INSERT_ID() as id").fetchone()['id']
+        conn.commit()
+
+    return _success({'block_id': new_id, 'page': page, 'position': position})
+
+
+@site_builder_bp.route('/api/draft/update-tokens', methods=['POST'])
+def update_draft_tokens():
+    """Update design tokens (colors/spacing/typography/navigation/footer)"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    scope = data.get('scope', '')  # colors | spacing | typography | navigation | footer
+    new_data = data.get('data', {})
+
+    allowed_scopes = {'colors', 'spacing', 'typography', 'navigation', 'footer'}
+    if scope not in allowed_scopes:
+        return _error(f'Invalid scope: {scope}')
+
+    from site_builder.site_settings.models import get_draft_tokens, save_draft_tokens
+
+    tokens = get_draft_tokens()
+    if tokens is None:
+        tokens = {}
+
+    # Deep merge (preserve other scopes unchanged)
+    if scope in tokens and isinstance(tokens[scope], dict):
+        tokens[scope].update(new_data)
+    else:
+        tokens[scope] = new_data
+
+    save_draft_tokens('platform', tokens)
+    return _success({'scope': scope, 'updated': new_data})
+
+
+@site_builder_bp.route('/api/draft/upload-image', methods=['POST'])
+def upload_draft_image():
+    """Upload a replacement image for a draft block"""
+    admin, err = _require_admin()
+    if err: return err
+
+    if 'file' not in request.files:
+        return _error('No file uploaded')
+
+    file = request.files['file']
+    block_id = request.form.get('block_id', '')
+    field = request.form.get('field', 'image_url')
+
+    # Validate file type
+    allowed_ext = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_ext:
+        return _error(f'Unsupported file type: {ext}')
+
+    # Limit size to 5MB
+    file.seek(0, 2)
+    if file.tell() > 5 * 1024 * 1024:
+        return _error('File too large (max 5MB)')
+    file.seek(0)
+
+    # Save file
+    import uuid
+    filename = f"{uuid.uuid4().hex}{ext}"
+    upload_dir = os.path.join(
+        os.path.dirname(__file__), '..', 'admin', 'static', 'uploads', 'draft'
+    )
+    os.makedirs(upload_dir, exist_ok=True)
+    filepath = os.path.join(upload_dir, filename)
+    file.save(filepath)
+
+    url = f"/static/uploads/draft/{filename}"
+
+    # Update data
+    if block_id and block_id.isdigit():
+        from models import get_db
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE cms_blocks SET image_url=%s WHERE id=%s AND is_published=0",
+                (url, int(block_id))
+            )
+            conn.commit()
+    else:
+        # Update design_tokens (e.g. logo_url, favicon_url)
+        from site_builder.site_settings.models import get_draft_tokens, save_draft_tokens
+        tokens = get_draft_tokens() or {}
+        tokens.setdefault('brand', {})[field] = url
+        save_draft_tokens('platform', tokens)
+
+    return _success({'url': url, 'block_id': block_id, 'field': field})
 
 
 # ══════════════════════════════════════════════════════════════

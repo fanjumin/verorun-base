@@ -51,7 +51,10 @@ def get_brand_settings():
     """Return brand settings dict, or None if table doesn't exist yet."""
     try:
         conn = _get_pg_conn()
-        row = conn.execute("SELECT * FROM brand_settings WHERE id=1").fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM brand_settings WHERE id=1")
+        row = cur.fetchone()
+        cur.close()
         conn.close()
         if row:
             d = dict(row)
@@ -67,7 +70,10 @@ def get_tm_brand_settings():
     """Return TradeMind sub-brand settings dict."""
     try:
         conn = _get_pg_conn()
-        row = conn.execute("SELECT * FROM tm_brand_settings WHERE id=1").fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM tm_brand_settings WHERE id=1")
+        row = cur.fetchone()
+        cur.close()
         conn.close()
         if row:
             return dict(row)
