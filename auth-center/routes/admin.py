@@ -3389,7 +3389,7 @@ def media_library_upload():
             "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
             (safe_name, f.filename, mime, file_size, 'media/' + safe_name,
              'media/thumbs/' + thumb_name if thumb_name else '')
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
     return jsonify({
         'success': True,
