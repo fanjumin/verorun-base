@@ -189,7 +189,7 @@ def sms_register():
             return api_err('This phone is already registered')
         user_id = conn.execute(
             'INSERT INTO users (phone, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (%s,%s,%s,%s,1,0,%s) RETURNING id',
-            (phone, username, display_name or username, stored, now)).fetchone()[0]
+            (phone, username, display_name or username, stored, now)).fetchone()['id']
         # Auto-create free-tier authorization
         conn.execute(
             'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
@@ -260,7 +260,7 @@ def sms_login():
         else:
             user_id = conn.execute(
                 'INSERT INTO users (phone, phone_verified, last_login) VALUES (%s,1,%s) RETURNING id',
-                (phone, now)).fetchone()[0]
+                (phone, now)).fetchone()['id']
             # Auto-create free-tier authorization for trademind
             conn.execute(
                 'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',

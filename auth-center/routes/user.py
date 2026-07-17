@@ -833,7 +833,7 @@ def create_ticket():
             (user_id, ttype, category, title, content, contact, priority)
         )
         conn.commit()
-    return jsonify({'success': True, 'id': cur.fetchone()[0], 'type': ttype, 'priority': priority})
+    return jsonify({'success': True, 'id': cur.fetchone()['id'], 'type': ttype, 'priority': priority})
 
 
 # =============================================
@@ -1104,7 +1104,7 @@ def update_user_interests():
                     'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
                     (name, '自定义', 999, 0, 1)
                 )
-                iid = cursor.fetchone()[0]
+                iid = cursor.fetchone()['id']
             conn.execute(
                 'INSERT INTO user_interests (user_id, interest_id) VALUES (%s,%s) ON CONFLICT (user_id, interest_id) DO NOTHING',
                 (user_id, iid)
@@ -1253,7 +1253,7 @@ def address_create():
                 vals
             )
             conn.commit()
-            addr_id = conn.execute('SELECT lastval()').fetchone()[0]
+            addr_id = conn.execute('SELECT lastval()').fetchone()['lastval']
             addr = conn.execute(
                 'SELECT * FROM user_addresses WHERE id=%s', (addr_id,)
             ).fetchone()
@@ -1298,7 +1298,7 @@ def address_create():
             vals
         )
         conn.commit()
-        addr_id = conn.execute('SELECT lastval()').fetchone()[0]
+        addr_id = conn.execute('SELECT lastval()').fetchone()['lastval']
         addr = conn.execute(
             '''SELECT ua.*,
                 p.name as province_name, c.name as city_name,

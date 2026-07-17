@@ -1771,7 +1771,7 @@ def init_db():
         """)
         m.commit()
         # 检查是否需要 seed（仅空表时写入基础层级）
-        empty = m.execute("SELECT count(*) FROM regions").fetchone()[0]
+        empty = m.execute("SELECT count(*) FROM regions").fetchone()['count']
         if empty == 0:
             # 省/自治区/直辖市 level-1（简化 seed，仅基础数据）
             import json
@@ -1820,7 +1820,7 @@ def init_db():
 
     # ── Seed default interest tags ──
     with get_db() as m:
-        existing = m.execute("SELECT COUNT(*) FROM interests").fetchone()[0]
+        existing = m.execute("SELECT COUNT(*) FROM interests").fetchone()['count']
         if existing < 10:
             tags = _get_default_interests()
             m.executemany(

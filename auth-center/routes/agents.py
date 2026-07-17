@@ -113,7 +113,7 @@ def agent_create():
             "INSERT INTO user_agents (user_id, agent_name, agent_type, avatar_url, default_scopes, metadata) "
             "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
             (uid, agent_name, agent_type, f'/avatar/gen/{agent_name}', scopes_str, metadata_str)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
     
     _log(aid, uid, 'create', f'Agent "{agent_name}" created')
@@ -325,7 +325,7 @@ def agent_key_create(aid):
             (aid, uid, key_hash, key_prefix, name, scopes_str, expire_days * 86400)
         )
         conn.commit()
-        kid = conn.execute('SELECT lastval()').fetchone()[0]
+        kid = conn.execute('SELECT lastval()').fetchone()['lastval']
     
     _log(aid, uid, 'create_key', f'Key "{name or "unnamed"}" created (expires in {expire_days}d)')
     
@@ -406,7 +406,7 @@ def agent_key_rotate(aid, kid):
             (aid, uid, new_hash, new_prefix, kid, kid)
         )
         conn.commit()
-        new_kid = conn.execute('SELECT lastval()').fetchone()[0]
+        new_kid = conn.execute('SELECT lastval()').fetchone()['lastval']
     
     _log(aid, uid, 'rotate_key', f'Key {kid} rotated → {new_kid}')
     

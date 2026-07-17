@@ -118,7 +118,7 @@ def init_cms_tables():
         # Seed default categories if empty
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM cms_categories")
-        existing = cur.fetchone()[0]
+        existing = cur.fetchone()['count']
         if existing == 0:
             cats = [
                 # ── 公开分类 ──
@@ -178,7 +178,7 @@ def upsert_block(data: dict):
             cur = conn.execute("""
                 INSERT INTO cms_blocks (page, section, block_type, position, title, subtitle,
                     content, image_url, link_url, link_text, icon, extra_json, is_published)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
             """, (
                 data.get('page', ''), data.get('section', ''), data.get('block_type', 'text'),
                 data.get('position', 0), data.get('title', ''), data.get('subtitle', ''),
@@ -186,7 +186,7 @@ def upsert_block(data: dict):
                 data.get('link_text', ''), data.get('icon', ''), data.get('extra_json', '{}'),
                 data.get('is_published', 1)
             ))
-            data['id'] = cur.fetchone()[0]
+            data['id'] = cur.fetchone()['id']
         conn.commit()
     return data
 
@@ -381,7 +381,7 @@ def upsert_post(data: dict):
         else:
             cur = conn.execute("""
                 INSERT INTO cms_posts (slug, category, title, excerpt, content, content_format, cover_image, author, tags, audience, is_published, publish_channels, source, source_id, published_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, CASE WHEN %s THEN NOW() ELSE NULL END)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, CASE WHEN %s THEN NOW() ELSE NULL END) RETURNING id
             """, (
                 data.get('slug', ''), data.get('category', 'insights'),
                 data.get('title', ''), data.get('excerpt', ''), data.get('content', ''),
@@ -392,7 +392,7 @@ def upsert_post(data: dict):
                 data.get('source', 'manual'), data.get('source_id'),
                 1 if data.get('is_published') in (1, True) else 0
             ))
-            data['id'] = cur.fetchone()[0]
+            data['id'] = cur.fetchone()['id']
         conn.commit()
     return data
 
@@ -461,7 +461,7 @@ def upsert_category(data: dict):
                  data.get('audience', 'public'), int(data.get('sort_order', 0)),
                  data.get('is_active', 1))
             )
-            data['id'] = cur.fetchone()[0]
+            data['id'] = cur.fetchone()['id']
         conn.commit()
     return data
 
@@ -472,7 +472,7 @@ def delete_category(cat_id: int):
         ref_count = conn.execute(
             "SELECT COUNT(*) FROM cms_posts WHERE category=(SELECT name FROM cms_categories WHERE id=%s)",
             (cat_id,)
-        ).fetchone()[0]
+        ).fetchone()['count']
         if ref_count > 0:
             raise ValueError(f'该分类下有 {ref_count} 篇文章，请先移除或更改文章分类后再删除')
         conn.execute("DELETE FROM cms_categories WHERE id=%s", (cat_id,))
@@ -592,7 +592,7 @@ def upsert_download(data: dict):
                     platforms, version, release_date, repo_url, download_url,
                     docs_url, changelog_url, file_size, checksum_sha256,
                     license, requirements, tags, icon, sort_order, is_published)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
             """, (
                 data.get('slug', ''), data.get('name', ''), data.get('tagline', ''),
                 data.get('description', ''), data.get('category', 'skills'),
@@ -604,7 +604,7 @@ def upsert_download(data: dict):
                 tags_json, data.get('icon', '📦'),
                 int(data.get('sort_order', 0)), data.get('is_published', 1)
             ))
-            data['id'] = cur.fetchone()[0]
+            data['id'] = cur.fetchone()['id']
         conn.commit()
     return data
 

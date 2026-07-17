@@ -55,7 +55,7 @@ def migrate_from_main_db():
         sys.path.insert(0, _auth_dir)
 
     conn = get_verification_db()
-    existing = conn.execute('SELECT COUNT(*) FROM verification_requests').fetchone()[0]
+    existing = conn.execute('SELECT COUNT(*) FROM verification_requests').fetchone()['count']
     if existing > 0:
         print('[VerificationPlugin] verification_requests 已有数据，跳过迁移')
         return

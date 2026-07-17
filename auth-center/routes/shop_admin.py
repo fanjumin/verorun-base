@@ -327,7 +327,7 @@ def create_product():
                 json.dumps(data.get('ai_config', {}), ensure_ascii=False),
                 int(data.get('sort_order', 0)),
                 1
-            )).fetchone()[0]
+            )).fetchone()['id']
     return jsonify({'success': True, 'data': {'id': pid}, 'message': '商品已创建'})
 
 
@@ -441,7 +441,7 @@ def create_spec(pid):
             'INSERT INTO product_specs (product_id, spec_name, sort_order) VALUES (%s,%s,%s)',
             (pid, name, int(data.get('sort_order', 0)))
         )
-        sid = conn.execute('SELECT lastval()').fetchone()[0]
+        sid = conn.execute('SELECT lastval()').fetchone()['lastval']
         conn.commit()
     return jsonify({'success': True, 'data': {'id': sid}, 'message': '规格已添加'})
 
@@ -492,7 +492,7 @@ def create_spec_value(pid, sid):
             'INSERT INTO product_spec_values (spec_id, spec_value, sort_order) VALUES (%s,%s,%s)',
             (sid, value, int(data.get('sort_order', 0)))
         )
-        vid = conn.execute('SELECT lastval()').fetchone()[0]
+        vid = conn.execute('SELECT lastval()').fetchone()['lastval']
         conn.commit()
     return jsonify({'success': True, 'data': {'id': vid}, 'message': '规格值已添加'})
 
@@ -603,7 +603,7 @@ def generate_skus(pid):
                 'INSERT INTO product_skus (product_id, sku_code, spec_path, price, stock) VALUES (%s,%s,%s,%s,%s)',
                 (pid, sku_code, json.dumps(spec_path, ensure_ascii=False), base_price, 0)
             )
-            sku_id = conn.execute('SELECT lastval()').fetchone()[0]
+            sku_id = conn.execute('SELECT lastval()').fetchone()['lastval']
             created_skus.append({'id': sku_id, 'sku_code': sku_code, 'spec_path': spec_path,
                                 'price': base_price, 'stock': 0})
         conn.commit()
@@ -706,7 +706,7 @@ def create_category():
                 'INSERT INTO categories (name, slug, parent_id, level, icon, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s)',
                 (name, slug, parent_id, level, data.get('icon', ''), int(data.get('sort_order', 0)), 1)
             )
-            cid = conn.execute('SELECT lastval()').fetchone()[0]
+            cid = conn.execute('SELECT lastval()').fetchone()['lastval']
             conn.commit()
         except Exception as e:
             return jsonify({'success': False, 'error': f'创建失败: {e}'}), 400

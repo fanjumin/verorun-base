@@ -38,7 +38,7 @@ def create_footer_link():
         new_id = conn.execute(
             'INSERT INTO footer_links (section, title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (section, title, url, order, is_enabled)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
     _log(admin['user_id'], 'create', 'footer_links', str(new_id), f'{section}/{title}')
     return jsonify({'success': True, 'data': {'id': new_id}})
@@ -94,7 +94,7 @@ def create_footer_nav():
         m = conn.execute('SELECT MAX(sort_order) as m FROM footer_nav').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
         new_id = conn.execute('INSERT INTO footer_nav (title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s) RETURNING id',
-            (title, url, order, 1 if data.get('is_enabled', True) else 0)).fetchone()[0]
+            (title, url, order, 1 if data.get('is_enabled', True) else 0)).fetchone()['id']
         conn.commit()
     _log(admin['user_id'], 'create', 'footer_nav', str(new_id), title)
     return jsonify({'success': True, 'data': {'id': new_id}})
@@ -151,7 +151,7 @@ def create_footer_article():
         m = conn.execute('SELECT MAX(sort_order) as m FROM footer_articles').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
         new_id = conn.execute('INSERT INTO footer_articles (title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s) RETURNING id',
-            (title, url, order, 1 if data.get('is_enabled', True) else 0)).fetchone()[0]
+            (title, url, order, 1 if data.get('is_enabled', True) else 0)).fetchone()['id']
         conn.commit()
     _log(admin['user_id'], 'create', 'footer_articles', str(new_id), title)
     return jsonify({'success': True, 'data': {'id': new_id}})
@@ -204,7 +204,7 @@ def create_partner():
         m = conn.execute('SELECT MAX(sort_order) as m FROM partner_links').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
         new_id = conn.execute('INSERT INTO partner_links (name, url, icon_url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s) RETURNING id',
-            (name, url, data.get('icon_url','').strip(), order, 1 if data.get('is_enabled', True) else 0)).fetchone()[0]
+            (name, url, data.get('icon_url','').strip(), order, 1 if data.get('is_enabled', True) else 0)).fetchone()['id']
         conn.commit()
     _log(admin['user_id'], 'create', 'partner_links', str(new_id), name)
     return jsonify({'success': True, 'data': {'id': new_id}})

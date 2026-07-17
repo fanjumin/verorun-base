@@ -198,7 +198,7 @@ def update_alert(alert_id: int, **kwargs) -> bool:
             list(updates.values()) + [alert_id]
         )
         conn.commit()
-        return conn.execute("SELECT changes()").fetchone()[0] > 0
+        return conn.execute("SELECT changes()").fetchone()['changes'] > 0
     finally:
         conn.close()
 
@@ -209,7 +209,7 @@ def delete_alert(alert_id: int) -> bool:
     try:
         conn.execute("DELETE FROM analytics_alerts WHERE id=?", (alert_id,))
         conn.commit()
-        return conn.execute("SELECT changes()").fetchone()[0] > 0
+        return conn.execute("SELECT changes()").fetchone()['changes'] > 0
     finally:
         conn.close()
 

@@ -138,7 +138,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         qid = conn.execute(
             'INSERT INTO knowledge_queue (source, raw_content, admin_id) VALUES (%s,%s,%s) RETURNING id',
             ('matrix', raw_content, admin_id)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
 
     # 调用 LLM

@@ -133,7 +133,7 @@ def sms_logs_list():
     per_page = request.args.get('per_page', 50, type=int)
     offset = (page - 1) * per_page
     conn = get_sms_db()
-    total = conn.execute('SELECT COUNT(*) FROM sms_logs').fetchone()[0]
+    total = conn.execute('SELECT COUNT(*) FROM sms_logs').fetchone()['count']
     rows = conn.execute(
         'SELECT * FROM sms_logs ORDER BY created_at DESC LIMIT ? OFFSET ?',
         (per_page, offset)

@@ -1692,7 +1692,7 @@ def admin_user_agent_create(uid):
         aid = conn.execute(
             'INSERT INTO user_agents (user_id, agent_name) VALUES (%s,%s) RETURNING id',
             (uid, agent_name)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
         _log(admin['user_id'], 'create_user_agent', 'user_agent', str(aid),
              f'为 {user["display_name"] or uid} 创建 Agent "{agent_name}"')
@@ -1724,11 +1724,11 @@ def create_social_link():
     if not name:
         return jsonify({'success': False, 'error': '名称不能为空'}), 400
     with get_db() as conn:
-        max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM social_links').fetchone()[0]
+        max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM social_links').fetchone()['coalesce']
         lid = conn.execute(
             'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
             (name, url, icon_url, platform, max_sort, is_active)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
         _log(admin['user_id'], 'create', 'social_link', str(lid), f'新增社媒图标: {name}')
     return jsonify({'success': True, 'data': {'id': lid}})
@@ -2320,7 +2320,7 @@ def admin_notif_templates_create():
             tid = conn.execute(
                 'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (%s,%s,%s,%s,%s) RETURNING id',
                 (event_type, title_tmpl, content_tmpl, link_url_tmpl, ntype)
-            ).fetchone()[0]
+            ).fetchone()['id']
             conn.commit()
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
@@ -2617,7 +2617,7 @@ def admin_interests_create():
         new_id = conn.execute(
             'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (name, category, data.get('sort_order', 0), data.get('is_hot', 0), data.get('is_active', 1))
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
     _log(admin['user_id'], 'create_interest', detail=f'{name} ({category})')
     return jsonify({'success': True, 'data': {'id': new_id}})
@@ -2899,7 +2899,7 @@ def create_provider_model():
     with get_db() as conn:
         mid = conn.execute(
             'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
-            (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities)).fetchone()[0]
+            (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities)).fetchone()['id']
         conn.commit()
         _log(admin['user_id'], 'create', 'provider_model', str(mid), f'新增模型: {name}')
     return jsonify({'success': True, 'data': {'id': mid}})
@@ -2982,7 +2982,7 @@ def media_voice_clone():
         vid = conn.execute(
             """INSERT INTO voice_templates (user_id, name, sample_url, provider, status)
                VALUES (%s,%s,%s,%s,'pending') RETURNING id""",
-            (admin['user_id'], name, audio_url, 'volcengine')).fetchone()[0]
+            (admin['user_id'], name, audio_url, 'volcengine')).fetchone()['id']
         conn.commit()
 
     # 通过 Agent 矩阵 dispatch 到 Media Agent
@@ -3072,7 +3072,7 @@ def media_video_create():
             """INSERT INTO video_tasks (user_id, title, voice_template_id, text_content,
                avatar_image_url, provider, status) VALUES (%s,%s,%s,%s,%s,%s,'pending') RETURNING id""",
             (admin['user_id'], title, int(voice_id) if voice_id.isdigit() else 0,
-             text, image_url, 'volcengine')).fetchone()[0]
+             text, image_url, 'volcengine')).fetchone()['id']
         conn.commit()
 
     # 通过 Agent 矩阵 dispatch

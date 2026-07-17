@@ -47,7 +47,7 @@ def create_social_media():
         new_id = conn.execute(
             'INSERT INTO social_media_links (platform_name, icon_type, icon_value, url, display_order, is_enabled, hover_text) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id',
             (platform_name, icon_type, icon_value, url, max_order, is_enabled, hover_text)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
     
     _log(admin['user_id'], 'create', 'social_media', str(new_id), platform_name)

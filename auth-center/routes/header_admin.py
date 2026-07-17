@@ -44,7 +44,7 @@ def create_header_nav():
         new_id = conn.execute(
             'INSERT INTO header_nav (site, title, url, sort_order, is_enabled) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (site, title, url, order, 1 if data.get('is_enabled', True) else 0)
-        ).fetchone()[0]
+        ).fetchone()['id']
         conn.commit()
     _log(admin['user_id'], 'create', 'header_nav', str(new_id), f'{site}/{title}')
     return jsonify({'success': True, 'data': {'id': new_id}})

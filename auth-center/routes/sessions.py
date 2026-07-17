@@ -75,7 +75,7 @@ def session_current():
                 "INSERT INTO user_sessions (user_id, token_hash, device_type, ip_address, user_agent, is_current) "
                 "VALUES (%s,%s,%s,%s,%s,1) RETURNING id",
                 (uid, token_hash, 'api', ip, user_agent)
-            ).fetchone()[0]
+            ).fetchone()['id']
             conn.commit()
             return jsonify({'success': True, 'data': {
                 'id': sid,

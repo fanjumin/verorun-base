@@ -34,11 +34,11 @@ def dashboard():
     admin, err = _require_admin()
     if err: return err
     conn = _get_db()
-    source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()[0]
-    pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()[0]
-    processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()[0]
-    published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()[0]
-    failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()[0]
+    source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()['count']
+    pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()['count']
+    processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()['count']
+    published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()['count']
+    failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()['count']
     return jsonify({'success': True, 'data': {
         'source_count': source_count, 'pending': pending,
         'processed': processed, 'published': published, 'failed': failed,
@@ -166,7 +166,7 @@ def list_contents():
     conn = _get_db()
     total = conn.execute(
         f'SELECT COUNT(*) FROM raw_contents r WHERE {" AND ".join(where)}', params
-    ).fetchone()[0]
+    ).fetchone()['count']
     rows = conn.execute(
         f"""SELECT r.*, s.name as source_name
             FROM raw_contents r LEFT JOIN content_sources s ON r.source_id=s.id
@@ -231,7 +231,7 @@ def list_processed():
     conn = _get_db()
     total = conn.execute(
         f'SELECT COUNT(*) FROM processed_contents p WHERE {" AND ".join(where)}', params
-    ).fetchone()[0]
+    ).fetchone()['count']
     rows = conn.execute(
         f"""SELECT p.*, r.title as raw_title, r.source_url
             FROM processed_contents p
@@ -553,11 +553,11 @@ def stats():
     admin, err = _require_admin()
     if err: return err
     conn = _get_db()
-    source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()[0]
-    pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()[0]
-    processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()[0]
-    published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()[0]
-    failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()[0]
+    source_count = conn.execute('SELECT COUNT(*) FROM content_sources WHERE is_active=1').fetchone()['count']
+    pending = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='pending'").fetchone()['count']
+    processed = conn.execute("SELECT COUNT(*) FROM processed_contents").fetchone()['count']
+    published = conn.execute("SELECT COUNT(*) FROM processed_contents WHERE is_published=1").fetchone()['count']
+    failed = conn.execute("SELECT COUNT(*) FROM raw_contents WHERE status='failed'").fetchone()['count']
     recent_sources = conn.execute(
         'SELECT name, last_crawled_at FROM content_sources ORDER BY last_crawled_at DESC LIMIT 5'
     ).fetchall()
