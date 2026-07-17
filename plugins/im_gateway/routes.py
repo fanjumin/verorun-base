@@ -15,7 +15,6 @@ if _auth_dir not in sys.path:
 
 from flask import Blueprint, request, jsonify
 
-from i18n import _
 from .models import get_im_db
 from .adapters import get_adapter, list_channels
 
@@ -133,8 +132,8 @@ def update_channel(channel):
         (channel, json.dumps(merged, ensure_ascii=False), is_enabled)
     )
     conn.commit()
-    _log(admin['user_id'], 'update', 'channel_config', channel, _('频道配置已更新'))
-    return jsonify({'success': True, 'message': _('{channel} 配置已保存', channel=channel)})
+    _log(admin['user_id'], 'update', 'channel_config', channel, '频道配置已更新')
+    return jsonify({'success': True, 'message': f'{channel} 配置已保存'})
 
 
 @im_bp.route('/<channel>/test', methods=['POST'])
@@ -145,7 +144,7 @@ def test_channel(channel):
         return err
     adapter = get_adapter(channel)
     if adapter is None:
-        return jsonify({'success': False, 'error': _('{channel} 暂不支持连接测试', channel=channel)}), 400
+        return jsonify({'success': False, 'error': f'{channel} 暂不支持连接测试'}), 400
     data = request.get_json(force=True) or {}
     ok, message = adapter.test_connection(data)
     if ok:

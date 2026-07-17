@@ -160,7 +160,7 @@ function admRender() {
       // Password change — {{ _('SMS CAPTCHA Method') }}（{{ _('Two Rows') }}：{{ _('New Password') }}+{{ _('Confirm') }}，{{ _('Verification Code') }}）
       h += '<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:6px">';
       h += '<div style="font-size:12px;font-weight:600;margin-bottom:6px">{{ _('Change Password') }}</div>';
-      h += '<div style="font-size:11px;color:var(--rose);margin-bottom:6px">{{ _('Password Rules') }}：{{ _('At Least') }}10{{ _('Digits') }}，{{ _('Must Include Uppercase') }}、{{ _('Lowercase') }}、{{ _('Digital') }}、{{ _('At Least One Special Character') }}3{{ _('Types') }}</div>';
+      h += '<div style="font-size:11px;color:var(--rose);margin-bottom:6px">{{ _('Password Rules') }}：{{ _('At Least') }}10位，{{ _('Must Include Uppercase') }}、{{ _('Lowercase') }}、{{ _('Digital') }}、{{ _('At Least One Special Character') }}3种</div>';
       h += '<div style="display:flex;gap:8px">';
       h += '<div style="display:flex;flex:1;gap:0;align-items:stretch">';
       h += '<input class="in" id="admEdit_'+a.id+'_pwd" type="password" placeholder="{{ _('New Password') }}" style="flex:1;border-top-right-radius:0;border-bottom-right-radius:0">';

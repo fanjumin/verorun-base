@@ -57,9 +57,9 @@ function loadInstances(){
     if(!d.success)return;
     var instances=d.data||[], h="";
     if(!instances.length){
-      h='<div class="empty-state"><div class="icon">📭</div><div>{{ _('No cloud instances yet') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">→ {{ _('Go to shop for cloud services') }}</a></div>';
+      h='<div class="empty-state"><div class="icon">📭</div><div>{{ _('No cloud instances yet') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">→ 去选购云服务</a></div>';
     }else{
-      var stLabels={{ { 'pending': _('Pending'), 'provisioning': _('Provisioning'), 'running': _('Running'), 'stopped': _('Stopped'), 'terminated': _('Terminated'), 'failed': _('Failed') } | tojson }};
+      var stLabels={pending:'等待开通',provisioning:'开通中',running:'运行中',stopped:'已停止',terminated:'已销毁',failed:'开通失败'};
       instances.forEach(function(inst){
         var ci=inst.connect_info||{};
         var connectStr='';
@@ -69,22 +69,22 @@ function loadInstances(){
         }
         var specs=inst.specs||{};
         h+='<div class="instance-card">';
-        h+='<div class="ic-top"><span class="ic-title">☁️ '+esc(inst.product_title||('{{ _("Service") | tojson }} #'+inst.id))+'</span>';
+        h+='<div class="ic-top"><span class="ic-title">☁️ '+esc(inst.product_title||('服务 #'+inst.id))+'</span>';
         h+='<span class="ic-status st-'+inst.status+'">'+(stLabels[inst.status]||inst.status)+'</span></div>';
         h+='<div class="ic-details">';
-        if(specs.cpu) h+='<span class="ic-detail">{{ _("CPU:") }} <strong>'+specs.cpu+'{{ _(" cores") }}</strong></span>';
-        if(specs.memory_gb) h+='<span class="ic-detail">{{ _("Memory:") }} <strong>'+specs.memory_gb+'G</strong></span>';
-        if(specs.disk_gb) h+='<span class="ic-detail">{{ _("Disk:") }} <strong>'+specs.disk_gb+'G</strong></span>';
-        h+='<span class="ic-detail">{{ _("Type:") }} <strong>'+inst.service_type+'</strong></span>';
+        if(specs.cpu) h+='<span class="ic-detail">CPU: <strong>'+specs.cpu+'核</strong></span>';
+        if(specs.memory_gb) h+='<span class="ic-detail">{{ _('内存:') }} <strong>'+specs.memory_gb+'G</strong></span>';
+        if(specs.disk_gb) h+='<span class="ic-detail">{{ _('磁盘:') }} <strong>'+specs.disk_gb+'G</strong></span>';
+        h+='<span class="ic-detail">{{ _('类型:') }} <strong>'+inst.service_type+'</strong></span>';
         h+='</div>';
         h+='<div class="ic-bottom">';
         h+='<div><div class="ic-connect">'+esc(connectStr)+'</div>';
-        if(inst.resource_id) h+='<div style="font-size:10px;color:var(--dim);margin-top:2px">{{ _("Resource:") }} '+esc(inst.resource_id)+'</div>';
+        if(inst.resource_id) h+='<div style="font-size:10px;color:var(--dim);margin-top:2px">资源: '+esc(inst.resource_id)+'</div>';
         h+='</div>';
         h+='<div style="text-align:right"><div class="ic-time">'+inst.created_at.slice(0,16)+'</div>';
-        h+='<button class="btn bs" style="font-size:10px;padding:2px 8px;margin-top:4px" onclick="cloudDetail('+inst.id+')">📋 {{ _("Details") }}</button>';
+        h+='<button class="btn bs" style="font-size:10px;padding:2px 8px;margin-top:4px" onclick="cloudDetail('+inst.id+')">📋 详情</button>';
         if(inst.status==='running'){
-          h+='<button class="btn bs" style="font-size:10px;padding:2px 8px;margin-top:4px;margin-left:4px;color:#f85149" onclick="cloudTerminate('+inst.id+')">🗑️ {{ _("Terminate") }}</button>';
+          h+='<button class="btn bs" style="font-size:10px;padding:2px 8px;margin-top:4px;margin-left:4px;color:#f85149" onclick="cloudTerminate('+inst.id+')">🗑️ 销毁</button>';
         }
         h+='</div></div></div>';
       });
@@ -95,7 +95,7 @@ function loadInstances(){
 
 function cloudDetail(iid){
   fetch("/cloud/instances/"+iid,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){alert({{ _("Failed to load") | tojson }});return}
+    if(!d.success){alert("加载失败");return}
     var inst=d.data;
     var logs=inst.logs||[];
     var ci=inst.connect_info||{};
@@ -106,28 +106,28 @@ function cloudDetail(iid){
     h+='<span class="ic-status st-'+inst.status+'">'+(inst.status)+'</span></div>';
     if(ci.ip){
       h+='<div style="background:rgba(0,255,159,.04);border:1px solid rgba(0,255,159,.1);border-radius:8px;padding:12px;margin-bottom:12px">';
-      h+='<div style="font-size:12px;color:var(--accent3);margin-bottom:6px">🔗 <strong>{{ _("Connection Info") }}</strong></div>';
+      h+='<div style="font-size:12px;color:var(--accent3);margin-bottom:6px">🔗 <strong>{{ _('Connection Info') }}</strong></div>';
       h+='<code style="font-size:11px">ssh root@'+esc(ci.ip)+' -p '+(ci.ssh_port||'22')+'</code><br>';
-      h+='<code style="font-size:11px">{{ _("Password:") }} '+(ci.password||'******')+'</code>';
+      h+='<code style="font-size:11px">密码: '+(ci.password||'******')+'</code>';
       h+='</div>';
     }
-    h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px">{{ _("Provisioning Log") }}</div>';
+    h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px">{{ _('Provisioning Log') }}</div>';
     logs.forEach(function(l){
       var color=l.status==='success'?'var(--accent3)':l.status==='failed'?'#f85149':'var(--muted)';
       h+='<div style="padding:6px 8px;margin:4px 0;background:rgba(255,255,255,.02);border-left:2px solid '+color+';font-size:11px">';
       h+='<span style="color:'+color+'">['+esc(l.step)+']</span> '+esc(l.message)+'</div>';
     });
-    h+='<button class="btn bo" style="margin-top:16px" onclick="this.closest(\'[style*=\\\'fixed\\\']\').remove()">{{ _("Close") }}</button>';
+    h+='<button class="btn bo" style="margin-top:16px" onclick="this.closest(\'[style*=\\\\'fixed\\\']\').remove()">{{ _('Close') }}</button>';
     h+='</div></div>';
     document.body.insertAdjacentHTML("beforeend",h);
-  }).catch(function(){alert({{ _("Failed to load") | tojson }})});
+  }).catch(function(){alert("加载失败")});
 }
 
 function cloudTerminate(iid){
-  if(!confirm({{ _("Are you sure you want to terminate this cloud instance? This action cannot be undone!") | tojson }}))return;
+  if(!confirm("确认销毁此云服务实例？此操作不可撤销！"))return;
   fetch("/cloud/instances/"+iid+"/terminate",{method:"POST",headers:{"Authorization":"Bearer "+T}})
-    .then(function(r){return r.json()}).then(function(d){showToast(d.message||"{{ _('Done') }}","info");loadInstances()})
-    .catch(function(){alert({{ _("Operation failed") | tojson }})});
+    .then(function(r){return r.json()}).then(function(d){showToast(d.message||"已执行","info");loadInstances()})
+    .catch(function(){alert("操作失败")});
 }
 
 function showToast(msg,type){

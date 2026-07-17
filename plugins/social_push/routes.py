@@ -20,7 +20,6 @@ if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
-from i18n import _
 
 from .models import get_sp_db
 
@@ -30,9 +29,9 @@ social_bp = Blueprint('social', __name__, url_prefix='/admin/social')
 
 # 仅"发布渠道"——真实社媒平台。AI 能力不在此列（见文件顶部说明）。
 PLATFORM_INFO = {
-    'wechat': {'name': _('微信公众号'), 'icon': '💬'},
-    'weibo':  {'name': _('微博'),       'icon': '📢'},
-    'toutiao':{'name': _('今日头条'),    'icon': '📰'},
+    'wechat': {'name': '微信公众号', 'icon': '💬'},
+    'weibo':  {'name': '微博',       'icon': '📢'},
+    'toutiao':{'name': '今日头条',    'icon': '📰'},
 }
 
 
@@ -81,21 +80,21 @@ def check_config():
             'platforms': [
                 {
                     'id': 'wechat',
-                    'name': _('微信公众号'),
+                    'name': '微信公众号',
                     'icon': '💬',
                     'configured': bool(cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')),
                     'fields_needed': [] if (cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')) else ['AppID', 'AppSecret'],
                 },
                 {
                     'id': 'weibo',
-                    'name': _('微博'),
+                    'name': '微博',
                     'icon': '📢',
                     'configured': bool(cfg.get('weibo_app_key') and cfg.get('weibo_access_token')),
                     'fields_needed': [] if (cfg.get('weibo_app_key') and cfg.get('weibo_access_token')) else ['App Key', 'Access Token'],
                 },
                 {
                     'id': 'toutiao',
-                    'name': _('今日头条'),
+                    'name': '今日头条',
                     'icon': '📰',
                     'configured': bool(cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')),
                     'fields_needed': [] if (cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')) else ['App ID', 'Access Token'],
@@ -104,14 +103,14 @@ def check_config():
             'ai_capabilities': [
                 {
                     'id': 'image_gen',
-                    'name': _('AI配图 (通义万相)'),
+                    'name': 'AI配图 (通义万相)',
                     'icon': '🎨',
                     'configured': bool(cfg.get('dashscope_api_key')),
-                    'fields_needed': [] if cfg.get('dashscope_api_key') else [_('通义万相 Key')],
+                    'fields_needed': [] if cfg.get('dashscope_api_key') else ['通义万相 Key'],
                 },
                 {
                     'id': 'text_gen',
-                    'name': _('AI文案 (通义千问)'),
+                    'name': 'AI文案 (通义千问)',
                     'icon': '✍️',
                     'configured': bool(cfg.get('dashscope_text_key')),
                     'fields_needed': [] if cfg.get('dashscope_text_key') else ['DashScope Key'],
@@ -127,12 +126,12 @@ def check_config():
 
 CONTENT_TYPES = {
     'wechat': {
-        'label': _('公众号文章'),
-        'types': [{'id': 'article', 'name': _('文章')}, {'id': 'announcement', 'name': _('通知')}, {'id': 'promotion', 'name': _('推广')}],
+        'label': '公众号文章',
+        'types': [{'id': 'article', 'name': '文章'}, {'id': 'announcement', 'name': '通知'}, {'id': 'promotion', 'name': '推广'}],
     },
     'weibo': {
-        'label': _('微博'),
-        'types': [{'id': 'weibo', 'name': _('微博')}],
+        'label': '微博',
+        'types': [{'id': 'weibo', 'name': '微博'}],
     },
 }
 
@@ -160,7 +159,7 @@ def generate_content():
     temperature = data.get('temperature', 0.7)
 
     if not topic:
-        return jsonify({'success': False, 'error': _('请输入主题')}), 400
+        return jsonify({'success': False, 'error': '请输入主题'}), 400
 
     try:
         from services.ai_content_generator import generate_article
@@ -169,7 +168,7 @@ def generate_content():
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         logger.exception('AI generate failed')
-        return jsonify({'success': False, 'error': _('生成失败: {error}').format(error=str(e))}), 500
+        return jsonify({'success': False, 'error': f'生成失败: {str(e)}'}), 500
 
 
 # =============================================
@@ -188,7 +187,7 @@ def generate_image():
     use_for_cover = data.get('cover', True)
 
     if not prompt and not title:
-        return jsonify({'success': False, 'error': _('请输入图片描述或文章标题')}), 400
+        return jsonify({'success': False, 'error': '请输入图片描述或文章标题'}), 400
 
     try:
         from services.ai_content_generator import generate_image as gen_img
@@ -197,7 +196,7 @@ def generate_image():
         if use_for_cover and title:
             oss_url = generate_cover_image(title, prompt or title)
         else:
-            oss_url = gen_img(prompt or _('配图：{title}').format(title=title))
+            oss_url = gen_img(prompt or f'配图：{title}')
 
         # 下载到本地，不暴露外部 OSS URL
         import uuid, urllib.request
@@ -218,7 +217,7 @@ def generate_image():
         return jsonify({'success': True, 'data': {'image_url': local_url}})
     except Exception as e:
         logger.exception('Image generation failed')
-        return jsonify({'success': False, 'error': _('生成图片失败: {error}').format(error=str(e))}), 500
+        return jsonify({'success': False, 'error': f'生成图片失败: {str(e)}'}), 500
 
 
 # =============================================
@@ -242,7 +241,7 @@ def publish_content():
     auto_publish = data.get('auto_publish', False)
 
     if not title or not body:
-        return jsonify({'success': False, 'error': _('标题和正文不能为空')}), 400
+        return jsonify({'success': False, 'error': '标题和正文不能为空'}), 400
 
     admin_id = admin['user_id']
     results = []
@@ -274,7 +273,7 @@ def _publish_to_platform(platform, title, body, body_html, summary, author,
     elif platform == 'toutiao':
         return _publish_toutiao(title, body_html, summary, cover_image_url, admin_id)
     else:
-        return {'platform': platform, 'status': 'failed', 'error': _('不支持的平台: {platform}').format(platform=platform)}
+        return {'platform': platform, 'status': 'failed', 'error': f'不支持的平台: {platform}'}
 
 
 def _publish_wechat(title, body_html, summary, author, cover_image_url, auto_publish, admin_id):
@@ -314,7 +313,7 @@ def _publish_wechat(title, body_html, summary, author, cover_image_url, auto_pub
             'status': status,
             'media_id': media_id,
             'publish_id': publish_id,
-            'message': _('微信草稿已创建') if not auto_publish else _('微信发布任务已提交'),
+            'message': '微信草稿已创建' if not auto_publish else '微信发布任务已提交',
         }
     except Exception as e:
         logger.exception('WeChat publish failed')
@@ -349,7 +348,7 @@ def _publish_weibo(title, body, cover_image_url, admin_id):
             conn.commit()
 
         _log(admin_id, 'social_publish', 'social', result.get('id', ''), f'Weibo: {title}')
-        return {'platform': 'weibo', 'status': 'published', 'media_id': result.get('id', ''), 'message': _('微博已发布')}
+        return {'platform': 'weibo', 'status': 'published', 'media_id': result.get('id', ''), 'message': '微博已发布'}
     except Exception as e:
         logger.exception('Weibo publish failed')
         with get_sp_db() as conn:
@@ -385,7 +384,7 @@ def _publish_toutiao(title, body_html, summary, cover_image_url, admin_id):
             )
             conn.commit()
         _log(admin_id, 'social_publish', 'social', result.get('id', ''), f'Toutiao: {title}')
-        return {'platform': 'toutiao', 'status': 'published', 'media_id': result.get('id', ''), 'message': _('头条已发布')}
+        return {'platform': 'toutiao', 'status': 'published', 'media_id': result.get('id', ''), 'message': '头条已发布'}
     except Exception as e:
         logger.exception('Toutiao publish failed')
         with get_sp_db() as conn:

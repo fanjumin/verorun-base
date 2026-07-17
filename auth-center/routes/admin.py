@@ -53,7 +53,7 @@ def _require_admin():
         token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': _('需要管理权限')}), 401)
+        return None, (jsonify({'success': False, 'error': '需要管理权限'}), 401)
     return {'user_id': payload['user_id'], 'nickname': ''}, None
 
 
@@ -617,7 +617,7 @@ def user_detail(uid):
                             "is_admin, active, created_at, last_login "
                             "FROM users WHERE id=%s", (uid,)).fetchone()
         if not user:
-            return jsonify({'success': False, 'error': _('用户不存在')}), 404
+            return jsonify({'success': False, 'error': chr(29992)+chr(25143)+chr(19981)+chr(23384)+chr(22312)}), 404
         auths = conn.execute('SELECT app_name, tier, tier_expire_at, calls_today, calls_total FROM app_authorizations WHERE user_id=%s', (uid,)).fetchall()
         orders = conn.execute('SELECT id, order_no, amount, item_type, item_desc, status, created_at FROM billing_orders WHERE user_id=%s ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
     return jsonify({'success': True, 'data': {'user': dict(user), 'authorizations': [dict(a) for a in auths], 'orders': [dict(o) for o in orders]}})
@@ -633,7 +633,7 @@ def user_status(uid):
         conn.execute('UPDATE users SET active=%s WHERE id=%s', (1 if active else 0, uid))
         conn.commit()
     _log(admin['user_id'], 'ban_user' if not active else 'activate_user', 'user', str(uid))
-    return jsonify({'success': True, 'message': _('状态已更新')})
+    return jsonify({'success': True, 'message': chr(29366)+chr(24577)+chr(24050)+chr(26356)+chr(26032)})
 
 # PUT /admin/users/<int:uid>/verify — 管理员手动标记用户为已实名（合规v2：不存储身份证号）
 @admin_bp.route('/users/<int:uid>/verify', methods=['PUT'])
@@ -644,13 +644,13 @@ def admin_verify_user(uid):
     data = request.get_json(force=True) or {}
     real_name = (data.get('real_name') or '').strip()
     if not real_name:
-        return jsonify({'success': False, 'error': _('姓名不能为空')}), 400
+        return jsonify({'success': False, 'error': '姓名不能为空'}), 400
     with get_db() as conn:
         user = conn.execute('SELECT id, is_real_name_verified FROM users WHERE id=%s', (uid,)).fetchone()
         if not user:
-            return jsonify({'success': False, 'error': _('用户不存在')}), 404
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
         if user['is_real_name_verified']:
-            return jsonify({'success': False, 'error': _('用户已完成实名认证')}), 400
+            return jsonify({'success': False, 'error': '用户已完成实名认证'}), 400
         # 合规v2：只写 display_name + 认证标记，不存储身份证号
         conn.execute(
             'UPDATE users SET display_name=%s, verified_by=%s, verified_at=%s, is_real_name_verified=1, real_name_verified_at=%s WHERE id=%s',
@@ -658,7 +658,7 @@ def admin_verify_user(uid):
         )
         conn.commit()
     _log(admin['user_id'], 'verify_user', 'user', str(uid))
-    return jsonify({'success': True, 'message': _('实名认证完成（手动标记，未存储身份证信息）')})
+    return jsonify({'success': True, 'message': '实名认证完成（手动标记，未存储身份证信息）'})
 
 
 # GET /admin/users/<int:uid>/profile — admin查看用户扩展资料+收货地址
@@ -793,7 +793,7 @@ def review_post(pid):
         conn.execute("UPDATE agent_experiences SET status=%s, is_published=%s, updated_at=NOW() WHERE id=%s", (status, pub, pid))
         conn.commit()
     _log(admin['user_id'], 'review_post', 'post', str(pid), 'Status: ' + status)
-    return jsonify({'success': True, 'message': _('审核完成')})
+    return jsonify({'success': True, 'message': '审核完成'})
 
 
 @admin_bp.route('/contacts', methods=['GET'])
@@ -835,7 +835,7 @@ def revoke_key(kid):
         conn.execute('UPDATE api_keys SET active=0 WHERE id=%s', (kid,))
         conn.commit()
     _log(admin['user_id'], 'revoke_api_key', 'api_key', str(kid))
-    return jsonify({'success': True, 'message': _('密钥已吊销')})
+    return jsonify({'success': True, 'message': '密钥已吊销'})
 
 
 @admin_bp.route('/logs', methods=['GET'])
@@ -888,7 +888,7 @@ def agent_matrix_create():
         conn.commit()
         aid = row['id']
     _log(admin['user_id'], 'create_agent', 'agent', str(aid), alias)
-    return jsonify({'success': True, 'message': _('Agent 已创建'), 'id': aid})
+    return jsonify({'success': True, 'message': 'Agent 已创建', 'id': aid})
 
 
 @admin_bp.route('/agent-matrix/<int:aid>', methods=['PUT'])
@@ -904,14 +904,14 @@ def agent_matrix_update(aid):
             fields.append(key + '=%s')
             values.append(data[key])
     if not fields:
-        return jsonify({'success': False, 'error': _('没有要更新的字段')}), 400
+        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
     fields.append("updated_at=NOW()")
     values.append(aid)
     with get_db() as conn:
         conn.execute('UPDATE agents SET ' + ','.join(fields) + ' WHERE id=%s', values)
         conn.commit()
     _log(admin['user_id'], 'update_agent', 'agent', str(aid))
-    return jsonify({'success': True, 'message': _('Agent 已更新')})
+    return jsonify({'success': True, 'message': 'Agent 已更新'})
 
 
 @admin_bp.route('/agent-matrix/<int:aid>', methods=['DELETE'])
@@ -923,7 +923,7 @@ def agent_matrix_delete(aid):
         conn.execute('DELETE FROM agents WHERE id=%s', (aid,))
         conn.commit()
     _log(admin['user_id'], 'delete_agent', 'agent', str(aid))
-    return jsonify({'success': True, 'message': _('Agent 已删除')})
+    return jsonify({'success': True, 'message': 'Agent 已删除'})
 
 
 @admin_bp.route('/agent-matrix/<int:aid>/test', methods=['POST'])
@@ -934,11 +934,11 @@ def agent_matrix_test(aid):
     data = request.get_json(force=True) or {}
     query = data.get('query', chr(39)+chr(39))
     if not query:
-        return jsonify({'success': False, 'error': _('请先输入测试消息（不能为空）')}), 400
+        return jsonify({'success': False, 'error': '请先输入测试消息（不能为空）'}), 400
     with get_db() as conn:
         row = conn.execute('SELECT * FROM agents WHERE id=%s', (aid,)).fetchone()
     if not row:
-        return jsonify({'success': False, 'error': _('Agent 不存在')}), 404
+        return jsonify({'success': False, 'error': 'Agent 不存在'}), 404
     from services.agent_engine import UniversalAgentEngine
     engine = UniversalAgentEngine(dict(row))
     result = engine.ask(query)
@@ -971,7 +971,7 @@ def _require_super_admin():
     with get_db() as conn:
         row = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (admin['user_id'],)).fetchone()
     if not row or row['role'] != 'super_admin':
-        return None, (jsonify({'success': False, 'error': _('仅超级管理员可执行此操作')}), 403)
+        return None, (jsonify({'success': False, 'error': '仅超级管理员可执行此操作'}), 403)
     return admin, None
 
 
@@ -1020,7 +1020,7 @@ def admin_me():
             WHERE u.id = %s
         ''', (admin['user_id'],)).fetchone()
     if not row:
-        return jsonify({'success': False, 'error': _('管理员配置不存在')}), 404
+        return jsonify({'success': False, 'error': '管理员配置不存在'}), 404
     d = dict(row)
     try:
         d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
@@ -1043,13 +1043,13 @@ def admin_me_update():
             fields.append(f'{key}=%s')
             params.append(data.get(key, chr(39)+chr(39)).strip())
     if not fields:
-        return jsonify({'success': False, 'error': _('没有要更新的字段')}), 400
+        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
     params.append(admin['user_id'])
     with get_db() as conn:
         conn.execute(f'UPDATE admin_profiles SET {", ".join(fields)}, updated_at=NOW() WHERE user_id=%s', params)
         conn.commit()
         _log(admin['user_id'], 'update_self', 'admin_profile', str(admin['user_id']))
-    return jsonify({'success': True, 'message': _('已更新')})
+    return jsonify({'success': True, 'message': '已更新'})
 
 
 @admin_bp.route('/admins/me/phone', methods=['PUT'])
@@ -1062,7 +1062,7 @@ def admin_me_phone():
     new_phone = data.get('phone', chr(39)+chr(39)).strip()
     code = data.get('code', chr(39)+chr(39)).strip()
     if not new_phone or not code:
-        return jsonify({'success': False, 'error': _('手机号和验证码不能为空')}), 400
+        return jsonify({'success': False, 'error': '手机号和验证码不能为空'}), 400
     from models import get_db
     with get_db() as conn:
         row = conn.execute(
@@ -1070,16 +1070,16 @@ def admin_me_phone():
             (new_phone, code, 'change_phone')
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('验证码无效或已过期')}), 400
+            return jsonify({'success': False, 'error': '验证码无效或已过期'}), 400
         # 检查新手机号是否已占用
         existing = conn.execute('SELECT id FROM users WHERE phone=%s AND id!=%s', (new_phone, admin['user_id'])).fetchone()
         if existing:
-            return jsonify({'success': False, 'error': _('该手机号已被其他用户绑定')}), 400
+            return jsonify({'success': False, 'error': '该手机号已被其他用户绑定'}), 400
         conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
         conn.execute('UPDATE users SET phone=%s, phone_verified=1 WHERE id=%s', (new_phone, admin['user_id']))
         conn.commit()
-        _log(admin['user_id'], 'change_phone', 'admin_profile', str(admin['user_id']), _('新手机: {phone}', phone=new_phone))
-    return jsonify({'success': True, 'message': _('手机号已更新')})
+        _log(admin['user_id'], 'change_phone', 'admin_profile', str(admin['user_id']), f'新手机: {new_phone}')
+    return jsonify({'success': True, 'message': '手机号已更新'})
 
 
 @admin_bp.route('/admins/<int:uid>', methods=['GET'])
@@ -1099,7 +1099,7 @@ def admin_detail(uid):
             WHERE u.id=%s AND u.is_admin=1
         ''', (uid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('管理员不存在')}), 404
+            return jsonify({'success': False, 'error': '管理员不存在'}), 404
         d = dict(row)
         try:
             d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
@@ -1130,7 +1130,7 @@ def admin_create():
     notes = data.get('notes', chr(39)+chr(39)).strip()[:256]
     
     if not phone and not uid:
-        return jsonify({'success': False, 'error': _('请提供手机号或用户ID')}), 400
+        return jsonify({'success': False, 'error': '请提供手机号或用户ID'}), 400
     
     with get_db() as conn:
         if uid:
@@ -1139,14 +1139,14 @@ def admin_create():
             user = conn.execute('SELECT id, phone, display_name FROM users WHERE phone=%s', (phone,)).fetchone()
         
         if not user:
-            return jsonify({'success': False, 'error': _('用户不存在')}), 404
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
         
         if user['id'] == admin['user_id']:
-            return jsonify({'success': False, 'error': _('不能提升自己，你已经是管理员')}), 400
+            return jsonify({'success': False, 'error': '不能提升自己，你已经是管理员'}), 400
         
         existing = conn.execute('SELECT id FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
         if existing:
-            return jsonify({'success': False, 'error': _('{name} 已经是管理员', name=user["display_name"] or user["phone"])}), 400
+            return jsonify({'success': False, 'error': f'{user["display_name"] or user["phone"]} 已经是管理员'}), 400
         
         import json as _json
         permissions_str = _json.dumps(permissions if permissions else [])
@@ -1159,7 +1159,7 @@ def admin_create():
         conn.commit()
         _log(admin['user_id'], 'create_admin', 'admin', str(user['id']), f'{user["display_name"] or user["phone"]} ({role})')
     
-    return jsonify({'success': True, 'message': _('已将 {name} 提升为管理员', name=user["display_name"] or user["phone"])})
+    return jsonify({'success': True, 'message': f'已将 {user["display_name"] or user["phone"]} 提升为管理员'})
 
 
 @admin_bp.route('/admins/<int:uid>', methods=['PUT'])
@@ -1192,10 +1192,10 @@ def admin_update(uid):
         # 验证目标确实是管理员
         target = conn.execute('SELECT id, phone, COALESCE(display_name, username) as nickname FROM users WHERE id=%s AND is_admin=1', (uid,)).fetchone()
         if not target:
-            return jsonify({'success': False, 'error': _('管理员不存在')}), 404
+            return jsonify({'success': False, 'error': '管理员不存在'}), 404
         
         if uid == admin['user_id'] and 'role' in data and data['role'] != 'super_admin':
-            return jsonify({'success': False, 'error': _('不能将自己降级为非超级管理员')}), 400
+            return jsonify({'success': False, 'error': '不能将自己降级为非超级管理员'}), 400
         
         if pf_fields:
             pf_fields.append("updated_at=NOW()")
@@ -1205,14 +1205,14 @@ def admin_update(uid):
         # 修改密码：仅短信验证码验证
         if password:
             if not code:
-                return jsonify({'success': False, 'error': _('请输入短信验证码')}), 400
+                return jsonify({'success': False, 'error': '请输入短信验证码'}), 400
             # 验证 SMS 验证码
             row = conn.execute(
                 'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>NOW() ORDER BY id DESC LIMIT 1',
                 (target['phone'], code, 'modify_password')
             ).fetchone()
             if not row:
-                return jsonify({'success': False, 'error': _('验证码无效或已过期')}), 400
+                return jsonify({'success': False, 'error': '验证码无效或已过期'}), 400
             conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
             
             import hashlib, secrets
@@ -1224,7 +1224,7 @@ def admin_update(uid):
         conn.commit()
         _log(admin['user_id'], 'update_admin', 'admin', str(uid), f'role={data.get("role","")}')
     
-    return jsonify({'success': True, 'message': _('管理员信息已更新')})
+    return jsonify({'success': True, 'message': '管理员信息已更新'})
 
 
 @admin_bp.route('/admins/<int:uid>', methods=['DELETE'])
@@ -1234,16 +1234,16 @@ def admin_delete(uid):
     if err:
         return err
     if uid == admin['user_id']:
-        return jsonify({'success': False, 'error': _('不能移除自己，请先转移超管权限')}), 400
+        return jsonify({'success': False, 'error': '不能移除自己，请先转移超管权限'}), 400
     with get_db() as conn:
         target = conn.execute('SELECT id, display_name, phone FROM users WHERE id=%s AND is_admin=1', (uid,)).fetchone()
         if not target:
-            return jsonify({'success': False, 'error': _('管理员不存在')}), 404
+            return jsonify({'success': False, 'error': '管理员不存在'}), 404
         conn.execute('DELETE FROM admin_profiles WHERE user_id=%s', (uid,))
         conn.execute('UPDATE users SET is_admin=0 WHERE id=%s', (uid,))
         conn.commit()
         _log(admin['user_id'], 'remove_admin', 'admin', str(uid), f'{target["display_name"] or target["phone"]}')
-    return jsonify({'success': True, 'message': _('已将 {name} 降为普通用户', name=target["display_name"] or target["phone"])})
+    return jsonify({'success': True, 'message': f'已将 {target["display_name"] or target["phone"]} 降为普通用户'})
 
 
 @admin_bp.route('/admins/me/avatar', methods=['POST'])
@@ -1253,10 +1253,10 @@ def admin_me_avatar():
     if err:
         return err
     if 'avatar' not in request.files:
-        return jsonify({'success': False, 'error': _('未选择文件')}), 400
+        return jsonify({'success': False, 'error': '未选择文件'}), 400
     file = request.files['avatar']
     if not file.filename:
-        return jsonify({'success': False, 'error': _('文件名为空')}), 400
+        return jsonify({'success': False, 'error': '文件名为空'}), 400
     
     import os
     # 验证文件大小
@@ -1264,7 +1264,7 @@ def admin_me_avatar():
     size = file.tell()
     file.seek(0)
     if size > 1024 * 1024:
-        return jsonify({'success': False, 'error': _('图片大小不能超过 1MB')}), 400
+        return jsonify({'success': False, 'error': '图片大小不能超过 1MB'}), 400
     
     # 验证图片尺寸
     try:
@@ -1273,10 +1273,10 @@ def admin_me_avatar():
         img = Image.open(io.BytesIO(file.read()))
         w, h = img.size
         if w > 800 or h > 800:
-            return jsonify({'success': False, 'error': _('图片尺寸不能超过 800×800（当前 {w}×{h}）', w=w, h=h)}), 400
+            return jsonify({'success': False, 'error': f'图片尺寸不能超过 800×800（当前 {w}×{h}）'}), 400
         file.seek(0)
     except Exception:
-        return jsonify({'success': False, 'error': _('无法解析图片文件，请上传 JPG/PNG 格式')}), 400
+        return jsonify({'success': False, 'error': '无法解析图片文件，请上传 JPG/PNG 格式'}), 400
     
     # 保存文件
     import uuid
@@ -1308,16 +1308,16 @@ def user_avatar_upload(uid):
     if err:
         return err
     if 'avatar' not in request.files:
-        return jsonify({'success': False, 'error': _('未选择文件')}), 400
+        return jsonify({'success': False, 'error': '未选择文件'}), 400
     file = request.files['avatar']
     if not file.filename:
-        return jsonify({'success': False, 'error': _('文件名为空')}), 400
+        return jsonify({'success': False, 'error': '文件名为空'}), 400
 
     # 验证用户存在
     with get_db() as conn:
         user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname FROM users WHERE id=%s', (uid,)).fetchone()
     if not user:
-        return jsonify({'success': False, 'error': _('用户不存在')}), 404
+        return jsonify({'success': False, 'error': '用户不存在'}), 404
 
     import os
     # 文件大小验证 (512KB)
@@ -1325,7 +1325,7 @@ def user_avatar_upload(uid):
     size = file.tell()
     file.seek(0)
     if size > 512 * 1024:
-        return jsonify({'success': False, 'error': _('图片大小不能超过 512KB')}), 400
+        return jsonify({'success': False, 'error': '图片大小不能超过 512KB'}), 400
 
     # 图片尺寸验证 (512x512)
     try:
@@ -1334,10 +1334,10 @@ def user_avatar_upload(uid):
         img = Image.open(io.BytesIO(file.read()))
         w, h = img.size
         if w > 512 or h > 512:
-            return jsonify({'success': False, 'error': _('图片尺寸不能超过 512×512（当前 {w}×{h}）', w=w, h=h)}), 400
+            return jsonify({'success': False, 'error': f'图片尺寸不能超过 512×512（当前 {w}×{h}）'}), 400
         file.seek(0)
     except Exception:
-        return jsonify({'success': False, 'error': _('无法解析图片文件，请上传 JPG/PNG/SVG 格式')}), 400
+        return jsonify({'success': False, 'error': '无法解析图片文件，请上传 JPG/PNG/SVG 格式'}), 400
 
     # 保存文件
     import uuid
@@ -1366,7 +1366,7 @@ def user_avatar_default(uid):
     data = request.get_json(force=True) or {}
     default_name = data.get('default', chr(39)+chr(39))
     if not default_name:
-        return jsonify({'success': False, 'error': _('请指定默认头像文件名')}), 400
+        return jsonify({'success': False, 'error': '请指定默认头像文件名'}), 400
     avatar_url = f'/static/avatars/default/users/{default_name}'
     with get_db() as conn:
         conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, uid))
@@ -1382,15 +1382,15 @@ def user_agent_avatar_upload(uid):
     if err:
         return err
     if 'avatar' not in request.files:
-        return jsonify({'success': False, 'error': _('未选择文件')}), 400
+        return jsonify({'success': False, 'error': '未选择文件'}), 400
     file = request.files['avatar']
     if not file.filename:
-        return jsonify({'success': False, 'error': _('文件名为空')}), 400
+        return jsonify({'success': False, 'error': '文件名为空'}), 400
 
     with get_db() as conn:
         user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname FROM users WHERE id=%s', (uid,)).fetchone()
     if not user:
-        return jsonify({'success': False, 'error': _('用户不存在')}), 404
+        return jsonify({'success': False, 'error': '用户不存在'}), 404
 
     import os
     # 文件大小验证 (512KB)
@@ -1398,7 +1398,7 @@ def user_agent_avatar_upload(uid):
     size = file.tell()
     file.seek(0)
     if size > 512 * 1024:
-        return jsonify({'success': False, 'error': _('图片大小不能超过 512KB')}), 400
+        return jsonify({'success': False, 'error': '图片大小不能超过 512KB'}), 400
 
     # 图片尺寸验证 (512x512)
     try:
@@ -1407,10 +1407,10 @@ def user_agent_avatar_upload(uid):
         img = Image.open(io.BytesIO(file.read()))
         w, h = img.size
         if w > 512 or h > 512:
-            return jsonify({'success': False, 'error': _('图片尺寸不能超过 512×512（当前 {w}×{h}）', w=w, h=h)}), 400
+            return jsonify({'success': False, 'error': f'图片尺寸不能超过 512×512（当前 {w}×{h}）'}), 400
         file.seek(0)
     except Exception:
-        return jsonify({'success': False, 'error': _('无法解析图片文件，请上传 JPG/PNG/SVG 格式')}), 400
+        return jsonify({'success': False, 'error': '无法解析图片文件，请上传 JPG/PNG/SVG 格式'}), 400
 
     # 保存文件
     import uuid
@@ -1439,7 +1439,7 @@ def user_agent_avatar_default(uid):
     data = request.get_json(force=True) or {}
     default_name = data.get('default', chr(39)+chr(39))
     if not default_name:
-        return jsonify({'success': False, 'error': _('请指定默认头像文件名')}), 400
+        return jsonify({'success': False, 'error': '请指定默认头像文件名'}), 400
     agent_avatar_url = f'/static/avatars/default/agents/{default_name}'
     with get_db() as conn:
         conn.execute('UPDATE users SET agent_avatar_url=%s WHERE id=%s', (agent_avatar_url, uid))
@@ -1504,12 +1504,12 @@ def default_avatars_list():
 
 # 可用的权限列表
 ALL_PERMISSIONS = [
-    {'key': 'users', 'label': _('用户管理'), 'desc': _('查看/管理普通用户')},
-    {'key': 'content', 'label': _('内容管理'), 'desc': _('CMS/社区内容/评论审核')},
-    {'key': 'finance', 'label': _('财务管理'), 'desc': _('套餐/订阅/订单/收入')},
-    {'key': 'system', 'label': _('系统设置'), 'desc': _('社区板块/系统配置/操作日志')},
-    {'key': 'matrix', 'label': _('Agent矩阵'), 'desc': _('管理Agent矩阵/自动化调度')},
-    {'key': 'admins', 'label': _('管理员管理'), 'desc': _('管理其他管理员（仅super_admin）')},
+    {'key': 'users', 'label': '用户管理', 'desc': '查看/管理普通用户'},
+    {'key': 'content', 'label': '内容管理', 'desc': 'CMS/社区内容/评论审核'},
+    {'key': 'finance', 'label': '财务管理', 'desc': '套餐/订阅/订单/收入'},
+    {'key': 'system', 'label': '系统设置', 'desc': '社区板块/系统配置/操作日志'},
+    {'key': 'matrix', 'label': 'Agent矩阵', 'desc': '管理Agent矩阵/自动化调度'},
+    {'key': 'admins', 'label': '管理员管理', 'desc': '管理其他管理员（仅super_admin）'},
 ]
 
 @admin_bp.route('/admins/permissions-list', methods=['GET'])
@@ -1541,7 +1541,7 @@ def _require_permission(perm):
                     (admin['user_id'],)
                 ).fetchone()
             if not prof:
-                return jsonify({'success': False, 'error': _('管理员配置不存在')}), 403
+                return jsonify({'success': False, 'error': '管理员配置不存在'}), 403
             if prof['role'] == 'super_admin':
                 # super_admin has all permissions
                 return f(*args, **kwargs)
@@ -1550,7 +1550,7 @@ def _require_permission(perm):
             except Exception:
                 perms = []
             if perm not in perms:
-                return jsonify({'success': False, 'error': _('没有"{perm}"权限', perm=perm)}), 403
+                return jsonify({'success': False, 'error': f'没有"{perm}"权限'}), 403
             return f(*args, **kwargs)
         return wrapper
     return decorator
@@ -1613,7 +1613,7 @@ def admin_user_agent_list(uid):
     with get_db() as conn:
         user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname, phone FROM users WHERE id=%s', (uid,)).fetchone()
         if not user:
-            return jsonify({'success': False, 'error': _('用户不存在')}), 404
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
         rows = conn.execute(
             "SELECT ua.id, ua.agent_name, ua.agent_type, ua.avatar_url, ua.status, "
             "       ua.default_scopes, ua.last_active_ip, ua.last_active_at, ua.created_at, ua.updated_at "
@@ -1651,7 +1651,7 @@ def admin_user_agent_status(aid):
     data = request.get_json(force=True) or {}
     status = data.get('status', chr(39)+chr(39)).strip()
     if status not in ('active', 'inactive', 'suspended'):
-        return jsonify({'success': False, 'error': _('无效的状态值')}), 400
+        return jsonify({'success': False, 'error': '无效的状态值'}), 400
     
     with get_db() as conn:
         row = conn.execute(
@@ -1659,13 +1659,13 @@ def admin_user_agent_status(aid):
             (aid,)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('Agent不存在')}), 404
+            return jsonify({'success': False, 'error': 'Agent不存在'}), 404
         conn.execute('UPDATE user_agents SET status=%s, updated_at=NOW() WHERE id=%s', (status, aid))
         conn.commit()
         _log(admin['user_id'], 'set_agent_status', 'user_agent', str(aid),
-             _('Agent "{agent_name}" → {status}', agent_name=row['agent_name'], status=status))
+             f'Agent "{row["agent_name"]}" → {status}')
     
-    return jsonify({'success': True, 'message': _('Agent 状态已更新为 {status}', status=status)})
+    return jsonify({'success': True, 'message': f'Agent 状态已更新为 {status}'})
 
 
 @admin_bp.route('/users/<int:uid>/user-agents', methods=['POST'])
@@ -1677,25 +1677,25 @@ def admin_user_agent_create(uid):
     data = request.get_json(force=True) or {}
     agent_name = data.get('agent_name', chr(39)+chr(39)).strip()
     if not agent_name:
-        return jsonify({'success': False, 'error': _('Agent名称不能为空')}), 400
+        return jsonify({'success': False, 'error': 'Agent名称不能为空'}), 400
     
     with get_db() as conn:
         user = conn.execute('SELECT id, display_name FROM users WHERE id=%s', (uid,)).fetchone()
         if not user:
-            return jsonify({'success': False, 'error': _('用户不存在')}), 404
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
         existing = conn.execute(
             'SELECT id FROM user_agents WHERE user_id=%s AND agent_name=%s',
             (uid, agent_name)
         ).fetchone()
         if existing:
-            return jsonify({'success': False, 'error': _('该用户已存在同名Agent')}), 400
+            return jsonify({'success': False, 'error': '该用户已存在同名Agent'}), 400
         aid = conn.execute(
             'INSERT INTO user_agents (user_id, agent_name) VALUES (%s,%s) RETURNING id',
             (uid, agent_name)
         ).fetchone()['id']
         conn.commit()
         _log(admin['user_id'], 'create_user_agent', 'user_agent', str(aid),
-             _('为 {user} 创建 Agent "{agent_name}"', user=user['display_name'] or uid, agent_name=agent_name))
+             f'为 {user["display_name"] or uid} 创建 Agent "{agent_name}"')
     
     return jsonify({'success': True, 'data': {'id': aid, 'agent_name': agent_name}})
 
@@ -1722,7 +1722,7 @@ def create_social_link():
     platform = (data.get('platform') or '').strip()
     is_active = 1 if data.get('is_active', 1) else 0
     if not name:
-        return jsonify({'success': False, 'error': _('名称不能为空')}), 400
+        return jsonify({'success': False, 'error': '名称不能为空'}), 400
     with get_db() as conn:
         max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 AS max_sort FROM social_links').fetchone()['max_sort']
         lid = conn.execute(
@@ -1730,7 +1730,7 @@ def create_social_link():
             (name, url, icon_url, platform, max_sort, is_active)
         ).fetchone()['id']
         conn.commit()
-        _log(admin['user_id'], 'create', 'social_link', str(lid), _('新增社媒图标: {name}', name=name))
+        _log(admin['user_id'], 'create', 'social_link', str(lid), f'新增社媒图标: {name}')
     return jsonify({'success': True, 'data': {'id': lid}})
 
 @admin_bp.route('/admin/social-links/<int:lid>', methods=['PUT'])
@@ -1746,7 +1746,7 @@ def update_social_link(lid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM social_links WHERE id=%s', (lid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         name = name or row['name']
         if not url: url = '#'
         platform = platform or row.get('platform', '')
@@ -1757,7 +1757,7 @@ def update_social_link(lid):
             conn.execute('UPDATE social_links SET name=%s, url=%s, icon_url=%s, platform=%s, updated_at=NOW() WHERE id=%s',
                          (name, url, icon_url, platform, lid))
         conn.commit()
-        _log(admin['user_id'], 'update', 'social_link', str(lid), _('更新社媒图标: {name}', name=name))
+        _log(admin['user_id'], 'update', 'social_link', str(lid), f'更新社媒图标: {name}')
     return jsonify({'success': True})
 
 @admin_bp.route('/admin/social-links/<int:lid>', methods=['DELETE'])
@@ -1767,10 +1767,10 @@ def delete_social_link(lid):
     with get_db() as conn:
         row = conn.execute('SELECT name FROM social_links WHERE id=%s', (lid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         conn.execute('DELETE FROM social_links WHERE id=%s', (lid,))
         conn.commit()
-        _log(admin['user_id'], 'delete', 'social_link', str(lid), _('删除社媒图标: {name}', name=row['name']))
+        _log(admin['user_id'], 'delete', 'social_link', str(lid), f'删除社媒图标: {row["name"]}')
     return jsonify({'success': True})
 
 @admin_bp.route('/admin/social-links/reorder', methods=['PUT'])
@@ -1846,7 +1846,7 @@ def user_export():
         rows = conn.execute(sql, params).fetchall()
 
     lines = []
-    lines.append(_('ID,手机号(脱敏),昵称,行业,职业,区域(脱敏),套餐,注册时间'))
+    lines.append('ID,手机号(脱敏),昵称,行业,职业,区域(脱敏),套餐,注册时间')
     for r in rows:
         phone_m = _mask_phone(r['phone'])
         addr_m = _mask_address(r['province'], r['city'], r['district'])
@@ -1890,7 +1890,7 @@ def update_brand_settings():
                'logo_icon_url', 'icp_number', 'security_number', 'contact_email']
     updates = {k: data[k] for k in allowed if k in data}
     if not updates:
-        return jsonify({'success': False, 'error': _('无有效更新字段')}), 400
+        return jsonify({'success': False, 'error': '无有效更新字段'}), 400
     sets = ', '.join(f'{k}=%s' for k in updates)
     vals = list(updates.values()) + [1]
     with get_db() as conn:
@@ -1905,15 +1905,15 @@ def _save_brand_image(subdir, file_key):
     import time
     file = request.files.get(file_key)
     if not file or not file.filename:
-        return None, _('未选择文件')
+        return None, '未选择文件'
     ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
     if ext not in ('png', 'jpg', 'jpeg', 'svg', 'ico'):
-        return None, _('仅支持 PNG/JPG/SVG/ICO 格式')
+        return None, '仅支持 PNG/JPG/SVG/ICO 格式'
     # Read + size check
     data = file.read()
     max_size = 500 * 1024  # 500KB
     if len(data) > max_size:
-        return None, _('文件过大 ({size}KB)，限制 {max}KB', size=len(data)//1024, max=max_size//1024)
+        return None, f'文件过大 ({len(data)//1024}KB)，限制 {max_size//1024}KB'
     # Safe filename
     ts = int(time.time() * 1000)
     fname = f'{subdir}_{ts}.{ext}'
@@ -2142,17 +2142,17 @@ def admin_create_domain():
     service_port = data.get('service_port')
 
     if not subdomain or not display_name:
-        return jsonify({'success': False, 'error': _('子域名和显示名不能为空')}), 400
+        return jsonify({'success': False, 'error': '子域名和显示名不能为空'}), 400
 
     # 校验子域名格式（只允许字母数字连字符）
     import re
     if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', subdomain):
-        return jsonify({'success': False, 'error': _('子域名格式无效：仅允许字母、数字和连字符')}), 400
+        return jsonify({'success': False, 'error': '子域名格式无效：仅允许字母、数字和连字符'}), 400
 
     # 校验配额
     quota = _check_domain_quota(admin['user_id'])
     if not quota['can_add']:
-        return jsonify({'success': False, 'error': _('配额已用完（{used}/{limit}）', used=quota["used"], limit=quota["limit"])}), 400
+        return jsonify({'success': False, 'error': f'配额已用完（{quota["used"]}/{quota["limit"]}）'}), 400
 
     deploy_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
     full_domain = f'{subdomain}.{deploy_domain}'
@@ -2163,7 +2163,7 @@ def admin_create_domain():
             "SELECT id FROM site_domains WHERE full_domain=%s", (full_domain,)
         ).fetchone()
         if exists:
-            return jsonify({'success': False, 'error': _('子域名 {domain} 已存在', domain=full_domain)}), 400
+            return jsonify({'success': False, 'error': f'子域名 {full_domain} 已存在'}), 400
 
         conn.execute(
             "INSERT INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, service_port) "
@@ -2176,10 +2176,10 @@ def admin_create_domain():
     nginx_path = _generate_domain_nginx_config(subdomain, full_domain, service_port)
     _reload_nginx()
 
-    _log(admin['user_id'], 'create_domain', detail=_('{domain} ({display_name}) port={port}', domain=full_domain, display_name=display_name, port=service_port or 'content'))
-    msg = _('子域名 {domain} 已创建', domain=full_domain)
+    _log(admin['user_id'], 'create_domain', detail=f'{full_domain} ({display_name}) port={service_port or "content"}')
+    msg = f'子域名 {full_domain} 已创建'
     if nginx_path:
-        msg += _('，Nginx 配置已生成')
+        msg += f'，Nginx 配置已生成'
     return jsonify({'success': True, 'message': msg, 'nginx_config_path': nginx_path})
 
 
@@ -2192,7 +2192,7 @@ def admin_update_domain(did):
     allowed = ['display_name', 'template', 'is_published', 'page_keys_json', 'sort_order', 'service_port']
     updates = {k: data[k] for k in allowed if k in data}
     if not updates:
-        return jsonify({'success': False, 'error': _('无有效更新字段')}), 400
+        return jsonify({'success': False, 'error': '无有效更新字段'}), 400
 
     # 先读取旧 full_domain
     with get_db() as conn:
@@ -2219,7 +2219,7 @@ def admin_update_domain(did):
         _reload_nginx()
 
     _log(admin['user_id'], 'update_domain', detail=f'domain_id={did}')
-    return jsonify({'success': True, 'message': _('已更新')})
+    return jsonify({'success': True, 'message': '已更新'})
 
 
 @admin_bp.route('/api/domains/<int:did>', methods=['DELETE'])
@@ -2232,7 +2232,7 @@ def admin_delete_domain(did):
             "SELECT full_domain, service_port FROM site_domains WHERE id=%s", (did,)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('子域名不存在')}), 404
+            return jsonify({'success': False, 'error': '子域名不存在'}), 404
         full_domain = row['full_domain']
         conn.execute("DELETE FROM site_domains WHERE id=%s", (did,))
         conn.commit()
@@ -2240,7 +2240,7 @@ def admin_delete_domain(did):
     _remove_domain_nginx_config(full_domain)
     _reload_nginx()
     _log(admin['user_id'], 'delete_domain', detail=full_domain)
-    return jsonify({'success': True, 'message': _('{domain} 已删除', domain=full_domain)})
+    return jsonify({'success': True, 'message': f'{full_domain} 已删除'})
 
 
 @admin_bp.route('/api/domains/quota', methods=['GET'])
@@ -2262,9 +2262,9 @@ def admin_domain_nginx_config(did):
             "SELECT full_domain, subdomain, service_port FROM site_domains WHERE id=%s", (did,)
         ).fetchone()
     if not row:
-        return jsonify({'success': False, 'error': _('子域名不存在')}), 404
+        return jsonify({'success': False, 'error': '子域名不存在'}), 404
     if not row['service_port']:
-        return jsonify({'success': False, 'error': _('内容站点无需 Nginx 配置')}), 400
+        return jsonify({'success': False, 'error': '内容站点无需 Nginx 配置'}), 400
     config_path = os.path.join(_NGINX_CONF_DIR, f'{row["full_domain"]}.conf')
     if os.path.exists(config_path):
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -2314,7 +2314,7 @@ def admin_notif_templates_create():
     link_url_tmpl = (data.get('link_url_template') or '').strip()
     ntype = data.get('type', 'system')
     if not event_type or not title_tmpl or not content_tmpl:
-        return jsonify({'success': False, 'error': _('event_type, title_template, content_template 为必填')}), 400
+        return jsonify({'success': False, 'error': 'event_type, title_template, content_template 为必填'}), 400
     with get_db() as conn:
         try:
             tid = conn.execute(
@@ -2340,7 +2340,7 @@ def admin_notif_templates_update(tid):
             fields.append(f'{key}=%s')
             vals.append(data[key])
     if not fields:
-        return jsonify({'success': False, 'error': _('无更新字段')}), 400
+        return jsonify({'success': False, 'error': '无更新字段'}), 400
     vals.append(tid)
     with get_db() as conn:
         conn.execute(f'UPDATE notification_templates SET {", ".join(fields)}, updated_at=NOW() WHERE id=%s', vals)
@@ -2375,9 +2375,9 @@ def admin_notif_send():
     schedule_at = data.get('schedule_at', '')  # ISO timestamp or empty = immediate
 
     if not title:
-        return jsonify({'success': False, 'error': _('标题不能为空')}), 400
+        return jsonify({'success': False, 'error': '标题不能为空'}), 400
     if not content:
-        return jsonify({'success': False, 'error': _('内容不能为空')}), 400
+        return jsonify({'success': False, 'error': '内容不能为空'}), 400
 
     target_users = []
     with get_db() as conn:
@@ -2387,7 +2387,7 @@ def admin_notif_send():
         elif target_type == 'user_ids' and user_ids:
             target_users = [int(uid) for uid in user_ids]
         else:
-            return jsonify({'success': False, 'error': _('无效的目标类型')}), 400
+            return jsonify({'success': False, 'error': '无效的目标类型'}), 400
 
     from services.notification_service import create_notification
     sent = 0
@@ -2412,13 +2412,13 @@ def admin_notif_test():
     from services.notification_service import create_notification
     nid = create_notification(
         admin['user_id'], 'system',
-        _('这是测试通知'),
-        _('通知系统运行正常。这是一条测试消息，确认系统已就绪。'),
+        '这是测试通知',
+        '通知系统运行正常。这是一条测试消息，确认系统已就绪。',
         link_url=''
     )
     if nid:
         return jsonify({'success': True, 'notification_id': nid})
-    return jsonify({'success': False, 'error': _('发送失败')}), 500
+    return jsonify({'success': False, 'error': '发送失败'}), 500
 
 
 # ══════════════════════════════════════════════
@@ -2475,7 +2475,7 @@ def admin_tickets_update(tid):
         if action == 'reply':
             reply = (data.get('admin_reply') or '').strip()
             if not reply:
-                return jsonify({'success': False, 'error': _('回复内容不能为空')}), 400
+                return jsonify({'success': False, 'error': '回复内容不能为空'}), 400
             conn.execute(
                 "UPDATE user_tickets SET admin_reply=%s, status='replied', replied_at=NOW(), updated_at=NOW() WHERE id=%s",
                 (reply, tid)
@@ -2518,7 +2518,7 @@ def admin_reward_rules_create():
     data = request.get_json(force=True) or {}
     name = (data.get('name') or '').strip()
     if not name:
-        return jsonify({'success': False, 'error': _('规则名称不能为空')}), 400
+        return jsonify({'success': False, 'error': '规则名称不能为空'}), 400
     with get_db() as conn:
         rid = conn.execute(
             'INSERT INTO reward_rules (name, condition_key, condition_value, reward_type, reward_id, reward_name, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
@@ -2541,7 +2541,7 @@ def admin_reward_rules_update(rid):
         if k in data:
             updates[k] = data[k]
     if not updates:
-        return jsonify({'success': False, 'error': _('没有可更新的字段')}), 400
+        return jsonify({'success': False, 'error': '没有可更新的字段'}), 400
     sets = ', '.join(f'{k}=%s' for k in updates.keys())
     vals = list(updates.values()) + [rid]
     with get_db() as conn:
@@ -2609,11 +2609,11 @@ def admin_interests_create():
     name = (data.get('name') or '').strip()
     category = (data.get('category') or '').strip()
     if not name or not category:
-        return jsonify({'success': False, 'error': _('名称和分类不能为空')}), 400
+        return jsonify({'success': False, 'error': '名称和分类不能为空'}), 400
     with get_db() as conn:
         existing = conn.execute('SELECT id FROM interests WHERE name=%s', (name,)).fetchone()
         if existing:
-            return jsonify({'success': False, 'error': _('标签"{name}"已存在', name=name)}), 409
+            return jsonify({'success': False, 'error': f'标签"{name}"已存在'}), 409
         new_id = conn.execute(
             'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
             (name, category, data.get('sort_order', 0), data.get('is_hot', 0), data.get('is_active', 1))
@@ -2633,7 +2633,7 @@ def admin_interests_update(iid):
         if k in data:
             updates[k] = data[k]
     if not updates:
-        return jsonify({'success': False, 'error': _('没有可更新的字段')}), 400
+        return jsonify({'success': False, 'error': '没有可更新的字段'}), 400
     sets = ', '.join(f'{k}=%s' for k in updates)
     vals = list(updates.values()) + [iid]
     with get_db() as conn:
@@ -2712,7 +2712,7 @@ def admin_downloads_create():
     slug = data.get('slug', '').strip()
     name = data.get('name', '').strip()
     if not slug or not name:
-        return jsonify({'success': False, 'error': _('slug 和名称不能为空')}), 400
+        return jsonify({'success': False, 'error': 'slug 和名称不能为空'}), 400
     # Handle file upload
     uploaded_file = request.files.get('file') if not request.is_json else None
     if uploaded_file and uploaded_file.filename:
@@ -2802,7 +2802,7 @@ def admin_downloads_get(dl_id):
     from models.cms import get_download
     item = get_download(dl_id)
     if not item:
-        return jsonify({'success': False, 'error': _('不存在')}), 404
+        return jsonify({'success': False, 'error': '不存在'}), 404
     return jsonify({'success': True, 'data': item})
 
 
@@ -2814,7 +2814,7 @@ def admin_downloads_reorder():
     data = request.get_json(force=True) or {}
     ids = data.get('ids', [])
     if not ids:
-        return jsonify({'success': False, 'error': _('ids 不能为空')}), 400
+        return jsonify({'success': False, 'error': 'ids 不能为空'}), 400
     from models.cms import reorder_downloads
     reorder_downloads(ids)
     return jsonify({'success': True})
@@ -2849,7 +2849,7 @@ def update_provider(pid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM providers WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         name = (data.get('name') or row['name']).strip()
         desc = data.get('description', row['description'])
         is_active = data.get('is_active', row['is_active'])
@@ -2857,7 +2857,7 @@ def update_provider(pid):
             "UPDATE providers SET name=%s, description=%s, is_active=%s, updated_at=NOW() WHERE id=%s",
             (name, desc, int(is_active) if is_active is not None else 1, pid))
         conn.commit()
-        _log(admin['user_id'], 'update', 'provider', str(pid), _('更新提供商: {name}', name=name))
+        _log(admin['user_id'], 'update', 'provider', str(pid), f'更新提供商: {name}')
     return jsonify({'success': True})
 
 
@@ -2895,13 +2895,13 @@ def create_provider_model():
     api_key_ref = (data.get('api_key_ref') or '').strip()
     capabilities = (data.get('capabilities') or 'text').strip()
     if not name or not provider_id:
-        return jsonify({'success': False, 'error': _('名称和提供商不能为空')}), 400
+        return jsonify({'success': False, 'error': '名称和提供商不能为空'}), 400
     with get_db() as conn:
         mid = conn.execute(
             'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
             (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities)).fetchone()['id']
         conn.commit()
-        _log(admin['user_id'], 'create', 'provider_model', str(mid), _('新增模型: {name}', name=name))
+        _log(admin['user_id'], 'create', 'provider_model', str(mid), f'新增模型: {name}')
     return jsonify({'success': True, 'data': {'id': mid}})
 
 
@@ -2914,7 +2914,7 @@ def update_provider_model(mid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM provider_models WHERE id=%s', (mid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         name = (data.get('name') or row['name']).strip()
         provider_id = data.get('provider_id', row['provider_id'])
         model_name = data.get('model_name', row['model_name'])
@@ -2930,7 +2930,7 @@ def update_provider_model(mid):
             (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities,
              int(is_active) if is_active is not None else 1, sort_order, mid))
         conn.commit()
-        _log(admin['user_id'], 'update', 'provider_model', str(mid), _('更新模型: {name}', name=name))
+        _log(admin['user_id'], 'update', 'provider_model', str(mid), f'更新模型: {name}')
     return jsonify({'success': True})
 
 
@@ -2942,10 +2942,10 @@ def delete_provider_model(mid):
     with get_db() as conn:
         row = conn.execute('SELECT name FROM provider_models WHERE id=%s', (mid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         conn.execute('DELETE FROM provider_models WHERE id=%s', (mid,))
         conn.commit()
-        _log(admin['user_id'], 'delete', 'provider_model', str(mid), _('删除模型: {name}', name=row['name']))
+        _log(admin['user_id'], 'delete', 'provider_model', str(mid), f'删除模型: {row["name"]}')
         return jsonify({'success': True})
 
 
@@ -2975,7 +2975,7 @@ def media_voice_clone():
     name = data.get('name', '').strip()
     audio_url = data.get('audio_url', '').strip()
     if not name or not audio_url:
-        return jsonify({'success': False, 'error': _('名称和音频URL不能为空')}), 400
+        return jsonify({'success': False, 'error': '名称和音频URL不能为空'}), 400
 
     # 写入数据库
     with get_db() as conn:
@@ -3012,7 +3012,7 @@ def media_voice_clone():
             with get_db() as conn:
                 conn.execute(
                     "UPDATE voice_templates SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
-                    (result.get('data', {}).get('error', result.get('error', _('未知错误'))), vid))
+                    (result.get('data', {}).get('error', result.get('error', '未知错误')), vid))
                 conn.commit()
             return jsonify({'success': False, 'error': result.get('data', {}).get('error', result.get('error', ''))}), 500
     except Exception as e:
@@ -3021,7 +3021,7 @@ def media_voice_clone():
                 "UPDATE voice_templates SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                 (str(e), vid))
             conn.commit()
-        return jsonify({'success': False, 'error': _('Agent 调用失败: {error}', error=e)}), 500
+        return jsonify({'success': False, 'error': f'Agent 调用失败: {e}'}), 500
 
 
 @admin_bp.route('/media/voice/list', methods=['GET'])
@@ -3063,9 +3063,9 @@ def media_video_create():
     image_url = data.get('image_url', data.get('avatar_url', ''))
 
     if not title or not text:
-        return jsonify({'success': False, 'error': _('标题和文案不能为空')}), 400
+        return jsonify({'success': False, 'error': '标题和文案不能为空'}), 400
     if not voice_id:
-        return jsonify({'success': False, 'error': _('请先选择已克隆的声音')}), 400
+        return jsonify({'success': False, 'error': '请先选择已克隆的声音'}), 400
 
     with get_db() as conn:
         tid = conn.execute(
@@ -3102,7 +3102,7 @@ def media_video_create():
             with get_db() as conn:
                 conn.execute(
                     "UPDATE video_tasks SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
-                    (result.get('data', {}).get('error', result.get('error', _('未知错误'))), tid))
+                    (result.get('data', {}).get('error', result.get('error', '未知错误')), tid))
                 conn.commit()
             return jsonify({'success': False, 'error': result.get('data', {}).get('error', result.get('error', ''))}), 500
     except Exception as e:
@@ -3111,7 +3111,7 @@ def media_video_create():
                 "UPDATE video_tasks SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
                 (str(e), tid))
             conn.commit()
-        return jsonify({'success': False, 'error': _('Agent 调用失败: {error}', error=e)}), 500
+        return jsonify({'success': False, 'error': f'Agent 调用失败: {e}'}), 500
 
 
 @admin_bp.route('/media/video/list', methods=['GET'])
@@ -3144,7 +3144,7 @@ def media_video_list():
             'text_content': '',
             'output_url': r['file_path'],
             'avatar_image_url': '',
-            'voice_name': _('📁 本地上传'),
+            'voice_name': '📁 本地上传',
             'external_voice_id': '',
             'status': 'done',
             'is_homepage': 0,
@@ -3171,7 +3171,7 @@ def media_video_status(tid):
     with get_db() as conn:
         task = conn.execute("SELECT * FROM video_tasks WHERE id=%s AND user_id=%s", (tid, admin['user_id'])).fetchone()
         if not task:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         task = dict(task)
 
     # 如果还在 processing，查询火山引擎状态
@@ -3214,12 +3214,12 @@ def media_video_status(tid):
                     with get_db() as conn:
                         conn.execute(
                             "UPDATE video_tasks SET status='failed', error_msg=%s, updated_at=NOW() WHERE id=%s",
-                            (qdata.get('error', _('生成失败')), tid))
+                            (qdata.get('error', '生成失败'), tid))
                         conn.commit()
                     task['status'] = 'failed'
                     task['error_msg'] = qdata.get('error', '')
         except Exception as e:
-            logger.warning(_('查询视频任务状态失败: {error}', error=e))
+            logger.warning(f'查询视频任务状态失败: {e}')
 
     return jsonify({'success': True, 'data': task})
 
@@ -3235,15 +3235,15 @@ def media_video_download(tid):
         with get_db() as conn:
             row = conn.execute("SELECT * FROM media_files WHERE id=%s", (real_id,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('文件不存在')}), 404
+            return jsonify({'success': False, 'error': '文件不存在'}), 404
         fp = os.path.join(MEDIA_LIB_DIR, row['filename'])
         if not os.path.exists(fp):
-            return jsonify({'success': False, 'error': _('文件已删除')}), 404
+            return jsonify({'success': False, 'error': '文件已删除'}), 404
         return _send_file_or_stream(fp, row['original_name'], row['mime_type'])
     # AI 生成视频
     local_path = _os_media.path.join(MEDIA_DIR, 'videos', f'{tid}.mp4')
     if not _os_media.path.exists(local_path):
-        return jsonify({'success': False, 'error': _('文件不存在或已过期')}), 404
+        return jsonify({'success': False, 'error': '文件不存在或已过期'}), 404
     from flask import send_file
     return send_file(local_path, as_attachment=True, download_name=f'video_{tid}.mp4', mimetype='video/mp4')
 
@@ -3271,7 +3271,7 @@ def media_video_retry(tid):
     with get_db() as conn:
         task = conn.execute("SELECT * FROM video_tasks WHERE id=%s AND user_id=%s", (tid, admin['user_id'])).fetchone()
         if not task:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         task = dict(task)
         conn.execute("UPDATE video_tasks SET status='pending', error_msg='', updated_at=NOW() WHERE id=%s", (tid,))
         conn.commit()
@@ -3305,7 +3305,7 @@ def media_video_retry(tid):
             with get_db() as conn:
                 conn.execute(
                     "UPDATE video_tasks SET status='failed', error_msg=%s WHERE id=%s",
-                    (result.get('data', {}).get('error', _('重试失败')), tid))
+                    (result.get('data', {}).get('error', '重试失败'), tid))
                 conn.commit()
             return jsonify({'success': False, 'error': result.get('data', {}).get('error', '')}), 500
     except Exception as e:
@@ -3323,7 +3323,7 @@ def media_video_toggle_homepage(tid):
     with get_db() as conn:
         task = conn.execute("SELECT is_homepage FROM video_tasks WHERE id=%s", (tid,)).fetchone()
         if not task:
-            return jsonify({'success': False, 'error': _('不存在')}), 404
+            return jsonify({'success': False, 'error': '不存在'}), 404
         new_val = 0 if task['is_homepage'] else 1
         conn.execute("UPDATE video_tasks SET is_homepage=%s, updated_at=NOW() WHERE id=%s", (new_val, tid))
         conn.commit()
@@ -3360,10 +3360,10 @@ def media_library_upload():
     if err:
         return err
     if 'file' not in request.files:
-        return jsonify({'success': False, 'error': _('未选择文件')}), 400
+        return jsonify({'success': False, 'error': '未选择文件'}), 400
     f = request.files['file']
     if not f.filename:
-        return jsonify({'success': False, 'error': _('文件名为空')}), 400
+        return jsonify({'success': False, 'error': '文件名为空'}), 400
     _media_lib_ensure_dir()
     import uuid as _uuid
     safe_name = _uuid.uuid4().hex + os.path.splitext(f.filename)[1].lower()
@@ -3425,7 +3425,7 @@ def media_library_delete(fid):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM media_files WHERE id=%s", (fid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('文件不存在')}), 404
+            return jsonify({'success': False, 'error': '文件不存在'}), 404
         fp = os.path.join(MEDIA_LIB_DIR, row['filename'])
         if os.path.exists(fp):
             os.remove(fp)
@@ -3445,10 +3445,10 @@ def media_library_download(fid):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM media_files WHERE id=%s", (fid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('文件不存在')}), 404
+            return jsonify({'success': False, 'error': '文件不存在'}), 404
     fp = os.path.join(MEDIA_LIB_DIR, row['filename'])
     if not os.path.exists(fp):
-        return jsonify({'success': False, 'error': _('文件已删除')}), 404
+        return jsonify({'success': False, 'error': '文件已删除'}), 404
     return _send_file_or_stream(fp, row['original_name'], row['mime_type'])
 
 @admin_bp.route('/media-library/<int:fid>/push', methods=['POST'])
@@ -3461,7 +3461,7 @@ def media_library_push(fid):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM media_files WHERE id=%s", (fid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('文件不存在')}), 404
+            return jsonify({'success': False, 'error': '文件不存在'}), 404
 
     file_url = deploy.url("agent") + "/static/" + row["file_path"]
     filename = row['original_name']
@@ -3476,11 +3476,11 @@ def media_library_push(fid):
             if pm and pm.is_enabled('im_gateway'):
                 im = pm.get_instance('im_gateway')
             if im is None:
-                result = {'success': False, 'error': _('IM 网关插件未启用，无法推送')}
+                result = {'success': False, 'error': 'IM 网关插件未启用，无法推送'}
             else:
                 im.push_media(target, file_url, filename, mime)
         except Exception as e:
-            result = {'success': False, 'error': _('{target} 推送失败: {error}', target=target, error=str(e))}
+            result = {'success': False, 'error': f'{target} 推送失败: ' + str(e)}
 
     if result['success']:
         with get_db() as conn:
@@ -3634,7 +3634,7 @@ def quota_set_user_tier(uid):
     tier = data.get('tier', '').strip()
     from models import TIERS
     if tier not in TIERS:
-        return jsonify({'success': False, 'error': _('无效的等级: {tier}', tier=tier)}), 400
+        return jsonify({'success': False, 'error': f'无效的等级: {tier}'}), 400
     with get_db() as conn:
         existing = conn.execute(
             "SELECT id FROM app_authorizations WHERE user_id=%s AND active=1", (uid,)
@@ -3648,7 +3648,7 @@ def quota_set_user_tier(uid):
             )
         conn.commit()
     _log(admin['user_id'], 'set_user_tier', 'user', str(uid), f'tier→{tier}')
-    return jsonify({'success': True, 'message': _('已更新用户等级为 {name}', name=TIERS[tier]["name"])})
+    return jsonify({'success': True, 'message': f'已更新用户等级为 {TIERS[tier]["name"]}'})
 
 
 @admin_bp.route('/quota/keys', methods=['GET'])
@@ -3688,7 +3688,7 @@ def quota_reset_key(kid):
         conn.execute("UPDATE api_keys SET calls_today=0, last_reset=CURRENT_DATE WHERE id=%s", (kid,))
         conn.commit()
     _log(admin['user_id'], 'reset_key_quota', 'api_key', str(kid))
-    return jsonify({'success': True, 'message': _('已重置该密钥的日调用量')})
+    return jsonify({'success': True, 'message': '已重置该密钥的日调用量'})
 
 
 @admin_bp.route('/quota/overview', methods=['GET'])
@@ -3897,4 +3897,4 @@ def admin_i18n_seed():
     locale = request.args.get('locale', 'en')
     from i18n import seed_from_yaml
     count = seed_from_yaml(locale)
-    return jsonify({'success': True, 'message': _('已同步 {count} 条到 DB', count=count)})
+    return jsonify({'success': True, 'message': f'已同步 {count} 条到 DB'})

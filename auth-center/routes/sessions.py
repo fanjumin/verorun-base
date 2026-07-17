@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, request, jsonify
 from models import get_db
 from services.jwt_service import validate_token
-from i18n import _
 
 session_bp = Blueprint('session', __name__, url_prefix='/session')
 
@@ -104,12 +103,12 @@ def session_terminate(sid):
             (sid, uid)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _('会话不存在')}), 404
+            return jsonify({'success': False, 'error': '会话不存在'}), 404
         if row['is_current']:
-            return jsonify({'success': False, 'error': _('不能退出当前会话，请使用退出登录')}), 400
+            return jsonify({'success': False, 'error': '不能退出当前会话，请使用退出登录'}), 400
         conn.execute(
             "UPDATE user_sessions SET expired_at=NOW() WHERE id=%s",
             (sid,)
         )
         conn.commit()
-    return jsonify({'success': True, 'message': _('会话已终止')})
+    return jsonify({'success': True, 'message': '会话已终止'})

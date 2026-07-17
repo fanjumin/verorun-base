@@ -11,7 +11,6 @@
 import os
 import json
 from typing import Dict, Any, Optional
-from i18n import _
 
 
 def _get_alibaba_config_from_db() -> Dict[str, str]:
@@ -160,19 +159,19 @@ def validate_config() -> Dict[str, Any]:
     
     # 检查阿里巴巴API配置
     if not ALIBABA_CONFIG["app_key"]:
-        errors.append(_("ALIBABA_APP_KEY not configured"))
+        errors.append("ALIBABA_APP_KEY 未配置")
     if not ALIBABA_CONFIG["app_secret"]:
-        errors.append(_("ALIBABA_APP_SECRET not configured"))
+        errors.append("ALIBABA_APP_SECRET 未配置")
     
     # 检查风控配置
     if RATE_LIMIT_CONFIG["user_daily_limit"] <= 0:
-        errors.append(_("User daily rate limit must be greater than 0"))
+        errors.append("用户每日限流必须大于0")
     if RATE_LIMIT_CONFIG["global_concurrent_limit"] <= 0:
-        errors.append(_("Global concurrency limit must be greater than 0"))
+        errors.append("全局并发限制必须大于0")
     
     import logging
     if errors:
-        logging.warning(f"{_('Configuration validation warning')}: {', '.join(errors)}")
+        logging.warning(f"配置验证警告: {', '.join(errors)}")
     
     return {
         "alibaba": ALIBABA_CONFIG,

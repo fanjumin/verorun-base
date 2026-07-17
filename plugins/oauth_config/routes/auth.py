@@ -14,7 +14,6 @@ for p in (_auth_dir, _project_dir):
         sys.path.insert(0, p)
 
 from flask import Blueprint, request, jsonify, make_response, redirect as flask_redirect, url_for
-from i18n import _
 from models import get_db, now_iso
 from services.jwt_service import create_token, validate_token
 from services.deployment_config import deploy
@@ -22,7 +21,7 @@ from services.deployment_config import deploy
 oauth_bp = Blueprint('oauth', __name__, url_prefix='/auth')
 
 PROVIDER_NAMES = {
-    'douyin': _('抖音'), 'wechat': _('微信'), 'alipay': _('支付宝'),
+    'douyin': '抖音', 'wechat': '微信', 'alipay': '支付宝',
     'google': 'Google', 'github': 'GitHub', 'facebook': 'Facebook',
     'telegram': 'Telegram',
 }
@@ -137,7 +136,7 @@ def oauth_callback(provider):
         nickname = user_info.get('nickname', '')
         avatar = user_info.get('avatar', '')
         id_field = 'telegram_open_id'
-        display_name = nickname or _('{provider} user {suffix}').format(provider=provider, suffix=open_id[-4:])
+        display_name = nickname or f'Telegram user {open_id[-4:]}'
         now = now_iso()
         with get_db() as conn:
             cur = conn.execute(f'SELECT * FROM users WHERE {id_field}=?', (open_id,))

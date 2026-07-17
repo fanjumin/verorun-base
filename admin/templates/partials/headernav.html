@@ -18,7 +18,7 @@ function renderHeaderNav(mc,site){
       h+='</div>';
       // {{ _('Add Button') }}
       h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
-      h+='<span style="font-size:13px;color:var(--text-muted)">{{ _('Total:') }} '+items.length+' {{ _('Links') }}</span>';
+      h+='<span style="font-size:13px;color:var(--text-muted)">共 '+items.length+' {{ _('Links') }}</span>';
       h+='<button class="btn bp" onclick="headerNavAdd(\''+site+'\')">+ {{ _('Add Link') }}</button>';
       h+='</div>';
       // {{ _('List') }}
@@ -62,8 +62,8 @@ function headerNavAdd(site){
   var f=document.getElementById("headerNavForm");
   f.innerHTML='<div class="cd"><div class="st">{{ _('Add Nav Link') }} — '+esc(site)+'</div>'+
     '<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">'+
-    '<input class="in" id="hnTitle" placeholder="{{ _('Link Title') }}（{{ _('E.g.') }} {{ _('Plaza') }}）">'+
-    '<input class="in" id="hnUrl" placeholder="{{ _('Link') }} URL（{{ _('E.g.') }} /plaza）">'+
+    '<input class="in" id="hnTitle" placeholder="{{ _('Link Title') }}（如：{{ _('Plaza') }}）">'+
+    '<input class="in" id="hnUrl" placeholder="{{ _('Link') }} URL（如：/plaza）">'+
     '</div>'+
     '<div style="margin-top:12px;display:flex;gap:8px">'+
     '<button class="btn bp" onclick="headerNavDoAdd(\''+site+'\')">{{ _('Save') }}</button>'+

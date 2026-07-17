@@ -9,7 +9,6 @@
 
 import base64
 import logging
-from i18n import _
 import os
 import urllib.request
 from typing import Dict, Any, Optional, Tuple
@@ -36,7 +35,7 @@ def search_by_image_file(image_path: str, access_token: str,
         {'success': bool, 'products': [...], 'error': str|None}
     """
     if not os.path.exists(image_path):
-        return {'success': False, 'products': [], 'error': f"{_('Image file not found')}: {image_path}"
+        return {'success': False, 'products': [], 'error': f'图片文件不存在: {image_path}'}
 
     try:
         with open(image_path, 'rb') as f:
@@ -76,7 +75,7 @@ def search_by_image_url(image_url: str, access_token: str,
             image_data = resp.read()
             if len(image_data) > max_size_bytes:
                 return {'success': False, 'products': [],
-                        'error': _('Image too large: {size} > {max} bytes', size=len(image_data), max=max_size_bytes)}
+                        'error': f'图片过大: {len(image_data)} > {max_size_bytes} 字节'}
         image_base64 = base64.b64encode(image_data).decode('utf-8')
     except Exception as e:
         logger.error(f"下载图片失败: {e}")

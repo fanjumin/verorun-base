@@ -9,7 +9,6 @@ import base64
 import urllib.request as _ur
 
 from .base import BaseIMAdapter
-from i18n import _
 
 
 class WecomAdapter(BaseIMAdapter):
@@ -30,7 +29,7 @@ class WecomAdapter(BaseIMAdapter):
         corp_id = (data.get('corp_id') or '').strip()
         secret = (data.get('secret') or '').strip()
         if not corp_id or not secret:
-            return False, _('企业ID 和 Secret 不能为空')
+            return False, '企业ID 和 Secret 不能为空'
         try:
             import requests as _req
             resp = _req.get(
@@ -39,10 +38,10 @@ class WecomAdapter(BaseIMAdapter):
             )
             rd = resp.json()
             if rd.get('access_token'):
-                return True, _('企业微信连接成功！')
-            return False, _('企业微信返回: {msg} (errcode={code})', msg=rd.get('errmsg', _('未知')), code=rd.get('errcode'))
+                return True, '企业微信连接成功！'
+            return False, f"企业微信返回: {rd.get('errmsg', '未知')} (errcode={rd.get('errcode')})"
         except Exception as e:
-            return False, _('连接失败: {err}', err=str(e))
+            return False, f'连接失败: {str(e)}'
 
     def get_env_fallback(self):
         cfg = {}
@@ -91,7 +90,7 @@ class WecomAdapter(BaseIMAdapter):
             data=_json.dumps(body).encode(), headers={'Content-Type': 'application/json'}
         )).read())
         if resp.get('errcode', -1) != 0:
-            raise Exception(resp.get('errmsg', _('企微推送失败')))
+            raise Exception(resp.get('errmsg', '企微推送失败'))
 
     @staticmethod
     def _fetch_as_base64(url):

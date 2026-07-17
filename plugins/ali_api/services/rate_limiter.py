@@ -13,7 +13,6 @@ import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
 import logging
-from i18n import _
 from collections import defaultdict
 
 from ..config import config
@@ -66,10 +65,10 @@ class RateLimiter:
             
             # 检查限制
             if stats['daily'] >= self.daily_limit:
-                return False, _('Daily call limit exceeded ({limit} times)', limit=self.daily_limit)
+                return False, f"每日调用次数超过限制 ({self.daily_limit}次)"
             
             if stats['hourly'] >= self.hourly_limit:
-                return False, _('Hourly call limit exceeded ({limit} times)', limit=self.hourly_limit)
+                return False, f"每小时调用次数超过限制({self.hourly_limit}次)"
             
             # 增加计数
             stats['daily'] += 1
@@ -116,14 +115,14 @@ class ConcurrentController:
             
             # 检查并发数
             if self.active_requests >= self.max_concurrent:
-                return False, _('Concurrent request limit exceeded ({limit})', limit=self.max_concurrent)
+                return False, f"并发请求数超过限制({self.max_concurrent})"
             
             # 检查QPS
             # 清理过期的时间戳
             self.request_timestamps = [ts for ts in self.request_timestamps if now - ts < self.qps_window]
             
             if len(self.request_timestamps) >= self.qps_limit:
-                return False, _('QPS limit exceeded ({limit}/sec)', limit=self.qps_limit)
+                return False, f"QPS超过限制 ({self.qps_limit}/秒)"
             
             # 记录请求
             self.active_requests += 1

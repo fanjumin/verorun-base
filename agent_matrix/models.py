@@ -8,8 +8,6 @@ Agent Matrix — 数据库模型
 import json, os, sys, re
 from datetime import datetime
 
-from i18n import _
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROLES_DIR = os.path.join(BASE_DIR, 'roles')
 
@@ -83,7 +81,7 @@ def _load_all_role_yamls():
             raw['allowed_tools'] = json.dumps(raw.get('allowed_tools', []))
             roles.append(raw)
         except Exception as e:
-            print(_('[RoleYAML] 跳过 {fname}: {e}', fname=fname, e=e))
+            print(f'[RoleYAML] 跳过 {fname}: {e}')
     return roles
 
 
@@ -356,7 +354,7 @@ def seed_default_agents():
     """
     roles = load_system_roles()
     if not roles:
-        print(_('[Seed] 未找到角色 YAML 文件，跳过种子数据'))
+        print('[Seed] 未找到角色 YAML 文件，跳过种子数据')
         return
 
     yaml_slugs = set()
@@ -387,7 +385,7 @@ def seed_default_agents():
                     a.get('system_prompt', ''),
                     a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1)
                 ))
-                print(_('[Seed] 插入系统角色: {slug}', slug=slug))
+                print(f'[Seed] 插入系统角色: {slug}')
             else:
                 # UPDATE existing system role — sync all fields from YAML
                 conn.execute("""
@@ -418,7 +416,7 @@ def seed_default_agents():
                 tuple(yaml_slugs)
             ).rowcount
         if deleted:
-            print(_('[Seed] 清理旧系统角色: {deleted} 个已删除', deleted=deleted))
+            print(f'[Seed] 清理旧系统角色: {deleted} 个已删除')
 
         conn.commit()
 
@@ -455,7 +453,7 @@ def register_plugin_roles(plugin_id, declare_roles_list):
                     r.get('is_active', 1),
                 ))
                 count += 1
-                print(_('[PluginRoles] 注册插件角色: {slug} (from {plugin_id})', slug=slug, plugin_id=plugin_id))
+                print(f'[PluginRoles] 注册插件角色: {slug} (from {plugin_id})')
         if count:
             conn.commit()
     return count
@@ -470,7 +468,7 @@ def unregister_plugin_roles(plugin_id, declare_roles_list):
     with get_db() as conn:
         for slug in slugs:
             conn.execute("DELETE FROM agent_matrix WHERE slug=%s AND is_system=0", (slug,))
-            print(_('[PluginRoles] 卸载插件角色: {slug} (from {plugin_id})', slug=slug, plugin_id=plugin_id))
+            print(f'[PluginRoles] 卸载插件角色: {slug} (from {plugin_id})')
         conn.commit()
 
 
@@ -588,7 +586,7 @@ def delete_agent(agent_id):
         if not row:
             return False
         if row['is_system']:
-            raise PermissionError(_("系统角色不可删除，仅允许禁用"))
+            raise PermissionError("系统角色不可删除，仅允许禁用")
         conn.execute("DELETE FROM agent_matrix WHERE id=%s", (agent_id,))
         conn.commit()
         return True

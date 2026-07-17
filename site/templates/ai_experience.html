@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{{ _('AI Experience') }} — {{ _('EasyKai AI') }} · {{ _('Free AI Website Trial') }}</title>
-<meta name="description" content="{{ _('Experience EasyKai AI smart website building, AI customer service, and AI content generation for free.') }}">
+<title>AI体验 — 易站AI · 免费体验AI建站</title>
+<meta name="description" content="免费体验易站AI智能建站、AI客服、AI内容生成三大核心功能，感受AI驱动的网站建设全流程。">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -147,29 +147,29 @@
 
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-logo"><div class="icon">AI</div><span>{{ _('EasyKai AI') }}</span></a>
+    <a href="/" class="nav-logo"><div class="icon">AI</div><span>易站AI</span></a>
     <div class="nav-links" id="nl">
-      <a href="/">{{ _('Home') }}</a>
-      <a href="/ai-matrix">{{ _('AI Matrix') }}</a>
-      <a href="/services">{{ _('Services') }}</a>
-      <a href="/shop">{{ _('Shop') }}</a>
-      <a href="/cases">{{ _('Cases') }}</a>
-  <a href="/ai-experience" class="active">{{ _('AI Experience') }}</a>
-      <a href="/knowledge">{{ _('Help') }}</a>
-      <a href="/register" class="nav-cta">{{ _('Get Started Free') }}</a>
+      <a href="/">首页</a>
+      <a href="/ai-matrix">AI矩阵</a>
+      <a href="/services">产品服务</a>
+      <a href="/shop">商城</a>
+      <a href="/cases">案例</a>
+  <a href="/ai-experience" class="active">AI体验</a>
+      <a href="/knowledge">帮助</a>
+      <a href="/register" class="nav-cta">免费开始</a>
     </div>
-    <button class="nav-toggle" onclick="tNM()" aria-label="{{ _('Menu') }}">☰</button>
+    <button class="nav-toggle" onclick="tNM()" aria-label="菜单">☰</button>
   </div>
 </nav>
 <div id="mb-menu">
-  <a href="/">{{ _('Home') }}</a>
-  <a href="/ai-matrix">{{ _('AI Matrix') }}</a>
-  <a href="/services">{{ _('Services') }}</a>
-  <a href="/shop">{{ _('Shop') }}</a>
-  <a href="/cases">{{ _('Cases') }}</a>
-  <a href="/ai-experience">{{ _('AI Experience') }}</a>
-  <a href="/knowledge">{{ _('Help') }}</a>
-  <a href="/register" class="mb-cta">{{ _('Get Started Free') }}</a>
+  <a href="/">首页</a>
+  <a href="/ai-matrix">AI矩阵</a>
+  <a href="/services">产品服务</a>
+  <a href="/shop">商城</a>
+  <a href="/cases">案例</a>
+  <a href="/ai-experience">AI体验</a>
+  <a href="/knowledge">帮助</a>
+  <a href="/register" class="mb-cta">免费开始</a>
 </div>
 
 <section class="page-hero">
@@ -178,43 +178,43 @@
     <div class="s s2"></div>
   </div>
   <div class="h-content">
-    <h1>{{ _('Free Experience') }} <span class="g">{{ _('AI Website Building') }}</span></h1>
-    <p>{{ _('No registration required, experience the power of AI smart website building now.') }}</p>
+    <h1>免费体验 <span class="g">AI 建站</span></h1>
+    <p>无需注册，立即感受AI智能建站的强大能力</p>
   </div>
 </section>
 
 <section class="exp-section">
   <div class="exp-tabs">
-    <button class="exp-tab active" onclick="switchTab('chat')">💬 {{ _('AI Customer Service Chat') }}</button>
-    <button class="exp-tab" onclick="switchTab('content')">✍️ {{ _('AI Content Generation') }}</button>
-    <button class="exp-tab" onclick="switchTab('site')">🌐 {{ _('AI Website Generation') }}</button>
+    <button class="exp-tab active" onclick="switchTab('chat')">💬 AI客服对话</button>
+    <button class="exp-tab" onclick="switchTab('content')">✍️ AI内容生成</button>
+    <button class="exp-tab" onclick="switchTab('site')">🌐 AI网站生成</button>
   </div>
 
   <!-- Tab: Chat -->
   <div class="exp-content active" id="tab-chat">
     <div class="exp-intro">
-      <h2>{{ _('AI Smart Customer Service') }}</h2>
-      <p>{{ _('24/7 online, automatically answers visitor questions, identifies potential customers') }}</p>
+      <h2>AI 智能客服</h2>
+      <p>7×24小时在线，自动回答访客问题，识别意向客户</p>
     </div>
     <div class="chat-demo">
       <div class="chat-header">
         <span class="dot"></span>
-        <span>{{ _('EasyKai AI Smart Customer Service') }} <span style="font-size:11px;color:var(--text-muted);font-weight:400">· {{ _('Online') }}</span></span>
+        <span>易站AI 智能客服 <span style="font-size:11px;color:var(--text-muted);font-weight:400">· 在线</span></span>
       </div>
       <div class="chat-body" id="chatBody">
         <div class="chat-msg bot">
           <div class="avatar">🤖</div>
-          <div class="bubble">{{ _('Hello! I am the EasyKai AI smart customer service. I can answer any questions about website building, AI development, pricing plans, and more. Try asking me:') }}<br><br>• {{ _('"How much for a corporate website?"') }}<br>• {{ _('"How long does AI website building take?"') }}<br>• {{ _('"Do you support custom domains?"') }}</div>
+          <div class="bubble">您好！我是易站AI智能客服，可以回答关于网站建设、AI建站、价格方案等任何问题。试试问我：<br><br>• "建一个企业网站多少钱？"<br>• "AI建站需要多久？"<br>• "支持自定义域名吗？"</div>
         </div>
       </div>
       <div class="chat-suggestions">
-        <button onclick="quickChat('{{ _('How much for a corporate website?') }}')">{{ _('Pricing') }}</button>
-        <button onclick="quickChat('{{ _('How long does AI website building take?') }}')">{{ _('Build Time') }}</button>
-        <button onclick="quickChat('{{ _('Can I try it for free?') }}')">{{ _('Free Trial') }}</button>
+        <button onclick="quickChat('建一个企业网站多少钱？')">收费标准</button>
+        <button onclick="quickChat('AI建站需要多久？')">建站周期</button>
+        <button onclick="quickChat('可以试用吗？')">免费试用</button>
       </div>
       <div class="chat-footer">
-        <input type="text" id="chatInput" placeholder="{{ _('Type your question...') }}" onkeydown="if(event.key==='Enter')sendChat()">
-        <button onclick="sendChat()" id="chatBtn">{{ _('Send') }}</button>
+        <input type="text" id="chatInput" placeholder="输入您的问题..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button onclick="sendChat()" id="chatBtn">发送</button>
       </div>
     </div>
   </div>
@@ -222,30 +222,30 @@
   <!-- Tab: Content -->
   <div class="exp-content" id="tab-content">
     <div class="exp-intro">
-      <h2>{{ _('AI Content Generation') }}</h2>
-      <p>{{ _('Enter a topic, AI automatically generates marketing copy, SEO content, and social media posts') }}</p>
+      <h2>AI 内容生成</h2>
+      <p>输入主题，AI自动生成营销文案、SEO内容和社交媒体帖子</p>
     </div>
     <div class="content-demo">
-      <div class="cd-header"><h3>{{ _('AI Marketing Copy Generation') }}</h3></div>
+      <div class="cd-header"><h3>AI 营销文案生成</h3></div>
       <div class="cd-body">
         <div class="cd-preview" id="contentPreview">
           <div class="generated" style="color:var(--text-muted);text-align:center;margin-top:40px">
-            {{ _('Enter product or service info, click generate') }}<br>
-            <span style="font-size:12px">{{ _('AI will generate professional marketing copy for you') }}</span>
+            输入产品或服务信息，点击生成<br>
+            <span style="font-size:12px">AI将为您生成专业的营销文案</span>
           </div>
         </div>
         <div class="cd-inputs">
-          <input type="text" id="topicInput" placeholder="{{ _('Product/Service Name (e.g. AI Website Builder)') }}" value="{{ _('AI Website Builder') }}">
+          <input type="text" id="topicInput" placeholder="产品/服务名称（如：AI智能建站）" value="AI建站服务">
           <select id="styleSelect">
-            <option value="professional">{{ _('Professional Business Style') }}</option>
-            <option value="friendly" selected>{{ _('Friendly Natural Style') }}</option>
-            <option value="viral">{{ _('Viral Marketing Style') }}</option>
-            <option value="technical">{{ _('Technical Analysis Style') }}</option>
+            <option value="professional">专业商务风</option>
+            <option value="friendly" selected>亲切自然风</option>
+            <option value="viral">爆款营销风</option>
+            <option value="technical">技术解析风</option>
           </select>
         </div>
         <div class="cd-actions">
-          <button onclick="genContent()" id="genBtn">{{ _('Generate Copy') }}</button>
-          <button class="cd-copy" onclick="copyContent()">{{ _('Copy') }}</button>
+          <button onclick="genContent()" id="genBtn">生成文案</button>
+          <button class="cd-copy" onclick="copyContent()">复制</button>
         </div>
       </div>
     </div>
@@ -254,31 +254,31 @@
   <!-- Tab: Site -->
   <div class="exp-content" id="tab-site">
     <div class="exp-intro">
-      <h2>{{ _('AI Website Generation') }}</h2>
-      <p>{{ _('Enter company info, preview the AI-generated website homepage in 3 seconds') }}</p>
+      <h2>AI 网站生成</h2>
+      <p>输入企业信息，3秒预览AI生成的网站首页</p>
     </div>
     <div class="site-demo">
       <div class="sg-form">
-        <input type="text" id="companyInput" placeholder="{{ _('Enter company/brand name') }}" value="{{ _('Star Technology') }}">
+        <input type="text" id="companyInput" placeholder="输入企业/品牌名称" value="星辰科技">
         <div class="sg-tags">
-          <button onclick="selectTag(this,'{{ _('Tech') }}')" class="selected">🌐 {{ _('Tech') }}</button>
-          <button onclick="selectTag(this,'{{ _('E-commerce') }}')">🛒 {{ _('E-commerce') }}</button>
-          <button onclick="selectTag(this,'{{ _('Education') }}')">📚 {{ _('Education') }}</button>
-          <button onclick="selectTag(this,'{{ _('Restaurant') }}')">🍜 {{ _('Restaurant') }}</button>
-          <button onclick="selectTag(this,'{{ _('Medical') }}')">🏥 {{ _('Medical') }}</button>
+          <button onclick="selectTag(this,'科技')" class="selected">🌐 科技</button>
+          <button onclick="selectTag(this,'电商')">🛒 电商</button>
+          <button onclick="selectTag(this,'教育')">📚 教育</button>
+          <button onclick="selectTag(this,'餐饮')">🍜 餐饮</button>
+          <button onclick="selectTag(this,'医疗')">🏥 医疗</button>
         </div>
-        <button class="sg-gen" onclick="genSite()" id="genSiteBtn">🎯 {{ _('AI Generate Website') }}</button>
+        <button class="sg-gen" onclick="genSite()" id="genSiteBtn">🎯 AI 生成网站</button>
       </div>
       <div class="site-preview" id="sitePreview">
         <div class="prep-content">
-          <div class="prep-title" id="prepTitle">{{ _('Star Technology') }}</div>
-          <div class="prep-desc" id="prepDesc" style="color:var(--text-muted)">{{ _('Enter company name, select industry, click to preview') }}</div>
+          <div class="prep-title" id="prepTitle">星辰科技</div>
+          <div class="prep-desc" id="prepDesc" style="color:var(--text-muted)">输入企业名称，选择行业，点击生成预览</div>
           <div class="prep-nav">
-            <span>{{ _('Home') }}</span>
-            <span>{{ _('Products') }}</span>
-            <span>{{ _('Cases') }}</span>
-            <span>{{ _('About') }}</span>
-            <span>{{ _('Contact') }}</span>
+            <span>首页</span>
+            <span>产品</span>
+            <span>案例</span>
+            <span>关于</span>
+            <span>联系</span>
           </div>
           <div class="prep-cards">
             <div></div><div></div><div></div>
@@ -292,27 +292,27 @@
 <section class="cta-section">
   <div class="cta-bg"></div>
   <div class="cta-content">
-    <h2>{{ _('Had enough experience? Start building now') }}</h2>
-    <p>{{ _('Build your site in 3 minutes, AI runs it automatically — you focus on your business') }}</p>
-    <a href="/register" class="cta-btn">{{ _('Start Building Free') }} <span>→</span></a>
+    <h2>体验够了吗？立即开始建站</h2>
+    <p>3分钟完成建站，AI自动运营，让您专注于业务本身</p>
+    <a href="/register" class="cta-btn">免费开始建站 <span>→</span></a>
   </div>
 </section>
 
 <footer class="footer">
   <div class="footer-grid">
     <div class="footer-brand">
-      <div class="footer-logo">{{ _('EasyKai AI') }}</div>
-      <p>{{ _('AI Matrix-driven intelligent business platform. Not just building — AI agents run your site.') }}</p>
+      <div class="footer-logo">易站AI</div>
+      <p>AI矩阵驱动的智能商业运营平台。不只是建站，是多智能体AI矩阵帮你运营网站。</p>
     </div>
     <div class="footer-col">
-      <h4>{{ _('Products') }}</h4>
-      <a href="/services">{{ _('AI Smart Website Builder') }}</a>
-      <a href="/services">{{ _('AI Smart Customer Service') }}</a>
+      <h4>产品</h4>
+      <a href="/services">AI智能建站</a>
+      <a href="/services">AI智能客服</a>
     </div>
-    <div class="footer-col"><h4>{{ _('Resources') }}</h4><a href="/docs">{{ _('Docs') }}</a><a href="/start">{{ _('Quick Start') }}</a></div>
-    <div class="footer-col"><h4>{{ _('Company') }}</h4><a href="/about">{{ _('About Us') }}</a><a href="/privacy">{{ _('Privacy Policy') }}</a></div>
+    <div class="footer-col"><h4>资源</h4><a href="/docs">帮助文档</a><a href="/start">快速开始</a></div>
+    <div class="footer-col"><h4>公司</h4><a href="/about">关于我们</a><a href="/privacy">隐私政策</a></div>
   </div>
-  <div class="footer-bottom"><p>© 2026 {{ _('EasyKai AI') }}. All rights reserved.</p></div>
+  <div class="footer-bottom"><p>© 2026 易站AI. All rights reserved.</p></div>
 </footer>
 
 <style>.cta-section{text-align:center;padding:60px 32px 80px;position:relative}.cta-section .cta-bg{position:absolute;inset:0;background:var(--gradient-dark);z-index:0}.cta-section .cta-content{position:relative;z-index:2}.cta-section h2{font-size:clamp(1.4em,2.5vw,2em);font-weight:700;margin-bottom:12px;color:var(--text-high)}.cta-section p{font-size:14px;color:var(--text-dim);margin-bottom:28px}.cta-section .cta-btn{display:inline-flex;align-items:center;gap:8px;padding:14px 36px;border-radius:12px;background:var(--gradient-primary);color:#fff;font-size:15px;font-weight:600;text-decoration:none;transition:all .3s}.cta-section .cta-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(99,102,241,.35)}</style>
@@ -331,12 +331,12 @@ function switchTab(tab){
 
 /* ═══ Chat Demo ═══ */
 var chatResponses={
-  '{{ _("How much for a corporate website?") }}':'{{ _("Our website building services are priced based on plan:<br>• <strong>Basic</strong>: <span style=\"color:var(--cyan);font-weight:600\">¥1,999/year</span> - For individual entrepreneurs<br>• <strong>Standard</strong>: <span style=\"color:var(--cyan);font-weight:600\">¥5,999/year</span> - For small & medium businesses (most popular)<br>• <strong>Pro</strong>: <span style=\"color:var(--cyan);font-weight:600\">¥19,999/year</span> - For growing enterprises<br><br>All plans include AI capabilities, SSL certificate, and technical support.") | tojson }}',
-  '{{ _("How long does AI website building take?") }}':'{{ _("AI smart website building can generate a complete website in as fast as <strong style=\"color:var(--cyan)\">3 minutes</strong>!<br><br>Typical flow from registration to launch:<br>1. 📝 Register an account (1 min)<br>2. 🤖 AI generates website (3 min)<br>3. 🎨 Customize (1-2 days)<br>4. 🚀 Bind domain and go live (instant)<br><br>Average <strong style=\"color:var(--cyan)\">3-7 days</strong> for the complete process, much faster than traditional 2-4 weeks.") | tojson }}',
-  '{{ _("Can I try it for free?") }}':'{{ _("Of course! We offer <strong style=\"color:var(--cyan)\">free registration</strong> to experience:<br><br>• Click \\\"Free Register\\\" in the top right to create an account<br>• No credit card required<br>• Experience the full AI website building process for free<br>• Choose a plan after you are satisfied<br><br><a href=\"/register\" style=\"color:var(--indigo)\">Register for free now →</a>") | tojson }}',
-  '{{ _("Do you support custom domains?") }}':'{{ _("Yes! <strong style=\"color:var(--cyan)\">All plans</strong> support custom domain binding with automatic <strong>free SSL certificate</strong> (HTTPS).<br><br>• Purchase a domain from any registrar<br>• Configure DNS following our guide<br>• System automatically issues and renews SSL certificates<br><br><a href=\"/docs\" style=\"color:var(--indigo)\">View domain setup guide →</a>") | tojson }}',
-  '{{ _("How does AI customer service work?") }}':'{{ _("AI smart customer service is a <strong style=\"color:var(--cyan)\">24/7</strong> automated response system:<br><br>• 🤖 Automatically answers FAQs<br>• 🎯 Identifies potential customers and retains contact info<br>• 📊 Provides consultation data analytics<br>• 🔄 Supports custom knowledge base training<br>• 📱 Works on websites, mini-programs, social accounts<br><br>Standard plan and above include AI customer service.") | tojson }}',
-  'default':'{{ _("Thank you for your question! I need more specifics. You can:<br><br>1️⃣ Try the quick questions above<br>2️⃣ <a href=\"/register\" style=\"color:var(--indigo)\">Register for free</a> to chat in depth with our AI<br>3️⃣ Or <a href=\"/docs\" style=\"color:var(--indigo)\">check our help docs</a> for more info") | tojson }}'
+  '建一个企业网站多少钱？':'我们的建站服务根据方案不同：<br>• <strong>基础版</strong>：<span style="color:var(--cyan);font-weight:600">¥1,999/年</span> - 适合个人创业者<br>• <strong>标准版</strong>：<span style="color:var(--cyan);font-weight:600">¥5,999/年</span> - 适合中小企业（最受欢迎）<br>• <strong>专业版</strong>：<span style="color:var(--cyan);font-weight:600">¥19,999/年</span> - 适合成长型企业<br><br>所有方案均包含AI能力、SSL证书和技术支持。<a href="/services" style="color:var(--indigo)">查看完整对比 →</a>',
+  'AI建站需要多久？':'AI智能建站最快 <strong style="color:var(--cyan)">3分钟</strong> 即可生成完整网站！<br><br>从注册到上线的大致流程：<br>1. 📝 注册账号（1分钟）<br>2. 🤖 AI生成网站（3分钟）<br>3. 🎨 个性化调整（1-2天）<br>4. 🚀 绑定域名上线（即时）<br><br>平均 <strong style="color:var(--cyan)">3-7天</strong> 即可完成全部流程，远快于传统建站的2-4周。',
+  '可以试用吗？':'当然可以！我们提供 <strong style="color:var(--cyan)">免费注册</strong> 体验：<br><br>• 点击右上角"免费注册"即可开通账号<br>• 无需绑定银行卡<br>• 免费体验AI建站全流程<br>• 满意后再选择适合的方案付费<br><br><a href="/register" style="color:var(--indigo)">立即免费注册 →</a>',
+  '支持自定义域名吗？':'支持！<strong style="color:var(--cyan)">所有套餐</strong> 都支持绑定自定义域名，并且自动配置 <strong>免费SSL证书</strong>（HTTPS）。<br><br>• 您可以在域名注册商处购买域名<br>• 按照我们的帮助指南配置DNS解析<br>• 系统自动签发和续期SSL证书<br><br><a href="/docs" style="color:var(--indigo)">查看域名配置指南 →</a>',
+  'AI客服怎么用？':'AI智能客服是 <strong style="color:var(--cyan)">7×24小时</strong> 在线自动应答系统：<br><br>• 🤖 自动回答常见问题<br>• 🎯 识别意向客户并保留联系方式<br>• 📊 提供咨询数据统计分析<br>• 🔄 支持知识库自定义训练<br>• 📱 可接入网站、小程序、公众号等多个渠道<br><br>标准版及以上套餐均包含AI客服功能。',
+  default:'感谢您的提问！这个问题我需要更具体的了解。您可以：<br><br>1️⃣ 尝试点击上面的快捷问题<br>2️⃣ <a href="/register" style="color:var(--indigo)">免费注册</a> 后直接与我们的AI客服深度对话<br>3️⃣ 或 <a href="/docs" style="color:var(--indigo)">查看帮助文档</a> 了解更多信息'
 };
 
 function addChatMsg(role,text){
@@ -379,47 +379,48 @@ function quickChat(q){
 
 /* ═══ Content Generator ═══ */
 var contentSamples={
-  '{{ _("AI Website Builder") | tojson }}':{
-    professional:'{{ _("Professional Business Style:<br><br><span class=\"highlight\">[Title]</span> AI-Powered Website Building · Keep Your Business Online 24/7<br><br><span class=\"highlight\">[Body]</span><br>In the digital wave, your website is your business\\'s digital business card. EasyKai AI smart website building platform deeply integrates AI technology to achieve full-process intelligence from content generation to website deployment. No coding, no design experience needed — enter your business info and get a professional corporate website in 3 minutes. The platform includes an AI smart customer service system that responds to visitor inquiries 24/7, accurately identifies potential customers, and boosts your lead generation by 15x. Choose EasyKai AI, let technology empower your business growth.<br><br><span class=\"highlight\">[Suitable for]</span> Corporate website, LinkedIn, industry media") | tojson }}',
-    friendly:'{{ _("Friendly Natural Style:<br><br><span class=\"highlight\">[Title]</span> Building a website has never been this easy!<br><br><span class=\"highlight\">[Body]</span><br>Xiao Ming runs a dessert shop and always wanted a website but didn\\'t know how. Until a friend recommended EasyKai AI — just enter the shop name, pick a template, and AI automatically generated a complete brand website, complete with product descriptions and customer service. The whole process was as easy as chatting.<br><br>EasyKai AI doesn\\'t just help you build a site — it builds it for you. Choose your industry, enter your info, one-click generate — three steps to a corporate website. Built-in AI customer service is online 24/7, so even late-night orders won\\'t be missed. A boss\\'s time should be spent on more important things, right?<br><br><span class=\"highlight\">[Suitable for]</span> WeChat, Moments, Xiaohongshu") | tojson }}',
-    viral:'{{ _("Viral Marketing Style:<br><br><span class=\"highlight\">[Title]</span> 🔥 Shocking! Build a website in 3 minutes? Bosses everywhere are secretly using it!<br><br><span class=\"highlight\">[Body]</span><br>There\\'s a secret that e-commerce bosses don\\'t want to tell you👇<br><br>They use EasyKai AI to build websites:<br>⚡ 3 min AI auto-generate<br>🤖 24/7 AI auto customer service<br>📢 One-click publish to WeChat/Weibo/Toutiao<br><br>While you\\'re still paying thousands and waiting two weeks?<br><br>Don\\'t struggle, use the tool!<br>Register now for annual savings 👉 Click to try<br><br><span class=\"highlight\">[Suitable for]</span> Douyin, Weibo, Toutiao") | tojson }}',
-    technical:'{{ _("Technical Analysis Style:<br><br><span class=\"highlight\">[Title]</span> From 0 to 1: AI-Driven Enterprise Website Building Technical Architecture<br><br><span class=\"highlight\">[Body]</span><br>The EasyKai AI platform uses a multi-layer AI technology architecture: the底层 is based on a large language model for semantic understanding and content generation, the frontend uses an AI layout engine for intelligent template-based arrangement, and the backend uses a microservices architecture to support multi-tenant parallel rendering. Key technical points include:<br><br>1. Template matching algorithm: NLP-based enterprise info extraction + industry classification, intelligently matching the optimal template<br>2. Content filling engine: automatically generates brand copy, SEO metadata, product descriptions<br>3. Real-time preview rendering: WebSocket-driven WYSIWYG editing experience<br><br><span class=\"highlight\">[Suitable for]</span> Zhihu, tech blogs, developer communities") | tojson }}'
-  }
+  'AI建站服务':{
+    professional:'专业商务风：<br><br><span class="highlight">【标题】</span> AI赋能建站 · 让您的企业24小时在线获客<br><br><span class="highlight">【正文】</span><br>在数字化浪潮中，您的网站就是企业的数字名片。易站AI智能建站平台，深度融合人工智能技术，实现从内容生成到网站搭建的全流程智能化。无需编程、无需设计经验，输入企业信息即可在3分钟内获得专业级企业官网。平台内置AI智能客服系统，7×24小时自动响应访客咨询，精准识别意向客户，让您的获客效率提升15倍。选择易站AI，让科技为您的业务增长赋能。<br><br><span class="highlight">【适合平台】</span> 企业官网、LinkedIn、行业媒体',
+    friendly:'亲切自然风：<br><br><span class="highlight">【标题】</span> 建网站，原来可以这么简单！<br><br><span class="highlight">【正文】</span><br>小明开了一家甜品店，一直想做个网站但不懂技术。直到朋友推荐了易站AI——输入店名，选个模板，AI自动生成了完整的品牌网站，连产品介绍和客服都安排好了。整个过程，就像聊天一样简单。<br><br>易站AI不是帮你建站，而是替你建站。选择行业、输入信息、一键生成，三步搞定企业官网。内置AI客服24小时在线，深夜来的订单也不会漏掉。老板的时间，应该花在更重要的事情上，不是吗？<br><br><span class="highlight">【适合平台】</span> 微信公众号、朋友圈、小红书',
+    viral:'爆款营销风：<br><br><span class="highlight">【标题】</span> 🔥 震惊！3分钟建好一个网站？老板们都在偷偷用！<br><br><span class="highlight">【正文】</span><br>有个秘密，电商圈的老板们都不愿意告诉你👇<br><br>他们用易站AI建网站：<br>⚡ 3分钟 AI自动生成<br>🤖 24小时 AI自动客服接待<br>📢 一键发布到微信/微博/头条<br><br>而你还在找人花几千块+等两周？<br><br>别卷了，用工具吧！<br>现在注册还享年度优惠 👉 点击尝尝鲜<br><br><span class="highlight">【适合平台】</span> 抖音、微博、今日头条',
+    technical:'技术解析风：<br><br><span class="highlight">【标题】</span> 从0到1：AI驱动的企业建站技术架构解析<br><br><span class="highlight">【正文】</span><br>易站AI平台采用多层AI技术架构：底层基于通义千问大语言模型进行语义理解和内容生成，前端通过AI布局引擎实现基于行业模板的智能排布，后端采用微服务架构支撑多租户并行渲染。关键技术点包括：<br><br>1. 模板匹配算法：基于NLP的企业信息提取+行业分类，智能匹配最优模板<br>2. 内容填充引擎：自动生成品牌文案、SEO元数据、产品描述<br>3. 实时预览渲染：WebSocket驱动的所见即所得编辑体验<br><br><span class="highlight">【适合平台】</span> 知乎、技术博客、开发者社区'
+  },
+  'AI建站服务':''
 };
 
 function genContent(){
-  var topic=document.getElementById('topicInput').value.trim()||{{ _('AI Website Builder') | tojson }};
+  var topic=document.getElementById('topicInput').value.trim()||'AI建站服务';
   var style=document.getElementById('styleSelect').value;
   var btn=document.getElementById('genBtn');
   var preview=document.getElementById('contentPreview');
   btn.disabled=true;
-  btn.textContent={{ _('Generating...') | tojson }};
-  preview.innerHTML='<div class="generated" style="text-align:center;padding:30px"><div class="typing" style="display:inline-flex;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--indigo);animation:typingBounce 1.4s infinite"></span><span style="width:8px;height:8px;border-radius:50%;background:var(--indigo);animation:typingBounce 1.4s infinite;animation-delay:.2s"></span><span style="width:8px;height:8px;border-radius:50%;background:var(--indigo);animation:typingBounce 1.4s infinite;animation-delay:.4s"></span></div><div style="font-size:12px;color:var(--text-muted);margin-top:12px">{{ _("AI is generating copy for you...") }}</div></div>';
+  btn.textContent='生成中...';
+  preview.innerHTML='<div class="generated" style="text-align:center;padding:30px"><div class="typing" style="display:inline-flex;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--indigo);animation:typingBounce 1.4s infinite"></span><span style="width:8px;height:8px;border-radius:50%;background:var(--indigo);animation:typingBounce 1.4s infinite;animation-delay:.2s"></span><span style="width:8px;height:8px;border-radius:50%;background:var(--indigo);animation:typingBounce 1.4s infinite;animation-delay:.4s"></span></div><div style="font-size:12px;color:var(--text-muted);margin-top:12px">AI正在为您创作文案...</div></div>';
   setTimeout(function(){
-    var s=contentSamples[topic]||contentSamples[{{ _('AI Website Builder') | tojson }}];
-    var text=s?.[style]||s?.professional||{{ _('EasyKai AI smart website building platform, keep your website online 24/7.') | tojson }};
+    var s=contentSamples[topic]||contentSamples['AI建站服务'];
+    var text=s?.[style]||s?.professional||'易站AI智能建站平台，让您的网站24小时在线获客。';
     preview.innerHTML='<div class="generated">'+text+'</div>';
     btn.disabled=false;
-    btn.textContent={{ _('Generate Copy') | tojson }};
+    btn.textContent='生成文案';
   },1800);
 }
 
 function copyContent(){
   var text=document.getElementById('contentPreview').innerText||'';
-  if(text&&!text.includes({{ _('Enter product') | tojson }})){
-    navigator.clipboard.writeText(text).then(function(){alert({{ _('Copied to clipboard!') | tojson }})});
+  if(text&&!text.includes('输入产品')){
+    navigator.clipboard.writeText(text).then(function(){alert('已复制到剪贴板！')});
   }else{
-    alert({{ _('Please generate copy first') | tojson }});
+    alert('请先生成文案');
   }
 }
 
 /* ═══ Site Generator ═══ */
 var siteThemes={
-  '{{ _("Tech") | tojson }}':{gradient:'linear-gradient(135deg,#0f0f1e,#1a1a3e)',accent:'#6366f1',title:'{name}',nav:{{ _("Tech Products Cases About Contact") | tojson }},tag:{{ _("Tech Innovation") | tojson }}},
-  '{{ _("E-commerce") | tojson }}':{gradient:'linear-gradient(135deg,#0a0a12,#1a1a2e)',accent:'#22d3ee',title:'{name} {{ _("Mall") | tojson }}',nav:{{ _("Home Products Promo Cart Mine") | tojson }},tag:{{ _("Quality Goods") | tojson }}},
-  '{{ _("Education") | tojson }}':{gradient:'linear-gradient(135deg,#0a0f0a,#0f1f0f)',accent:'#00d4aa',title:'{name} · {{ _("Education") | tojson }}',nav:{{ _("Courses Teachers Trial Results Contact") | tojson }},tag:{{ _("Shape the Future") | tojson }}},
-  '{{ _("Restaurant") | tojson }}':{gradient:'linear-gradient(135deg,#1a0f0a,#2e1a0a)',accent:'#f59e0b',title:'{name}',nav:{{ _("Menu Environment Reserve Reviews Contact") | tojson }},tag:{{ _("Taste of Life") | tojson }}},
-  '{{ _("Medical") | tojson }}':{gradient:'linear-gradient(135deg,#0a0f14,#0a1a2e)',accent:'#06b6d4',title:'{name}',nav:{{ _("Departments Experts Appointments Cases Contact") | tojson }},tag:{{ _("Guardian of Health") | tojson }}}
+  '科技':{gradient:'linear-gradient(135deg,#0f0f1e,#1a1a3e)',accent:'#6366f1',title:'{name}',nav:'科技 产品 案例 关于 联系',tag:'科技创新'},
+  '电商':{gradient:'linear-gradient(135deg,#0a0a12,#1a1a2e)',accent:'#22d3ee',title:'{name} 商城',nav:'首页 商品 优惠 购物车 我的',tag:'品质好物'},
+  '教育':{gradient:'linear-gradient(135deg,#0a0f0a,#0f1f0f)',accent:'#00d4aa',title:'{name} · 教育',nav:'课程 师资 试听 成果 联系',tag:'成就未来'},
+  '餐饮':{gradient:'linear-gradient(135deg,#1a0f0a,#2e1a0a)',accent:'#f59e0b',title:'{name}',nav:'菜单 环境 预约 评价 联系',tag:'品味生活'},
+  '医疗':{gradient:'linear-gradient(135deg,#0a0f14,#0a1a2e)',accent:'#06b6d4',title:'{name}',nav:'科室 专家 预约 案例 联系',tag:'守护健康'}
 };
 
 function selectTag(el,industry){
@@ -428,24 +429,24 @@ function selectTag(el,industry){
 }
 
 function genSite(){
-  var name=document.getElementById('companyInput').value.trim()||{{ _('Star Technology') | tojson }};
+  var name=document.getElementById('companyInput').value.trim()||'星辰科技';
   var btn=document.getElementById('genSiteBtn');
   btn.disabled=true;
-  btn.textContent={{ _('Generating...') | tojson }};
+  btn.textContent='生成中...';
   var selected=document.querySelector('.sg-tags .selected');
-  var industry=selected?selected.textContent.replace(/^[^\s]+\s/,'') : {{ _('Tech') | tojson }};
+  var industry=selected?selected.textContent.replace(/^[^\s]+\s/,''):'科技';
   setTimeout(function(){
-    var theme=siteThemes[industry]||siteThemes[{{ _('Tech') | tojson }}];
+    var theme=siteThemes[industry]||siteThemes['科技'];
     var preview=document.getElementById('sitePreview');
     var title=theme.title.replace('{name}',name);
     document.getElementById('prepTitle').textContent=title;
     document.getElementById('prepTitle').style.color='#fff';
     preview.querySelector('.prep-content').style.background=theme.gradient;
-    document.getElementById('prepDesc').innerHTML='<span style="padding:2px 10px;border-radius:12px;background:'+theme.accent+'22;color:'+theme.accent+';font-size:12px">'+theme.tag+'</span>  ·  {{ _("AI Smart Website Building") }} · {{ _("Responsive Design") }}';
+    document.getElementById('prepDesc').innerHTML='<span style="padding:2px 10px;border-radius:12px;background:'+theme.accent+'22;color:'+theme.accent+';font-size:12px">'+theme.tag+'</span>  ·  AI智能建站 · 响应式设计';
     preview.querySelector('.prep-nav').innerHTML=theme.nav.split(' ').map(function(n){return '<span style="color:var(--text-dim)">'+n+'</span>'}).join(' ');
     preview.querySelector('.prep-cards').innerHTML='<div style="background:'+theme.accent+'15;border:1px solid '+theme.accent+'22;border-radius:6px"></div><div style="background:'+theme.accent+'15;border:1px solid '+theme.accent+'22;border-radius:6px"></div><div style="background:'+theme.accent+'15;border:1px solid '+theme.accent+'22;border-radius:6px"></div>';
     btn.disabled=false;
-    btn.textContent='🎯 {{ _("AI Generate Website") }}';
+    btn.textContent='🎯 AI 生成网站';
   },1500);
 }
 </script>

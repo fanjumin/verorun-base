@@ -10,7 +10,6 @@ import string
 from datetime import datetime
 
 from .models import get_sms_db
-from i18n import _
 
 # ── 模板映射（与旧系统兼容）──
 TEMPLATE_MAP = {
@@ -163,5 +162,5 @@ def validate_phone(phone, country_code=''):
         return True, cleaned, ''
     else:
         if not phone or len(phone) != 11 or not phone.isdigit() or not phone.startswith('1'):
-            return False, phone, _('Please enter a valid phone number')
+            return False, phone, 'Please enter a valid phone number'
         return True, phone, ''

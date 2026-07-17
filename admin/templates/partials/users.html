@@ -71,8 +71,8 @@ function toggleUserAgents(uid,btn){
       if(!d.success||!d.data){content.innerHTML='<span style="color:var(--dim)">{{ _('Load failed') }}</span>';return}
       var agents=d.data.agents||[];
       if(agents.length===0){content.innerHTML='<span style="color:var(--dim)">{{ _('This User Has No') }} Agent</span> <span class="btn bp" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();adminCreateAgent('+uid+')">+ {{ _('Create') }}</span>';return}
-      var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><b>🤖 '+agents.length+'{{ _(' Agents') }}</b> <span class="btn bp" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();adminCreateAgent('+uid+')">+ {{ _('Create') }}</span></div>';
-      h+='<table style="font-size:12px"><tr><th>ID</th><th>{{ _('Name') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>Key{{ _(' Count') }}</th><th>{{ _('Last Active') }}</th><th>{{ _('Actions') }}</th></tr>';
+      var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><b>🤖 '+agents.length+' 个 Agent</b> <span class="btn bp" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();adminCreateAgent('+uid+')">+ {{ _('Create') }}</span></div>';
+      h+='<table style="font-size:12px"><tr><th>ID</th><th>{{ _('Name') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>Key数</th><th>{{ _('Last Active') }}</th><th>{{ _('Actions') }}</th></tr>';
       agents.forEach(function(a){
         var stCls=a.status==='active'?'bdg on':'bdg off';
         var stText=a.status==='active'?'{{ _('Active') }}':(a.status==='suspended'?'{{ _('Pause') }}':'{{ _('Inactive') }}');

@@ -62,7 +62,7 @@ function themeActivateDefault(siteKey){
 }
 function themeDelete(themeId,themeName,themeSlug){
   if(themeSlug==="default"){showToast("{{ _('Cannot delete default theme') }}","error");return}
-  if(!confirm("{{ _('Confirm Theme Uninstall') }}\""+themeName+"\"{{ _('?') }}\n\n{{ _('Sites using this theme will auto-restore Default Theme') }}。"))return;
+  if(!confirm("{{ _('Confirm Theme Uninstall') }}\""+themeName+"\"吗？\n\n{{ _('Sites using this theme will auto-restore Default Theme') }}。"))return;
   fetch("/admin/themes/"+themeId,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
     .then(function(r){return r.json()})
     .then(function(d){

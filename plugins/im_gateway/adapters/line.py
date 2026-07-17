@@ -5,7 +5,6 @@ import json as _json
 import urllib.request as _ur
 
 from .base import BaseIMAdapter
-from i18n import _
 
 
 class LINEAdapter(BaseIMAdapter):
@@ -22,7 +21,7 @@ class LINEAdapter(BaseIMAdapter):
     def test_connection(self, data):
         token = (data.get('access_token') or '').strip()
         if not token:
-            return False, _('Channel Access Token 不能为空')
+            return False, 'Channel Access Token 不能为空'
         try:
             req = _ur.Request(
                 'https://api.line.me/v2/bot/info',
@@ -31,10 +30,10 @@ class LINEAdapter(BaseIMAdapter):
             resp = _json.loads(_ur.urlopen(req, timeout=10).read())
             if resp.get('userId'):
                 name = resp.get('displayName', '')
-                return True, _('LINE 连接成功！Bot: {name}', name=name)
-            return False, _('LINE 返回: {resp}', resp=resp)
+                return True, f'LINE 连接成功！Bot: {name}'
+            return False, f"LINE 返回: {resp}"
         except Exception as e:
-            return False, _('连接失败: {err}', err=str(e))
+            return False, f'连接失败: {str(e)}'
 
     def get_env_fallback(self):
         cfg = {}

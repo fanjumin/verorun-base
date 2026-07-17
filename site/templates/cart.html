@@ -68,7 +68,7 @@ function loadAddresses(){
 
 function showAddressPicker(cb){
   if(!_addresses.length){
-    showToast({{ _('Please add a shipping address in your profile first') | tojson }},"error");
+    showToast("Please add a shipping address in your profile first","error");
     return;
   }
   var opts = _addresses.map(function(a,i){
@@ -79,11 +79,11 @@ function showAddressPicker(cb){
   picker.id="addrPicker";
   picker.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
   picker.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:500px;width:90%">'+
-    '<h3 style="margin:0 0 12px;font-size:16px;font-weight:700;color:var(--text)">{{ _('Select Shipping Address') }}</h3>'+
+    '<h3 style="margin:0 0 12px;font-size:16px;font-weight:700;color:var(--text)">Select Shipping Address</h3>'+
     '<select id="addrSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;margin-bottom:16px">'+opts+'</select>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end">'+
-    '<button onclick="this.closest(\'#addrPicker\').remove()" style="padding:8px 20px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer">{{ _('Cancel') }}</button>'+
-    '<button id="addrConfirmBtn" style="padding:8px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600">{{ _('Confirm') }}</button></div></div>';
+    '<button onclick="this.closest(\'#addrPicker\').remove()" style="padding:8px 20px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer">Cancel</button>'+
+    '<button id="addrConfirmBtn" style="padding:8px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600">Confirm</button></div></div>';
   document.body.appendChild(picker);
   document.getElementById("addrConfirmBtn").onclick=function(){
     var idx = parseInt(document.getElementById("addrSelect").value);
@@ -95,25 +95,25 @@ function showAddressPicker(cb){
 
 function checkout(){
   if(!_addresses.length){
-    showToast({{ _('Please add a shipping address in your profile first') | tojson }},"error");
+    showToast("Please add a shipping address in your profile first","error");
     return;
   }
   showAddressPicker(function(addr){
     var body = JSON.stringify({address_id: addr.id, address_type: addr.type});
     fetch("/shop/api/checkout",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:body})
       .then(function(r){return r.json()}).then(function(d){
-        if(d.success){showToast({{ _('Order created, proceed to payment') | tojson }},"success");setTimeout(function(){location.href="/shop/orders"},1000)}
-        else showToast(d.error||{{ _('Checkout failed') | tojson }},"error");
+        if(d.success){showToast("Order created, proceed to payment","success");setTimeout(function(){location.href="/shop/orders"},1000)}
+        else showToast(d.error||"Checkout failed","error");
       });
   });
 }
 
 function loadCart(){
-  if(!T){document.getElementById("cartContent").innerHTML='<div class="empty-state"><div class="icon">🔒</div><div>{{ _('Please') }} <a href="/login?redirect=/shop/cart">{{ _('Log In') }}</a> {{ _('查看购物车') }}</div></div>';return}
+  if(!T){document.getElementById("cartContent").innerHTML='<div class="empty-state"><div class="icon">🔒</div><div>{{ _('Please') }} <a href="/login?redirect=/shop/cart">{{ _('Log In') }}</a> 查看购物车</div></div>';return}
   fetch("/shop/api/cart",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var cart=d.data, items=cart.items||[], h="";
-    if(!items.length){h='<div class="empty-state"><div class="icon">🛒</div><div>{{ _('Your cart is empty') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">{{ _('→ Go Shopping') }}</a></div>'}
+    if(!items.length){h='<div class="empty-state"><div class="icon">🛒</div><div>{{ _('Your cart is empty') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">→ 去逛逛</a></div>'}
     else{
       items.forEach(function(it){
         h+='<div class="cart-item" id="ci-'+it.id+'">';

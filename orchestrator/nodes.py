@@ -30,7 +30,6 @@ sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
 from . import models as m
 from .safe_eval import safe_eval
-from i18n import _
 
 # ============================================================
 # 智能体 节点 — 调用 智能体（系统/用户）
@@ -51,20 +50,20 @@ def handle_ai_agent(node_def: dict, input_data: dict) -> dict:
     agent_id = config.get('agent_id')
 
     if not prompt:
-        return {'error': _('prompt 不能为空'), 'success': False}
+        return {'error': 'prompt 不能为空', 'success': False}
 
     # 获取 Agent 配置
     if agent_type == 'system':
         agent = m.get_default_system_agent()
         if not agent:
-            return {'error': _('未配置系统 Agent'), 'success': False}
+            return {'error': '未配置系统 Agent', 'success': False}
         api_key_ref = agent.get('api_key_ref', 'dashscope_text_key')
         model = config.get('model', agent.get('model', 'qwen-turbo'))
         provider = agent.get('provider', 'dashscope')
     else:
         # 用户 Agent - 从 agents 表读取
         if not agent_id:
-            return {'error': _('用户 Agent 未指定 agent_id'), 'success': False}
+            return {'error': '用户 Agent 未指定 agent_id', 'success': False}
         # 从 system_config 读取 API Key（用户 agent 使用平台 Key）
         api_key_ref = 'dashscope_text_key'
         model = config.get('model', 'qwen-turbo')
@@ -73,7 +72,7 @@ def handle_ai_agent(node_def: dict, input_data: dict) -> dict:
     # 从 system_config 获取 API Key
     api_key = _get_api_key(api_key_ref)
     if not api_key:
-        return {'error': _('API Key [{key}] 未配置', key=api_key_ref), 'success': False}
+        return {'error': f'API Key [{api_key_ref}] 未配置', 'success': False}
 
     # 调用 DashScope API
     result = _call_dashscope(api_key, model, prompt)
@@ -138,7 +137,7 @@ def handle_data_collect(node_def: dict, input_data: dict) -> dict:
     source_ids = config.get('source_ids', [])
 
     if not source_ids:
-        return {'error': _('未指定采集源'), 'success': False}
+        return {'error': '未指定采集源', 'success': False}
 
     # 尝试导入内容工厂采集器
     try:
@@ -339,7 +338,7 @@ def handle_publish(node_def: dict, input_data: dict) -> dict:
             elif platform == 'social':
                 results[platform] = _publish_to_social(config, content)
             else:
-                results[platform] = {'success': False, 'error': _('未知平台: {platform}', platform=platform)}
+                results[platform] = {'success': False, 'error': f'未知平台: {platform}'}
         except Exception as e:
             results[platform] = {'success': False, 'error': str(e)}
 
@@ -353,7 +352,7 @@ def _publish_to_cms(config: dict, content: str) -> dict:
     """发布到 CMS"""
     try:
         from models.cms import upsert_post
-        title = config.get('title', _('自动发布'))
+        title = config.get('title', '自动发布')
         category = config.get('category', 'content_factory')
         slug = f'auto-{config.get("workflow_instance_id", "wf")}-{int(time.time())}'
 
@@ -362,7 +361,7 @@ def _publish_to_cms(config: dict, content: str) -> dict:
             content=content,
             category=category,
             slug=slug,
-            author=_('自动化系统')
+            author='自动化系统'
         )
         return {'success': True, 'post_id': post_id, 'slug': slug}
     except Exception as e:
@@ -374,8 +373,8 @@ def _publish_to_skill(config: dict, content: str) -> dict:
     from services.content_factory.skill_pusher import push_to_skill
     result = push_to_skill(
         processed_id=config.get('processed_id', 0),
-        title=config.get('title', _('自动 Skill')),
-        description=config.get('description', _('由工作流自动生成')),
+        title=config.get('title', '自动 Skill'),
+        description=config.get('description', '由工作流自动生成'),
         content=content,
         category=config.get('category', 'automation')
     )
@@ -388,7 +387,7 @@ def _publish_to_social(config: dict, content: str) -> dict:
     return {
         'success': True,
         'platforms': config.get('platforms', ['weixin']),
-        'message': _('模拟社交发布成功'),
+        'message': '模拟社交发布成功',
         '_mock': True
     }
 
@@ -429,7 +428,7 @@ def handle_notify(node_def: dict, input_data: dict) -> dict:
             elif channel == 'email':
                 results[channel] = _send_email(config.get('email_to', ''), title, message)
             else:
-                results[channel] = {'success': False, 'error': _('未知通道: {channel}', channel=channel)}
+                results[channel] = {'success': False, 'error': f'未知通道: {channel}'}
         except Exception as e:
             results[channel] = {'success': False, 'error': str(e)}
 
@@ -447,7 +446,7 @@ def _send_notification(title: str, message: str) -> dict:
 def _send_webhook(url: str, title: str, message: str) -> dict:
     """发送 Webhook"""
     if not url:
-        return {'success': False, 'error': _('webhook URL 为空')}
+        return {'success': False, 'error': 'webhook URL 为空'}
     body = json.dumps({
         'title': title,
         'message': message,
@@ -463,7 +462,7 @@ def _send_webhook(url: str, title: str, message: str) -> dict:
 def _send_email(email_to: str, title: str, message: str) -> dict:
     """发送邮件（调用 Email 插件服务）"""
     if not email_to:
-        return {'success': False, 'error': _('email_to 为空')}
+        return {'success': False, 'error': 'email_to 为空'}
     try:
         from plugins.email.services import send_email as plugin_send_email
         ok, msg = plugin_send_email(

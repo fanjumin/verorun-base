@@ -12,7 +12,6 @@ if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
-from i18n import _
 
 from .models import get_sms_db
 
@@ -66,9 +65,9 @@ def sms_template_create():
     template_code = data.get('template_code', '').strip()
     note = data.get('note', '').strip()
     if not category or not name or not template_code:
-        return jsonify({'success': False, 'error': _('分类、名称、模板代码不能为空')}), 400
+        return jsonify({'success': False, 'error': '分类、名称、模板代码不能为空'}), 400
     if category not in ('captcha', 'notice', 'promo'):
-        return jsonify({'success': False, 'error': _('无效的分类，必须为 captcha/notice/promo')}), 400
+        return jsonify({'success': False, 'error': '无效的分类，必须为 captcha/notice/promo'}), 400
     conn = get_sms_db()
     row = conn.execute('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM sms_templates').fetchone()
     sort_order = row['n']
@@ -161,12 +160,12 @@ def sms_test_send():
     phone = data.get('phone', '').strip()
     code = data.get('code', '123456')
     if not phone:
-        return jsonify({'success': False, 'error': _('手机号不能为空')}), 400
+        return jsonify({'success': False, 'error': '手机号不能为空'}), 400
     from plugins.sms.services import send_sms
     result = send_sms(phone, code, purpose='test')
     if result.get('success'):
         return jsonify({'success': True, 'data': result})
-    return jsonify({'success': False, 'error': result.get('error', _('发送失败'))}), 400
+    return jsonify({'success': False, 'error': result.get('error', '发送失败')}), 400
 
 
 # ─── PluginManager 标准化配置 ─────────────────────────────────────────
@@ -195,7 +194,7 @@ def sms_settings_get():
         return err
     pm = _get_sms_pm()
     if not pm:
-        return jsonify({'success': False, 'error': _('PluginManager not available')}), 503
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
     cfg = pm.get_config('sms') or {}
     result = {}
     for k in _SMS_CONFIG_KEYS:
@@ -215,13 +214,13 @@ def sms_settings_save():
     data = request.get_json(force=True) or {}
     pm = _get_sms_pm()
     if not pm:
-        return jsonify({'success': False, 'error': _('PluginManager not available')}), 503
+        return jsonify({'success': False, 'error': 'PluginManager not available'}), 503
     filtered = {}
     for k, v in data.items():
         if k in _SMS_CONFIG_KEYS:
             filtered[k] = str(v) if v is not None else ''
     if not filtered:
-        return jsonify({'success': False, 'error': _('No valid config keys')}), 400
+        return jsonify({'success': False, 'error': 'No valid config keys'}), 400
     result = pm.set_config_batch('sms', filtered, coerce=True)
     if result.get('errors'):
         return jsonify({'success': True, 'warning': str(result['errors'])})

@@ -11,7 +11,7 @@ window.l_ai_chat=function(){
   // Stats summary
   h+='<div class="cd" style="margin-bottom:12px;border-color:rgba(0,212,170,.3)">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center">';
-  h+='<div class="st" style="border:none;margin:0;padding:0">🤖 {{ _('Main') }} Agent: Athena <span class="bdg on">{{ _('Running') }}</span></div>';
+  h+='<div class="st" style="border:none;margin:0;padding:0">🤖 主 Agent: Athena <span class="bdg on">{{ _('Running') }}</span></div>';
   h+='<button class="btn bo bs" onclick="l_ai_chat()">🔄 {{ _('Refresh') }}</button>';
   h+='</div></div>';
 
@@ -824,8 +824,8 @@ function matNewSub(){
   h+='<div class="st">+ {{ _('Add Sub') }} Agent <span style="font-size:10px;color:var(--dim);font-weight:400">｜<a href="javascript:matPromptHelp()" style="color:var(--accent)">📖 {{ _('Prompt Management Description') }}</a></span></div>';
   h+='<div class="g2">';
   // Row 1: Name + Domain
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }} *</div><input class="in" id="matNewName" placeholder="{{ _('E.g.') }} CMS Agent" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Domain') }}</div><input class="in" id="matNewDomain" placeholder="{{ _('E.g.') }} cms" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }} *</div><input class="in" id="matNewName" placeholder="如：CMS Agent" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Domain') }}</div><input class="in" id="matNewDomain" placeholder="如：cms" style="width:100%"></div>';
   // Row 2: Description (full width)
   h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Description') }}</div><input class="in" id="matNewDesc" placeholder="{{ _('Role Description') }}" style="width:100%"></div>';
   // Row 3: Provider → Model cascade
@@ -1081,15 +1081,15 @@ function matPromptHelp(){
   var h='<div class="cd" style="margin-bottom:12px">';
   h+='<div class="st">📖 {{ _('Prompt Management Description') }}</div>';
   h+='<div style="font-size:12px;line-height:1.8;color:var(--muted)">';
-  h+='<p><b>{{ _('Prompt') }}（System Prompt）</b>{{ _('Is') }} {{ _('Agent') }} {{ _('Core Instructions') }}，{{ _('Decided') }} Agent {{ _('Action') }}、{{ _('Roles & Abilities') }}。</p>';
+  h+='<p><b>{{ _('Prompt') }}（System Prompt）</b>是 {{ _('Agent') }} {{ _('Core Instructions') }}，{{ _('Decided') }} Agent {{ _('Action') }}、{{ _('Roles & Abilities') }}。</p>';
   h+='<br><b>{{ _('Built-in Templates') }}（8 {{ _('Presets') }}）：</b>';
   h+='<br>{{ _('Located on Server') }} <code>agent_matrix/prompts/</code> {{ _('Directory') }}，{{ _('Includes Full Role Definition') }}、{{ _('Managed Modules') }}、API {{ _('Reference') }}、{{ _('Quality Standard') }}。';
   h+='<br>{{ _('Create') }} Sub Agent {{ _('Pass When') }}「System Prompt {{ _('Templates') }}」{{ _('Dropdown Select') }}，{{ _('Auto-fill to Text Field') }}。';
   h+='<br><br><b>{{ _('Custom Prompt') }}：</b>';
-  h+='<br>{{ _('Selecting') }}「{{ _('Custom Prompt') }}」{{ _('After') }}，{{ _('Directly') }} System Prompt {{ _('Write in Text Box') }}。';
+  h+='<br>{{ _('Selecting') }}「{{ _('Custom Prompt') }}」后，{{ _('Directly') }} System Prompt {{ _('Write in Text Box') }}。';
   h+='<br>{{ _('Supported Fields') }}：{{ _('Role Definition') }}、{{ _('Managed Modules') }}、{{ _('Core Capabilities') }}、{{ _('Quality Standard') }}、{{ _('Code of Conduct') }}、{{ _('Available') }} API {{ _('Reference') }}。';
   h+='<br><br><b>{{ _('Prompt Storage') }}：</b>';
-  h+='<br>• {{ _('If Built-in Templates Selected') }}，{{ _('Store as File Path') }}（{{ _('E.g.') }} prompts/sub_cms_prompt.md）';
+  h+='<br>• {{ _('If Built-in Templates Selected') }}，{{ _('Store as File Path') }}（如 prompts/sub_cms_prompt.md）';
   h+='<br>• {{ _('If Writing Manually') }}，{{ _('Store Full Text Content Directly') }}';
   h+='<br>• {{ _('Auto-load at Runtime') }}，{{ _('Supports Dynamic Editing') }}';
   h+='<br><br><b>{{ _('Modify Prompt') }}：</b>';
@@ -1375,7 +1375,7 @@ function matEditKnowledge(){
       var content=d.data||"";
       var h='<div style="margin-bottom:10px"><button class="btn bo bs" onclick="matAIServices()">← {{ _('Back') }} AI {{ _('Services') }}</button></div>';
       h+='<div class="cd">';
-      h+='<div class="st">💬 {{ _('Chat Window Management') }} <span style="font-size:10px;color:var(--dim);font-weight:400">｜ {{ _('By') }} Agent Matrix Ticket Agent {{ _('Management') }}</span></div>';
+      h+='<div class="st">💬 {{ _('Chat Window Management') }} <span style="font-size:10px;color:var(--dim);font-weight:400">｜ 由 Agent Matrix Ticket Agent {{ _('Management') }}</span></div>';
       h+='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
       h+='<div class="cd" style="flex:1;min-width:120px;padding:10px"><div class="l" style="font-size:10px">{{ _('Status') }}</div><div class="v g">{{ _('Connected to Matrix') }}</div></div>';
       h+='<div class="cd" style="flex:1;min-width:120px;padding:10px"><div class="l" style="font-size:10px">{{ _('Management') }} Agent</div><div class="v" style="font-size:14px">Ticket Agent</div></div>';

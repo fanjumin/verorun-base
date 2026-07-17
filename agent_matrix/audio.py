@@ -10,8 +10,6 @@ AI Audio Interface — 语音输入/输出抽象层
 import os
 import logging
 
-from i18n import _
-
 logger = logging.getLogger(__name__)
 
 
@@ -19,8 +17,8 @@ class AudioInputProcessor:
     """语音输入处理器（ASR）—— 预留接口，暂不实现"""
 
     PROVIDERS = {
-        'vosk': _('离线语音识别（vosk-model-small-cn-0.22）'),
-        'aliyun_asr': _('阿里云实时语音识别'),
+        'vosk': '离线语音识别（vosk-model-small-cn-0.22）',
+        'aliyun_asr': '阿里云实时语音识别',
     }
 
     def __init__(self, provider: str = 'vosk', model_path: str = ''):
@@ -31,26 +29,26 @@ class AudioInputProcessor:
         self.provider = provider
         self.model_path = model_path or os.environ.get('VOSK_MODEL_PATH', '')
         self._initialized = False
-        logger.info(_('[AudioInput] 接口已创建（提供商: {provider}），待实现', provider=provider))
+        logger.info(f'[AudioInput] 接口已创建（提供商: {provider}），待实现')
 
     def initialize(self) -> bool:
         """初始化语音识别引擎（需安装对应依赖后实现）"""
-        logger.warning(_('[AudioInput] initialize() 未实现——需要安装 Vosk 或阿里云 SDK'))
+        logger.warning('[AudioInput] initialize() 未实现——需要安装 Vosk 或阿里云 SDK')
         return False
 
     def transcribe(self, audio_data: bytes) -> str:
         """将音频数据转换为文本"""
-        logger.warning(_('[AudioInput] transcribe() 未实现'))
+        logger.warning('[AudioInput] transcribe() 未实现')
         return ''
 
     def transcribe_file(self, file_path: str) -> str:
         """识别音频文件"""
-        logger.warning(_('[AudioInput] transcribe_file() 未实现'))
+        logger.warning('[AudioInput] transcribe_file() 未实现')
         return ''
 
     def start_stream(self):
         """启动实时语音识别流"""
-        raise NotImplementedError(_('实时语音识别未实现'))
+        raise NotImplementedError('实时语音识别未实现')
 
     def stop_stream(self):
         """停止实时语音识别流"""
@@ -61,7 +59,7 @@ class AudioOutputProcessor:
     """语音输出处理器（TTS）—— 预留接口，暂不实现"""
 
     PROVIDERS = {
-        'aliyun_tts': _('阿里云语音合成（每月 100 万字符免费）'),
+        'aliyun_tts': '阿里云语音合成（每月 100 万字符免费）',
     }
 
     PROVIDER_CONFIGS = {
@@ -80,16 +78,16 @@ class AudioOutputProcessor:
         self.provider = provider
         self.voice = voice
         self._initialized = False
-        logger.info(_('[AudioOutput] 接口已创建（提供商: {provider}, 发音人: {voice}），待实现', provider=provider, voice=voice))
+        logger.info(f'[AudioOutput] 接口已创建（提供商: {provider}, 发音人: {voice}），待实现')
 
     def synthesize(self, text: str, output_path: str = '') -> str:
         """将文本合成为音频文件，返回文件路径"""
-        logger.warning(_('[AudioOutput] synthesize() 未实现——需要安装阿里云 TTS SDK'))
+        logger.warning('[AudioOutput] synthesize() 未实现——需要安装阿里云 TTS SDK')
         return ''
 
     def synthesize_stream(self, text: str):
         """流式合成语音，返回音频生成器"""
-        logger.warning(_('[AudioOutput] synthesize_stream() 未实现'))
+        logger.warning('[AudioOutput] synthesize_stream() 未实现')
         return iter([])
 
 

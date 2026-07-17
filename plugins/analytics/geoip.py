@@ -52,7 +52,7 @@ def _init_ip2region() -> bool:
     """初始化 ip2region（优先于 MaxMind）"""
     global _ip2region_searcher
     if not os.path.exists(IP2REGION_DB):
-        print(f'[Analytics] {_("ip2region database not found")}: {IP2REGION_DB}')
+        print(f'[Analytics] ℹ️ ip2region 数据库未找到: {IP2REGION_DB}')
         return False
     try:
         sys.path.insert(0, os.path.dirname(__file__))

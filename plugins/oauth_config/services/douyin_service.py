@@ -6,7 +6,6 @@
 2. 环境变量 DOUYIN_CLIENT_KEY / DOUYIN_CLIENT_SECRET（全局兜底）
 """
 import os, json, urllib.request, urllib.parse
-from i18n import _
 
 
 def _get_config(site_domain=None, provider='douyin'):
@@ -64,7 +63,7 @@ def get_access_token(code, site_domain=None):
     """用授权码换 access_token + open_id，按域名选择凭证"""
     cfg = _get_config(site_domain)
     if not cfg:
-        return {'error': _('抖音登录未配置'), 'open_id': 'stub_open_' + code[:8],
+        return {'error': '抖音登录未配置', 'open_id': 'stub_open_' + code[:8],
                 'union_id': 'stub_union', 'access_token': 'stub_token',
                 'refresh_token': 'stub_refresh', 'expires_in': 86400}
 
@@ -92,7 +91,7 @@ def get_access_token(code, site_domain=None):
                 'refresh_token': d.get('refresh_token', ''),
                 'expires_in': d.get('expires_in', 0),
             }
-        msg = body.get('message', _('抖音API错误'))
+        msg = body.get('message', '抖音API错误')
         err = body.get('data', {}).get('description', msg)
         return {'error': err}
     except Exception as e:
@@ -102,7 +101,7 @@ def get_access_token(code, site_domain=None):
 def get_user_info(open_id, access_token, site_domain=None):
     """获取用户昵称和头像"""
     if is_stub(site_domain):
-        return {'nickname': _('抖音用户_{suffix}').format(suffix=open_id[-4:]), 'avatar': '',
+        return {'nickname': '抖音用户_' + open_id[-4:], 'avatar': '',
                 'open_id': open_id, 'union_id': 'stub_union'}
     url = ('https://open.douyin.com/oauth/userinfo?'
            + urllib.parse.urlencode({'access_token': access_token, 'open_id': open_id}))
@@ -117,7 +116,7 @@ def get_user_info(open_id, access_token, site_domain=None):
                 'open_id': d['open_id'],
                 'union_id': d.get('union_id', ''),
             }
-        return {'error': d.get('description', body.get('message', _('获取用户信息失败')))}
+        return {'error': d.get('description', body.get('message', '获取用户信息失败'))}
     except Exception as e:
         return {'error': str(e)}
 
@@ -246,7 +245,7 @@ def code2session(code, site_domain=None):
                 'unionid': data.get('unionid', ''),
                 'error': None
             }
-        msg = data.get('description', body.get('message', _('抖音API错误')))
+        msg = data.get('description', body.get('message', '抖音API错误'))
         return {'openid': None, 'session_key': None, 'unionid': None, 'error': msg}
     except Exception as e:
         return {'openid': None, 'session_key': None, 'unionid': None, 'error': str(e)}

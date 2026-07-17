@@ -14,7 +14,6 @@ import time
 import pickle
 from typing import Any, Optional, Dict, Tuple
 import logging
-from i18n import _
 from functools import lru_cache
 
 from ..config import config
@@ -103,13 +102,13 @@ class RedisCache:
             # 测试连接
             self.client.ping()
             self.connected = True
-            logger.info(_('Redis cache connected successfully'))
+            logger.info("Redis缓存连接成功")
             
         except ImportError:
-            logger.warning(_('Redis module not installed, using memory cache'))
+            logger.warning("Redis模块未安装，使用内存缓存")
             self.connected = False
         except Exception as e:
-            logger.warning(f"{_('Redis connection failed')}: {e}, {_('using memory cache')}")
+            logger.warning(f"Redis连接失败: {e}，使用内存缓存")
             self.connected = False
     
     def get(self, key: str) -> Tuple[bool, Optional[Any]]:

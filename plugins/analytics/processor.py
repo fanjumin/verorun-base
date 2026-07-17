@@ -16,7 +16,6 @@ import time
 import os
 import sys
 from datetime import datetime, timedelta
-from i18n import _
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from . import models as am

@@ -333,7 +333,7 @@ body::after {
         </svg>
       </div>
       <div class="tm-status-label">{{ _('Pending Verification') }}</div>
-      <div class="tm-status-msg">{{ license.message or _('正在等待授权验证...') }}</div>
+      <div class="tm-status-msg">{{ license.message or '正在等待授权验证...' }}</div>
     </div>
     {% else %}
     <div class="tm-status expired">
@@ -346,7 +346,7 @@ body::after {
       </div>
       <div class="tm-status-label">{{ _('Expired') }}</div>
       <div class="tm-status-days">已过期 {{ license.days_remaining|abs }} 天</div>
-      <div class="tm-status-msg">{{ license.message or _('请续费以恢复管理后台和AI功能') }}</div>
+      <div class="tm-status-msg">{{ license.message or '请续费以恢复管理后台和AI功能' }}</div>
     </div>
     {% endif %}
 
@@ -362,7 +362,7 @@ body::after {
       </div>
       <div class="tm-info-row">
         <span class="tm-info-label">{{ _('Cached At') }}</span>
-        <span class="tm-info-value">{{ license.cached_at or _('暂无') }}</span>
+        <span class="tm-info-value">{{ license.cached_at or '暂无' }}</span>
       </div>
     </div>
 

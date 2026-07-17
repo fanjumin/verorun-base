@@ -21,7 +21,6 @@ import sys
 import json
 import time
 from datetime import datetime, timedelta
-from i18n import _
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from .tracker import generate_report, generate_insight_text
@@ -299,7 +298,7 @@ def register_analytics_handlers(engine):
     engine.register_node_handler('analytics_event', handle_analytics_event)
     engine.register_node_handler('analytics_cleanup', handle_analytics_cleanup)
 
-    print(f'[Analytics Workflow] {_("Registered 6 custom node handlers")}')
+    print(f'[Analytics Workflow] ✅ 已注册 6 个自定义节点处理器')
 
 
 # ─── 快捷方式（创建预设工作流） ────────────────────────────────────────────────

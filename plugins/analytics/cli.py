@@ -19,7 +19,6 @@ import json
 import time
 import signal
 from datetime import datetime
-from i18n import _
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from . import models as am
@@ -44,11 +43,11 @@ def cmd_process():
     """运行一次聚合处理"""
     processor = AnalyticsProcessor()
     stats = processor.process()
-    print(f'[Analytics] {_("Aggregation Complete")}')
-    print(f'  {_("Batches")}: {stats["total_batches"]}')
+    print(f'[Analytics] ✅ 聚合完成')
+    print(f'  处理批次: {stats["total_batches"]}')
     print(f'  PV: {stats["processed"]["pv"]}')
     print(f'  Bot: {stats["processed"]["bot"]}')
-    print(f'  {_("Errors")}: {stats["processed"]["error"]}')
+    print(f'  错误: {stats["processed"]["error"]}')
 
 
 def cmd_daemon():
@@ -60,22 +59,22 @@ def cmd_daemon():
 
     def handler(sig, frame):
         nonlocal running
-        print(f'\n[Analytics Daemon] {_("Stopping...")}')
+        print('\n[Analytics Daemon] 正在停止...')
         running = False
 
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
 
-    print(f'[Analytics Daemon] {_("Started (interval {interval}s)", interval=interval)}')
+    print(f'[Analytics Daemon] 🚀 启动 (间隔 {interval}s)')
     while running:
         try:
             processor.process()
             time.sleep(interval)
         except Exception as e:
-            print(f'[Analytics Daemon] {e}')
+            print(f'[Analytics Daemon] ⚠️ {e}')
             time.sleep(interval)
 
-    print(f'[Analytics Daemon] {_("Stopped")}')
+    print('[Analytics Daemon] ✅ 已停止')
 
 
 def cmd_report():
@@ -92,7 +91,7 @@ def cmd_cleanup():
     conn = am.get_db()
     try:
         deleted = am.cleanup_old_logs(conn, days)
-        print(f'[Analytics] {_("Cleaned {deleted} logs (retention {days} days)", deleted=deleted, days=days)}')
+        print(f'[Analytics] 🧹 已清理 {deleted} 条日志 (保留 {days} 天)')
     finally:
         conn.close()
 
@@ -125,20 +124,20 @@ def cmd_stats():
         ).fetchone()['size']
 
         print('═' * 45)
-        print(f'  {_("Analytics System Status")}')
+        print(f'  📊 分析系统状态')
         print('═' * 45)
-        print(f'  {_("Raw Logs")}:     {total_logs:,}')
-        print(f'  {_("Hourly Stats")}:     {total_hourly:,}')
-        print(f'  {_("Daily Stats")}:       {total_daily:,}')
-        print(f'  {_("Events")}:         {total_events:,}')
-        print(f'  {_("Sessions")}:         {total_sessions:,}')
-        print(f'  {_("Today PV")}:      {today_pv:,}')
-        print(f'  {_("Today UV")}:      {today_uv:,}')
-        print(f'  {_("DB Size")}:   {db_size/1048576:.2f} MB')
+        print(f'  原始日志:     {total_logs:,} 条')
+        print(f'  小时聚合:     {total_hourly:,} 条')
+        print(f'  日聚合:       {total_daily:,} 条')
+        print(f'  事件:         {total_events:,} 条')
+        print(f'  会话:         {total_sessions:,} 条')
+        print(f'  今日 PV:      {today_pv:,}')
+        print(f'  今日 UV:      {today_uv:,}')
+        print(f'  数据库大小:   {db_size/1048576:.2f} MB')
         print('─' * 45)
 
     except Exception as e:
-        print(f'[Analytics] {_("Query failed")}: {e}')
+        print(f'[Analytics] ❌ 查询失败: {e}')
     finally:
         conn.close()
 
@@ -146,15 +145,15 @@ def cmd_stats():
 def cmd_add_alert():
     """交互式添加告警规则"""
     import readline  # 增强输入体验
-    print(f'\n=== {_("Add Analytics Alert Rule")} ===')
+    print('\n=== 添加分析告警规则 ===')
     print()
 
     name = input('告警名称: ').strip()
     if not name:
-        print(f'{_("Name cannot be empty")}')
+        print('❌ 名称不能为空')
         return
 
-    print(f'\n{_("Metric Options")}:')
+    print('\n指标选项:')
     metrics = ['uv (独立访客)', 'pv (浏览量)', 'bounce_rate (跳出率%)',
                'error_rate (错误率%)', 'avg_response_time (平均响应ms)']
     for i, m in enumerate(metrics, 1):
@@ -163,7 +162,7 @@ def cmd_add_alert():
     metric_map = ['', 'uv', 'pv', 'bounce_rate', 'error_rate', 'avg_response_time']
     metric = metric_map[metric_idx]
 
-    print(f'\n{_("Operators")}:')
+    print('\n操作符:')
     print('  1. > (大于)')
     print('  2. < (小于)')
     print('  3. >= (大于等于)')
@@ -174,7 +173,7 @@ def cmd_add_alert():
 
     threshold = float(input('阈值: ').strip())
 
-    print(f'\n{_("Time Window")}:')
+    print('\n时间窗口:')
     print('  1. 1h (1小时)')
     print('  2. 24h (24小时)')
     print('  3. 7d (7天)')
@@ -183,7 +182,7 @@ def cmd_add_alert():
     time_window = tw_map[tw_idx]
 
     alert_id = create_alert(name, metric, operator, threshold, time_window)
-    print(f'{_("Alert rule created (ID: {id})", id=alert_id)}')
+    print(f'\n✅ 告警规则已创建 (ID: {alert_id})')
 
 
 def cmd_seed_workflows():
@@ -193,16 +192,16 @@ def cmd_seed_workflows():
         from orchestrator import models as om
         om.init_orchestrator_tables()
     except ImportError:
-        print(f'{_("Orchestrator module required (pip install apscheduler)")}')
+        print('❌ 需要 orchestrator 模块 (pip install apscheduler)')
         return
 
     conn = om.get_db()
     try:
         daily_id = create_daily_report_workflow(conn)
         weekly_id = create_weekly_report_workflow(conn)
-        print(f'{_("Preset workflows created")}:')
-        print(f'  📊 ' + _('Daily Analysis Report') + f' (ID: {daily_id})')
-        print(f'  📊 ' + _('Weekly Analysis Report') + f' (ID: {weekly_id})')
+        print(f'✅ 预设工作流已创建:')
+        print(f'  📊 每日分析报告 (ID: {daily_id})')
+        print(f'  📊 每周运营报告 (ID: {weekly_id})')
 
         # 创建工作流绑定的 Cron 任务
         from orchestrator import models as om
@@ -224,7 +223,7 @@ def cmd_seed_workflows():
             'priority': 3,
             'timeout': 300,
         })
-        print(f'  ' + _('Cron jobs bound (Daily 8:00 / Mon 9:00)'))
+        print(f'  ⏰ Cron 任务已绑定 (每日8:00 / 每周一9:00)')
     finally:
         conn.close()
 
@@ -249,5 +248,5 @@ if __name__ == '__main__':
     if cmd in commands:
         commands[cmd]()
     else:
-        print(f'{_("Unknown command")}: {cmd}')
+        print(f'❌ 未知命令: {cmd}')
         print(__doc__)

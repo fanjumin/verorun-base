@@ -16,8 +16,6 @@ Agent Matrix — 工具注册中心 (Tool Registry)
 """
 import json, os, sys, logging
 
-from i18n import _
-
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -282,7 +280,7 @@ def _tool_get_system_health(args):
                 "ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
             if not run:
-                return _("暂无健康巡检记录。")
+                return "暂无健康巡检记录。"
             run = dict(run)
             total = run.get('total_checks', 0) or 0
             passed = run.get('passed', 0) or 0
@@ -297,21 +295,21 @@ def _tool_get_system_health(args):
                 (run['id'],)
             ).fetchall()
         lines = [
-            _("健康分: {score}/100", score=score),
-            _("检查总数: {total}, 通过: {passed}, 警告: {warnings}, 错误: {errors}", total=total, passed=passed, warnings=warnings, errors=errors),
-            _("巡检时间: {time}", time=run.get('created_at', '')),
+            f"健康分: {score}/100",
+            f"检查总数: {total}, 通过: {passed}, 警告: {warnings}, 错误: {errors}",
+            f"巡检时间: {run.get('created_at', '')}",
         ]
         abnormal = [dict(i) for i in items if i['status'] != 'passed']
         if abnormal:
-            lines.append(_("异常项:"))
+            lines.append("异常项:")
             for i in abnormal[:15]:
                 lines.append(f"  - [{i['status']}] {i['check_name']}: {(i['message'] or '')[:80]}")
         else:
-            lines.append(_("所有检查项均通过。"))
+            lines.append("所有检查项均通过。")
         return '\n'.join(lines)
     except Exception as e:
-        logger.warning(_("[tool:get_system_health] 执行失败: {e}", e=e))
-        return _("获取健康状态失败: {e}", e=e)
+        logger.warning(f"[tool:get_system_health] 执行失败: {e}")
+        return f"获取健康状态失败: {e}"
 
 
 def _tool_query_stats(args):
@@ -324,8 +322,8 @@ def _tool_query_stats(args):
         report = generate_report(days=days)
         return generate_insight_text(report)
     except Exception as e:
-        logger.warning(_("[tool:query_stats] 执行失败: {e}", e=e))
-        return _("查询统计数据失败: {e}", e=e)
+        logger.warning(f"[tool:query_stats] 执行失败: {e}")
+        return f"查询统计数据失败: {e}"
 
 
 def _tool_search_knowledge(args):
@@ -333,23 +331,23 @@ def _tool_search_knowledge(args):
     try:
         keyword = str(args.get('keyword', '')).strip()
         if not keyword:
-            return _("未提供检索关键词。")
+            return "未提供检索关键词。"
         with _get_matrix_db() as conn:
             row = conn.execute(
                 "SELECT value FROM system_config WHERE key='chatbot_knowledge_base'"
             ).fetchone()
         content = (row['value'] if row and row['value'] else '') or ''
         if not content:
-            return _("知识库为空。")
+            return "知识库为空。"
         # 简单按段落匹配，返回命中片段
         blocks = [b.strip() for b in content.split('\n\n') if b.strip()]
         hits = [b for b in blocks if keyword.lower() in b.lower()]
         if not hits:
-            return _('知识库中未找到与「{keyword}」相关的内容。', keyword=keyword)
+            return f"知识库中未找到与「{keyword}」相关的内容。"
         return '\n---\n'.join(hits[:5])[:2000]
     except Exception as e:
-        logger.warning(_("[tool:search_knowledge] 执行失败: {e}", e=e))
-        return _("检索知识库失败: {e}", e=e)
+        logger.warning(f"[tool:search_knowledge] 执行失败: {e}")
+        return f"检索知识库失败: {e}"
 
 
 def _tool_ads_list(args):
@@ -362,21 +360,21 @@ def _tool_ads_list(args):
             active_only=args.get('active_only', False)
         )
         if not res['success']:
-            return _("获取广告列表失败: {error}", error=res.get('error'))
+            return f"获取广告列表失败: {res.get('error')}"
         ads = res.get('data', [])
         if not ads:
-            return _("暂无广告位。")
-        lines = [_("共 {count} 个广告位：", count=len(ads))]
+            return "暂无广告位。"
+        lines = [f"共 {len(ads)} 个广告位："]
         for a in ads:
-            status = _('启用') if a.get('is_active') else _('停用')
+            status = '启用' if a.get('is_active') else '停用'
             lines.append(
-                f"ID {a['id']}: {a['name']} | " + _("站点 {site}", site=a.get('site_key','default')) + " | "
-                + _("位置 {pos}", pos=a.get('position','-')) + " | " + _("类型 {type}", type=a.get('ad_type','image')) + f" | {status}"
+                f"ID {a['id']}: {a['name']} | 站点 {a.get('site_key','default')} | "
+                f"位置 {a.get('position','-')} | 类型 {a.get('ad_type','image')} | {status}"
             )
         return '\n'.join(lines)
     except Exception as e:
-        logger.warning(_("[tool:ads_list] 执行失败: {e}", e=e))
-        return _("获取广告列表失败: {e}", e=e)
+        logger.warning(f"[tool:ads_list] 执行失败: {e}")
+        return f"获取广告列表失败: {e}"
 
 
 def _tool_ads_create(args):
@@ -385,11 +383,11 @@ def _tool_ads_create(args):
         import plugins.ads.ai_tools as ads_tools
         res = ads_tools.create_ad(args)
         if res['success']:
-            return _("✅ 广告已创建，ID: {id}", id=res['data']['id'])
-        return _("❌ 创建失败: {error}", error=res.get('error'))
+            return f"✅ 广告已创建，ID: {res['data']['id']}"
+        return f"❌ 创建失败: {res.get('error')}"
     except Exception as e:
-        logger.warning(_("[tool:ads_create] 执行失败: {e}", e=e))
-        return _("创建广告失败: {e}", e=e)
+        logger.warning(f"[tool:ads_create] 执行失败: {e}")
+        return f"创建广告失败: {e}"
 
 
 def _tool_ads_update(args):
@@ -400,11 +398,11 @@ def _tool_ads_update(args):
         updates = args.get('updates', {})
         res = ads_tools.update_ad(ad_id, updates)
         if res['success']:
-            return _("✅ 广告 {ad_id} 已更新", ad_id=ad_id)
-        return _("❌ 更新失败: {error}", error=res.get('error'))
+            return f"✅ 广告 {ad_id} 已更新"
+        return f"❌ 更新失败: {res.get('error')}"
     except Exception as e:
-        logger.warning(_("[tool:ads_update] 执行失败: {e}", e=e))
-        return _("更新广告失败: {e}", e=e)
+        logger.warning(f"[tool:ads_update] 执行失败: {e}")
+        return f"更新广告失败: {e}"
 
 
 def _tool_ads_delete(args):
@@ -413,11 +411,11 @@ def _tool_ads_delete(args):
         import plugins.ads.ai_tools as ads_tools
         res = ads_tools.delete_ad(args.get('ad_id'))
         if res['success']:
-            return _("✅ 广告 {ad_id} 已删除", ad_id=args.get('ad_id'))
-        return _("❌ 删除失败: {error}", error=res.get('error'))
+            return f"✅ 广告 {args.get('ad_id')} 已删除"
+        return f"❌ 删除失败: {res.get('error')}"
     except Exception as e:
-        logger.warning(_("[tool:ads_delete] 执行失败: {e}", e=e))
-        return _("删除广告失败: {e}", e=e)
+        logger.warning(f"[tool:ads_delete] 执行失败: {e}")
+        return f"删除广告失败: {e}"
 
 
 def _tool_ads_get_stats(args):
@@ -430,24 +428,24 @@ def _tool_ads_get_stats(args):
             days=int(args.get('days', 7))
         )
         if not res['success']:
-            return _("查询统计失败: {error}", error=res.get('error'))
+            return f"查询统计失败: {res.get('error')}"
         data = res.get('data', {})
         total = data.get('total', {})
         daily = data.get('daily', [])
         lines = [
-            _("=== 广告统计（最近 {days} 天）===", days=args.get('days',7)),
-            _("展示量: {impressions}", impressions=total.get('impressions', 0)),
-            _("点击量: {clicks}", clicks=total.get('clicks', 0)),
-            _("CTR: {ctr}%", ctr=total.get('ctr', 0)),
+            f"=== 广告统计（最近 {args.get('days',7)} 天）===",
+            f"展示量: {total.get('impressions', 0)}",
+            f"点击量: {total.get('clicks', 0)}",
+            f"CTR: {total.get('ctr', 0)}%",
         ]
         if daily:
-            lines.append(_("每日趋势:"))
+            lines.append("每日趋势:")
             for r in daily[-10:]:
-                lines.append(_("  {date}: 展示 {imp} 点击 {clk}", date=r['stat_date'], imp=r.get('impressions',0), clk=r.get('clicks',0)))
+                lines.append(f"  {r['stat_date']}: 展示 {r.get('impressions',0)} 点击 {r.get('clicks',0)}")
         return '\n'.join(lines)
     except Exception as e:
-        logger.warning(_("[tool:ads_get_stats] 执行失败: {e}", e=e))
-        return _("查询广告统计失败: {e}", e=e)
+        logger.warning(f"[tool:ads_get_stats] 执行失败: {e}")
+        return f"查询广告统计失败: {e}"
 
 
 def _tool_ads_analyze(args):
@@ -457,10 +455,10 @@ def _tool_ads_analyze(args):
         res = ads_tools.analyze_ads(days=int(args.get('days', 7)))
         if res['success']:
             return res['data']
-        return _("分析失败: {error}", error=res.get('error'))
+        return f"分析失败: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_analyze] 执行失败: {e}")
-        return _("广告分析失败: {e}", e=e)
+        return f"广告分析失败: {e}"
 
 
 def _tool_ads_render_snippet(args):
@@ -475,10 +473,10 @@ def _tool_ads_render_snippet(args):
         )
         if res['success']:
             return "在模板中加入以下代码即可渲染广告位：\n```jinja2\n" + res['data'] + "\n```"
-        return _("生成代码失败: {error}", error=res.get('error'))
+        return f"生成代码失败: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_render_snippet] 执行失败: {e}")
-        return _("生成广告渲染代码失败: {e}", e=e)
+        return f"生成广告渲染代码失败: {e}"
 
 
 def _tool_generate_ppt(args):
@@ -492,11 +490,11 @@ def _tool_generate_ppt(args):
         from agent_matrix.routes import _generate_ppt_file
         filename = _generate_ppt_file(topic, pages, style)
         if filename:
-        return _('✅ PPT 已生成："{topic}"（{pages}页）\n下载链接：/admin/agent-matrix/media/download/{filename}', topic=topic, pages=pages, filename=filename)
-        return _('❌ PPT 生成失败，请检查后端日志')
+            return f'✅ PPT 已生成："{topic}"（{pages}页）\n下载链接：/admin/agent-matrix/media/download/{filename}'
+        return '❌ PPT 生成失败，请检查后端日志'
     except Exception as e:
         logger.warning(f"[tool:generate_ppt] 执行失败: {e}")
-        return _('❌ PPT 生成异常: {e}', e=e)
+        return f'❌ PPT 生成异常: {e}'
 
 
 def _tool_generate_image(args):
@@ -557,16 +555,16 @@ def _tool_generate_image(args):
             urls.append(download_url)
 
         if not urls:
-            return _('❌ 图像生成 API 返回为空')
+            return '❌ 图像生成 API 返回为空'
 
-        lines = [_('✅ 已生成 {count} 张图像：', count=len(urls))]
+        lines = [f'✅ 已生成 {len(urls)} 张图像：']
         for u in urls:
             lines.append(f'  {u}')
         return '\n'.join(lines)
 
     except Exception as e:
         logger.warning(f"[tool:generate_image] 执行失败: {e}")
-        return _('❌ 图像生成异常: {e}', e=e)
+        return f'❌ 图像生成异常: {e}'
 
 
 def _tool_generate_markdown(args):
@@ -605,7 +603,7 @@ def _tool_generate_markdown(args):
                 base_url = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
                 model = 'qwen-turbo'
             else:
-                return _('❌ API Key 未配置，请在系统设置中配置硅基流动或阿里云 API Key')
+                return '❌ API Key 未配置，请在系统设置中配置硅基流动或阿里云 API Key'
         else:
             base_url = 'https://api.siliconflow.cn/v1'
             model = 'Qwen/Qwen2.5-14B-Instruct'
@@ -641,7 +639,7 @@ def _tool_generate_markdown(args):
 
     except Exception as e:
         logger.warning(f"[tool:generate_markdown] 执行失败: {e}")
-        return _('❌ Markdown 生成异常: {e}', e=e)
+        return f'❌ Markdown 生成异常: {e}'
 
 
 def _tool_generate_docx(args):
@@ -691,7 +689,7 @@ def _tool_generate_docx(args):
         )
         md_content = resp.choices[0].message.content or ''
         if not md_content.strip():
-            return _('❌ AI 内容生成为空')
+            return '❌ AI 内容生成为空'
 
         # 用 python-docx 渲染
         from docx import Document
@@ -736,11 +734,11 @@ def _tool_generate_docx(args):
         doc.save(fp)
 
         download_url = f'/admin/agent-matrix/media/download/{fn}'
-        return _('✅ Word 文档已生成："{topic}"（{sections}章）\n文件：{fn}\n下载链接：{download_url}', topic=topic, sections=sections, fn=fn, download_url=download_url)
+        return f'✅ Word 文档已生成："{topic}"（{sections}章）\n文件：{fn}\n下载链接：{download_url}'
 
     except Exception as e:
         logger.warning(f"[tool:generate_docx] 执行失败: {e}")
-        return _('❌ Word 文档生成异常: {e}', e=e)
+        return f'❌ Word 文档生成异常: {e}'
 
 
 TOOL_EXECUTORS = {

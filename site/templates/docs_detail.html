@@ -45,7 +45,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="{{ _('Menu') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a href="/docs">{{ _('Docs') }}</a>
@@ -79,7 +79,7 @@
     </div>
   {% endif %}
   {% if post.updated_at and post.updated_at != post.created_at %}
-  <p style="font-size:11px;color:var(--text-muted);margin-top:12px">{{ _('📝 Last Updated: {date}', date=post.updated_at[:10]) }}</p>
+  <p style="font-size:11px;color:var(--text-muted);margin-top:12px">{{ _('📝 Last Updated：{{ post.updated_at[:10] }}') }}</p>
   {% endif %}
 </div>
 <footer class="footer">

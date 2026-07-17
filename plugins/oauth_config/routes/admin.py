@@ -8,7 +8,6 @@ import sys, os
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify
-from i18n import _
 
 # ── 首次导入时自动初始化独立数据库（不依赖插件生命周期）──
 from plugins.oauth_config.models import init_oauth_tables
@@ -92,9 +91,9 @@ def admin_oauth_save():
     secret = d.get('client_secret', '').strip()
 
     if provider not in VALID_PROVIDERS:
-        return jsonify({'success': False, 'error': _('不支持的 provider: {provider}', provider=provider)}), 400
+        return jsonify({'success': False, 'error': f'不支持的 provider: {provider}'}), 400
     if not domain or not key:
-        return jsonify({'success': False, 'error': _('域名和 Client Key 不能为空')}), 400
+        return jsonify({'success': False, 'error': '域名和 Client Key 不能为空'}), 400
 
     # 检查该站点已启用的第三方登录数量（最多 2 个）
     with _get_oauth_db() as conn:
@@ -119,7 +118,7 @@ def admin_oauth_save():
             if existing and existing['client_secret']:
                 secret = existing['client_secret']
             else:
-                return jsonify({'success': False, 'error': _('Client Secret 不能为空（首次配置）')}), 400
+                return jsonify({'success': False, 'error': 'Client Secret 不能为空（首次配置）'}), 400
 
         now = datetime.now().isoformat()
         row = conn.execute(

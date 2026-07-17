@@ -5,32 +5,6 @@
 VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心** 的全栈 SaaS 建站与商业管理平台，集成了多供应商 AI 引擎、商城运营、CMS 内容管理、AI 客服、自动化工作流、云服务开通、分析统计、系统健康巡检、插件化扩展等能力。
 
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
-> 当前版本：`0.3.1`（WIP）
-
----
-
-## 目录
-
-- [一、系统架构](#一系统架构)
-- [二、核心模块](#二核心模块)
-  - [2.1 Agent 矩阵系统](#21-agent-矩阵系统)
-  - [2.2 Site Builder（LLM 一键建站）](#22-site-builder)
-  - [2.3 商城模块](#23-商城模块)
-  - [2.4 CMS 内容管理](#24-cms-内容管理)
-  - [2.5 数据清洗](#25-数据清洗)
-  - [2.6 工作流引擎](#26-工作流引擎)
-  - [2.7 认证与支付](#27-认证与支付)
-  - [2.8 主题系统](#28-主题系统)
-  - [2.9 健康检查](#29-健康检查)
-  - [2.10 插件系统](#210-插件系统)
-  - [2.11 国际化](#211-国际化)
-  - [2.12 内容工厂](#212-内容工厂)
-  - [2.13 其他服务](#213-其他服务)
-- [三、技术栈](#三技术栈)
-- [四、项目结构](#四项目结构)
-- [五、快速开始](#五快速开始)
-- [六、开发指南](#六开发指南)
-- [七、部署](#七部署)
 
 ---
 
@@ -57,16 +31,16 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
                     └─────────────┘
 ```
 
-### Nginx 生产部署
+### Nginx 生产部署拓扑
 
 | 域名 | 端口 | 服务 |
 |------|------|------|
-| `easykai.cn`（根路由 `/`） | `:8081` | 主站后端（Site） |
-| `easykai.cn` `/admin/` | `:8084` | 管理后台（Admin） |
-| `easykai.cn` `/auth/` `/subscribe` | `:8083` | 认证/订阅（Platform） |
-| `easykai.cn` `/auth/oauth/` `/user/` | `:8081` | OAuth/用户（Site） |
-| `platform.easykai.cn` | `:8083` | Platform 用户控制台 |
-| `agent.easykai.cn` | `:8084` | Admin（Agent 矩阵入口） |
+| easykai.cn / www.easykai.cn（根路由 `/`） | `:8081` | 主站后端（Site） |
+| easykai.cn `/admin/` | `:8084` | 管理后台（Admin） |
+| easykai.cn `/auth/` `/subscribe` | `:8083` | 认证/订阅（Platform） |
+| easykai.cn `/auth/oauth/` `/user/` | `:8081` | OAuth/用户（Site） |
+| platform.easykai.cn | `:8083` | Platform 用户控制台 |
+| agent.easykai.cn | `:8084` | Admin（Agent 矩阵入口） |
 
 ### 16 个子系统一览
 
@@ -74,30 +48,30 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
 |---|--------|------|------|
 | 1 | **Agent 矩阵** | `agent_matrix/` | 9 Agent 协作引擎 — 任务分解/ReAct 工具循环/调度/执行/汇总 |
 | 2 | **工具注册中心** | `agent_matrix/tools.py` | 3 个只读内置工具 + 白名单过滤 + function calling |
-| 3 | **Site Builder** | `site_builder/` | LLM 驱动一键建站（品牌→主题→导航→页面→文档）+ 统一设计令牌 |
+| 3 | **Site Builder** | `site_builder/` | LLM 驱动一键建站（品牌→主题→导航→页面→文档）+ 统一设计令牌 Site Settings |
 | 4 | **商城模块** | `auth-center/routes/shop_admin.py` + `platform/routes/shop_public.py` | 商品、SKU、订单、购物车、优惠券、AI 优化、评价、收藏、订单通知 |
 | 5 | **CMS 内容管理** | `auth-center/routes/cms_admin.py` + `auth-center/models/cms.py` | 文章、页面块、分类、下载管理 |
 | 6 | **工作流引擎** | `orchestrator/` | DAG 工作流编排、Cron 调度、12 种节点 |
 | 7 | **数据清洗** | `auth-center/routes/cleaner_agent.py` | 原始内容 → LLM 清洗 → 知识库 |
-| 8 | **Site Domains** | `plugins/site_domains/` | 子域名管理、Nginx 配置自动生成与 reload |
+| 8 | **Site Domains**（插件） | `plugins/site_domains/` | 子域名管理、独立服务 Nginx 配置自动生成与 reload（表留主库） |
 | 9 | **认证中心** | `auth-center/` | JWT SSO、用户、OAuth、企业认证 |
-| 10 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 4 网关 |
+| 10 | **支付订阅** | `auth-center/routes/subscription/` | 支付宝/微信/Stripe/PayPal 订阅支付（4 网关） |
 | 11 | **主题系统** | `themes/` | 5 个主题 + Jinja2 ChoiceLoader 模板覆盖 |
-| 12 | **健康检查** | `plugins/health_check/` | 服务探活、异常诊断、AI 自动修复、定时巡检 |
-| 13 | **验证码服务** | `plugins/captcha_embedded/` | 滑块拼图验证码，嵌入式蓝图 |
-| 14 | **分析系统** | `plugins/analytics/` | 访客追踪、IP 地理定位、UA 解析、60s 聚合 |
-| 15 | **社交分发** | `plugins/social_push/` | 微博/微信/头条/抖音 内容分发 |
-| 16 | **插件系统** | `plugin_manager/` + `plugins/` | 完整生命周期管理，17 个内置插件，各自独立数据库，支持免重启启停 |
+| 12 | **健康检查**（插件） | `plugins/health_check/` | 服务探活、异常诊断、AI 自动修复、定时巡检 |
+| 13 | **验证码服务**（插件） | `plugins/captcha_embedded/` | 滑块拼图验证码，嵌入式蓝图（已废弃独立 8090 服务） |
+| 14 | **分析系统**（插件） | `plugins/analytics/` | 访客追踪、IP 地理定位、UA 解析、60s 聚合 |
+| 15 | **社交分发**（插件） | `plugins/social_push/` | 微博/微信/头条/抖音 内容分发 |
+| 16 | **插件系统** | `plugin_manager/` + `plugins/` | PluginManager 统一管理 — 发现/安装/启用/卸载，17 个内置插件，各自独立数据库，支持免重启启停 |
 
 ---
 
-## 二、核心模块
+## 二、核心模块详解
 
 ### 2.1 Agent 矩阵系统（核心创新）
 
 位置：`agent_matrix/`
 
-**1 个 Master Agent + 8 个 Sub Agent** 的多智能体协作矩阵，支持多供应商 AI、ReAct 工具循环、并行调度、自检重试、上下文压缩、Token 审计。
+这是本系统最核心的组件 — 一个 **1 个 Master Agent + 8 个 Sub Agent 的多智能体协作矩阵**，支持多供应商 AI、ReAct 工具循环、并行调度、自检重试、上下文压缩、Token 审计。
 
 #### 架构
 
@@ -120,12 +94,14 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
  │Shop│ │CMS │ │Fina│ │User│ │Auto│ │Anal│ │Kai │ │Heal│
  │    │ │    │ │nce │ │    │ │mat │ │ytics│ │Chat│ │th  │
  ├────┤ ├────┤ ├────┤ ├────┤ ├────┤ ├────┤ ├────┤ ├────┤
- │ReAct│ │ReAct│ │ReAct│ │ReAct│ │ReAct│ │ReAct│ │对话│ │Tool│
- │回路│ │回路│ │回路│ │回路│ │回路│ │回路│ │模式│ │Reg.│
+ │    │ │    │ │    │ │    │ │    │ │    │ │    │ │Tool│
+ │    │ │    │ │    │ │    │ │    │ │    │ │    │ │Reg.│
  └────┘ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘
 ```
 
 #### AI 供应商
+
+支持 7 个 AI/媒体供应商：
 
 | 供应商 | 用途 | 典型模型 |
 |--------|------|----------|
@@ -151,17 +127,21 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
 | **Kai Assistant** | sub | deepseek-chat | chatbot | 全站 FAQ、多轮对话、工单反馈、飞书通知 |
 | **Health Check Agent** | sub | qwen-turbo | health_check | 服务监控、异常诊断、告警、修复建议 |
 
-#### 工具注册中心
+#### 工具注册中心（Tool Registry）
 
 每个 Sub Agent 可按 `allowed_tools` 白名单获取可用工具。当前内置 **3 个只读工具**：
 
 | 工具 | 描述 | 参数 |
 |------|------|------|
-| `get_system_health` | 获取系统最近一次健康巡检结果 | 无参 |
+| `get_system_health` | 获取系统最近一次健康巡检结果汇总（健康分/通过/警告/错误） | 无参 |
 | `query_stats` | 查询站点访问统计报告（PV/UV/趋势/来源/热门页面） | `days`（整数，默认 7） |
-| `search_knowledge` | 在平台知识库中检索关键词相关内容 | `keyword`（字符串） |
+| `search_knowledge` | 在平台知识库中检索关键词相关内容片段 | `keyword`（字符串，必填） |
+
+工具执行统一带 try/except 兜底，失败返回字符串错误信息，保证 ReAct 循环不会因单个工具出错而崩溃。
 
 #### ReAct 工具循环
+
+AIEngine 通过 `chat_with_tools()` 提供原生 function calling，AgentRunner 的 `_run_react_loop()` 实现完整的 ReAct 循环：
 
 ```
 思考 → 模型返回 tool_calls → 执行工具 → 结果回灌 → 再思考 → ...
@@ -169,270 +149,548 @@ VeroRunSystem 是一个基于 **9 个 AI Agent 协作矩阵 + 工具注册中心
                                                    模型返回纯文本 → 终态答复
 ```
 
-- 轮次上限 5 轮，达到后强制收尾
-- 工具结果截断 4000 字符，防止上下文膨胀
+特性：
+- 轮次上限（默认 5 轮），达到后强制收尾
+- 工具结果截断（4000 字符），防止上下文膨胀
 - 空返回自动回退到普通 `chat()` 模式
-- 无工具可用 Agent 走原单轮逻辑
+- 无工具可用的 Agent 走原单轮逻辑，不影响 ReAct Agent
 
 #### 工作流程
 
 1. **接收**：用户通过管理面板输入指令
 2. **分解**：Athena（GPT-4o）将任务分解为子任务列表（LLM 失败时走关键词模板 Fallback）
-3. **调度**：Orchestrator 分配到对应 Sub Agent（ThreadPoolExecutor 最多 5 并发，300s 超时熔断）
+3. **调度**：Orchestrator 根据子任务 domain 分配到对应 Sub Agent（支持并行下发，ThreadPoolExecutor 最多 5 并发，300s 超时熔断）
 4. **执行**：各 Sub Agent 并行执行，有工具的 Agent 进入 ReAct 循环
-5. **自检**：每 Agent 输出后自我评分（0-1），置信度 < 0.7 自动重试（最多 3 次）；灰区（0.5~0.8）触发 LLM 结构化自评
-6. **汇总**：Athena 收集所有结果，整合为结构化报告
+5. **自检**：每 Agent 输出后自我评分（0-1），低置信度（<0.7）自动重试（最多 3 次）；灰区（0.5~0.8）触发 LLM 结构化自评
+6. **汇总**：Athena 收集所有结果，整合为结构化报告返回用户
+
+#### 上下文压缩
+
+长会话（>8 条消息）自动触发上下文压缩，对早期历史生成 LLM 摘要并替换，失败时回退保留最近 6 条。
 
 #### 技术亮点
 
-- **智能任务分解**：AI 分解（GPT-4o）优先，失败 Fallback 到关键词模板
-- **自检重试**：置信度 < 0.7 自动重试；灰区触发 LLM 结构化自评
-- **多供应商路由**：每个 Agent 可单独配置供应商和模型
-- **Token 审计**：完整记录每次调用，支持每日汇总（`agent_token_logs` + `agent_token_daily`）
+- **智能任务分解**：先尝试 AI 分解（GPT-4o），失败或超时则 Fallback 到关键词模板
+- **自检重试**：Agent 输出附带置信度评分，`self_critique_score < 0.7` 自动重试；灰区触发 LLM 结构化自评
+- **多供应商路由**：每个 Agent 可单独配置供应商和模型（`provider_model_id`）
+- **Token 审计**：完整记录每次调用的 token 消耗，支持每日汇总（`agent_token_logs` + `agent_token_daily`）
+- **供应商切换**：管理后台支持 50+ 模型配置，随时切换
 - **流式输出**：支持 SSE（Server-Sent Events）实时流式聊天
 - **媒体能力**：声音克隆（火山引擎）、数字人视频生成、文生图（通义万相）
 
 ---
 
-### 2.2 Site Builder（LLM 一键建站）
+### 2.1b Site Builder（LLM 一键建站）
 
 位置：`site_builder/`
 
+Site Builder 是 LLM 驱动的站内网页一键建站核心模块，复用 Agent 矩阵的 Master Agent（AIEngine）生成站点内容，并按建站 DAG 逐步落地。
+
+#### 两个子模块
+
 | 子模块 | 位置 | 职责 |
 |--------|------|------|
-| **建站引擎** | `site_builder/engine.py` + `routes.py` | 解析需求 → 结构化方案 → 执行建站 DAG |
-| **统一设计令牌** | `site_builder/site_settings/` | 一套令牌统一替代 brand/header/footer/themes |
+| **建站引擎** | `site_builder/engine.py` + `site_builder/routes.py` | 解析用户需求 → 结构化方案 → 执行建站 DAG（品牌→主题→导航→页面→文档），支持增量更新单个区块 |
+| **统一设计令牌 Site Settings** | `site_builder/site_settings/` | 用一套设计令牌（brand/colors/typography/navigation/footer/seo）**统一替代原 brand_settings + header_nav + footer_* + themes 四套独立模块** |
 
-建站流程：`用户需求 → AI 解析 → 品牌 → 主题 → 导航 → 页面 → 文档 → 写入令牌 + CMS 页面块`
+#### 建站流程
 
-内置行业提示词模板：科技公司、律所、餐饮、教育等。
+```
+用户需求（自然语言）
+      │
+      ▼
+Master Agent（AIEngine）解析 → 结构化建站方案
+      │
+      ▼
+建站 DAG：品牌 → 主题 → 导航 → 页面 → 文档
+      │
+      ▼
+写入统一设计令牌 + CMS 页面块 → 站点生效
+```
+
+#### 内置行业提示词模板
+
+`site_builder/prompts/`：`tech_company`（科技公司）、`law_firm`（律所）、`restaurant`（餐饮）、`education`（教育）等。
+
+#### API 蓝图
+
+- `/admin/site-builder/*` — 建站任务 API
+- `/admin/site-settings/*` — 统一设计令牌读写（管理后台「站点设置」界面：品牌/颜色/排版/导航/页脚/SEO 六个 Tab）
+
+> 说明：管理后台「站点设置」为纯 JS 动态渲染模块，界面由 `l_site_settings()` 注入，样式经 JS 注入 `<head>`，与其它管理模块渲染模式一致。
 
 ---
 
-### 2.3 商城模块
+### 2.2 商城模块（Shop）
 
-后台管理：`auth-center/routes/shop_admin.py` | 前端 API：`platform/routes/shop_public.py`
+后台管理：`auth-center/routes/shop_admin.py`（前缀 `/shop`）  
+前端 API：`platform/routes/shop_public.py`（前缀 `/shop`）  
+支付服务：`auth-center/services/payment_service.py`
+
+#### 功能矩阵
 
 | 功能 | 后台管理 | 前端 API | 说明 |
 |------|----------|----------|------|
 | **商品管理** | CRUD + 多图上传/排序/删除 | 列表/详情/搜索/按分类筛选 | 支持 AI 优化标题/描述/卖点 |
 | **SKU 管理** | 规格组 → 笛卡尔积生成 SKU | 按规格选 SKU | 自动生成 sku_code |
-| **分类管理** | 无限级分类树 | 分类筛选 | 含批量排序 |
+| **分类管理** | 无限级分类树 | 分类筛选 | 树形结构，含批量排序 |
 | **购物车** | — | 增/删/改/查/批量 | 有效期 30 天 |
 | **订单管理** | 发货/退款/物流查询 | 下单/取消/确认收货 | 幂等性 + 限流 |
-| **优惠券** | 创建/发放/核销/统计/批量 | 下单时使用 | 固定减/百分比，限定商品 |
-| **支付** | — | 支付宝 RSA2 | 桩模式降级 |
-| **物流** | — | 快递鸟查询 | `plugins/logistics/` |
-| **AI 优化** | 标题多版本/描述重写/卖点/标签 | — | ShopAIProcessor → AIEngine |
-| **商品评价** | 回复/删除/审核 | 列表/统计 | `plugins/reviews/` 5 星 + 晒图 |
-| **收藏心愿单** | — | 收藏/取消/检查/数量 | `plugins/wishlist/` |
-| **订单通知** | — | 自动站内信 | `plugins/order_notify/` 6 种事件 |
+| **优惠券** | 创建/发放/核销/统计/批量发放 | 下单时使用 | 固定减/百分比减，限定商品 |
+| **支付** | — | 支付宝 | RSA2 签名 + 桩模式降级 |
+| **物流**（插件） | — | 快递鸟查询 | `plugins/logistics/` |
+| **AI 优化** | 标题多版本/描述重写/卖点/标签/批量 | — | ShopAIProcessor → AIEngine |
+| **商品评价**（插件） | 回复/删除/审核 | 列表/统计 | `plugins/reviews/` 5 星评分 + 晒图 + 匿名 |
+| **收藏心愿单**（插件） | — | 收藏/取消/检查/数量 | `plugins/wishlist/` |
+| **订单通知**（插件） | — | 自动站内信 | `plugins/order_notify/` 6 种事件通知 |
+
+#### 支付系统
+
+商城订单采用支付宝电脑网站支付：
+
+```
+订单创建 → 调起支付宝（GET URL 跳转）
+                ↓
+         用户扫码支付
+                ↓
+    异步通知 → verify_notify() RSA2 签名验证
+                ↓
+    confirm_shop_order() 更新订单状态 + 创建购买记录
+```
+
+- **安全**：RSA2 签名验证，通知域名从 DB 动态读取
+- **桩模式**：未配置支付宝时自动降级，标注 `stub_auto_confirm`
+- **三层降级**：DB `system_config` → 环境变量 → 桩模式
+
+#### 订阅支付（独立于商城）
+
+`auth-center/routes/subscription/gateway/` 支持 4 种支付网关：
+
+| 网关 | 文件 | 能力 |
+|------|------|------|
+| 支付宝 | `gateway/alipay.py` | 电脑网站支付 + 周期扣款签约 + 自动扣款 |
+| 微信支付 | `gateway/wechat.py` | Native 扫码支付 + 委托扣款 |
+| Stripe | `gateway/stripe.py` | Checkout Session + Webhook |
+| PayPal | `gateway/paypal.py` | PayPal Order + Webhook |
 
 ---
 
-### 2.4 CMS 内容管理
+### 2.3 CMS 内容管理系统
 
-模型：`auth-center/models/cms.py` | 路由：`auth-center/routes/cms_admin.py`
+模型定义：`auth-center/models/cms.py`  
+管理路由：`auth-center/routes/cms_admin.py`
+
+#### 数据库表
 
 | 表名 | 用途 | 核心字段 |
 |------|------|----------|
-| `cms_blocks` | 页面块构建器 | page, section, block_type, title, content, image_url, extra_json |
-| `cms_posts` | 文章 | slug, category, title, content, tags, is_published, publish_channels |
-| `cms_categories` | 文章分类 | name, icon, slug, sort_order |
+| `cms_blocks` | 页面块构建器 | page, section, block_type, title, content, image_url, link_url, position, extra_json |
+| `cms_posts` | 文章 | slug, category, title, content, tags, audience, is_published, publish_channels |
+| `cms_categories` | 文章分类 | name, icon, slug, audience, sort_order |
 | `cms_settings` | 站点设置 | key, value |
 | `downloads` | 下载资源 | slug, name, version, download_url, file_size, license |
 
-页面块类型：text / hero / features / gallery / cta / contact 等，支持独立 `is_published` 控制。
+#### 页面块系统
+
+CMS 核心是 **Block 页面构建器** — 每页面由多个 Block 组成，支持拖拽排序。
+
+- **类型**：text / hero / features / gallery / cta / contact 等
+- **额外数据**：`extra_json` 存储任意结构化数据
+- **发布控制**：每个 block 独立 `is_published`
+
+#### 社交发布集成
+
+文章支持一键分发：发布到 `cms_posts` 表的同时，可分发到微博、微信、今日头条、抖音等。
 
 ---
 
-### 2.5 数据清洗
+### 2.4 数据清洗（Cleaner Agent）
 
-位置：`auth-center/routes/cleaner_agent.py`
+位置：`auth-center/routes/cleaner_agent.py`（蓝图前缀 `/shop/cleaner`）
 
-流程：`原始内容 → knowledge_queue → LLM 清洗 → 结构化 JSON → 去重检测 → knowledge_blocks`
+Data Cleaner Agent 是连接"原始数据"与"结构化知识"的桥梁，支持从 Agent 矩阵直接调用。
 
-API 端点：`/shop/cleaner/submit`、`/shop/cleaner/list`、`/shop/cleaner/run/<qid>`、`/shop/cleaner/run-all`
+#### 工作流程
+
+```
+接收原始内容（知识/文章/商品数据）
+        ↓
+写入 knowledge_queue 队列
+        ↓
+调用 LLM（DeepSeek/DashScope/OpenAI/OpenRouter）
+        ↓
+LLM 输出结构化 JSON: {title, content, category, keywords, is_duplicate}
+        ↓
+去重检测 → 写入 knowledge_blocks 表
+        ↓
+自动注册为 Agent Matrix 可调用能力
+```
+
+#### API 端点
+
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/shop/cleaner/submit` | POST | 提交原始内容 |
+| `/shop/cleaner/list` | GET | 队列列表 |
+| `/shop/cleaner/run/<qid>` | POST | 执行单条清洗 |
+| `/shop/cleaner/run-all` | POST | 批量清洗所有待处理项 |
+
+LLM 配置通过 `system_config` 管理：`cleaner_ai_provider`、`cleaner_ai_model`、`cleaner_ai_base_url`、`cleaner_ai_api_key`。
 
 ---
 
-### 2.6 工作流引擎
+### 2.5 工作流引擎（Orchestrator）
 
 位置：`orchestrator/`（10 个 .py 文件）
 
-轻量级 DAG 工作流引擎，状态机：`pending → running → completed/failed/paused/timeout/cancelled`
+轻量级 DAG 工作流引擎，支持 12 种节点类型。
 
-12 种节点：`ai_agent` / `rss_fetch` / `ai_process` / `condition` / `approval` / `publish` / `notify` / `wait` / `http_request` / `script` / `sub_workflow` / `data_transform`
+#### 状态机
+
+```
+工作流实例:
+  pending → running → completed
+                  ↓ → failed
+                  ↓ → paused → running
+                  ↓ → timeout
+                  ↓ → cancelled
+
+节点实例:
+  pending → running → completed
+                  ↓ → failed
+                  ↓ → skipped
+                  ↓ → waiting_approval → completed / rejected
+```
+
+#### 节点类型（12 种）
+
+| 节点类型 | 用途 | 说明 |
+|----------|------|------|
+| `ai_agent` | AI Agent 任务 | 调用 Agent 矩阵中的子 Agent |
+| `rss_fetch` | 数据采集 | RSS/API 数据拉取（对接 content_factory） |
+| `ai_process` | AI 加工 | 内容分析/改写（调用 DashScope） |
+| `condition` | 条件分支 | 表达式评估 |
+| `approval` | 人工审批 | 暂停等待审批 |
+| `publish` | 内容发布 | 文章/商品发布到多平台 |
+| `notify` | 通知 | 站内信/Webhook/邮件 |
+| `wait` | 等待 | 定时延迟 |
+| `http_request` | HTTP 调用 | 外部 API 请求 |
+| `script` | 脚本执行 | 安全沙箱（safe_eval） |
+| `sub_workflow` | 子工作流 | 嵌套执行 |
+| `data_transform` | 数据转换 | 格式转换/映射 |
+
+#### 架构
+
+```
+Cron Scheduler ──→ Workflow Engine ──→ Worker Pool
+       │                                      │
+  定时触发                             并发执行节点
+```
 
 ---
 
-### 2.7 认证与支付
+### 2.6 认证与支付系统
+
+位置：`auth-center/`
 
 #### JWT SSO 单点登录
 
 ```
-Platform (:8083) ← sso_token cookie → Admin (:8084)
-       ↓                                    ↓
-       └────── JWT 验证（共享 secret）──────┘
+         ┌──────────┐    sso_token cookie     ┌──────────┐
+         │ Platform │ ◄──────────────────────► │  Admin   │
+         │:8083     │      共享 cookie domain   │:8084     │
+         └──────────┘                          └──────────┘
+                │                                    │
+                └────────── JWT 验证 ────────────────┘
 ```
 
-- Cookie 共享：`sso_token` 跨子域名（Domain=easykai.cn）
+- JWT 签发 + 验证，支持 `is_admin` 权限标记
+- Cookie 共享：`sso_token` 跨子域名共享
 - 支持支付宝 OAuth 登录 + 企业工商认证
-
-#### 支付系统
-
-**商城支付**：支付宝电脑网站支付（RSA2 签名 + 桩模式降级）
-
-**订阅支付**（4 网关）：
-
-| 网关 | 能力 |
-|------|------|
-| 支付宝 | 电脑网站支付 + 周期扣款签约 + 自动扣款 |
-| 微信支付 | Native 扫码支付 + 委托扣款 |
-| Stripe | Checkout Session + Webhook |
-| PayPal | PayPal Order + Webhook |
 
 #### 服务层（auth-center/services/，30 个文件）
 
-| 类别 | 核心文件 |
-|------|----------|
-| 认证 | `jwt_service.py`, `oauth_service.py`, `verification_service.py`, `enterprise_verify_service.py` |
-| 支付 | `payment_service.py`, `alipay_service.py`, `completion_service.py`, `invoice_service.py` |
-| 社交 | `wechat_service.py`, `weibo_service.py`, `toutiao_service.py`, `douyin_service.py` |
-| AI | `agent_engine.py`, `ai_content_generator.py`, `avatar_service.py` |
-| 通讯 | `email_client.py`, `mail_service.py`, `sms_service.py`, `notification_service.py` |
-| 安全 | `crypto.py`, `password_validator.py`, `name_validator.py`, `sensitive_words.py` |
-| 业务 | `license_service.py`, `brand_service.py`, `renewal_reminder.py`, `captcha_service.py` |
-| 媒体 | `volcengine_client.py` |
+| 类别 | 文件 | 功能 |
+|------|------|------|
+| **认证** | `jwt_service.py`, `oauth_service.py`, `verification_service.py`, `enterprise_verify_service.py` | JWT、OAuth、实名认证、企业认证 |
+| **支付** | `payment_service.py`, `alipay_service.py`, `completion_service.py`, `invoice_service.py` | 支付宝支付、结算、发票 |
+| **社交** | `wechat_service.py`, `weibo_service.py`, `toutiao_service.py`, `douyin_service.py`, `wechat_push_service.py` | 多平台社交分发 |
+| **AI** | `agent_engine.py`, `ai_content_generator.py`, `avatar_service.py` | Agent 引擎、AI 内容生成、头像 |
+| **通讯** | `email_client.py`, `mail_service.py`, `sms_service.py`, `notification_service.py` | 邮件、短信、通知 |
+| **安全** | `crypto.py`, `password_validator.py`, `name_validator.py`, `sensitive_words.py` | 加密、验证、敏感词 |
+| **业务** | `license_service.py`, `brand_service.py`, `renewal_reminder.py`, `captcha_service.py`, `comment_review.py`, `deployment_config.py` | 许可、续费、验证码、评论审核、部署 |
+| **媒体** | `volcengine_client.py` | 火山引擎语音/视频 |
 
 ---
 
-### 2.8 主题系统
+### 2.7 主题系统（Theme System）
 
 位置：`themes/`
 
-| 主题 | 风格 |
-|------|------|
-| default | 默认现代风格 |
-| light | 清爽亮色 |
-| nature | 自然绿色 |
-| ocean | 海洋蓝色 |
-| warm | 温暖橙色 |
+#### 内置主题
 
-实现机制：Jinja2 `ChoiceLoader` 模板覆盖，优先加载激活主题的 `templates/`，回退到默认模板。
+| 主题 | 目录 | 风格 |
+|------|------|------|
+| default | `themes/default/` | 默认现代风格 |
+| light | `themes/light/` | 清爽亮色 |
+| nature | `themes/nature/` | 自然绿色 |
+| ocean | `themes/ocean/` | 海洋蓝色 |
+| warm | `themes/warm/` | 温暖橙色 |
+
+#### 实现机制
+
+Jinja2 `ChoiceLoader` 模板覆盖：
+
+```python
+app.jinja_loader = ChoiceLoader([
+    FileSystemLoader(theme_tpl_dir),     # 优先：激活主题的 templates/
+    app.jinja_loader,                    # 回退：默认模板
+])
+```
+
+主题支持：模板覆盖、自定义 CSS（`theme.css`）、静态文件服务（`/themes/<slug>/`）。
 
 ---
 
-### 2.9 健康检查
+### 2.8 系统健康检查（Health Check）
 
-位置：`plugins/health_check/`
+位置：`health_check/`（9 个 .py 文件）
+
+独立的系统健康监控模块，由 Agent 矩阵中的 **Health Check Agent** 调用。每条检查项支持 **AI 分析** 和 **一键修复**，调用 LLM 诊断根因并自动执行修复脚本。
+
+#### 功能架构
 
 ```
-Service Discovery → Health Checkers (HTTP/Ping/MySQL)
-        ↓
-Alerter (邮件/Webhook) ← AI Fixer (LLM 诊断 + 修复)
-        ↓
-Scheduler (APScheduler 定时巡检)
+┌─────────────────────────────────────────────┐
+│              Health Check                    │
+├─────────────────────────────────────────────┤
+│  ① Service Discovery    端口探活 / 路由发现  │
+│  ② Health Checkers      HTTP / Ping / MySQL  │
+│  ③ Alerter              邮件 / Webhook 告警  │
+│  ④ AI Fixer             LLM 诊断 + 修复      │
+│  ⑤ Scheduler            定时巡检（APScheduler）│
+└─────────────────────────────────────────────┘
 ```
 
 ---
 
-### 2.10 插件系统
+### 2.9 插件系统（Plugin System）
 
-位置：`plugin_manager/`（19 个 .py 文件）+ `plugins/`
+位置：`plugin_manager/`（管理引擎，19 个 .py 文件）+ `plugins/`（插件代码目录）
 
-#### 生命周期
+标准化插件管理系统，由 PluginManager 统一管理插件的完整生命周期：**发现 → 安装 → 启用 → 激活 → 禁用 → 卸载**。每个插件拥有独立的 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留。启动期通过 `pm.mount_all_routes()` 挂载全部已安装插件（含 disabled）的路由，运行时由门卫按启用状态放行/拦截，实现**后台启用/禁用插件免重启**。
+
+#### 系统架构
 
 ```
-发现 → 安装 → 启用 → 激活 → 禁用 → 卸载
+PluginManager (plugin_manager/)
+├── manager.py        # 核心：生命周期管理、依赖解析、路由挂载
+├── base.py           # BasePlugin 抽象基类（所有插件继承）
+├── discovery.py      # 文件系统扫描 + plugin.json 解析
+├── models.py         # PluginInfo / PluginStatus 数据模型
+├── routes.py         # Flask 管理 API（32 个端点）
+├── event_bus.py      # EventBus 事件总线（46 个预定义事件）
+├── hooks.py          # Hook 系统（Action + Filter 模式）
+├── config_validator.py # JSON Schema 配置校验器
+├── deps.py           # 依赖解析器（拓扑排序、循环检测）
+├── injectors.py      # 依赖注入辅助
+├── exceptions.py     # 7 种自定义异常
+├── logger.py         # 独立日志系统
+├── store.py          # 插件商店 API
+├── models_store.py   # 商店数据模型
+├── subscription.py   # 商店订阅
+├── payment.py        # 支付网关（支付宝 + Mock）
+├── license.py        # 许可管理
+└── license_server/   # 许可服务器
 ```
 
-每个插件拥有独立 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留。启动期通过 `pm.mount_all_routes()` 挂载全部已安装插件路由，运行时由门卫按启用状态放行/拦截，**后台启用/禁用插件免重启**。
+#### 插件生命周期
+
+```
+  发现（discover）     安装（install）       启用（enable）         激活（activate）
+  ┌─────────┐        ┌──────────┐         ┌────────┐           ┌──────────┐
+  │ 扫描    │        │ 写入 DB  │         │ setup  │           │ 注册路由  │
+  │ plugins/│ ──────→│ 记录元   │ ───────→│ 建表   │ ────────→ │ 注册事件  │
+  │ 目录    │  发现   │ 数据     │  安装   │ 初始化  │  启用    │ 启动任务  │
+  └─────────┘        └──────────┘         └────────┘           └──────────┘
+
+  卸载（uninstall）               禁用（disable）
+  ┌────────────┐               ┌──────────┐
+  │ 删除.db文件 │  ←────────── │ deactivate│
+  │ 清理DB记录  │   卸载       │ 取消事件  │
+  │ 删除配置    │              │ 停止任务  │
+  └────────────┘              └──────────┘
+```
 
 #### 管理 API（32 个端点）
 
-| 路由 | 说明 |
-|------|------|
-| `/admin/plugins` | 列出所有插件 |
-| `/admin/plugins/discover` | 扫描新插件 |
-| `/admin/plugins/<id>/install` | 安装 |
-| `/admin/plugins/<id>/enable` | 启用 |
-| `/admin/plugins/<id>/disable` | 禁用 |
-| `/admin/plugins/<id>/uninstall` | 卸载 |
-| `/admin/plugins/<id>/config` | 配置读写 |
-| `/admin/plugins/hooks/*` | 钩子管理 |
-| `/admin/plugins/store/*` | 插件商店 |
-| `/admin/plugins/license/*` | License 管理 |
-| `/admin/plugins/payment/*` | 支付管理 |
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/admin/plugins` | GET | 列出所有插件 |
+| `/admin/plugins/discover` | GET | 扫描新插件 |
+| `/admin/plugins/<id>/install` | POST | 安装 |
+| `/admin/plugins/<id>/enable` | POST | 启用 |
+| `/admin/plugins/<id>/disable` | POST | 禁用 |
+| `/admin/plugins/<id>/activate` | POST | 激活 |
+| `/admin/plugins/<id>/uninstall` | POST | 卸载 |
+| `/admin/plugins/<id>/config` | GET/POST | 配置读写 |
+| `/admin/plugins/hooks/actions` | GET | Action 钩子列表 |
+| `/admin/plugins/hooks/filters` | GET | Filter 钩子列表 |
+| `/admin/plugins/dependency-order` | GET | 拓扑排序 |
+| `/admin/plugins/<id>/dependencies` | GET | 依赖树 |
+| `/admin/plugins/<id>/config/validate` | POST | 校验配置 |
+| `/admin/plugins/<id>/config/batch` | POST | 批量保存 |
+| `/admin/plugins/<id>/log` | GET/DELETE | 日志读取/清空 |
+| `/admin/plugins/store/browse` | GET | 商店浏览 |
+| `/admin/plugins/store/<id>` | GET | 商店详情 |
+| `/admin/plugins/store/<id>/install` | POST | 商店安装 |
+| `/admin/plugins/license/*` | * | License 管理 |
+| `/admin/plugins/payment/*` | * | 支付管理 |
+| `/admin/plugins/subscriptions/*` | * | 订阅管理 |
+| `/admin/plugins/menus` | GET | 插件菜单 |
 
 #### 事件系统
 
-EventBus 定义了 46 个预定义事件：应用生命周期、用户、订单、订阅、CMS 内容、调度器、健康检查、插件生命周期。
+EventBus 定义了 46 个预定义事件，覆盖以下领域：
+
+| 领域 | 事件 |
+|------|------|
+| **应用生命周期** | `app.ready`, `app.shutdown` |
+| **用户** | `user.registered`, `user.login`, `user.logout`, `user.updated`, `user.deleted` |
+| **订单** | `order.created`, `order.paid`, `order.refunded`, `order.cancelled`, `order.shipped`, `order.completed` |
+| **订阅** | `sub.created`, `sub.renewed`, `sub.expired`, `sub.cancelled` |
+| **CMS 内容** | `cms.published`, `cms.updated`, `cms.deleted` |
+| **调度器** | `scheduler.job_started`, `scheduler.job_completed`, `scheduler.job_failed` |
+| **健康检查** | `health.passed`, `health.warning`, `health.error` |
+| **插件生命周期** | `plugin.installed`, `plugin.enabled`, `plugin.disabled`, `plugin.uninstalled` |
 
 #### 内置插件（17 个）
 
-| 插件 | 独立库 | 核心能力 |
-|------|--------|----------|
-| 1688 供应链采集 | ali_api.db（7 表） | 商品搜索、评论、按图搜索、店铺全量采集 + AI 优化 |
-| 广告管理 | ads.db | 全站广告位创建、编辑、管理 |
-| 内容工厂 | content_factory.db | 多源采集、AI 加工、审核发布、Skill 推送 |
-| 企业认证 | enterprise_verify.db | OCR 营业执照识别 + AI 自动审核 |
-| 商品评价 | reviews.db | 5 星评分 + 晒图 + 匿名 + 回复 |
-| 收藏心愿单 | wishlist.db | 收藏/取消/检查/列表/数量统计 |
-| 订单通知 | 无持久化 | 6 种事件自动站内信通知 |
-| 智能优惠券 | coupons.db（2 表） | 场景券 + AI 推荐 + 订阅联动 |
-| AI 工具 | ai_tools.db | PPT 生成、图像生成 |
-| 分析看板 | analytics.db | 无 Cookie 分析中间件 + 仪表盘 |
-| 验证码 | — | 滑块拼图验证码（嵌入式） |
-| 健康检查 | health.db | 系统健康巡检/告警/趋势分析 |
-| 社交分发 | 主库 | 微博/微信/头条/抖音 内容分发 |
-| IM 网关 | im_gateway.db | 飞书/企微/钉钉/QQ 多适配器 |
-| OAuth 登录配置 | 主库 | 第三方 OAuth 登录配置管理 |
-| Site Domains | 主库 | 子域名管理 + Nginx 配置自动生成/reload |
-| 邮件服务 | email.db | 邮件发送配置与收发记录管理 |
+| 插件 | 位置 | 版本 | 描述 | 独立数据库 |
+|------|------|------|------|-----------|
+| **1688 供应链采集** | `plugins/ali_api/` | 0.2.1 | 阿里巴巴商品搜索、评论、按图搜索、店铺全量采集 + AI 优化 | ali_api.db（7 表） |
+| **广告管理** | `plugins/ads/` | 0.1.0 | 全站广告位创建、编辑、管理 | ads.db |
+| **内容工厂** | `plugins/content_factory/` | 0.1.0 | 多源采集、AI 加工、审核发布、Skill 推送 | content_factory.db |
+| **企业认证** | `plugins/enterprise_verify/` | 0.1.0 | OCR 营业执照识别 + AI 自动审核 | enterprise_verify.db |
+| **商品评价** | `plugins/reviews/` | 1.0.0 | 5 星评分 + 晒图 + 匿名评价 + 管理回复 + 统计 | reviews.db |
+| **收藏心愿单** | `plugins/wishlist/` | 1.0.0 | 收藏/取消/检查/列表/数量统计 | wishlist.db |
+| **订单通知** | `plugins/order_notify/` | 1.0.0 | 自动站内信：下单/支付/发货/退款/取消/完成 | 无持久化 |
+| **智能优惠券** | `plugins/coupons/` | 0.1.0 | 场景券 + AI 推荐 + 订阅联动 | coupons.db（2 表） |
+| **AI 工具** | `plugins/ai_tools/` | 0.1.0 | PPT 生成、图像生成 | ai_tools.db |
+| **分析看板** | `plugins/analytics/` | 0.1.0 | 无 Cookie 分析中间件 + 仪表盘 | analytics.db |
+| **验证码服务** | `plugins/captcha_embedded/` | 0.1.0 | 滑块验证码 | — |
+| **健康检查** | `plugins/health_check/` | 0.1.0 | 系统健康巡检/告警/趋势分析 | health.db |
+| **社交分发** | `plugins/social_push/` | 0.1.0 | 微博/微信/头条/抖音 内容分发（逻辑解耦，表留主库） | 主库 |
+| **IM 网关** | `plugins/im_gateway/` | 0.1.0 | 飞书/企业微信/钉钉/QQ 多适配器消息网关 | im_gateway.db |
+| **OAuth 登录配置** | `plugins/oauth_config/` | 0.1.0 | 第三方 OAuth 登录配置管理（后台插件化） | 主库 |
+| **Site Domains** | `plugins/site_domains/` | 0.1.0 | 子域名管理 + 独立服务 Nginx 配置自动生成/reload（表留主库） | 主库 |
+| **邮件服务** | `plugins/email/` | 0.1.0 | 邮件发送配置与收发记录管理 | email.db |
+
+#### 插件规范
+
+```python
+from plugin_manager.base import BasePlugin
+
+class MyPlugin(BasePlugin):
+    name = 'my_plugin'
+    version = '1.0.0'
+    description = '我的插件'
+    author = 'VeroRun'
+
+    def on_install(self, registry) -> bool:
+        """安装时初始化插件自有数据库"""
+        init_db()  # 在 plugins/my_plugin/my_plugin.db 中建表
+        return True
+
+    def on_uninstall(self, registry) -> bool:
+        """卸载时清理 — BasePlugin 默认自动删除 .db 文件"""
+        return True
+
+    def register_routes(self):
+        """注册 Flask 蓝图（自动挂载 /plugin/<name>/）"""
+        from flask import Blueprint
+        bp = Blueprint('my_plugin', __name__, url_prefix='/plugin/my_plugin')
+        return [bp]
+```
+
+#### 目录结构规范
+
+```
+plugins/<name>/
+├── __init__.py        # 插件类（继承 BasePlugin）
+├── plugin.json        # 元数据（含 permissions 声明）
+├── <name>.db          # 插件自有数据库（自动创建/删除）
+├── i18n/              # 插件自有翻译（隔离于系统 _()）
+│   ├── zh-CN.yml
+│   └── en.yml
+├── routes/            # Flask 蓝图（自动挂载 /plugin/<name>/）
+├── services/          # 业务逻辑
+├── static/            # 静态资源
+└── templates/         # 模板
+```
 
 ---
 
-### 2.11 国际化（i18n）
+### 2.10 国际化（i18n）
 
 位置：`i18n/`
 
-- 存储方式：DB `i18n_strings` 表 + YAML 文件双存储
-- 查找链：DB → YAML → 原文（三阶降级）
-- 语言包：`zh-CN.yml` / `en.yml`
-- 性能：`get_all_translations()` 使用 LRU 内存缓存
-- 插件隔离：插件使用 `self.t()`，不与系统 `_()` 冲突
+全域 i18n 支持，50+ 文件使用 `_()` 翻译函数。
+
+- **存储方式**：DB `i18n_strings` 表 + YAML 文件双存储
+- **查找链**：DB（管理后台可编辑）→ YAML → 原文（三阶降级）
+- **语言包**：`zh-CN.yml` / `en.yml`
+- **性能**：`get_all_translations()` 使用 LRU 内存缓存，避免每次翻译新建 SQLite 连接
+- **插件隔离**：插件使用 `self.t()`，不与系统 `_()` 冲突
+- **静态语言**：通过 `DEPLOY_LANG` 环境变量决定
 
 ---
 
-### 2.12 内容工厂
+### 2.11 内容工厂（Content Factory）
 
-位置：`plugins/content_factory/`
+位置：`auth-center/services/content_factory/`（已解耦为独立插件 `plugins/content_factory/`）
 
 ```
 RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 ```
 
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| 基类采集器 | `base_collector.py` | HASH 去重、标题相似度检测、批量写入 |
+| AI 处理器 | `ai_processor.py` | 调用通义千问提取/分析/改写 |
+| Skill 推送器 | `skill_pusher.py` | 导出为 SKILL.md，推送到 Hermes/OpenClaw |
+
 ---
 
-### 2.13 其他服务
+### 2.12 其他服务
 
-#### 验证码
+#### 验证码服务（Captcha Embedded）
 
-嵌入式插件 `plugins/captcha_embedded/`，滑块拼图验证码生成/验证/行为分析/消耗限流。原独立服务 `captcha-service:8090` 已废弃。
+作为嵌入式插件 `plugins/captcha_embedded/` 运行，通过 Flask Blueprint 挂载到 Admin/Platform 服务内（与 admin 进程共用，无独立端口）。原独立服务 captcha-service:8090 已废弃（systemd `captcha.service` 已停）。
 
-#### 分析系统
+能力：滑块拼图验证码生成 / 验证 / 行为分析 / 消耗限流。
 
-中间件自动记录访问日志（路径、IP、UA、耗时），每 60 秒聚合一次原始日志。GeoIP 定位 + 管理后台仪表盘。
+#### 分析系统（analytics）
 
-#### 社交分发
+- **中间件**：自动记录访问日志（路径、IP、UA、耗时），支持报告生成
+- **处理器**：每 60 秒聚合一次原始日志
+- **GeoIP**：IP 地理定位（`ip2region/`）
+- **仪表板**：管理后台查看统计
 
-| 平台 | 能力 |
-|------|------|
-| 微博 | 内容发布 |
-| 微信公众号 | 图文推送 |
-| 今日头条 | 内容发布 |
-| 抖音 | 视频发布 + AI 配图/文案 |
+#### 社交分发（social_push）
+
+| 平台 | 服务文件 | 能力 |
+|------|----------|------|
+| 微博 | `weibo_service.py` | 内容发布 |
+| 微信公众号 | `wechat_push_service.py` | 图文推送 |
+| 今日头条 | `toutiao_service.py` | 内容发布 |
+| 抖音 | `douyin_service.py` | 视频发布 + AI 配图/文案 |
+
+#### 评论系统（comments）
+
+- 数据库表：`comments`
+- 管理路由：`auth-center/routes/comments.py`
+- AI 审核：`comment_review.py` 自动过滤敏感内容
 
 ---
 
@@ -443,12 +701,11 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 | 技术 | 用途 |
 |------|------|
 | **Python 3** | 主要开发语言 |
-| **Flask** | Web 框架 |
-| **SQLite** | 数据库（主库 + 各插件独立 .db） |
+| **Flask** | Web 框架（独立服务实例：Site/Platform/Admin，验证码为嵌入式插件） |
+| **SQLite** | 数据库（主库 `data/easykai.db` + 各插件独立 `.db`） |
 | **Jinja2** | 模板引擎（ChoiceLoader 主题覆盖） |
-| **JWT** | SSO 单点登录 |
-| **APScheduler** | 定时任务 |
-| **Gunicorn** | 生产 WSGI 服务器 |
+| **JWT** | SSO 单点登录（跨子域名 Cookie 共享） |
+| **APScheduler** | 定时任务（工作流调度 + 健康检查 + 分析聚合） |
 | **cryptography** | RSA2 签名（支付宝） |
 | **Paramiko** | SSH 自动化部署 |
 
@@ -456,14 +713,15 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 
 | 能力 | 供应商/模型 |
 |------|------------|
-| 主控推理 | OpenAI GPT-4o |
+| 主控推理（Master） | OpenAI GPT-4o |
 | 子 Agent 推理 | DashScope qwen-turbo / DeepSeek Chat |
-| Function Calling | AIEngine.chat_with_tools() + Tool Registry |
-| ReAct 工具循环 | AgentRunner._run_react_loop()（最多 5 轮） |
+| 原生 Function Calling | AIEngine.chat_with_tools() + Tool Registry |
+| ReAct 工具循环 | AgentRunner._run_react_loop() — 最多 5 轮 |
 | 图像生成 | 通义万相 wan2.7-image |
 | 声音克隆 | 火山引擎 volc-voice-clone-v2 |
 | 数字人视频 | 火山引擎 volc-avatar-v3 |
 | 备用推理 | SiliconFlow / OpenRouter / Ollama |
+| AI 引擎统一封装 | `agent_matrix/engine.py` → AIEngine（7 供应商统一接口） |
 
 ### 第三方集成
 
@@ -482,11 +740,10 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 
 | 技术 | 用途 |
 |------|------|
-| Vanilla JS | SPA 前端 |
-| Unpkg / CDN | 第三方库 |
-| CSS Custom Properties | 主题系统变量 |
-| AdminLTE | 管理面板 UI |
-| DiceBear | 头像生成 |
+| **Vanilla JS** | SPA 前端 |
+| **Unpkg / CDN** | 第三方库 |
+| **CSS Custom Properties** | 主题系统变量 |
+| **AdminLTE** | 管理面板 UI |
 
 ---
 
@@ -494,17 +751,17 @@ RSS/API 采集 → AI 加工（DashScope）→ Skill 推送
 
 ```
 VeroRunSystem/
-├── site/                      # 主站后端（Flask, :8081）
+├── site/                      # 主站后端（Flask, 端口 8081）
 │   ├── app.py                 # 入口：auth/cms/shop/site 蓝图注册
 │   └── templates/             # 站点模板
 │
-├── admin/                     # 管理后台（Flask, :8084）
+├── admin/                     # 管理后台（Flask, 端口 8084）
 │   ├── app.py                 # 入口：17+ 蓝图 + PluginManager + AgentMatrix
 │   ├── routes/                # 管理路由
 │   ├── templates/             # 管理模板
 │   └── static/                # 静态资源
 │
-├── platform/                  # 用户控制台（Flask, :8083）
+├── platform/                  # 用户控制台（Flask, 端口 8083）
 │   ├── app.py                 # 入口：auth/cms/shop/API 注册
 │   ├── routes/
 │   │   ├── shop_public.py     # 商城前端 API
@@ -516,117 +773,148 @@ VeroRunSystem/
 ├── captcha-service/           # 验证码核心算法库（供 captcha_embedded 插件引用）
 │
 ├── auth-center/               # 认证中心 + 业务核心
-│   ├── auth_blueprint.py      # 蓝图注册中心
+│   ├── auth_blueprint.py      # 蓝图注册中心（7 蓝图统一注册）
 │   ├── models/                # 数据模型
 │   │   ├── database.py        # 数据库连接 + 全部建表 + 种子数据
 │   │   └── cms.py             # CMS 模型
 │   ├── routes/                # 18 个路由模块
 │   │   ├── shop_admin.py      # 商城管理（含 ShopAIProcessor）
 │   │   ├── cleaner_agent.py   # 数据清洗
-│   │   ├── cms_admin.py       # CMS 管理
 │   │   ├── agents.py          # Agent 管理
+│   │   ├── admin.py           # 管理员路由
 │   │   ├── auth.py            # 登录/注册/OAuth
 │   │   ├── user.py            # 用户管理
+│   │   ├── cms_admin.py       # CMS 管理
 │   │   ├── comments.py        # 评论管理
 │   │   ├── sessions.py        # 会话管理
 │   │   ├── social_media.py    # 社交媒体管理
 │   │   ├── theme_admin.py     # 主题管理
-│   │   ├── header_admin.py    # 头部导航管理
 │   │   ├── footer_admin.py    # 页脚管理
+│   │   ├── header_admin.py    # 头部导航管理
 │   │   ├── deployment_api.py  # 部署 API
 │   │   ├── douyin_miniprogram.py # 抖音小程序
-│   │   └── subscription/      # 订阅模块（4 支付网关）
+│   │   └── subscription/      # 订阅模块（4 种支付网关）
+│   │       ├── renewal.py
+│   │       └── gateway/
+│   │           ├── alipay.py
+│   │           ├── wechat.py
+│   │           ├── stripe.py
+│   │           └── paypal.py
 │   └── services/              # 30 个服务模块
+│       ├── payment_service.py
+│       ├── jwt_service.py
+│       ├── agent_engine.py
+│       ├── (物流已迁移至 plugins/logistics/)
+│       ├── volcengine_client.py
+│       └── ...（共 30 个）
 │
 ├── agent_matrix/              # Agent 矩阵系统
-│   ├── engine.py              # AIEngine（7 供应商 + function calling）
-│   ├── tools.py               # 工具注册中心（3 只读工具 + 白名单）
+│   ├── engine.py              # AIEngine（7 供应商统一接口 + function calling）
+│   ├── tools.py               # 工具注册中心（3 只读工具 + 白名单过滤）
 │   ├── orchestrator.py        # 任务编排 + 关键词路由 + 上下文压缩
-│   ├── agent_runner.py        # Agent 执行器 + ReAct 循环 + 自检重试
+│   ├── agent_runner.py        # Agent 执行器 + ReAct 工具循环 + 自检重试
 │   ├── routes.py              # API 路由（29+ 端点）
 │   ├── models.py              # 数据模型 + 9 Agent 种子数据 + 6 张表
 │   └── prompts/               # 10 个 Agent Prompt 文件
+│       ├── master_prompt.md
+│       ├── sub_shop_prompt.md
+│       ├── sub_cms_prompt.md
+│       ├── sub_health_check_prompt.md
+│       └── ...（共 10 个）
 │
 ├── site_builder/              # LLM 驱动一键建站
-│   ├── engine.py              # 建站引擎
-│   ├── routes.py              # 建站任务 API
-│   ├── models.py              # 建站任务模型
-│   ├── generators/            # 分步生成器
-│   ├── prompts/               # 行业提示词模板
-│   └── site_settings/         # 统一设计令牌系统
+│   ├── engine.py              # 建站引擎（需求解析 + 建站 DAG + 增量更新）
+│   ├── routes.py              # 建站任务 API（/admin/site-builder/*）
+│   ├── models.py              # 建站任务数据模型
+│   ├── generators/            # 分步生成器（brand/theme/navigation/pages）
+│   ├── prompts/               # 行业提示词模板（科技/律所/餐饮/教育）
+│   └── site_settings/         # 统一设计令牌系统（替代 brand/header/footer/themes）
+│       ├── routes.py          # 令牌读写 API（/admin/site-settings/*）
+│       ├── token_service.py   # 令牌服务
+│       ├── token_renderer.py  # 令牌渲染
+│       └── generators/token_generator.py
 │
 ├── orchestrator/              # DAG 工作流引擎（10 个 .py）
 │   ├── workflow_engine.py     # 引擎核心
-│   ├── nodes.py               # 12 种节点定义
+│   ├── nodes.py               # 节点定义
 │   ├── scheduler.py           # Cron 调度
 │   ├── worker.py              # Worker 池
 │   ├── safe_eval.py           # 安全沙箱
 │   ├── routes.py              # API 路由
 │   └── models.py              # 数据模型
 │
+├── health_check/              # 健康检查模块（9 个 .py）
+│   ├── routes.py              # 蓝图
+│   ├── models.py              # 检查记录模型
+│   ├── checkers.py            # HTTP/Ping/MySQL 检查器
+│   ├── discovery.py           # 服务发现
+│   ├── alerter.py             # 邮件/Webhook 告警
+│   ├── ai_fixer.py            # LLM 自动诊断修复
+│   └── scheduler_setup.py     # 定时巡检
+│
+├── analytics/                 # 分析系统（10 个 .py）
+│   ├── middleware.py          # 请求日志中间件
+│   ├── processor.py           # 60 秒聚合处理器
+│   ├── dashboard.py           # 仪表板蓝图
+│   ├── models.py              # 数据模型
+│   ├── tracker.py             # 跟踪模块（报告生成）
+│   ├── geoip.py               # IP 地理定位
+│   ├── ua_parser.py           # UA 解析
+│   └── ip2region/             # IP 库
+│
 ├── plugin_manager/            # 插件管理引擎（19 个 .py）
-│   ├── manager.py             # 核心：生命周期管理
+│   ├── __init__.py            # 包入口
+│   ├── manager.py             # PluginManager — 生命周期管理核心
 │   ├── base.py                # BasePlugin 抽象基类
-│   ├── discovery.py           # 文件系统扫描
-│   ├── routes.py              # 32 个管理 API 端点
-│   ├── event_bus.py           # EventBus（46 个事件）
-│   ├── hooks.py               # Hook 系统（Action + Filter）
-│   ├── deps.py                # 依赖解析器（拓扑排序）
-│   ├── config_validator.py    # JSON Schema 配置校验
+│   ├── discovery.py           # PluginDiscovery — 文件系统扫描
+│   ├── models.py              # PluginInfo / PluginStatus / PluginRegistry
+│   ├── routes.py              # /admin/plugins/* 管理 API（32 端点）
+│   ├── event_bus.py           # EventBus 事件总线（46 事件）
+│   ├── deps.py                # 依赖解析器
+│   ├── config_validator.py    # 配置验证器
+│   ├── exceptions.py          # 7 种异常定义
+│   ├── hooks.py               # Hook 系统
+│   ├── injectors.py           # 依赖注入
+│   ├── logger.py              # 独立日志系统
 │   ├── store.py               # 插件商店 API
-│   ├── license.py             # 许可管理
-│   └── payment.py             # 支付网关
+│   ├── models_store.py        # 商店数据模型
+│   └── subscription.py        # 商店订阅
 │
-├── plugins/                   # 17 个内置插件（各自独立数据库）
-│   ├── ali_api/               # 1688 供应链采集
-│   ├── ads/                   # 广告管理
-│   ├── content_factory/       # 内容工厂
-│   ├── enterprise_verify/     # 企业认证
-│   ├── reviews/               # 商品评价
-│   ├── wishlist/              # 收藏心愿单
-│   ├── order_notify/          # 订单通知
-│   ├── coupons/               # 智能优惠券
-│   ├── ai_tools/              # AI 工具
-│   ├── analytics/             # 分析看板
-│   ├── captcha_embedded/      # 验证码
-│   ├── health_check/          # 健康检查
-│   ├── social_push/           # 社交分发
-│   ├── im_gateway/            # IM 网关
-│   ├── oauth_config/          # OAuth 配置
-│   ├── site_domains/          # 子域名管理
-│   └── email/                 # 邮件服务
+├── plugins/                   # 插件代码目录（独立数据库）
+│   ├── ads/                   # 广告管理（ads.db）
+│   ├── ali_api/               # 1688 供应链采集（ali_api.db, 7 表, 0.2.1）
+│   ├── analytics/             # 分析看板（analytics.db）
+│   ├── captcha_embedded/      # 验证码嵌入
+│   ├── content_factory/       # 内容工厂（content_factory.db）
+│   ├── coupons/               # 智能优惠券（coupons.db, 2 表）
+│   ├── email/                 # 邮件服务（email.db）
+│   ├── enterprise_verify/     # 企业认证（enterprise_verify.db）
+│   ├── health_check/          # 健康检查（health.db）
+│   ├── im_gateway/            # IM 网关（飞书/企微/钉钉/QQ 适配器）
+│   ├── oauth_config/          # OAuth 登录配置（表留主库）
+│   ├── order_notify/          # 订单通知（无持久化, 1.0.0）
+│   ├── reviews/               # 商品评价（reviews.db, 1.0.0）
+│   ├── site_domains/          # 子域名管理（表留主库）
+│   ├── social_push/           # 社交分发（表留主库）
+│   └── wishlist/              # 收藏心愿单（wishlist.db, 1.0.0）
 │
-├── health_check/              # 健康检查模块
-├── analytics/                 # 分析系统
 ├── themes/                    # 5 个主题
+│   ├── default/
+│   ├── light/
+│   ├── nature/
+│   ├── ocean/
+│   └── warm/
+│       └── theme.css + theme.json
+│
 ├── i18n/                      # 国际化翻译
-├── prompts/                   # 全局 Prompt 模板
+│   ├── __init__.py            # i18n 引擎（DB + YAML + LRU 缓存）
+│   ├── zh-CN.yml
+│   └── en.yml
+│
 ├── docs/                      # 项目文档
-├── templates/                 # 全局模板
-├── static/                    # 全局静态资源
-├── images/                    # 图像资源
-├── node_modules/              # 前端依赖
-├── sdks/                      # SDK 目录
-├── backups/                   # 备份目录
-├── deploy/                    # 部署配置
-├── nginx-domains/             # Nginx 站点配置
 ├── scripts/                   # 运维脚本
-├── tools/                     # 工具目录
-├── GeoLite2-City/             # GeoIP 数据库
-├── data/                      # 数据目录
-├── docker-compose.yml         # Docker Compose
-├── Dockerfile                 # Docker 镜像
-├── requirements.txt           # Python 依赖
-├── package.json               # Node.js 依赖
-├── VERSION                    # 版本号
-├── version.py                 # 版本读取模块
-├── README.md                  # 本文件
-├── AGENTS.md                  # Agent 开发铁律
-├── CHANGELOG.md               # 修改记录
-├── REGRESSIONS.md             # 性能回归记录
-├── QUICK_START.md             # 快速开始
-├── LICENSE                    # 许可证
-└── .env.intl                  # 国际化环境配置
+├── PLANS/                     # 开发计划
+└── .trae/                     # Trae IDE 配置
 ```
 
 ---
@@ -636,16 +924,16 @@ VeroRunSystem/
 ### 环境要求
 
 - Python 3.9+
-- pip
+- pip / venv
 - SQLite（内置）
-- OpenAI / DeepSeek API Key（Agent 矩阵功能需要）
+- OpenAI / DeepSeek API Key（如需 Agent 矩阵功能）
 
 ### 安装
 
 ```bash
 # 克隆项目
-git clone https://github.com/fanjumin/VeroRunSystem.git
-cd VeroRunSystem
+git clone <repo-url> easykai-site
+cd easykai-site
 
 # 创建虚拟环境
 python -m venv venv
@@ -660,13 +948,16 @@ pip install -r requirements.txt
 
 ```bash
 # ① 站点后端（端口 8081）
-cd site && python app.py 8081 &
+cd site
+python app.py 8081 &
 
 # ② 用户控制台（端口 8083）
-cd ../platform && python app.py 8083 &
+cd ../platform
+python app.py 8083 &
 
 # ③ 管理后台（端口 8084）
-cd ../admin && python app.py 8084 &
+cd ../admin
+python app.py 8084 &
 ```
 
 ### 访问
@@ -685,24 +976,30 @@ cd ../admin && python app.py 8084 &
 
 1. 创建 Prompt 文件：`agent_matrix/prompts/sub_<name>_prompt.md`
 2. 在 `agent_matrix/models.py` 的 `DEFAULT_AGENTS` 中添加种子数据
-3. 在 `orchestrator.py` 的 `_template_decompose()` 中添加关键词路由
-4. 在管理后台配置 Agent 的供应商/模型
-5. 如需 ReAct 工具能力，在 `allowed_tools` 中声明白名单
+3. 可选：在 `orchestrator.py` 的 `_template_decompose()` 中添加关键词路由
+4. 可选：在管理后台单独配置 Agent 的供应商/模型
+5. 可选：如需 ReAct 工具能力，在 Agent 配置的 `allowed_tools` 中声明白名单
 
-### 新增一个工具
+### 新增一个工具（Tool）
 
-1. 在 `agent_matrix/tools.py` 的 `TOOL_SCHEMAS` 中添加 schema
-2. 在 `TOOL_EXECUTORS` 中绑定执行函数
-3. 在管理后台将 Agent 的 `allowed_tools` 加上新工具名称
+1. 在 `agent_matrix/tools.py` 的 `TOOL_SCHEMAS` 字典中添加 schema（OpenAI function calling 格式）
+2. 在 `TOOL_EXECUTORS` 字典中绑定执行函数
+3. 在管理后台将 Agent 的 `allowed_tools` 字段加上新工具名称
 
 ### 新增一个插件
 
-1. 创建 `plugins/<name>/__init__.py`（继承 `BasePlugin`）
-2. 创建 `plugins/<name>/plugin.json`（含 `permissions` 声明）
+1. 创建 `plugins/<name>/__init__.py`（继承 `plugin_manager.base.BasePlugin`）
+2. 创建 `plugins/<name>/plugin.json` 填写元数据（含 `permissions` 声明）
 3. 添加翻译：`plugins/<name>/i18n/{locale}.yml`
 4. 添加路由：`plugins/<name>/routes/`（自动挂载到 `/plugin/<name>/`）
 5. 在 `on_install()` 中调用 `init_db()` 创建插件自有数据库
 6. 通过 `event_bus.on(EventName.XXX, self.handler)` 订阅事件
+
+### 添加事件钩子
+
+1. 在核心路由中调用 `get_event_bus().emit('EVENT_NAME', key1=val1, key2=val2)`
+2. 插件通过 `event_bus.on(EventName.XXX, handler_func)` 订阅
+3. 参见 `plugins/order_notify/__init__.py` 完整示例
 
 ### 新增主题
 
@@ -717,7 +1014,7 @@ cd ../admin && python app.py 8084 &
 - 路由：Flask Blueprint，前缀明确
 - 数据库：主库统一在 `models/database.py` 管理；插件使用自有 `.db` 文件
 - 翻译：统一使用 `_()`，插件使用 `self.t()`
-- 插件隔离：每个插件拥有独立 SQLite 数据库，卸载时自动删除 `.db` 文件
+- 插件隔离：每个插件拥有独立 SQLite 数据库，卸载时自动删除 `.db` 文件，零残留
 
 ---
 
@@ -735,7 +1032,7 @@ Nginx（反向代理 + SSL）  服务器: ***REMOVED***
     ├── platform.easykai.cn              ──→ Platform:8083
     ├── agent.easykai.cn                 ──→ Admin:8084
     └── 子域名 *                        ──→ 端口自定（via Site Domains）
-
+    
 Nginx snippets: /etc/nginx/snippets/easykai-domains/*.conf（自动生成）
 ```
 
@@ -753,7 +1050,16 @@ Nginx snippets: /etc/nginx/snippets/easykai-domains/*.conf（自动生成）
 | `DEEPSEEK_API_KEY` | DeepSeek API Key |
 | `OPENAI_API_KEY` | OpenAI API Key |
 | `SILICONFLOW_API_KEY` | 硅基流动 API Key |
-| `NGINX_SNIPPETS_DIR` | 子域名 Nginx 配置写入目录 |
+| `NGINX_SNIPPETS_DIR` | 独立服务子域名 Nginx 配置写入目录 |
+
+### Site Domains 子域名管理
+
+管理后台 `agent.easykai.cn/admin` → **System → Site Domains** 操作：
+
+- **类型**：内容站点（走 site app 8081）或 独立服务（自定义端口，自动生成 Nginx 配置）
+- **配额**：按套餐限制（deploy_basic=20 / pro=20 / enterprise=20）
+- **Nginx 部署**：创建独立服务 → 自动写入 Nginx snippets 目录 → 自动 `nginx -s reload`
+- **中间件**：`g.current_site` 注入 `service_type` / `service_port`，支持按子域名路由分发
 
 ### 部署同步
 
@@ -762,14 +1068,8 @@ rsync -av --delete --exclude='.git' --exclude='__pycache__' --exclude='venv' \
   ./ easykai@server:/home/easykai/easykai-workspace/easykai.cn/
 ```
 
-### Docker 部署
-
-```bash
-docker-compose up -d
-```
-
 ---
 
-> **VeroRunSystem** — Multi-Agent AI Operating System  
+> VeroRunSystem v0.12.0 — Multi-Agent AI Operating System  
 > 多智能体驱动的 AI 内容与商业枢纽  
-> © 2026 VeroRunSystem
+> © 2026 VeroRunSystem 版权所有

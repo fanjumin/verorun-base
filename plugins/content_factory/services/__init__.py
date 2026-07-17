@@ -6,7 +6,6 @@ from plugins.content_factory.models import get_cf_db
 from .base_collector import BaseCollector
 
 logger = logging.getLogger(__name__)
-from i18n import _
 
 COLLECTOR_MAP = {
     'rss': 'collectors.rss_collector.RSSCollector',
@@ -34,9 +33,9 @@ def run_collection(source_id: int, source_type: str = None,
     conn = get_cf_db()
     src = conn.execute('SELECT * FROM content_sources WHERE id=?', (source_id,)).fetchone()
     if not src:
-        return {'success': False, 'error': _('Source not found')}
+        return {'success': False, 'error': '源不存在'}
     if not src['is_active']:
-        return {'success': False, 'error': _('Source disabled')}
+        return {'success': False, 'error': '源已禁用'}
 
     source_type = source_type or src['source_type']
     cfg = {}
@@ -50,7 +49,7 @@ def run_collection(source_id: int, source_type: str = None,
 
     collector = get_collector(source_type, source_id, cfg)
     if not collector:
-        return {'success': False, 'error': _(f'Unknown collection type: {source_type}')}
+        return {'success': False, 'error': f'未知采集类型: {source_type}'}
 
     cur = conn.execute(
         """INSERT INTO content_tasks (source_id, task_type, trigger_type, status, started_at, created_by)

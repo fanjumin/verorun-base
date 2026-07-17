@@ -57,10 +57,10 @@ function mpShowAddModel(providerId, providerName){
     '<input type="hidden" id="mpEditId" value="">'+
     '<input type="hidden" id="mpProvId" value="'+providerId+'">'+
     '<div class="g2">'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Display Name') }} *</div><input class="in" id="mpName" placeholder="{{ _('E.g.') }} {{ _('Voice Cloning') }} v2" style="width:100%"></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Name') }}</div><input class="in" id="mpModelName" placeholder="{{ _('E.g.') }} volc-voice-clone-v2" style="width:100%"></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Display Name') }} *</div><input class="in" id="mpName" placeholder="如：{{ _('Voice Cloning') }} v2" style="width:100%"></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Name') }}</div><input class="in" id="mpModelName" placeholder="如：volc-voice-clone-v2" style="width:100%"></div>'+
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Ability Type') }}</div><select class="sl" id="mpCaps" style="width:100%"><option value="text">{{ _('Text') }}</option><option value="image">{{ _('Image') }}</option><option value="voice">{{ _('Voice') }}</option><option value="tts">{{ _('TTS') }}</option><option value="video">{{ _('Video') }}</option></select></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">API Key {{ _('Reference') }}</div><input class="in" id="mpKeyRef" placeholder="{{ _('E.g.') }} volcengine_credentials" style="width:100%"></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">API Key {{ _('Reference') }}</div><input class="in" id="mpKeyRef" placeholder="如：volcengine_credentials" style="width:100%"></div>'+
     '</div>'+
     '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" placeholder="https://openspeech.bytedance.com/api/v1/tts" style="width:100%"></div>'+
     '<div style="margin-top:10px"><button class="btn bp" onclick="mpCreateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+

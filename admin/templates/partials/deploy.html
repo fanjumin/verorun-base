@@ -7,7 +7,7 @@ window.l_deploy=function(){
   h+='<div class="g2">';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('User') }} ID</div><input class="in" id="dpUserId" type="number" min="1" value="1" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Plan') }}</div><select class="in" id="dpPlanKey" style="width:100%"></select></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Valid Period') }} ({{ _('Days') }})</div><select class="in" id="dpDuration" style="width:100%"><option value="365">1 {{ _('Year') }}</option><option value="730">2 {{ _('Years') }}</option><option value="1095">3 {{ _('Years') }}</option><option value="30">1 {{ _('Months') }}</option><option value="90">3 {{ _('Months') }}</option></select></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Valid Period') }} (天)</div><select class="in" id="dpDuration" style="width:100%"><option value="365">1 年</option><option value="730">2 年</option><option value="1095">3 年</option><option value="30">1 {{ _('Months') }}</option><option value="90">3 {{ _('Months') }}</option></select></div>';
   h+='<div style="display:flex;align-items:end;gap:8px"><button class="btn bp" onclick="doGenerateCode()">{{ _('Confirm Generate') }}</button> <button class="btn bo" onclick="hideDeployForm()">{{ _('Cancel') }}</button></div>';
   h+='</div></div>';
   h+='<div id="deployResult" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('Deploy Code') }}</div>';

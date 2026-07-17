@@ -76,7 +76,7 @@ def install_theme():
     
     file = request.files['file']
     if not file.filename or not file.filename.lower().endswith('.zip'):
-        return jsonify({'success': False, 'error': _('请上传 .zip 格式的主题包')}), 400
+        return jsonify({'success': False, 'error': '请上传 .zip 格式的主题包'}), 400
 
     # 保存临时文件
     tmp_path = os.path.join('/tmp', 'theme_{}.zip'.format(int(datetime.now().timestamp())))
@@ -91,7 +91,7 @@ def install_theme():
                 original = info.filename.split('/')[-1]
                 safe_name = _sanitize_filename(original)
                 if safe_name != original:
-                    return jsonify({'success': False, 'error': _('文件名包含非法字符: {filename}', filename=original)}), 400
+                    return jsonify({'success': False, 'error': '文件名包含非法字符: {}'.format(original)}), 400
                 
                 ext = os.path.splitext(original)[1].lower()
                 
@@ -102,21 +102,21 @@ def install_theme():
                 
                 # 白名单检查（只对已知文件）
                 if ext and ext not in ALLOWED_EXTENSIONS:
-                    return jsonify({'success': False, 'error': _('不支持的文件类型: {ext}', ext=ext)}), 400
+                    return jsonify({'success': False, 'error': '不支持的文件类型: {}'.format(ext)}), 400
                 
                 # 大小限制
                 if info.file_size > 2 * 1024 * 1024:  # 单文件 2MB
                     return jsonify({'success': False, 'error': '文件过大: {}'.format(original)}), 400
                 total_size += info.file_size
                 if total_size > 10 * 1024 * 1024:  # 总大小 10MB
-                    return jsonify({'success': False, 'error': _('主题包总大小超过 10MB')}), 400
+                    return jsonify({'success': False, 'error': '主题包总大小超过 10MB'}), 400
 
             # 读取 theme.json
             try:
                 manifest_data = zf.read('theme.json').decode('utf-8')
                 manifest = json.loads(manifest_data)
             except KeyError:
-                return jsonify({'success': False, 'error': _('缺少 theme.json 文件')}), 400
+                return jsonify({'success': False, 'error': '缺少 theme.json 文件'}), 400
             except json.JSONDecodeError as e:
                 return jsonify({'success': False, 'error': 'theme.json 格式错误: {}'.format(str(e))}), 400
 
@@ -171,9 +171,9 @@ def install_theme():
             })
 
     except zipfile.BadZipFile:
-        return jsonify({'success': False, 'error': _('无效的 ZIP 文件')}), 400
+        return jsonify({'success': False, 'error': '无效的 ZIP 文件'}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': _('安装失败: {error}', error=str(e))}), 500
+        return jsonify({'success': False, 'error': '安装失败: {}'.format(str(e))}), 500
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
@@ -213,7 +213,7 @@ def delete_theme(theme_id):
         except Exception:
             pass
     
-    return jsonify({'success': True, 'message': _('主题已卸载')})
+    return jsonify({'success': True, 'message': '主题已卸载'})
 
 @theme_bp.route('/themes/sites', methods=['GET'])
 def list_site_themes():
@@ -274,7 +274,7 @@ def set_site_theme():
             )
         conn.commit()
     
-    return jsonify({'success': True, 'message': _('站点 {label} 主题已切换', label=SITE_LABELS.get(site_key, site_key))})
+    return jsonify({'success': True, 'message': '站点 {} 主题已切换'.format(SITE_LABELS.get(site_key, site_key))})
 
 
 # 导出辅助函数供 app.py 使用

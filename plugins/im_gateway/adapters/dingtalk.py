@@ -4,7 +4,6 @@
 迁移自 auth-center/routes/admin.py。使用 appkey/appsecret 获取 access_token 测试连接。
 """
 from .base import BaseIMAdapter
-from i18n import _
 
 
 class DingTalkAdapter(BaseIMAdapter):
@@ -23,7 +22,7 @@ class DingTalkAdapter(BaseIMAdapter):
         app_key = (data.get('app_key') or '').strip() or (data.get('appId') or '').strip()
         app_secret = (data.get('app_secret') or '').strip() or (data.get('appSecret') or '').strip()
         if not app_key or not app_secret:
-            return False, _('AppKey 和 AppSecret 不能为空')
+            return False, 'AppKey 和 AppSecret 不能为空'
         try:
             import requests as _req
             resp = _req.get(
@@ -32,7 +31,7 @@ class DingTalkAdapter(BaseIMAdapter):
             )
             rd = resp.json()
             if rd.get('access_token'):
-                return True, _('钉钉连接成功！')
-            return False, _('钉钉返回: {msg} (errcode={code})', msg=rd.get('errmsg', _('未知')), code=rd.get('errcode'))
+                return True, '钉钉连接成功！'
+            return False, f"钉钉返回: {rd.get('errmsg', '未知')} (errcode={rd.get('errcode')})"
         except Exception as e:
-            return False, _('连接失败: {err}', err=str(e))
+            return False, f'连接失败: {str(e)}'

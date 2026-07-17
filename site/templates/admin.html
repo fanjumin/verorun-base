@@ -2,7 +2,7 @@
      2|<html lang="zh-CN">
      3|<head>
      4|<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-     <title>{{ _('管理后台') }} — {{ brand.site_name_en if brand else '' }}</title>
+     <title>管理后台 — {{ brand.site_name_en if brand else '' }}</title>
      6|<link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
      7|<link rel="icon" type="image/png" sizes="16x16" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-16x16.png' }}">
      8|<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
@@ -83,12 +83,12 @@
     83|</head>
     84|<body>
     85|<div class="sidebar">
-    86|  <div class="logo"><span>{{ _('管理后台') }}</span></div>
+    86|  <div class="logo"><span>管理后台</span></div>
     87|  <nav id="nav"></nav>
     88|</div>
     89|<div class="main">
-    90|  <div class="top"><div class="pt" id="pt">{{ _('管理后台') }}</div><div><span id="an">-</span> | <a href="/" style="color:var(--dim);font-size:11px">{{ _('返回') }}</a></div></div>
-    91|  <div class="con" id="mc"><div class="lo"><div class="s"></div>{{ _('验证身份中...') }}</div></div>
+    90|  <div class="top"><div class="pt" id="pt">管理后台</div><div><span id="an">-</span> | <a href="/" style="color:var(--dim);font-size:11px">返回</a></div></div>
+    91|  <div class="con" id="mc"><div class="lo"><div class="s"></div>验证身份中...</div></div>
     92|</div>
     93|<div class="toast" id="adminToast"></div>
     94|<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
@@ -97,47 +97,47 @@
     97|if(T)document.cookie="sso_token="+T+"; path=/; max-age=604800";
     98|var P=new URLSearchParams(location.search);
     99|if(P.get("token")){T=P.get("token");localStorage.setItem("sso_token",T);localStorage.setItem("tm_token",T);localStorage.setItem("token",T);document.cookie="sso_token="+T+"; path=/; max-age=604800";window.history.replaceState({},"",window.location.pathname)}
-   100|var NAV=[["dashboard", "■", {{ _('总览') | tojson }}, ""], ["", "", {{ _('管理') | tojson }}, "ns"], ["users", "👥", {{ _('用户管理') | tojson }}, ""], ["agents", "🤖", {{ _('Agent 管理') | tojson }}, ""], ["keys", "🔑", {{ _('API Key') | tojson }}, ""], ["posts", "💬", {{ _('社区内容') | tojson }}, ""], ["contacts", "✉️", {{ _('工单') | tojson }}, ""], ["matrix", "🤖", {{ _('Agent 矩阵') | tojson }}, ""], ["cms", "📄", {{ _('CMS 管理') | tojson }}, ""], ["downloads", "⬇", {{ _('下载管理') | tojson }}, ""], ["", "", {{ _('财务') | tojson }}, "ns"], ["revenue", "📊", {{ _('收入看板') | tojson }}, ""], ["orders", "💳", {{ _('订单') | tojson }}, ""], ["", "", {{ _('系统') | tojson }}, "ns"], ["config", "⚙️", {{ _('系统设置') | tojson }}, ""], ["logs", "📄", {{ _('操作日志') | tojson }}, ""]];
+   100|var NAV=[["dashboard", "■", "总览", ""], ["", "", "管理", "ns"], ["users", "👥", "用户管理", ""], ["agents", "🤖", "Agent 管理", ""], ["keys", "🔑", "API Key", ""], ["posts", "💬", "社区内容", ""], ["contacts", "✉️", "工单", ""], ["matrix", "🤖", "Agent 矩阵", ""], ["cms", "📄", "CMS 管理", ""], ["downloads", "⬇", "下载管理", ""], ["", "", "财务", "ns"], ["revenue", "📊", "收入看板", ""], ["orders", "💳", "订单", ""], ["", "", "系统", "ns"], ["config", "⚙️", "系统设置", ""], ["logs", "📄", "操作日志", ""]];
    101|var navEl=document.getElementById("nav");
    102|NAV.forEach(function(n){
    103|  if(n[3]=="ns"){navEl.innerHTML+='<div class="ns">'+n[2]+'</div>';return}
    104|  navEl.innerHTML+='<div class="ni" onclick="go(\''+n[0]+'\')" id="n-'+n[0]+'">'+n[1]+' <span>'+n[2]+'</span></div>';
    105|});
    106|
-   107|if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _("请先") }} <a href="/login?redirect=/admin">{{ _("登录") }}</a></div>'}else{init()}
+   107|if(!T){document.getElementById("mc").innerHTML='<div class="em">请先 <a href="/login?redirect=/admin">登录</a></div>'}else{init()}
    108|
    109|function init(){
    110|  fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
-   111|    if(r.status===403){document.getElementById("mc").innerHTML='<div class="em">{{ _("仅管理员可访问") }}</div>';return Promise.reject()}
-    if(r.status===401){document.getElementById("mc").innerHTML='<div class="em">{{ _("请先") }} <a href="/login?redirect=/admin">{{ _("登录") }}</a></div>';return Promise.reject()}
+   111|    if(r.status===403){document.getElementById("mc").innerHTML='<div class="em">仅管理员可访问</div>';return Promise.reject()}
+   112|    if(r.status===401){document.getElementById("mc").innerHTML='<div class="em">请先 <a href="/login?redirect=/admin">登录</a></div>';return Promise.reject()}
    113|    return r.json()
-   114|  }).then(function(d){if(d.success){document.getElementById("an").textContent={{ _("管理员") | tojson }};go("dashboard")}else{document.getElementById("mc").innerHTML='<div class="em">'+(d.error||{{ _("身份验证失败") | tojson }})+'-<a href="/login?redirect=/admin">{{ _("请重新登录") }}</a></div>'}}).catch(function(){})
+   114|  }).then(function(d){if(d.success){document.getElementById("an").textContent="管理员";go("dashboard")}else{document.getElementById("mc").innerHTML='<div class="em">'+(d.error||'身份验证失败')+'-<a href="/login?redirect=/admin">请重新登录</a></div>'}}).catch(function(){})
    115|}
    116|
    117|function go(s){
    118|  document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
    119|  var el=document.getElementById("n-"+s);if(el)el.classList.add("sel");
-   120|  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _("加载中...") }}</div>';
+   120|  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>加载中...</div>';
    121|  if(typeof window["l_"+s]=="function")window["l_"+s]();
    122|}
    123|
    124|window.l_dashboard=function(){
-   125|  document.getElementById("pt").textContent={{ _("总览") | tojson }};
+   125|  document.getElementById("pt").textContent="总览";
    126|  fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
    127|    if(!d.success)return;
    128|    var ds=d.data;
    129|    var h="<div class=\"gr\">";
-   130|    h+=hk({{ _("总用户") | tojson }},ds.total_users,"b");
-   131|    h+=hk({{ _("活跃用户") | tojson }},ds.active_users,"g");
-   132|    h+=hk({{ _("API Key") | tojson }},ds.active_api_keys+"/"+ds.total_api_keys,"");
-   133|    h+=hk({{ _("总调用") | tojson }},ds.total_calls,"b");
-   134|    h+=hk({{ _("今日调用") | tojson }},ds.today_calls,"g");
-   135|    h+=hk({{ _("待审核帖") | tojson }},ds.pending_posts,"r");
-   136|    h+=hk({{ _("待处理工单") | tojson }},ds.pending_contacts,"r");
-   137|    h+=hk({{ _("本月收入") | tojson }},"\u00a5"+ds.monthly_revenue,"g");
-   138|    h+="</div><div class=\"cd\"><div class=\"st\">{{ _('最近注册') }}</div><table>";
+   130|    h+=hk("总用户",ds.total_users,"b");
+   131|    h+=hk("活跃用户",ds.active_users,"g");
+   132|    h+=hk("API Key",ds.active_api_keys+"/"+ds.total_api_keys,"");
+   133|    h+=hk("总调用",ds.total_calls,"b");
+   134|    h+=hk("今日调用",ds.today_calls,"g");
+   135|    h+=hk("待审核帖",ds.pending_posts,"r");
+   136|    h+=hk("待处理工单",ds.pending_contacts,"r");
+   137|    h+=hk("本月收入","\u00a5"+ds.monthly_revenue,"g");
+   138|    h+="</div><div class=\"cd\"><div class=\"st\">最近注册</div><table>";
    139|    if(ds.recent_users&&ds.recent_users.length){
-   140|      h+='<tr><th>ID</th><th>{{ _("昵称") }}</th><th>{{ _("手机") }}</th><th>{{ _("时间") }}</th></tr>';
+   140|      h+="<tr><th>ID</th><th>昵称</th><th>手机</th><th>时间</th></tr>";
    141|      ds.recent_users.forEach(function(u){h+="<tr><td>"+u.id+"</td><td>"+(u.nickname||"-")+"</td><td>"+(u.phone||"-")+"</td><td>"+u.created_at+"</td></tr>"});
    142|    }
    143|    h+="</table></div>";
@@ -148,7 +148,7 @@
 
 // ── 收入看板 ──
 window.l_revenue=function(){
-  document.getElementById("pt").textContent={{ _("收入看板") | tojson }};
+  document.getElementById("pt").textContent="收入看板";
   fetch("/admin/revenue/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ds=d.data;
@@ -156,20 +156,20 @@ window.l_revenue=function(){
 
     // Summary cards
     h+='<div class="gr">';
-    h+=hk({{ _('今日收入') | tojson }},'¥'+ds.summary.today_revenue,'g');
-    h+=hk({{ _('本月收入') | tojson }},'¥'+ds.summary.this_month,'b');
-    h+=hk({{ _('上月收入') | tojson }},'¥'+ds.summary.last_month,'');
-    h+=hk({{ _('环比') | tojson }},(ds.summary.month_change>=0?'+':'')+ds.summary.month_change_pct+'%',ds.summary.month_change>=0?'g':'r');
-    h+=hk({{ _('MRR') | tojson }},'¥'+(ds.subscriptions.mrr||0),'g');
-    h+=hk({{ _('活跃订阅') | tojson }},ds.subscriptions.active||0,'b');
-    h+=hk({{ _('付费用户') | tojson }},ds.subscriptions.total_paid_users||0,'');
+    h+=hk('今日收入','¥'+ds.summary.today_revenue,'g');
+    h+=hk('本月收入','¥'+ds.summary.this_month,'b');
+    h+=hk('上月收入','¥'+ds.summary.last_month,'');
+    h+=hk('环比',(ds.summary.month_change>=0?'+':'')+ds.summary.month_change_pct+'%',ds.summary.month_change>=0?'g':'r');
+    h+=hk('MRR','¥'+(ds.subscriptions.mrr||0),'g');
+    h+=hk('活跃订阅',ds.subscriptions.active||0,'b');
+    h+=hk('付费用户',ds.subscriptions.total_paid_users||0,'');
     var churnCls=(ds.subscriptions.churn_rate||0)>5?'r':'g';
-    h+=hk({{ _('本月流失率') | tojson }},(ds.subscriptions.churn_rate||0)+'%',churnCls);
-    h+=hk({{ _('上月流失率') | tojson }},(ds.subscriptions.last_churn_rate||0)+'%','');
-    h+=hk({{ _('本月新增') | tojson }},ds.subscriptions.new_this_month||0,'g');
-    h+=hk({{ _('本月取消') | tojson }},ds.subscriptions.canceled_this_month||0,'r');
-    h+=hk({{ _('本月过期') | tojson }},ds.subscriptions.expired_this_month||0,'');
-    h+=hk({{ _('本年度') | tojson }},'¥'+ds.summary.this_year,'b');
+    h+=hk('本月流失率',(ds.subscriptions.churn_rate||0)+'%',churnCls);
+    h+=hk('上月流失率',(ds.subscriptions.last_churn_rate||0)+'%','');
+    h+=hk('本月新增',ds.subscriptions.new_this_month||0,'g');
+    h+=hk('本月取消',ds.subscriptions.canceled_this_month||0,'r');
+    h+=hk('本月过期',ds.subscriptions.expired_this_month||0,'');
+    h+=hk('本年度','¥'+ds.summary.this_year,'b');
     h+='</div>';
 
     // Chart: 30-day active subscription trend
@@ -178,7 +178,7 @@ window.l_revenue=function(){
       var maxAct=0;
       subTrend.forEach(function(t){if(t.active_count>maxAct)maxAct=t.active_count});
       maxAct=maxAct||1;
-      var subH='<div class="cd"><div class="st">{{ _("近30天活跃订阅数") }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:100px;padding-top:10px">';
+      var subH='<div class="cd"><div class="st">近30天活跃订阅数</div><div style="display:flex;align-items:flex-end;gap:2px;height:100px;padding-top:10px">';
       subTrend.forEach(function(t){
         var pct=Math.max(3,t.active_count/maxAct*100);
         var dayLabel=t.day.slice(5);
@@ -198,7 +198,7 @@ window.l_revenue=function(){
       var maxChurn=0;
       churnTrend.forEach(function(t){if(t.churn_rate>maxChurn)maxChurn=t.churn_rate});
       maxChurn=maxChurn||1;
-      var churnH='<div class="cd"><div class="st">{{ _("月度流失率趋势（近12月）") }}</div><div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:10px">';
+      var churnH='<div class="cd"><div class="st">月度流失率趋势（近12月）</div><div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:10px">';
       churnTrend.forEach(function(t){
         var pct=Math.max(3,t.churn_rate/maxChurn*100);
         var color=t.churn_rate>10?'#f85149':t.churn_rate>5?'#f0c040':'var(--accent3)';
@@ -218,7 +218,7 @@ window.l_revenue=function(){
       var maxRev=0;
       trend.forEach(function(t){if(t.revenue>maxRev)maxRev=t.revenue});
       maxRev=maxRev||1;
-      var barH='<div class="cd"><div class="st">{{ _("近30天收入趋势") }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:140px;padding-top:10px">';
+      var barH='<div class="cd"><div class="st">近30天收入趋势</div><div style="display:flex;align-items:flex-end;gap:2px;height:140px;padding-top:10px">';
       trend.forEach(function(t){
         var pct=Math.max(3,t.revenue/maxRev*100);
         var dayLabel=t.day.slice(5);
@@ -235,7 +235,7 @@ window.l_revenue=function(){
     // Revenue by type
     var byType=ds.by_type||[];
     if(byType.length){
-      h+='<div class="cd"><div class="st">{{ _("收入类型分布") }}</div><table><tr><th>{{ _("类型") }}</th><th>{{ _("金额") }}</th><th>{{ _("占比") }}</th></tr>';
+      h+='<div class="cd"><div class="st">收入类型分布</div><table><tr><th>类型</th><th>金额</th><th>占比</th></tr>';
       var totalType=0;
       byType.forEach(function(t){totalType+=t.revenue});
       totalType=totalType||1;
@@ -249,9 +249,9 @@ window.l_revenue=function(){
     // Payment methods
     var pm=ds.pay_methods||[];
     if(pm.length){
-      h+='<div class="cd"><div class="st">{{ _("支付方式分布") }}</div><table><tr><th>{{ _("方式") }}</th><th>{{ _("金额") }}</th></tr>';
+      h+='<div class="cd"><div class="st">支付方式分布</div><table><tr><th>方式</th><th>金额</th></tr>';
       pm.forEach(function(p){
-        var methodName={'wechat':{{ _('微信支付') | tojson }},'alipay':{{ _('支付宝') | tojson }},'wxpay':{{ _('微信支付') | tojson }},'':{{ _('其他') | tojson }}}[p.method]||p.method;
+        var methodName={'wechat':'微信支付','alipay':'支付宝','wxpay':'微信支付','':'其他'}[p.method]||p.method;
         h+='<tr><td>'+methodName+'</td><td>¥'+p.revenue+'</td></tr>';
       });
       h+='</table></div>';
@@ -260,7 +260,7 @@ window.l_revenue=function(){
     // Monthly trend
     var monthly=ds.monthly_12m||[];
     if(monthly.length){
-      h+='<div class="cd"><div class="st">{{ _("近12月月度收入") }}</div><table><tr><th>{{ _("月份") }}</th><th>{{ _("收入") }}</th></tr>';
+      h+='<div class="cd"><div class="st">近12月月度收入</div><table><tr><th>月份</th><th>收入</th></tr>';
       monthly.forEach(function(m){
         h+='<tr><td>'+m.ym+'</td><td>¥'+m.revenue+'</td></tr>';
       });
@@ -268,17 +268,17 @@ window.l_revenue=function(){
     }
 
     document.getElementById("mc").innerHTML=h;
-  }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _("加载失败") }}</div>'})
+  }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">加载失败</div>'})
 }
    148|
    149|window.l_users=function(){
-  document.getElementById("pt").textContent={{ _("用户管理") | tojson }};
-  fetch("/admin/users?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var ds=d.data;
-    var h='<div class="cd"><div class="st">{{ _("用户列表") }} ('+ds.total+')</div><table><tr><th>ID</th><th>{{ _("昵称") }}</th><th>{{ _("手机") }}</th><th>{{ _("Agent") }}</th><th>{{ _("等级") }}</th><th>{{ _("状态") }}</th><th>{{ _("注册时间") }}</th></tr>';
-    ds.users.forEach(function(u){
-      var st=u.active?'<span class="bdg on">{{ _("正常") }}</span>':'<span class="bdg off">{{ _("已禁用") }}</span>';
+   150|  document.getElementById("pt").textContent="用户管理";
+   151|  fetch("/admin/users?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   152|    if(!d.success||!d.data)return;
+   153|    var ds=d.data;
+   154|    var h="<div class=\"cd\"><div class=\"st\">用户列表 ("+ds.total+")</div><table><tr><th>ID</th><th>昵称</th><th>手机</th><th>Agent</th><th>等级</th><th>状态</th><th>注册时间</th></tr>";
+   155|    ds.users.forEach(function(u){
+   156|      var st=u.active?'<span class="bdg on">正常</span>':'<span class="bdg off">已禁用</span>';
    157|      h+="<tr><td>"+u.id+"</td><td>"+u.nickname+"</td><td>"+(u.phone||"-")+"</td><td>"+(u.agent_nickname||"-")+"</td><td>"+(u.tier||"free")+"</td><td>"+st+"</td><td>"+(u.created_at||"")+"</td></tr>";
    158|    });
    159|    h+="</table></div>";
@@ -287,11 +287,11 @@ window.l_revenue=function(){
    162|}
    163|
    164|window.l_agents=function(){
-  document.getElementById("pt").textContent={{ _("Agent 管理") | tojson }};
-  fetch("/admin/agents?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var ds=d.data;
-    var h='<div class="cd"><div class="st">{{ _("Agent 列表") }} ('+ds.total+')</div><table><tr><th>ID</th><th>{{ _("昵称") }}</th><th>{{ _("所属") }}</th><th>{{ _("手机") }}</th><th>{{ _("时间") }}</th></tr>';
+   165|  document.getElementById("pt").textContent="Agent 管理";
+   166|  fetch("/admin/agents?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   167|    if(!d.success||!d.data)return;
+   168|    var ds=d.data;
+   169|    var h="<div class=\"cd\"><div class=\"st\">Agent 列表 ("+ds.total+")</div><table><tr><th>ID</th><th>昵称</th><th>所属</th><th>手机</th><th>时间</th></tr>";
    170|    ds.agents.forEach(function(a){h+="<tr><td>"+(a.agent_id||"-")+"</td><td>"+(a.agent_nickname||"-")+"</td><td>"+(a.nickname||"-")+"</td><td>"+(a.phone||"-")+"</td><td>"+(a.created_at||"")+"</td></tr>"});
    171|    h+="</table></div>";
    172|    document.getElementById("mc").innerHTML=h;
@@ -299,13 +299,13 @@ window.l_revenue=function(){
    174|}
    175|
    176|window.l_keys=function(){
-  document.getElementById("pt").textContent={{ _("API Key 管理") | tojson }};
-  fetch("/admin/api-keys?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var ds=d.data;
-    var h='<div class="cd"><div class="st">{{ _("全局 Key") }} ('+ds.total+')</div><table><tr><th>{{ _("名称") }}</th><th>{{ _("Key") }}</th><th>{{ _("用户") }}</th><th>{{ _("调用") }}</th><th>{{ _("状态") }}</th><th>{{ _("时间") }}</th></tr>';
-    ds.keys.forEach(function(k){
-      var st=k.active?'<span class="bdg on">{{ _("启用") }}</span>':'<span class="bdg off">{{ _("已凸销") }}</span>';
+   177|  document.getElementById("pt").textContent="API Key 管理";
+   178|  fetch("/admin/api-keys?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   179|    if(!d.success||!d.data)return;
+   180|    var ds=d.data;
+   181|    var h="<div class=\"cd\"><div class=\"st\">全局 Key ("+ds.total+")</div><table><tr><th>名称</th><th>Key</th><th>用户</th><th>调用</th><th>状态</th><th>时间</th></tr>";
+   182|    ds.keys.forEach(function(k){
+   183|      var st=k.active?'<span class="bdg on">启用</span>':'<span class="bdg off">已凸销</span>';
    184|      h+="<tr><td>"+(k.name||"-")+"</td><td>"+k.key_prefix+"...</td><td>"+(k.user_name||"-")+"</td><td>"+k.calls_total+"</td><td>"+st+"</td><td>"+(k.created_at||"")+"</td></tr>";
    185|    });
    186|    h+="</table></div>";
@@ -314,13 +314,13 @@ window.l_revenue=function(){
    189|}
    190|
    191|window.l_posts=function(){
-  document.getElementById("pt").textContent={{ _("社区内容") | tojson }};
-  fetch("/admin/posts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var ds=d.data;
-    var h='<div class="cd"><div class="st">{{ _("帖子") }} ('+ds.total+')</div><table><tr><th>{{ _("标题") }}</th><th>Agent</th><th>{{ _("状态") }}</th><th>{{ _("点赞") }}</th><th>{{ _("时间") }}</th></tr>';
-    ds.posts.forEach(function(p){
-      var st=p.status=="approved"?'<span class="bdg on">{{ _("已发布") }}</span>':(p.status=="pending"?'<span class="bdg pd">{{ _("待审核") }}</span>':'<span class="bdg off">{{ _("草稿") }}</span>');
+   192|  document.getElementById("pt").textContent="社区内容";
+   193|  fetch("/admin/posts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   194|    if(!d.success||!d.data)return;
+   195|    var ds=d.data;
+   196|    var h="<div class=\"cd\"><div class=\"st\">帖子 ("+ds.total+")</div><table><tr><th>标题</th><th>Agent</th><th>状态</th><th>点赞</th><th>时间</th></tr>";
+   197|    ds.posts.forEach(function(p){
+   198|      var st=p.status=="approved"?'<span class="bdg on">已发布</span>':(p.status=="pending"?'<span class="bdg pd">待审核</span>':'<span class="bdg off">草稿</span>');
    199|      h+="<tr><td>"+(p.title||"-")+"</td><td>"+(p.agent_id||"-")+"</td><td>"+st+"</td><td>"+p.like_count+"</td><td>"+(p.created_at||"")+"</td></tr>";
    200|    });
    201|    h+="</table></div>";
@@ -329,13 +329,13 @@ window.l_revenue=function(){
    204|}
    205|
    206|window.l_contacts=function(){
-  document.getElementById("pt").textContent={{ _("工单管理") | tojson }};
-  fetch("/admin/contacts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var ds=d.data;
-    var h='<div class="cd"><div class="st">{{ _("工单") }} ('+ds.total+')</div><table><tr><th>{{ _("姓名") }}</th><th>{{ _("主题") }}</th><th>{{ _("状态") }}</th><th>{{ _("时间") }}</th></tr>';
-    ds.contacts.forEach(function(c){
-      var st=c.handled?'<span class="bdg on">{{ _("已处理") }}</span>':'<span class="bdg pd">{{ _("待处理") }}</span>';
+   207|  document.getElementById("pt").textContent="工单管理";
+   208|  fetch("/admin/contacts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   209|    if(!d.success||!d.data)return;
+   210|    var ds=d.data;
+   211|    var h="<div class=\"cd\"><div class=\"st\">工单 ("+ds.total+")</div><table><tr><th>姓名</th><th>主题</th><th>状态</th><th>时间</th></tr>";
+   212|    ds.contacts.forEach(function(c){
+   213|      var st=c.handled?'<span class="bdg on">已处理</span>':'<span class="bdg pd">待处理</span>';
    214|      h+="<tr><td>"+(c.name||"-")+"</td><td>"+(c.subject||(c.message||"-")).slice(0,40)+"</td><td>"+st+"</td><td>"+(c.created_at||"")+"</td></tr>";
    215|    });
    216|    h+="</table></div>";
@@ -344,13 +344,13 @@ window.l_revenue=function(){
    219|}
    220|
    221|window.l_orders=function(){
-  document.getElementById("pt").textContent={{ _("订单管理") | tojson }};
-  fetch("/admin/orders?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var ds=d.data;
-    var h='<div class="cd"><div class="st">{{ _("订单") }} ('+ds.total+')</div><table><tr><th>{{ _("订单号") }}</th><th>{{ _("用户") }}</th><th>{{ _("金额") }}</th><th>{{ _("类型") }}</th><th>{{ _("状态") }}</th><th>{{ _("时间") }}</th></tr>';
-    ds.orders.forEach(function(o){
-      var st=o.status=="paid"?'<span class="bdg on">{{ _("已支付") }}</span>':'<span class="bdg pd">'+o.status+'</span>';
+   222|  document.getElementById("pt").textContent="订单管理";
+   223|  fetch("/admin/orders?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   224|    if(!d.success||!d.data)return;
+   225|    var ds=d.data;
+   226|    var h="<div class=\"cd\"><div class=\"st\">订单 ("+ds.total+")</div><table><tr><th>订单号</th><th>用户</th><th>金额</th><th>类型</th><th>状态</th><th>时间</th></tr>";
+   227|    ds.orders.forEach(function(o){
+   228|      var st=o.status=="paid"?'<span class="bdg on">已支付</span>':'<span class="bdg pd">'+o.status+'</span>';
    229|      h+="<tr><td>"+o.order_no+"</td><td>"+(o.user_name||"-")+"</td><td>\u00a5"+o.amount+"</td><td>"+o.item_type+"</td><td>"+st+"</td><td>"+(o.created_at||"")+"</td></tr>";
    230|    });
    231|    h+="</table></div>";
@@ -359,16 +359,16 @@ window.l_revenue=function(){
    234|}
    235|
    236|window.l_config=function(){
-  document.getElementById("pt").textContent={{ _("系统设置") | tojson }};
-  var h='<div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn bp" onclick="seedConfig()">{{ _("初始化配置项") }}</button><button class="btn bo" onclick="uploadConfig()">{{ _("上传 AccessKey.csv") }}</button><input type="file" id="csvFile" accept=".csv" style="display:none" onchange="doUpload()"></div>';
+   237|  document.getElementById("pt").textContent="系统设置";
+   238|  var h='<div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn bp" onclick="seedConfig()">初始化配置项</button><button class="btn bo" onclick="uploadConfig()">上传 AccessKey.csv</button><input type="file" id="csvFile" accept=".csv" style="display:none" onchange="doUpload()"></div>';
    239|  h+='<div id="cl"><div class="lo"><div class="s"></div></div></div>';
    240|  document.getElementById("mc").innerHTML=h;
    241|  loadConfigs();
    242|}
    243|function loadConfigs(){
    244|  fetch("/user/config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-   245|    if(!d.success){document.getElementById("cl").innerHTML='<div class="em">{{ _("无法加载") }}</div>';return}
-    var cats=d.categories||[{id:"other",title:"{{ _('系统配置') }}"}];
+   245|    if(!d.success){document.getElementById("cl").innerHTML='<div class="em">无法加载</div>';return}
+   246|    var cats=d.categories||[{id:"other",title:"系统配置"}];
    247|    var data=d.data||[];
    248|    var schema=d.schema||{};
    249|    var c="";
@@ -393,25 +393,25 @@ window.l_revenue=function(){
    268|        }else{
    269|          c+='<input class="in" id="cf-'+k.key+'" value="'+safeVal+'" placeholder="'+ph+'" style="width:200px">';
    270|        }
-   271|        c+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _("保存") }}</button></div>';
+   271|        c+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">保存</button></div>';
    272|      });
    273|      c+='</div>';
    274|    });
-   275|    document.getElementById("cl").innerHTML=c||'<div class="em">{{ _("暂无配置项，点击「初始化配置项」创建") }}</div>';
-  }).catch(function(){document.getElementById("cl").innerHTML='<div class="em">{{ _("加载失败") }}</div>'})
+   275|    document.getElementById("cl").innerHTML=c||'<div class="em">暂无配置项，点击「初始化配置项」创建</div>';
+   276|  }).catch(function(){document.getElementById("cl").innerHTML='<div class="em">加载失败</div>'})
    277|}
    278|function scfg(k){
    279|  var v=document.getElementById("cf-"+k).value.trim();
    280|  if(!v)return;
    281|  fetch("/user/config",{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({key:k,value:v})}).then(function(r){return r.json()}).then(function(d){
-   282|    if(d.success){alert({{ _("保存成功") | tojson }});loadConfigs()}else{alert(d.error||{{ _("保存失败") | tojson }})}
-  }).catch(function(){alert({{ _("保存失败") | tojson }})})
+   282|    if(d.success){alert("保存成功");loadConfigs()}else{alert(d.error||"保存失败")}
+   283|  }).catch(function(){alert("保存失败")})
    284|}
    285|function seedConfig(){
-   286|  if(!confirm({{ _("初始化所有邮箱/短信配置项（已有项不会被覆盖）？") | tojson }}))return;
-  fetch("/user/config/seed",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert(d.message);loadConfigs()}else{alert(d.error||{{ _("初始化失败") | tojson }})}
-  })
+   286|  if(!confirm("初始化所有邮箱/短信配置项（已有项不会被覆盖）？"))return;
+   287|  fetch("/user/config/seed",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   288|    if(d.success){alert(d.message);loadConfigs()}else{alert(d.error||"初始化失败")}
+   289|  })
    290|}
    291|function uploadConfig(){
    292|  document.getElementById("csvFile").click();
@@ -421,16 +421,16 @@ window.l_revenue=function(){
    296|  if(!file)return;
    297|  var fd=new FormData();fd.append("file",file);
    298|  fetch("/user/config/upload",{method:"POST",headers:{"Authorization":"Bearer "+T},body:fd}).then(function(r){return r.json()}).then(function(d){
-   299|    if(d.success){alert(d.message+" ("+d.access_key_prefix+")");loadConfigs()}else{alert(d.error||{{ _("导入失败") | tojson }})}
-  }).catch(function(){alert({{ _("上传失败") | tojson }})});
+   299|    if(d.success){alert(d.message+" ("+d.access_key_prefix+")");loadConfigs()}else{alert(d.error||"导入失败")}
+   300|  }).catch(function(){alert("上传失败")});
    301|  document.getElementById("csvFile").value="";
    302|}
    303|
    304|window.l_logs=function(){
-  document.getElementById("pt").textContent={{ _("操作日志") | tojson }};
-  fetch("/admin/logs",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var h='<div class="cd"><div class="st">{{ _("审计日志") }}</div><table><tr><th>{{ _("管理员") }}</th><th>{{ _("操作") }}</th><th>{{ _("目标") }}</th><th>{{ _("详情") }}</th><th>IP</th><th>{{ _("时间") }}</th></tr>';
+   305|  document.getElementById("pt").textContent="操作日志";
+   306|  fetch("/admin/logs",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   307|    if(!d.success||!d.data)return;
+   308|    var h="<div class=\"cd\"><div class=\"st\">审计日志</div><table><tr><th>管理员</th><th>操作</th><th>目标</th><th>详情</th><th>IP</th><th>时间</th></tr>";
    309|    d.data.forEach(function(l){h+="<tr><td>"+(l.admin_name||"-")+"</td><td>"+l.action+"</td><td>"+l.target_type+"/"+l.target_id+"</td><td>"+(l.detail||"")+"</td><td>"+l.ip_address+"</td><td>"+l.created_at+"</td></tr>"});
    310|    h+="</table></div>";
    311|    document.getElementById("mc").innerHTML=h;
@@ -438,47 +438,47 @@ window.l_revenue=function(){
    313|}
    314|
    315|window.l_matrix=function(){
-  document.getElementById("pt").textContent={{ _("Agent 矩阵") | tojson }};
-  fetch("/admin/agent-matrix",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data)return;
-    var a=d.data;
-    var ms=a.filter(function(x){return x.type=="master"});
-    var cs=a.filter(function(x){return x.type=="child"});
-    var h='<button class="btn bp" onclick="scf()" style="margin-bottom:12px">{{ _("+ 创建 Agent") }}</button>';
-    h+=fm();
-    h+='<div class="cd" style="margin-bottom:12px"><div class="st">{{ _("主 Agent") }} '+ms.length+'</div>';
-    h+=ms.length?mt(ms):'<div class="em">{{ _("暂无") }}</div>';
-    h+='</div><div class="cd"><div class="st">{{ _("子 Agent") }} '+cs.length+'</div>';
-    h+=cs.length?mt(cs):'<div class="em">{{ _("暂无") }}</div>';
-    h+="</div>";
-    document.getElementById("mc").innerHTML=h;
-  }).catch(function(){})
-}
+   316|  document.getElementById("pt").textContent="Agent 矩阵";
+   317|  fetch("/admin/agent-matrix",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+   318|    if(!d.success||!d.data)return;
+   319|    var a=d.data;
+   320|    var ms=a.filter(function(x){return x.type=="master"});
+   321|    var cs=a.filter(function(x){return x.type=="child"});
+   322|    var h="<button class=\"btn bp\" onclick=\"scf()\" style=\"margin-bottom:12px\">+ 创建 Agent</button>";
+   323|    h+=fm();
+   324|    h+="<div class=\"cd\" style=\"margin-bottom:12px\"><div class=\"st\">主 Agent "+ms.length+"</div>";
+   325|    h+=ms.length?mt(ms):'<div class="em">暂无</div>';
+   326|    h+="</div><div class=\"cd\"><div class=\"st\">子 Agent "+cs.length+"</div>";
+   327|    h+=cs.length?mt(cs):'<div class="em">暂无</div>';
+   328|    h+="</div>";
+   329|    document.getElementById("mc").innerHTML=h;
+   330|  }).catch(function(){})
+   331|}
    332|function fm(){
-   333|  return '<div id="cf" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _("创建 Agent") }}</div><div class="g2">'+
-   334|    '<div><div style="font-size:11px;color:var(--dim)">{{ _("类型") }}</div><select class="sl" id="cft" style="width:100%"><option value="master">{{ _("主 Agent") }}</option><option value="child">{{ _("子 Agent") }}</option></select></div>'+
-   335|    '<div><div style="font-size:11px;color:var(--dim)">{{ _("名称 (12字)") }}</div><input class="in" id="cfa" maxlength="12" placeholder="{{ _('社区管理Agent') }}" style="width:100%"></div>'+
-   336|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("核心使命 (64字)") }}</div><input class="in" id="cfm" maxlength="64" placeholder="{{ _('负责...') }}" style="width:100%"></div>'+
-   337|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("提示词 (3000字)") }}</div><textarea class="ta" id="cfp" maxlength="3000" rows="3"></textarea></div>'+
-   338|    '<div><div style="font-size:11px;color:var(--dim)">{{ _("模型提供商") }}</div><select class="sl" id="cfpr" onchange="uburl()" style="width:100%"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option><option value="ollama">Ollama</option></select></div>'+
-   339|    '<div><div style="font-size:11px;color:var(--dim)">{{ _("模型名") }}</div><input class="in" id="cfmo" value="gpt-4o" style="width:100%"></div>'+
-   340|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("API 端点") }}</div><input class="in" id="cfb" value="https://api.openai.com/v1" style="width:100%"></div>'+
-   341|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("API Key") }}</div><input class="in" id="cfak" type="password" style="width:100%"></div>'+
-   342|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">{{ _("能力") }}</div>'+
-   343|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" checked disabled> {{ _("文本") }}</label>'+
-   344|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cs" value="stt"> {{ _("语音转文本") }}</label>'+
-   345|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="ct" value="tts"> {{ _("文本转语音") }}</label>'+
-   346|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cv" value="vision"> {{ _("图像识别") }}</label>'+
-   347|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cg" value="image_gen"> {{ _("生成图片") }}</label></div>'+
-   348|    '</div><div style="margin-top:10px"><button class="btn bp" onclick="dc()">{{ _("确认创建") }}</button> <button class="btn bo" onclick="hc()">{{ _("取消") }}</button></div></div>';
+   333|  return '<div id="cf" style="display:none;margin-bottom:16px" class="cd"><div class="st">创建 Agent</div><div class="g2">'+
+   334|    '<div><div style="font-size:11px;color:var(--dim)">类型</div><select class="sl" id="cft" style="width:100%"><option value="master">主 Agent</option><option value="child">子 Agent</option></select></div>'+
+   335|    '<div><div style="font-size:11px;color:var(--dim)">名称 (12字)</div><input class="in" id="cfa" maxlength="12" placeholder="社区管理Agent" style="width:100%"></div>'+
+   336|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">核心使命 (64字)</div><input class="in" id="cfm" maxlength="64" placeholder="负责..." style="width:100%"></div>'+
+   337|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">提示词 (3000字)</div><textarea class="ta" id="cfp" maxlength="3000" rows="3"></textarea></div>'+
+   338|    '<div><div style="font-size:11px;color:var(--dim)">模型提供商</div><select class="sl" id="cfpr" onchange="uburl()" style="width:100%"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option><option value="ollama">Ollama</option></select></div>'+
+   339|    '<div><div style="font-size:11px;color:var(--dim)">模型名</div><input class="in" id="cfmo" value="gpt-4o" style="width:100%"></div>'+
+   340|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">API 端点</div><input class="in" id="cfb" value="https://api.openai.com/v1" style="width:100%"></div>'+
+   341|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">API Key</div><input class="in" id="cfak" type="password" style="width:100%"></div>'+
+   342|    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">能力</div>'+
+   343|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" checked disabled> 文本</label>'+
+   344|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cs" value="stt"> 语音转文本</label>'+
+   345|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="ct" value="tts"> 文本转语音</label>'+
+   346|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cv" value="vision"> 图像识别</label>'+
+   347|    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cg" value="image_gen"> 生成图片</label></div>'+
+   348|    '</div><div style="margin-top:10px"><button class="btn bp" onclick="dc()">确认创建</button> <button class="btn bo" onclick="hc()">取消</button></div></div>';
    349|}
    350|function mt(arr){
-   351|  var h='<table><tr><th>ID</th><th>{{ _("名称") }}</th><th>{{ _("使命") }}</th><th>{{ _("模型") }}</th><th>{{ _("能力") }}</th><th>{{ _("状态") }}</th><th>{{ _("操作") }}</th></tr>';
+   351|  var h="<table><tr><th>ID</th><th>名称</th><th>使命</th><th>模型</th><th>能力</th><th>状态</th><th>操作</th></tr>";
    352|  arr.forEach(function(a){
-   353|    var st=a.is_active?'<span class="bdg on">{{ _("启用") }}</span>':'<span class="bdg off">{{ _("停用") }}</span>';
+   353|    var st=a.is_active?'<span class="bdg on">启用</span>':'<span class="bdg off">停用</span>';
    354|    h+="<tr><td>"+a.id+"</td><td>"+(a.alias||"-")+"</td><td>"+(a.mission||"-").slice(0,30)+"</td><td>"+a.model_name+"</td><td>"+(a.capabilities||"text")+"</td><td>"+st+"</td><td>"+
-   355|      '<button class="btn bo bs" onclick="tg('+a.id+','+(a.is_active?0:1)+')">'+(a.is_active?{{ _("停用") | tojson }}:{{ _("启用") | tojson }})+'</button> '+
-   356|      '<button class="btn bp bs" onclick="tt('+a.id+')">{{ _("测试") }}</button></td></tr>';
+   355|      '<button class="btn bo bs" onclick="tg('+a.id+','+(a.is_active?0:1)+')">'+(a.is_active?"停用":"启用")+'</button> '+
+   356|      '<button class="btn bp bs" onclick="tt('+a.id+')">测试</button></td></tr>';
    357|  });
    358|  return h+"</table>";
    359|}
@@ -493,43 +493,43 @@ window.l_revenue=function(){
    368|  var ca=["text"];
    369|  ["cs","ct","cv","cg"].forEach(function(c){var e=document.getElementById(c);if(e&&e.checked)ca.push(e.value)});
    370|  var b={type:document.getElementById("cft").value,alias:document.getElementById("cfa").value,mission:document.getElementById("cfm").value,system_prompt:document.getElementById("cfp").value,provider:document.getElementById("cfpr").value,model_name:document.getElementById("cfmo").value,base_url:document.getElementById("cfb").value,api_key:document.getElementById("cfak").value,capabilities:ca.join(",")};
-   371|  fetch("/admin/agent-matrix",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(d){if(d.success){alert({{ _("创建成功") | tojson }});l_matrix()}else{alert(d.error||{{ _("创建失败") | tojson }})}});
+   371|  fetch("/admin/agent-matrix",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(d){if(d.success){alert("创建成功");l_matrix()}else{alert(d.error||"创建失败")}});
    372|}
    373|function tg(id,v){
    374|  fetch("/admin/agent-matrix/"+id,{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({is_active:v})}).then(function(r){return r.json()}).then(function(d){if(d.success)l_matrix()});
    375|}
    376|function tt(id){
-   377|  var q=prompt({{ _("📩 发送测试消息给该智能体：\n（例如：\"帮我分析最近的股市行情\"）") | tojson }});
+   377|  var q=prompt("📩 发送测试消息给该智能体：\n（例如：\"帮我分析最近的股市行情\"）");
    378|  if(!q)return;
    379|  fetch("/admin/agent-matrix/"+id+"/test",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({query:q})}).then(function(r){return r.json()}).then(function(d){
-   380|    if(d.success){alert({{ _("响应：\n") | tojson }}+d.data.response)}else{alert(d.error||{{ _("测试失败") | tojson }})}
+   380|    if(d.success){alert("响应：\n"+d.data.response)}else{alert(d.error||"测试失败")}
    381|  });
    382|}
    383|
    384|
    385|window.l_email=function(){
-  document.getElementById("pt").textContent={{ _("邮件管理") | tojson }};
-  var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="se()">{{ _("写邮件") }}</button></div>';
-  h+='<div id="sendForm" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _("写邮件") }}</div>';
-  h+='<div style="margin-bottom:10px">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:var(--dim)">{{ _("收件人") }}</span><span style="font-size:11px;color:var(--dim)">{{ _("多个地址用逗号分隔") }}</span></div>';
-  h+='<input class="in" id="em-to" placeholder="email1@example.com, email2@example.com" style="width:100%">';
-  h+='<div id="em-recipients" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"></div></div>';
-  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _("主题") }}</div><input class="in" id="em-sub" placeholder="{{ _("邮件主题") }}" style="width:100%"></div>';
-  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _("内容") }}</div><div id="em-editor" style="min-height:200px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid var(--border)"></div></div>';
-  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _("附件") }}</div>';
-  h+='<input type="file" id="em-file" multiple onchange="addAttach()" style="display:none">';
-  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn bo bs" onclick="document.getElementById(\'em-file\').click()">{{ _("+ 添加附件") }}</button><div id="em-attach-list" style="display:flex;gap:6px;flex-wrap:wrap"></div></div></div>';
-  h+='<div style="margin-top:10px;display:flex;gap:8px"><button class="btn bp" onclick="ds()">{{ _("发送") }}</button> <button class="btn bo" onclick="hsf()">{{ _("取消") }}</button></div></div>';
-  h+='<div class="cd"><div class="st">{{ _("收件箱") }}</div><div id="inboxList"><div class="lo"><div class="s"></div></div></div></div>';
+   386|  document.getElementById("pt").textContent="邮件管理";
+   387|  var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="se()">写邮件</button></div>';
+   388|  h+='<div id="sendForm" style="display:none;margin-bottom:16px" class="cd"><div class="st">写邮件</div>';
+   389|  h+='<div style="margin-bottom:10px">';
+   390|  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:var(--dim)">收件人</span><span style="font-size:11px;color:var(--dim)">多个地址用逗号分隔</span></div>';
+   391|  h+='<input class="in" id="em-to" placeholder="email1@example.com, email2@example.com" style="width:100%">';
+   392|  h+='<div id="em-recipients" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"></div></div>';
+   393|  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">主题</div><input class="in" id="em-sub" placeholder="邮件主题" style="width:100%"></div>';
+   394|  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">内容</div><div id="em-editor" style="min-height:200px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid var(--border)"></div></div>';
+   395|  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">附件</div>';
+   396|  h+='<input type="file" id="em-file" multiple onchange="addAttach()" style="display:none">';
+   397|  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn bo bs" onclick="document.getElementById(\'em-file\').click()">+ 添加附件</button><div id="em-attach-list" style="display:flex;gap:6px;flex-wrap:wrap"></div></div></div>';
+   398|  h+='<div style="margin-top:10px;display:flex;gap:8px"><button class="btn bp" onclick="ds()">发送</button> <button class="btn bo" onclick="hsf()">取消</button></div></div>';
+   399|  h+='<div class="cd"><div class="st">收件箱</div><div id="inboxList"><div class="lo"><div class="s"></div></div></div></div>';
    400|  // Contacts panel
-   401|  h+='<div class="cd" style="margin-top:12px"><div class="st" style="cursor:pointer" onclick="toggleContacts()">{{ _("📇 联系人") }} <span id="contactToggle" style="font-size:10px;color:var(--dim)">{{ _("[展开]") }}</span></div>';
-  h+='<div id="contactsPanel" style="display:none">';
-  h+='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">';
-  h+='<button class="btn bp bs" onclick="selectAllContacts()">{{ _("全选") }}</button>';
-  h+='<button class="btn bo bs" onclick="deselectAllContacts()">{{ _("取消全选") }}</button>';
-  h+='<button class="btn bp" onclick="sendBulk()" style="font-size:11px">{{ _("📤 群发到选中联系人") }}</button>';
-  h+='<span id="contactCount" style="font-size:11px;color:var(--dim)">{{ _("0 个联系人") }}</span>';
+   401|  h+='<div class="cd" style="margin-top:12px"><div class="st" style="cursor:pointer" onclick="toggleContacts()">📇 联系人 <span id="contactToggle" style="font-size:10px;color:var(--dim)">[展开]</span></div>';
+   402|  h+='<div id="contactsPanel" style="display:none">';
+   403|  h+='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">';
+   404|  h+='<button class="btn bp bs" onclick="selectAllContacts()">全选</button>';
+   405|  h+='<button class="btn bo bs" onclick="deselectAllContacts()">取消全选</button>';
+   406|  h+='<button class="btn bp" onclick="sendBulk()" style="font-size:11px">📤 群发到选中联系人</button>';
+   407|  h+='<span id="contactCount" style="font-size:11px;color:var(--dim)">0 个联系人</span>';
    408|  h+='</div><div id="contactsList"><div class="lo"><div class="s"></div></div></div></div></div>';
    409|  document.getElementById("mc").innerHTML=h;
    410|  // Prepare Quill
@@ -540,14 +540,14 @@ window.l_revenue=function(){
    415|  // Auto-parse recipients on input
    416|  document.getElementById("em-to").addEventListener("input",parseRecipients);
    417|  fetch("/admin/email/inbox",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-   418|    if(!d.success||!d.data){document.getElementById("inboxList").innerHTML='<div class="em">{{ _("加载失败") }}</div>';return}
-    var lst=d.data.items||d.data;
-    if(!lst.length){document.getElementById("inboxList").innerHTML='<div class="em">{{ _("暂无邮件") }}</div>';return}
-    var tbl='<table><tr><th>{{ _("发件人") }}</th><th>{{ _("主题") }}</th><th>{{ _("附件") }}</th><th>{{ _("时间") }}</th><th>{{ _("操作") }}</th></tr>';
-    lst.forEach(function(e){
-      var attIcon=e.has_attachments?' <span style="color:var(--accent)">📎</span>':'';
-      tbl+='<tr><td>'+(e.from||'-')+'</td><td>'+(e.subject||{{ _("(无主题)") }})+attIcon+'</td><td>'+(e.has_attachments?'<span style="color:var(--accent)">{{ _("有") }}</span>':'')+'</td><td>'+(e.date||'')+'</td>';
-      tbl+='<td><button class="btn bo bs" onclick="re('+e.uid+',\''+e.from.replace(/'/g,'')+'\',\''+(e.subject||'').replace(/'/g,'')+'\')">{{ _("回复") }}</button> <button class="btn bo" onclick="viewEmail('+e.uid+')">{{ _("查看") }}</button></td></tr>';
+   418|    if(!d.success||!d.data){document.getElementById("inboxList").innerHTML='<div class="em">加载失败</div>';return}
+   419|    var lst=d.data.items||d.data;
+   420|    if(!lst.length){document.getElementById("inboxList").innerHTML='<div class="em">暂无邮件</div>';return}
+   421|    var tbl='<table><tr><th>发件人</th><th>主题</th><th>附件</th><th>时间</th><th>操作</th></tr>';
+   422|    lst.forEach(function(e){
+   423|      var attIcon=e.has_attachments?' <span style="color:var(--accent)">📎</span>':'';
+   424|      tbl+='<tr><td>'+(e.from||'-')+'</td><td>'+(e.subject||'(无主题)')+attIcon+'</td><td>'+(e.has_attachments?'<span style="color:var(--accent)">有</span>':'')+'</td><td>'+(e.date||'')+'</td>';
+   425|      tbl+='<td><button class="btn bo bs" onclick="re('+e.uid+',\''+e.from.replace(/'/g,'')+'\',\''+(e.subject||'').replace(/'/g,'')+'\')">回复</button> <button class="btn bo" onclick="viewEmail('+e.uid+')">查看</button></td></tr>';
    426|    });
    427|    tbl+='</table>';
    428|    document.getElementById("inboxList").innerHTML=tbl;
@@ -565,12 +565,12 @@ window.l_revenue=function(){
    440|  var el=document.getElementById("contactsList");
    441|  if(!el)return;
    442|  var total=emContacts.length;
-   443|  document.getElementById("contactCount").textContent=total+{{ _(" 个联系人") | tojson }};
-  if(!total){el.innerHTML='<div class="em">{{ _("暂无联系人（发送邮件后自动收集）") }}</div>';return}
-  var h='<table><tr><th style="width:36px"><input type="checkbox" onchange="toggleAllContacts(this.checked)"></th><th>{{ _("名称") }}</th><th>{{ _("邮箱") }}</th><th>{{ _("来源") }}</th><th>{{ _("次数") }}</th></tr>';
-  emContacts.forEach(function(c,i){
-    var checked=emSelectedContacts.indexOf(c.email)>=0?' checked':'';
-    var src=c.source==='contact'?'<span class="bdg pd">{{ _("表单") }}</span>':'<span class="bdg on">{{ _("已发送") }}</span>';
+   443|  document.getElementById("contactCount").textContent=total+" 个联系人";
+   444|  if(!total){el.innerHTML='<div class="em">暂无联系人（发送邮件后自动收集）</div>';return}
+   445|  var h='<table><tr><th style="width:36px"><input type="checkbox" onchange="toggleAllContacts(this.checked)"></th><th>名称</th><th>邮箱</th><th>来源</th><th>次数</th></tr>';
+   446|  emContacts.forEach(function(c,i){
+   447|    var checked=emSelectedContacts.indexOf(c.email)>=0?' checked':'';
+   448|    var src=c.source==='contact'?'<span class="bdg pd">表单</span>':'<span class="bdg on">已发送</span>';
    449|    h+='<tr><td><input type="checkbox" class="contact-cb" data-email="'+c.email+'" data-name="'+c.name+'"'+checked+' onchange="toggleContact(this)"></td>'+
    450|      '<td>'+(c.name||'-')+'</td><td style="color:var(--accent)">'+c.email+'</td><td>'+src+'</td><td>'+c.count+'</td></tr>';
    451|  });
@@ -603,15 +603,15 @@ window.l_revenue=function(){
    478|  var t=document.getElementById("contactToggle");
    479|  if(p.style.display==="none"||!p.style.display){
    480|    p.style.display="block";
-   481|    t.textContent={{ _("[收起]") | tojson }};
+   481|    t.textContent="[收起]";
    482|    renderContacts();
    483|  }else{
    484|    p.style.display="none";
-   485|    t.textContent={{ _("[展开]") | tojson }};
+   485|    t.textContent="[展开]";
    486|  }
    487|}
    488|function sendBulk(){
-   489|  if(!emSelectedContacts.length){alert({{ _("请先选择要发送的联系人") | tojson }});return}
+   489|  if(!emSelectedContacts.length){alert("请先选择要发送的联系人");return}
    490|  var count=emSelectedContacts.length;
    491|  var el=document.getElementById("em-to");
    492|  el.value=emSelectedContacts.join(", ");
@@ -619,7 +619,7 @@ window.l_revenue=function(){
    494|  se();
    495|  emSelectedContacts=[];
    496|  document.querySelectorAll("#contactsList .contact-cb").forEach(function(cb){cb.checked=false});
-   497|  showToast({{ _("已填入 ") | tojson }}+count+{{ _(" 个收件人，编辑内容后发送") | tojson }},"success");
+   497|  showToast("已填入 "+count+" 个收件人，编辑内容后发送","success");
    498|}
    499|function parseRecipients(){
    500|  var el=document.getElementById("em-to");
@@ -645,7 +645,7 @@ window.l_revenue=function(){
    520|  var files=document.getElementById("em-file").files;
    521|  for(var i=0;i<files.length;i++){
    522|    var f=files[i];
-   523|    if(f.size>10*1024*1024){alert({{ _("附件 ") | tojson }}+f.name+{{ _(" 超过 10MB 限制") | tojson }});continue}
+   523|    if(f.size>10*1024*1024){alert('附件 '+f.name+' 超过 10MB 限制');continue}
    524|    var reader=new FileReader();
    525|    reader.onload=function(fn,fsize){return function(e){
    526|      emAttachments.push({filename:fn,data:e.target.result.split(',')[1],content_type:fn.split('.').pop()==='pdf'?'application/pdf':'application/octet-stream',size:fsize});
@@ -670,7 +670,7 @@ window.l_revenue=function(){
    545|function se(){
    546|  document.getElementById("sendForm").style.display="block";
    547|  if(!window.emEditor){
-   548|    window.emEditor=new Quill('#em-editor',{theme:'snow',placeholder:{{ _('邮件正文...') | tojson }},modules:{toolbar:[['bold','italic','underline','strike'],[{list:'ordered'},{list:'bullet'}],['link','blockquote','code-block'],[{size:['small',false,'large','huge']}],[{color:[]},{background:[]}],['clean']]}});
+   548|    window.emEditor=new Quill('#em-editor',{theme:'snow',placeholder:'邮件正文...',modules:{toolbar:[['bold','italic','underline','strike'],[{list:'ordered'},{list:'bullet'}],['link','blockquote','code-block'],[{size:['small',false,'large','huge']}],[{color:[]},{background:[]}],['clean']]}});
    549|  }
    550|  setTimeout(function(){window.emEditor&&window.emEditor.focus()},100)
    551|}
@@ -680,11 +680,11 @@ window.l_revenue=function(){
    555|  var sub=document.getElementById("em-sub").value.trim();
    556|  var html=window.emEditor?window.emEditor.root.innerHTML:'';
    557|  var text=window.emEditor?window.emEditor.getText().trim():'';
-   558|  if(!to||!sub||(!html&&!text)){showToast({{ _('请填写完整') | tojson }},'error');return}
+   558|  if(!to||!sub||(!html&&!text)){showToast('请填写完整','error');return}
    559|  var body=text||'';
    560|  fetch("/admin/email/send",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({to:to,subject:sub,body:body,body_html:html||null,attachments:emAttachments.length?emAttachments:null})}).then(function(r){return r.json()}).then(function(d){
-   561|    if(d.success){showToast('✅ {{ _("发送成功") }}','success');emAttachments=[];renderAttachList();hsf();l_email()}else{showToast('❌ '+(d.error||{{ _("发送失败") | tojson }}),'error')}
-  }).catch(function(){showToast('❌ {{ _("发送失败") }}','error')})
+   561|    if(d.success){showToast('✅ 发送成功','success');emAttachments=[];renderAttachList();hsf();l_email()}else{showToast('❌ '+(d.error||'发送失败'),'error')}
+   562|  }).catch(function(){showToast('❌ 发送失败','error')})
    563|}
    564|function re(uid,from,sub){
    565|  document.getElementById("em-to").value=from;
@@ -701,18 +701,18 @@ window.l_revenue=function(){
    576|}
    577|function viewEmail(uid){
    578|  fetch("/admin/email/read/"+uid,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-   579|    if(!d.success){showToast({{ _("加载失败") | tojson }} + ": "+(d.error||""),"error");return}
+   579|    if(!d.success){showToast("加载失败: "+(d.error||""),"error");return}
    580|    var m=d.data;
    581|    var bodyHtml=m.body_html||"";
-   582|    var bodyText=(m.body||{{ _("(无内容)") | tojson }}).replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+   582|    var bodyText=(m.body||"(无内容)").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
    583|    var h='<div class="modal-overlay" onclick="closeEmailModal(event)">';
    584|    h+='<div class="modal-box" onclick="event.stopPropagation()">';
    585|    h+='<button onclick="closeEmailModal()" style="float:right;background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;line-height:1">✕</button>';
-   586|    h+='<h3>'+(m.subject||{{ _("(无主题)") | tojson }})+'</h3>';
+   586|    h+='<h3>'+(m.subject||"(无主题)")+'</h3>';
    587|    h+='<div class="modal-meta">';
-   588|    h+='<div><span>{{ _("发件人") }}</span> '+(m.from||"-")+'</div>';
-    h+='<div><span>{{ _("收件人") }}</span> '+(m.to||"-")+'</div>';
-    h+='<div><span>{{ _("时间") }}</span> '+(m.date||"-")+'</div>';
+   588|    h+='<div><span>发件人</span> '+(m.from||"-")+'</div>';
+   589|    h+='<div><span>收件人</span> '+(m.to||"-")+'</div>';
+   590|    h+='<div><span>时间</span> '+(m.date||"-")+'</div>';
    591|    h+='</div>';
    592|    h+='<div class="modal-body">';
    593|    if(bodyHtml){h+=bodyHtml}
@@ -720,7 +720,7 @@ window.l_revenue=function(){
    595|    h+='</div>';
    596|    // Attachments
    597|    if(m.attachments&&m.attachments.length){
-   598|      h+='<div class="modal-attach"><span style="font-size:12px;color:var(--dim)">{{ _("📎 附件") }}</span>';
+   598|      h+='<div class="modal-attach"><span style="font-size:12px;color:var(--dim)">📎 附件</span>';
    599|      m.attachments.forEach(function(a){
    600|        var fn=a.filename||a.name||"file";
    601|        h+=' <a href="/admin/email/attachment/'+uid+'/'+encodeURIComponent(fn)+'" target="_blank">📎 '+fn+'</a>';
@@ -728,13 +728,13 @@ window.l_revenue=function(){
    603|      h+='</div>';
    604|    }
    605|    h+='<div style="margin-top:16px;display:flex;gap:8px">';
-   606|    h+='<button class="btn bp" onclick="re('+uid+',\''+(m.from||"").replace(/'/g,"")+'\',\''+(m.subject||"").replace(/'/g,"")+'\');closeEmailModal()">{{ _("↩ 回复") }}</button>';
-    h+='<button class="btn bo" onclick="closeEmailModal()">{{ _("关闭") }}</button></div></div></div>';
+   606|    h+='<button class="btn bp" onclick="re('+uid+',\''+(m.from||"").replace(/'/g,"")+'\',\''+(m.subject||"").replace(/'/g,"")+'\');closeEmailModal()">↩ 回复</button>';
+   607|    h+='<button class="btn bo" onclick="closeEmailModal()">关闭</button></div></div></div>';
    608|    // Remove any existing modal
    609|    var old=document.querySelector(".modal-overlay");
    610|    if(old)old.remove();
    611|    document.body.insertAdjacentHTML("beforeend",h);
-   612|  }).catch(function(){showToast({{ _("加载失败") | tojson }},"error")});
+   612|  }).catch(function(){showToast("加载失败","error")});
    613|}
    614|function closeEmailModal(e){
    615|  if(e&&e.target!==e.currentTarget)return;
@@ -743,46 +743,46 @@ window.l_revenue=function(){
    618|}
    619|
    620|window.l_sms=function(){
-  document.getElementById("pt").textContent={{ _("短信管理") | tojson }};
-  var h='<div class="cd"><div class="st">{{ _("📱 短信模板管理") }}</div><div style="margin-bottom:12px"><button class="btn bp" onclick="showSmsForm()">{{ _("+ 添加模板") }}</button></div>';
-  h+='<div id="smsForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="smsFormTitle">{{ _("添加模板") }}</div>';
-  h+='<div class="g2">';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("分类") }}</div><select class="sl" id="smsCat" style="width:100%"><option value="captcha">{{ _("验证码") }}</option><option value="notice">{{ _("短信通知") }}</option><option value="promo">{{ _("短信推广") }}</option></select></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("名称") }}</div><input class="in" id="smsName" placeholder="{{ _('如：新用户注册') }}" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("模板 CODE") }}</div><input class="in" id="smsCode" placeholder="SMS_xxxxxxxxx" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("备注") }}</div><input class="in" id="smsNote" placeholder="{{ _('用途说明') }}" style="width:100%"></div>';
-  h+='</div>';
-  h+='<div style="margin-top:10px"><button class="btn bp" onclick="saveSmsTemplate()">{{ _("保存") }}</button> <button class="btn bo" onclick="document.getElementById(\'smsForm\').style.display=\'none\'">{{ _("取消") }}</button><input type="hidden" id="smsEditId" value=""></div></div>';
-  h+='<div id="smsTemplates"></div></div>';
-  document.getElementById("mc").innerHTML=h;
-  loadSmsTemplates();
-};
+   621|  document.getElementById("pt").textContent="短信管理";
+   622|  var h='<div class="cd"><div class="st">📱 短信模板管理</div><div style="margin-bottom:12px"><button class="btn bp" onclick="showSmsForm()">+ 添加模板</button></div>';
+   623|  h+='<div id="smsForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="smsFormTitle">添加模板</div>';
+   624|  h+='<div class="g2">';
+   625|  h+='<div><div style="font-size:11px;color:var(--dim)">分类</div><select class="sl" id="smsCat" style="width:100%"><option value="captcha">验证码</option><option value="notice">短信通知</option><option value="promo">短信推广</option></select></div>';
+   626|  h+='<div><div style="font-size:11px;color:var(--dim)">名称</div><input class="in" id="smsName" placeholder="如：新用户注册" style="width:100%"></div>';
+   627|  h+='<div><div style="font-size:11px;color:var(--dim)">模板 CODE</div><input class="in" id="smsCode" placeholder="SMS_xxxxxxxxx" style="width:100%"></div>';
+   628|  h+='<div><div style="font-size:11px;color:var(--dim)">备注</div><input class="in" id="smsNote" placeholder="用途说明" style="width:100%"></div>';
+   629|  h+='</div>';
+   630|  h+='<div style="margin-top:10px"><button class="btn bp" onclick="saveSmsTemplate()">保存</button> <button class="btn bo" onclick="document.getElementById(\'smsForm\').style.display=\'none\'">取消</button><input type="hidden" id="smsEditId" value=""></div></div>';
+   631|  h+='<div id="smsTemplates"></div></div>';
+   632|  document.getElementById("mc").innerHTML=h;
+   633|  loadSmsTemplates();
+   634|};
    635|
    636|function loadSmsTemplates(){
    637|  fetch("/admin/sms/templates",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-   638|    if(!d.success||!d.data){document.getElementById("smsTemplates").innerHTML='<div class="em">{{ _("加载失败") }}</div>';return}
+   638|    if(!d.success||!d.data){document.getElementById("smsTemplates").innerHTML='<div class="em">加载失败</div>';return}
    639|    var cats=d.data.categories;
    640|    var h="";
    641|    var order=["captcha","notice","promo"];
    642|    order.forEach(function(k){
    643|      var c=cats[k];
    644|      if(!c||!c.items||!c.items.length){return}
-   645|      h+='<div class="cd" style="margin-bottom:12px"><div class="st">'+c.title+' ('+c.items.length+')</div><table><tr><th>{{ _("名称") }}</th><th>{{ _("模板 CODE") }}</th><th>{{ _("备注") }}</th><th>{{ _("操作") }}</th></tr>';
+   645|      h+='<div class="cd" style="margin-bottom:12px"><div class="st">'+c.title+' ('+c.items.length+')</div><table><tr><th>名称</th><th>模板 CODE</th><th>备注</th><th>操作</th></tr>';
    646|      c.items.forEach(function(t){
    647|        h+='<tr><td>'+esc(t.name)+'</td><td style="font-family:monospace;color:var(--accent)">'+esc(t.template_code)+'</td><td style="color:var(--dim)">'+esc(t.note)+'</td>';
-   648|        h+='<td><button class="btn bo bs" onclick="editSmsTemplate('+t.id+',\''+t.category+'\',\''+esc(t.name)+'\',\''+esc(t.template_code)+'\',\''+esc(t.note)+'\')">{{ _("编辑") }}</button> ';
-        h+='<button class="btn bo bs" onclick="deleteSmsTemplate('+t.id+')">{{ _("删除") }}</button></td></tr>';
+   648|        h+='<td><button class="btn bo bs" onclick="editSmsTemplate('+t.id+',\''+t.category+'\',\''+esc(t.name)+'\',\''+esc(t.template_code)+'\',\''+esc(t.note)+'\')">编辑</button> ';
+   649|        h+='<button class="btn bo bs" onclick="deleteSmsTemplate('+t.id+')">删除</button></td></tr>';
    650|      });
    651|      h+='</table></div>';
    652|    });
-   653|    if(!h){h='<div class="em">{{ _("暂无模板，点击上方「添加模板」创建") }}</div>'}
-    document.getElementById("smsTemplates").innerHTML=h;
-  }).catch(function(){document.getElementById("smsTemplates").innerHTML='<div class="em">{{ _("加载失败") }}</div>'})
+   653|    if(!h){h='<div class="em">暂无模板，点击上方「添加模板」创建</div>'}
+   654|    document.getElementById("smsTemplates").innerHTML=h;
+   655|  }).catch(function(){document.getElementById("smsTemplates").innerHTML='<div class="em">加载失败</div>'})
    656|}
    657|
    658|function showSmsForm(){
    659|  document.getElementById("smsForm").style.display="block";
-   660|  document.getElementById("smsFormTitle").textContent={{ _("添加模板") | tojson }};
+   660|  document.getElementById("smsFormTitle").textContent="添加模板";
    661|  document.getElementById("smsEditId").value="";
    662|  document.getElementById("smsCat").value="captcha";
    663|  document.getElementById("smsName").value="";
@@ -796,7 +796,7 @@ window.l_revenue=function(){
    671|  var name=document.getElementById("smsName").value.trim();
    672|  var code=document.getElementById("smsCode").value.trim();
    673|  var note=document.getElementById("smsNote").value.trim();
-   674|  if(!name||!code){alert({{ _("名称和模板 CODE 不能为空") | tojson }});return}
+   674|  if(!name||!code){alert("名称和模板 CODE 不能为空");return}
    675|  var url="/admin/sms/templates";
    676|  var method="POST";
    677|  var body={category:cat,name:name,template_code:code,note:note};
@@ -806,14 +806,14 @@ window.l_revenue=function(){
    681|    body={name:name,template_code:code,note:note};
    682|  }
    683|  fetch(url,{method:method,headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(d){
-   684|    if(d.success){document.getElementById("smsForm").style.display="none";loadSmsTemplates();showToast({{ _("保存成功") | tojson }},"success")}
-   685|    else{alert(d.error||{{ _("保存失败") | tojson }})}
-   686|  }).catch(function(){alert({{ _("保存失败") | tojson }})})
+   684|    if(d.success){document.getElementById("smsForm").style.display="none";loadSmsTemplates();showToast("保存成功","success")}
+   685|    else{alert(d.error||"保存失败")}
+   686|  }).catch(function(){alert("保存失败")})
    687|}
    688|
    689|function editSmsTemplate(id,cat,name,code,note){
    690|  document.getElementById("smsForm").style.display="block";
-   691|  document.getElementById("smsFormTitle").textContent={{ _("编辑模板") | tojson }};
+   691|  document.getElementById("smsFormTitle").textContent="编辑模板";
    692|  document.getElementById("smsEditId").value=id;
    693|  document.getElementById("smsCat").value=cat;
    694|  document.getElementById("smsName").value=name;
@@ -822,46 +822,46 @@ window.l_revenue=function(){
    697|}
    698|
    699|function deleteSmsTemplate(id){
-   700|  if(!confirm({{ _("确定删除此模板？") | tojson }}))return;
+   700|  if(!confirm("确定删除此模板？"))return;
    701|  fetch("/admin/sms/templates/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-   702|    if(d.success){loadSmsTemplates();showToast({{ _("已删除") | tojson }},"success")}
-   703|    else{alert(d.error||{{ _("删除失败") | tojson }})}
-   704|  }).catch(function(){alert({{ _("删除失败") | tojson }})})
+   702|    if(d.success){loadSmsTemplates();showToast("已删除","success")}
+   703|    else{alert(d.error||"删除失败")}
+   704|  }).catch(function(){alert("删除失败")})
    705|}
    706|
    707|window.l_downloads=function(){
-  document.getElementById("pt").textContent={{ _("下载管理") | tojson }};
+  document.getElementById("pt").textContent="下载管理";
   fetch("/admin/downloads",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
-    var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="dlForm()">{{ _("+ 新增下载项") }}</button></div>';
-    h+='<div id="dlForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="dlFormTitle">{{ _("新增下载项") }}</div>';
+    var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="dlForm()">+ 新增下载项</button></div>';
+    h+='<div id="dlForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="dlFormTitle">新增下载项</div>';
     h+='<div class="g2">';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("产品名称") }}</div><input class="in" id="dlName" style="width:100%" placeholder="Hermes Agent"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("Slug (URL标识)") }}</div><input class="in" id="dlSlug" style="width:100%" placeholder="hermes-agent"></div>';
-    h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("一句话简介") }}</div><input class="in" id="dlTagline" style="width:100%" placeholder="{{ _('开源CLI 智能体框架') }}"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("分类") }}</div><select class="sl" id="dlCat" style="width:100%"><option value="core">{{ _("核心框架") }}</option><option value="skills" selected>Skills</option><option value="sdk">SDK</option><option value="plugin">{{ _("插件") }}</option><option value="model">{{ _("模型") }}</option></select></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("版本") }}</div><input class="in" id="dlVer" style="width:100%" value="1.0.0"></div>';
-    h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("下载链接 (GitHub Release)") }}</div><input class="in" id="dlUrl" style="width:100%" placeholder="https://github.com/.../releases/download/..."></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("GitHub 仓库") }}</div><input class="in" id="dlRepo" style="width:100%" placeholder="https://github.com/user/repo"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("文件大小") }}</div><input class="in" id="dlSize" style="width:100%" placeholder="12.3 MB"></div>';
-    h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _("标签 (逗号分隔)") }}</div><input class="in" id="dlTags" style="width:100%" placeholder="stable, official"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("图标") }}</div><input class="in" id="dlIcon" style="width:100%" placeholder="📦"></div>';
-    h+='<div><div style="font-size:11px;color:var(--dim)">{{ _("排序") }}</div><input class="in" id="dlSort" style="width:100%" type="number" value="0"></div>';
-    h+='<div style="grid-column:1/3"><label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="dlPub" checked> {{ _("发布") }}</label></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">产品名称</div><input class="in" id="dlName" style="width:100%" placeholder="Hermes Agent"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">Slug (URL标识)</div><input class="in" id="dlSlug" style="width:100%" placeholder="hermes-agent"></div>';
+    h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">一句话简介</div><input class="in" id="dlTagline" style="width:100%" placeholder="开源CLI 智能体框架"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">分类</div><select class="sl" id="dlCat" style="width:100%"><option value="core">核心框架</option><option value="skills" selected>Skills</option><option value="sdk">SDK</option><option value="plugin">插件</option><option value="model">模型</option></select></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">版本</div><input class="in" id="dlVer" style="width:100%" value="1.0.0"></div>';
+    h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">下载链接 (GitHub Release)</div><input class="in" id="dlUrl" style="width:100%" placeholder="https://github.com/.../releases/download/..."></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">GitHub 仓库</div><input class="in" id="dlRepo" style="width:100%" placeholder="https://github.com/user/repo"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">文件大小</div><input class="in" id="dlSize" style="width:100%" placeholder="12.3 MB"></div>';
+    h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">标签 (逗号分隔)</div><input class="in" id="dlTags" style="width:100%" placeholder="stable, official"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">图标</div><input class="in" id="dlIcon" style="width:100%" placeholder="📦"></div>';
+    h+='<div><div style="font-size:11px;color:var(--dim)">排序</div><input class="in" id="dlSort" style="width:100%" type="number" value="0"></div>';
+    h+='<div style="grid-column:1/3"><label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="dlPub" checked> 发布</label></div>';
     h+='<input type="hidden" id="dlEditId" value="">';
-    h+='</div><div style="margin-top:10px"><button class="btn bp" onclick="dlSave()">{{ _("保存") }}</button> <button class="btn bo" onclick="dlFormHide()">{{ _("取消") }}</button></div></div>';
-    h+='<div class="cd"><div class="st">{{ _("下载项列表") }} ('+d.data.length+')</div><table><tr><th>ID</th><th>{{ _("名称") }}</th><th>{{ _("分类") }}</th><th>{{ _("版本") }}</th><th>{{ _("状态") }}</th><th>{{ _("下载") }}</th><th>{{ _("操作") }}</th></tr>';
+    h+='</div><div style="margin-top:10px"><button class="btn bp" onclick="dlSave()">保存</button> <button class="btn bo" onclick="dlFormHide()">取消</button></div></div>';
+    h+='<div class="cd"><div class="st">下载项列表 ('+d.data.length+')</div><table><tr><th>ID</th><th>名称</th><th>分类</th><th>版本</th><th>状态</th><th>下载</th><th>操作</th></tr>';
     d.data.forEach(function(dl){
-      var st=dl.is_published?'<span class="bdg on">{{ _("已发布") }}</span>':'<span class="bdg off">{{ _("隐藏") }}</span>';
+      var st=dl.is_published?'<span class="bdg on">已发布</span>':'<span class="bdg off">隐藏</span>';
       h+='<tr><td>'+dl.id+'</td><td>'+(dl.name||'-')+'</td><td>'+dl.category+'</td><td>'+dl.version+'</td><td>'+st+'</td><td>'+dl.download_count+'</td><td>';
-      h+='<button class="btn bo bs" onclick="dlEdit('+dl.id+')">{{ _("编辑") }}</button> ';
-      h+='<button class="btn bo bs" onclick="dlDel('+dl.id+')">{{ _("删除") }}</button></td></tr>';
+      h+='<button class="btn bo bs" onclick="dlEdit('+dl.id+')">编辑</button> ';
+      h+='<button class="btn bo bs" onclick="dlDel('+dl.id+')">删除</button></td></tr>';
     });
     h+='</table></div>';
     document.getElementById("mc").innerHTML=h;
   }).catch(function(){})
 };
-function dlForm(){document.getElementById("dlForm").style.display="block";document.getElementById("dlFormTitle").textContent={{ _("新增下载项") | tojson }};document.getElementById("dlEditId").value="";document.getElementById("dlName").value="";document.getElementById("dlSlug").value="";document.getElementById("dlTagline").value="";document.getElementById("dlVer").value="1.0.0";document.getElementById("dlUrl").value="";document.getElementById("dlRepo").value="";document.getElementById("dlSize").value="";document.getElementById("dlTags").value="";document.getElementById("dlIcon").value="📦";document.getElementById("dlSort").value="0";document.getElementById("dlPub").checked=true}
+function dlForm(){document.getElementById("dlForm").style.display="block";document.getElementById("dlFormTitle").textContent="新增下载项";document.getElementById("dlEditId").value="";document.getElementById("dlName").value="";document.getElementById("dlSlug").value="";document.getElementById("dlTagline").value="";document.getElementById("dlVer").value="1.0.0";document.getElementById("dlUrl").value="";document.getElementById("dlRepo").value="";document.getElementById("dlSize").value="";document.getElementById("dlTags").value="";document.getElementById("dlIcon").value="📦";document.getElementById("dlSort").value="0";document.getElementById("dlPub").checked=true}
 function dlFormHide(){document.getElementById("dlForm").style.display="none"}
 function dlSave(){
   var id=document.getElementById("dlEditId").value;
@@ -883,9 +883,9 @@ function dlSave(){
   var method="POST";
   if(id){url+="/"+id;method="PUT";body.id=parseInt(id)}
   fetch(url,{method:method,headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){dlFormHide();l_downloads();showToast({{ _("保存成功") | tojson }},"success")}
-    else{alert(d.error||{{ _("保存失败") | tojson }})}
-  }).catch(function(){alert({{ _("保存失败") | tojson }})})
+    if(d.success){dlFormHide();l_downloads();showToast("保存成功","success")}
+    else{alert(d.error||"保存失败")}
+  }).catch(function(){alert("保存失败")})
 }
 function dlEdit(id){
   fetch("/admin/downloads",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
@@ -893,7 +893,7 @@ function dlEdit(id){
     var dl=d.data.find(function(x){return x.id===id});
     if(!dl)return;
     document.getElementById("dlForm").style.display="block";
-    document.getElementById("dlFormTitle").textContent={{ _("编辑 — ") | tojson }}+dl.name;
+    document.getElementById("dlFormTitle").textContent="编辑 — "+dl.name;
     document.getElementById("dlEditId").value=dl.id;
     document.getElementById("dlName").value=dl.name||"";
     document.getElementById("dlSlug").value=dl.slug||"";
@@ -910,18 +910,18 @@ function dlEdit(id){
   })
 }
 function dlDel(id){
-  if(!confirm({{ _("确定删除此下载项？") | tojson }}))return;
+  if(!confirm("确定删除此下载项？"))return;
   fetch("/admin/downloads/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){l_downloads();showToast({{ _("已删除") | tojson }},"success")}
-    else{alert(d.error||{{ _("删除失败") | tojson }})}
-  }).catch(function(){alert({{ _("删除失败") | tojson }})})
+    if(d.success){l_downloads();showToast("已删除","success")}
+    else{alert(d.error||"删除失败")}
+  }).catch(function(){alert("删除失败")})
 }
 
 window.l_cms=function(){
-  document.getElementById("pt").textContent={{ _("CMS 管理") | tojson }};
-  var h='<div class="cd"><div class="st">{{ _("CMS 页面") }}</div><div id="cms-pages"><div class="lo"><div class="s"></div></div></div></div>';
-  h+='<div class="cd" style="margin-top:12px"><div class="st">{{ _("文章管理") }}</div><div id="cms-posts"><div class="lo"><div class="s"></div></div></div></div>';
-  h+='<div style="margin-top:12px"><button class="btn bp" onclick="seedCMS()">{{ _("初始化默认内容") }}</button></div>';
+   708|  document.getElementById("pt").textContent="CMS 管理";
+   709|  var h='<div class="cd"><div class="st">CMS 页面</div><div id="cms-pages"><div class="lo"><div class="s"></div></div></div></div>';
+   710|  h+='<div class="cd" style="margin-top:12px"><div class="st">文章管理</div><div id="cms-posts"><div class="lo"><div class="s"></div></div></div></div>';
+   711|  h+='<div style="margin-top:12px"><button class="btn bp" onclick="seedCMS()">初始化默认内容</button></div>';
    712|  document.getElementById("mc").innerHTML=h;
    713|  loadCMSPages();
    714|  loadCMSPosts();
@@ -929,7 +929,7 @@ window.l_cms=function(){
    716|function loadCMSPages(){
    717|  fetch("/admin/cms/blocks/home/all",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
    718|    var pages=["home","brand","services","download","docs"];
-   719|    var h='<table><tr><th>{{ _("页面") }}</th><th>{{ _("块数") }}</th></tr>';
+   719|    var h='<table><tr><th>页面</th><th>块数</th></tr>';
    720|    var count=0;
    721|    function showPage(name){
    722|      fetch("/admin/cms/blocks/"+name+"/all",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d2){
@@ -946,10 +946,10 @@ window.l_cms=function(){
    733|}
    734|function loadCMSPosts(){
    735|  fetch("/admin/cms/posts?limit=20",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-   736|    if(!d.success||!d.data){document.getElementById("cms-posts").innerHTML='<div class="em">{{ _("暂无") }}</div>';return}
-    var h='<table><tr><th>ID</th><th>{{ _("标题") }}</th><th>{{ _("分类") }}</th><th>{{ _("状态") }}</th><th>{{ _("时间") }}</th></tr>';
-    d.data.forEach(function(p){
-      var st=p.is_published?'<span class="bdg on">{{ _("已发布") }}</span>':'<span class="bdg off">{{ _("草稿") }}</span>';
+   736|    if(!d.success||!d.data){document.getElementById("cms-posts").innerHTML='<div class="em">暂无</div>';return}
+   737|    var h='<table><tr><th>ID</th><th>标题</th><th>分类</th><th>状态</th><th>时间</th></tr>';
+   738|    d.data.forEach(function(p){
+   739|      var st=p.is_published?'<span class="bdg on">已发布</span>':'<span class="bdg off">草稿</span>';
    740|      h+='<tr><td>'+p.id+'</td><td>'+(p.title||"-")+'</td><td>'+p.category+'</td><td>'+st+'</td><td>'+(p.created_at||"")+'</td></tr>';
    741|    });
    742|    h+='</table>';
@@ -957,9 +957,9 @@ window.l_cms=function(){
    744|  });
    745|}
    746|function seedCMS(){
-   747|  if(!confirm({{ _("将初始化 CMS 默认内容。已有内容不会被覆盖。确认？") | tojson }}))return;
+   747|  if(!confirm("将初始化 CMS 默认内容。已有内容不会被覆盖。确认？"))return;
    748|  fetch("/admin/cms/settings",{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({key:"seeded",value:"init"})})
-   749|    .then(function(){alert({{ _("请在服务器终端执行 python3 scripts/seed_cms.py 初始化数据。") | tojson }});});
+   749|    .then(function(){alert("请在服务器终端执行 python3 scripts/seed_cms.py 初始化数据。");});
    750|}
    751|
    752|</script>

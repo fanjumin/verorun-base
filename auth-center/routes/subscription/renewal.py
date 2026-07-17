@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from models import get_db, DB_PATH
-from i18n import _
 
 
 # Dunning 重试计划：失败后第1天 / 第3天 / 第7天
@@ -125,8 +124,7 @@ def _process_renewal(conn, sub):
     amount_fen = plan['price_year'] if period == 'year' else plan['price_month']
     expire_days = 365 if period == 'year' else 30
     brand = os.environ.get("DEPLOY_BRAND", "")
-    period_label = _('年付') if period == 'year' else _('月付')
-    desc = _('{brand} {plan_name}{period_label}续费', brand=brand, plan_name=plan['name'], period_label=period_label)
+    desc = f"{brand} {plan['name']}{'年付' if period=='year' else '月付'}续费"
     from . import new_order_no
     order_no = new_order_no('REN')
 
@@ -187,7 +185,7 @@ def _retry_charge(conn, sub):
     amount_fen = plan['price_year'] if period == 'year' else plan['price_month']
     expire_days = 365 if period == 'year' else 30
     brand = os.environ.get("DEPLOY_BRAND", "")
-    desc = _('{brand} {plan_name}续费(重试)', brand=brand, plan_name=plan['name'])
+    desc = f"{brand} {plan['name']}续费(重试)"
     order_no = new_order_no('RET')
     conn.execute(
         'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
@@ -231,7 +229,7 @@ def _mark_past_due(conn, sub, order_no, fail_reason):
     _log_payment_event(conn, sub['user_id'], sub['id'], 'charge_fail',
                        sub.get('payment_method', ''), 0, fail_reason)
     _log_audit(conn, sub['user_id'], 'renewal_failed',
-               _('扣款失败: {reason}', reason=fail_reason), sub_id=sub['id'])
+               f'扣款失败: {fail_reason}', sub_id=sub['id'])
 
 
 def _log_payment_event(conn, user_id, sub_id, event_type, channel, amount_fen, fail_reason=''):

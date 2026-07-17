@@ -9,8 +9,6 @@ import json, logging, sys, os, threading
 from collections import deque
 import time as _time
 
-from i18n import _
-
 logger = logging.getLogger(__name__)
 
 # 供应商默认配置
@@ -153,12 +151,12 @@ class AIEngine:
             except ImportError:
                 logger.error("openai package not installed")
         else:
-            logger.warning(_('[AIEngine] {provider}/{model}: 没有 API Key', provider=self.provider, model=self.model))
+            logger.warning(f"[AIEngine] {self.provider}/{self.model}: 没有 API Key")
 
     def chat(self, messages, temperature=0.7, max_tokens=4096):
         """调用 LLM，返回 text"""
         if not self.client:
-            return _("Error: AI 引擎未初始化（缺少 API Key）")
+            return "Error: AI 引擎未初始化（缺少 API Key）"
 
         try:
             resp = self.client.chat.completions.create(
@@ -178,7 +176,7 @@ class AIEngine:
                 ), daemon=True).start()
             return resp.choices[0].message.content
         except Exception as e:
-            logger.error(_('[AIEngine] {provider}/{model} 调用失败: {e}', provider=self.provider, model=self.model, e=e))
+            logger.error(f"[AIEngine] {self.provider}/{self.model} 调用失败: {e}")
             return f"Error: {e}"
 
     def chat_with_tools(self, messages, tools, temperature=0.7, max_tokens=4096):
@@ -210,7 +208,7 @@ class AIEngine:
                 ), daemon=True).start()
             return resp.choices[0].message
         except Exception as e:
-            logger.error(_('[AIEngine] {provider}/{model} 工具调用失败: {e}', provider=self.provider, model=self.model, e=e))
+            logger.error(f"[AIEngine] {self.provider}/{self.model} 工具调用失败: {e}")
             return None
 
     def ask(self, user_query, temperature=0.7):
@@ -237,7 +235,7 @@ class AIEngine:
     def chat_stream(self, messages, temperature=0.7, max_tokens=4096):
         """流式调用 LLM，逐段 yield 文本内容"""
         if not self.client:
-            yield _("Error: AI 引擎未初始化（缺少 API Key）")
+            yield "Error: AI 引擎未初始化（缺少 API Key）"
             return
 
         try:
@@ -263,7 +261,7 @@ class AIEngine:
                 'chat', 'text'
             ), daemon=True).start()
         except Exception as e:
-            logger.error(_('[AIEngine] {provider}/{model} 流式调用失败: {e}', provider=self.provider, model=self.model, e=e))
+            logger.error(f"[AIEngine] {self.provider}/{self.model} 流式调用失败: {e}")
             yield f"Error: {e}"
 
     def ask_stream(self, user_query, temperature=0.7):
@@ -297,7 +295,7 @@ class AIEngine:
             result = vc_clone(audio_url, voice_name)
             return result
         except Exception as e:
-            logger.error(_('[AIEngine] voice_clone 失败: {e}', e=e))
+            logger.error(f"[AIEngine] voice_clone 失败: {e}")
             return {'success': False, 'error': str(e)}
 
     def tts(self, text: str, voice_id: str, output_path: str | None = None) -> dict:
@@ -307,7 +305,7 @@ class AIEngine:
             result = vc_tts(text, voice_id, output_path)
             return result
         except Exception as e:
-            logger.error(_('[AIEngine] tts 失败: {e}', e=e))
+            logger.error(f"[AIEngine] tts 失败: {e}")
             return {'success': False, 'error': str(e)}
 
     def avatar_video(self, text: str, voice_id: str, image_url: str) -> dict:
@@ -317,7 +315,7 @@ class AIEngine:
             result = vc_avatar(text, voice_id, image_url)
             return result
         except Exception as e:
-            logger.error(_('[AIEngine] avatar_video 失败: {e}', e=e))
+            logger.error(f"[AIEngine] avatar_video 失败: {e}")
             return {'success': False, 'error': str(e)}
 
     def query_media_task(self, task_id: str) -> dict:
@@ -327,7 +325,7 @@ class AIEngine:
             result = query_avatar_task(task_id)
             return result
         except Exception as e:
-            logger.error(_('[AIEngine] query_media_task 失败: {e}', e=e))
+            logger.error(f"[AIEngine] query_media_task 失败: {e}")
             return {'success': False, 'status': 'failed', 'error': str(e)}
 
     def execute_media_action(self, action: str, params: dict) -> dict:
@@ -354,7 +352,7 @@ class AIEngine:
                 task_id=params.get('task_id', '')
             )
         else:
-            return {'success': False, 'error': _('不支持的媒体操作: {action}', action=action)}
+            return {'success': False, 'error': f'不支持的媒体操作: {action}'}
 
 
 # ============================================================
@@ -476,9 +474,9 @@ def check_ai_budget(scene: str = '') -> tuple:
             while _AI_CALL_TIMES and now - _AI_CALL_TIMES[0] > window:
                 _AI_CALL_TIMES.popleft()
             if len(_AI_CALL_TIMES) >= max_calls:
-                logger.warning(_("[AIBudget] rate limit hit (scene={scene}): {max_calls}/{window}s",
-                               scene=scene, max_calls=max_calls, window=window))
-                return False, _('AI 调用速率超限（{max_calls} 次/{window} 秒），请稍后再试', max_calls=max_calls, window=window)
+                logger.warning("[AIBudget] rate limit hit (scene=%s): %d/%ds",
+                               scene, max_calls, window)
+                return False, f'AI 调用速率超限（{max_calls} 次/{window} 秒），请稍后再试'
             _AI_CALL_TIMES.append(now)
 
     # 2) 日预算熔断
@@ -486,8 +484,8 @@ def check_ai_budget(scene: str = '') -> tuple:
     if daily_limit > 0:
         used = _today_token_usage()
         if used >= 0 and used >= daily_limit:
-            logger.warning(_("[AIBudget] daily budget exhausted (scene={scene}): {used}/{daily_limit}",
-                           scene=scene, used=used, daily_limit=daily_limit))
-            return False, _('今日 AI 预算已用尽（{used}/{daily_limit} tokens）', used=used, daily_limit=daily_limit)
+            logger.warning("[AIBudget] daily budget exhausted (scene=%s): %d/%d",
+                           scene, used, daily_limit)
+            return False, f'今日 AI 预算已用尽（{used}/{daily_limit} tokens）'
 
     return True, ''

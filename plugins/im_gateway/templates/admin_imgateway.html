@@ -226,7 +226,7 @@ function _chTest(){
     if(_chSecrets[_chCurrentTab]&&_chSecrets[_chCurrentTab].app_secret)appSecret=_chSecrets[_chCurrentTab].app_secret;
     else{alert('{{ _('Please Enter First') }} App Secret {{ _('Save Then Test') }}');return}
   }
-  if(!appId||!appSecret){alert('{{ _('App ID 和 App Secret Required') }}');return}
+  if(!appId||!appSecret){alert('App ID 和 App Secret {{ _('Required') }}');return}
   var msg=document.getElementById('ch-msg');
   msg.innerHTML='<span style="color:var(--cyan)">{{ _('Testing') }}...</span>';
 
@@ -375,7 +375,7 @@ function _wcTest(){
     if(_wcSecrets.wecom&&_wcSecrets.wecom.secret)secret=_wcSecrets.wecom.secret;
     else{alert('{{ _('Please Enter First') }} Secret {{ _('Save Then Test') }}');return}
   }
-  if(!corpId||!secret){alert('{{ _('Enterprise ID 和 Secret Required') }}');return}
+  if(!corpId||!secret){alert('{{ _('Enterprise') }} ID 和 Secret {{ _('Required') }}');return}
   var msg=document.getElementById('wc-msg');
   msg.innerHTML='<span style="color:var(--cyan)">{{ _('Testing') }}...</span>';
 

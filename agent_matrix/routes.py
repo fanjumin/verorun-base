@@ -11,7 +11,6 @@ API 端点统计: ~35 个
 """
 import os, sys, json, logging
 
-from i18n import _
 from flask import Blueprint, request, jsonify, send_from_directory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +43,7 @@ def _require_admin():
         token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': _('需要管理权限')}), 401)
+        return None, (jsonify({'success': False, 'error': '需要管理权限'}), 401)
     return payload, None
 
 
@@ -105,7 +104,7 @@ def create_agent():
 
     data = request.get_json(force=True) or {}
     if not data.get('name'):
-        return _error(_('Agent 名称不能为空'))
+        return _error('Agent 名称不能为空')
 
     try:
         provider = data.get('provider', 'dashscope')
@@ -124,7 +123,7 @@ def create_agent():
             data['api_key_ref'] = key_name if api_key_val else ''
             del data['api_key']
         agent_id = _m().create_agent(data)
-        return _success({'id': agent_id}, _('Agent 已创建'))
+        return _success({'id': agent_id}, 'Agent 已创建')
     except Exception as e:
         return _error(str(e), 500)
 
@@ -172,8 +171,8 @@ def update_agent(aid):
         del data['api_key']
     ok = _m().update_agent(aid, data)
     if not ok:
-        return _error(_('没有要更新的字段'))
-    return _success(None, _('Agent 已更新'))
+        return _error('没有要更新的字段')
+    return _success(None, 'Agent 已更新')
 
 
 @agent_matrix_bp.route('/agents/<int:aid>', methods=['DELETE'])
@@ -183,12 +182,12 @@ def delete_agent(aid):
 
     agent = _m().get_agent(aid)
     if not agent:
-        return _error(_('Agent 不存在'), 404)
+        return _error('Agent 不存在', 404)
     if agent['role_type'] == 'master':
-        return _error(_('不能删除主 Agent'), 400)
+        return _error('不能删除主 Agent', 400)
 
     _m().delete_agent(aid)
-    return _success(None, _('Agent 已删除'))
+    return _success(None, 'Agent 已删除')
 
 
 @agent_matrix_bp.route('/agents/<int:aid>/toggle', methods=['POST'])
@@ -199,7 +198,7 @@ def toggle_agent(aid):
     new_state = _m().toggle_agent(aid)
     if new_state is None:
         return _error('Agent 不存在', 404)
-    return _success({'is_active': new_state}, _('Agent 已启用') if new_state else _('Agent 已禁用'))
+    return _success({'is_active': new_state}, f'Agent 已{"启用" if new_state else "禁用"}')
 
 
 @agent_matrix_bp.route('/agents/<int:aid>/test', methods=['POST'])
@@ -222,7 +221,7 @@ def test_agent(aid):
 
     result = runner.execute({
         'task_id': 'test-' + str(aid),
-        'title': _('测试任务'),
+        'title': '测试任务',
         'description': query,
         'input_data': {'query': query},
         'expected_output': {'fields': ['response']},
@@ -244,7 +243,7 @@ def agent_capabilities(aid):
 
     agent = _m().get_agent(aid)
     if not agent:
-        return _error(_('Agent 不存在'), 404)
+        return _error('Agent 不存在', 404)
 
     caps = {
         'name': agent['name'],
@@ -386,7 +385,7 @@ def chat_with_master():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return _error(_('执行失败: {e}', e=e), 500)
+        return _error(f'执行失败: {e}', 500)
 
     return _success({
         'session_id': session_id,
@@ -411,7 +410,7 @@ def chat_tool():
     data = request.get_json(force=True) or {}
     message = data.get('message', '').strip()
     if not message:
-        return _error(_('消息不能为空'))
+        return _error('消息不能为空')
 
     session_id = data.get('session_id', '')
     if not session_id:
@@ -420,7 +419,7 @@ def chat_tool():
     # 获取 Master Agent 用于 AI 分析意图
     agents = _m().list_agents(role_type='master', active_only=True)
     if not agents:
-        return _error(_('没有可用的 Master Agent'), 500)
+        return _error('没有可用的 Master Agent', 500)
     master = agents[0]
 
     # 工具路由映射
@@ -467,14 +466,14 @@ def chat_tool():
             if filename:
                 url = f"/admin/agent-matrix/media/download/{filename}"
                 actions.append({'type': 'ppt_download', 'url': url, 'filename': filename})
-                summary = _('✅ PPT已生成：{topic}（{pages}页）\n⬇ 点击下方按钮下载', topic=topic, pages=pages)
+                summary = f'✅ PPT已生成：{topic}（{pages}页）\n⬇ 点击下方按钮下载'
             else:
                 summary = f'❌ PPT生成失败，请检查后端日志'
 
         elif intent == 'image':
             action_type = args.get('action', 'generate')
             if action_type == 'analyze':
-                summary = _('🔍 图像理解：请先上传图片（点击📎按钮），然后重新发送指令。')
+                summary = '🔍 图像理解：请先上传图片（点击📎按钮），然后重新发送指令。'
             else:
                 prompt = args.get('prompt', message)
                 style = args.get('style', 'realistic')
@@ -516,7 +515,7 @@ def chat_tool():
 
         elif intent == 'cms':
             title = args.get('title', '')
-            summary = _('📝 CMS文章：{title}\\n请切换到「📝 文章」Tab编辑并提交。', title=title or _('待定'))
+            summary = f'📝 CMS文章：{title or "待定"}\\n请切换到「📝 文章」Tab编辑并提交。'
 
         elif intent == 'clean':
             content = args.get('content', message)
@@ -534,11 +533,11 @@ def chat_tool():
                         summary = '✅ 清洗完成：' + title + ' (' + cat + ')\n知识库ID: ' + kb_id
                     actions.append({'type': 'info', 'text': '已写入 knowledge_blocks，小程序/客服自动生效'})
                 else:
-                summary = _('❌ 清洗失败：{error}', error=res.get('error', _('未知错误')))
+                    summary = '❌ 清洗失败：' + res.get('error', '未知错误')
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                summary = _('❌ 清洗异常：{err}', err=str(e))
+                summary = '❌ 清洗异常：' + str(e)
 
         elif intent == 'supply_chain':
             # 供应链/商城操作 → 交给 Master Agent 通过 Orchestrator 分配
@@ -602,13 +601,13 @@ def chat_tool():
                 if isinstance(data, str):
                     summary = data
                 elif isinstance(data, dict) and 'id' in data:
-                    summary = _('✅ 操作成功，ID: {id}', id=data['id'])
+                    summary = f'✅ 操作成功，ID: {data["id"]}'
                 elif isinstance(data, list):
                     summary = '\n'.join(str(x) for x in data[:30])
                 else:
-                    summary = _('✅ 操作成功')
+                    summary = '✅ 操作成功'
             else:
-                summary = _('❌ 操作失败: {error}', error=result.get('error', _('未知错误')))
+                summary = f'❌ 操作失败: {result.get("error", "未知错误")}'
 
             return _success({
                 'session_id': session_id,
@@ -648,24 +647,24 @@ def chat_tool():
 
                 if action == 'execute':
                     # 执行建站：需要前端传来的 plan 数据
-                    summary = _('✅ 请切换到「AI 智能建站」页面，在方案预览中点击「确认执行」按钮来启动建站流程。')
+                    summary = '✅ 请切换到「AI 智能建站」页面，在方案预览中点击「确认执行」按钮来启动建站流程。'
                     actions.append({
                         'type': 'navigate',
-                        'text': _('前往 AI 智能建站'),
+                        'text': '前往 AI 智能建站',
                         'url': '/admin/site-builder'
                     })
                 elif action == 'modify':
                     # 最小化修改
                     modify_result = engine.modify_block(message)
                     if modify_result.get('success'):
-                        summary = _('✅ 已修改：{old} → {new}', old=modify_result.get("old_value", ""), new=modify_result.get("new_value", ""))
+                        summary = f'✅ 已修改：{modify_result.get("old_value", "")} → {modify_result.get("new_value", "")}'
                     else:
-                        summary = _('❌ {error}', error=modify_result.get("error", _('无法定位需要修改的区块')))
+                        summary = f'❌ {modify_result.get("error", "无法定位需要修改的区块")}'
                 else:
                     # 默认：生成方案预览
                     parsed = engine.parse_requirement(prompt_template, message)
                     plan = engine.generate_plan(prompt_template, parsed, message)
-                    summary = plan.get('summary', _('方案已生成'))
+                    summary = plan.get('summary', '方案已生成')
 
                     # 返回方案数据供前端展示
                     actions.append({
@@ -875,7 +874,7 @@ def chat_batch_delete():
     data = request.get_json(force=True) or {}
     session_ids = data.get('session_ids', [])
     if not session_ids or not isinstance(session_ids, list):
-        return _error(_('请提供 session_ids 列表'))
+        return _error('请提供 session_ids 列表')
 
     count = _m().batch_delete_sessions(session_ids)
     return _success({'deleted': count}, f'已删除 {count} 条记录')
@@ -911,9 +910,9 @@ def dispatch_task():
 
     agent_config = _m().get_agent(target_id)
     if not agent_config:
-        return _error(_('目标 Agent 不存在'), 404)
+        return _error('目标 Agent 不存在', 404)
     if not agent_config['is_active']:
-        return _error(_('目标 Agent 已禁用'))
+        return _error('目标 Agent 已禁用')
 
     # ── 媒体类 Agent（Voice/Video/Image）特殊路径：直接调 API ──
     if agent_config.get('domain') in ('voice', 'video', 'image', 'media'):
@@ -926,7 +925,7 @@ def dispatch_task():
             if domain == 'voice':    action = 'tts'
             elif domain == 'video':  action = 'avatar_video'
             elif domain == 'image':  action = 'generate_image'
-            else:                    return _error(_('action 必须（voice_clone/tts/avatar_video/generate_image）'))
+            else:                    return _error('action 必须（voice_clone/tts/avatar_video/generate_image）')
 
         from agent_matrix.engine import AIEngine, _log_token_usage
         engine = AIEngine(agent_config)
@@ -1017,7 +1016,7 @@ def dispatch_task():
 # ============================================================
 
 PROVIDER_LIST = [
-    {"id": "dashscope", "name": _("DashScope (通义千问)"), "default_model": "qwen-turbo",
+    {"id": "dashscope", "name": "DashScope (通义千问)", "default_model": "qwen-turbo",
      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "key_ref": "dashscope_text_key"},
     {"id": "openai", "name": "OpenAI", "default_model": "gpt-4o",
      "base_url": "https://api.openai.com/v1", "key_ref": ""},
@@ -1025,9 +1024,9 @@ PROVIDER_LIST = [
      "base_url": "https://api.deepseek.com", "key_ref": ""},
     {"id": "openrouter", "name": "OpenRouter", "default_model": "openai/gpt-4o-mini",
      "base_url": "https://openrouter.ai/api/v1", "key_ref": ""},
-    {"id": "ollama", "name": _("Ollama (本地)"), "default_model": "llama3",
+    {"id": "ollama", "name": "Ollama (本地)", "default_model": "llama3",
      "base_url": "http://localhost:11434/v1", "key_ref": ""},
-    {"id": "siliconflow", "name": _("SiliconFlow (硅基流动)"), "default_model": "deepseek-ai/DeepSeek-V3",
+    {"id": "siliconflow", "name": "SiliconFlow (硅基流动)", "default_model": "deepseek-ai/DeepSeek-V3",
      "base_url": "https://api.siliconflow.cn/v1", "key_ref": "siliconflow_api_key"},
 ]
 
@@ -1057,7 +1056,7 @@ def list_prompts():
                 with open(filepath, 'r', encoding='utf-8') as fh:
                     first_line = fh.readline().strip().lstrip('#').strip()
                 rel_path = f'prompts/{f}'
-                name = f.replace('sub_', _('子 Agent - ')).replace('_prompt.md', '').replace('master_', _('Master - '))
+                name = f.replace('sub_', '子 Agent - ').replace('_prompt.md', '').replace('master_', 'Master - ')
                 if name == f.replace('.md', ''):
                     name = f.replace('.md', '')
                 templates.append({
@@ -1083,7 +1082,7 @@ def load_prompt_content():
 
     # Security: only allow prompts/ paths
     if not path.startswith('prompts/') or '..' in path:
-        return _error(_('非法路径'), 400)
+        return _error('非法路径', 400)
 
     full_path = os.path.join(os.path.dirname(__file__), path)
     if not os.path.exists(full_path):
@@ -1126,7 +1125,7 @@ def list_ai_services():
                    or a.get('provider') == 'dashscope']
     services.append({
         "id": "qwen_text",
-        "name": _("文本生成 (Qwen-turbo)"),
+        "name": "文本生成 (Qwen-turbo)",
         "type": "text_generation",
         "provider": "DashScope",
         "key_ref": "dashscope_text_key",
@@ -1163,7 +1162,7 @@ def list_ai_services():
     master = [a for a in agents if a['role_type'] == 'master']
     services.append({
         "id": "matrix_chat",
-        "name": _("矩阵对话引擎 (Master Agent)"),
+        "name": "矩阵对话引擎 (Master Agent)",
         "type": "orchestration",
         "provider": master[0]['provider'] if master else '—',
         "key_ref": master[0].get('api_key_ref', '') if master else '',
@@ -1171,14 +1170,14 @@ def list_ai_services():
         "models": [master[0]['model_name']] if master else [],
         "used_by_agents": [{"id": a['id'], "name": a['name'], "domain": a['domain']} for a in agents if a['role_type'] == 'sub'],
         "endpoints": [
-            _("POST /admin/agent-matrix/chat — 向 Master Agent 发指令"),
+            "POST /admin/agent-matrix/chat — 向 Master Agent 发指令",
         ],
     })
 
     # 4. Trademind 聊天窗口 (独立)
     services.append({
         "id": "trademind_chat",
-        "name": _("💬 聊天窗口 (TradeMind 客服)"),
+        "name": "💬 聊天窗口 (TradeMind 客服)",
         "type": "chat",
         "provider": "DashScope",
         "key_ref": "dashscope_text_key",
@@ -1186,9 +1185,9 @@ def list_ai_services():
         "models": ["qwen-turbo"],
         "used_by_agents": [],
         "endpoints": [
-            _("位于 trademind/chatbot.py — 独立服务，暂未纳入矩阵"),
+            "位于 trademind/chatbot.py — 独立服务，暂未纳入矩阵",
         ],
-        "note": _("此服务为 TradeMind (8081) 独立运行，建议后续迁移到 Kai Assistant 统一管理")
+        "note": "此服务为 TradeMind (8081) 独立运行，建议后续迁移到 Kai Assistant 统一管理"
     })
 
     return _success(services)
@@ -1217,7 +1216,7 @@ def chat_stream_sse():
     agent_id = data.get('agent_id')
 
     if not message:
-        return jsonify({'error': _('message 必填')}), 400
+        return jsonify({'error': 'message 必填'}), 400
 
     # 获取 Agent 配置
     if agent_id:
@@ -1323,7 +1322,7 @@ def update_knowledge_base():
         """, (content,))
         conn.commit()
 
-    return _success(None, _('知识库已更新'))
+    return _success(None, '知识库已更新')
 
 
 # ============================================================
@@ -1591,7 +1590,7 @@ def generate_and_save_image():
             image_url = gen_img(prompt or f'配图：{title}')
 
         if not image_url:
-            return _error(_('图片生成失败：未返回图片地址'))
+            return _error('图片生成失败：未返回图片地址')
 
         # 下载图片到本地
         import uuid, urllib.request
@@ -1626,7 +1625,7 @@ def generate_and_save_image():
             'original_url': image_url,
             'filename': filename,
             'size': len(img_data),
-        }, _('图片已保存至 {url}', url=local_url))
+        }, f'图片已保存至 {local_url}')
 
     except Exception as e:
         import traceback
@@ -1659,14 +1658,14 @@ def upload_file():
         return err
 
     if 'file' not in request.files:
-        return _error(_('请选择要上传的文件'))
+        return _error('请选择要上传的文件')
 
     file = request.files['file']
     if not file.filename:
-        return _error(_('文件名为空'))
+        return _error('文件名为空')
 
     if not _allowed_file(file.filename):
-        return _error(_('不支持的文件类型，允许: {types}', types=', '.join(sorted(ALLOWED_EXTENSIONS))))
+        return _error(f'不支持的文件类型，允许: {", ".join(sorted(ALLOWED_EXTENSIONS))}')
 
     try:
         import uuid, datetime
@@ -1690,11 +1689,11 @@ def upload_file():
             'size_display': _fmt_size(size),
             'uploaded_at': now.isoformat(),
             'expires_at': expires.isoformat(),
-        }, _('文件已上传，{days}天内有效', days=TEMP_RETENTION_DAYS))
+        }, f'文件已上传，{TEMP_RETENTION_DAYS}天内有效')
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return _error(_('上传失败: {err}', err=str(e)), 500)
+        return _error(f'上传失败: {str(e)}', 500)
 
 
 @agent_matrix_bp.route('/download/<filename>', methods=['GET'])
@@ -1716,7 +1715,7 @@ def download_temp_file(filename):
             os.remove(filepath)
         except OSError:
             pass
-        return _error(_('文件已过期'), 410)
+        return _error('文件已过期', 410)
 
     return send_from_directory(TEMP_UPLOAD_DIR, safe_name, as_attachment=True)
 

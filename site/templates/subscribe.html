@@ -30,7 +30,7 @@
 .plan-card{position:relative;background:var(--bg-glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px 28px;display:flex;flex-direction:column;transition:all .3s;cursor:pointer}
 .plan-card:hover{border-color:var(--border-accent);transform:translateY(-2px);box-shadow:var(--shadow-glow)}
 .plan-card.popular{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),var(--shadow-glow-blue)}
-.plan-card .popular-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gradient-primary);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:20px;letter-spacing:.3px;white-space:nowrap}
+.plan-card.popular::before{content:'最受欢迎';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gradient-primary);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:20px;letter-spacing:.3px}
 .plan-card.selected{border-color:var(--indigo);box-shadow:0 0 0 1px var(--indigo),var(--shadow-glow)}
 .plan-card .name{font-size:18px;font-weight:700;margin-bottom:4px;color:var(--text-high)}
 .plan-card .desc{font-size:13px;color:var(--text-dim);margin-bottom:24px;min-height:40px}
@@ -105,7 +105,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="{{ _('菜单') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a class="{% if page == 'pricing' %}active{% endif %}" href="/pricing">{{ _('Pricing') }}</a>
@@ -187,7 +187,7 @@ var currentMethod = 'wechat';
 var token = localStorage.getItem('token') || localStorage.getItem('sso_token') || localStorage.getItem('tm_token') || '';
 
 if (token) {
-  document.getElementById('navUserState').innerHTML = '<a href="/" class="nav-cta">{{ _('控制台') }}</a>';
+  document.getElementById('navUserState').innerHTML = '<a href="/" class="nav-cta">控制台</a>';
 }
 
 renderPlans();
@@ -202,7 +202,7 @@ function renderPlans() {
   
   PLANS.forEach(function(p, i) {
     var price = isYear ? p.price_year : p.price_month;
-    var periodText = isYear ? {{ _('/年') | tojson }} : {{ _('/月') | tojson }};
+    var periodText = isYear ? '/年' : '/月';
     
     // 从 features_json 读取特性配置
     var feats = p.features || [];
@@ -225,28 +225,26 @@ function renderPlans() {
     
     var popularClass = i === popularIdx ? ' popular' : '';
     var btnClass = p.price_month === 0 ? 'btn-free' : 'btn-primary';
-    var btnText = p.price_month === 0 ? {{ _('免费注册') | tojson }} : {{ _('选择') | tojson }} + ' ' + p.name;
-    var popularBadge = i === popularIdx ? '<span class="popular-badge">' + {{ _('最受欢迎') | tojson }} + '</span>' : '';
+    var btnText = p.price_month === 0 ? '免费注册' : '选择 ' + p.name;
     var yearlySave = '';
     if (currentPeriod === 'year' && p.price_year > 0 && p.price_month > 0) {
       var monthlyTotal = p.price_month * 12;
       var saveAmt = monthlyTotal - p.price_year;
-      if (saveAmt > 0) yearlySave = '<div class="yearly-save">{{ _('年付仅') | tojson }} ¥' + p.price_year + ' ({{ _('省') | tojson }}¥' + saveAmt + ')</div>';
+      if (saveAmt > 0) yearlySave = '<div class="yearly-save">年付仅 ¥' + p.price_year + ' (省¥' + saveAmt + ')</div>';
     } else if (currentPeriod === 'quarter' && p.price_quarter > 0 && p.price_month > 0) {
       var monthlyTotal = p.price_month * 3;
       var saveAmt = monthlyTotal - p.price_quarter;
-      if (saveAmt > 0) yearlySave = '<div class="yearly-save">{{ _('季付仅') | tojson }} ¥' + p.price_quarter + ' ({{ _('省') | tojson }}¥' + saveAmt + ')</div>';
+      if (saveAmt > 0) yearlySave = '<div class="yearly-save">季付仅 ¥' + p.price_quarter + ' (省¥' + saveAmt + ')</div>';
     } else if (currentPeriod === 'semi_annual' && p.price_semi_annual > 0 && p.price_month > 0) {
       var monthlyTotal = p.price_month * 6;
       var saveAmt = monthlyTotal - p.price_semi_annual;
-      if (saveAmt > 0) yearlySave = '<div class="yearly-save">{{ _('半年付仅') | tojson }} ¥' + p.price_semi_annual + ' ({{ _('省') | tojson }}¥' + saveAmt + ')</div>';
+      if (saveAmt > 0) yearlySave = '<div class="yearly-save">半年付仅 ¥' + p.price_semi_annual + ' (省¥' + saveAmt + ')</div>';
     }
     
     html += '<div class="plan-card' + popularClass + '" data-key="' + p.plan_key + '">';
-    html += popularBadge;
     html += '<div class="name">' + p.name + '</div>';
     html += '<div class="desc">' + (p.description || '') + '</div>';
-    html += '<div class="price-row"><span class="price">' + (price === 0 ? {{ _('免费') | tojson }} : '¥' + price) + '</span><span class="price-period">' + (price === 0 ? '' : periodText) + '</span></div>';
+    html += '<div class="price-row"><span class="price">' + (price === 0 ? '免费' : '¥' + price) + '</span><span class="price-period">' + (price === 0 ? '' : periodText) + '</span></div>';
     html += yearlySave;
     html += '<ul class="features">' + featureHtml + '</ul>';
     html += '<button class="btn ' + btnClass + '" onclick="event.stopPropagation();selectPlan(\'' + p.plan_key + '\')">' + btnText + '</button>';
@@ -290,7 +288,7 @@ function selectPlan(key) {
   document.getElementById('qrArea').className = 'qr-area';
   document.getElementById('payBtn').style.display = 'block';
   document.getElementById('payBtn').disabled = false;
-  document.getElementById('payBtn').textContent = {{ _('确认支付') | tojson }};
+  document.getElementById('payBtn').textContent = '确认支付';
   updateOrderSummary();
   document.getElementById('paymentSection').scrollIntoView({behavior:'smooth'});
 }
@@ -298,12 +296,12 @@ function selectPlan(key) {
 function updateOrderSummary() {
   var plan = PLANS.find(function(p) { return p.plan_key === currentTier; });
   if (!plan) return;
-  var periodLabels = {'month': {{ _('月付') | tojson }}, 'quarter': {{ _('季付') | tojson }}, 'semi_annual': {{ _('半年付') | tojson }}, 'year': {{ _('年付') | tojson }}};
+  var periodLabels = {'month': '月付', 'quarter': '季付', 'semi_annual': '半年付', 'year': '年付'};
   var priceField = {'month': 'price_month', 'quarter': 'price_quarter', 'semi_annual': 'price_semi_annual', 'year': 'price_year'};
   var price = plan[priceField[currentPeriod]] || plan.price_month;
   document.getElementById('orderTier').textContent = plan.name;
-  document.getElementById('orderPeriod').textContent = periodLabels[currentPeriod] || {{ _('月付') | tojson }};
-  document.getElementById('orderLimit').textContent = (plan.daily_limit || '') + {{ _(' 次/天') | tojson }};
+  document.getElementById('orderPeriod').textContent = periodLabels[currentPeriod] || '月付';
+  document.getElementById('orderLimit').textContent = (plan.daily_limit || '') + ' 次/天';
   document.getElementById('orderAmount').textContent = '¥' + price;
 }
 
@@ -312,12 +310,12 @@ document.getElementById('payBtn').addEventListener('click', submitOrder);
 async function submitOrder() {
   var btn = document.getElementById('payBtn');
   if (!token) {
-    showResult(false, {{ _('请先登录') | tojson }}, {{ _('即将跳转登录页...') | tojson }});
+    showResult(false, '请先登录', '即将跳转登录页...');
     setTimeout(function() { window.location.href = '/login?redirect=/subscribe'; }, 1500);
     return;
   }
   btn.disabled = true;
-  btn.textContent = {{ _('创建订单...') | tojson }};
+  btn.textContent = '创建订单...';
   try {
     var r = await fetch('/subscription/create', {
       method: 'POST',
@@ -326,14 +324,14 @@ async function submitOrder() {
     });
     var d = await r.json();
     if (!d.success) {
-      showResult(false, d.error || {{ _('创建订单失败') | tojson }});
-      btn.disabled = false; btn.textContent = {{ _('确认支付') | tojson }}; return;
+      showResult(false, d.error || '创建订单失败');
+      btn.disabled = false; btn.textContent = '确认支付'; return;
     }
 
     // 有支付URL → 跳转支付宝
     var payUrl = d.data.pay_params && d.data.pay_params.pay_url;
     if (payUrl) {
-      showResult(true, {{ _('正在跳转到支付宝...') | tojson }}, {{ _('支付完成后请返回本站') | tojson }});
+      showResult(true, '正在跳转到支付宝...', '支付完成后请返回本站');
       window.location.href = payUrl;
       return;
     }
@@ -342,25 +340,25 @@ async function submitOrder() {
     btn.style.display = 'none';
     document.getElementById('qrArea').className = 'qr-area show';
     var orderNo = d.data.order_no;
-    document.getElementById('qrDisplay').innerHTML = '<span>⏳ ' + {{ _('创建订单成功') | tojson }} + '<br>' + {{ _('正在处理支付...') | tojson }} + '</span>';
-    document.getElementById('qrNote').textContent = {{ _('开发模式：3秒后自动确认') | tojson }};
+    document.getElementById('qrDisplay').innerHTML = '<span>⏳ 创建订单成功<br>正在处理支付...</span>';
+    document.getElementById('qrNote').textContent = '开发模式：3秒后自动确认';
 
     setTimeout(async function() {
       var r2 = await fetch('/subscription/stub-confirm/' + orderNo, {method: 'POST', headers: {'Authorization': 'Bearer ' + token}});
       var d2 = await r2.json();
       if (d2.success) {
-        showResult(true, {{ _('订阅成功！') | tojson }}, d2.data ? d2.data.message : {{ _('套餐已激活') | tojson }});
+        showResult(true, '订阅成功！', d2.data ? d2.data.message : '套餐已激活');
         document.getElementById('qrDisplay').innerHTML = '<span style="font-size:48px">✅</span>';
-        document.getElementById('qrNote').textContent = {{ _('套餐已生效') | tojson }};
+        document.getElementById('qrNote').textContent = '套餐已生效';
       } else {
-        showResult(false, d2.error || {{ _('确认失败') | tojson }});
+        showResult(false, d2.error || '确认失败');
         document.getElementById('payBtn').style.display = 'block';
-        btn.disabled = false; btn.textContent = {{ _('重试') | tojson }};
+        btn.disabled = false; btn.textContent = '重试';
       }
     }, 3000);
   } catch(e) {
-    showResult(false, {{ _('网络错误，请重试') | tojson }});
-    btn.disabled = false; btn.textContent = {{ _('确认支付') | tojson }};
+    showResult(false, '网络错误，请重试');
+    btn.disabled = false; btn.textContent = '确认支付';
   }
 }
 

@@ -69,12 +69,12 @@ function loadProducts(cat){
   document.getElementById("productList").innerHTML='<div class="loading-spinner"><div class="s"></div></div>';
   var url="/shop/api/products"+(cat&&cat!=='cloud'?"?category="+encodeURIComponent(cat):"");
   fetch(url,{headers:T?{"Authorization":"Bearer "+T}:{}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){document.getElementById("productList").innerHTML='<div class="empty-state">{{ _('Load failed') }}</div>';return}
+    if(!d.success){document.getElementById("productList").innerHTML='<div class="empty-state">加载失败</div>';return}
     var ps=d.data||[], h="";
     if(cat==='cloud') ps=ps.filter(function(p){return p.product_type==='cloud_service'});
-    if(!ps.length){h='<div class="empty-state"><div class="icon">📭</div>{{ _('No products yet') }}</div>'}
+    if(!ps.length){h='<div class="empty-state"><div class="icon">📭</div>暂无商品</div>'}
     else ps.forEach(function(p){
-      var types={"vip":{{ _('VIP Plan') | tojson }},"template":{{ _('Template') | tojson }},"token":{{ _('Usage Pack') | tojson }},"service":{{ _('Service') | tojson }},"plugin":{{ _('Plugin') | tojson }},"cloud_service":{{ _('Cloud Service') | tojson }}};
+      var types={"vip":"VIP套餐","template":"模板","token":"用量包","service":"服务","plugin":"插件","cloud_service":"云服务"};
       var cfg=p.product_config||{};
       var specs=cfg.specs||{};
       h+='<div class="prod-card" onclick="location.href=\'/shop/'+p.id+'\'">';
@@ -83,11 +83,11 @@ function loadProducts(cat){
       h+='<div class="body"><div class="title">'+esc(p.title)+'</div>';
       if(p.subtitle) h+='<div class="subtitle">'+esc(p.subtitle)+'</div>';
       h+='<div class="tags"><span class="tag">'+(types[p.product_type]||p.product_type)+'</span>';
-      if(specs.cpu) h+='<span class="tag">⚡'+specs.cpu+{{ _('核') | tojson }}+' '+specs.memory_gb+'G</span>';
+      if(specs.cpu) h+='<span class="tag">⚡'+specs.cpu+'核 '+specs.memory_gb+'G</span>';
       if(p.category) p.category.split(',').forEach(function(c){h+='<span class="tag">'+esc(c.trim())+'</span>'});
       h+='</div><div class="price-row"><span class="price">¥'+p.price+'</span>';
       if(p.original_price>p.price) h+='<span class="orig-price">¥'+p.original_price+'</span>';
-      h+='<span class="sales">{{ _('Monthly') }}</span></div></div></div>';
+      h+='<span class="sales">月付</span></div></div></div>';
     });
     document.getElementById("productList").innerHTML=h;
   });

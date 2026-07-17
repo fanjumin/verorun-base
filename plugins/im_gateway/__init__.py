@@ -80,5 +80,5 @@ class ImGatewayPlugin(BasePlugin):
         from .adapters import get_adapter
         adapter = get_adapter(channel)
         if adapter is None:
-            raise Exception(self.t('频道 {channel} 不支持媒体推送', channel=channel))
+            raise Exception(f'频道 {channel} 不支持媒体推送')
         adapter.push_media(file_url, filename, mime)

@@ -9,7 +9,6 @@
 """
 
 import logging
-from i18n import _
 from typing import Dict, Any, Optional, Tuple
 
 from ..models import get_db, AliApiReview, AliApiItem
@@ -49,13 +48,13 @@ def fetch_and_store_reviews(product_id: str, access_token: str,
                 app_key=app_key, app_secret=app_secret
             )
         except Exception as e:
-            logger.error(f"{_('Failed to get reviews')} (page {page}): {e}")
+            logger.error(f"获取评论失败 (page {page}): {e}")
             result['error'] = str(e)
             break
 
         # 解析返回
         if 'error' in resp:
-            logger.warning(f"{_('API returned error')} (page {page}): {resp.get('error_message', resp['error'])}")
+            logger.warning(f"API 返回错误 (page {page}): {resp.get('error_message', resp['error'])}")
             result['error'] = resp.get('error_message', resp['error'])
             break
 

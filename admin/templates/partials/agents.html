@@ -25,7 +25,7 @@ function loadUserAgents(){
     .then(function(d){
       if(!d.success||!d.data){list.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
       var totalEl=document.getElementById("uaTotal");
-      if(totalEl)totalEl.textContent='{{ _('Total: ') }}'+d.data.total+' {{ _('Agents') }}';
+      if(totalEl)totalEl.textContent='{{ _('Total: ') }}'+d.data.total+' 个 Agent';
       var agents=d.data.agents||[];
       if(agents.length===0){list.innerHTML='<div class="em">{{ _('None') }} Agent {{ _('Data') }}</div>';return}
       var h='{{ _('<table><tr><th>ID</th><th>Name</th><th>User</th><th>Type</th><th>Status</th><th>Keys</th><th>Last Active</th><th>Created</th></tr>') }}';

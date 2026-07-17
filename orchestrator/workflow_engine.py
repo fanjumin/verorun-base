@@ -25,7 +25,6 @@ import threading
 from datetime import datetime
 from typing import Optional, Callable
 from collections import deque
-from i18n import _
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
@@ -83,7 +82,7 @@ class WorkflowEngine:
             workflow_id, trigger_type, trigger_config
         )
         if not inst_id:
-            raise ValueError(_('工作流 #{workflow_id} 不存在', workflow_id=workflow_id))
+            raise ValueError(f'工作流 #{workflow_id} 不存在')
 
         # 更新上下文
         if initial_context:
@@ -95,7 +94,7 @@ class WorkflowEngine:
             })
 
         m.add_log('workflow', inst_id, 'info',
-                   _('🚀 工作流 #{workflow_id} 实例 #{inst_id} 启动', workflow_id=workflow_id, inst_id=inst_id))
+                   f'🚀 工作流 #{workflow_id} 实例 #{inst_id} 启动')
 
         # 获取 DAG 定义
         wf = m.get_workflow(workflow_id)
@@ -133,7 +132,7 @@ class WorkflowEngine:
             while execution_queue and not self._is_instance_done(inst_id):
                 # 检查超时
                 if time.time() - start_time > timeout_sec:
-                    raise TimeoutError(_('工作流执行超时 ({timeout_min}分钟)', timeout_min=timeout_min))
+                    raise TimeoutError(f'工作流执行超时 ({timeout_min}分钟)')
 
                 node_id = execution_queue.popleft()
                 if node_id in visited:
@@ -175,10 +174,10 @@ class WorkflowEngine:
                             # 前置失败则跳过当前节点
                             m.update_node_instance(node_inst['id'], {
                                 'status': 'skipped',
-                                'output_data': m.to_json({'skipped': True, 'reason': _('前置节点 {from_node} 未成功', from_node=from_node)})
+                                'output_data': m.to_json({'skipped': True, 'reason': f'前置节点 {from_node} 未成功'})
                             })
                             m.add_log('node', node_inst['id'], 'warn',
-                                       _('⏭️ 节点 [{name}] 被跳过: 前置条件不满足', name=node_def.get("name")))
+                                       f'⏭️ 节点 [{node_def.get("name")}] 被跳过: 前置条件不满足')
 
                 if not all_satisfied:
                     continue
@@ -200,10 +199,10 @@ class WorkflowEngine:
                     # 暂停工作流，等待审批
                     m.update_workflow_instance(inst_id, {'status': 'paused'})
                     m.add_log('workflow', inst_id, 'info',
-                               _('⏸️ 工作流暂停: 等待人工审批'))
+                               '⏸️ 工作流暂停: 等待人工审批')
 
                 elif result['status'] == 'failed':
-                    error_msg = result.get('output', {}).get('error', _('节点执行失败'))
+                    error_msg = result.get('output', {}).get('error', '节点执行失败')
                     if on_error == 'abort':
                         self._fail_instance(inst_id, error_msg)
                         return
@@ -218,7 +217,7 @@ class WorkflowEngine:
                             'error_message': error_msg
                         })
                         m.add_log('workflow', inst_id, 'warn',
-                                   _('⏸️ 工作流暂停于节点 [{name}]: {error}', name=node_def.get("name"), error=error_msg))
+                                   f'⏸️ 工作流暂停于节点 [{node_def.get("name")}]: {error_msg}')
                         return
 
             # 检查是否所有节点都已执行
@@ -239,7 +238,7 @@ class WorkflowEngine:
                     'duration_ms': duration_ms
                 })
                 m.add_log('workflow', inst_id, 'info',
-                           _('✅ 工作流执行完成 ({duration_ms}ms)', duration_ms=duration_ms))
+                           f'✅ 工作流执行完成 ({duration_ms}ms)')
             else:
                 # 有节点未执行（可能因条件分支跳过）
                 duration_ms = int((time.time() - start_time) * 1000)
@@ -275,7 +274,7 @@ class WorkflowEngine:
         })
 
         m.add_log('node', node_inst_id, 'info',
-                   _('⚡ 执行节点 [{name}] ({type})', name=node_name, type=node_type))
+                   f'⚡ 执行节点 [{node_name}] ({node_type})')
 
         try:
             # 准备输入数据
@@ -323,7 +322,7 @@ class WorkflowEngine:
             })
 
             m.add_log('node', node_inst_id, 'info',
-                       _('✅ 节点 [{name}] 完成 ({duration_ms}ms)', name=node_name, duration_ms=duration_ms))
+                       f'✅ 节点 [{node_name}] 完成 ({duration_ms}ms)')
 
             return {'status': 'completed', 'output': output}
 
@@ -341,7 +340,7 @@ class WorkflowEngine:
                     'duration_ms': duration_ms
                 })
                 m.add_log('node', node_inst_id, 'warn',
-                           _('⏳ 节点 [{name}] 需要审批: {error}', name=node_name, error=error_msg))
+                           f'⏳ 节点 [{node_name}] 需要审批: {error_msg}')
                 return {'status': 'waiting_approval', 'output': {'error': error_msg}}
 
             # 普通失败
@@ -353,7 +352,7 @@ class WorkflowEngine:
                 'duration_ms': duration_ms
             })
             m.add_log('node', node_inst_id, 'error',
-                       _('❌ 节点 [{name}] 失败: {error}', name=node_name, error=error_msg))
+                       f'❌ 节点 [{node_name}] 失败: {error_msg}')
             return {'status': 'failed', 'output': {'error': error_msg}}
 
     def _execute_builtin_node(self, node_type: str, config: dict,
@@ -397,7 +396,7 @@ class WorkflowEngine:
             # 为未实现的节点类型返回占位输出
             return {
                 'node_type': node_type,
-                'message': _('节点类型 {node_type} 使用默认处理器', node_type=node_type),
+                'message': f'节点类型 {node_type} 使用默认处理器',
                 'config': config,
                 'executed': True
             }
@@ -460,7 +459,7 @@ class WorkflowEngine:
             'finished_at': m.now_str(),
             'duration_ms': 0
         })
-        m.add_log('workflow', inst_id, 'error', _('❌ 工作流失败: {error}', error=error))
+        m.add_log('workflow', inst_id, 'error', f'❌ 工作流失败: {error}')
 
     def _timeout_instance(self, inst_id: int, error: str):
         """标记实例为超时"""
@@ -471,7 +470,7 @@ class WorkflowEngine:
             'finished_at': m.now_str(),
             'duration_ms': 0
         })
-        m.add_log('workflow', inst_id, 'error', _('⏰ 工作流超时: {error}', error=error))
+        m.add_log('workflow', inst_id, 'error', f'⏰ 工作流超时: {error}')
 
     # ---- 外部控制 ----
 
@@ -480,7 +479,7 @@ class WorkflowEngine:
         inst = m.get_workflow_instance(inst_id)
         if inst and inst['status'] == 'running':
             m.update_workflow_instance(inst_id, {'status': 'paused'})
-            m.add_log('workflow', inst_id, 'info', _('⏸️ 工作流已暂停'))
+            m.add_log('workflow', inst_id, 'info', '⏸️ 工作流已暂停')
             return True
         return False
 
@@ -489,7 +488,7 @@ class WorkflowEngine:
         inst = m.get_workflow_instance(inst_id)
         if inst and inst['status'] == 'paused':
             m.update_workflow_instance(inst_id, {'status': 'running'})
-            m.add_log('workflow', inst_id, 'info', _('▶️ 工作流已恢复'))
+            m.add_log('workflow', inst_id, 'info', '▶️ 工作流已恢复')
             return True
         return False
 
@@ -501,7 +500,7 @@ class WorkflowEngine:
                 'status': 'cancelled',
                 'finished_at': m.now_str()
             })
-            m.add_log('workflow', inst_id, 'warn', _('🛑 工作流已取消'))
+            m.add_log('workflow', inst_id, 'warn', '🛑 工作流已取消')
             return True
         return False
 
@@ -521,7 +520,7 @@ class WorkflowEngine:
                 'status': 'completed',
                 'finished_at': now
             })
-            m.add_log('node', node_inst_id, 'info', _('✅ 节点已审批通过'))
+            m.add_log('node', node_inst_id, 'info', '✅ 节点已审批通过')
 
             # 恢复工作流执行
             self.resume_instance(inst_id)
@@ -537,10 +536,10 @@ class WorkflowEngine:
             # 标记为失败
             m.update_node_instance(node_inst_id, {
                 'status': 'failed',
-                'error_message': _('审批未通过'),
+                'error_message': '审批未通过',
                 'finished_at': now
             })
-            m.add_log('node', node_inst_id, 'info', _('❌ 节点审批未通过'))
+            m.add_log('node', node_inst_id, 'info', '❌ 节点审批未通过')
             return False
 
     def _resume_after_approval(self, inst_id: int):
@@ -604,7 +603,7 @@ class WorkflowEngine:
                 'status': 'completed',
                 'finished_at': m.now_str()
             })
-            m.add_log('workflow', inst_id, 'info', _('✅ 工作流完成（审批恢复后）'))
+            m.add_log('workflow', inst_id, 'info', '✅ 工作流完成（审批恢复后）')
 
 
 # 导入 traceback 用于错误详情
@@ -637,20 +636,20 @@ if __name__ == '__main__':
         })
     })
 
-    print(_('🆕 创建工作流 #{wf_id}', wf_id=wf_id))
+    print(f'🆕 创建工作流 #{wf_id}')
     inst_id = engine.run_workflow(wf_id)
-    print(_('🚀 启动实例 #{inst_id}', inst_id=inst_id))
+    print(f'🚀 启动实例 #{inst_id}')
 
     # 等待执行完成
     import time
     time.sleep(5)
 
     inst = m.get_workflow_instance(inst_id)
-    print(_('📊 状态: {status}', status=inst["status"]))
+    print(f'📊 状态: {inst["status"]}')
     if inst['duration_ms']:
-        print(_('⏱️ 耗时: {duration_ms}ms', duration_ms=inst['duration_ms']))
+        print(f'⏱️ 耗时: {inst["duration_ms"]}ms')
 
     # 打印节点状态
     nodes = m.get_node_instances_by_workflow(inst_id)
     for n in nodes:
-        print(_('  📌 {name}: {status} ({duration_ms}ms)', name=n["node_name"], status=n["status"], duration_ms=n.get("duration_ms", 0)))
+        print(f'  📌 {n["node_name"]}: {n["status"]} ({n.get("duration_ms", 0)}ms)')

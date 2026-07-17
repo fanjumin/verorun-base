@@ -4,8 +4,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>{{ category.name }} — {{ brand.site_name_en if brand else '' }} {{ _('Documentation') }}</title>
-<meta content="{{ category.name }} — {{ _('EasyKai Technical Documentation and Tutorials') }}" name="description"/>
+<title>{{ _('{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档') }}</title>
+<meta content="{{ category.name }} — EasyKai 技术文档与教程。" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -47,7 +47,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="{{ _('Menu') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a class="active" href="/docs">{{ _('Docs') }}</a>
@@ -62,11 +62,11 @@
 <a class="back" href="/docs">{{ _('← Back to Docs') }}</a>
 <h1>{{ category.icon }} {{ category.name }}</h1>
 <p class="cat-desc">{{ {
-    'getting-started': _('Start from scratch and quickly get started with the platform.'),
-    'finance': _('A-share intelligent analysis and quantitative strategy guide.'),
-    'insights': _('Product updates, version releases, and feature announcements.'),
-    'help': _('FAQs, troubleshooting, account management, and billing instructions.'),
-    'legal': _('Privacy policy, terms of service, AI service descriptions and other legal compliance documents.')
+    'getting-started': '从零开始，快速上手平台。',
+    'finance': 'A股智能分析与量化策略指南。',
+    'insights': '产品更新、版本发布与功能公告。',
+    'help': '常见问题、故障排除、账号管理与计费说明。',
+    'legal': '隐私政策、服务条款、AI 服务说明等法律合规文档。'
   }.get(category.slug, '') }}</p>
 </div>
 <div class="docs-layout">

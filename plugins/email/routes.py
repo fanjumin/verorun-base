@@ -14,7 +14,6 @@ if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify, send_file
-from i18n import _
 
 email_bp = Blueprint('email', __name__, url_prefix='/admin/email')
 
@@ -185,7 +184,7 @@ def admin_email_settings_save():
             cfg[k] = data[k]
 
     if not cfg:
-        return jsonify({'success': False, 'error': _('No valid config keys provided')}), 400
+        return jsonify({'success': False, 'error': 'No valid config keys provided'}), 400
 
     # 通过 PluginManager set_config_batch 保存（含类型转换+校验）
     result = mgr.set_config_batch('email', cfg, coerce=True)

@@ -20,7 +20,6 @@ import threading
 from datetime import datetime, timedelta
 from typing import Optional, Callable
 from functools import wraps
-from i18n import _
 
 # 添加项目根到路径（兼容独立进程和嵌入运行）
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -139,7 +138,7 @@ class SchedulerEngine:
 
         if not HAS_APSCHEDULER:
             raise ImportError(
-                _("APScheduler 未安装。请运行: pip install apscheduler sqlalchemy")
+                "APScheduler 未安装。请运行: pip install apscheduler sqlalchemy"
             )
 
         # APScheduler 配置
@@ -183,7 +182,7 @@ class SchedulerEngine:
     def start(self):
         """启动调度器"""
         m.add_log('system', 0, 'info',
-                   _('🟢 调度器启动: {id}', id=self.scheduler_id),
+                   f'🟢 调度器启动: {self.scheduler_id}',
                    {'scheduler_id': self.scheduler_id})
         self._apscheduler.start()
         self._register_scheduler_heartbeat()
@@ -192,18 +191,18 @@ class SchedulerEngine:
     def shutdown(self, wait=True):
         """关闭调度器"""
         m.add_log('system', 0, 'info',
-                   _('🔴 调度器关闭: {id}', id=self.scheduler_id))
+                   f'🔴 调度器关闭: {self.scheduler_id}')
         self._apscheduler.shutdown(wait=wait)
 
     def pause(self):
         """暂停所有任务"""
         self._apscheduler.pause()
-        m.add_log('system', 0, 'warn', _('⏸️ 调度器暂停'))
+        m.add_log('system', 0, 'warn', '⏸️ 调度器暂停')
 
     def resume(self):
         """恢复所有任务"""
         self._apscheduler.resume()
-        m.add_log('system', 0, 'info', _('▶️ 调度器恢复'))
+        m.add_log('system', 0, 'info', '▶️ 调度器恢复')
 
     # ---- 任务管理 ----
 
@@ -255,7 +254,7 @@ class SchedulerEngine:
                         timezone=job.get('timezone', 'Asia/Shanghai')
                     )
                 else:
-                    m.add_log('cron', job_id, 'error', _('无效的 Cron 表达式: {expr}', expr=cron_expr))
+                    m.add_log('cron', job_id, 'error', f'无效的 Cron 表达式: {cron_expr}')
                     return
 
             elif job_type == 'interval' and interval_sec > 0:
@@ -265,7 +264,7 @@ class SchedulerEngine:
                 trigger = DateTrigger(run_date=start_at)
 
             else:
-                m.add_log('cron', job_id, 'warn', _('无法调度的任务类型或缺少参数'))
+                m.add_log('cron', job_id, 'warn', f'无法调度的任务类型或缺少参数')
                 return
 
             # 添加 APScheduler 作业
@@ -282,13 +281,12 @@ class SchedulerEngine:
             )
 
             self._running_jobs[job_id] = aps_job
-            schedule_desc = cron_expr or natural_expr or _('每{interval_sec}秒', interval_sec=interval_sec)
             m.add_log('cron', job_id, 'info',
-                       _('📅 任务已调度: [{name}] {schedule}', name=job.get("name"), schedule=schedule_desc))
+                       f'📅 任务已调度: [{job.get("name")}] {cron_expr or natural_expr or f"每{interval_sec}秒"}')
 
         except Exception as e:
             m.add_log('cron', job_id, 'error',
-                       _('调度任务失败 [{name}]: {error}', name=job.get("name"), error=str(e)))
+                       f'调度任务失败 [{job.get("name")}]: {str(e)}')
 
     def _execute_job_wrapper(self, job_id: int):
         """任务执行包装器（记录开始/结束/重试）"""
@@ -305,7 +303,7 @@ class SchedulerEngine:
         # 检查并发限制
         current_runs = m.get_cron_job(job_id)
         if current_runs and current_runs.get('run_count', 0) >= current_runs.get('max_runs', 0) > 0:
-            m.add_log('cron', job_id, 'warn', _('⏭️ 已达最大执行次数，跳过'))
+            m.add_log('cron', job_id, 'warn', '⏭️ 已达最大执行次数，跳过')
             return
 
         result = self._execute_with_retries(job)
@@ -336,7 +334,7 @@ class SchedulerEngine:
         for attempt in range(max_retries + 1):
             try:
                 m.add_log('cron', job_id, 'info',
-                           _('🔄 执行尝试 {attempt}/{total}', attempt=attempt+1, total=max_retries+1))
+                           f'🔄 执行尝试 {attempt+1}/{max_retries+1}')
 
                 # 查找处理器
                 handler = self._callback_map.get(target_type)
@@ -357,30 +355,30 @@ class SchedulerEngine:
                     result = self._execute_api_target(target_config, timeout)
 
                 if result and result.get('success', True):
-                    m.add_log('cron', job_id, 'info', _('✅ 执行成功'))
+                    m.add_log('cron', job_id, 'info', '✅ 执行成功')
                     return {'success': True, 'result': result}
                 else:
                     last_error = str(result.get('error', 'Unknown error'))
 
             except TimeoutError:
-                last_error = _('⏰ 超时')
-                m.add_log('cron', job_id, 'error', _('⏰ 任务超时 ({timeout}s)', timeout=timeout))
+                last_error = '⏰ 超时'
+                m.add_log('cron', job_id, 'error', f'⏰ 任务超时 ({timeout}s)')
                 break  # 超时不重试
 
             except Exception as e:
                 last_error = str(e)
                 m.add_log('cron', job_id, 'error',
-                           _('❌ 执行失败 (第{attempt}次): {error}', attempt=attempt+1, error=e))
+                           f'❌ 执行失败 (第{attempt+1}次): {e}')
 
             # 指数退避等待（最后一次不等待）
             if attempt < max_retries:
                 delay = retry_delay * (backoff ** attempt)
                 m.add_log('cron', job_id, 'info',
-                           _('⏳ 等待 {delay:.0f}秒后重试...', delay=delay))
+                           f'⏳ 等待 {delay:.0f}秒后重试...')
                 time.sleep(delay)
 
         m.add_log('cron', job_id, 'error',
-                   _('❌ 执行失败（已重试{count}次）: {error}', count=max_retries, error=last_error))
+                   f'❌ 执行失败（已重试{max_retries}次）: {last_error}')
         return {'success': False, 'error': last_error}
 
     def _execute_api_target(self, config: dict, timeout: int) -> dict:
@@ -425,7 +423,7 @@ class SchedulerEngine:
         for dep in deps:
             dep = dict(dep)
             m.add_log('cron', dep['id'], 'info',
-                       _('🔗 由任务 #{job_id} 完成触发执行', job_id=job_id))
+                       f'🔗 由任务 #{job_id} 完成触发执行')
             self._execute_job_wrapper(dep['id'])
 
     # ---- 事件处理 ----
@@ -435,7 +433,7 @@ class SchedulerEngine:
         # 状态由 _execute_job_wrapper 记录，这里只记录额外异常
         if event.exception:
             m.add_log('cron', 0, 'error',
-                       _('APScheduler 异常: {error}', error=event.exception))
+                       f'APScheduler 异常: {event.exception}')
 
     def _register_scheduler_heartbeat(self):
         """注册调度器心跳"""
@@ -537,12 +535,12 @@ if __name__ == '__main__':
     scheduler = SchedulerEngine()
     scheduler.start()
 
-    print(_('🟢 Scheduler started: {id}', id=scheduler.scheduler_id))
-    print(_('Press Ctrl+C to stop.'))
+    print(f'🟢 Scheduler started: {scheduler.scheduler_id}')
+    print('Press Ctrl+C to stop.')
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         scheduler.shutdown()
-        print(_('🔴 Scheduler stopped.'))
+        print('🔴 Scheduler stopped.')
