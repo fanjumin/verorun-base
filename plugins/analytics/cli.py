@@ -32,7 +32,7 @@ def cmd_init():
     conn = am.get_db()
     try:
         config = am.get_privacy_config(conn)
-        print(f'[Analytics] 📋 隐私配置:')
+        print(f_'[Analytics] 📋 Privacy Settings:')
         for k, v in config.items():
             print(f'  {k}: {v}')
     finally:
@@ -43,8 +43,8 @@ def cmd_process():
     """运行一次聚合处理"""
     processor = AnalyticsProcessor()
     stats = processor.process()
-    print(f'[Analytics] ✅ 聚合完成')
-    print(f'  处理批次: {stats["total_batches"]}')
+    print(f_'[Analytics] ✅ Aggregation completed')
+    print(f_'  Processed Batches: {stats["total_batches"]}')
     print(f'  PV: {stats["processed"]["pv"]}')
     print(f'  Bot: {stats["processed"]["bot"]}')
     print(f'  错误: {stats["processed"]["error"]}')
@@ -65,7 +65,7 @@ def cmd_daemon():
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
 
-    print(f'[Analytics Daemon] 🚀 启动 (间隔 {interval}s)')
+    print(f_'[Analytics Daemon] 🚀 Started (interval {interval}s)')
     while running:
         try:
             processor.process()
@@ -74,7 +74,7 @@ def cmd_daemon():
             print(f'[Analytics Daemon] ⚠️ {e}')
             time.sleep(interval)
 
-    print('[Analytics Daemon] ✅ 已停止')
+    print(_'[Analytics Daemon] ✅ Stopped')
 
 
 def cmd_report():
@@ -91,7 +91,7 @@ def cmd_cleanup():
     conn = am.get_db()
     try:
         deleted = am.cleanup_old_logs(conn, days)
-        print(f'[Analytics] 🧹 已清理 {deleted} 条日志 (保留 {days} 天)')
+        print(f_'[Analytics] 🧹 Cleaned {deleted} logs (kept {days} days)')
     finally:
         conn.close()
 
@@ -126,18 +126,18 @@ def cmd_stats():
         print('═' * 45)
         print(f'  📊 分析系统状态')
         print('═' * 45)
-        print(f'  原始日志:     {total_logs:,} 条')
-        print(f'  小时聚合:     {total_hourly:,} 条')
-        print(f'  日聚合:       {total_daily:,} 条')
-        print(f'  事件:         {total_events:,} 条')
-        print(f'  会话:         {total_sessions:,} 条')
-        print(f'  今日 PV:      {today_pv:,}')
-        print(f'  今日 UV:      {today_uv:,}')
-        print(f'  数据库大小:   {db_size/1048576:.2f} MB')
+        print(f_'  Raw Logs:     {total_logs:,} items')
+        print(f_'  Hourly Aggregation:     {total_hourly:,} items')
+        print(f_'  Daily Aggregation:       {total_daily:,} items')
+        print(f_'  Events:         {total_events:,} items')
+        print(f_'  Sessions:         {total_sessions:,} items')
+        print(f_'  Today PV:      {today_pv:,}')
+        print(f_'  Today UV:      {today_uv:,}')
+        print(f_'  Database Size:   {db_size/1048576:.2f} MB')
         print('─' * 45)
 
     except Exception as e:
-        print(f'[Analytics] ❌ 查询失败: {e}')
+        print(f_'[Analytics] ❌ Query failed: {e}')
     finally:
         conn.close()
 
@@ -148,36 +148,36 @@ def cmd_add_alert():
     print('\n=== 添加分析告警规则 ===')
     print()
 
-    name = input('告警名称: ').strip()
+    name = input(_'Alert name: ').strip()
     if not name:
-        print('❌ 名称不能为空')
+        print(_'❌ Name Cannot Be Empty')
         return
 
     print('\n指标选项:')
-    metrics = ['uv (独立访客)', 'pv (浏览量)', 'bounce_rate (跳出率%)',
-               'error_rate (错误率%)', 'avg_response_time (平均响应ms)']
+    metrics = [_'UV (Unique Visitors)', _'PV (Page Views)', _'bounce_rate (Bounce rate %)',
+               _'Error rate (%)', _'avg_response_time (Average response ms)']
     for i, m in enumerate(metrics, 1):
         print(f'  {i}. {m}')
-    metric_idx = int(input('选择指标 (1-5): ').strip())
+    metric_idx = int(input(_'Select metric (1-5): ').strip())
     metric_map = ['', 'uv', 'pv', 'bounce_rate', 'error_rate', 'avg_response_time']
     metric = metric_map[metric_idx]
 
     print('\n操作符:')
-    print('  1. > (大于)')
-    print('  2. < (小于)')
-    print('  3. >= (大于等于)')
-    print('  4. <= (小于等于)')
-    op_idx = int(input('选择操作符 (1-4): ').strip())
+    print(_'  1. > (Greater than)')
+    print(_'  2. < (Less than)')
+    print(_'  3. >= (Greater than or equal to)')
+    print(_'  4. <= (Less than or equal to)')
+    op_idx = int(input(_'Select operator (1-4): ').strip())
     op_map = ['', 'gt', 'lt', 'gte', 'lte']
     operator = op_map[op_idx]
 
-    threshold = float(input('阈值: ').strip())
+    threshold = float(input(_'Threshold: ').strip())
 
     print('\n时间窗口:')
-    print('  1. 1h (1小时)')
-    print('  2. 24h (24小时)')
-    print('  3. 7d (7天)')
-    tw_idx = int(input('选择 (1-3): ').strip())
+    print(_'  1. 1h (1 hour)')
+    print(_'  2. 24h (24 hours)')
+    print(_'  3. 7d (7 days)')
+    tw_idx = int(input(_'Select (1-3): ').strip())
     tw_map = ['', '1h', '24h', '7d']
     time_window = tw_map[tw_idx]
 
@@ -192,21 +192,21 @@ def cmd_seed_workflows():
         from orchestrator import models as om
         om.init_orchestrator_tables()
     except ImportError:
-        print('❌ 需要 orchestrator 模块 (pip install apscheduler)')
+        print(_'❌ Orchestrator Module Required (pip install apscheduler)')
         return
 
     conn = om.get_db()
     try:
         daily_id = create_daily_report_workflow(conn)
         weekly_id = create_weekly_report_workflow(conn)
-        print(f'✅ 预设工作流已创建:')
+        print(f_'✅ Predefined Workflow Created:')
         print(f'  📊 每日分析报告 (ID: {daily_id})')
         print(f'  📊 每周运营报告 (ID: {weekly_id})')
 
         # 创建工作流绑定的 Cron 任务
         from orchestrator import models as om
         om.create_cron_job(conn, {
-            'name': '每日分析报告',
+            'name': _'Daily Analysis Report',
             'target_type': 'workflow',
             'target_id': daily_id,
             'cron_expression': '0 8 * * *',
@@ -215,7 +215,7 @@ def cmd_seed_workflows():
             'timeout': 300,
         })
         om.create_cron_job(conn, {
-            'name': '每周运营报告',
+            'name': _'Weekly Operations Report',
             'target_type': 'workflow',
             'target_id': weekly_id,
             'cron_expression': '0 9 * * 1',
@@ -223,7 +223,7 @@ def cmd_seed_workflows():
             'priority': 3,
             'timeout': 300,
         })
-        print(f'  ⏰ Cron 任务已绑定 (每日8:00 / 每周一9:00)')
+        print(f_'  ⏰ Cron Job Bound (Daily 8:00 / Weekly Monday 9:00)')
     finally:
         conn.close()
 
@@ -248,5 +248,5 @@ if __name__ == '__main__':
     if cmd in commands:
         commands[cmd]()
     else:
-        print(f'❌ 未知命令: {cmd}')
+        print(f_'❌ Unknown Command: {cmd}')
         print(__doc__)

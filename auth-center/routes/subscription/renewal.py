@@ -124,7 +124,7 @@ def _process_renewal(conn, sub):
     amount_fen = plan['price_year'] if period == 'year' else plan['price_month']
     expire_days = 365 if period == 'year' else 30
     brand = os.environ.get("DEPLOY_BRAND", "")
-    desc = f"{brand} {plan['name']}{'年付' if period=='year' else '月付'}续费"
+    desc = f_"{brand} {plan['name']}{'Annual Payment' if period=='year' else 'Monthly Payment'} Renewal"
     from . import new_order_no
     order_no = new_order_no('REN')
 
@@ -185,7 +185,7 @@ def _retry_charge(conn, sub):
     amount_fen = plan['price_year'] if period == 'year' else plan['price_month']
     expire_days = 365 if period == 'year' else 30
     brand = os.environ.get("DEPLOY_BRAND", "")
-    desc = f"{brand} {plan['name']}续费(重试)"
+    desc = f_"{brand} {plan['name']} Renewal (Retry)"
     order_no = new_order_no('RET')
     conn.execute(
         'INSERT INTO subscription_orders (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
@@ -229,7 +229,7 @@ def _mark_past_due(conn, sub, order_no, fail_reason):
     _log_payment_event(conn, sub['user_id'], sub['id'], 'charge_fail',
                        sub.get('payment_method', ''), 0, fail_reason)
     _log_audit(conn, sub['user_id'], 'renewal_failed',
-               f'扣款失败: {fail_reason}', sub_id=sub['id'])
+               f_'Payment failed: {fail_reason}', sub_id=sub['id'])
 
 
 def _log_payment_event(conn, user_id, sub_id, event_type, channel, amount_fen, fail_reason=''):

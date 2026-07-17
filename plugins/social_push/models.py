@@ -35,7 +35,7 @@ def init_sp_db():
 
     表结构与主库 social_push_logs 保持一致，便于数据迁移。
     admin_id 原主库为 REFERENCES users(id) 外键；插件独立库不跨库外键，
-    仅保留列（值仍是主库 users.id），符合"独立库 + 主库只读"契约。
+    仅保留列（值仍是主库 users.id），符合_"Independent Database + Primary Database Read-Only"契约。
     """
     conn = get_sp_db()
     conn.execute("""

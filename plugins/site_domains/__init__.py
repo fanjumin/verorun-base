@@ -26,7 +26,7 @@ class SiteDomainsPlugin(BasePlugin):
 
     def on_enable(self, registry):
         """启用（无独立库，不建表）"""
-        print('[SiteDomainsPlugin] ✅ 子域名管理插件已启用')
+        print(_'[SiteDomainsPlugin] ✅ Subdomain management plugin is enabled')
         return True
 
     def register_routes(self):
@@ -36,5 +36,5 @@ class SiteDomainsPlugin(BasePlugin):
         return [caddy_check_bp]
 
     def on_disable(self, registry):
-        print('[SiteDomainsPlugin] ⚠️  子域名管理插件已禁用')
+        print(_'[SiteDomainsPlugin] ⚠️ Subdomain management plugin is disabled')
         return True

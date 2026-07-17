@@ -66,7 +66,7 @@ def add_source():
     required = ['name', 'source_type', 'url']
     for k in required:
         if not d.get(k):
-            return jsonify({'success': False, 'error': f'{k} 必填'})
+            return jsonify({'success': False, 'error': f_'{k} Required'})
     conn = _get_db()
     cur = conn.execute(
         """INSERT INTO content_sources (name, source_type, platform, url, config_json,
@@ -81,7 +81,7 @@ def add_source():
     )
     conn.commit()
     sid = cur.fetchone()['id']
-    _log(admin['user_id'], 'cf_source_add', 'content_source', str(sid), f"来源: {d['name']}")
+    _log(admin['user_id'], 'cf_source_add', 'content_source_', str(sid), f"Source: {d['name']}")
     return jsonify({'success': True, 'id': sid})
 
 
@@ -99,7 +99,7 @@ def update_source(sid):
             sets.append(f'{k}=?')
             vals.append(d[k])
     if not sets:
-        return jsonify({'success': False, 'error': '无更新字段'})
+        return jsonify({'success': False, 'error': _'No Update Fields'})
     sets.append("config_json=?")
     vals.append(json.dumps(d.get('config', {}), ensure_ascii=False))
     vals.append(sid)
@@ -132,11 +132,11 @@ def trigger_crawl():
     d = request.get_json() or {}
     source_id = d.get('source_id')
     if not source_id:
-        return jsonify({'success': False, 'error': 'source_id 必填'})
+        return jsonify({'success': False, 'error': _'Source_id is required'})
     from plugins.content_factory.services import run_collection
     result = run_collection(source_id, admin_id=admin['user_id'])
     _log(admin['user_id'], 'cf_crawl', 'content_source', str(source_id),
-         f"新增 {result.get('inserted',0)}, 跳过 {result.get('skipped',0)}")
+         f_"Added {result.get('inserted',0)}, Skipped {result.get('skipped',0)}")
     return jsonify(result)
 
 
@@ -201,11 +201,11 @@ def process():
     d = request.get_json() or {}
     raw_ids = d.get('raw_ids', [])
     if not raw_ids:
-        return jsonify({'success': False, 'error': 'raw_ids 必填'})
+        return jsonify({'success': False, 'error': _'Raw_ids are required'})
     from plugins.content_factory.services.ai_processor import batch_process
     result = batch_process(raw_ids, admin_id=admin['user_id'])
     _log(admin['user_id'], 'cf_process', '', '',
-         f"加工 {len(raw_ids)} 条: OK={result.get('ok',0)} FAIL={result.get('fail',0)}")
+         f_"Process {len(raw_ids)} Items: OK={result.get('ok',0)} FAIL={result.get('fail',0)}")
     return jsonify(result)
 
 
@@ -251,13 +251,13 @@ def batch_delete_processed():
     d = request.get_json() or {}
     ids = d.get('ids', [])
     if not ids:
-        return jsonify({'success': False, 'error': 'ids 必填'})
+        return jsonify({'success': False, 'error': _'Ids are required'})
     conn = _get_db()
     for pid in ids:
         conn.execute('DELETE FROM skill_pushes WHERE processed_id=?', (pid,))
         conn.execute('DELETE FROM processed_contents WHERE id=?', (pid,))
     conn.commit()
-    _log(admin['user_id'], 'cf_batch_delete', 'processed', f'{len(ids)}条')
+    _log(admin['user_id'], 'cf_batch_delete', 'processed', f_'{len(ids)} items')
     return jsonify({'success': True, 'deleted': len(ids)})
 
 
@@ -273,14 +273,14 @@ def ai_format():
     content = d.get('content', '')
     title = d.get('title', '')
     if not content.strip():
-        return jsonify({'success': False, 'error': '内容不可为空'})
+        return jsonify({'success': False, 'error': _'Content cannot be empty'})
     try:
         try:
             from services.ai_content_generator import _qwen_chat
         except ImportError:
             from auth_center.services.ai_content_generator import _qwen_chat
     except ImportError:
-        return jsonify({'success': False, 'error': 'AI 排版模块未就绪（ai_content_generator 不可用）'}), 503
+        return jsonify({'success': False, 'error': _'AI Layout Module Not Ready (ai_content_generator Not Available)'}), 503
     prompt = f"""你是一个专业的内容排版编辑。请仔细阅读全文，然后执行以下步骤：
 
 ## 任务
@@ -297,7 +297,7 @@ def ai_format():
 {content[:8000]}"""
     try:
         result = _qwen_chat([{'role': 'user', 'content': prompt}], temperature=0.3)
-        _log(admin['user_id'], 'cf_ai_format', '', '', f'AI排版: {title[:30]}')
+        _log(admin['user_id'], 'cf_ai_format', '', '', f_'AI Formatting: {title[:30]}')
         return jsonify({'success': True, 'formatted': result})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -312,17 +312,17 @@ def ai_cover():
     topic = d.get('topic', '')
     prompt_text = d.get('prompt', '')
     if not prompt_text:
-        prompt_text = f'科技金融封面图：{topic or title}，深色科幻风格，蓝紫渐变'
+        prompt_text = f_'Tech Finance Cover Image: {topic or title}, Dark Sci-Fi Style, Blue-Purple Gradient'
     try:
         try:
             from services.ai_content_generator import generate_image
         except ImportError:
             from auth_center.services.ai_content_generator import generate_image
     except ImportError:
-        return jsonify({'success': False, 'error': 'AI 配图模块未就绪（ai_content_generator 不可用）'}), 503
+        return jsonify({'success': False, 'error': _'AI image generation module is not ready (ai_content_generator is unavailable)'}), 503
     try:
         url = generate_image(prompt_text, size='1280x720')
-        _log(admin['user_id'], 'cf_ai_cover', '', '', f'配图: {title[:30]}')
+        _log(admin['user_id'], 'cf_ai_cover', '', '', f_'Illustration: {title[:30]}')
         return jsonify({'success': True, 'image_url': url})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -344,7 +344,7 @@ def get_processed(pid):
         (pid,)
     ).fetchone()
     if not row:
-        return jsonify({'success': False, 'error': '不存在'})
+        return jsonify({'success': False, 'error': _'Does not exist'})
     return jsonify({'success': True, 'data': dict(row)})
 
 
@@ -380,7 +380,7 @@ def review_content():
     pid = d.get('processed_id')
     action = d.get('action', '')
     if not pid or action not in ('submit_review', 'approve', 'reject', 'back_to_draft'):
-        return jsonify({'success': False, 'error': 'processed_id 和 action 必填'})
+        return jsonify({'success': False, 'error': _'Processed_id and action are required'})
 
     status_map = {'submit_review': 'review', 'approve': 'approved', 'reject': 'rejected', 'back_to_draft': 'draft'}
     target = status_map[action]
@@ -388,7 +388,7 @@ def review_content():
     conn = _get_db()
     pc = conn.execute('SELECT * FROM processed_contents WHERE id=?', (pid,)).fetchone()
     if not pc:
-        return jsonify({'success': False, 'error': '不存在'})
+        return jsonify({'success': False, 'error': _'Does not exist'})
     cur = pc['status']
     valid_transitions = {
         'draft': ['submit_review', 'publish'],
@@ -398,7 +398,7 @@ def review_content():
         'published': [],
     }
     if action not in valid_transitions.get(cur, []):
-        return jsonify({'success': False, 'error': f'状态 {cur} 不允许执行 {action}'})
+        return jsonify({'success': False, 'error': f_'Status {cur} does not allow {action}'})
 
     conn.execute(
         "UPDATE processed_contents SET status=%s, reviewed_by=%s, reviewed_at=NOW() WHERE id=%s",
@@ -406,7 +406,7 @@ def review_content():
     )
     conn.commit()
 
-    action_labels = {'submit_review': '提交审核', 'approve': '通过', 'reject': '驳回', 'back_to_draft': '退回草稿'}
+    action_labels = {'submit_review': _'Submit for Review', 'approve': _'Approved', 'reject': _'Reject', 'back_to_draft': _'Return to draft'}
     _log(admin['user_id'], f'cf_review_{action}', 'processed_content', str(pid),
          f'{action_labels[action]}: {pc["title"][:50]}')
     return jsonify({'success': True, 'status': target})
@@ -424,14 +424,14 @@ def publish():
     pid = d.get('processed_id')
     platform = d.get('platform', 'internal')
     if not pid:
-        return jsonify({'success': False, 'error': 'processed_id 必填'})
+        return jsonify({'success': False, 'error': _'Processed_id is required'})
 
     conn = _get_db()
     pc = conn.execute('SELECT * FROM processed_contents WHERE id=?', (pid,)).fetchone()
     if not pc:
-        return jsonify({'success': False, 'error': '加工内容不存在'})
+        return jsonify({'success': False, 'error': _'Processed Content Does Not Exist'})
     if pc['status'] not in ('approved', 'draft'):
-        return jsonify({'success': False, 'error': f'当前状态 {pc["status"]} 不允许发布（需 approved 或 draft）'})
+        return jsonify({'success': False, 'error': f_'Current status {pc["status"]} does not allow publishing (needs approved or draft)'})
 
     if platform == 'internal':
         try:
@@ -440,7 +440,7 @@ def publish():
             try:
                 from auth_center.models.cms import upsert_post
             except ImportError:
-                return jsonify({'success': False, 'error': 'CMS 发布模块未就绪（models.cms 不可用）'}), 503
+                return jsonify({'success': False, 'error': _'CMS publishing module is not ready (models.cms is not available)'}), 503
         import time
         slug = f'cf-{pid}-{int(time.time())}'
         post = upsert_post({
@@ -460,7 +460,7 @@ def publish():
             "UPDATE processed_contents SET is_published=1, status='published' WHERE id=?", (pid,)
         )
         conn.commit()
-        _log(admin['user_id'], 'cf_publish', 'processed_content', str(pid), f"发布到本站 post_id={post_id}")
+        _log(admin['user_id'], 'cf_publish', 'processed_content', str(pid), f_"Publish to this site post_id={post_id}")
         return jsonify({'success': True, 'post_id': post_id, 'platform': 'internal'})
 
     elif platform in ('social', 'both'):
@@ -469,7 +469,7 @@ def publish():
         _pm = _flask.current_app.extensions.get('plugin_manager') if hasattr(_flask.current_app, 'extensions') else None
         _sp = _pm.get_instance('social_push') if (_pm and _pm.is_enabled('social_push')) else None
         if _sp is None:
-            return jsonify({'success': False, 'error': '社媒发布模块未就绪（social_push 插件未启用）'}), 503
+            return jsonify({'success': False, 'error': _'Social Media Posting Module Not Ready (social_push plugin not enabled)'}), 503
         social_platforms = d.get('social_platforms', ['wechat'])
         auto_publish = d.get('auto_publish', False)
         social_results = []
@@ -491,7 +491,7 @@ def publish():
                 try:
                     from auth_center.models.cms import upsert_post
                 except ImportError:
-                    return jsonify({'success': False, 'error': 'CMS 发布模块未就绪（models.cms 不可用）'}), 503
+                    return jsonify({'success': False, 'error': _'CMS publishing module is not ready (models.cms is not available)'}), 503
             import time
             slug = f'cf-{pid}-{int(time.time())}'
             post = upsert_post({
@@ -507,7 +507,7 @@ def publish():
         )
         conn.commit()
 
-        log_msg = f"社媒发布: {', '.join(social_platforms)}"
+        log_msg = f_"Social Media Post: {', '.join(social_platforms)}"
         if post_id: log_msg += f", CMS post_id={post_id}"
         _log(admin['user_id'], 'cf_publish_social', 'processed_content', str(pid), log_msg)
 
@@ -515,7 +515,7 @@ def publish():
         if post_id: resp['post_id'] = post_id
         return jsonify(resp)
     else:
-        return jsonify({'success': False, 'error': f'未知发布平台: {platform}'})
+        return jsonify({'success': False, 'error': f_'Unknown publishing platform: {platform}'})
 
 
 # =============================================
@@ -580,12 +580,12 @@ def push_to_skill():
     pid = d.get('processed_id')
     target = d.get('target_agent', 'hermes')
     if not pid:
-        return jsonify({'success': False, 'error': 'processed_id 必填'})
+        return jsonify({'success': False, 'error': _'Processed_id is required'})
     from plugins.content_factory.services.skill_pusher import push_to_skill as do_push
     result = do_push(pid, admin_id=admin['user_id'], target_agent=target)
     if result['success']:
         _log(admin['user_id'], 'cf_skill_push', 'processed_content', str(pid),
-             f"推送到{target}: {result['skill_name']}")
+             f_"Push to {target}: {result['skill_name']}")
     return jsonify(result)
 
 
@@ -633,7 +633,7 @@ def api_download_skill(push_id):
     from plugins.content_factory.services.skill_pusher import get_skill_for_download
     skill = get_skill_for_download(push_id)
     if not skill:
-        return jsonify({'success': False, 'error': '不存在'}), 404
+        return jsonify({'success': False, 'error': _'Does not exist'}), 404
     return jsonify({'success': True, 'skill': skill})
 
 
@@ -654,7 +654,7 @@ def generate_static():
         try:
             from staticgen import generate_post, generate_all, generate_category, generate_docs_index
         except ImportError:
-            return jsonify({'success': False, 'error': '静态页面生成模块未就绪（platform/staticgen 不可用）'}), 503
+            return jsonify({'success': False, 'error': _'Static page generation module is not ready (platform/staticgen not available)'}), 503
 
         results = []
         if action == 'all':
@@ -689,13 +689,13 @@ def push_processed_to_knowledge():
     d = request.get_json() or {}
     pid = d.get('processed_id')
     if not pid:
-        return jsonify({'success': False, 'error': 'processed_id 必填'}), 400
+        return jsonify({'success': False, 'error': _'Processed_id is required'}), 400
 
     conn = _get_db()
     row = conn.execute("SELECT id, title, body, keywords, content_type "
                        "FROM processed_contents WHERE id=?", (pid,)).fetchone()
     if not row:
-        return jsonify({'success': False, 'error': '加工内容不存在'}), 404
+        return jsonify({'success': False, 'error': _'Processed Content Does Not Exist'}), 404
 
     raw = f"标题：{row['title'] or ''}\n关键词：{row['keywords'] or ''}\n类型：{row['content_type'] or ''}\n正文：{row['body'] or ''}"
     try:
@@ -704,10 +704,10 @@ def push_processed_to_knowledge():
         try:
             from auth_center.routes.cleaner_agent import process_clean_content
         except ImportError:
-            return jsonify({'success': False, 'error': '知识库推送模块未就绪（cleaner_agent 不可用）'}), 503
+            return jsonify({'success': False, 'error': _'Knowledge base push module is not ready (cleaner_agent is not available)'}), 503
     result = process_clean_content(raw, admin_id=admin['user_id'])
     _log(admin['user_id'], 'cf_to_knowledge', 'processed_content', str(pid),
-         f"知识库ID: {result.get('kb_id', '?')}")
+         f_"Knowledge Base ID: {result.get('kb_id', '?')}")
     return jsonify(result)
 
 

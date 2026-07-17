@@ -46,11 +46,11 @@ function socialEditor(){
   h+='<select class="sl" id="socPlatform" style="flex:1" onchange="socialUpdateContentTypes()"><option value="wechat">{{ _('WeChat OA Articles') }}</option><option value="weibo">{{ _('Weibo') }}</option></select></div>';
   h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Type') }}</div>';
   h+='<select class="sl" id="socType" style="flex:1"><option value="article">{{ _('Article') }}</option><option value="announcement">{{ _('Notification') }}</option><option value="promotion">{{ _('Promote') }}</option></select></div>';
-  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Theme') }}</div><input class="in" id="socTopic" placeholder="{{ _('Enter Topic') }}，如：AI {{ _('Transform Finance') }}" style="flex:1"></div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Theme') }}</div><input class="in" id="socTopic" placeholder={{ _('{{ _('Enter Topic') }}, e.g. AI {{ _('Transform Finance') }}') | tojson }} style="flex:1"></div>';
   h+='<div style="margin-top:8px;display:flex;gap:8px">';
   h+='<button class="btn bp" onclick="socialGen()">🤖 AI {{ _('Generate') }}</button>';
   h+='<button class="btn bo" onclick="socialClearEditor()">{{ _('Clear') }}</button></div></div>';
-  h+='<button class="btn bo" onclick="socialImportFromCMS()">📥 从CMS{{ _('Import') }}</button>';
+  h+='<button class="btn bo" onclick="socialImportFromCMS()">{{ _('📥 Import from CMS{{ _('Import') }}') }}</button>';
 
   h+='<div class="cd" style="margin-top:12px"><div class="st">{{ _('Content') }}</div>';
   h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Title') }}</div><input class="in" id="socTitle" placeholder="{{ _('Title') }}" style="flex:1" value="'+esc(socArticle.title)+'"></div>';
@@ -167,7 +167,7 @@ function socialGen(){
 // ── Tab 1: {{ _('Add Image') }} ──
 function socialImageGen(){
   var h='<div class="cd"><div class="st">AI {{ _('Image Generation') }}（{{ _('Tongyi Wanxiang') }}）</div>';
-  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Description') }}</div><input class="in" id="socImgPrompt" placeholder="{{ _('Describe Image Effect') }}，如：{{ _('Ink Landscape') }}" style="flex:1"></div>';
+  h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Description') }}</div><input class="in" id="socImgPrompt" placeholder={{ _('{{ _('Describe Image Effect') }}，e.g. {{ _('Ink Landscape') }}') | tojson }} style="flex:1"></div>';
   h+='<div style="margin:8px 0;display:flex;gap:12px">';
   h+='<label style="font-size:11px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="socIsCover" checked> {{ _('As Cover Image') }}</label></div>';
   h+='<button class="btn bp" onclick="socialGenImage()">🎨 {{ _('Generate Picture') }}</button>';

@@ -347,16 +347,16 @@ class AnalyticsProcessor:
                 'total_sessions': sessions,
             })
 
-        print(f'[Analytics] ✅ 日聚合完成 [{today}]')
+        print(f_'[Analytics] ✅ Daily aggregation completed [{today}]')
 
     def _handle_alerts(self, triggered: list):
         """处理触发的告警"""
         for alert in triggered:
             msg = (f'🚨 告警触发: {alert["name"]}\n'
                    f'指标: {alert["metric"]}\n'
-                   f'当前值: {alert["current_value"]} '
+                   f_'Current value: {alert["current_value"]} '
                    f'(阈值: {alert["operator"]} {alert["threshold"]})\n'
-                   f'时间窗口: {alert["time_window"]}')
+                   f_'Time Window: {alert["time_window"]}')
             print(f'[Analytics Alert] {msg}')
 
             # 写入通知（集成到现有通知系统）
@@ -365,7 +365,7 @@ class AnalyticsProcessor:
                 conn.execute(
                     "INSERT INTO notifications (user_id, title, content, type, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (1, f'🚨 统计分析告警: {alert["name"]}', msg,
+                    (1, f_'🚨 Statistical analysis alert: {alert["name"]}', msg,
                      'alert', int(time.time()))
                 )
                 conn.commit()
@@ -378,7 +378,7 @@ class AnalyticsProcessor:
         config = am.get_privacy_config(conn)
         retention = int(config.get('log_retention_days', 30))
         deleted = am.cleanup_old_logs(conn, retention)
-        print(f'[Analytics] 🧹 已清理 {deleted} 条过期原始日志 (保留 {retention} 天)')
+        print(f_'[Analytics] 🧹 Cleaned {deleted} expired raw logs (kept {retention} days)')
 
 
 # ─── 快捷函数 ──────────────────────────────────────────────────────────────────
@@ -398,8 +398,8 @@ def run_forever(interval: int = 60):
     import sys
 
     processor = AnalyticsProcessor()
-    print(f'[Analytics Processor] 🚀 启动聚合循环 (间隔 {interval}s)')
-    print('[Analytics Processor] 按 Ctrl+C 停止')
+    print(f_'[Analytics Processor] 🚀 Started aggregation loop (interval {interval}s)')
+    print(_'[Analytics Processor] Press Ctrl+C to stop')
 
     running = True
 
@@ -421,7 +421,7 @@ def run_forever(interval: int = 60):
             print(f'[Analytics Processor] ⚠️ {e}')
             time.sleep(interval)
 
-    print('[Analytics Processor] ✅ 已停止')
+    print(_'[Analytics Processor] ✅ Stopped')
 
 
 if __name__ == '__main__':

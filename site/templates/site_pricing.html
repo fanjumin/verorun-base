@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>{{ _('{{ site.name }} - 定价方案') }}</title>
+<title>{{ _('{{ site.name }} - Pricing Plan') }}</title>
     <style>
         :root {
             --primary-color: {{ site.theme_color }};
@@ -31,7 +31,7 @@
         .pricing-card { border: 2px solid #e2e8f0; border-radius: 16px; padding: 48px 36px; text-align: center; transition: all 0.3s; position: relative; }
         .pricing-card:hover { border-color: var(--primary-color); transform: translateY(-5px); }
         .pricing-card.popular { border-color: var(--accent-color); background: rgba(var(--accent-color), 0.05); }
-        .pricing-card.popular::before { content: '推荐'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent-color); color: white; padding: 4px 20px; border-radius: 20px; font-size: 12px; }
+        .pricing-card.popular::before { content: {{ _('Recommend') | tojson }}; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent-color); color: white; padding: 4px 20px; border-radius: 20px; font-size: 12px; }
         .pricing-card h3 { font-size: 24px; margin-bottom: 10px; }
         .pricing-card .price { font-size: 48px; font-weight: 700; color: var(--primary-color); margin-bottom: 8px; }
         .pricing-card .period { color: #64748b; margin-bottom: 30px; }
@@ -104,7 +104,7 @@
                                 <li>{{ feature }}</li>
                             {% endfor %}
                         </ul>
-<a class="btn {% if plan.tier == 'free' %}btn-outline{% endif %}" href="#">{% if plan.tier == 'free' %}免费试用{% else %}立即购买{% endif %}</a>
+<a class="btn {% if plan.tier == 'free' %}btn-outline{% endif %}" href="#">{{ _('{% if plan.tier == 'free' %}Free Trial{% else %}Buy Now{% endif %}') }}</a>
 </div>
                 {% endfor %}
             {% else %}
@@ -124,7 +124,7 @@
                                 <li>{{ feature }}</li>
                             {% endfor %}
                         </ul>
-<a class="btn {% if tier == 'free' %}btn-outline{% endif %}" href="#">{% if tier == 'free' %}免费试用{% else %}立即购买{% endif %}</a>
+<a class="btn {% if tier == 'free' %}btn-outline{% endif %}" href="#">{{ _('{% if tier == 'free' %}Free Trial{% else %}Buy Now{% endif %}') }}</a>
 </div>
                 {% endfor %}
             {% endif %}

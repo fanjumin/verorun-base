@@ -22,7 +22,7 @@ def _require_auth():
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': '未登录或Token已过期'}), 401)
+        return None, (jsonify({'success': False, 'error': _'Not logged in or token expired'}), 401)
     return payload, None
 
 
@@ -103,7 +103,7 @@ def session_terminate(sid):
             (sid, uid)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '会话不存在'}), 404
+            return jsonify({'success': False, 'error': _'Session does not exist'}), 404
         if row['is_current']:
             return jsonify({'success': False, 'error': '不能退出当前会话，请使用退出登录'}), 400
         conn.execute(
@@ -111,4 +111,4 @@ def session_terminate(sid):
             (sid,)
         )
         conn.commit()
-    return jsonify({'success': True, 'message': '会话已终止'})
+    return jsonify({'success': True, 'message': _'Session has been terminated'})

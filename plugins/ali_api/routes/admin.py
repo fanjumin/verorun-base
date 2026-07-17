@@ -104,14 +104,14 @@ def csrf_protect(f):
         return f(*args, **kwargs)
     return wrapper
 
-def _success(data=None, message='操作成功'):
+def _success(data=None, message=_'Operation Successful'):
     """成功响应"""
     resp = jsonify({'success': True, 'data': data, 'message': message})
     resp.headers['X-Content-Type-Options'] = 'nosniff'
     resp.headers['X-Frame-Options'] = 'DENY'
     return resp
 
-def _error(message='操作失败', code=400):
+def _error(message=_'Operation Failed', code=400):
     """错误响应"""
     resp = jsonify({'success': False, 'error': message}), code
     if isinstance(resp, tuple):
@@ -211,14 +211,14 @@ def dashboard():
                 'provider': config['ai']['provider'] if ai_available else None,
             },
             'config': {
-                'app_key': config['alibaba']['app_key'][:8] + '...' if config['alibaba']['app_key'] else '未配置',
+                'app_key': config['alibaba']['app_key'][:8] + '...' if config['alibaba']['app_key'] else _'Not configured',
                 'api_gateway': config['alibaba']['api_gateway'],
             }
         })
         
     except Exception as e:
         logger.error(f"获取仪表盘数据失败: {e}")
-        return _error(f"获取数据失败: {e}")
+        return _error(f_"Failed to Get Data: {e}")
 
 @ali_admin_bp.route('/items')
 def list_items():
@@ -275,8 +275,8 @@ def list_items():
         })
         
     except Exception as e:
-        logger.error(f"列出商品失败: {e}")
-        return _error(f"列出商品失败: {e}")
+        logger.error(f_"Listing products failed: {e}")
+        return _error(f_"Listing products failed: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>')
 def get_item(item_id):
@@ -286,7 +286,7 @@ def get_item(item_id):
             item = AliApiItem.get_by_id(conn, item_id)
             
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             # 解析JSON字段
             for field in ['images', 'specs', 'api_response']:
@@ -299,8 +299,8 @@ def get_item(item_id):
             return _success(item)
             
     except Exception as e:
-        logger.error(f"获取商品详情失败: {e}")
-        return _error(f"获取商品详情失败: {e}")
+        logger.error(f_"Failed to Get Product Details: {e}")
+        return _error(f_"Failed to Get Product Details: {e}")
 
 @ali_admin_bp.route('/items/collect', methods=['POST'])
 @csrf_protect
@@ -313,7 +313,7 @@ def collect_product():
         
         product_id = data.get('product_id')
         if not product_id:
-            return _error('商品ID不能为空')
+            return _error(_'Product ID cannot be empty')
         
         # 检查权限
         admin_info, err = _require_admin_or_error()
@@ -325,7 +325,7 @@ def collect_product():
         rate_manager = get_rate_limit_manager()
         allowed, reason = rate_manager.check_all_limits(user_id, 'alibaba.product.get')
         if not allowed:
-            return _error(f'风控限制: {reason}', 429)
+            return _error(f_'Risk control restriction: {reason}', 429)
         
         _permit_released = [False]
         
@@ -356,7 +356,7 @@ def collect_product():
                         'response_code': 200,
                         'response_time': 0,
                         'success': True,
-                        'error_msg': '缓存命中',
+                        'error_msg': _'Cache Hit',
                         'ip_address': request.remote_addr,
                     })
                     conn.commit()
@@ -397,13 +397,13 @@ def collect_product():
                     })
                     conn.commit()
                 
-                return _error(f'API调用失败: {error_msg}')
+                return _error(f_'API call failed: {error_msg}')
             
             # 解析响应
             product_data = client.parse_product_response(response)
             
             if not product_data:
-                return _error('解析商品数据失败')
+                return _error(_'Failed to parse product data')
             
             # 缓存商品数据
             cache_service.set_product(product_id, product_data)
@@ -437,8 +437,8 @@ def collect_product():
             _safe_release_permit()
         
     except Exception as e:
-        logger.error(f"采集商品失败: {e}")
-        return _error(f"采集商品失败: {e}")
+        logger.error(f_"Failed to scrape product: {e}")
+        return _error(f_"Failed to scrape product: {e}")
 
 @ali_admin_bp.route('/items/search', methods=['POST'])
 @csrf_protect
@@ -451,7 +451,7 @@ def search_products():
         
         keywords = data.get('keywords')
         if not keywords:
-            return _error('搜索关键词不能为空')
+            return _error(_'Search keywords cannot be empty')
         
         page_no = data.get('page_no', 1)
         page_size = data.get('page_size', 20)
@@ -466,7 +466,7 @@ def search_products():
         rate_manager = get_rate_limit_manager()
         allowed, reason = rate_manager.check_all_limits(user_id, 'alibaba.product.search')
         if not allowed:
-            return _error(f'风控限制: {reason}', 429)
+            return _error(f_'Risk control restriction: {reason}', 429)
         
         # 尝试从缓存获取搜索结果（缓存5分钟）
         cache_service = get_cache_service()
@@ -501,7 +501,7 @@ def search_products():
                 })
                 conn.commit()
             
-            return _error(f'API调用失败: {error_msg}')
+            return _error(f_'API call failed: {error_msg}')
         
         # 解析响应
         search_result = client.parse_search_response(response)
@@ -526,8 +526,8 @@ def search_products():
         return _success(search_result)
         
     except Exception as e:
-        logger.error(f"搜索商品失败: {e}")
-        return _error(f"搜索商品失败: {e}")
+        logger.error(f_"Search product failed: {e}")
+        return _error(f_"Search product failed: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/ai-optimize', methods=['POST'])
 @csrf_protect
@@ -536,13 +536,13 @@ def ai_optimize_item(item_id):
     try:
         # 检查AI可用性
         if not is_ai_available():
-            return _error('AI服务不可用')
+            return _error(_'AI Service Unavailable')
         
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             # 准备商品信息
             product_info = {
@@ -558,7 +558,7 @@ def ai_optimize_item(item_id):
         success, result = ai_processor.generate_marketing_copy(product_info)
         
         if not success:
-            return _error('AI优化失败')
+            return _error(_'AI Optimization Failed')
         
         # 更新商品数据
         with get_db() as conn:
@@ -587,7 +587,7 @@ def ai_optimize_item(item_id):
         
     except Exception as e:
         logger.error(f"AI优化商品失败: {e}")
-        return _error(f"AI优化失败: {e}")
+        return _error(f_"AI Optimization Failed: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/ai-titles', methods=['POST'])
 @csrf_protect
@@ -596,12 +596,12 @@ def generate_ai_titles(item_id):
     try:
         # 检查AI可用性
         if not is_ai_available():
-            return _error('AI服务不可用')
+            return _error(_'AI Service Unavailable')
         
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
         
         # 准备商品信息
         product_info = {
@@ -616,7 +616,7 @@ def generate_ai_titles(item_id):
         success, options = ai_processor.generate_title_options(product_info)
         
         if not success:
-            return _error(f'AI生成标题失败: {options}')
+            return _error(f_'AI failed to generate title: {options}')
         
         # 保存到数据库
         with get_db() as conn:
@@ -629,8 +629,8 @@ def generate_ai_titles(item_id):
         })
         
     except Exception as e:
-        logger.error(f"AI生成标题选项失败: {e}")
-        return _error(f"AI生成标题选项失败: {e}")
+        logger.error(f_"AI failed to generate title options: {e}")
+        return _error(f_"AI failed to generate title options: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/select-title', methods=['POST'])
 @csrf_protect
@@ -646,7 +646,7 @@ def select_title(item_id):
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             # 解析现有选项
             options = json.loads(item['ai_title_options']) if isinstance(item.get('ai_title_options'), str) else item.get('ai_title_options', [])
@@ -658,8 +658,8 @@ def select_title(item_id):
         return _success({'item_id': item_id, 'selected_title': selected_title})
         
     except Exception as e:
-        logger.error(f"选择标题失败: {e}")
-        return _error(f"选择标题失败: {e}")
+        logger.error(f_"Failed to select title: {e}")
+        return _error(f_"Failed to select title: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/publish', methods=['POST'])
 @csrf_protect
@@ -675,10 +675,10 @@ def publish_product(item_id):
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             if item['publish_status'] == 'published':
-                return _error('商品已发布，不可重复发布')
+                return _error(_'Product has been published, cannot be published again')
             
             # 获取最终标题（优先使用选中的标题）
             final_title = item.get('selected_title') or item.get('ai_title') or item.get('title') or item.get('original_title', '')
@@ -802,11 +802,11 @@ def publish_product(item_id):
             'target_product_id': target_product_id,
             'title': final_title,
             'price': price,
-        }, '商品发布成功')
+        }, _'Product published successfully')
         
     except Exception as e:
-        logger.error(f"发布商品失败: {e}")
-        return _error(f"发布商品失败: {e}")
+        logger.error(f_"Failed to publish product: {e}")
+        return _error(f_"Failed to publish product: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/unpublish', methods=['POST'])
 @csrf_protect
@@ -816,10 +816,10 @@ def unpublish_product(item_id):
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             if item['publish_status'] != 'published':
-                return _error('商品未发布，无法下架')
+                return _error(_'Product is not published, cannot be taken off the shelf')
             
             target_product_id = item.get('target_product_id')
             
@@ -841,11 +841,11 @@ def unpublish_product(item_id):
             AliApiItem.update_publish_status(conn, item_id, 'unpublished')
             conn.commit()
         
-        return _success({'item_id': item_id}, '商品已下架')
+        return _success({'item_id': item_id}, _'Product has been taken off the shelf')
         
     except Exception as e:
-        logger.error(f"下架商品失败: {e}")
-        return _error(f"下架商品失败: {e}")
+        logger.error(f_"Failed to remove product: {e}")
+        return _error(f_"Failed to remove product: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/images', methods=['GET'])
 def list_images(item_id):
@@ -854,7 +854,7 @@ def list_images(item_id):
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
         
         images = []
         if isinstance(item.get('images'), str):
@@ -876,8 +876,8 @@ def list_images(item_id):
         return _success({'images': result, 'total': len(result)})
         
     except Exception as e:
-        logger.error(f"获取图片列表失败: {e}")
-        return _error(f"获取图片列表失败: {e}")
+        logger.error(f_"Failed to Get Image List: {e}")
+        return _error(f_"Failed to Get Image List: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/images/upload', methods=['POST'])
 @csrf_protect
@@ -891,14 +891,14 @@ def upload_image(item_id):
         _ensure_upload_dir()
         
         if 'file' not in request.files:
-            return _error('没有上传文件')
+            return _error(_'No file uploaded')
         
         file = request.files['file']
         if not file or not file.filename:
-            return _error('文件为空')
+            return _error(_'File is empty')
         
         if not _allowed_file(file.filename):
-            return _error(f'不支持的文件格式，允许 {", ".join(ALLOWED_EXTENSIONS)}')
+            return _error(f_'Unsupported file format, allowed {", ".join(ALLOWED_EXTENSIONS)}')
         
         # 读取文件大小
         file.seek(0, os.SEEK_END)
@@ -923,7 +923,7 @@ def upload_image(item_id):
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
                 os.remove(filepath)
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             # 解析现有图片
             images = []
@@ -950,11 +950,11 @@ def upload_image(item_id):
             'url': image_url,
             'filename': filename,
             'index': len(images) - 1,
-        }, '图片上传成功')
+        }, _'Picture uploaded successfully')
         
     except Exception as e:
-        logger.error(f"上传图片失败: {e}")
-        return _error(f"上传图片失败: {e}")
+        logger.error(f_"Upload image failed: {e}")
+        return _error(f_"Upload image failed: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/images/<int:image_index>', methods=['DELETE'])
 @csrf_protect
@@ -964,7 +964,7 @@ def delete_image(item_id, image_index):
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             images = []
             if isinstance(item.get('images'), str):
@@ -976,7 +976,7 @@ def delete_image(item_id, image_index):
                 images = item['images']
             
             if image_index < 0 or image_index >= len(images):
-                return _error('图片索引无效', 404)
+                return _error(_'Invalid picture index', 404)
             
             removed = images.pop(image_index)
             
@@ -995,11 +995,11 @@ def delete_image(item_id, image_index):
             )
             conn.commit()
         
-        return _success({'images_remaining': len(images)}, '图片已删除')
+        return _success({'images_remaining': len(images)}, _'Picture deleted')
         
     except Exception as e:
-        logger.error(f"删除图片失败: {e}")
-        return _error(f"删除图片失败: {e}")
+        logger.error(f_"Failed to Delete Image: {e}")
+        return _error(f_"Failed to Delete Image: {e}")
 
 @ali_admin_bp.route('/items/<int:item_id>/images/reorder', methods=['POST'])
 @csrf_protect
@@ -1015,7 +1015,7 @@ def reorder_images(item_id):
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
-                return _error('商品不存在', 404)
+                return _error(_'Product does not exist', 404)
             
             images = []
             if isinstance(item.get('images'), str):
@@ -1027,7 +1027,7 @@ def reorder_images(item_id):
                 images = item['images']
             
             if len(new_order) != len(images):
-                return _error('顺序索引数量不匹配')
+                return _error(_'Sequence index count mismatch')
             
             reordered = [images[i] for i in new_order]
             
@@ -1038,22 +1038,22 @@ def reorder_images(item_id):
             )
             conn.commit()
         
-        return _success({}, '图片排序已更新')
+        return _success({}, _'Picture order updated')
         
     except Exception as e:
-        logger.error(f"重新排序图片失败: {e}")
-        return _error(f"重新排序图片失败: {e}")
+        logger.error(f_"Failed to reorder images: {e}")
+        return _error(f_"Failed to reorder images: {e}")
 
 @ali_admin_bp.route('/cache/stats')
 def cache_stats():
-    """缓存统计"""
+    ""_"Cache Statistics"""
     try:
         cache_service = get_cache_service()
         stats = cache_service.stats()
         return _success(stats)
     except Exception as e:
-        logger.error(f"获取缓存统计失败: {e}")
-        return _error(f"获取缓存统计失败: {e}")
+        logger.error(f_"Failed to Get Cache Statistics: {e}")
+        return _error(f_"Failed to Get Cache Statistics: {e}")
 
 @ali_admin_bp.route('/cache/clear', methods=['POST'])
 @csrf_protect
@@ -1068,13 +1068,13 @@ def clear_cache():
         if cache_type == 'product':
             product_id = data.get('product_id')
             deleted = cache_service.clear_product_cache(product_id)
-            message = f"清除商品缓存成功，删除{deleted} 个条目"
+            message = f_"Successfully cleared product cache, deleted {deleted} entries"
         elif cache_type == 'api':
             # 清除API响应缓存
             deleted = 0
             if cache_service.use_redis:
                 deleted = cache_service.redis.clear_pattern("api:*")
-            message = f"清除API缓存成功，删除{deleted} 个条目"
+            message = f_"Successfully cleared API cache, deleted {deleted} entries"
         else:
             # 清除所有缓存
             cache_service.memory.clear()
@@ -1085,13 +1085,13 @@ def clear_cache():
                 deleted += cache_service.redis.clear_pattern("product:*")
                 deleted += cache_service.redis.clear_pattern("api:*")
                 deleted += cache_service.redis.clear_pattern("category:*")
-            message = f"清除所有缓存成功，删除 {deleted} 个条目"
+            message = f_"Successfully cleared all cache, deleted {deleted} entries"
         
         return _success({'deleted': deleted}, message)
         
     except Exception as e:
-        logger.error(f"清除缓存失败: {e}")
-        return _error(f"清除缓存失败: {e}")
+        logger.error(f_"Failed to clear cache: {e}")
+        return _error(f_"Failed to clear cache: {e}")
 
 @ali_admin_bp.route('/rate-limit/stats')
 def rate_limit_stats():
@@ -1101,8 +1101,8 @@ def rate_limit_stats():
         stats = rate_manager.get_stats()
         return _success(stats)
     except Exception as e:
-        logger.error(f"获取风控统计失败: {e}")
-        return _error(f"获取风控统计失败: {e}")
+        logger.error(f_"Failed to Get Risk Control Statistics: {e}")
+        return _error(f_"Failed to Get Risk Control Statistics: {e}")
 
 @ali_admin_bp.route('/logs')
 def api_logs():
@@ -1167,8 +1167,8 @@ def api_logs():
         })
         
     except Exception as e:
-        logger.error(f"获取API日志失败: {e}")
-        return _error(f"获取API日志失败: {e}")
+        logger.error(f_"Failed to Get API Logs: {e}")
+        return _error(f_"Failed to Get API Logs: {e}")
 
 @ali_admin_bp.route('/config')
 def get_config():
@@ -1212,8 +1212,8 @@ def get_config():
         return _success(safe_config)
 
     except Exception as e:
-        logger.error(f"获取配置失败: {e}")
-        return _error(f"获取配置失败: {e}")
+        logger.error(f_"Failed to Get Configuration: {e}")
+        return _error(f_"Failed to Get Configuration: {e}")
 
 
 # ── 配置保存（用户通过 UI 写入 ali_api_config 表）──
@@ -1240,7 +1240,7 @@ def save_config():
         conn.commit()
 
     logger.info(f"ali_api 配置已保存 (user_id={admin['user_id']})")
-    return _success(None, '配置保存成功。部分更改需要重启服务后才能生效。')
+    return _success(None, _'Configuration saved successfully. Some changes require restarting the service to take effect.')
 
 # ── GET /admin/ali-api/settings ──
 # PluginManager 标准化配置接口（非敏感配置）
@@ -1430,11 +1430,11 @@ def oauth_url():
     # 校验 redirect_uri 白名单
     validated_uri = _validate_redirect_uri(redirect_uri)
     if not validated_uri:
-        return _error('非法的回调地址')
+        return _error(_'Invalid callback address')
     
     app_key = config['alibaba']['app_key']
     if not app_key:
-        return _error('未配置AppKey')
+        return _error(_'AppKey not configured')
     
     # 生成随机 state（含 CSRF 防护） 持久化
     state = secrets.token_urlsafe(16)
@@ -1457,12 +1457,12 @@ def oauth_callback():
     """
     code = request.args.get('code') or (request.get_json(silent=True) or {}).get('code')
     if not code:
-        return _error('缺少授权码 code')
+        return _error(_'Missing authorization code')
 
     # 校验 state（持久化验证，防 CSRF + 防重放），并取回绑定信息
     state = request.args.get('state', '')
     if not state:
-        return _error('缺少 state 参数', 400)
+        return _error(_'Missing state parameter', 400)
     from ..models import OAuthState
     with get_db() as conn:
         state_row = OAuthState.validate_and_consume_row(conn, state)
@@ -1473,7 +1473,7 @@ def oauth_callback():
     # redirect_uri 取自 state 记录（授权发起时已白名单校验），确保与换 token 时一致
     validated_uri = state_row.get('redirect_uri', '')
     if not _validate_redirect_uri(validated_uri):
-        return _error('非法的回调地址')
+        return _error(_'Invalid callback address')
 
     app_key = config['alibaba']['app_key']
     app_secret = config['alibaba']['app_secret']
@@ -1481,7 +1481,7 @@ def oauth_callback():
     result = get_access_token(app_key, app_secret, code, validated_uri)
 
     if 'error' in result:
-        return _error(f'获取token失败: {result.get("error_message", result["error"])}')
+        return _error(f_'Failed to Get Token: {result.get("error_message", result["error"])}')
 
     # 保存 token 到数据库（绑定到发起授权的管理员）
     result['app_key'] = app_key
@@ -1494,7 +1494,7 @@ def oauth_callback():
         'ali_id': result.get('ali_id', ''),
         'expires_in': result.get('expires_in', 0),
         'refresh_token': result.get('refresh_token', '')[:20] + '...',
-    }, '1688 授权成功')
+    }, _'1688 Authorization Successful')
 
 
 @ali_admin_bp.route('/oauth/status', methods=['GET'])
@@ -1539,7 +1539,7 @@ def oauth_refresh():
     result = refresh_access_token(app_key, app_secret, token['refresh_token'])
     
     if 'error' in result:
-        return _error(f'刷新失败: {result.get("error_message", result["error"])}')
+        return _error(f_'Refresh Failed: {result.get("error_message", result["error"])}')
     
     result['app_key'] = app_key
     with get_db() as conn:
@@ -1548,7 +1548,7 @@ def oauth_refresh():
     return _success({
         'access_token': result.get('access_token', '')[:20] + '...',
         'expires_in': result.get('expires_in', 0),
-    }, 'Token 已刷新')
+    }, _'Token Refreshed')
 
 
 @ali_admin_bp.route('/oauth/disconnect', methods=['POST'])
@@ -1561,7 +1561,7 @@ def oauth_disconnect():
     from ..models import AliApiToken
     with get_db() as conn:
         AliApiToken.delete(conn, user_id=admin['user_id'])
-    return _success(None, '已解除 1688 授权')
+    return _success(None, _'1688 Authorization Removed')
 
 
 # ===== 1688 商品查询（新版API）=====
@@ -1588,12 +1588,12 @@ def v2_get_product(product_id):
     )
     
     if 'error' in result:
-        return _error(f'查询失败: {result.get("error_message", result["error"])}')
+        return _error(f_'Query Failed: {result.get("error_message", result["error"])}')
     
     # 解析商品信息
     product_info = result.get('productInfo', {})
     if not product_info:
-        return _success({'raw': result}, 'API返回无商品信息')
+        return _success({'raw': result}, _'API returned no product information')
     
     # 标准化输出
     images = []
@@ -1702,8 +1702,8 @@ def list_purchase_orders():
         
         return _success({'items': enriched, 'total': total, 'page': page, 'limit': limit})
     except Exception as e:
-        logger.error(f"获取采购单列表失败: {e}")
-        return _error(f"获取采购单列表失败: {e}")
+        logger.error(f_"Failed to Get Purchase Order List: {e}")
+        return _error(f_"Failed to Get Purchase Order List: {e}")
 
 
 @ali_admin_bp.route('/orders/create-purchase', methods=['POST'])
@@ -1718,16 +1718,16 @@ def create_purchase_order():
         data = request.json or {}
         po_id = data.get('purchase_order_id')
         if not po_id:
-            return _error('缺少采购单 ID')
+            return _error(_'Missing purchase order ID')
         
         from ..models import AliPurchaseOrder, get_main_db
         
         with get_db() as conn:
             po = AliPurchaseOrder.get_by_id(conn, po_id)
             if not po:
-                return _error('采购单不存在', 404)
+                return _error(_'Purchase Order does not exist', 404)
             if po['ali_order_status'] != 'pending':
-                return _error(f'采购单状态不为待采购（当前: {po["ali_order_status"]}），不可重复下单')
+                return _error(f_'Purchase Order status is not 'Pending Purchase' (current: {po["ali_order_status"]}), cannot place duplicate orders')
             
             ali_pid = po['ali_product_id']
             quantity = po['quantity']
@@ -1753,7 +1753,7 @@ def create_purchase_order():
             from ..models import AliApiToken
             token_row = AliApiToken.get(conn)
             if not token_row or not token_row.get('access_token'):
-                return _error('1688 未授权，请在"配置信息"页面重新授权')
+                return _error('1688 未授权，请在_"Configuration Info"页面重新授权')
             access_token = token_row['access_token']
             
             # 获取 1688 API 配置
@@ -1766,7 +1766,7 @@ def create_purchase_order():
             product_info = get_product(ali_pid, access_token, app_key, app_secret)
             
             if product_info.get('error'):
-                return _error(f'1688 商品不可用: {product_info.get("error_message", product_info["error"])}')
+                return _error(f_'1688 Product Unavailable: {product_info.get("error_message", product_info["error"])}')
             
             # 1688 交易接口: alibaba.trade.createCrossOrder
             # 参数参考: https://open.1688.com/api/apidocdetail.htm?id=alibaba.trade.createCrossOrder
@@ -1806,10 +1806,10 @@ def create_purchase_order():
             )
             conn.commit()
         
-        return _success({'po_id': po_id, 'ali_order_id': result.get('orderId'), 'status': 'ordered'}, '采购单已提交至 1688')
+        return _success({'po_id': po_id, 'ali_order_id': result.get('orderId'), 'status': 'ordered'}, _'Purchase Order submitted to 1688')
     except Exception as e:
-        logger.error(f"创建采购单失败: {e}")
-        return _error(f"创建采购单失败: {e}")
+        logger.error(f_"Failed to Create Purchase Order: {e}")
+        return _error(f_"Failed to Create Purchase Order: {e}")
 
 
 @ali_admin_bp.route('/orders/sync-tracking', methods=['POST'])
@@ -1824,16 +1824,16 @@ def sync_tracking():
         data = request.json or {}
         po_id = data.get('purchase_order_id')
         if not po_id:
-            return _error('缺少采购单 ID')
+            return _error(_'Missing purchase order ID')
         
         from ..models import AliPurchaseOrder, get_main_db
         
         with get_db() as conn:
             po = AliPurchaseOrder.get_by_id(conn, po_id)
             if not po:
-                return _error('采购单不存在', 404)
+                return _error(_'Purchase Order does not exist', 404)
             if not po.get('ali_order_id'):
-                return _error('该采购单尚未在 1688 下单')
+                return _error(_'This procurement order has not been placed on 1688 yet')
             
             ali_order_id = po['ali_order_id']
             
@@ -1841,7 +1841,7 @@ def sync_tracking():
             from ..models import AliApiToken
             token_row = AliApiToken.get(conn)
             if not token_row or not token_row.get('access_token'):
-                return _error('1688 未授权', 401)
+                return _error(_'1688 Unauthorized', 401)
             
             from ..config import config
             app_key = config['alibaba']['app_key']
@@ -1856,7 +1856,7 @@ def sync_tracking():
             # 
             # 模拟结果:
             tracking_info = {
-                'company': '申通快递',
+                'company': _'STO Express',
                 'number': '7732900000000000',
                 'shipped': True,
             }
@@ -1886,25 +1886,25 @@ def sync_tracking():
                 conn.commit()
                 return _success({'tracking_company': tracking_info.get('company'),
                                  'tracking_number': tracking_info.get('number'),
-                                 'status': 'shipped'}, '物流已同步')
+                                 'status': 'shipped'}, _'Logistics has been synchronized')
             else:
-                return _success({'status': 'pending'}, '1688 尚未发货')
+                return _success({'status': 'pending'}, _'1688 Not Shipped Yet')
     
     except Exception as e:
-        logger.error(f"同步物流失败: {e}")
-        return _error(f"同步物流失败: {e}")
+        logger.error(f_"Logistics Synchronization Failed: {e}")
+        return _error(f_"Logistics Synchronization Failed: {e}")
 
 
 # ===== 错误处理 =====
 
 @ali_admin_bp.errorhandler(404)
 def not_found(error):
-    return _error('资源不存在', 404)
+    return _error(_'Resource does not exist', 404)
 
 @ali_admin_bp.errorhandler(500)
 def internal_error(error):
     logger.error(f"服务器内部错误: {error}")
-    return _error('服务器内部错误', 500)
+    return _error(_'Internal server error', 500)
 
 if __name__ == "__main__":
     # 测试路由
@@ -1912,8 +1912,8 @@ if __name__ == "__main__":
     app = Flask(__name__)
     app.register_blueprint(ali_admin_bp)
     
-    print("阿里巴巴API管理路由测试完成")
-    print("可用路由:")
+    print(_"Alibaba API Management route test completed")
+    print(_"Available Routes:")
     for rule in app.url_map.iter_rules():
         if rule.endpoint.startswith('ali_api_admin.'):
             print(f"  {rule.rule} -> {rule.endpoint}")

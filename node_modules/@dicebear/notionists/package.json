@@ -1,0 +1,46 @@
+{
+  "name": "@dicebear/notionists",
+  "version": "9.4.2",
+  "description": "Avatar style for DiceBear",
+  "keywords": [
+    "dicebear"
+  ],
+  "bugs": {
+    "url": "https://github.com/dicebear/dicebear/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dicebear/dicebear.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "files": [
+    "LICENSE",
+    "lib",
+    "README.md"
+  ],
+  "scripts": {
+    "prebuild": "del-cli lib",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@dicebear/core": "9.4.2",
+    "@tsconfig/recommended": "^1.0.13",
+    "del-cli": "^7.0.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@dicebear/core": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

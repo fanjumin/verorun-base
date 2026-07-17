@@ -82,7 +82,7 @@ var pid = parseInt(location.pathname.split('/').pop());
 function loadDetail(){
   var url = PREVIEW ? '/shop/api/admin/preview/'+pid : '/shop/api/products/'+pid;
   fetch(url,{headers:T?{"Authorization":"Bearer "+T}:{}}).then(function(r){
-    if(r.status===404){document.getElementById("detailContent").innerHTML='<div class="error-state"><div class="icon">🔍</div><div>{{ _('Product not found or unavailable') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">← 返回商城</a></div>';return Promise.reject()}
+    if(r.status===404){document.getElementById("detailContent").innerHTML='<div class="error-state"><div class="icon">🔍</div><div>{{ _('Product not found or unavailable') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">{{ _('← Return to Store') }}</a></div>';return Promise.reject()}
     return r.json()
   }).then(function(d){
     if(!d.success)return;var p=d.data;
@@ -92,7 +92,7 @@ function loadDetail(){
 }
 
 function renderDetail(p){
-  var types={"vip":"VIP套餐","template":"模板","token":"用量包","service":"服务","plugin":"插件","cloud_service":"☁️ 云服务"};
+  var types={"vip":{{ _('VIP plan') | tojson }},"template":{{ _('Template') | tojson }},"token":{{ _('Data Package') | tojson }},"service":{{ _('Service') | tojson }},"plugin":{{ _('Plugin') | tojson }},"cloud_service":{{ _('☁️ Cloud service') | tojson }}};
   var cfg=(p.product_config&&typeof p.product_config==='object')?p.product_config:{};
   var specs=(cfg.specs)||{};
   var isCloud=p.product_type==='cloud_service';
@@ -120,15 +120,15 @@ function renderDetail(p){
   h+='<div class="price-row"><span class="price" id="detailPrice">¥'+p.price+'</span>';
   if(p.original_price>p.price) h+='<span class="orig-price" id="detailOrigPrice">¥'+p.original_price+'</span>';
   h+='</div><div class="badges"><span class="badge">'+(types[p.product_type]||p.product_type)+'</span>';
-  if(isCloud&&specs.cpu) h+='<span class="badge stock">⚡'+specs.cpu+'核 '+specs.memory_gb+'G</span>';
-  h+='<span class="badge sales">'+(isCloud?'月付':'已售 '+(p.sales_count||0))+'</span></div>';
+  if(isCloud&&specs.cpu) h+='<span class="badge stock">{{ _('⚡{specs.cpu} core {specs.memory_gb}G') }}</span>';
+  h+='<span class="badge sales">'+(isCloud?{{ _('Monthly payment') | tojson }}:{{ _('Sold ') | tojson }}+(p.sales_count||0))+'</span></div>';
   // 云服务规格展示
   if(isCloud&&specs.cpu){
-    h+='<div class="spec-section"><div class="spec-label">☁️ 配置规格</div>';
+    h+={{ _('<div class="spec-section"><div class="spec-label">☁️ Configuration Specifications</div>') | tojson }};
     h+='<div class="spec-options" style="margin-bottom:16px">';
-    h+='<span class="spec-option active">CPU: '+specs.cpu+'核</span>';
-    h+='<span class="spec-option active">内存: '+(specs.memory_gb||'')+'G</span>';
-    h+='<span class="spec-option active">磁盘: '+(specs.disk_gb||'')+'G</span>';
+    h+='<span class="spec-option active">{{ _('CPU: '+specs.cpu+' cores') }}</span>';
+    h+={{ _('<span class="spec-option active">Memory: ') | tojson }}+(specs.memory_gb||'')+'G</span>';
+    h+={{ _('<span class="spec-option active">Disk: ') | tojson }}+(specs.disk_gb||'')+'G</span>';
     h+='<span class="spec-option active">'+(cfg.service_type||'VPS')+'</span>';
     h+='</div></div>';
   }
@@ -149,7 +149,7 @@ function renderDetail(p){
   if(fs&&fs.length){h+='<ul class="feature-list">';fs.forEach(function(f){h+='<li><span class="check">✓</span> '+esc(f)+'</li>'});h+='</ul>'}
   // Actions
   if(isCloud){
-    h+='<div class="actions"><button class="btn btn-primary" onclick="buyCloud('+p.id+')">☁️ 立即开通</button>';
+    h+='<div class="actions"><button class="btn btn-primary" onclick="buyCloud('+p.id+')">{{ _('☁️ Activate now') }}</button>';
     h+='<button class="btn btn-cart" onclick="showToast(\'云服务商品需管理员确认开通\',\'info\')">{{ _('Add to Cart') }}</button></div>';
   }else{
     h+='<div class="actions"><button class="btn btn-primary" onclick="buyNow('+p.id+')">{{ _('Buy Now') }}</button>';
@@ -204,7 +204,7 @@ function matchDetailSku(){
   });
   if(matched){
     document.getElementById("detailPrice").textContent='¥'+matched.price;
-    document.getElementById("detailStock").textContent='库存 '+matched.stock;
+    document.getElementById("detailStock").textContent={{ _('Inventory') | tojson }}+matched.stock;
   }
 }
 
@@ -218,28 +218,28 @@ function addToCart(id){
   var skuId=getSelectedSkuId();
   fetch("/shop/api/cart/add",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({product_id:id,quantity:1,sku_id:skuId})})
     .then(function(r){return r.json()}).then(function(d){
-      showToast(d.success?"✅ 已加入购物车":(d.error||"失败"),d.success?"success":"error");
+      showToast(d.success?{{ _('✅ Added to cart') | tojson }}:(d.error||{{ _('Failed"') | tojson }}),d.success?"success":"error");
     });
 }
 
 function buyNow(id){
   if(!T){showToast("请先登录","error");setTimeout(function(){location.href="/login?redirect="+encodeURIComponent(location.pathname)},500);return}
   var skuId=getSelectedSkuId();
-  var btn=document.querySelector('.btn-primary');if(btn){btn.disabled=true;btn.textContent='创建订单...'}
+  var btn=document.querySelector('.btn-primary');if(btn){btn.disabled=true;btn.textContent={{ _('Create Order...') | tojson }}}
   fetch("/shop/api/checkout",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({items:[{product_id:id,quantity:1,price:0,title:"",sku_id:skuId}]})})
     .then(function(r){
       if(!r.ok){return r.json().then(function(e){throw new Error(e.error||'请求失败')});}
       return r.json();
     })
     .then(function(d){
-      if(!d.success){throw new Error(d.error||'下单失败');}
-      showToast("✅ 订单已创建，前往支付...","success");
+      if(!d.success){throw new Error(d.error||{{ _('Order failed') | tojson }});}
+      showToast({{ _('✅ Order Created, Go to Pay...') | tojson }},"success");
       var oid=d.data.order_id;
       location.href="/shop/pay/"+oid;
     })
     .catch(function(err){
-      showToast(err.message||"下单失败","error");
-      if(btn){btn.disabled=false;btn.textContent='立即购买'}
+      showToast(err.message||{{ _('Order failed') | tojson }},"error");
+      if(btn){btn.disabled=false;btn.textContent={{ _('Buy Now') | tojson }}}
     });
 }
 
@@ -250,7 +250,7 @@ function buyCloud(id){
       if(d.success){
         showToast("✅ 开通请求已提交，管理员确认后自动开通","success");
         setTimeout(function(){location.href="/shop/cloud"},1000);
-      }else showToast(d.error||"开通失败","error");
+      }else showToast(d.error||{{ _('Activation failed') | tojson }},"error");
     });
 }
 

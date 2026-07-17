@@ -92,7 +92,7 @@ class WishlistPlugin(BasePlugin):
             data = request.get_json() or {}
             pid = data.get('product_id')
             if not pid:
-                return jsonify({'success': False, 'error': _t('缺少商品ID')}), 400
+                return jsonify({'success': False, 'error': _t(_'Missing product ID')}), 400
 
             with get_db() as conn:
                 existing = conn.execute(
@@ -102,7 +102,7 @@ class WishlistPlugin(BasePlugin):
                     conn.execute('DELETE FROM wishlist WHERE id=?', (existing['id'],))
                     conn.commit()
                     return jsonify({'success': True, 'favorited': False,
-                                    'message': _t('已取消收藏')})
+                                    'message': _t(_'Removed from favorites')})
                 else:
                     conn.execute(
                         'INSERT INTO wishlist (user_id, product_id) VALUES (?,?)',
@@ -110,7 +110,7 @@ class WishlistPlugin(BasePlugin):
                     )
                     conn.commit()
                     return jsonify({'success': True, 'favorited': True,
-                                    'message': _t('收藏成功')})
+                                    'message': _t(_'Successfully saved')})
 
         @bp.route('/api/check', methods=['POST'])
         def check_wishlist():

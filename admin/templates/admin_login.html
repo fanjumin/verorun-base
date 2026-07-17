@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>管理员登录 — {{ brand.site_name_cn if brand and brand.site_name_cn else '易站AI' }}</title>
+<title>{{ _('Administrator Login — {{ brand.site_name_cn if brand and brand.site_name_cn else 'Yizhan AI' }}') }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <style>
 /* ═══════════════════════════════════════════════════════
@@ -299,7 +299,7 @@ body::after {
         <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
       </div>
       <h1>{{ _('Admin Login') }}</h1>
-      <p>{{ brand.software_name if brand else '易站AI' }} 管理后台</p>
+      <p>{{ _('{{ brand.software_name if brand else 'EasyKai' }} Management Backend') }}</p>
     </div>
 
     <!-- Tabs -->

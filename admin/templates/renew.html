@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>续费 — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}</title>
+<title>{{ _('Renewal — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}') }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <style>
 /* ═══════════════════════════════════════════════════════
@@ -320,7 +320,7 @@ body::after {
         </svg>
       </div>
       <div class="tm-status-label">{{ _('Active') }}</div>
-      <div class="tm-status-days">剩余 {{ license.days_remaining }} 天</div>
+      <div class="tm-status-days">{{ _('Remaining {{ license.days_remaining }} Days') }}</div>
       <div class="tm-status-msg">{{ license.message }}</div>
     </div>
     {% elif license.status == 'unknown' %}
@@ -333,7 +333,7 @@ body::after {
         </svg>
       </div>
       <div class="tm-status-label">{{ _('Pending Verification') }}</div>
-      <div class="tm-status-msg">{{ license.message or '正在等待授权验证...' }}</div>
+      <div class="tm-status-msg">{{ _('{{ license.message or 'Waiting for Authorization Verification...' }}') }}</div>
     </div>
     {% else %}
     <div class="tm-status expired">
@@ -345,7 +345,7 @@ body::after {
         </svg>
       </div>
       <div class="tm-status-label">{{ _('Expired') }}</div>
-      <div class="tm-status-days">已过期 {{ license.days_remaining|abs }} 天</div>
+      <div class="tm-status-days">{{ _('Expired {{ license.days_remaining|abs }} days ago') }}</div>
       <div class="tm-status-msg">{{ license.message or '请续费以恢复管理后台和AI功能' }}</div>
     </div>
     {% endif %}
@@ -354,15 +354,15 @@ body::after {
     <div class="tm-info">
       <div class="tm-info-row">
         <span class="tm-info-label">{{ _('Status') }}</span>
-        <span class="tm-info-value {{ license.status }}">{{ {'active':'有效','expired':'已过期','unknown':'未验证'}[license.status] }}</span>
+        <span class="tm-info-value {{ license.status }}">{{ _('{{ {'active':'Valid','expired':'Expired','unknown':'Unverified'}[license.status] }}') }}</span>
       </div>
       <div class="tm-info-row">
         <span class="tm-info-label">{{ _('Days Left') }}</span>
-        <span class="tm-info-value">{{ license.days_remaining }} 天</span>
+        <span class="tm-info-value">{{ _('{{ license.days_remaining }} Days') }}</span>
       </div>
       <div class="tm-info-row">
         <span class="tm-info-label">{{ _('Cached At') }}</span>
-        <span class="tm-info-value">{{ license.cached_at or '暂无' }}</span>
+        <span class="tm-info-value">{{ _('{{ license.cached_at or 'N/A' }}') }}</span>
       </div>
     </div>
 
@@ -395,7 +395,7 @@ body::after {
 async function refreshLicense() {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
-  btn.innerHTML = "<span style=\"display:inline-block;animation:spin 0.7s linear infinite\">⟳</span>" + "{{ _(' 验证中...') }}";
+  btn.innerHTML = "<span style=\"display:inline-block;animation:spin 0.7s linear infinite\">⟳</span>" + {{ _('{{ _(' Verifying...') }}') | tojson }};
   try {
     const r = await fetch('/admin/api/license-refresh', { method: 'POST' });
     const d = await r.json();
@@ -408,7 +408,7 @@ async function refreshLicense() {
         setTimeout(() => { window.location.reload(); }, 1000);
       }
     } else {
-      toast("{{ _('验证失败: ') }}" + (d.error || "{{ _('Please try again later') }}"), 'error');
+      toast({{ _('{{ _('Validation Failed: ') }}') | tojson }} + (d.error || "{{ _('Please try again later') }}"), 'error');
     }
   } catch (e) {
     toast("{{ _('Network error, please try again') }}", 'error');

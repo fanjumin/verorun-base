@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{{ _('管理后台') }} — {{ brand.site_name_en if brand else '' }}</title>
+<title>{{ _('Admin') }} — {{ brand.site_name_en if brand else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="icon" type="image/png" sizes="16x16" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-16x16.png' }}">
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
@@ -72,12 +72,12 @@ a:hover{text-decoration:underline}
 </head>
 <body>
 <div class="sidebar">
-  <div class="logo"><span>{{ _('管理后台') }}</span></div>
+  <div class="logo"><span>{{ _('Admin') }}</span></div>
   <nav id="nav"></nav>
 </div>
 <div class="main">
-  <div class="top"><div class="pt" id="pt">{{ _('管理后台') }}</div><div><span id="an">-</span> | <a href="/" style="color:var(--dim);font-size:11px">{{ _('返回') }}</a></div></div>
-  <div class="con" id="mc"><div class="lo"><div class="s"></div>{{ _('验证身份中...') }}</div></div>
+  <div class="top"><div class="pt" id="pt">{{ _('Admin') }}</div><div><span id="an">-</span> | <a href="/" style="color:var(--dim);font-size:11px">{{ _('Back') }}</a></div></div>
+  <div class="con" id="mc"><div class="lo"><div class="s"></div>{{ _('Verifying...') }}</div></div>
 </div>
 <div class="toast" id="adminToast"></div>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
@@ -86,47 +86,47 @@ var T=localStorage.getItem("sso_token")||localStorage.getItem("tm_token")||local
 if(T)document.cookie="sso_token="+T+"; path=/; max-age=604800";
 var P=new URLSearchParams(location.search);
 if(P.get("token")){T=P.get("token");localStorage.setItem("sso_token",T);localStorage.setItem("tm_token",T);localStorage.setItem("token",T);document.cookie="sso_token="+T+"; path=/; max-age=604800";window.history.replaceState({},"",window.location.pathname)}
-var NAV=[["dashboard", "■", "{{ _('总览') }}", ""], ["", "", "{{ _('管理') }}", "ns"], ["users", "👥", "{{ _('用户管理') }}", ""], ["agents", "🤖", "{{ _('Agent 管理') }}", ""], ["keys", "🔑", "API Key", ""], ["posts", "💬", "{{ _('社区内容') }}", ""], ["contacts", "✉️", "{{ _('工单') }}", ""], ["matrix", "🤖", "{{ _('Agent 矩阵') }}", ""], ["cms", "📄", "{{ _('CMS 管理') }}", ""], ["downloads", "⬇", "{{ _('下载管理') }}", ""], ["", "", "{{ _('财务') }}", "ns"], ["revenue", "📊", "{{ _('收入看板') }}", ""], ["orders", "💳", "{{ _('订单') }}", ""], ["", "", "{{ _('系统') }}", "ns"], ["config", "⚙️", "{{ _('系统设置') }}", ""], ["logs", "📄", "{{ _('操作日志') }}", ""]];
+var NAV=[["dashboard", "■", "{{ _('Overview') }}", ""], ["", "", "{{ _('Management') }}", "ns"], ["users", "👥", "{{ _('Users') }}", ""], ["agents", "🤖", "{{ _('Agent Management') }}", ""], ["keys", "🔑", "API Key", ""], ["posts", "💬", "{{ _('Community Content') }}", ""], ["contacts", "✉️", "{{ _('Tickets') }}", ""], ["matrix", "🤖", "{{ _('Agent Matrix') }}", ""], ["cms", "📄", "{{ _('CMS Management') }}", ""], ["downloads", "⬇", "{{ _('Download Management') }}", ""], ["", "", "{{ _('Finance') }}", "ns"], ["revenue", "📊", "{{ _('Revenue Dashboard') }}", ""], ["orders", "💳", "{{ _('Orders') }}", ""], ["", "", "{{ _('System') }}", "ns"], ["config", "⚙️", "{{ _('System Settings') }}", ""], ["logs", "📄", "{{ _('Audit Log') }}", ""]];
 var navEl=document.getElementById("nav");
 NAV.forEach(function(n){
   if(n[3]=="ns"){navEl.innerHTML+='<div class="ns">'+n[2]+'</div>';return}
   navEl.innerHTML+='<div class="ni" onclick="go(\''+n[0]+'\')" id="n-'+n[0]+'">'+n[1]+' <span>'+n[2]+'</span></div>';
 });
 
-if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('请先') }} <a href="/login?redirect=/admin">{{ _('登录') }}</a></div>'}else{init()}
+if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/login?redirect=/admin">{{ _('Log In') }}</a></div>'}else{init()}
 
 function init(){
   fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
-    if(r.status===403){document.getElementById("mc").innerHTML='<div class="em">{{ _('仅管理员可访问') }}</div>';return Promise.reject()}
-    if(r.status===401){document.getElementById("mc").innerHTML='<div class="em">{{ _('请先') }} <a href="/login?redirect=/admin">{{ _('登录') }}</a></div>';return Promise.reject()}
+    if(r.status===403){document.getElementById("mc").innerHTML='<div class="em">{{ _('Admin Only') }}</div>';return Promise.reject()}
+    if(r.status===401){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/login?redirect=/admin">{{ _('Log In') }}</a></div>';return Promise.reject()}
     return r.json()
-  }).then(function(d){if(d.success){document.getElementById("an").textContent="{{ _('管理员') }}";go("dashboard")}else{document.getElementById("mc").innerHTML='<div class="em">{{ _('身份验证失败') }} - <a href="/login?redirect=/admin">{{ _('请重新登录') }}</a></div>'}}).catch(function(){})
+  }).then(function(d){if(d.success){document.getElementById("an").textContent="{{ _('Admin') }}";go("dashboard")}else{document.getElementById("mc").innerHTML='<div class="em">{{ _('Auth Failed') }} - <a href="/login?redirect=/admin">{{ _('Please Re-login') }}</a></div>'}}).catch(function(){})
 }
 
 function go(s){
   document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
   var el=document.getElementById("n-"+s);if(el)el.classList.add("sel");
-  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('加载中...') }}</div>';
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}</div>';
   if(typeof window["l_"+s]=="function")window["l_"+s]();
 }
 
 window.l_dashboard=function(){
-  document.getElementById("pt").textContent="{{ _('总览') }}";
+  document.getElementById("pt").textContent="{{ _('Overview') }}";
   fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ds=d.data;
     var h="<div class=\"gr\">";
-    h+=hk("{{ _('总用户') }}",ds.total_users,"b");
-    h+=hk("{{ _('活跃用户') }}",ds.active_users,"g");
+    h+=hk("{{ _('Total Users') }}",ds.total_users,"b");
+    h+=hk("{{ _('Active Users') }}",ds.active_users,"g");
     h+=hk("API Key",ds.active_api_keys+"/"+ds.total_api_keys,"");
-    h+=hk("{{ _('总调用') }}",ds.total_calls,"b");
-    h+=hk("{{ _('今日调用') }}",ds.today_calls,"g");
-    h+=hk("{{ _('待审核帖') }}",ds.pending_posts,"r");
-    h+=hk("{{ _('待处理工单') }}",ds.pending_contacts,"r");
-    h+=hk("{{ _('本月收入') }}","\u00a5"+ds.monthly_revenue,"g");
-    h+="</div><div class=\"cd\"><div class=\"st\">{{ _('最近注册') }}</div><table>";
+    h+=hk("{{ _('Total Calls') }}",ds.total_calls,"b");
+    h+=hk("{{ _("Today's Calls") }}",ds.today_calls,"g");
+    h+=hk("{{ _('Pending Posts') }}",ds.pending_posts,"r");
+    h+=hk("{{ _('Pending Tickets') }}",ds.pending_contacts,"r");
+    h+=hk("{{ _('Monthly Revenue') }}","\u00a5"+ds.monthly_revenue,"g");
+    h+="</div><div class=\"cd\"><div class=\"st\">{{ _('Recent Registrations') }}</div><table>";
     if(ds.recent_users&&ds.recent_users.length){
-      h+="<tr><th>ID</th><th>{{ _('昵称') }}</th><th>{{ _('手机') }}</th><th>{{ _('时间') }}</th></tr>";
+      h+="<tr><th>ID</th><th>{{ _('Nickname') }}</th><th>{{ _('Phone') }}</th><th>{{ _('Time') }}</th></tr>";
       ds.recent_users.forEach(function(u){h+="<tr><td>"+u.id+"</td><td>"+(u.nickname||"-")+"</td><td>"+(u.phone||"-")+"</td><td>"+u.created_at+"</td></tr>"});
     }
     h+="</table></div>";
@@ -136,39 +136,39 @@ window.l_dashboard=function(){
 function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div></div>'}
 
 /**
- * {{ _('收入看板') }}
+ * {{ _('Revenue Dashboard') }}
  */
 window.l_revenue=function(){
-  document.getElementById("pt").textContent="{{ _('收入看板') }}";
+  document.getElementById("pt").textContent="{{ _('Revenue Dashboard') }}";
   fetch("/admin/revenue/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ds=d.data;
     var h="";
 
     h+='<div class="gr">';
-    h+=hk('{{ _('今日收入') }}','¥'+ds.summary.today_revenue,'g');
-    h+=hk('{{ _('本月收入') }}','¥'+ds.summary.this_month,'b');
-    h+=hk('{{ _('上月收入') }}','¥'+ds.summary.last_month,'');
-    h+=hk('{{ _('环比') }}',(ds.summary.month_change>=0?'+':'')+ds.summary.month_change_pct+'%',ds.summary.month_change>=0?'g':'r');
+    h+=hk('{{ _("Today's Revenue") }}','¥'+ds.summary.today_revenue,'g');
+    h+=hk('{{ _('Monthly Revenue') }}','¥'+ds.summary.this_month,'b');
+    h+=hk('{{ _('Last Month Revenue') }}','¥'+ds.summary.last_month,'');
+    h+=hk('{{ _('MoM') }}',(ds.summary.month_change>=0?'+':'')+ds.summary.month_change_pct+'%',ds.summary.month_change>=0?'g':'r');
     h+=hk('MRR','¥'+(ds.subscriptions.mrr||0),'g');
-    h+=hk('{{ _('活跃订阅') }}',ds.subscriptions.active||0,'b');
-    h+=hk('{{ _('付费用户') }}',ds.subscriptions.total_paid_users||0,'');
+    h+=hk('{{ _('Active Subscriptions') }}',ds.subscriptions.active||0,'b');
+    h+=hk('{{ _('Paid Users') }}',ds.subscriptions.total_paid_users||0,'');
     var churnCls=(ds.subscriptions.churn_rate||0)>5?'r':'g';
-    h+=hk('{{ _('本月流失率') }}',(ds.subscriptions.churn_rate||0)+'%',churnCls);
-    h+=hk('{{ _('上月流失率') }}',(ds.subscriptions.last_churn_rate||0)+'%','');
-    h+=hk('{{ _('本月新增') }}',ds.subscriptions.new_this_month||0,'g');
-    h+=hk('{{ _('本月取消') }}',ds.subscriptions.canceled_this_month||0,'r');
-    h+=hk('{{ _('本月过期') }}',ds.subscriptions.expired_this_month||0,'');
-    h+=hk('{{ _('本年度') }}','¥'+ds.summary.this_year,'b');
+    h+=hk('{{ _('Churn Rate (This Month)') }}',(ds.subscriptions.churn_rate||0)+'%',churnCls);
+    h+=hk('{{ _('Last Month Churn Rate') }}',(ds.subscriptions.last_churn_rate||0)+'%','');
+    h+=hk('{{ _('New This Month') }}',ds.subscriptions.new_this_month||0,'g');
+    h+=hk('{{ _('Canceled This Month') }}',ds.subscriptions.canceled_this_month||0,'r');
+    h+=hk('{{ _('Expired This Month') }}',ds.subscriptions.expired_this_month||0,'');
+    h+=hk('{{ _('This Year') }}','¥'+ds.summary.this_year,'b');
     h+='</div>';
 
-    // {{ _('近30天活跃订阅数') }}
+    // {{ _('Active Subs (30d)') }}
     var subTrend=ds.subscriptions.active_trend_30d||[];
     if(subTrend.length){
       var maxAct=0;
       subTrend.forEach(function(t){if(t.active_count>maxAct)maxAct=t.active_count});
       maxAct=maxAct||1;
-      var subH='<div class="cd"><div class="st">{{ _('近30天活跃订阅数') }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:100px;padding-top:10px">';
+      var subH='<div class="cd"><div class="st">{{ _('Active Subs (30d)') }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:100px;padding-top:10px">';
       subTrend.forEach(function(t){
         var pct=Math.max(3,t.active_count/maxAct*100);
         var dayLabel=t.day.slice(5);
@@ -181,13 +181,13 @@ window.l_revenue=function(){
       h+=subH;
     }
 
-    // {{ _('月度流失率趋势') }}
+    // {{ _('Monthly Churn Trend') }}
     var churnTrend=ds.subscriptions.churn_trend_12m||[];
     if(churnTrend.length){
       var maxChurn=0;
       churnTrend.forEach(function(t){if(t.churn_rate>maxChurn)maxChurn=t.churn_rate});
       maxChurn=maxChurn||1;
-      var churnH='<div class="cd"><div class="st">{{ _('月度流失率趋势（近12月）') }}</div><div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:10px">';
+      var churnH='<div class="cd"><div class="st">{{ _('12-Month Churn Trend') }}</div><div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:10px">';
       churnTrend.forEach(function(t){
         var pct=Math.max(3,t.churn_rate/maxChurn*100);
         churnH+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;height:120px;justify-content:flex-end">';
@@ -200,13 +200,13 @@ window.l_revenue=function(){
       h+=churnH;
     }
 
-    // {{ _('近30天收入趋势') }}
+    // {{ _('30-Day Revenue Trend') }}
     var trend=ds.trend_30d||[];
     if(trend.length){
       var maxRev=0;
       trend.forEach(function(t){if(t.revenue>maxRev)maxRev=t.revenue});
       maxRev=maxRev||1;
-      var barH='<div class="cd"><div class="st">{{ _('近30天收入趋势') }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:140px;padding-top:10px">';
+      var barH='<div class="cd"><div class="st">{{ _('30-Day Revenue Trend') }}</div><div style="display:flex;align-items:flex-end;gap:2px;height:140px;padding-top:10px">';
       trend.forEach(function(t){
         var pct=Math.max(3,t.revenue/maxRev*100);
         var dayLabel=t.day.slice(5);
@@ -219,10 +219,10 @@ window.l_revenue=function(){
       h+=barH;
     }
 
-    // {{ _('收入类型分布') }}
+    // {{ _('Revenue by Type') }}
     var byType=ds.by_type||[];
     if(byType.length){
-      h+='<div class="cd"><div class="st">{{ _('收入类型分布') }}</div><table><tr><th>{{ _('类型') }}</th><th>{{ _('金额') }}</th><th>{{ _('占比') }}</th></tr>';
+      h+='<div class="cd"><div class="st">{{ _('Revenue by Type') }}</div><table><tr><th>{{ _('Type') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Share') }}</th></tr>';
       var totalType=0;
       byType.forEach(function(t){totalType+=t.revenue});
       totalType=totalType||1;
@@ -233,21 +233,21 @@ window.l_revenue=function(){
       h+='</table></div>';
     }
 
-    // {{ _('支付方式分布') }}
+    // {{ _('Payment Method Distribution') }}
     var pm=ds.pay_methods||[];
     if(pm.length){
-      h+='<div class="cd"><div class="st">{{ _('支付方式分布') }}</div><table><tr><th>{{ _('方式') }}</th><th>{{ _('金额') }}</th></tr>';
+      h+='<div class="cd"><div class="st">{{ _('Payment Method Distribution') }}</div><table><tr><th>{{ _('Method') }}</th><th>{{ _('Amount') }}</th></tr>';
       pm.forEach(function(p){
-        var methodName={'wechat':'{{ _('微信支付') }}','alipay':'{{ _('支付宝') }}','wxpay':'{{ _('微信支付') }}','':'{{ _('其他') }}'}[p.method]||p.method;
+        var methodName={'wechat':'{{ _('WeChat Pay') }}','alipay':'{{ _('Alipay') }}','wxpay':'{{ _('WeChat Pay') }}','':'{{ _('Other') }}'}[p.method]||p.method;
         h+='<tr><td>'+methodName+'</td><td>¥'+p.revenue+'</td></tr>';
       });
       h+='</table></div>';
     }
 
-    // {{ _('近12月月度收入') }}
+    // {{ _('12-Month Revenue') }}
     var monthly=ds.monthly_12m||[];
     if(monthly.length){
-      h+='<div class="cd"><div class="st">{{ _('近12月月度收入') }}</div><table><tr><th>{{ _('月份') }}</th><th>{{ _('收入') }}</th></tr>';
+      h+='<div class="cd"><div class="st">{{ _('12-Month Revenue') }}</div><table><tr><th>{{ _('Month') }}</th><th>{{ _('Revenue') }}</th></tr>';
       monthly.forEach(function(m){
         h+='<tr><td>'+m.ym+'</td><td>¥'+m.revenue+'</td></tr>';
       });
@@ -255,17 +255,17 @@ window.l_revenue=function(){
     }
 
     document.getElementById("mc").innerHTML=h;
-  }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('加载失败') }}</div>'})
+  }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('Load Failed') }}</div>'})
 }
 
 window.l_users=function(){
-  document.getElementById("pt").textContent="{{ _('用户管理') }}";
+  document.getElementById("pt").textContent="{{ _('Users') }}";
   fetch("/admin/users?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var ds=d.data;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('用户列表') }} ("+ds.total+")</div><table><tr><th>ID</th><th>{{ _('昵称') }}</th><th>{{ _('手机') }}</th><th>Agent</th><th>{{ _('等级') }}</th><th>{{ _('状态') }}</th><th>{{ _('注册时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('User List') }} ("+ds.total+")</div><table><tr><th>ID</th><th>{{ _('Nickname') }}</th><th>{{ _('Phone') }}</th><th>Agent</th><th>{{ _('Tier') }}</th><th>{{ _('Status') }}</th><th>{{ _('Registered') }}</th></tr>";
     ds.users.forEach(function(u){
-      var st=u.active?'<span class="bdg on">{{ _('正常') }}</span>':'<span class="bdg off">{{ _('已禁用') }}</span>';
+      var st=u.active?'<span class="bdg on">{{ _('Active') }}</span>':'<span class="bdg off">{{ _('Disabled') }}</span>';
       h+="<tr><td>"+u.id+"</td><td>"+u.nickname+"</td><td>"+(u.phone||"-")+"</td><td>"+(u.agent_nickname||"-")+"</td><td>"+(u.tier||"free")+"</td><td>"+st+"</td><td>"+(u.created_at||"")+"</td></tr>";
     });
     h+="</table></div>";
@@ -274,11 +274,11 @@ window.l_users=function(){
 }
 
 window.l_agents=function(){
-  document.getElementById("pt").textContent="{{ _('Agent 管理') }}";
+  document.getElementById("pt").textContent="{{ _('Agent Management') }}";
   fetch("/admin/agents?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var ds=d.data;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('Agent 列表') }} ("+ds.total+")</div><table><tr><th>ID</th><th>{{ _('昵称') }}</th><th>{{ _('所属') }}</th><th>{{ _('手机') }}</th><th>{{ _('时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('Agent List') }} ("+ds.total+")</div><table><tr><th>ID</th><th>{{ _('Nickname') }}</th><th>{{ _('Belongs To') }}</th><th>{{ _('Phone') }}</th><th>{{ _('Time') }}</th></tr>";
     ds.agents.forEach(function(a){h+="<tr><td>"+(a.agent_id||"-")+"</td><td>"+(a.agent_nickname||"-")+"</td><td>"+(a.nickname||"-")+"</td><td>"+(a.phone||"-")+"</td><td>"+(a.created_at||"")+"</td></tr>"});
     h+="</table></div>";
     document.getElementById("mc").innerHTML=h;
@@ -286,13 +286,13 @@ window.l_agents=function(){
 }
 
 window.l_keys=function(){
-  document.getElementById("pt").textContent="{{ _('API Key 管理') }}";
+  document.getElementById("pt").textContent="{{ _('API Keys') }}";
   fetch("/admin/api-keys?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var ds=d.data;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('全局 Key') }} ("+ds.total+")</div><table><tr><th>{{ _('名称') }}</th><th>Key</th><th>{{ _('用户') }}</th><th>{{ _('调用') }}</th><th>{{ _('状态') }}</th><th>{{ _('时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('Global Keys') }} ("+ds.total+")</div><table><tr><th>{{ _('Name') }}</th><th>Key</th><th>{{ _('User') }}</th><th>{{ _('Calls') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>";
     ds.keys.forEach(function(k){
-      var st=k.active?'<span class="bdg on">{{ _('启用') }}</span>':'<span class="bdg off">{{ _('已吊销') }}</span>';
+      var st=k.active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Revoked') }}</span>';
       h+="<tr><td>"+(k.name||"-")+"</td><td>"+k.key_prefix+"...</td><td>"+(k.user_name||"-")+"</td><td>"+k.calls_total+"</td><td>"+st+"</td><td>"+(k.created_at||"")+"</td></tr>";
     });
     h+="</table></div>";
@@ -301,13 +301,13 @@ window.l_keys=function(){
 }
 
 window.l_posts=function(){
-  document.getElementById("pt").textContent="{{ _('社区内容') }}";
+  document.getElementById("pt").textContent="{{ _('Community Content') }}";
   fetch("/admin/posts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var ds=d.data;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('帖子') }} ("+ds.total+")</div><table><tr><th>{{ _('标题') }}</th><th>Agent</th><th>{{ _('状态') }}</th><th>{{ _('点赞') }}</th><th>{{ _('时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('Posts') }} ("+ds.total+")</div><table><tr><th>{{ _('Title') }}</th><th>Agent</th><th>{{ _('Status') }}</th><th>{{ _('Likes') }}</th><th>{{ _('Time') }}</th></tr>";
     ds.posts.forEach(function(p){
-      var st=p.status=="approved"?'<span class="bdg on">{{ _('已发布') }}</span>':(p.status=="pending"?'<span class="bdg pd">{{ _('待审核') }}</span>':'<span class="bdg off">{{ _('草稿') }}</span>');
+      var st=p.status=="approved"?'<span class="bdg on">{{ _('Published') }}</span>':(p.status=="pending"?'<span class="bdg pd">{{ _('Pending Review') }}</span>':'<span class="bdg off">{{ _('Draft') }}</span>');
       h+="<tr><td>"+(p.title||"-")+"</td><td>"+(p.agent_id||"-")+"</td><td>"+st+"</td><td>"+p.like_count+"</td><td>"+(p.created_at||"")+"</td></tr>";
     });
     h+="</table></div>";
@@ -316,13 +316,13 @@ window.l_posts=function(){
 }
 
 window.l_contacts=function(){
-  document.getElementById("pt").textContent="{{ _('工单管理') }}";
+  document.getElementById("pt").textContent="{{ _('Ticket Management') }}";
   fetch("/admin/contacts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var ds=d.data;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('工单') }} ("+ds.total+")</div><table><tr><th>{{ _('姓名') }}</th><th>{{ _('主题') }}</th><th>{{ _('状态') }}</th><th>{{ _('时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('Tickets') }} ("+ds.total+")</div><table><tr><th>{{ _('Name') }}</th><th>{{ _('Subject') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>";
     ds.contacts.forEach(function(c){
-      var st=c.handled?'<span class="bdg on">{{ _('已处理') }}</span>':'<span class="bdg pd">{{ _('待处理') }}</span>';
+      var st=c.handled?'<span class="bdg on">{{ _('Processed') }}</span>':'<span class="bdg pd">{{ _('Pending') }}</span>';
       h+="<tr><td>"+(c.name||"-")+"</td><td>"+(c.subject||(c.message||"-")).slice(0,40)+"</td><td>"+st+"</td><td>"+(c.created_at||"")+"</td></tr>";
     });
     h+="</table></div>";
@@ -331,13 +331,13 @@ window.l_contacts=function(){
 }
 
 window.l_orders=function(){
-  document.getElementById("pt").textContent="{{ _('订单管理') }}";
+  document.getElementById("pt").textContent="{{ _('Order Management') }}";
   fetch("/admin/orders?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var ds=d.data;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('订单') }} ("+ds.total+")</div><table><tr><th>{{ _('订单号') }}</th><th>{{ _('用户') }}</th><th>{{ _('金额') }}</th><th>{{ _('类型') }}</th><th>{{ _('状态') }}</th><th>{{ _('时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('Orders') }} ("+ds.total+")</div><table><tr><th>{{ _('Order No.') }}</th><th>{{ _('User') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>";
     ds.orders.forEach(function(o){
-      var st=o.status=="paid"?'<span class="bdg on">{{ _('已支付') }}</span>':'<span class="bdg pd">'+o.status+'</span>';
+      var st=o.status=="paid"?'<span class="bdg on">{{ _('Paid') }}</span>':'<span class="bdg pd">'+o.status+'</span>';
       h+="<tr><td>"+o.order_no+"</td><td>"+(o.user_name||"-")+"</td><td>\u00a5"+o.amount+"</td><td>"+o.item_type+"</td><td>"+st+"</td><td>"+(o.created_at||"")+"</td></tr>";
     });
     h+="</table></div>";
@@ -346,16 +346,16 @@ window.l_orders=function(){
 }
 
 window.l_config=function(){
-  document.getElementById("pt").textContent="{{ _('系统设置') }}";
-  var h='<div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn bp" onclick="seedConfig()">{{ _('初始化配置项') }}</button><button class="btn bo" onclick="uploadConfig()">{{ _('上传 AccessKey.csv') }}</button><input type="file" id="csvFile" accept=".csv" style="display:none" onchange="doUpload()"></div>';
+  document.getElementById("pt").textContent="{{ _('System Settings') }}";
+  var h='<div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn bp" onclick="seedConfig()">{{ _('Init Config') }}</button><button class="btn bo" onclick="uploadConfig()">{{ _('Upload AccessKey.csv') }}</button><input type="file" id="csvFile" accept=".csv" style="display:none" onchange="doUpload()"></div>';
   h+='<div id="cl"><div class="lo"><div class="s"></div></div></div>';
   document.getElementById("mc").innerHTML=h;
   loadConfigs();
 }
 function loadConfigs(){
   fetch("/user/config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){document.getElementById("cl").innerHTML='<div class="em">{{ _('无法加载') }}</div>';return}
-    var cats=d.categories||[{id:"other",title:"{{ _('系统配置') }}"}];
+    if(!d.success){document.getElementById("cl").innerHTML='<div class="em">{{ _('Cannot Load') }}</div>';return}
+    var cats=d.categories||[{id:"other",title:"{{ _('System Config') }}"}];
     var data=d.data||[];
     var schema=d.schema||{};
     var c="";
@@ -380,24 +380,24 @@ function loadConfigs(){
         }else{
           c+='<input class="in" id="cf-'+k.key+'" value="'+safeVal+'" placeholder="'+ph+'" style="width:200px">';
         }
-        c+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('保存') }}</button></div>';
+        c+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('Save') }}</button></div>';
       });
       c+='</div>';
     });
-    document.getElementById("cl").innerHTML=c||'<div class="em">{{ _('暂无配置项，点击「初始化配置项」创建') }}</div>';
-  }).catch(function(){document.getElementById("cl").innerHTML='<div class="em">{{ _('加载失败') }}</div>'})
+    document.getElementById("cl").innerHTML=c||'<div class="em">{{ _('No config items. Click Init Config to create.') }}</div>';
+  }).catch(function(){document.getElementById("cl").innerHTML='<div class="em">{{ _('Load Failed') }}</div>'})
 }
 function scfg(k){
   var v=document.getElementById("cf-"+k).value.trim();
   if(!v)return;
   fetch("/user/config",{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({key:k,value:v})}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert("{{ _('保存成功') }}");loadConfigs()}else{alert(d.error||"{{ _('保存失败') }}")}
-  }).catch(function(){alert("{{ _('保存失败') }}")})
+    if(d.success){alert("{{ _('Saved') }}");loadConfigs()}else{alert(d.error||"{{ _('Save Failed') }}")}
+  }).catch(function(){alert("{{ _('Save Failed') }}")})
 }
 function seedConfig(){
-  if(!confirm("{{ _('初始化所有邮箱/短信配置项（已有项不会被覆盖）？') }}"))return;
+  if(!confirm("{{ _('Initialize all email/SMS config items (existing will not be overwritten)?') }}"))return;
   fetch("/user/config/seed",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert(d.message);loadConfigs()}else{alert(d.error||"{{ _('初始化失败') }}")}
+    if(d.success){alert(d.message);loadConfigs()}else{alert(d.error||"{{ _('Init Failed') }}")}
   })
 }
 function uploadConfig(){document.getElementById("csvFile").click()}
@@ -406,16 +406,16 @@ function doUpload(){
   if(!file)return;
   var fd=new FormData();fd.append("file",file);
   fetch("/user/config/upload",{method:"POST",headers:{"Authorization":"Bearer "+T},body:fd}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert(d.message+" ("+d.access_key_prefix+")");loadConfigs()}else{alert(d.error||"{{ _('导入失败') }}")}
-  }).catch(function(){alert("{{ _('上传失败') }}")});
+    if(d.success){alert(d.message+" ("+d.access_key_prefix+")");loadConfigs()}else{alert(d.error||"{{ _('Import Failed') }}")}
+  }).catch(function(){alert("{{ _('Upload Failed') }}")});
   document.getElementById("csvFile").value="";
 }
 
 window.l_logs=function(){
-  document.getElementById("pt").textContent="{{ _('操作日志') }}";
+  document.getElementById("pt").textContent="{{ _('Audit Log') }}";
   fetch("/admin/logs",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
-    var h="<div class=\"cd\"><div class=\"st\">{{ _('审计日志') }}</div><table><tr><th>{{ _('管理员') }}</th><th>{{ _('操作') }}</th><th>{{ _('目标') }}</th><th>{{ _('详情') }}</th><th>IP</th><th>{{ _('时间') }}</th></tr>";
+    var h="<div class=\"cd\"><div class=\"st\">{{ _('Audit Log') }}</div><table><tr><th>{{ _('Admin') }}</th><th>{{ _('Action') }}</th><th>{{ _('Target') }}</th><th>{{ _('Details') }}</th><th>IP</th><th>{{ _('Time') }}</th></tr>";
     d.data.forEach(function(l){h+="<tr><td>"+(l.admin_name||"-")+"</td><td>"+l.action+"</td><td>"+l.target_type+"/"+l.target_id+"</td><td>"+(l.detail||"")+"</td><td>"+l.ip_address+"</td><td>"+l.created_at+"</td></tr>"});
     h+="</table></div>";
     document.getElementById("mc").innerHTML=h;
@@ -423,47 +423,47 @@ window.l_logs=function(){
 }
 
 window.l_matrix=function(){
-  document.getElementById("pt").textContent="{{ _('Agent 矩阵') }}";
+  document.getElementById("pt").textContent="{{ _('Agent Matrix') }}";
   fetch("/admin/agent-matrix",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
     var a=d.data;
     var ms=a.filter(function(x){return x.type=="master"});
     var cs=a.filter(function(x){return x.type=="child"});
-    var h="<button class=\"btn bp\" onclick=\"scf()\" style=\"margin-bottom:12px\">{{ _('+ 创建 Agent') }}</button>";
+    var h="<button class=\"btn bp\" onclick=\"scf()\" style=\"margin-bottom:12px\">{{ _('+ Create Agent') }}</button>";
     h+=fm();
-    h+="<div class=\"cd\" style=\"margin-bottom:12px\"><div class=\"st\">{{ _('主 Agent') }} "+ms.length+"</div>";
-    h+=ms.length?mt(ms):'<div class="em">{{ _('暂无') }}</div>';
-    h+="</div><div class=\"cd\"><div class=\"st\">{{ _('子 Agent') }} "+cs.length+"</div>";
-    h+=cs.length?mt(cs):'<div class="em">{{ _('暂无') }}</div>';
+    h+="<div class=\"cd\" style=\"margin-bottom:12px\"><div class=\"st\">{{ _('Main Agent') }} "+ms.length+"</div>";
+    h+=ms.length?mt(ms):'<div class="em">{{ _('None') }}</div>';
+    h+="</div><div class=\"cd\"><div class=\"st\">{{ _('Sub Agent') }} "+cs.length+"</div>";
+    h+=cs.length?mt(cs):'<div class="em">{{ _('None') }}</div>';
     h+="</div>";
     document.getElementById("mc").innerHTML=h;
   }).catch(function(){})
 };
 function fm(){
-  return '<div id="cf" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('创建 Agent') }}</div><div class="g2">'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('类型') }}</div><select class="sl" id="cft" style="width:100%"><option value="master">{{ _('主 Agent') }}</option><option value="child">{{ _('子 Agent') }}</option></select></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('名称 (12字)') }}</div><input class="in" id="cfa" maxlength="12" placeholder="{{ _('社区管理Agent') }}" style="width:100%"></div>'+
-    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('核心使命 (64字)') }}</div><input class="in" id="cfm" maxlength="64" placeholder="{{ _('负责...') }}" style="width:100%"></div>'+
-    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('提示词 (3000字)') }}</div><textarea class="ta" id="cfp" maxlength="3000" rows="3"></textarea></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('模型提供商') }}</div><select class="sl" id="cfpr" onchange="uburl()" style="width:100%"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option><option value="ollama">Ollama</option></select></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('模型名') }}</div><input class="in" id="cfmo" value="gpt-4o" style="width:100%"></div>'+
-    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('API 端点') }}</div><input class="in" id="cfb" value="https://api.openai.com/v1" style="width:100%"></div>'+
+  return '<div id="cf" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('Create Agent') }}</div><div class="g2">'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Type') }}</div><select class="sl" id="cft" style="width:100%"><option value="master">{{ _('Main Agent') }}</option><option value="child">{{ _('Sub Agent') }}</option></select></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Name (12 chars)') }}</div><input class="in" id="cfa" maxlength="12" placeholder="{{ _('Community Mgmt Agent') }}" style="width:100%"></div>'+
+    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Core Mission (64 chars)') }}</div><input class="in" id="cfm" maxlength="64" placeholder="{{ _('Responsible for...') }}" style="width:100%"></div>'+
+    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Prompt (3000 chars)') }}</div><textarea class="ta" id="cfp" maxlength="3000" rows="3"></textarea></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Provider') }}</div><select class="sl" id="cfpr" onchange="uburl()" style="width:100%"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option><option value="ollama">Ollama</option></select></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Name') }}</div><input class="in" id="cfmo" value="gpt-4o" style="width:100%"></div>'+
+    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('API Endpoint') }}</div><input class="in" id="cfb" value="https://api.openai.com/v1" style="width:100%"></div>'+
     '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('API Key') }}</div><input class="in" id="cfak" type="password" style="width:100%"></div>'+
-    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">{{ _('能力') }}</div>'+
-    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" checked disabled> {{ _('文本') }}</label>'+
-    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cs" value="stt"> {{ _('语音转文本') }}</label>'+
-    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="ct" value="tts"> {{ _('文本转语音') }}</label>'+
-    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cv" value="vision"> {{ _('图像识别') }}</label>'+
-    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cg" value="image_gen"> {{ _('生成图片') }}</label></div>'+
-    '</div><div style="margin-top:10px"><button class="btn bp" onclick="dc()">{{ _('确认创建') }}</button> <button class="btn bo" onclick="hc()">{{ _('取消') }}</button></div></div>';
+    '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">{{ _('Capabilities') }}</div>'+
+    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" checked disabled> {{ _('Text') }}</label>'+
+    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cs" value="stt"> {{ _('Speech to Text') }}</label>'+
+    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="ct" value="tts"> {{ _('Text-to-Speech') }}</label>'+
+    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cv" value="vision"> {{ _('Vision') }}</label>'+
+    '<label style="font-size:12px;color:var(--muted);margin-right:12px"><input type="checkbox" id="cg" value="image_gen"> {{ _('Image Generation') }}</label></div>'+
+    '</div><div style="margin-top:10px"><button class="btn bp" onclick="dc()">{{ _('Confirm Create') }}</button> <button class="btn bo" onclick="hc()">{{ _('Cancel') }}</button></div></div>';
 }
 function mt(arr){
-  var h="<table><tr><th>ID</th><th>{{ _('名称') }}</th><th>{{ _('使命') }}</th><th>{{ _('模型') }}</th><th>{{ _('能力') }}</th><th>{{ _('状态') }}</th><th>{{ _('操作') }}</th></tr>";
+  var h="<table><tr><th>ID</th><th>{{ _('Name') }}</th><th>{{ _('Mission') }}</th><th>{{ _('Model') }}</th><th>{{ _('Capabilities') }}</th><th>{{ _('Status') }}</th><th>{{ _('Action') }}</th></tr>";
   arr.forEach(function(a){
-    var st=a.is_active?'<span class="bdg on">{{ _('启用') }}</span>':'<span class="bdg off">{{ _('停用') }}</span>';
+    var st=a.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Disable') }}</span>';
     h+="<tr><td>"+a.id+"</td><td>"+(a.alias||"-")+"</td><td>"+(a.mission||"-").slice(0,30)+"</td><td>"+a.model_name+"</td><td>"+(a.capabilities||"text")+"</td><td>"+st+"</td><td>"+
-      '<button class="btn bo bs" onclick="tg('+a.id+','+(a.is_active?0:1)+')">'+(a.is_active?"{{ _('停用') }}":"{{ _('启用') }}")+'</button> '+
-      '<button class="btn bp bs" onclick="tt('+a.id+')">{{ _('测试') }}</button></td></tr>';
+      '<button class="btn bo bs" onclick="tg('+a.id+','+(a.is_active?0:1)+')">'+(a.is_active?"{{ _('Disable') }}":"{{ _('Enabled') }}")+'</button> '+
+      '<button class="btn bp bs" onclick="tt('+a.id+')">{{ _('Test') }}</button></td></tr>';
   });
   return h+"</table>";
 }
@@ -478,41 +478,41 @@ function dc(){
   var ca=["text"];
   ["cs","ct","cv","cg"].forEach(function(c){var e=document.getElementById(c);if(e&&e.checked)ca.push(e.value)});
   var b={type:document.getElementById("cft").value,alias:document.getElementById("cfa").value,mission:document.getElementById("cfm").value,system_prompt:document.getElementById("cfp").value,provider:document.getElementById("cfpr").value,model_name:document.getElementById("cfmo").value,base_url:document.getElementById("cfb").value,api_key:document.getElementById("cfak").value,capabilities:ca.join(",")};
-  fetch("/admin/agent-matrix",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(d){if(d.success){alert("{{ _('创建成功') }}");l_matrix()}else{alert(d.error||"{{ _('创建失败') }}")}});
+  fetch("/admin/agent-matrix",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json()}).then(function(d){if(d.success){alert("{{ _('Created') }}");l_matrix()}else{alert(d.error||"{{ _('Create Failed') }}")}});
 }
 function tg(id,v){
   fetch("/admin/agent-matrix/"+id,{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({is_active:v})}).then(function(r){return r.json()}).then(function(d){if(d.success)l_matrix()});
 }
 function tt(id){
-  var q=prompt("{{ _('📩 发送测试消息给该智能体：') }}\n{{ _('（例如：\"帮我分析最近的股市行情\"）') }}");
+  var q=prompt("{{ _('Send test message to this agent:') }}\n{{ _('(e.g. \"Analyze recent stock market\")') }}");
   if(!q)return;
   fetch("/admin/agent-matrix/"+id+"/test",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({query:q})}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){alert("{{ _('响应：') }}\n"+d.data.response)}else{alert(d.error||"{{ _('测试失败') }}")}
+    if(d.success){alert("{{ _('Response:') }}\n"+d.data.response)}else{alert(d.error||"{{ _('Test Failed') }}")}
   });
 }
 
 window.l_email=function(){
-  document.getElementById("pt").textContent="{{ _('邮件管理') }}";
-  var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="se()">{{ _('写邮件') }}</button></div>';
-  h+='<div id="sendForm" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('写邮件') }}</div>';
+  document.getElementById("pt").textContent="{{ _('Email Management') }}";
+  var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="se()">{{ _('New Email') }}</button></div>';
+  h+='<div id="sendForm" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('New Email') }}</div>';
   h+='<div style="margin-bottom:10px">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:var(--dim)">{{ _('收件人') }}</span><span style="font-size:11px;color:var(--dim)">{{ _('多个地址用逗号分隔') }}</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:var(--dim)">{{ _('To') }}</span><span style="font-size:11px;color:var(--dim)">{{ _('Separate with commas') }}</span></div>';
   h+='<input class="in" id="em-to" placeholder="email1@example.com, email2@example.com" style="width:100%">';
   h+='<div id="em-recipients" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"></div></div>';
-  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('主题') }}</div><input class="in" id="em-sub" placeholder="{{ _('邮件主题') }}" style="width:100%"></div>';
-  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('内容') }}</div><div id="em-editor" style="min-height:200px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid var(--border)"></div></div>';
-  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('附件') }}</div>';
+  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Subject') }}</div><input class="in" id="em-sub" placeholder="{{ _('Email Subject') }}" style="width:100%"></div>';
+  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Content') }}</div><div id="em-editor" style="min-height:200px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid var(--border)"></div></div>';
+  h+='<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Attachment') }}</div>';
   h+='<input type="file" id="em-file" multiple onchange="addAttach()" style="display:none">';
-  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn bo bs" onclick="document.getElementById(\'em-file\').click()">{{ _('+ 添加附件') }}</button><div id="em-attach-list" style="display:flex;gap:6px;flex-wrap:wrap"></div></div></div>';
-  h+='<div style="margin-top:10px;display:flex;gap:8px"><button class="btn bp" onclick="ds()">{{ _('发送') }}</button> <button class="btn bo" onclick="hsf()">{{ _('取消') }}</button></div></div>';
-  h+='<div class="cd"><div class="st">{{ _('收件箱') }}</div><div id="inboxList"><div class="lo"><div class="s"></div></div></div></div>';
-  h+='<div class="cd" style="margin-top:12px"><div class="st" style="cursor:pointer" onclick="toggleContacts()">📇 {{ _('联系人') }} <span id="contactToggle" style="font-size:10px;color:var(--dim)">[{{ _('展开') }}]</span></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn bo bs" onclick="document.getElementById(\'em-file\').click()">{{ _('+ Add Attachment') }}</button><div id="em-attach-list" style="display:flex;gap:6px;flex-wrap:wrap"></div></div></div>';
+  h+='<div style="margin-top:10px;display:flex;gap:8px"><button class="btn bp" onclick="ds()">{{ _('Send') }}</button> <button class="btn bo" onclick="hsf()">{{ _('Cancel') }}</button></div></div>';
+  h+='<div class="cd"><div class="st">{{ _('Inbox') }}</div><div id="inboxList"><div class="lo"><div class="s"></div></div></div></div>';
+  h+='<div class="cd" style="margin-top:12px"><div class="st" style="cursor:pointer" onclick="toggleContacts()">📇 {{ _('Contacts') }} <span id="contactToggle" style="font-size:10px;color:var(--dim)">[{{ _('Expand') }}]</span></div>';
   h+='<div id="contactsPanel" style="display:none">';
   h+='<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">';
-  h+='<button class="btn bp bs" onclick="selectAllContacts()">{{ _('全选') }}</button>';
-  h+='<button class="btn bo bs" onclick="deselectAllContacts()">{{ _('取消全选') }}</button>';
-  h+='<button class="btn bp" onclick="sendBulk()" style="font-size:11px">{{ _('📤 群发到选中联系人') }}</button>';
-  h+='<span id="contactCount" style="font-size:11px;color:var(--dim)">0 {{ _('个联系人') }}</span>';
+  h+='<button class="btn bp bs" onclick="selectAllContacts()">{{ _('Select All') }}</button>';
+  h+='<button class="btn bo bs" onclick="deselectAllContacts()">{{ _('Deselect All') }}</button>';
+  h+='<button class="btn bp" onclick="sendBulk()" style="font-size:11px">{{ _('Mass Send to Selected') }}</button>';
+  h+='<span id="contactCount" style="font-size:11px;color:var(--dim)">0 {{ _('contacts') }}</span>';
   h+='</div><div id="contactsList"><div class="lo"><div class="s"></div></div></div></div></div>';
   document.getElementById("mc").innerHTML=h;
   window.emEditor=null;
@@ -520,14 +520,14 @@ window.l_email=function(){
   loadContacts();
   document.getElementById("em-to").addEventListener("input",parseRecipients);
   fetch("/admin/email/inbox",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success||!d.data){document.getElementById("inboxList").innerHTML='<div class="em">{{ _('加载失败') }}</div>';return}
+    if(!d.success||!d.data){document.getElementById("inboxList").innerHTML='<div class="em">{{ _('Load Failed') }}</div>';return}
     var lst=d.data.items||d.data;
-    if(!lst.length){document.getElementById("inboxList").innerHTML='<div class="em">{{ _('暂无邮件') }}</div>';return}
-    var tbl='<table><tr><th>{{ _('发件人') }}</th><th>{{ _('主题') }}</th><th>{{ _('附件') }}</th><th>{{ _('时间') }}</th><th>{{ _('操作') }}</th></tr>';
+    if(!lst.length){document.getElementById("inboxList").innerHTML='<div class="em">{{ _('No Emails') }}</div>';return}
+    var tbl='<table><tr><th>{{ _('From') }}</th><th>{{ _('Subject') }}</th><th>{{ _('Attachment') }}</th><th>{{ _('Time') }}</th><th>{{ _('Action') }}</th></tr>';
     lst.forEach(function(e){
       var attIcon=e.has_attachments?' <span style="color:var(--accent)">📎</span>':'';
-      tbl+='<tr><td>'+(e.from||'-')+'</td><td>'+(e.subject||'{{ _('(无主题)') }}')+attIcon+'</td><td>'+(e.has_attachments?'<span style="color:var(--accent)">{{ _('有') }}</span>':'')+'</td><td>'+(e.date||'')+'</td>';
-      tbl+='<td><button class="btn bo bs" onclick="re('+e.uid+',\''+e.from.replace(/'/g,'')+'\',\''+(e.subject||'').replace(/'/g,'')+'\')">{{ _('回复') }}</button> <button class="btn bo" onclick="viewEmail('+e.uid+')">{{ _('查看') }}</button></td></tr>';
+      tbl+='<tr><td>'+(e.from||'-')+'</td><td>'+(e.subject||'{{ _('(No Subject)') }}')+attIcon+'</td><td>'+(e.has_attachments?'<span style="color:var(--accent)">{{ _('Yes') }}</span>':'')+'</td><td>'+(e.date||'')+'</td>';
+      tbl+='<td><button class="btn bo bs" onclick="re('+e.uid+',\''+e.from.replace(/'/g,'')+'\',\''+(e.subject||'').replace(/'/g,'')+'\')">{{ _('Reply') }}</button> <button class="btn bo" onclick="viewEmail('+e.uid+')">{{ _('View') }}</button></td></tr>';
     });
     tbl+='</table>';
     document.getElementById("inboxList").innerHTML=tbl;
@@ -545,12 +545,12 @@ function renderContacts(){
   var el=document.getElementById("contactsList");
   if(!el)return;
   var total=emContacts.length;
-  document.getElementById("contactCount").textContent=total+" {{ _('个联系人') }}";
-  if(!total){el.innerHTML='<div class="em">{{ _('暂无联系人（发送邮件后自动收集）') }}</div>';return}
-  var h='<table><tr><th style="width:36px"><input type="checkbox" onchange="toggleAllContacts(this.checked)"></th><th>{{ _('名称') }}</th><th>{{ _('邮箱') }}</th><th>{{ _('来源') }}</th><th>{{ _('次数') }}</th></tr>';
+  document.getElementById("contactCount").textContent=total+" {{ _('contacts') }}";
+  if(!total){el.innerHTML='<div class="em">{{ _('No contacts (auto-collected)') }}</div>';return}
+  var h='<table><tr><th style="width:36px"><input type="checkbox" onchange="toggleAllContacts(this.checked)"></th><th>{{ _('Name') }}</th><th>{{ _('Email') }}</th><th>{{ _('Source') }}</th><th>{{ _('Count') }}</th></tr>';
   emContacts.forEach(function(c,i){
     var checked=emSelectedContacts.indexOf(c.email)>=0?' checked':'';
-    var src=c.source==='contact'?'<span class="bdg pd">{{ _('表单') }}</span>':'<span class="bdg on">{{ _('已发送') }}</span>';
+    var src=c.source==='contact'?'<span class="bdg pd">{{ _('Form') }}</span>':'<span class="bdg on">{{ _('Sent') }}</span>';
     h+='<tr><td><input type="checkbox" class="contact-cb" data-email="'+c.email+'" data-name="'+c.name+'"'+checked+' onchange="toggleContact(this)"></td>'+
       '<td>'+(c.name||'-')+'</td><td style="color:var(--accent)">'+c.email+'</td><td>'+src+'</td><td>'+c.count+'</td></tr>';
   });
@@ -580,15 +580,15 @@ function toggleContacts(){
   var t=document.getElementById("contactToggle");
   if(p.style.display==="none"||!p.style.display){
     p.style.display="block";
-    t.textContent="[{{ _('收起') }}]";
+    t.textContent="[{{ _('Collapse') }}]";
     renderContacts();
   }else{
     p.style.display="none";
-    t.textContent="[{{ _('展开') }}]";
+    t.textContent="[{{ _('Expand') }}]";
   }
 }
 function sendBulk(){
-  if(!emSelectedContacts.length){alert("{{ _('请先选择要发送的联系人') }}");return}
+  if(!emSelectedContacts.length){alert("{{ _('Please select contacts first') }}");return}
   var count=emSelectedContacts.length;
   var el=document.getElementById("em-to");
   el.value=emSelectedContacts.join(", ");
@@ -596,7 +596,7 @@ function sendBulk(){
   se();
   emSelectedContacts=[];
   document.querySelectorAll("#contactsList .contact-cb").forEach(function(cb){cb.checked=false});
-  showToast("{{ _('已填入') }} "+count+" {{ _('个收件人，编辑内容后发送') }}","success");
+  showToast("{{ _('Filled') }} "+count+" {{ _('recipients, edit and send') }}","success");
 }
 function parseRecipients(){
   var el=document.getElementById("em-to");
@@ -618,7 +618,7 @@ function addAttach(){
   var files=document.getElementById("em-file").files;
   for(var i=0;i<files.length;i++){
     var f=files[i];
-    if(f.size>10*1024*1024){alert('{{ _('附件') }} '+f.name+' {{ _('超过 10MB 限制') }}');continue}
+    if(f.size>10*1024*1024){alert('{{ _('Attachment') }} '+f.name+' {{ _('exceeds 10MB limit') }}');continue}
     var reader=new FileReader();
     reader.onload=function(fn,fsize){return function(e){
       emAttachments.push({filename:fn,data:e.target.result.split(',')[1],content_type:fn.split('.').pop()==='pdf'?'application/pdf':'application/octet-stream',size:fsize});
@@ -643,7 +643,7 @@ function removeAttach(i){emAttachments.splice(i,1);renderAttachList()}
 function se(){
   document.getElementById("sendForm").style.display="block";
   if(!window.emEditor){
-    window.emEditor=new Quill('#em-editor',{theme:'snow',placeholder:'{{ _('邮件正文...') }}',modules:{toolbar:[['bold','italic','underline','strike'],[{list:'ordered'},{list:'bullet'}],['link','blockquote','code-block'],[{size:['small',false,'large','huge']}],[{color:[]},{background:[]}],['clean']]}});
+    window.emEditor=new Quill('#em-editor',{theme:'snow',placeholder:'{{ _('Email body...') }}',modules:{toolbar:[['bold','italic','underline','strike'],[{list:'ordered'},{list:'bullet'}],['link','blockquote','code-block'],[{size:['small',false,'large','huge']}],[{color:[]},{background:[]}],['clean']]}});
   }
   setTimeout(function(){window.emEditor&&window.emEditor.focus()},100)
 }
@@ -653,11 +653,11 @@ function ds(){
   var sub=document.getElementById("em-sub").value.trim();
   var html=window.emEditor?window.emEditor.root.innerHTML:'';
   var text=window.emEditor?window.emEditor.getText().trim():"";
-  if(!to||!sub||(!html&&!text)){showToast('{{ _('请填写完整') }}','error');return}
+  if(!to||!sub||(!html&&!text)){showToast('{{ _('Please fill all fields') }}','error');return}
   var body=text||'';
   fetch("/admin/email/send",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({to:to,subject:sub,body:body,body_html:html||null,attachments:emAttachments.length?emAttachments:null})}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){showToast('{{ _('✅ 发送成功') }}','success');emAttachments=[];renderAttachList();hsf();l_email()}else{showToast('❌ '+(d.error||'{{ _('发送失败') }}'),'error')}
-  }).catch(function(){showToast('❌ {{ _('发送失败') }}','error')})
+    if(d.success){showToast('{{ _('✅ Sent') }}','success');emAttachments=[];renderAttachList();hsf();l_email()}else{showToast('❌ '+(d.error||'{{ _('Send Failed') }}'),'error')}
+  }).catch(function(){showToast('❌ {{ _('Send Failed') }}','error')})
 }
 function re(uid,from,sub){
   document.getElementById("em-to").value=from;
@@ -674,14 +674,14 @@ function showToast(msg,type){
 }
 function viewEmail(uid){
   fetch("/admin/email/read/"+uid,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){showToast("{{ _('加载失败') }}: "+(d.error||""),"error");return}
+    if(!d.success){showToast("{{ _('Load Failed') }}: "+(d.error||""),"error");return}
     var m=d.data;
     var bodyHtml=m.body_html||"";
-    var bodyText=(m.body||'{{ _('(无内容)') }}').replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+    var bodyText=(m.body||'{{ _('(No content)') }}').replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
     var h='<div class="modal-overlay" onclick="closeEmailModal(event)">';
     h+='<div class="modal-box" onclick="event.stopPropagation()">';
     h+='<button onclick="closeEmailModal()" style="float:right;background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;line-height:1">✕</button>';
-    h+='<h3>'+(m.subject||'{{ _('(无主题)') }}')+'</h3>';
+    h+='<h3>'+(m.subject||'{{ _('(No Subject)') }}')+'</h3>';
     h+='<div class="modal-meta">';
-    h+='<div><span>{{ _('发件人') }}</span> '+(m.from||"-")+'</div>';
-    h+='<div><span>{{ _('收件人') }}</span> '+(
+    h+='<div><span>{{ _('From') }}</span> '+(m.from||"-")+'</div>';
+    h+='<div><span>{{ _('To') }}</span> '+(

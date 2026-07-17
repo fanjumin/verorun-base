@@ -245,7 +245,7 @@ def download_invoice(invoice_no):
 
 @sub_bp.route('/my/payment-method', methods=['PUT'])
 def update_payment_method():
-    """更换支付方式"""
+    ""_"Change payment method"""
     payload = _require_auth()
     if not payload: return api_err(_('Please log in first'), 401)
     uid = payload['user_id']
@@ -256,19 +256,19 @@ def update_payment_method():
     intl_methods = ('stripe', 'paypal')
     valid_methods = cn_methods + intl_methods
     if method not in valid_methods:
-        return api_err(_('payment_method 无效'))
+        return api_err(_(_'Payment_method is invalid'))
     if market == 'cn' and method in intl_methods:
-        return api_err(_('当前市场不支持该支付方式'))
+        return api_err(_(_'This payment method is not supported in the current market'))
     if market == 'intl' and method in cn_methods:
-        return api_err(_('当前市场不支持该支付方式'))
+        return api_err(_(_'This payment method is not supported in the current market'))
 
     with get_db() as conn:
         conn.execute(
             'UPDATE subscriptions SET payment_method=%s, updated_at=NOW() WHERE user_id=%s',
             (method, uid))
         conn.commit()
-    _audit_log(uid, 'update_payment_method', f'更换为 {method}')
-    return api_res({'message': '支付方式已更新'})
+    _audit_log(uid, 'update_payment_method', f_'Switch to {method}')
+    return api_res({'message': _'Payment method updated'})
 
 @sub_bp.route('/create', methods=['POST'])
 def create_subscription():
@@ -294,18 +294,18 @@ def create_subscription():
     intl_methods = ('stripe', 'paypal')
     valid_methods = cn_methods + intl_methods
     if payment_method not in valid_methods:
-        return api_err(_('payment_method 无效: ') + payment_method)
+        return api_err(_(_'Payment_method is invalid:') + payment_method)
     if market == 'cn' and payment_method in intl_methods:
-        return api_err(_('当前市场不支持该支付方式'))
+        return api_err(_(_'This payment method is not supported in the current market'))
     if market == 'intl' and payment_method in cn_methods:
-        return api_err(_('当前市场不支持该支付方式'))
+        return api_err(_(_'This payment method is not supported in the current market'))
 
     plan = get_plan(plan_key)
     if not plan:
-        return api_err(_('无效套餐: ') + plan_key)
+        return api_err(_(_'Invalid Package: ') + plan_key)
 
     period_price_map = {'year': 'price_year', 'semi_annual': 'price_semi_annual', 'quarter': 'price_quarter', 'month': 'price_month'}
-    period_label_map = {'year': '年付', 'semi_annual': '半年付', 'quarter': '季付', 'month': '月付'}
+    period_label_map = {'year': _'Annual Payment', 'semi_annual': _'Semi-annual payment', 'quarter': _'Quarterly Payment', 'month': _'Monthly payment'}
     amount_fen = plan.get(period_price_map[period], 0) or plan['price_month']
     if amount_fen <= 0:
         return api_err(_('Free plan, no purchase needed'))
@@ -404,7 +404,7 @@ def _handle_upgrade(uid, existing, new_plan, new_period, payment_method):
                 (new_plan['plan_key'], new_period, period_end.isoformat(), uid))
         conn.commit()
 
-    desc = f'升级{new_plan["name"]}' if is_upgrade else f'降级{new_plan["name"]}'
+    desc = f_'Upgrade {new_plan["name"]}' if is_upgrade else f_'Downgrade {new_plan["name"]}'
     pay_params = _generate_pay_params(order_no, desc, amount_due, payment_method)
 
     return api_res({
@@ -615,7 +615,7 @@ def cancel_subscription():
     if not sub:
         return api_err(_('No Active Subscription'))
     if sub['status'] not in ('active', 'trialing', 'past_due'):
-        return api_err(_('当前状态不可取消: ') + sub['status'])
+        return api_err(_(_'Current status cannot be canceled: ') + sub['status'])
 
     with get_db() as conn:
         conn.execute(
@@ -637,7 +637,7 @@ def cancel_subscription():
             import logging
             logging.warning(f"[Subscription] Failed to unsign WeChat contract: {e}")
 
-    _audit_log(uid, 'canceled', f'取消原因: {reason}')
+    _audit_log(uid, 'canceled', f_'Cancellation Reason: {reason}')
 
     # ── 钩子: 订阅取消 ──
     try:
@@ -647,7 +647,7 @@ def cancel_subscription():
     except Exception:
         pass
 
-    return api_res({'status': 'canceled', 'message': '已取消，当前权益至周期结束有效'})
+    return api_res({'status': 'canceled', 'message': _'Cancelled, current benefits remain valid until the end of the cycle'})
 
 @sub_bp.route('/reactivate', methods=['POST'])
 def reactivate_subscription():
@@ -666,8 +666,8 @@ def reactivate_subscription():
             (uid,))
         conn.commit()
 
-    _audit_log(uid, 'reactivated', '用户重新激活订阅')
-    return api_res({'message': '订阅已重新激活'})
+    _audit_log(uid, 'reactivated', _'User Re-activate Subscription')
+    return api_res({'message': _'Subscription reactivated'})
 
 @sub_bp.route('/stub-confirm/<order_no>', methods=['POST'])
 def stub_confirm(order_no):
@@ -679,7 +679,7 @@ def stub_confirm(order_no):
         with get_db() as conn:
             row = conn.execute('SELECT * FROM subscription_orders WHERE order_no=%s', (order_no,)).fetchone()
         plan = get_plan(row['plan_key']) if row else None
-        msg = f'🎉 {plan["name"] if plan else ""} 订阅成功！' if row and row['item_type'] == 'new' else '订单已完成'
+        msg = f_'🎉 {plan["name"] if plan else ""} Subscription Successful!' if row and row['item_type'] == 'new' else _'Order completed'
         return api_res({'message': msg, 'order_no': order_no})
     return api_err(_('Order Processing Failed'))
 
@@ -715,13 +715,13 @@ def delete_my_order(order_no):
         # 仅允许删除：已取消、失败、待支付
         allowed = ('cancelled', 'failed', 'pending')
         if order['status'] not in allowed:
-            return api_err(_('Current Status (') + order["status"] + _(')的订单不可删除，仅 ') + ",".join(allowed) + _(' 状态可删除'))
+            return api_err(_('Current Status (') + order["status"] + _(') order cannot be deleted, only ') + ",".join(allowed) + _(' status can be deleted'))
 
         conn.execute(
             "UPDATE subscription_orders SET user_deleted=1, updated_at=NOW() WHERE order_no=%s",
             (order_no,))
         conn.commit()
-    return api_res({'message': '订单已删除'})
+    return api_res({'message': _'Order deleted'})
 
 
 @sub_bp.route('/retry-payment', methods=['POST'])
@@ -743,11 +743,11 @@ def retry_payment():
     payment_method = sub.get('payment_method', 'wechat')
     plan = get_plan(plan_key)
     if not plan:
-        return api_err(_('套餐 ') + plan_key + _(' 不存在，请联系管理员'))
+        return api_err(_('Plan ') + plan_key + _(' not found, contact admin'))
 
     amount_fen = plan['price_year'] if period == 'year' else plan['price_month']
     brand = os.environ.get('DEPLOY_BRAND', '')
-    desc = f"{brand} {plan['name']}{'年付' if period=='year' else '月付'}补缴"
+    desc = f_"{brand} {plan['name']}{'Annual Payment' if period=='year' else 'Monthly Payment'} Top-up"
 
     order_no = new_order_no('RET')
     with get_db() as conn:
@@ -757,7 +757,7 @@ def retry_payment():
         conn.commit()
 
     pay_params = _generate_pay_params(order_no, desc, amount_fen, payment_method)
-    _audit_log(uid, 'retry_payment', f'缴费挽回: {plan_key}/{period} ¥{amount_fen/100:.2f}')
+    _audit_log(uid, 'retry_payment', f_'Recover Payment: {plan_key}/{period} ¥{amount_fen/100:.2f}')
 
     return api_res({
         'order_no': order_no,
@@ -819,7 +819,7 @@ def admin_plan_create():
         except Exception as e:
             return api_err(str(e))
     _audit_log(admin['user_id'], 'create_plan', f'{name} ({pk})', admin_id=admin['user_id'])
-    return api_res({'message': '套餐已创建'}, status=201)
+    return api_res({'message': _'Plan Created"'}, status=201)
 
 @sub_bp.route('/admin/plans/<int:pid>', methods=['PUT'])
 def admin_plan_update(pid):
@@ -839,7 +839,7 @@ def admin_plan_update(pid):
         conn.execute(f'UPDATE subscription_plans SET {", ".join(fields)} WHERE id=%s', values)
         conn.commit()
     _audit_log(admin['user_id'], 'update_plan', f'plan_id={pid}', admin_id=admin['user_id'])
-    return api_res({'message': '已更新'})
+    return api_res({'message': _'Updated'})
 
 @sub_bp.route('/admin/plans/<int:pid>', methods=['DELETE'])
 def admin_plan_delete(pid):
@@ -849,7 +849,7 @@ def admin_plan_delete(pid):
         conn.execute('DELETE FROM subscription_plans WHERE id=%s', (pid,))
         conn.commit()
     _audit_log(admin['user_id'], 'delete_plan', f'plan_id={pid}', admin_id=admin['user_id'])
-    return api_res({'message': '已删除'})
+    return api_res({'message': _'Deleted'})
 
 @sub_bp.route('/admin/subscriptions', methods=['GET'])
 def admin_subscription_list():
@@ -903,8 +903,8 @@ def admin_manual_renew(sid):
             conn.execute("UPDATE app_authorizations SET tier=%s, tier_expire_at=current_period_end WHERE user_id=%s AND app_name='trademind'",
                          (plan['tier'], sub['user_id']))
         conn.commit()
-    _audit_log(sub['user_id'], 'manual_renew', f'管理员手动续费 subscription_id={sid}', admin_id=admin['user_id'])
-    return api_res({'message': '已手动续费'})
+    _audit_log(sub['user_id'], 'manual_renew', f_'Administrator manually renews subscription_id={sid}', admin_id=admin['user_id'])
+    return api_res({'message': _'Manually renewed'})
 
 @sub_bp.route('/admin/subscriptions/<int:sid>/force-cancel', methods=['POST'])
 def admin_force_cancel(sid):
@@ -921,8 +921,8 @@ def admin_force_cancel(sid):
                      (sub['user_id'],))
         conn.execute("UPDATE skill_keys SET tier='free' WHERE user_id=%s", (sub['user_id'],))
         conn.commit()
-    _audit_log(sub['user_id'], 'force_cancel', f'管理员强制取消 subscription_id={sid}', admin_id=admin['user_id'])
-    return api_res({'message': '已强制取消，用户已降级为免费版'})
+    _audit_log(sub['user_id'], 'force_cancel', f_'Administrator forced cancellation subscription_id={sid}', admin_id=admin['user_id'])
+    return api_res({'message': _'Forcibly cancelled, user has been downgraded to free version'})
 
 @sub_bp.route('/admin/orders', methods=['GET'])
 def admin_order_list():

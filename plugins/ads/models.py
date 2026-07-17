@@ -152,7 +152,7 @@ def init_ad_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ad_clicks_ad ON ad_clicks(ad_id, created_at)')
 
     conn.commit()
-    print('[AdsPlugin] PG schema ads 已初始化')
+    print(_'[AdsPlugin] PG schema ads has been initialized')
 
 
 def migrate_ad_db():

@@ -97,7 +97,7 @@ def get_openid_by_code(code, site_domain=None):
         body = json.loads(resp.read())
         if 'openid' in body:
             return body
-        return {'error': body.get('errmsg', '微信API错误')}
+        return {'error': body.get('errmsg', _'WeChat API Error')}
     except Exception as e:
         return {'error': str(e)}
 
@@ -107,7 +107,7 @@ def get_user_info(openid, access_token):
     # stub 模式检查（无 site_domain 时用全局配置）
     if not WECHAT_APP_ID or WECHAT_APP_ID == 'stub':
         return {
-            'nickname': '微信用户_' + openid[-4:],
+            'nickname': _'WeChat User_' + openid[-4:],
             'avatar': '',
             'openid': openid,
             'unionid': 'stub_union',
@@ -129,6 +129,6 @@ def get_user_info(openid, access_token):
                 'openid': body['openid'],
                 'unionid': body.get('unionid', ''),
             }
-        return {'error': body.get('errmsg', '获取用户信息失败')}
+        return {'error': body.get('errmsg', _'Failed to Get User Info')}
     except Exception as e:
         return {'error': str(e)}

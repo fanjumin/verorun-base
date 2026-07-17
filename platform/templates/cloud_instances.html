@@ -73,9 +73,9 @@ function loadInstances(){
         h+='<span class="ic-status st-'+inst.status+'">'+(stLabels[inst.status]||inst.status)+'</span></div>';
         h+='<div class="ic-details">';
         if(specs.cpu) h+='<span class="ic-detail">CPU: <strong>'+specs.cpu+'核</strong></span>';
-        if(specs.memory_gb) h+='<span class="ic-detail">{{ _('内存:') }} <strong>'+specs.memory_gb+'G</strong></span>';
-        if(specs.disk_gb) h+='<span class="ic-detail">{{ _('磁盘:') }} <strong>'+specs.disk_gb+'G</strong></span>';
-        h+='<span class="ic-detail">{{ _('类型:') }} <strong>'+inst.service_type+'</strong></span>';
+        if(specs.memory_gb) h+='<span class="ic-detail">{{ _('Memory:') }} <strong>'+specs.memory_gb+'G</strong></span>';
+        if(specs.disk_gb) h+='<span class="ic-detail">{{ _('Disk:') }} <strong>'+specs.disk_gb+'G</strong></span>';
+        h+='<span class="ic-detail">{{ _('Type:') }} <strong>'+inst.service_type+'</strong></span>';
         h+='</div>';
         h+='<div class="ic-bottom">';
         h+='<div><div class="ic-connect">'+esc(connectStr)+'</div>';

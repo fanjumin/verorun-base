@@ -29,7 +29,7 @@ class WecomAdapter(BaseIMAdapter):
         corp_id = (data.get('corp_id') or '').strip()
         secret = (data.get('secret') or '').strip()
         if not corp_id or not secret:
-            return False, '企业ID 和 Secret 不能为空'
+            return False, _'Enterprise ID and Secret cannot be empty'
         try:
             import requests as _req
             resp = _req.get(
@@ -38,10 +38,10 @@ class WecomAdapter(BaseIMAdapter):
             )
             rd = resp.json()
             if rd.get('access_token'):
-                return True, '企业微信连接成功！'
-            return False, f"企业微信返回: {rd.get('errmsg', '未知')} (errcode={rd.get('errcode')})"
+                return True, _'WeCom connection successful!'
+            return False, f_"WeCom returned: {rd.get('errmsg', 'unknown')} (errcode={rd.get('errcode')})"
         except Exception as e:
-            return False, f'连接失败: {str(e)}'
+            return False, f_'Connection failed: {str(e)}'
 
     def get_env_fallback(self):
         cfg = {}
@@ -74,15 +74,15 @@ class WecomAdapter(BaseIMAdapter):
             "SELECT config_json FROM channel_configs WHERE channel='wecom' AND is_enabled=1 LIMIT 1"
         ).fetchone()
         if not row or not row['config_json']:
-            raise Exception("企微通道未配置")
+            raise Exception(_"WeCom channel is not configured")
         cfg = _json.loads(row['config_json'])
         webhook = cfg.get('webhook_url', '')
         if not webhook:
-            raise Exception("企微 webhook_url 为空")
+            raise Exception(_"WeCom webhook_url is empty")
         if mime.startswith('image/'):
             body = {"msgtype": "image", "image": {"base64": self._fetch_as_base64(file_url), "md5": ""}}
         elif mime.startswith('video/') or mime.startswith('audio/'):
-            body = {"msgtype": "file", "file": {"media_id": "暂不支持文件上传"}}
+            body = {"msgtype": "file", "file": {"media_id": _"File upload not supported"}}
         else:
             body = {"msgtype": "markdown",
                     "markdown": {"content": "**{}**\n[下载文件]({})".format(filename, file_url)}}
@@ -90,7 +90,7 @@ class WecomAdapter(BaseIMAdapter):
             data=_json.dumps(body).encode(), headers={'Content-Type': 'application/json'}
         )).read())
         if resp.get('errcode', -1) != 0:
-            raise Exception(resp.get('errmsg', '企微推送失败'))
+            raise Exception(resp.get('errmsg', _'WeCom push failed'))
 
     @staticmethod
     def _fetch_as_base64(url):

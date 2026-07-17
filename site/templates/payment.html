@@ -73,9 +73,9 @@ function loadOrder(){
       if(!d.success)return;
       var order=null;
       (d.data||[]).forEach(function(o){if(o.order_id===OID)order=o});
-      if(!order){showStatus('订单不存在','error');return}
-      document.getElementById('productTitle').textContent=order.product_title||'商品';
-      document.getElementById('orderStatus').textContent=order.status=='pending'?'待支付':'已支付';
+      if(!order){showStatus({{ _('Order does not exist') | tojson }},'error');return}
+      document.getElementById('productTitle').textContent=order.product_title||{{ _('Product') | tojson }};
+      document.getElementById('orderStatus').textContent=order.status=='pending'?{{ _('Pending payment') | tojson }}:{{ _('Paid') | tojson }};
       document.getElementById('payAmount').textContent=parseFloat(order.total||0).toFixed(2);
     });
 }
@@ -83,8 +83,8 @@ function loadOrder(){
 // 发起支付
 function doPay(){
   var btn=document.getElementById('payBtn');
-  btn.disabled=true;btn.textContent='处理中...';
-  showStatus('正在创建支付...','info');
+  btn.disabled=true;btn.textContent={{ _('Processing..."') | tojson }};
+  showStatus({{ _('Creating payment...') | tojson }},'info');
   fetch('/shop/api/pay/'+OID,{
     method:'POST',
     headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},
@@ -94,17 +94,17 @@ function doPay(){
     return r.json();
   }).then(function(d){
     if(d.success&&d.data&&d.data.pay_url){
-      showStatus('正在跳转到支付宝...','success');
+      showStatus({{ _('Redirecting to Alipay...') | tojson }},'success');
       window.location.href=d.data.pay_url;
     }else if(d.success&&d.data&&d.data.stub){
-      showStatus('⚠️ 支付系统测试模式','info');
-      btn.disabled=false;btn.textContent='立即支付';
+      showStatus({{ _('⚠️ Payment system in test mode') | tojson }},'info');
+      btn.disabled=false;btn.textContent={{ _('Pay Now') | tojson }};
     }else{
-      throw new Error(d.error||'支付创建失败');
+      throw new Error(d.error||{{ _('Payment Creation Failed') | tojson }});
     }
   }).catch(function(err){
-    showStatus(err.message||'支付服务异常','error');
-    btn.disabled=false;btn.textContent='立即支付';
+    showStatus(err.message||{{ _('Payment service exception') | tojson }},'error');
+    btn.disabled=false;btn.textContent={{ _('Pay Now') | tojson }};
   });
 }
 

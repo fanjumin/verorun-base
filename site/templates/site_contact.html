@@ -113,9 +113,9 @@
 <div class="contact-form">
 <h2>{{ _('Send Message') }}</h2>
 <form action="/api/site/contact" method="POST">
-<input name="name" placeholder="您的姓名" required="" type="text"/>
-<input name="email" placeholder="您的邮箱" required="" type="email"/>
-<input name="phone" placeholder="您的电话" type="tel"/>
+<input name="name" placeholder={{ _('Your Name') | tojson }} required="" type="text"/>
+<input name="email" placeholder={{ _('Your Email') | tojson }} required="" type="email"/>
+<input name="phone" placeholder={{ _('Your Phone') | tojson }} type="tel"/>
 <textarea name="message" placeholder="请输入您的问题或建议" required=""></textarea>
 <button type="submit">{{ _('Send Message') }}</button>
 </form>

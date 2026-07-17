@@ -29,7 +29,7 @@ class VerificationPlugin(BasePlugin):
     def on_enable(self, registry):
         from .models import init_verification_db
         init_verification_db()
-        print('[VerificationPlugin] ✅ 实名认证插件已启用 (verification.db)')
+        print(_'[VerificationPlugin] ✅ Real-name verification plugin is enabled (verification.db)')
         return True
 
     def register_routes(self):
@@ -37,7 +37,7 @@ class VerificationPlugin(BasePlugin):
         return []
 
     def on_disable(self, registry):
-        print('[VerificationPlugin] ⚠️  实名认证插件已禁用')
+        print(_'[VerificationPlugin] ⚠️ Real-name verification plugin is disabled')
         return True
 
     # ── 对外接口 ──

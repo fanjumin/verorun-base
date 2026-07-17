@@ -134,7 +134,7 @@ def get_reviews(product_id: str, page: int = 1, page_size: int = 20) -> list:
 if __name__ == '__main__':
     import pprint
     # 测试：仅展示接口
-    print("1688 商品评论采集服务")
-    print("用法: fetch_and_store_reviews(product_id, access_token)")
+    print(_"1688 Product Review Collection Service")
+    print(_"Usage: fetch_and_store_reviews(product_id, access_token)")
     print("      get_review_stats(product_id)")
     print("      get_reviews(product_id, page)")

@@ -156,7 +156,7 @@ class AIEngine:
     def chat(self, messages, temperature=0.7, max_tokens=4096):
         """调用 LLM，返回 text"""
         if not self.client:
-            return "Error: AI 引擎未初始化（缺少 API Key）"
+            return _"Error: AI engine not initialized (missing API Key)"
 
         try:
             resp = self.client.chat.completions.create(
@@ -235,7 +235,7 @@ class AIEngine:
     def chat_stream(self, messages, temperature=0.7, max_tokens=4096):
         """流式调用 LLM，逐段 yield 文本内容"""
         if not self.client:
-            yield "Error: AI 引擎未初始化（缺少 API Key）"
+            yield _"Error: AI engine not initialized (missing API Key)"
             return
 
         try:
@@ -299,7 +299,7 @@ class AIEngine:
             return {'success': False, 'error': str(e)}
 
     def tts(self, text: str, voice_id: str, output_path: str | None = None) -> dict:
-        """文本转语音"""
+        ""_"Text to speech"""
         try:
             from services.volcengine_client import tts as vc_tts
             result = vc_tts(text, voice_id, output_path)
@@ -333,7 +333,7 @@ class AIEngine:
         if action == 'voice_clone':
             return self.voice_clone(
                 audio_url=params.get('audio_url', ''),
-                voice_name=params.get('voice_name', '默认声音')
+                voice_name=params.get('voice_name', _'Default Sound')
             )
         elif action == 'tts':
             return self.tts(
@@ -352,7 +352,7 @@ class AIEngine:
                 task_id=params.get('task_id', '')
             )
         else:
-            return {'success': False, 'error': f'不支持的媒体操作: {action}'}
+            return {'success': False, 'error': f_'Unsupported media action: {action}'}
 
 
 # ============================================================
@@ -486,6 +486,6 @@ def check_ai_budget(scene: str = '') -> tuple:
         if used >= 0 and used >= daily_limit:
             logger.warning("[AIBudget] daily budget exhausted (scene=%s): %d/%d",
                            scene, used, daily_limit)
-            return False, f'今日 AI 预算已用尽（{used}/{daily_limit} tokens）'
+            return False, f_'Today's AI budget is exhausted ({used}/{daily_limit} tokens)'
 
     return True, ''

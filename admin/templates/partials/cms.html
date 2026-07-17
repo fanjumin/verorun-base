@@ -185,7 +185,7 @@ function cmsEditPost(id){
   var p=null;
   for(var i=0;i<cmsPosts.length;i++){if(cmsPosts[i].id===id){p=cmsPosts[i];break}}
   if(!p){showToast("{{ _('Not found') }}","error");return}
-  document.getElementById("cmsFormTitle").textContent="{{ _('编辑文章 #') }}"+p.id;
+  document.getElementById("cmsFormTitle").textContent="{{ _('Edit Article #') }}"+p.id;
   document.getElementById("cmsPEid").value=p.id;
   document.getElementById("cmsPTitle").value=p.title||"";
   document.getElementById("cmsPAuthor").value=p.author||"";

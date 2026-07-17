@@ -141,7 +141,7 @@ class AnalyticsMiddleware:
         app.before_request(self.before_request)
         app.after_request(self.after_request)
 
-        print(f'[Analytics] ✅ 中间件已注册 [{service_name}] 采样率={sample_rate}')
+        print(f_'[Analytics] ✅ Middleware registered [{service_name}] sampling rate={sample_rate}')
 
     def _load_privacy_config(self):
         """从数据库加载隐私配置"""
@@ -364,7 +364,7 @@ class AnalyticsMiddleware:
         except Exception as e:
             # 中间件绝不能影响主请求
             import traceback
-            print(f'[Analytics] ⚠️ 采集异常: {e}')
+            print(f_'[Analytics] ⚠️ Data collection error: {e}')
             traceback.print_exc()
 
         return response

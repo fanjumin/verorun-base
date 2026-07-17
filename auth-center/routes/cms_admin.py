@@ -238,7 +238,7 @@ def create_category():
     if e: return e
     data = request.get_json(force=True)
     if not data.get('name'):
-        return _err("栏目名称不能为空")
+        return _err(_"Column Name cannot be empty")
     return _ok(upsert_category(data))
 
 
@@ -294,7 +294,7 @@ def preview_post(slug):
         post = conn.execute("SELECT * FROM cms_posts WHERE slug=%s", (slug,)).fetchone()
     post = dict(post) if post else None
     if not post:
-        return _err('文章不存在'), 404
+        return _err(_'Article does not exist'), 404
     return f'''<!DOCTYPE html><html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>预览: {post.get("title","")}</title>
@@ -305,7 +305,7 @@ img{{max-width:100%;border-radius:6px}}</style></head><body>
 <div class="preview-banner">🔍 预览模式 — 仅管理员可见</div>
 <h1>{post.get("title","")}</h1>
 <div class="meta">{post.get("author","")} · {post.get("created_at","")[:10]}</div>
-{post.get("content","<p>无内容</p>")}
+{post.get("content",_"<p>No content</p>")}
 </body></html>'''
 
 

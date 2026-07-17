@@ -548,7 +548,7 @@ body { background: var(--a-bg); }
 <div class="stat-label">{{ _('Client Satisfaction') }}</div>
 </div>
 <div class="hero-stat">
-<div class="stat-value">{{ _('{{ stats.years | default(0) }}年') }}</div>
+<div class="stat-value">{{ _('{{ stats.years | default(0) }} years') }}</div>
 <div class="stat-label">{{ _('Years of Experience') }}</div>
 </div>
 </div>
@@ -664,9 +664,9 @@ body { background: var(--a-bg); }
 <div>
 <h3>{{ _('Send Message') }}</h3>
 <form class="a-contact-form" onsubmit="submitContact(event)">
-<input name="name" placeholder="您的姓名" type="text"/>
-<input name="phone" placeholder="联系电话" type="text"/>
-<input name="email" placeholder="电子邮箱" type="email"/>
+<input name="name" placeholder={{ _('Your Name') | tojson }} type="text"/>
+<input name="phone" placeholder={{ _('Phone Number') | tojson }} type="text"/>
+<input name="email" placeholder={{ _('Email') | tojson }} type="email"/>
 <textarea name="message" placeholder="请输入您的需求或问题..."></textarea>
 <button type="submit">{{ _('Send Message') }}</button>
 </form>
@@ -683,7 +683,7 @@ function tNM(){document.getElementById('mb-menu').classList.toggle('nav-open')}
 document.addEventListener('click',function(e){var m=document.getElementById('mb-menu');if(m&&m.classList.contains('nav-open')&&e.target.closest('a'))m.classList.remove('nav-open')});
 function submitContact(e) {
   e.preventDefault();
-  alert('感谢您的留言，我们会尽快与您联系！');
+  alert({{ _('Thank you for your message. We will contact you as soon as possible!') | tojson }});
   e.target.reset();
 }
 </script>

@@ -374,46 +374,46 @@ if __name__ == "__main__":
     import pprint
     
     cache = CacheService()
-    print("缓存服务测试:")
+    print(_"Cache Service Test:")
     
     # 测试基本缓存
-    print("1. 基本缓存测试...")
-    cache.set("test:key", {"name": "测试", "value": 123}, 10)
+    print(_"1. Basic Cache Test...")
+    cache.set("test:key", {"name": _"Test", "value": 123}, 10)
     found, value = cache.get("test:key")
-    print(f"   获取缓存: {'成功' if found else '失败'} - {value}")
+    print(f_"   Get Cache: {'Success' if found else 'Failed'} - {value}")
     
     # 测试商品缓存
     print("\n2. 商品缓存测试...")
     product_data = {
         "product_id": "12345",
-        "title": "测试商品",
+        "title": _"Test Products",
         "price": 99.99,
     }
     cache.set_product("12345", product_data)
     found, cached_product = cache.get_product("12345")
-    print(f"   获取商品缓存: {'成功' if found else '失败'} - {cached_product}")
+    print(f_"   Get Product Cache: {'Success' if found else 'Failed'} - {cached_product}")
     
     # 测试API响应缓存
     print("\n3. API响应缓存测试...")
-    params = {"keyword": "手机", "page": 1}
+    params = {"keyword": _"Phone", "page": 1}
     response = {"success": True, "data": []}
     cache.set_api_response("product.search", params, response)
     found, cached_response = cache.get_api_response("product.search", params)
-    print(f"   获取API缓存: {'成功' if found else '失败'} - {cached_response}")
+    print(f_"   Get API Cache: {'Success' if found else 'Failed'} - {cached_response}")
     
     # 测试缓存装饰器
     print("\n4. 缓存装饰器测试...")
     
     @cached(ttl=10, key_prefix="test")
     def expensive_operation(x, y):
-        print(f"   执行昂贵操作: {x} + {y}")
+        print(f_"   Execute Expensive Operation: {x} + {y}")
         return x + y
     
     result1 = expensive_operation(10, 20)
-    print(f"   第一次调用结果: {result1}")
+    print(f_"   First Call Result: {result1}")
     
     result2 = expensive_operation(10, 20)
-    print(f"   第二次调用结果: {result2} (应该来自缓存)")
+    print(f_"   Second Call Result: {result2} (Should come from cache)")
     
     print("\n5. 缓存统计:")
     stats = cache.stats()

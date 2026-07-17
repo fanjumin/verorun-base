@@ -40,7 +40,7 @@ EXCLUDED_DIRS = {
     '__pycache__', '__init__', '.git', '.trae',
     'node_modules', 'venv', '.venv', 'env',
     'tmp', 'tools', 'prompts', 'themes',
-    '国际化改造方案',
+    _'Internationalization Plan',
 }
 
 MODULE_INDICATORS = {'app.py', 'routes.py', 'models.py'}

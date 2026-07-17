@@ -54,4 +54,4 @@ def init_oauth_tables():
             )
         """)
         conn.commit()
-    print(f'[OAuthPlugin] ✅ Schema oauth_config 已就绪')
+    print(f_'[OAuthPlugin] ✅ Schema oauth_config is ready')

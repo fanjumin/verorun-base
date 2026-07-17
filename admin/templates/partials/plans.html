@@ -5,10 +5,10 @@ window.l_plans=function(){
   h+='<div class="g2">';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Identifier') }} (plan_key)</div><input class="in" id="pk" placeholder="如：pro_max" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }}</div><input class="in" id="pn" placeholder="如：Pro Max" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Monthly') }} (元)</div><input class="in" id="ppm" type="number" step="0.01" value="0" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Quarterly') }} (元)</div><input class="in" id="ppq" type="number" step="0.01" value="0" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Semi-Annual') }} (元)</div><input class="in" id="ppsa" type="number" step="0.01" value="0" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Annual') }} (元)</div><input class="in" id="ppy" type="number" step="0.01" value="0" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('{{ _('Monthly') }} (Yuan)') }}</div><input class="in" id="ppm" type="number" step="0.01" value="0" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Quarterly (Yuan)') }}</div><input class="in" id="ppq" type="number" step="0.01" value="0" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Semi-Annual (Yuan)') }}</div><input class="in" id="ppsa" type="number" step="0.01" value="0" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('{{ _('Annual') }} (Yuan)') }}</div><input class="in" id="ppy" type="number" step="0.01" value="0" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Daily Limit') }}</div><input class="in" id="pdl" type="number" value="0" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Sort') }}</div><input class="in" id="pso" type="number" value="0" style="width:100%"></div>';
   h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Description') }}</div><textarea class="ta" id="pdesc" rows="2" placeholder="{{ _('Plan Description') }}..."></textarea></div>';

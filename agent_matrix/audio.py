@@ -17,8 +17,8 @@ class AudioInputProcessor:
     """语音输入处理器（ASR）—— 预留接口，暂不实现"""
 
     PROVIDERS = {
-        'vosk': '离线语音识别（vosk-model-small-cn-0.22）',
-        'aliyun_asr': '阿里云实时语音识别',
+        'vosk': _'Offline Speech Recognition (vosk-model-small-cn-0.22)',
+        'aliyun_asr': _'Aliyun Real-time Speech Recognition',
     }
 
     def __init__(self, provider: str = 'vosk', model_path: str = ''):
@@ -48,7 +48,7 @@ class AudioInputProcessor:
 
     def start_stream(self):
         """启动实时语音识别流"""
-        raise NotImplementedError('实时语音识别未实现')
+        raise NotImplementedError(_'Real-time Speech Recognition Not Implemented')
 
     def stop_stream(self):
         """停止实时语音识别流"""
@@ -59,7 +59,7 @@ class AudioOutputProcessor:
     """语音输出处理器（TTS）—— 预留接口，暂不实现"""
 
     PROVIDERS = {
-        'aliyun_tts': '阿里云语音合成（每月 100 万字符免费）',
+        'aliyun_tts': _'Aliyun Speech Synthesis (1 million characters free per month)',
     }
 
     PROVIDER_CONFIGS = {

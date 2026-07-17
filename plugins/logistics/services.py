@@ -54,7 +54,7 @@ def query_track(shipper_code: str, logistic_code: str,
     if not eid or not api_key:
         eid, api_key = _get_kdniao_config()
     if not eid or not api_key:
-        _log_query(shipper_code, logistic_code, order_code, False, '快递鸟未配置')
+        _log_query(shipper_code, logistic_code, order_code, False, _'Kuaidi100 Not Configured')
         return False, {}, '快递鸟未配置: 请在系统设置→基本设置→物流配送中填写商户ID和API Key'
 
     req_body = {
@@ -98,12 +98,12 @@ def query_track(shipper_code: str, logistic_code: str,
                 _log_query(shipper_code, logistic_code, order_code, True)
                 return True, data, ''
             else:
-                reason = result.get('Reason', '查询失败')
+                reason = result.get('Reason', _'Query Failed')
                 _log_query(shipper_code, logistic_code, order_code, False, reason)
-                return False, {}, f'快递鸟查询失败: {reason}'
+                return False, {}, f_'Kuaidi100 Query Failed: {reason}'
     except json.JSONDecodeError as e:
         _log_query(shipper_code, logistic_code, order_code, False, str(e))
-        return False, {}, f'解析响应失败: {e}'
+        return False, {}, f_'Failed to parse response: {e}'
     except Exception as e:
         _log_query(shipper_code, logistic_code, order_code, False, str(e))
         return False, {}, f'网络请求失败: {e}'
@@ -111,17 +111,17 @@ def query_track(shipper_code: str, logistic_code: str,
 
 def _state_text(state: str) -> str:
     return {
-        '0': '无轨迹', '1': '已揽收', '2': '在途中', '3': '签收',
-        '4': '问题件', '5': '转寄', '6': '退签', '7': '待清关',
-        '8': '清关中', '9': '已拒收', '10': '待交付', '11': '已交付', '14': '退货中',
-    }.get(state, f'未知({state})')
+        '0': _'No Trajectory', '1': _'Collected', '2': _'On the way', '3': _'Sign for Receipt',
+        '4': _'Issue Item', '5': _'Forward', '6': _'Cancel sign-up', '7': _'Pending customs clearance',
+        '8': _'In Customs Clearance', '9': _'Rejected', '10': _'Pending delivery', '11': _'Delivered', '14': _'Returning',
+    }.get(state, f_'Unknown ({state})')
 
 
 def get_shipping_status_text(shipping_status: str) -> str:
     return {
-        'pending': '待发货',
-        'shipped': '已发货',
-        'delivered': '已签收',
+        'pending': _'Pending shipment',
+        'shipped': _'Shipped',
+        'delivered': _'Signed',
     }.get(shipping_status, shipping_status)
 
 
@@ -134,4 +134,4 @@ def _log_query(shipper_code, logistic_code, order_code, success, error_msg=''):
         )
         conn.commit()
     except Exception as e:
-        print(f'[LogisticsPlugin] 日志写入失败: {e}')
+        print(f_'[LogisticsPlugin] Log write failed: {e}')

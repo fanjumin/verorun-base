@@ -22,9 +22,9 @@ def _require_admin():
     from services.jwt_service import validate_token
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': '无效Token'}), 401)
+        return None, (jsonify({'success': False, 'error': _'Invalid Token'}), 401)
     if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': '需要管理员权限'}), 403)
+        return None, (jsonify({'success': False, 'error': _'Requires admin permissions'}), 403)
     return payload, None
 
 
@@ -80,7 +80,7 @@ def _call_llm(system_prompt: str, user_prompt: str) -> dict:
     json_match = re.search(r'\{.*\}', text, re.DOTALL)
     result = json.loads(json_match.group()) if json_match else json.loads(text)
     if not result.get('title') or not result.get('content'):
-        return {'error': 'AI 返回结果缺少必填字段', 'raw': text}
+        return {'error': _'AI response is missing required fields', 'raw': text}
     return result
 
 
@@ -105,7 +105,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
            'title': '...', 'category': '...', 'error': '...'}
     """
     if not raw_content or not raw_content.strip():
-        return {'success': False, 'error': '内容不能为空'}
+        return {'success': False, 'error': _'Content cannot be empty'}
 
     raw_content = raw_content.strip()[:50000]
     existing_titles = _get_existing_titles()
@@ -155,7 +155,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
             conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
             conn.commit()
             return {'success': True, 'kb_id': 'duplicate', 'title': result['title'],
-                    'category': result.get('category', ''), 'message': '检测到重复，已跳过'}
+                    'category': result.get('category', ''), 'message': _'Duplicate detected, skipped'}
 
         kb_id = 'kb_cleaner_' + str(qid) + '_' + ''.join(re.findall(r'\w', result['title'])[:10])
         conn.execute(
@@ -173,7 +173,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         'success': True, 'kb_id': kb_id, 'title': result['title'],
         'category': result.get('category', 'general'),
         'keywords': result.get('keywords', ''),
-        'message': '清洗完成，已写入知识库'
+        'message': _'Cleaning completed and written to knowledge base'
     }
 
 
@@ -195,9 +195,9 @@ def auto_register_sub_agent():
             'model_name': 'deepseek-chat',
             'is_active': 1,
         })
-        print(f'[CleanerAgent] ✅ 已自动注册为矩阵子Agent')
+        print(f_'[CleanerAgent] ✅ Automatically registered as a matrix sub-agent')
     except Exception as e:
-        print(f'[CleanerAgent] 自动注册跳过: {e}')
+        print(f_'[CleanerAgent] Auto-registration skipped: {e}')
 
 
 # =============================================
@@ -212,12 +212,12 @@ def submit_content():
     data = request.get_json() or {}
     raw = (data.get('content', '') or '').strip()
     if not raw:
-        return jsonify({'success': False, 'error': '内容不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Content cannot be empty'}), 400
 
     result = process_clean_content(raw, admin_id=payload['user_id'])
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 500
-    return jsonify({'success': True, 'data': result, 'message': result.get('message', '清洗完成')})
+    return jsonify({'success': True, 'data': result, 'message': result.get('message', _'Cleaning completed')})
 
 
 @cleaner_bp.route('/list', methods=['GET'])
@@ -245,14 +245,14 @@ def run_clean(qid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM knowledge_queue WHERE id=%s', (qid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '队列项不存在'}), 404
+            return jsonify({'success': False, 'error': _'Queue item does not exist'}), 404
         if row['status'] == 'cleaning':
             return jsonify({'success': False, 'error': '正在清洗中，请勿重复执行'}), 400
 
     result = process_clean_content(row['raw_content'], admin_id=payload['user_id'])
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 500
-    return jsonify({'success': True, 'data': result, 'message': result.get('message', '清洗完成')})
+    return jsonify({'success': True, 'data': result, 'message': result.get('message', _'Cleaning completed')})
 
 
 @cleaner_bp.route('/run-all', methods=['POST'])
@@ -264,7 +264,7 @@ def run_all():
         rows = conn.execute("SELECT id, raw_content FROM knowledge_queue WHERE status='pending' ORDER BY id ASC").fetchall()
 
     if not rows:
-        return jsonify({'success': True, 'data': [], 'message': '没有待清洗项'})
+        return jsonify({'success': True, 'data': [], 'message': _'No items to clean'})
 
     results = []
     for r in rows:
@@ -280,7 +280,7 @@ def run_all():
     done = sum(1 for r in results if r['status'] == 'done')
     return jsonify({
         'success': True, 'data': results,
-        'message': f'完成 {done}/{len(results)} 项'
+        'message': f_'Completed {done}/{len(results)} Items'
     })
 
 

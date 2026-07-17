@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>知识中心 — {{ brand.site_name_cn if brand else '' }}</title>
+<title>{{ _('Knowledge Center — {{ brand.site_name_cn if brand else '' }}') }}</title>
 <meta name="description" content="建站指南、AI应用、SEO优化、行业洞察">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 
@@ -416,26 +416,26 @@ body { background: var(--k-bg); }
 <div id="particles-bg"></div>
 
 <section class="k-hero">
-  <h1>知识中心</h1>
-  <p>探索建站指南、AI应用技巧、SEO优化策略和行业洞察</p>
+  <h1>{{ _('Knowledge Center') }}</h1>
+  <p>{{ _('Explore website building guides, AI application tips, SEO optimization strategies, and industry insights') }}</p>
   
   <div class="k-search-box">
-    <input type="text" placeholder="搜索文章、教程或问题...">
+    <input type="text" placeholder={{ _('Search articles, tutorials, or questions...') | tojson }}>
   </div>
 </section>
 
 <div class="k-container">
   <div class="k-categories">
-    <div class="k-category active" onclick="filterArticles('all')">全部</div>
-    <div class="k-category" onclick="filterArticles('guide')">建站指南</div>
-    <div class="k-category" onclick="filterArticles('ai')">AI应用</div>
-    <div class="k-category" onclick="filterArticles('seo')">SEO优化</div>
-    <div class="k-category" onclick="filterArticles('insight')">行业洞察</div>
+    <div class="k-category active" onclick="filterArticles('all')">{{ _('All') }}</div>
+    <div class="k-category" onclick="filterArticles('guide')">{{ _('Website building guide') }}</div>
+    <div class="k-category" onclick="filterArticles('ai')">{{ _('AI Applications') }}</div>
+    <div class="k-category" onclick="filterArticles('seo')">{{ _('SEO Optimization') }}</div>
+    <div class="k-category" onclick="filterArticles('insight')">{{ _('Industry Insights') }}</div>
   </div>
 
   <div class="k-section">
     <div class="k-section-header">
-      <h2>建站指南</h2>
+      <h2>{{ _('Website building guide') }}</h2>
       <a href="#">查看全部 →</a>
     </div>
     
@@ -455,14 +455,14 @@ body { background: var(--k-bg); }
     {% else %}
       <div class="k-empty">
         <div class="k-empty-icon">📚</div>
-        <p>暂无建站指南</p>
+        <p>{{ _('No website building guide') }}</p>
       </div>
     {% endif %}
   </div>
 
   <div class="k-section">
     <div class="k-section-header">
-      <h2>AI应用技巧</h2>
+      <h2>{{ _('AI Application Tips') }}</h2>
       <a href="#">查看全部 →</a>
     </div>
     
@@ -479,14 +479,14 @@ body { background: var(--k-bg); }
     {% else %}
       <div class="k-empty">
         <div class="k-empty-icon">🤖</div>
-        <p>暂无AI应用技巧</p>
+        <p>{{ _('No AI application tips') }}</p>
       </div>
     {% endif %}
   </div>
 
   <div class="k-section">
     <div class="k-section-header">
-      <h2>热门文章</h2>
+      <h2>{{ _('Popular Articles') }}</h2>
       <a href="#">查看全部 →</a>
     </div>
     
@@ -498,7 +498,7 @@ body { background: var(--k-bg); }
         <h3>{{ article.title }}</h3>
         <p>{{ article.description }}</p>
         <div class="article-meta">
-          <span>阅读 {{ article.read_count | default(0) }}</span>
+          <span>{{ _('Read {{ article.read_count | default(0) }}') }}</span>
           <span class="read-time">📖 {{ article.read_time | default('') }}</span>
         </div>
       </div>
@@ -507,14 +507,14 @@ body { background: var(--k-bg); }
     {% else %}
       <div class="k-empty">
         <div class="k-empty-icon">📝</div>
-        <p>暂无文章</p>
+        <p>{{ _('No articles') }}</p>
       </div>
     {% endif %}
   </div>
 
   <div class="k-section">
     <div class="k-section-header">
-      <h2>行业洞察</h2>
+      <h2>{{ _('Industry Insights') }}</h2>
       <a href="#">查看全部 →</a>
     </div>
     
@@ -541,14 +541,14 @@ body { background: var(--k-bg); }
     {% else %}
       <div class="k-empty">
         <div class="k-empty-icon">🔮</div>
-        <p>暂无行业洞察</p>
+        <p>{{ _('No industry insights') }}</p>
       </div>
     {% endif %}
   </div>
 </div>
 
 <footer class="k-footer">
-  <p>VeroRun知识中心 © 2026 | 持续更新中</p>
+  <p>{{ _('VeroRun Knowledge Center © 2026 | Continuously Updating') }}</p>
 </footer>
 
 <script>

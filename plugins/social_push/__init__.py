@@ -42,16 +42,16 @@ class SocialPushPlugin(BasePlugin):
         try:
             n = migrate_from_main_db()
             if n:
-                print(f'[SocialPushPlugin] ✅ 从主库迁移 {n} 条发布记录')
+                print(f_'[SocialPushPlugin] ✅ Migrated {n} publication records from main database')
         except Exception as e:
-            print(f'[SocialPushPlugin] ⚠️ 发布记录迁移警告: {e}')
+            print(f_'[SocialPushPlugin] ⚠️ Migration warning for publication records: {e}')
         return True
 
     def on_enable(self, registry):
         """启用时初始化数据库 + i18n（幂等）"""
         init_sp_db()
         init_i18n(self.t)
-        print('[SocialPushPlugin] ✅ 社媒推广插件已启用')
+        print(_'[SocialPushPlugin] ✅ Social promotion plugin is enabled')
         return True
 
     def register_routes(self):
@@ -61,7 +61,7 @@ class SocialPushPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print('[SocialPushPlugin] ⚠️  社媒推广插件已禁用')
+        print(_'[SocialPushPlugin] ⚠️ Social promotion plugin is disabled')
         return True
 
     # ── 对外接口：供主系统（content_factory / cms_admin）调用 ──

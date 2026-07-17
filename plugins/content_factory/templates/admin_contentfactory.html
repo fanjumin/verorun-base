@@ -31,7 +31,7 @@ function cfRenderSources(){
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }}</div><input class="in" id="cfSn" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Type') }}</div><select class="sl" id="cfSt" style="width:100%"><option value="rss">RSS</option><option value="api">API</option><option value="web">{{ _('Web Page') }}</option></select></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">URL</div><input class="in" id="cfSu" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Collection Interval') }}(秒,0={{ _('Manual') }})</div><input class="in" id="cfSi" value="0" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('{{ _('Collection Interval') }}(seconds, 0={{ _('Manual') }})') }}</div><input class="in" id="cfSi" value="0" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Max Per Round') }}</div><input class="in" id="cfSm" value="10" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Keywords Filter') }}</div><input class="in" id="cfSk" style="width:100%"></div>';
   h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Platform ID') }}({{ _('Optional') }})</div><input class="in" id="cfSp" placeholder="rss/xueqiu/sec" style="width:100%"></div>';
@@ -177,7 +177,7 @@ function cfBatchProcess(){
   var cbs=document.querySelectorAll(".cfRawCb:checked");
   for(var i=0;i<cbs.length;i++){ids.push(parseInt(cbs[i].value))};
   if(!ids.length){showToast("{{ _('Please select content first') }}","error");return}
-  showToast("AI{{ _('Processing') }} ("+ids.length+"条)...","");
+  showToast("AI{{ _('Processing') }} ("+ids.length+{{ _('Items)...') | tojson }},"");
   fetch("/admin/content-factory/process",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({raw_ids:ids})}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("{{ _('Complete') }}: OK="+d.ok+" FAIL="+d.fail,"success");cfLoadRaw()}
     else{showToast("{{ _('Failed') }}: "+d.error,"error")}
@@ -236,7 +236,7 @@ function cfLoadProcessed(){
     var h='';
     if(!cfProcessed.length){h='<tr><td colspan="6"><div class="em">{{ _('No Process Content') }}</div></td></tr>'}
     else{cfProcessed.forEach(function(p){
-      var rl={low:'<span class="bdg on">低</span>',normal:'<span class="bdg pd">中</span>',high:'<span class="bdg off">高</span>',critical:'<span class="bdg off" style="background:rgba(248,81,73,.2)">{{ _('Danger') }}</span>'};
+      var rl={low:{{ _('<span class="bdg on">Low</span>') | tojson }},normal:{{ _('<span class="bdg pd">Medium</span>') | tojson }},high:{{ _('<span class="bdg off">High</span>') | tojson }},critical:'<span class="bdg off" style="background:rgba(248,81,73,.2)">{{ _('Danger') }}</span>'};
       var st_bdg={draft:'pd',review:'pd',approved:'on',rejected:'off',published:'on'}[p.status]||'pd';
       var st_label={draft:'{{ _('Draft') }}',review:'{{ _('Reviewing') }}',approved:'✅{{ _('Approved') }}',rejected:'❌{{ _('Reject') }}',published:'{{ _('Published') }}'}[p.status]||p.status;
       var st='<span class="bdg '+st_bdg+'">'+st_label+'</span>';

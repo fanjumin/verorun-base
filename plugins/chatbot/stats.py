@@ -228,11 +228,11 @@ def qa_check_conversation(session_id, user_query, ai_reply):
         prompt = f"""分析以下 AI 客服对话，从以下维度打分（1-5），输出 JSON：
 
 {{
-  "score": "总体评分 1-5",
-  "accuracy": "准确性 1-5",
-  "helpfulness": "有帮助程度 1-5",
-  "politeness": "礼貌程度 1-5",
-  "suggestion": "改进建议（一句话）"
+  "score": _"Overall Rating 1-5",
+  "accuracy": _"Accuracy 1-5",
+  "helpfulness": _"Helpfulness (1-5)",
+  "politeness": _"Politeness Level 1-5",
+  "suggestion": _"Improvement suggestion (in one sentence)"
 }}
 
 用户：{user_query[:300]}

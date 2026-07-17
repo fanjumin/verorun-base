@@ -23,7 +23,7 @@ class ChatbotPlugin(BasePlugin):
         init_chatbot_tables()
         self._seed_default_config()
         # 从主库迁移已有数据（幂等，首次运行自动执行）
-        self.log('正在从主库迁移数据...')
+        self.log(_'Migrating data from main database...')
         migrate_from_main()
         return True
 

@@ -35,9 +35,9 @@ def _require_admin():
     from services.jwt_service import validate_token
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': '无效Token'}), 401)
+        return None, (jsonify({'success': False, 'error': _'Invalid Token'}), 401)
     if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': '需要管理员权限'}), 403)
+        return None, (jsonify({'success': False, 'error': _'Requires admin permissions'}), 403)
     return payload, None
 
 
@@ -52,7 +52,7 @@ def _require_user():
     from services.jwt_service import validate_token
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': '无效Token'}), 401)
+        return None, (jsonify({'success': False, 'error': _'Invalid Token'}), 401)
     return payload, None
 
 
@@ -98,14 +98,14 @@ def upload_image():
         return err
 
     if 'file' not in request.files:
-        return jsonify({'success': False, 'error': '未选择文件'}), 400
+        return jsonify({'success': False, 'error': _'No file selected'}), 400
     file = request.files['file']
     if not file.filename:
-        return jsonify({'success': False, 'error': '文件名为空'}), 400
+        return jsonify({'success': False, 'error': _'File name is empty'}), 400
 
     ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     if ext not in _ALLOWED_EXTS:
-        return jsonify({'success': False, 'error': f'不支持的文件格式: {ext}，支持{_ALLOWED_EXTS}'}), 400
+        return jsonify({'success': False, 'error': f_'Unsupported file format: {ext}, supported {_ALLOWED_EXTS}'}), 400
 
     # 限流：每秒最多上传2张
     _rl_key = f'upload_img_{payload["user_id"]}'
@@ -137,7 +137,7 @@ def get_product_images(pid):
     with get_db() as conn:
         row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         images = _safe_json(row['images'], [])
     return jsonify({'success': True, 'data': {'images': images}})
 
@@ -156,7 +156,7 @@ def add_product_image(pid):
     with get_db() as conn:
         row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         images = _safe_json(row['images'], [])
         images.append({'url': url, 'sort_order': len(images)})
         conn.execute('UPDATE products SET images=%s, updated_at=NOW() WHERE id=%s',
@@ -174,10 +174,10 @@ def delete_product_image(pid, idx):
     with get_db() as conn:
         row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         images = _safe_json(row['images'], [])
         if idx < 0 or idx >= len(images):
-            return jsonify({'success': False, 'error': '图片索引无效'}), 400
+            return jsonify({'success': False, 'error': _'Invalid picture index'}), 400
 
         removed = images.pop(idx)
         # 如果是本地图片，删除物理文件
@@ -207,14 +207,14 @@ def reorder_product_images(pid):
     with get_db() as conn:
         row = conn.execute('SELECT images FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         images = _safe_json(row['images'], [])
         if len(order) != len(images):
-            return jsonify({'success': False, 'error': '顺序索引数量不匹配'}), 400
+            return jsonify({'success': False, 'error': _'Sequence index count mismatch'}), 400
         try:
             reordered = [images[i] for i in order]
         except IndexError:
-            return jsonify({'success': False, 'error': '索引超出范围'}), 400
+            return jsonify({'success': False, 'error': _'Index out of range'}), 400
         conn.execute('UPDATE products SET images=%s, updated_at=NOW() WHERE id=%s',
                      (json.dumps(reordered, ensure_ascii=False), pid))
         conn.commit()
@@ -262,7 +262,7 @@ def get_product(pid):
             'LEFT JOIN categories c ON p.category_id=c.id WHERE p.id=%s', (pid,)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
     return jsonify({'success': True, 'data': _product_to_dict(row)})
 
 
@@ -278,7 +278,7 @@ def admin_preview_product(pid):
             'LEFT JOIN categories c ON p.category_id=c.id WHERE p.id=%s', (pid,)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
     return jsonify({'success': True, 'data': _product_to_dict(row)})
 
 
@@ -291,12 +291,12 @@ def create_product():
     required = ['title', 'price']
     for f in required:
         if f not in data:
-            return jsonify({'success': False, 'error': f'缺少必填字段: {f}'}), 400
+            return jsonify({'success': False, 'error': f_'Missing required field: {f}'}), 400
 
     if len(str(data.get('title', ''))) > _MAX_TITLE:
-        return jsonify({'success': False, 'error': f'标题不能超过{_MAX_TITLE}字'}), 400
+        return jsonify({'success': False, 'error': f_'Title cannot exceed {_MAX_TITLE} characters'}), 400
     if len(str(data.get('description', ''))) > _MAX_DESC:
-        return jsonify({'success': False, 'error': f'描述不能超过{_MAX_DESC}字'}), 400
+        return jsonify({'success': False, 'error': f_'Description cannot exceed {_MAX_DESC} characters'}), 400
 
     images = data.get('images', [])
     if isinstance(images, str):
@@ -328,7 +328,7 @@ def create_product():
                 int(data.get('sort_order', 0)),
                 1
             )).fetchone()['id']
-    return jsonify({'success': True, 'data': {'id': pid}, 'message': '商品已创建'})
+    return jsonify({'success': True, 'data': {'id': pid}, 'message': _'Product has been created'})
 
 
 @shop_bp.route('/products/<int:pid>', methods=['PUT'])
@@ -338,7 +338,7 @@ def update_product(pid):
         return err
     data = request.get_json() or {}
     if not data:
-        return jsonify({'success': False, 'error': '无更新数据'}), 400
+        return jsonify({'success': False, 'error': _'No Update Data'}), 400
 
     fields = ['title', 'subtitle', 'product_type', 'category',
               'category_id', 'price', 'original_price', 'stock', 'thumbnail',
@@ -365,7 +365,7 @@ def update_product(pid):
         sets.append('ai_config=%s')
         vals.append(json.dumps(data['ai_config'], ensure_ascii=False))
     if not sets:
-        return jsonify({'success': False, 'error': '无有效更新字段'}), 400
+        return jsonify({'success': False, 'error': _'No Valid Update Fields'}), 400
 
     sets.append("updated_at=NOW()")
     vals.append(pid)
@@ -374,7 +374,7 @@ def update_product(pid):
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'update', 'product', pid,
                           json.dumps({k: data[k] for k in data if k in fields}, ensure_ascii=False))
-    return jsonify({'success': True, 'message': '商品已更新'})
+    return jsonify({'success': True, 'message': _'Product has been updated'})
 
 
 @shop_bp.route('/products/<int:pid>', methods=['DELETE'])
@@ -399,7 +399,7 @@ def delete_product(pid):
         conn.execute('DELETE FROM products WHERE id=%s', (pid,))
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'delete', 'product', pid)
-    return jsonify({'success': True, 'message': '商品已删除'})
+    return jsonify({'success': True, 'message': _'Product has been deleted'})
 
 
 # =============================================
@@ -435,7 +435,7 @@ def create_spec(pid):
     data = request.get_json() or {}
     name = data.get('spec_name', '').strip()
     if not name:
-        return jsonify({'success': False, 'error': '规格名不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Specification name cannot be empty'}), 400
     with get_db() as conn:
         conn.execute(
             'INSERT INTO product_specs (product_id, spec_name, sort_order) VALUES (%s,%s,%s)',
@@ -443,7 +443,7 @@ def create_spec(pid):
         )
         sid = conn.execute('SELECT lastval()').fetchone()['lastval']
         conn.commit()
-    return jsonify({'success': True, 'data': {'id': sid}, 'message': '规格已添加'})
+    return jsonify({'success': True, 'data': {'id': sid}, 'message': _'Specification has been added'})
 
 
 @shop_bp.route('/products/<int:pid>/specs/<int:sid>', methods=['PUT'])
@@ -455,12 +455,12 @@ def update_spec(pid, sid):
     data = request.get_json() or {}
     name = data.get('spec_name', '').strip()
     if not name:
-        return jsonify({'success': False, 'error': '规格名不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Specification name cannot be empty'}), 400
     with get_db() as conn:
         conn.execute('UPDATE product_specs SET spec_name=%s, sort_order=%s WHERE id=%s AND product_id=%s',
                      (name, int(data.get('sort_order', 0)), sid, pid))
         conn.commit()
-    return jsonify({'success': True, 'message': '规格已更新'})
+    return jsonify({'success': True, 'message': _'Specification has been updated'})
 
 
 @shop_bp.route('/products/<int:pid>/specs/<int:sid>', methods=['DELETE'])
@@ -473,7 +473,7 @@ def delete_spec(pid, sid):
         conn.execute('DELETE FROM product_spec_values WHERE spec_id=%s', (sid,))
         conn.execute('DELETE FROM product_specs WHERE id=%s AND product_id=%s', (sid, pid))
         conn.commit()
-    return jsonify({'success': True, 'message': '规格已删除'})
+    return jsonify({'success': True, 'message': _'Specification has been deleted'})
 
 
 # ── 规格值管理 ──
@@ -486,7 +486,7 @@ def create_spec_value(pid, sid):
     data = request.get_json() or {}
     value = data.get('spec_value', '').strip()
     if not value:
-        return jsonify({'success': False, 'error': '规格值不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Specification value cannot be empty'}), 400
     with get_db() as conn:
         conn.execute(
             'INSERT INTO product_spec_values (spec_id, spec_value, sort_order) VALUES (%s,%s,%s)',
@@ -494,7 +494,7 @@ def create_spec_value(pid, sid):
         )
         vid = conn.execute('SELECT lastval()').fetchone()['lastval']
         conn.commit()
-    return jsonify({'success': True, 'data': {'id': vid}, 'message': '规格值已添加'})
+    return jsonify({'success': True, 'data': {'id': vid}, 'message': _'Specification value has been added'})
 
 
 @shop_bp.route('/products/<int:pid>/specs/values/<int:vid>', methods=['PUT'])
@@ -506,12 +506,12 @@ def update_spec_value(pid, vid):
     data = request.get_json() or {}
     value = data.get('spec_value', '').strip()
     if not value:
-        return jsonify({'success': False, 'error': '规格值不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Specification value cannot be empty'}), 400
     with get_db() as conn:
         conn.execute('UPDATE product_spec_values SET spec_value=%s, sort_order=%s WHERE id=%s',
                      (value, int(data.get('sort_order', 0)), vid))
         conn.commit()
-    return jsonify({'success': True, 'message': '规格值已更新'})
+    return jsonify({'success': True, 'message': _'Specification value has been updated'})
 
 
 @shop_bp.route('/products/<int:pid>/specs/values/<int:vid>', methods=['DELETE'])
@@ -523,7 +523,7 @@ def delete_spec_value(pid, vid):
     with get_db() as conn:
         conn.execute('DELETE FROM product_spec_values WHERE id=%s', (vid,))
         conn.commit()
-    return jsonify({'success': True, 'message': '规格值已删除'})
+    return jsonify({'success': True, 'message': _'Specification value has been deleted'})
 
 
 # =============================================
@@ -568,7 +568,7 @@ def generate_skus(pid):
                 'SELECT * FROM product_spec_values WHERE spec_id=%s ORDER BY sort_order ASC', (s['id'],)
             ).fetchall()
             if not vals:
-                return jsonify({'success': False, 'error': f'规格"{s["spec_name"]}"缺少规格值'}), 400
+                return jsonify({'success': False, 'error': f_'Specification "{s["spec_name"]}" is missing a value'}), 400
             spec_values[s['id']] = {
                 'name': s['spec_name'],
                 'values': [dict(v) for v in vals]
@@ -611,7 +611,7 @@ def generate_skus(pid):
     return jsonify({
         'success': True,
         'data': {'skus': created_skus, 'total': len(created_skus)},
-        'message': f'已生成 {len(created_skus)} 个SKU'
+        'message': f_'Generated {len(created_skus)} SKUs'
     })
 
 
@@ -630,13 +630,13 @@ def update_sku(pid, skuid):
             sets.append(f'{f}=%s')
             vals.append(data[f])
     if not sets:
-        return jsonify({'success': False, 'error': '无更新数据'}), 400
+        return jsonify({'success': False, 'error': _'No Update Data'}), 400
     sets.append("updated_at=NOW()")
     vals.append(skuid)
     with get_db() as conn:
         conn.execute(f'UPDATE product_skus SET {",".join(sets)} WHERE id=%s AND product_id=%s', vals + [pid])
         conn.commit()
-    return jsonify({'success': True, 'message': 'SKU已更新'})
+    return jsonify({'success': True, 'message': _'SKU Updated'})
 
 
 @shop_bp.route('/products/<int:pid>/skus/<int:skuid>', methods=['DELETE'])
@@ -648,7 +648,7 @@ def delete_sku(pid, skuid):
     with get_db() as conn:
         conn.execute('DELETE FROM product_skus WHERE id=%s AND product_id=%s', (skuid, pid))
         conn.commit()
-    return jsonify({'success': True, 'message': 'SKU已删除'})
+    return jsonify({'success': True, 'message': _'SKU Deleted'})
 
 
 # =============================================
@@ -690,7 +690,7 @@ def create_category():
     data = request.get_json() or {}
     name = data.get('name', '').strip()
     if not name:
-        return jsonify({'success': False, 'error': '分类名不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Category name cannot be empty'}), 400
     parent_id = int(data.get('parent_id', 0))
     level = 0
     if parent_id:
@@ -709,8 +709,8 @@ def create_category():
             cid = conn.execute('SELECT lastval()').fetchone()['lastval']
             conn.commit()
         except Exception as e:
-            return jsonify({'success': False, 'error': f'创建失败: {e}'}), 400
-    return jsonify({'success': True, 'data': {'id': cid}, 'message': '分类已创建'})
+            return jsonify({'success': False, 'error': f_'Creation failed: {e}'}), 400
+    return jsonify({'success': True, 'data': {'id': cid}, 'message': _'Category created'})
 
 
 @shop_bp.route('/categories/<int:cid>', methods=['PUT'])
@@ -728,7 +728,7 @@ def update_category(cid):
             sets.append(f'{f}=%s')
             vals.append(data[f])
     if not sets:
-        return jsonify({'success': False, 'error': '无更新数据'}), 400
+        return jsonify({'success': False, 'error': _'No Update Data'}), 400
     # 如果更新了 parent_id，重算 level
     if 'parent_id' in data:
         parent_id = int(data.get('parent_id', 0))
@@ -745,7 +745,7 @@ def update_category(cid):
     with get_db() as conn:
         conn.execute(f'UPDATE categories SET {",".join(sets)} WHERE id=%s', vals)
         conn.commit()
-    return jsonify({'success': True, 'message': '分类已更新'})
+    return jsonify({'success': True, 'message': _'Category updated'})
 
 
 @shop_bp.route('/categories/<int:cid>', methods=['DELETE'])
@@ -762,7 +762,7 @@ def delete_category(cid):
         # 检查是否有商品使用此分类
         prods = conn.execute('SELECT id FROM products WHERE category_id=%s LIMIT 1', (cid,)).fetchall()
         if prods:
-            return jsonify({'success': False, 'error': '该分类下有商品，无法删除'}), 400
+            return jsonify({'success': False, 'error': _'Cannot delete as there are items in this category'}), 400
         conn.execute('DELETE FROM categories WHERE id=%s', (cid,))
         conn.commit()
 # =============================================
@@ -824,7 +824,7 @@ class ShopAIProcessor:
             )
             if resp.choices and resp.choices[0].message.content:
                 return True, resp.choices[0].message.content.strip()
-            return False, 'AI 返回空内容'
+            return False, _'AI response is empty'
         except Exception as e:
             return False, str(e)
 
@@ -836,13 +836,13 @@ class ShopAIProcessor:
         """生成 3 个风格不同的标题选项"""
         original_title = product_info.get('title', '')
         if not original_title:
-            return False, '原始标题不能为空'
+            return False, _'Original title cannot be empty'
 
         prompt = f'''你是一个电商标题优化专家。请根据以下商品信息，生成 3 个优化后的商品标题。
 
 原始标题：{original_title}
-商品描述：{product_info.get('description', '无')[:200]}
-商品类目：{product_info.get('category', '无')}
+商品描述：{product_info.get('description', _'None')[:200]}
+商品类目：{product_info.get('category', _'None')}
 
 要求：
 1. 标题长度 20-40 字
@@ -851,7 +851,7 @@ class ShopAIProcessor:
 4. 3 个标题风格不同：①专业型  ②吸引力型  ③简洁型
 
 请以 JSON 格式返回，不要包含任何其他文本：
-[{{"id":1,"title":"标题1","style":"professional","reason":"选择理由"}},{{"id":2,"title":"标题2","style":"appealing","reason":"选择理由"}},{{"id":3,"title":"标题3","style":"concise","reason":"选择理由"}}]'''
+[{{"id":1,"title":_"Title 1","style":"professional","reason":_"Select reason"}},{{"id":2,"title":_"Title 2","style":"appealing","reason":_"Select reason"}},{{"id":3,"title":_"Title 3","style":"concise","reason":_"Select reason"}}]'''
 
         success, response = self._call_ai(prompt, max_tokens=800, temperature=0.8)
         if not success:
@@ -865,7 +865,7 @@ class ShopAIProcessor:
                 if m:
                     options = json.loads(m.group())
                 else:
-                    return False, 'AI 返回格式无效，未能解析 JSON'
+                    return False, _'AI response format is invalid, failed to parse JSON'
             result = []
             for opt in options:
                 result.append({
@@ -876,13 +876,13 @@ class ShopAIProcessor:
                 })
             return True, result
         except (json.JSONDecodeError, Exception) as e:
-            return False, f'解析 AI 返回结果失败: {e}'
+            return False, f_'Failed to parse AI return result: {e}'
 
     # ── 描述优化 ──
     def optimize_description(self, original_description, product_features=None):
         """重写商品描述，突出卖点"""
         if not original_description or not original_description.strip():
-            return False, '原始描述不能为空'
+            return False, _'Original description cannot be empty'
 
         prompt = f'''你是一个电商描述优化专家。请优化以下商品描述：
 
@@ -913,7 +913,7 @@ class ShopAIProcessor:
 
 商品名称：{product_info.get('title', '')}
 商品描述：{product_info.get('description', '')[:300]}
-{('规格: ' + specs_text) if specs_text else ''}
+{(_'Specification: ' + specs_text) if specs_text else ''}
 
 要求：
 1. 每个卖点一句话，简洁有力
@@ -922,7 +922,7 @@ class ShopAIProcessor:
 4. 适合在商品详情页展示
 
 请以 JSON 数组格式返回，不要包含其他文本：
-["卖点1","卖点2","卖点3"]'''
+[_"Feature 1",_"Feature 2",_"Feature 3"]'''
 
         success, response = self._call_ai(prompt, max_tokens=500, temperature=0.6)
         if not success:
@@ -954,13 +954,13 @@ class ShopAIProcessor:
         prompt = f'''请为以下商品生成 5-8 个相关标签：
 
 商品名称：{product_info.get('title', '')}
-商品类目：{product_info.get('category', '无')}
+商品类目：{product_info.get('category', _'None')}
 描述：{desc[:100]}
 
 要求：标签需覆盖商品核心属性、功能、使用场景。
 
 请以 JSON 数组格式返回：
-["标签1","标签2","标签3"]'''
+[_"Tag 1",_"Tag 2",_"Tag 3"]'''
 
         success, response = self._call_ai(prompt, max_tokens=200, temperature=0.5)
         if not success:
@@ -998,7 +998,7 @@ def ai_optimize_product(pid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         product = _product_to_dict(row)
 
     title = product.get('title', '')
@@ -1054,11 +1054,11 @@ def ai_optimize_product(pid):
                 result['tags'] = tags
 
         _log_admin_action(payload.get('user_id', 0), 'ai_optimize', 'product', pid,
-                          f'AI优化: {title[:30]}...')
+                          f_'AI Optimization: {title[:30]}...')
         return jsonify({'success': True, 'data': result})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': f'AI优化失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f_'AI Optimization Failed: {str(e)}'}), 500
 
 
 @shop_bp.route('/products/<int:pid>/ai-title', methods=['POST'])
@@ -1070,12 +1070,12 @@ def ai_optimize_title(pid):
 
     proc = _get_ai_processor()
     if not proc or not proc.engine:
-        return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
+        return jsonify({'success': False, 'error': _'AI Service Unavailable'}), 503
 
     with get_db() as conn:
         row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         product = _product_to_dict(row)
 
     try:
@@ -1086,7 +1086,7 @@ def ai_optimize_title(pid):
             'description': features_str or (product.get('description', '')[:200]),
         })
         if not success:
-            return jsonify({'success': False, 'error': options or 'AI标题生成失败'}), 500
+            return jsonify({'success': False, 'error': options or _'AI Title Generation Failed'}), 500
         return jsonify({'success': True, 'data': {'options': options}})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1101,24 +1101,24 @@ def ai_optimize_description(pid):
 
     proc = _get_ai_processor()
     if not proc or not proc.engine:
-        return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
+        return jsonify({'success': False, 'error': _'AI Service Unavailable'}), 503
 
     with get_db() as conn:
         row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         product = _product_to_dict(row)
 
     data = request.get_json() or {}
     custom_desc = data.get('description', '') or product.get('description', '')
     if not custom_desc:
-        return jsonify({'success': False, 'error': '没有可优化的描述内容'}), 400
+        return jsonify({'success': False, 'error': _'No describable content to optimize'}), 400
 
     try:
         features_str = ' '.join(product.get('features', []))
         success, optimized = proc.optimize_description(custom_desc, {'specs': features_str})
         if not success:
-            return jsonify({'success': False, 'error': optimized or 'AI描述优化失败'}), 500
+            return jsonify({'success': False, 'error': optimized or _'AI Description Optimization Failed'}), 500
         return jsonify({'success': True, 'data': {'description': optimized}})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1133,12 +1133,12 @@ def ai_generate_features(pid):
 
     proc = _get_ai_processor()
     if not proc or not proc.engine:
-        return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
+        return jsonify({'success': False, 'error': _'AI Service Unavailable'}), 503
 
     with get_db() as conn:
         row = conn.execute('SELECT * FROM products WHERE id=%s', (pid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '商品不存在'}), 404
+            return jsonify({'success': False, 'error': _'Product does not exist'}), 404
         product = _product_to_dict(row)
 
     try:
@@ -1148,7 +1148,7 @@ def ai_generate_features(pid):
             'specs': product.get('features', []),
         })
         if not success:
-            return jsonify({'success': False, 'error': 'AI卖点生成失败'}), 500
+            return jsonify({'success': False, 'error': _'AI Selling Point Generation Failed'}), 500
         return jsonify({'success': True, 'data': {'features': points}})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1170,7 +1170,7 @@ def ai_batch_optimize():
 
     proc = _get_ai_processor()
     if not proc or not proc.engine:
-        return jsonify({'success': False, 'error': 'AI服务不可用'}), 503
+        return jsonify({'success': False, 'error': _'AI Service Unavailable'}), 503
 
     results = []
     with get_db() as conn:
@@ -1220,7 +1220,7 @@ def ai_batch_optimize():
 
     _log_admin_action(payload.get('user_id', 0), 'ai_batch_optimize', 'product',
                       ','.join(str(x) for x in product_ids),
-                      f'批量AI优化({optimize_type}): {len(results)}个')
+                      f_'Batch AI Optimization ({optimize_type}): {len(results)} items')
     return jsonify({'success': True, 'data': {'results': results, 'total': len(results)}})
 
 
@@ -1279,7 +1279,7 @@ def order_detail(oid):
                WHERE oi.id=%s''', (oid,)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '订单不存在'}), 404
+            return jsonify({'success': False, 'error': _'Order does not exist'}), 404
 
         d = dict(row)
 
@@ -1314,9 +1314,9 @@ def confirm_order(oid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '订单不存在'}), 404
+            return jsonify({'success': False, 'error': _'Order does not exist'}), 404
         if row['status'] != 'pending':
-            return jsonify({'success': False, 'error': '只能确认待支付订单'}), 400
+            return jsonify({'success': False, 'error': _'Only confirm pending payment orders'}), 400
         conn.execute(
             "UPDATE order_items SET status='paid', paid_at=NOW() WHERE id=%s",
             (oid,))
@@ -1331,7 +1331,7 @@ def confirm_order(oid):
 
     # ── 云服务自动开通（已移除）──
 
-    return jsonify({'success': True, 'message': '已确认支付'})
+    return jsonify({'success': True, 'message': _'Payment confirmed'})
 
 
 @shop_bp.route('/orders/<int:oid>/refund', methods=['POST'])
@@ -1343,11 +1343,11 @@ def refund_order(oid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '订单不存在'}), 404
+            return jsonify({'success': False, 'error': _'Order does not exist'}), 404
         if row['status'] == 'refunded':
-            return jsonify({'success': False, 'error': '订单已退款'}), 400
+            return jsonify({'success': False, 'error': _'Order refunded'}), 400
         if row['status'] not in ('paid', 'shipped', 'refunding'):
-            return jsonify({'success': False, 'error': '当前订单状态不允许退款'}), 400
+            return jsonify({'success': False, 'error': _'Current order status does not allow refund'}), 400
 
         payment_method = row['payment_method'] or ''
         payment_trade_no = row['payment_trade_no'] or ''
@@ -1404,16 +1404,16 @@ def complete_order_admin(oid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '订单不存在'}), 404
+            return jsonify({'success': False, 'error': _'Order does not exist'}), 404
         if row['status'] not in ('paid', 'shipped'):
-            return jsonify({'success': False, 'error': '当前订单状态不允许标记完成'}), 400
+            return jsonify({'success': False, 'error': _'Current order status does not allow marking as completed'}), 400
         conn.execute(
             "UPDATE order_items SET status='completed', completed_at=NOW() WHERE id=%s",
             (oid,)
         )
         conn.commit()
         _log_admin_action(conn, payload['user_id'], 'complete', 'order', oid, '')
-    return jsonify({'success': True, 'message': '已标记为已完成'})
+    return jsonify({'success': True, 'message': _'Marked as completed'})
 
 
 # =============================================
@@ -1447,11 +1447,11 @@ def ship_order(oid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM order_items WHERE id=%s', (oid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '订单不存在'}), 404
+            return jsonify({'success': False, 'error': _'Order does not exist'}), 404
         if row['status'] != 'paid':
-            return jsonify({'success': False, 'error': '只能对已支付订单发货'}), 400
+            return jsonify({'success': False, 'error': _'Only ship paid orders'}), 400
         if row.get('shipping_status') == 'shipped':
-            return jsonify({'success': False, 'error': '该订单已发货'}), 400
+            return jsonify({'success': False, 'error': _'This order has been shipped'}), 400
 
         conn.execute(
             "UPDATE order_items SET tracking_company=%s, tracking_number=%s, "
@@ -1469,7 +1469,7 @@ def ship_order(oid):
     except Exception:
         pass
 
-    return jsonify({'success': True, 'message': f'已标记发货 ({company}: {tracking})'})
+    return jsonify({'success': True, 'message': f_'Marked as shipped ({company}: {tracking})'})
 
 
 @shop_bp.route('/orders/<int:oid>/track', methods=['GET'])
@@ -1486,15 +1486,15 @@ def track_order(oid):
             'WHERE oi.id=%s', (oid,)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '订单不存在'}), 404
+            return jsonify({'success': False, 'error': _'Order does not exist'}), 404
         if not row.get('tracking_number'):
-            return jsonify({'success': False, 'error': '该订单尚未发货'}), 400
+            return jsonify({'success': False, 'error': _'This order has not been shipped'}), 400
 
         shipper_code = row['kdniao_code'] or row['tracking_company']
         logistic_code = row['tracking_number']
 
     # 调用物流插件查询
-    success, data, err_msg = False, {}, '物流插件未启用'
+    success, data, err_msg = False, {}, _'Logistics plugin is not enabled'
     _pm = __import__('flask').current_app.extensions.get('plugin_manager')
     _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
     if _logistics:

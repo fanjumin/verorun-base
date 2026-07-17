@@ -64,7 +64,7 @@ class ContentFactoryPlugin(BasePlugin):
         """启用时初始化数据库 + i18n（幂等）"""
         init_cf_db()
         init_i18n(self.t)
-        print('[ContentFactoryPlugin] ✅ 内容工厂插件已启用')
+        print(_'[ContentFactoryPlugin] ✅ Content Factory plugin enabled')
         return True
 
     def register_routes(self):
@@ -74,5 +74,5 @@ class ContentFactoryPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print('[ContentFactoryPlugin] ⚠️  内容工厂插件已禁用')
+        print(_'[ContentFactoryPlugin] ⚠️ Content Factory plugin disabled')
         return True

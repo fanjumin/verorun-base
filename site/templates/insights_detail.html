@@ -38,7 +38,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label={{ _('Menu') | tojson }} class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a href="/docs">{{ _('Docs') }}</a>
@@ -129,8 +129,8 @@ function submitComment(){
 <h3 style="font-size:18px;font-weight:700;margin-bottom:20px">{{ _('Comments') }}<span id="cmtCount" style="font-size:13px;color:var(--text-muted);font-weight:400"></span></h3>
 <div class="cd" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:24px">
 <div style="display:flex;gap:12px;margin-bottom:10px">
-<input class="in" id="cmtNickname" placeholder="昵称" style="flex:1;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text)"/>
-<input class="in" id="cmtEmail" placeholder="邮箱（选填）" style="flex:1;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text)"/>
+<input class="in" id="cmtNickname" placeholder={{ _('Nickname') | tojson }} style="flex:1;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text)"/>
+<input class="in" id="cmtEmail" placeholder={{ _('Email (optional)') | tojson }} style="flex:1;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text)"/>
 </div>
 <textarea id="cmtContent" maxlength="500" placeholder="写下你的评论...（最多500字）" style="width:100%;min-height:80px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);resize:vertical;font-family:inherit"></textarea>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
@@ -148,16 +148,16 @@ function submitComment(postId){
   var nm=document.getElementById('cmtNickname').value.trim()||'Anonymous';
   var ct=document.getElementById('cmtContent').value.trim();
   if(!ct){showCmtMsg('请输入评论内容','error');return}
-  if(ct.length>500){showCmtMsg('评论不超过500字','error');return}
-  var btn=event.target;btn.disabled=true;btn.textContent='提交中...';
+  if(ct.length>500){showCmtMsg({{ _('Comment cannot exceed 500 characters') | tojson }},'error');return}
+  var btn=event.target;btn.disabled=true;btn.textContent={{ _('Submitting...') | tojson }};
   fetch('/api/v1/comments',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({post_id:postId,nickname:nm,content:ct})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.success){showCmtMsg(d.data.message||'发布成功','success');
+      if(d.success){showCmtMsg(d.data.message||{{ _('Published Successfully') | tojson }},'success');
         document.getElementById('cmtContent').value='';loadComments(postId)}
-      else{showCmtMsg(d.error||'失败','error')}
-      btn.disabled=false;btn.textContent='发布评论';
-    }).catch(function(){showCmtMsg('请求失败','error');btn.disabled=false;btn.textContent='发布评论'});
+      else{showCmtMsg(d.error||{{ _('Failed"') | tojson }},'error')}
+      btn.disabled=false;btn.textContent={{ _('Post Comment') | tojson }};
+    }).catch(function(){showCmtMsg('请求失败','error');btn.disabled=false;btn.textContent={{ _('Post Comment') | tojson }}});
 }
 function loadComments(postId){
   fetch('/api/v1/comments/'+postId).then(function(r){return r.json()}).then(function(d){
@@ -166,7 +166,7 @@ function loadComments(postId){
     var el=document.getElementById('cmtList');
     var cnt=document.getElementById('cmtCount');
     if(cnt)cnt.textContent='('+d.data.total+')';
-    if(!items.length){el.innerHTML='<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:20px">暂无评论</div>';return}
+    if(!items.length){el.innerHTML={{ _('<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:20px">No comments</div>') | tojson }};return}
     var h='';
     items.forEach(function(c){
       h+='<div style="padding:12px 0;border-bottom:1px solid var(--border)">';

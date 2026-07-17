@@ -249,7 +249,7 @@ function loadStatus(){
         vd.style.display='none';
       }else if(dt.verification_status==='rejected'){
         bar.className='status-bar none';
-        bar.innerHTML='&#10060; {{ _('企业认证未通过:') }}'+(dt.review_notes||'{{ _('Please contact admin') }}');
+        bar.innerHTML='&#10060; {{ _('Enterprise Verification Failed:') }}'+(dt.review_notes||'{{ _('Please contact admin') }}');
         vd.style.display='none';
       }else{
         bar.className='status-bar none';
