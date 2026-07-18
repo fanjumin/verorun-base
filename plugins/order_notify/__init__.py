@@ -60,7 +60,7 @@ class OrderNotifyPlugin(BasePlugin):
         if uid:
             self._notify_user(
                 uid,
-                self.t(_'Order has been created'),
+                self.t(_('Order has been created')),
                 self.t('您的订单 %s 已创建，金额 ¥%.2f，请尽快完成支付。') % (oid, total),
                 f'/shop/orders'
             )
@@ -83,8 +83,8 @@ class OrderNotifyPlugin(BasePlugin):
         if uid:
             self._notify_user(
                 uid,
-                self.t(_'Payment successful'),
-                self.t(_'Your order %s has been successfully paid. We will ship it to you as soon as possible!') % oid,
+                self.t(_('Payment successful')),
+                self.t(_('Your order %s has been successfully paid. We will ship it to you as soon as possible!')) % oid,
                 f'/shop/orders'
             )
 
@@ -95,10 +95,10 @@ class OrderNotifyPlugin(BasePlugin):
         company = kw.get('company', '')
         tracking = kw.get('tracking_number', '')
         if uid:
-            msg = self.t(_'Your order %s has been shipped!') % oid
+            msg = self.t(_('Your order %s has been shipped!')) % oid
             if company and tracking:
                 msg += self.t('\n快递: %s | 单号: %s') % (company, tracking)
-            self._notify_user(uid, self.t(_'Shipped'), msg, f'/shop/orders')
+            self._notify_user(uid, self.t(_('Shipped')), msg, f'/shop/orders')
 
     def _on_refunded(self, **kw):
         """退款通知"""
@@ -116,14 +116,14 @@ class OrderNotifyPlugin(BasePlugin):
         uid = kw.get('user_id')
         oid = kw.get('order_id')
         if uid:
-            self._notify_user(uid, self.t(_'Order canceled'),
-                              self.t(_'Your order %s has been canceled.') % oid, f'/shop/orders')
+            self._notify_user(uid, self.t(_('Order canceled')),
+                              self.t(_('Your order %s has been canceled.')) % oid, f'/shop/orders')
 
     def _on_completed(self, **kw):
         """完成通知"""
         uid = kw.get('user_id')
         oid = kw.get('order_id')
         if uid:
-            self._notify_user(uid, self.t(_'Order completed'),
+            self._notify_user(uid, self.t(_('Order completed')),
                               self.t('您的订单 %s 已完成，欢迎再次光临！请给商品评价吧。') % oid,
                               f'/shop/orders')

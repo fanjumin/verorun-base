@@ -53,7 +53,7 @@ class SmsPlugin(BasePlugin):
         from .models import init_sms_db
         init_sms_db()
         init_i18n(self.t)
-        print(_'[SmsPlugin] ✅ SMS service plugin is enabled (sms.db)')
+        print(_('[SmsPlugin] ✅ SMS service plugin is enabled (sms.db)'))
         return True
 
     def register_routes(self):
@@ -63,7 +63,7 @@ class SmsPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print(_'[SmsPlugin] ⚠️ SMS service plugin is disabled')
+        print(_('[SmsPlugin] ⚠️ SMS service plugin is disabled'))
         return True
 
     # ── 对外接口（供其他模块通过 get_instance('sms') 调用）──

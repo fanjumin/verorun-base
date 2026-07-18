@@ -38,7 +38,7 @@ class OauthConfigPlugin(_BASE_CLS):
         # 自动初始化插件独立数据库
         from .models import init_oauth_tables
         init_oauth_tables()
-        print(_'[OauthConfigPlugin] ✅ OAuth login & configuration plugin enabled')
+        print(_('[OauthConfigPlugin] ✅ OAuth login & configuration plugin enabled'))
         return True
 
     def register_routes(self):
@@ -49,5 +49,5 @@ class OauthConfigPlugin(_BASE_CLS):
         return [oauth_cfg_bp]
 
     def on_disable(self, registry):
-        print(_'[OauthConfigPlugin] ⚠️ OAuth plugin disabled')
+        print(_('[OauthConfigPlugin] ⚠️ OAuth plugin disabled'))
         return True

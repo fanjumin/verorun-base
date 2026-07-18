@@ -163,7 +163,7 @@ def get_access_token(code, site_domain=None):
     private_key = cfg['client_secret']
 
     if not private_key:
-        return {'error': _'Alipay private key not configured'}
+        return {'error': _('Alipay private key not configured')}
 
     try:
         # alipay.system.oauth.token 不使用 biz_content
@@ -200,13 +200,13 @@ def get_access_token(code, site_domain=None):
             error_resp = result.get('error_response', {})
             sub = error_resp.get('sub_msg', '')
             msg = error_resp.get('msg', '')
-            err_msg = sub or msg or _'Alipay API Error'
+            err_msg = sub or msg or _('Alipay API Error')
             print(f'[alipay get_access_token error_response] {err_msg}')
             import sys as _sys; _sys.stdout.flush()
             return {'error': err_msg}
 
         if token_resp.get('code') != '10000' and 'access_token' not in token_resp:
-            err_msg = token_resp.get('sub_msg', token_resp.get('msg', _'Alipay API Error'))
+            err_msg = token_resp.get('sub_msg', token_resp.get('msg', _('Alipay API Error')))
             print(f'[alipay get_access_token token_error] {err_msg}')
             import sys as _sys; _sys.stdout.flush()
             return {'error': err_msg}
@@ -230,7 +230,7 @@ def get_user_info(access_token, site_domain=None):
     cfg = _get_config(site_domain)
     if not cfg:
         return {
-            'nickname': _'Alipay User_stub',
+            'nickname': _('Alipay User_stub'),
             'avatar': '',
             'user_id': 'stub_alipay_user',
         }
@@ -239,7 +239,7 @@ def get_user_info(access_token, site_domain=None):
     private_key = cfg['client_secret']
 
     if not private_key:
-        return {'error': _'Alipay private key not configured'}
+        return {'error': _('Alipay private key not configured')}
 
     try:
         # alipay.user.info.share 使用 auth_token 而非 biz_content
@@ -266,7 +266,7 @@ def get_user_info(access_token, site_domain=None):
 
         user_data = body.get('alipay_user_info_share_response', {})
         if user_data.get('code') != '10000' and 'user_id' not in user_data:
-            return {'error': user_data.get('sub_msg', user_data.get('msg', _'Failed to Get User Info'))}
+            return {'error': user_data.get('sub_msg', user_data.get('msg', _('Failed to Get User Info')))}
 
         return {
             'nickname': user_data.get('nick_name', ''),

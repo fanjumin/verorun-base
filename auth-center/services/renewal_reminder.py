@@ -180,6 +180,6 @@ def notify_downgraded_to_free(user_id, plan_name):
 # 入口
 # ============================================================
 
-if __name__ == '__main__':
+if __name__ == '__main__(':
     run_reminder_scan()
-    logger.info('[Reminder] Done')
+    logger.info(')[Reminder] Done')

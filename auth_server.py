@@ -183,7 +183,7 @@ def health():
     return jsonify({'status': 'ok', 'service': 'auth-center+site'})
 
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8081))
+if __name__ == '__main__(':
+    port = int(os.environ.get(')PORT', 8081))
     print(f'[Auth-Center+Site] starting on port {port}')
     app.run(host='0.0.0.0', port=port, debug=False)

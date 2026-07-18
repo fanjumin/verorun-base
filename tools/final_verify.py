@@ -1,70 +1,39 @@
-"""Test admin login and verify full stack."""
+"""最终验证：API 端点 + 数据完整性"""
 import paramiko, time
 
-def ssh():
-    s = paramiko.SSHClient()
-    s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    s.connect('***REMOVED***', username='easykai', password='***REMOVED***', timeout=15, allow_agent=False, look_for_keys=False)
-    return s
+c = paramiko.SSHClient()
+c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+c.connect('***REMOVED***', username='easykai', password='***REMOVED***', timeout=30)
 
-def run(c, cmd, wait=3):
-    ch = c.get_transport().open_session()
-    ch.exec_command(cmd)
+def run(cmd, wait=3):
+    i, o, e = c.exec_command(cmd)
     time.sleep(wait)
-    out, err = b'', b''
-    while ch.recv_ready(): out += ch.recv(4096)
-    while ch.recv_stderr_ready(): err += ch.recv_stderr(4096)
-    ch.close()
-    return out.decode(errors='replace')
+    r = (o.read().decode(errors='replace') + e.read().decode(errors='replace')).strip()
+    if r: print(r[:1200])
+    return r
 
-s = ssh()
+PG = 'PGPASSWORD=***REMOVED*** psql -h localhost -U easykai -d verorun'
 
-print("="*60)
-print("1. ADMIN LOGIN TEST")
-print("="*60)
-# Try password from SQLite: pbkdf2:sha256:100000$17a7277c304c09a4$17d9971b5bc684dfb6aa2d4d3866471cbb7497f195d1b0c68a4d64b032ba4a1e
-# We need to know the plain text password. Let's try common ones
-for pw in ['admin123', 'admin', '13800138000', '123456', 'password']:
-    out = run(s, f'curl -s -w ":%{{http_code}}" -X POST http://localhost:8084/admin/login -H "Content-Type: application/json" -d \'{{"username":"13800138000","password":"{pw}"}}\' 2>&1', 2)
-    code = out.split(':')[-1].strip()
-    print(f'  password="{pw}": {code} - {out[:100]}')
+# 1. Model Management API（admin:8084）
+print('=== 1. Model Management API ===')
+run("curl -s http://localhost:8084/admin/providers 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print('success:', d.get('success')); print('providers:', len(d.get('data',[]))); [print(f'  {p[\"slug\"]}: {len(p.get(\"models\",[]))} models') for p in d.get('data',[])]\"", 4)
 
-print("\n" + "="*60)
-print("2. PG AUTHENTICATION: Get password hash for admin")
-print("="*60)
-out = run(s, r"PGPASSWORD=***REMOVED*** psql -h localhost -U easykai -d verorun -t -c \"SELECT id, username, display_name, password_hash FROM public.users WHERE is_admin=1 LIMIT 3\" 2>&1", 3)
-print(out[:500])
+# 2. 所有缺失表最终确认
+print('\n=== 2. 最终表确认 ===')
+for tbl in ['voice_templates','chatbot_sessions','invoices','notification_templates','notification_logs','user_interests','knowledge_blocks','providers','provider_models']:
+    r = run(f"{PG} -t -c \"SELECT count(*) FROM {tbl}\" 2>&1", 2)
+    ok = 'OK' if r.strip().isdigit() else 'FAIL'
+    print(f'  {tbl}: {ok}')
 
-print("\n" + "="*60)
-print("3. ALL ENDPOINTS TEST")
-print("="*60)
-endpoints = [
-    ('GET', 'http://localhost:8081/', 'Auth root'),
-    ('GET', 'http://localhost:8081/health', 'Auth health'),
-    ('GET', 'http://localhost:8083/', 'Platform root'),
-    ('GET', 'http://localhost:8084/', 'Admin root'),
-    ('GET', 'http://localhost:8084/admin/login', 'Admin login page'),
-    ('GET', 'http://localhost:8084/health', 'Admin health'),
-]
-for method, url, label in endpoints:
-    out = run(s, f'curl -s -o /dev/null -w "%{{http_code}}" -X {method} {url} 2>&1', 2)
-    print(f'  {label}: {out.strip()}')
+# 3. 服务状态
+print('\n=== 3. 服务状态 ===')
+for name, port in [('auth',8081),('platform',8083),('admin',8084)]:
+    i, o, e = c.exec_command(f'curl -s -o /dev/null -w "%{{http_code}}" http://localhost:{port}/ 2>&1')
+    time.sleep(1)
+    print(f'  {name}:{port} -> {o.read().decode().strip()}')
 
-print("\n" + "="*60)
-print("4. AUTH LOG ERRORS (keyword match)")
-print("="*60)
-out = run(s, 'grep -v "INFO:werkzeug" /tmp/auth_8081.log | grep -iE "traceback|error|exception|cannot" | head -10', 2)
-if out.strip():
-    print(out[:1000])
-else:
-    print('  No errors')
+# 4. 检查 init_db 是否完整运行（查看最后一条 Migration 消息）
+print('\n=== 4. init_db 完整性 ===')
+run("cd /home/easykai/easykai-workspace/easykai.cn/auth-center ; PG_PASSWORD=***REMOVED*** PG_DB=verorun PG_USER=easykai PG_HOST=localhost PG_PORT=5432 DEPLOY_MARKET=cn DEPLOY_DOMAIN=easykai.cn python3 -c \"from models.database import init_db; init_db()\" 2>&1 | tail -5", 10)
 
-print("\n" + "="*60)
-print("5. OTHER DATA COUNTS")
-print("="*60)
-tables = ['site_configs', 'system_config', 'cms_categories', 'cms_posts', 'subscriptions', 'admin_profiles']
-for t in tables:
-    out = run(s, f'PGPASSWORD=***REMOVED*** psql -h localhost -U easykai -d verorun -t -c "SELECT count(*) FROM {t}" 2>&1', 2)
-    print(f'  {t}: {out.strip()}')
-
-s.close()
+c.close()

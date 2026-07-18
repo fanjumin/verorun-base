@@ -34,7 +34,7 @@ DEPLOY_HASH_FILE = os.path.join(LOCAL_ROOT, '.trae', '.deploy-hash')
 # Directories that should never be deployed to the server
 EXCLUDE_DIRS = {
     'scripts',         # local deployment/dev tools only
-    '.git', '__pycache__', 'tmp', 'node_modules', '.env',
+    '.git', '__pycache__(', ')tmp', 'node_modules', '.env',
     '.trae', 'backups', '.kilo', 'venv',
     '__MACOSX', '.idea', '.vscode',
     'nginx-domains',

@@ -21,7 +21,7 @@ class LINEAdapter(BaseIMAdapter):
     def test_connection(self, data):
         token = (data.get('access_token') or '').strip()
         if not token:
-            return False, _'Channel Access Token cannot be empty'
+            return False, _('Channel Access Token cannot be empty')
         try:
             req = _ur.Request(
                 'https://api.line.me/v2/bot/info',
@@ -30,10 +30,10 @@ class LINEAdapter(BaseIMAdapter):
             resp = _json.loads(_ur.urlopen(req, timeout=10).read())
             if resp.get('userId'):
                 name = resp.get('displayName', '')
-                return True, f_'LINE Connected! Bot: {name}'
-            return False, f_"LINE Response: {resp}"
+                return True, f'LINE Connected! Bot: {name}'
+            return False, f"LINE Response: {resp}"
         except Exception as e:
-            return False, f_'Connection failed: {str(e)}'
+            return False, f'Connection failed: {str(e)}'
 
     def get_env_fallback(self):
         cfg = {}

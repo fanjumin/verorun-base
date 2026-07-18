@@ -159,7 +159,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'base',
         'category': 'base',
-        'name_zh': _'System Base',
+        'name_zh': _('System Base'),
         'name_en': 'System Base',
         'description_zh': 'CMS 内容管理 + Agent 矩阵 + 口令控制台 + 模型配置 + 邮件服务 + AI 图片生成',
         'description_en': 'CMS + Agent Matrix + Command Console + Model Config + Email + AI Image Gen',
@@ -172,7 +172,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'miniapp_wechat',
         'category': 'miniapp',
-        'name_zh': _'WeChat Mini Program',
+        'name_zh': _('WeChat Mini Program'),
         'name_en': 'WeChat Mini App',
         'description_zh': '生成并发布微信小程序',
         'description_en': 'Generate and publish WeChat Mini App',
@@ -183,7 +183,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'miniapp_douyin',
         'category': 'miniapp',
-        'name_zh': _'TikTok Mini Program',
+        'name_zh': _('TikTok Mini Program'),
         'name_en': 'Toutiao Mini App',
         'description_zh': '生成并发布抖音小程序',
         'description_en': 'Generate and publish Toutiao Mini App',
@@ -194,7 +194,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'miniapp_telegram',
         'category': 'miniapp',
-        'name_zh': _'Telegram Mini Program',
+        'name_zh': _('Telegram Mini Program'),
         'name_en': 'Telegram Mini App',
         'description_zh': '生成并发布 Telegram Mini App',
         'description_en': 'Generate and publish Telegram Mini App',
@@ -205,7 +205,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'miniapp_line',
         'category': 'miniapp',
-        'name_zh': _'LINE Mini Program',
+        'name_zh': _('LINE Mini Program'),
         'name_en': 'LINE Mini App',
         'description_zh': '生成并发布 LINE 小程序',
         'description_en': 'Generate and publish LINE Mini App',
@@ -217,7 +217,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'api_management',
         'category': 'feature',
-        'name_zh': _'API Management',
+        'name_zh': _('API Management'),
         'name_en': 'API Management',
         'description_zh': 'API 密钥生成、额度管理、调用统计、访问日志',
         'description_en': 'API key generation, quota management, call stats, access logs',
@@ -228,7 +228,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'enterprise_verify',
         'category': 'feature',
-        'name_zh': _'Enterprise Certification',
+        'name_zh': _('Enterprise Certification'),
         'name_en': 'Enterprise Verification',
         'description_zh': '企业资质认证服务',
         'description_en': 'Enterprise qualification verification',
@@ -239,7 +239,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'oauth_config',
         'category': 'feature',
-        'name_zh': _'OAuth Login Configuration',
+        'name_zh': _('OAuth Login Configuration'),
         'name_en': 'OAuth Login Config',
         'description_zh': '配置第三方 OAuth 登录（Google/GitHub/Facebook）',
         'description_en': 'Configure third-party OAuth login (Google/GitHub/Facebook)',
@@ -250,7 +250,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'site_domains',
         'category': 'feature',
-        'name_zh': _'Custom Domain',
+        'name_zh': _('Custom Domain'),
         'name_en': 'Custom Domain',
         'description_zh': '绑定独立域名到你的站点',
         'description_en': 'Bind a custom domain to your site',
@@ -261,7 +261,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'analytics',
         'category': 'feature',
-        'name_zh': _'Data analysis',
+        'name_zh': _('Data analysis'),
         'name_en': 'Analytics',
         'description_zh': '站点访问统计与趋势分析',
         'description_en': 'Site traffic stats and trend analysis',
@@ -272,7 +272,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'health_check',
         'category': 'feature',
-        'name_zh': _'Health Check',
+        'name_zh': _('Health Check'),
         'name_en': 'Health Check',
         'description_zh': '系统健康监控与自动告警',
         'description_en': 'System health monitoring and auto-alerting',
@@ -283,7 +283,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'sms_service',
         'category': 'feature',
-        'name_zh': _'SMS Service',
+        'name_zh': _('SMS Service'),
         'name_en': 'SMS Service',
         'description_zh': '短信验证码与通知发送',
         'description_en': 'SMS verification and notification',
@@ -294,7 +294,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'social_push',
         'category': 'feature',
-        'name_zh': _'Social Media Push',
+        'name_zh': _('Social Media Push'),
         'name_en': 'Social Push',
         'description_zh': '自动推送内容到社交媒体平台',
         'description_en': 'Auto-publish content to social media',
@@ -305,7 +305,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'content_factory',
         'category': 'feature',
-        'name_zh': _'Content Factory',
+        'name_zh': _('Content Factory'),
         'name_en': 'Content Factory',
         'description_zh': 'AI 批量内容生成',
         'description_en': 'AI batch content generation',
@@ -316,7 +316,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'automation',
         'category': 'feature',
-        'name_zh': _'Auto Task',
+        'name_zh': _('Auto Task'),
         'name_en': 'Automation',
         'description_zh': '定时自动执行工作流',
         'description_en': 'Scheduled workflow automation',
@@ -327,7 +327,7 @@ DEFAULT_ITEMS = [
     {
         'item_key': 'logistics',
         'category': 'feature',
-        'name_zh': _'Logistics Inquiry',
+        'name_zh': _('Logistics Inquiry'),
         'name_en': 'Logistics',
         'description_zh': '国际物流追踪查询',
         'description_en': 'International logistics tracking',

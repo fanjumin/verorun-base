@@ -109,7 +109,7 @@ class PluginDiscovery:
             plugin_dir = os.path.join(self.plugins_dir, entry)
             if not os.path.isdir(plugin_dir):
                 continue
-            if entry.startswith('_') or entry.startswith('.'):
+            if entry.startswith('_(') or entry.startswith(').'):
                 continue
             if not os.path.isfile(os.path.join(plugin_dir, '__init__.py')):
                 continue

@@ -57,7 +57,7 @@ def get_ad(ad_id):
         conn = _get_db()
         row = conn.execute('SELECT * FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
         if not row:
-            return {'success': False, 'error': _'Advertisement does not exist'}
+            return {'success': False, 'error': _('Advertisement does not exist')}
         d = dict(row)
         try:
             d['targeting_rules'] = json.loads(d.get('targeting_rules') or '{}')
@@ -74,7 +74,7 @@ def create_ad(data):
         # 校验必填
         name = (data.get('name') or '').strip()
         if not name:
-            return {'success': False, 'error': _'Advertisement name cannot be empty'}
+            return {'success': False, 'error': _('Advertisement name cannot be empty')}
 
         targeting = data.get('targeting_rules') or {}
         if isinstance(targeting, str):
@@ -123,7 +123,7 @@ def update_ad(ad_id, data):
         conn = get_ads_db()
         existing = conn.execute('SELECT id FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
         if not existing:
-            return {'success': False, 'error': _'Advertisement does not exist'}
+            return {'success': False, 'error': _('Advertisement does not exist')}
 
         # 构建动态更新字段
         fields = []
@@ -162,7 +162,7 @@ def update_ad(ad_id, data):
             params.append(targeting)
 
         if not fields:
-            return {'success': False, 'error': _'No fields to update'}
+            return {'success': False, 'error': _('No fields to update')}
 
         fields.append('updated_at=NOW()')
         params.append(ad_id)
@@ -215,12 +215,12 @@ def analyze_ads(days=7):
         daily = stats.get('daily', [])
 
         lines = [
-            f_"=== Advertising Performance Analysis (Last {days} Days) ==="",
-            f_"Total Impressions: {total.get('impressions', 0)}",
-            f_"Total Clicks: {total.get('clicks', 0)}",
-            f_"Overall CTR: {total.get('ctr', 0)}%",
+            f"=== Advertising Performance Analysis (Last {days} Days) ==="",
+            f"Total Impressions: {total.get('impressions', 0)}",
+            f"Total Clicks: {total.get('clicks', 0)}",
+            f"Overall CTR: {total.get('ctr', 0)}%",
             "",
-            _"Sort by Ad Performance:"
+            _("Sort by Ad Performance:")
         ]
 
         # 合并广告与累计数据（用当前累计 impressions/clicks）
@@ -229,23 +229,23 @@ def analyze_ads(days=7):
             imp = a.get('impressions', 0)
             clk = a.get('clicks', 0)
             ctr = round(clk / imp * 100, 2) if imp else 0.0
-            status = _'Running' if a.get('is_active') else _'Paused'
-            lines.append(f_"{i}. [{status}] {a.get('name')} | {a.get('position')} | Impressions {imp} | Clicks {clk} | CTR {ctr}%")
+            status = _('Running') if a.get('is_active') else _('Paused')
+            lines.append(f"{i}. [{status}] {a.get('name')} | {a.get('position')} | Impressions {imp} | Clicks {clk} | CTR {ctr}%")
 
         # 找出异常：高展示低点击
         low_ctr = [a for a in ads if a.get('impressions', 0) > 100 and (a.get('clicks', 0) / a.get('impressions', 0)) < 0.005]
         if low_ctr:
             lines.append("")
-            lines.append(_"Ads needing optimization (Impressions >100 and CTR <0.5%):")
+            lines.append(_("Ads needing optimization (Impressions >100 and CTR <0.5%):"))
             for a in low_ctr:
-                lines.append(f_"- {a.get('name')} ({a.get('position')}): Suggest to Change Material or Adjust Targeting")
+                lines.append(f"- {a.get('name')} ({a.get('position')}): Suggest to Change Material or Adjust Targeting")
 
         # 趋势
         if daily:
             lines.append("")
-            lines.append(_"Recent trends:")
+            lines.append(_("Recent trends:"))
             for r in daily[-7:]:
-                lines.append(f_"- {r['stat_date']}: Impressions {r.get('impressions', 0)}, Clicks {r.get('clicks', 0)}")
+                lines.append(f"- {r['stat_date']}: Impressions {r.get('impressions', 0)}, Clicks {r.get('clicks', 0)}")
 
         return {'success': True, 'data': '\n'.join(lines)}
     except Exception as e:

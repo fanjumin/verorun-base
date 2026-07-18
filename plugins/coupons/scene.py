@@ -2,7 +2,7 @@
 """
 场景券（Scene Coupon）定义
 =========================
-券不再只绑定_"Product"，而是绑定_"Scenario"。
+券不再只绑定_("Product")，而是绑定_("Scenario")。
 """
 
 
@@ -32,16 +32,16 @@ class SceneName:
 
 # 场景 → 可读描述（用于前端展示）
 SCENE_LABELS = {
-    SceneName.SHOP_GENERAL: _'Mall general',
-    SceneName.FIRST_ORDER: _'First order exclusive',
-    SceneName.REVIEW_REWARD: _'Review reward',
-    SceneName.PURCHASE_1688: _'1688 Procurement',
-    SceneName.AI_CONTENT: _'AI Content Generation',
-    SceneName.SUBSCRIPTION_RENEW: _'Renewal Exclusive',
-    SceneName.SUBSCRIPTION_UPGRADE: _'Upgrade discount',
-    SceneName.NEW_USER: _'New User Exclusive',
-    SceneName.PROMOTION: _'Promotion',
-    SceneName.REFERRAL: _'Gift for Referral',
+    SceneName.SHOP_GENERAL: _('Mall general'),
+    SceneName.FIRST_ORDER: _('First order exclusive'),
+    SceneName.REVIEW_REWARD: _('Review reward'),
+    SceneName.PURCHASE_1688: _('1688 Procurement'),
+    SceneName.AI_CONTENT: _('AI Content Generation'),
+    SceneName.SUBSCRIPTION_RENEW: _('Renewal Exclusive'),
+    SceneName.SUBSCRIPTION_UPGRADE: _('Upgrade discount'),
+    SceneName.NEW_USER: _('New User Exclusive'),
+    SceneName.PROMOTION: _('Promotion'),
+    SceneName.REFERRAL: _('Gift for Referral'),
 }
 
 SCENE_LABELS_EN = {

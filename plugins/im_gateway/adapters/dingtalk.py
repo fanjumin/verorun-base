@@ -22,7 +22,7 @@ class DingTalkAdapter(BaseIMAdapter):
         app_key = (data.get('app_key') or '').strip() or (data.get('appId') or '').strip()
         app_secret = (data.get('app_secret') or '').strip() or (data.get('appSecret') or '').strip()
         if not app_key or not app_secret:
-            return False, _'AppKey and AppSecret cannot be empty'
+            return False, _('AppKey and AppSecret cannot be empty')
         try:
             import requests as _req
             resp = _req.get(
@@ -31,7 +31,7 @@ class DingTalkAdapter(BaseIMAdapter):
             )
             rd = resp.json()
             if rd.get('access_token'):
-                return True, _'DingTalk connection successful!'
-            return False, f_"DingTalk returned: {rd.get('errmsg', 'unknown')} (errcode={rd.get('errcode')})"
+                return True, _('DingTalk connection successful!')
+            return False, f"DingTalk returned: {rd.get('errmsg', 'unknown')} (errcode={rd.get('errcode')})"
         except Exception as e:
-            return False, f_'Connection failed: {str(e)}'
+            return False, f'Connection failed: {str(e)}'

@@ -30,8 +30,8 @@ f = paramiko.SFTPClient.from_transport(t)
 f.put(os.path.join(LOCAL, 'auth-center/models/cms.py'),
       os.path.join(BASE, 'auth-center/models/cms.py'))
 f.close()
-run(f'rm -rf {BASE}/auth-center/models/__pycache__', 1)
-print('  done')
+run(f'rm -rf {BASE}/auth-center/models/__pycache__(', 1)
+print(')  done')
 
 # 2. Kill all
 print('\n=== Kill ===')

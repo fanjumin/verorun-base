@@ -88,6 +88,6 @@ async def api_root():
     }
 
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     import uvicorn
-    uvicorn.run("server:app", host=HOST, port=PORT, reload=True)
+    uvicorn.run(")server:app", host=HOST, port=PORT, reload=True)

@@ -40,7 +40,7 @@ def _require_admin():
     if not payload:
         return None, (jsonify({'success': False, 'error': '请先登录'}), 401)
     if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': _'Requires admin permissions'}), 403)
+        return None, (jsonify({'success': False, 'error': _('Requires admin permissions')}), 403)
     return payload, None
 
 
@@ -73,7 +73,7 @@ def admin_generate_code():
     duration_days = data.get('duration_days', 365)
 
     if not user_id:
-        return jsonify({'success': False, 'error': _'Missing user_id'}), 400
+        return jsonify({'success': False, 'error': _('Missing user_id')}), 400
 
     # 生成唯一部署码: DC-YYYYMMDD-XXXXXX
     raw = f"{datetime.now().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
@@ -110,7 +110,7 @@ def admin_revoke_code(code_id):
     with get_db() as conn:
         conn.execute("UPDATE deployment_codes SET status='revoked', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (code_id,))
         conn.commit()
-    return jsonify({'success': True, 'message': _'Deployment code has been revoked'})
+    return jsonify({'success': True, 'message': _('Deployment code has been revoked')})
 
 
 # ══════════════════════════════════════════════
@@ -139,7 +139,7 @@ def heartbeat():
     version = data.get('version', '')
 
     if not code:
-        return jsonify({'success': False, 'error': _'Missing deployment code'}), 400
+        return jsonify({'success': False, 'error': _('Missing deployment code')}), 400
 
     now = datetime.now()
 
@@ -152,7 +152,7 @@ def heartbeat():
     if not row:
         return jsonify({
             'success': True,
-            'data': {'valid': False, 'status': 'not_found', 'message': _'Deployment code does not exist'}
+            'data': {'valid': False, 'status': 'not_found', 'message': _('Deployment code does not exist')}
         })
 
     d = dict(row)
@@ -161,7 +161,7 @@ def heartbeat():
     if d['status'] == 'revoked':
         return jsonify({
             'success': True,
-            'data': {'valid': False, 'status': 'revoked', 'message': _'Deployment code has been revoked'}
+            'data': {'valid': False, 'status': 'revoked', 'message': _('Deployment code has been revoked')}
         })
 
     # 检查有效期
@@ -198,7 +198,7 @@ def check_subscription_public():
     """
     code = request.args.get('code', '').strip()
     if not code:
-        return jsonify({'success': False, 'error': _'Missing deployment code'}), 400
+        return jsonify({'success': False, 'error': _('Missing deployment code')}), 400
 
     with get_db() as conn:
         row = conn.execute(
@@ -207,7 +207,7 @@ def check_subscription_public():
         ).fetchone()
 
     if not row:
-        return jsonify({'success': False, 'error': _'Deployment code does not exist'}), 404
+        return jsonify({'success': False, 'error': _('Deployment code does not exist')}), 404
 
     d = dict(row)
     now = datetime.now()

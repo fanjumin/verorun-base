@@ -142,7 +142,7 @@ class AliApiItem:
         # 准备数据
         product_id = item_data.get('product_id')
         if not product_id:
-            raise ValueError(_"Product_id cannot be empty")
+            raise ValueError(_("Product_id cannot be empty"))
         
         # 检查是否存在
         cursor = conn.execute('SELECT id FROM ali_api_items WHERE product_id = %s', (product_id,))
@@ -289,8 +289,8 @@ class AliApiItem:
     def search_items(conn, keyword: str, limit: int = 50) -> List[Dict[str, Any]]:
         """搜索商品（已转义 LIKE 通配符）"""
         # 转义 LIKE 中的特殊字符 % 和 _
-        escaped = keyword.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        query = '''
+        escaped = keyword.replace('\\', '\\\\').replace('%', '\\%').replace('_(', ')\\_(')
+        query = ')''
             SELECT * FROM ali_api_items 
             WHERE (title LIKE %s ESCAPE '\\' OR original_title LIKE %s ESCAPE '\\' 
                    OR ai_title LIKE %s ESCAPE '\\' OR description LIKE %s ESCAPE '\\')
@@ -875,11 +875,11 @@ class AliApiConfig:
 
         # 打迁移标记
         AliApiConfig.set(conn, '_migrated_from_system_config',
-                         '1', _'Migration Marker (Do Not Delete)')
+                         '1', _('Migration Marker (Do Not Delete)'))
         conn.commit()
 
         if migrated:
-            print(f_'[AliApi] √ Migrated {migrated} configurations from system_config to ali_api_config')
+            print(f'[AliApi] √ Migrated {migrated} configurations from system_config to ali_api_config')
         return True
 
 
@@ -1023,12 +1023,12 @@ def migrate_data_from_main_db():
                             f"INSERT INTO {t} ({collist}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
                             [row[c] for c in cols],
                         )
-                    print(f_"[AliApi] Migrating legacy data {t}: {len(src_rows)} rows → PG schema ali_api")
+                    print(f"[AliApi] Migrating legacy data {t}: {len(src_rows)} rows → PG schema ali_api")
                 local_conn.commit()
     except ImportError:
         pass  # 脱离主项目，无需迁移
     except Exception as e:
-        print(f_"[AliApi] Legacy data migration skipped/failed (does not affect operation): {e}")
+        print(f"[AliApi] Legacy data migration skipped/failed (does not affect operation): {e}")
 
 
 def init_tables():
@@ -1051,10 +1051,10 @@ def init_tables():
         try:
             AliApiConfig.migrate_from_system_config(conn)
         except Exception as e:
-            print(f_"[AliApi] Configuration migration skipped: {e}")
-    print(_"[AliApi] Table initialization completed (PG schema ali_api)")
+            print(f"[AliApi] Configuration migration skipped: {e}")
+    print(_("[AliApi] Table initialization completed (PG schema ali_api)"))
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     # 测试数据库初始化
     init_tables()
-    print(_"AliApi data table initialization completed")
+    print(_")AliApi data table initialization completed")

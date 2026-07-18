@@ -65,7 +65,7 @@ def init_automation(app):
     # 6. 注册蓝图
     app.register_blueprint(automation_bp)
 
-    m.add_log('system', 0, 'info', _'✅ Automation System Initialized')
+    m.add_log('system', 0, 'info', _('✅ Automation System Initialized'))
     return _scheduler, _worker_pool
 
 
@@ -154,7 +154,7 @@ def create_job():
 
     data = request.get_json()
     if not data or not data.get('name'):
-        return _error(_'Name cannot be empty')
+        return _error(_('Name cannot be empty'))
 
     data['created_by'] = admin.get('id', 0)
 
@@ -163,7 +163,7 @@ def create_job():
     else:
         job_id = m.create_cron_job(data)
 
-    return _success({'job_id': job_id}, _'Task has been created')
+    return _success({'job_id': job_id}, _('Task has been created'))
 
 
 @automation_bp.route('/jobs/<int:job_id>', methods=['GET'])
@@ -175,7 +175,7 @@ def get_job(job_id):
 
     job = m.get_cron_job(job_id)
     if not job:
-        return _error(_'Task does not exist', 404)
+        return _error(_('Task does not exist'), 404)
     return _success(job)
 
 
@@ -188,7 +188,7 @@ def update_job(job_id):
 
     data = request.get_json()
     if not data:
-        return _error(_'Updated data cannot be empty')
+        return _error(_('Updated data cannot be empty'))
 
     if _scheduler:
         success = _scheduler.update_job(job_id, data)
@@ -196,8 +196,8 @@ def update_job(job_id):
         success = m.update_cron_job(job_id, data)
 
     if not success:
-        return _error(_'Task does not exist or is not updated', 404)
-    return _success(None, _'Task has been updated')
+        return _error(_('Task does not exist or is not updated'), 404)
+    return _success(None, _('Task has been updated'))
 
 
 @automation_bp.route('/jobs/<int:job_id>', methods=['DELETE'])
@@ -213,8 +213,8 @@ def delete_job(job_id):
         success = m.delete_cron_job(job_id)
 
     if not success:
-        return _error(_'Task does not exist', 404)
-    return _success(None, _'Task has been deleted')
+        return _error(_('Task does not exist'), 404)
+    return _success(None, _('Task has been deleted'))
 
 
 @automation_bp.route('/jobs/<int:job_id>/toggle', methods=['POST'])
@@ -226,7 +226,7 @@ def toggle_job(job_id):
 
     job = m.get_cron_job(job_id)
     if not job:
-        return _error(_'Task does not exist', 404)
+        return _error(_('Task does not exist'), 404)
 
     new_active = 0 if job['is_active'] else 1
     if _scheduler:
@@ -237,7 +237,7 @@ def toggle_job(job_id):
     else:
         m.update_cron_job(job_id, {'is_active': new_active})
 
-    return _success({'is_active': new_active}, _'Task has been' + (_'Restore' if new_active else _'Pause'))
+    return _success({'is_active': new_active}, _('Task has been') + (_('Restore') if new_active else _('Pause')))
 
 
 @automation_bp.route('/jobs/<int:job_id>/run', methods=['POST'])
@@ -249,16 +249,16 @@ def run_job_now(job_id):
 
     job = m.get_cron_job(job_id)
     if not job:
-        return _error(_'Task does not exist', 404)
+        return _error(_('Task does not exist'), 404)
 
     # 通过 Worker 池执行
     from .scheduler import SchedulerEngine
     if _scheduler:
         # 直接调用执行包装器
         _scheduler._execute_job_wrapper(job_id)
-        return _success(None, _'Task has been started')
+        return _success(None, _('Task has been started'))
 
-    return _error(_'Scheduler not initialized', 500)
+    return _error(_('Scheduler not initialized'), 500)
 
 
 # ============================================================
@@ -300,12 +300,12 @@ def create_workflow():
 
     data = request.get_json()
     if not data or not data.get('name'):
-        return _error(_'Workflow name cannot be empty')
+        return _error(_('Workflow name cannot be empty'))
 
     data['created_by'] = admin.get('id', 0)
     wf_id = m.create_workflow(data)
 
-    return _success({'workflow_id': wf_id}, _'Workflow has been created')
+    return _success({'workflow_id': wf_id}, _('Workflow has been created'))
 
 
 @automation_bp.route('/workflows/<int:wf_id>', methods=['GET'])
@@ -317,7 +317,7 @@ def get_workflow(wf_id):
 
     wf = m.get_workflow(wf_id)
     if not wf:
-        return _error(_'Workflow does not exist', 404)
+        return _error(_('Workflow does not exist'), 404)
 
     # 解析 JSON 字段以便前端使用
     if wf.get('definition'):
@@ -337,7 +337,7 @@ def update_workflow(wf_id):
 
     data = request.get_json()
     if not data:
-        return _error(_'Updated data cannot be empty')
+        return _error(_('Updated data cannot be empty'))
 
     # 确保 definition 存为 JSON 字符串
     if 'definition' in data and isinstance(data['definition'], dict):
@@ -347,9 +347,9 @@ def update_workflow(wf_id):
 
     success = m.update_workflow(wf_id, data)
     if not success:
-        return _error(_'Workflow does not exist', 404)
+        return _error(_('Workflow does not exist'), 404)
 
-    return _success(None, _'Workflow has been updated')
+    return _success(None, _('Workflow has been updated'))
 
 
 @automation_bp.route('/workflows/<int:wf_id>', methods=['DELETE'])
@@ -361,9 +361,9 @@ def delete_workflow(wf_id):
 
     success = m.delete_workflow(wf_id)
     if not success:
-        return _error(_'Workflow does not exist', 404)
+        return _error(_('Workflow does not exist'), 404)
 
-    return _success(None, _'Workflow has been deleted')
+    return _success(None, _('Workflow has been deleted'))
 
 
 # ============================================================
@@ -379,15 +379,15 @@ def run_workflow(wf_id):
 
     wf = m.get_workflow(wf_id)
     if not wf:
-        return _error(_'Workflow does not exist', 404)
+        return _error(_('Workflow does not exist'), 404)
     if not wf['is_active']:
-        return _error(_'Workflow has been disabled', 400)
+        return _error(_('Workflow has been disabled'), 400)
 
     data = request.get_json() or {}
     initial_context = data.get('context', {})
 
     if not _worker_pool:
-        return _error(_'Worker pool not initialized', 500)
+        return _error(_('Worker pool not initialized'), 500)
 
     try:
         inst_id = _worker_pool.workflow_engine.run_workflow(
@@ -398,7 +398,7 @@ def run_workflow(wf_id):
         )
         return _success({'instance_id': inst_id}, f'工作流已启动 (实例 #{inst_id})')
     except Exception as e:
-        return _error(f_'Launch failed: {str(e)}', 500)
+        return _error(f'Launch failed: {str(e)}', 500)
 
 
 # ============================================================
@@ -435,7 +435,7 @@ def get_instance(inst_id):
 
     inst = m.get_workflow_instance(inst_id)
     if not inst:
-        return _error(_'Instance Does Not Exist', 404)
+        return _error(_('Instance Does Not Exist'), 404)
 
     # 获取相关节点实例
     nodes = m.get_node_instances_by_workflow(inst_id)
@@ -458,8 +458,8 @@ def pause_instance(inst_id):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if _worker_pool and _worker_pool.workflow_engine.pause_instance(inst_id):
-        return _success(None, _'Workflow has been paused')
-    return _error(_'Operation Failed', 400)
+        return _success(None, _('Workflow has been paused'))
+    return _error(_('Operation Failed'), 400)
 
 
 @automation_bp.route('/instances/<int:inst_id>/resume', methods=['POST'])
@@ -470,8 +470,8 @@ def resume_instance(inst_id):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if _worker_pool and _worker_pool.workflow_engine.resume_instance(inst_id):
-        return _success(None, _'Workflow has been restored')
-    return _error(_'Operation Failed', 400)
+        return _success(None, _('Workflow has been restored'))
+    return _error(_('Operation Failed'), 400)
 
 
 @automation_bp.route('/instances/<int:inst_id>/cancel', methods=['POST'])
@@ -482,8 +482,8 @@ def cancel_instance(inst_id):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if _worker_pool and _worker_pool.workflow_engine.cancel_instance(inst_id):
-        return _success(None, _'Workflow has been canceled')
-    return _error(_'Operation Failed', 400)
+        return _success(None, _('Workflow has been canceled'))
+    return _error(_('Operation Failed'), 400)
 
 
 @automation_bp.route('/instances/<int:inst_id>/nodes/<int:node_inst_id>/approve',
@@ -504,8 +504,8 @@ def approve_node(inst_id, node_inst_id):
             reviewer=admin.get('id', 0)
         )
         if ok:
-            return _success(None, _'Approval' + (_'Approved' if approved else _'Reject'))
-    return _error(_'Operation Failed', 400)
+            return _success(None, _('Approval') + (_('Approved') if approved else _('Reject')))
+    return _error(_('Operation Failed'), 400)
 
 
 # ============================================================
@@ -559,7 +559,7 @@ def update_system_agent(agent_id):
 
     data = request.get_json()
     if not data:
-        return _error(_'Data cannot be empty')
+        return _error(_('Data cannot be empty'))
 
     fields = []
     values = []
@@ -574,7 +574,7 @@ def update_system_agent(agent_id):
             values.append(v)
 
     if not fields:
-        return _error(_'No Valid Fields')
+        return _error(_('No Valid Fields'))
 
     values.append(agent_id)
     with m.get_db() as conn:
@@ -583,7 +583,7 @@ def update_system_agent(agent_id):
             f"updated_at=NOW() WHERE id=%s",
             values
         )
-    return _success(None, _'System Agent has been updated')
+    return _success(None, _('System Agent has been updated'))
 
 
 # ============================================================
@@ -598,7 +598,7 @@ def scheduler_status():
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     if not _scheduler:
-        return _error(_'Scheduler not initialized', 500)
+        return _error(_('Scheduler not initialized'), 500)
 
     return _success(_scheduler.get_status())
 
@@ -612,8 +612,8 @@ def pause_scheduler():
 
     if _scheduler:
         _scheduler.pause()
-        return _success(None, _'Scheduler paused')
-    return _error(_'Scheduler not initialized', 500)
+        return _success(None, _('Scheduler paused'))
+    return _error(_('Scheduler not initialized'), 500)
 
 
 @automation_bp.route('/scheduler/resume', methods=['POST'])
@@ -625,8 +625,8 @@ def resume_scheduler():
 
     if _scheduler:
         _scheduler.resume()
-        return _success(None, _'Scheduler recovered')
-    return _error(_'Scheduler not initialized', 500)
+        return _success(None, _('Scheduler recovered'))
+    return _error(_('Scheduler not initialized'), 500)
 
 
 # ============================================================

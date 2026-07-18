@@ -37,7 +37,7 @@ def logistics_do_query():
     order_code = data.get('order_code', '').strip()
     customer_name = data.get('customer_name', '').strip()
     if not shipper_code or not logistic_code:
-        return jsonify({'success': False, 'error': _'Logistics Company Code and Tracking Number cannot be empty'}), 400
+        return jsonify({'success': False, 'error': _('Logistics Company Code and Tracking Number cannot be empty')}), 400
     success, result, error = query_track(shipper_code, logistic_code, order_code, customer_name)
     if success:
         return jsonify({'success': True, 'data': result})

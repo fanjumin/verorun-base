@@ -21,7 +21,7 @@ from services.deployment_config import deploy
 oauth_bp = Blueprint('oauth', __name__, url_prefix='/auth')
 
 PROVIDER_NAMES = {
-    'douyin': _'TikTok', 'wechat': _'WeChat', 'alipay': _'Alipay',
+    'douyin': _('TikTok'), 'wechat': _('WeChat'), 'alipay': _('Alipay'),
     'google': 'Google', 'github': 'GitHub', 'facebook': 'Facebook',
     'telegram': 'Telegram',
 }
@@ -218,7 +218,7 @@ def oauth_callback(provider):
             err_msg = token_data['error']
             if err_msg == 'stub mode':
                 alipay_user_id = token_data.get('stub_user_id', 'stub_alipay')
-                nickname = _'Alipay User'
+                nickname = _('Alipay User')
                 avatar = ''
                 id_field = 'alipay_user_id'
                 open_id = alipay_user_id
@@ -284,7 +284,7 @@ def oauth_callback(provider):
             conn.execute('UPDATE users SET last_login=?, display_name=? WHERE id=?',
                          (now, nickname or user.get('display_name', ''), user['id']))
         else:
-            display_name = nickname or f_'{provider} User_{open_id[-4:]}'
+            display_name = nickname or f'{provider} User_{open_id[-4:]}'
             cur = conn.execute(
                 f'INSERT INTO users ({id_field}, display_name, last_login) VALUES (?,?,?)',
                 (open_id, display_name, now))
@@ -415,7 +415,7 @@ def douyin_callback():
     
     if dy_is_stub(domain) and code.startswith('stub_'):
         open_id = 'stub_open_' + code[5:13]
-        nickname = _'TikTok User_' + open_id[-4:]
+        nickname = _('TikTok User_') + open_id[-4:]
         avatar = ''
     else:
         token_data = dy_get_token(code, site_domain=domain)

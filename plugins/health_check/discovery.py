@@ -37,10 +37,10 @@ def init_i18n(t_func):
 # Modules to exclude from auto-discovery
 # ────────────────────────────────────────────────────────────────
 EXCLUDED_DIRS = {
-    '__pycache__', '__init__', '.git', '.trae',
+    '__pycache__(', ')__init__(', ').git', '.trae',
     'node_modules', 'venv', '.venv', 'env',
     'tmp', 'tools', 'prompts', 'themes',
-    _'Internationalization Plan',
+    _('Internationalization Plan'),
 }
 
 MODULE_INDICATORS = {'app.py', 'routes.py', 'models.py'}

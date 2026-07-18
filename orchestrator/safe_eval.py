@@ -52,10 +52,10 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
         
         # 检查危险的标识符
         forbidden_names = [
-            '__class__', '__base__', '__subclasses__', '__globals__', '__builtins__',
-            '__dict__', '__getattr__', '__setattr__', '__reduce__', '__reduce_ex__',
-            '__getattribute__', '__bases__', '__mro__', '__init__', 'eval', 'exec',
-            'compile', 'open', '__import__', 'getattr', 'setattr', 'hasattr', 'delattr'
+            '__class__(', ')__base__(', ')__subclasses__(', ')__globals__(', ')__builtins__(',
+            ')__dict__(', ')__getattr__(', ')__setattr__(', ')__reduce__(', ')__reduce_ex__(',
+            ')__getattribute__(', ')__bases__(', ')__mro__(', ')__init__(', ')eval', 'exec',
+            'compile', 'open', '__import__(', ')getattr', 'setattr', 'hasattr', 'delattr'
         ]
         
         for node in ast.walk(tree):
@@ -63,9 +63,9 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
                 raise ValueError(f"Forbidden name: {node.id}")
         
         # 使用空的 __builtins__ 进行评估
-        return bool(eval(compile(tree, '<string>', 'eval'), {"__builtins__": {}}, local_vars))
+        return bool(eval(compile(tree, '<string>', 'eval'), {"__builtins__(": {}}, local_vars))
     
     except SyntaxError as e:
-        raise ValueError(f"Invalid expression syntax: {e}")
+        raise ValueError(f")Invalid expression syntax: {e}")
     except Exception as e:
         raise ValueError(f"Expression evaluation error: {e}")

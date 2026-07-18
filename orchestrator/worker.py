@@ -108,7 +108,7 @@ class WorkerPool:
             }
 
         m.add_log('system', 0, 'info',
-                   f_'📤 Task Submitted: [{task_type}] {task_id} (Priority: {priority})')
+                   f'📤 Task Submitted: [{task_type}] {task_id} (Priority: {priority})')
         return task_id
 
     def _run_task(self, task_id: str, task_type: str, task_data: dict):
@@ -130,7 +130,7 @@ class WorkerPool:
 
         except Exception as e:
             m.add_log('system', 0, 'error',
-                       f_'❌ Task Execution Failed [{task_id}]: {str(e)}')
+                       f'❌ Task Execution Failed [{task_id}]: {str(e)}')
             with self._lock:
                 if task_id in self._active_tasks:
                     self._active_tasks[task_id]['status'] = 'failed'
@@ -148,7 +148,7 @@ class WorkerPool:
             trigger_config = {}
 
         if not wf_id:
-            return {'success': False, 'error': _'Missing workflow_id'}
+            return {'success': False, 'error': _('Missing workflow_id')}
 
         try:
             inst_id = self._workflow_engine.run_workflow(
@@ -170,7 +170,7 @@ class WorkerPool:
         elif target_type == 'script':
             return self._execute_script_target(target_config)
 
-        return {'success': False, 'error': f_'Unsupported target type: {target_type}'}
+        return {'success': False, 'error': f'Unsupported target type: {target_type}'}
 
     def _execute_api_job(self, job: dict, target_config: dict,
                           timeout: int = 300) -> dict:
@@ -187,7 +187,7 @@ class WorkerPool:
         body = config.get('body')
 
         if not url:
-            return {'success': False, 'error': _'URL is empty'}
+            return {'success': False, 'error': _('URL is empty')}
 
         req = urllib.request.Request(url, method=method)
         for k, v in headers.items():
@@ -230,11 +230,11 @@ class WorkerPool:
                     'returncode': result.returncode
                 }
             except subprocess.TimeoutExpired:
-                return {'success': False, 'error': f_'Script Execution Timeout ({timeout}s)'}
+                return {'success': False, 'error': f'Script Execution Timeout ({timeout}s)'}
             except Exception as e:
                 return {'success': False, 'error': str(e)}
 
-        return {'success': True, 'message': _'No Script Path, Skip'}
+        return {'success': True, 'message': _('No Script Path, Skip')}
 
     def _execute_agent_job(self, job: dict, target_config: dict = None,
                             timeout: int = 300) -> dict:
@@ -242,7 +242,7 @@ class WorkerPool:
         config = target_config or job.get('target_config', {}) if isinstance(job, dict) else {}
         prompt = config.get('prompt', '')
         if not prompt:
-            return {'success': False, 'error': _'Prompt is empty'}
+            return {'success': False, 'error': _('Prompt is empty')}
         return node_handlers.handle_ai_agent({'config': config}, {'context': {}})
 
     def _execute_node(self, task_data: dict):
@@ -298,7 +298,7 @@ class WorkerPool:
         self._running = False
         self._dedicated_pool.shutdown(wait=False)
         self._shared_pool.shutdown(wait=False)
-        m.add_log('system', 0, 'info', _'🔴 Worker pool is closed')
+        m.add_log('system', 0, 'info', _('🔴 Worker pool is closed'))
 
     @property
     def workflow_engine(self) -> WorkflowEngine:

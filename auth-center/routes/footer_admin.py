@@ -31,7 +31,7 @@ def create_footer_link():
     url = data.get('url', '').strip()
     is_enabled = 1 if data.get('is_enabled', True) else 0
     if not section or not title or not url:
-        return jsonify({'success': False, 'error': _'Section, title, and URL are required'}), 400
+        return jsonify({'success': False, 'error': _('Section, title, and URL are required')}), 400
     with get_db() as conn:
         max_order = conn.execute('SELECT MAX(sort_order) as m FROM footer_links WHERE section=%s', (section,)).fetchone()
         order = (max_order['m'] or 0) + 1 if max_order else 1
@@ -56,7 +56,7 @@ def update_footer_link(item_id):
         )
         conn.commit()
     _log(admin['user_id'], 'update', 'footer_links', str(item_id), '')
-    return jsonify({'success': True, 'message': _'Updated'})
+    return jsonify({'success': True, 'message': _('Updated')})
 
 @footer_bp.route('/footer-links/<int:item_id>', methods=['DELETE'])
 def delete_footer_link(item_id):
@@ -64,11 +64,11 @@ def delete_footer_link(item_id):
     if err: return err
     with get_db() as conn:
         r = conn.execute('SELECT title FROM footer_links WHERE id=%s', (item_id,)).fetchone()
-        if not r: return jsonify({'success': False, 'error': _'Does not exist'}), 404
+        if not r: return jsonify({'success': False, 'error': _('Does not exist')}), 404
         conn.execute('DELETE FROM footer_links WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'footer_links', str(item_id), r['title'])
-    return jsonify({'success': True, 'message': _'Deleted'})
+    return jsonify({'success': True, 'message': _('Deleted')})
 
 # ════════════════════════════════════════════════════════
 # 2. 站内导航 (footer_nav)
@@ -89,7 +89,7 @@ def create_footer_nav():
     title = data.get('title', '').strip()
     url = data.get('url', '').strip()
     if not title or not url:
-        return jsonify({'success': False, 'error': _'Title and URL are required'}), 400
+        return jsonify({'success': False, 'error': _('Title and URL are required')}), 400
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM footer_nav').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
@@ -113,7 +113,7 @@ def update_footer_nav(item_id):
                 (data.get('title','').strip(), data.get('url','').strip(), 1 if data.get('is_enabled',True) else 0, item_id))
         conn.commit()
     _log(admin['user_id'], 'update', 'footer_nav', str(item_id), '')
-    return jsonify({'success': True, 'message': _'Updated'})
+    return jsonify({'success': True, 'message': _('Updated')})
 
 @footer_bp.route('/footer-nav/<int:item_id>', methods=['DELETE'])
 def delete_footer_nav(item_id):
@@ -121,11 +121,11 @@ def delete_footer_nav(item_id):
     if err: return err
     with get_db() as conn:
         r = conn.execute('SELECT title FROM footer_nav WHERE id=%s', (item_id,)).fetchone()
-        if not r: return jsonify({'success': False, 'error': _'Does not exist'}), 404
+        if not r: return jsonify({'success': False, 'error': _('Does not exist')}), 404
         conn.execute('DELETE FROM footer_nav WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'footer_nav', str(item_id), r['title'])
-    return jsonify({'success': True, 'message': _'Deleted'})
+    return jsonify({'success': True, 'message': _('Deleted')})
 
 # ════════════════════════════════════════════════════════
 # 3. 页脚文章 (footer_articles)
@@ -146,7 +146,7 @@ def create_footer_article():
     title = data.get('title', '').strip()
     url = data.get('url', '').strip()
     if not title or not url:
-        return jsonify({'success': False, 'error': _'Title and URL are required'}), 400
+        return jsonify({'success': False, 'error': _('Title and URL are required')}), 400
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM footer_articles').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
@@ -166,7 +166,7 @@ def update_footer_article(item_id):
             (data.get('title','').strip(), data.get('url','').strip(), 1 if data.get('is_enabled',True) else 0, item_id))
         conn.commit()
     _log(admin['user_id'], 'update', 'footer_articles', str(item_id), '')
-    return jsonify({'success': True, 'message': _'Updated'})
+    return jsonify({'success': True, 'message': _('Updated')})
 
 @footer_bp.route('/footer-articles/<int:item_id>', methods=['DELETE'])
 def delete_footer_article(item_id):
@@ -174,11 +174,11 @@ def delete_footer_article(item_id):
     if err: return err
     with get_db() as conn:
         r = conn.execute('SELECT title FROM footer_articles WHERE id=%s', (item_id,)).fetchone()
-        if not r: return jsonify({'success': False, 'error': _'Does not exist'}), 404
+        if not r: return jsonify({'success': False, 'error': _('Does not exist')}), 404
         conn.execute('DELETE FROM footer_articles WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'footer_articles', str(item_id), r['title'])
-    return jsonify({'success': True, 'message': _'Deleted'})
+    return jsonify({'success': True, 'message': _('Deleted')})
 
 # ════════════════════════════════════════════════════════
 # 4. 生态伙伴 (partner_links)
@@ -199,7 +199,7 @@ def create_partner():
     name = data.get('name', '').strip()
     url = data.get('url', '').strip()
     if not name or not url:
-        return jsonify({'success': False, 'error': _'Name and URL are required'}), 400
+        return jsonify({'success': False, 'error': _('Name and URL are required')}), 400
     with get_db() as conn:
         m = conn.execute('SELECT MAX(sort_order) as m FROM partner_links').fetchone()
         order = (m['m'] or 0) + 1 if m else 1
@@ -220,7 +220,7 @@ def update_partner(item_id):
              1 if data.get('is_enabled', True) else 0, item_id))
         conn.commit()
     _log(admin['user_id'], 'update', 'partner_links', str(item_id), '')
-    return jsonify({'success': True, 'message': _'Updated'})
+    return jsonify({'success': True, 'message': _('Updated')})
 
 @footer_bp.route('/partners/<int:item_id>', methods=['DELETE'])
 def delete_partner(item_id):
@@ -228,11 +228,11 @@ def delete_partner(item_id):
     if err: return err
     with get_db() as conn:
         r = conn.execute('SELECT name FROM partner_links WHERE id=%s', (item_id,)).fetchone()
-        if not r: return jsonify({'success': False, 'error': _'Does not exist'}), 404
+        if not r: return jsonify({'success': False, 'error': _('Does not exist')}), 404
         conn.execute('DELETE FROM partner_links WHERE id=%s', (item_id,))
         conn.commit()
     _log(admin['user_id'], 'delete', 'partner_links', str(item_id), r['name'])
-    return jsonify({'success': True, 'message': _'Deleted'})
+    return jsonify({'success': True, 'message': _('Deleted')})
 
 # ════════════════════════════════════════════════════════
 # 公开 API - 前台使用（无需认证）

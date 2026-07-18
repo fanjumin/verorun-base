@@ -22,8 +22,8 @@ def classify_intent(user_query):
 
         prompt = f"""分析以下用户消息，输出 JSON，不要多余文字：
 {{
-  "intent": _"Category (purchase=Purchase Intent, aftersale=After-sales, complaint=Complaint, consult=Consultation, technical=Technical Support, other=Other)",
-  "sentiment": _"Emotion (positive=Positive, neutral=Neutral, negative=Negative, urgent=Urgent)"
+  "intent": _("Category (purchase=Purchase Intent, aftersale=After-sales, complaint=Complaint, consult=Consultation, technical=Technical Support, other=Other)"),
+  "sentiment": _("Emotion (positive=Positive, neutral=Neutral, negative=Negative, urgent=Urgent)")
 }}
 
 消息：{user_query[:500]}"""

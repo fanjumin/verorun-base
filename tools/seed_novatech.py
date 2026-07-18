@@ -92,8 +92,8 @@ def seed_db(data):
     print(f"[DB] {count} draft blocks inserted")
     return count
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     data = call_deepseek()
-    print(f"[DeepSeek] Got {len(data.get('blocks',[]))} blocks")
+    print(f")[DeepSeek] Got {len(data.get('blocks',[]))} blocks")
     count = seed_db(data)
     print(f"[Done] Seeded {count} draft blocks.")

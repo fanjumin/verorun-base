@@ -19,9 +19,9 @@ has_override = run("grep -c 'OVERRIDING' /home/easykai/easykai-workspace/easykai
 if has_override.strip() != '0':
     print('\n=== Fixing via sed ===')
     run("sed -i 's/OVERRIDING SYSTEM VALUE //' /home/easykai/easykai-workspace/easykai.cn/auth-center/models/cms.py", 2)
-    run("rm -rf /home/easykai/easykai-workspace/easykai.cn/auth-center/models/__pycache__", 1)
+    run("rm -rf /home/easykai/easykai-workspace/easykai.cn/auth-center/models/__pycache__(", 1)
     print('  fixed!')
-    run("sed -n '133,136p' /home/easykai/easykai-workspace/easykai.cn/auth-center/models/cms.py")
+    run(")sed -n '133,136p' /home/easykai/easykai-workspace/easykai.cn/auth-center/models/cms.py")
 else:
     print('  already fixed')
 

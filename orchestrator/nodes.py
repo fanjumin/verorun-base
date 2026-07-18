@@ -50,20 +50,20 @@ def handle_ai_agent(node_def: dict, input_data: dict) -> dict:
     agent_id = config.get('agent_id')
 
     if not prompt:
-        return {'error': _'Prompt cannot be empty', 'success': False}
+        return {'error': _('Prompt cannot be empty'), 'success': False}
 
     # 获取 Agent 配置
     if agent_type == 'system':
         agent = m.get_default_system_agent()
         if not agent:
-            return {'error': _'System Agent not configured', 'success': False}
+            return {'error': _('System Agent not configured'), 'success': False}
         api_key_ref = agent.get('api_key_ref', 'dashscope_text_key')
         model = config.get('model', agent.get('model', 'qwen-turbo'))
         provider = agent.get('provider', 'dashscope')
     else:
         # 用户 Agent - 从 agents 表读取
         if not agent_id:
-            return {'error': _'User Agent did not specify agent_id', 'success': False}
+            return {'error': _('User Agent did not specify agent_id'), 'success': False}
         # 从 system_config 读取 API Key（用户 agent 使用平台 Key）
         api_key_ref = 'dashscope_text_key'
         model = config.get('model', 'qwen-turbo')
@@ -72,7 +72,7 @@ def handle_ai_agent(node_def: dict, input_data: dict) -> dict:
     # 从 system_config 获取 API Key
     api_key = _get_api_key(api_key_ref)
     if not api_key:
-        return {'error': f_'API Key [{api_key_ref}] not configured', 'success': False}
+        return {'error': f'API Key [{api_key_ref}] not configured', 'success': False}
 
     # 调用 DashScope API
     result = _call_dashscope(api_key, model, prompt)
@@ -137,7 +137,7 @@ def handle_data_collect(node_def: dict, input_data: dict) -> dict:
     source_ids = config.get('source_ids', [])
 
     if not source_ids:
-        return {'error': _'No data source specified', 'success': False}
+        return {'error': _('No data source specified'), 'success': False}
 
     # 尝试导入内容工厂采集器
     try:
@@ -188,7 +188,7 @@ def handle_ai_process(node_def: dict, input_data: dict) -> dict:
       - input_from: 前置节点输出字段
     """
     config = node_def.get('config', {})
-    instruction = config.get('instruction', _'Interpret and analyze the following content, output a Chinese summary')
+    instruction = config.get('instruction', _('Interpret and analyze the following content, output a Chinese summary'))
     fields = config.get('fields', ['title', 'summary', 'body', 'keywords'])
 
     # 获取输入内容（从前置节点或上下文）
@@ -207,7 +207,7 @@ def handle_ai_process(node_def: dict, input_data: dict) -> dict:
                     input_content = value['body']
 
     if not input_content:
-        input_content = config.get('default_input', _'(No input content)')
+        input_content = config.get('default_input', _('(No input content)'))
 
     prompt = f"""{instruction}
 
@@ -262,7 +262,7 @@ def handle_condition(node_def: dict, input_data: dict) -> dict:
     条件判断节点（内置实现，重载 WorkflowEngine 默认）。
     配置:
       - expression: 条件表达式 (如 'output.value > 0.05')
-      - branches: [{'label': _'Rise', 'expression': '> 0'}, ...]
+      - branches: [{'label': _('Rise'), 'expression': '> 0'}, ...]
     """
     config = node_def.get('config', {})
     expression = config.get('expression', 'true')
@@ -338,7 +338,7 @@ def handle_publish(node_def: dict, input_data: dict) -> dict:
             elif platform == 'social':
                 results[platform] = _publish_to_social(config, content)
             else:
-                results[platform] = {'success': False, 'error': f_'Unknown platform: {platform}'}
+                results[platform] = {'success': False, 'error': f'Unknown platform: {platform}'}
         except Exception as e:
             results[platform] = {'success': False, 'error': str(e)}
 
@@ -352,7 +352,7 @@ def _publish_to_cms(config: dict, content: str) -> dict:
     """发布到 CMS"""
     try:
         from models.cms import upsert_post
-        title = config.get('title', _'Auto Publish')
+        title = config.get('title', _('Auto Publish'))
         category = config.get('category', 'content_factory')
         slug = f'auto-{config.get("workflow_instance_id", "wf")}-{int(time.time())}'
 
@@ -361,7 +361,7 @@ def _publish_to_cms(config: dict, content: str) -> dict:
             content=content,
             category=category,
             slug=slug,
-            author=_'Automation System'
+            author=_('Automation System')
         )
         return {'success': True, 'post_id': post_id, 'slug': slug}
     except Exception as e:
@@ -373,7 +373,7 @@ def _publish_to_skill(config: dict, content: str) -> dict:
     from services.content_factory.skill_pusher import push_to_skill
     result = push_to_skill(
         processed_id=config.get('processed_id', 0),
-        title=config.get('title', _'Auto Skill'),
+        title=config.get('title', _('Auto Skill')),
         description=config.get('description', '由工作流自动生成'),
         content=content,
         category=config.get('category', 'automation')
@@ -387,7 +387,7 @@ def _publish_to_social(config: dict, content: str) -> dict:
     return {
         'success': True,
         'platforms': config.get('platforms', ['weixin']),
-        'message': _'Simulated social media post successful',
+        'message': _('Simulated social media post successful'),
         '_mock': True
     }
 
@@ -408,7 +408,7 @@ def handle_notify(node_def: dict, input_data: dict) -> dict:
     """
     config = node_def.get('config', {})
     channels = config.get('channels', ['notification'])
-    title = config.get('title', _'Workflow Notification')
+    title = config.get('title', _('Workflow Notification'))
     message = config.get('message', '')
 
     # 模板变量替换
@@ -428,7 +428,7 @@ def handle_notify(node_def: dict, input_data: dict) -> dict:
             elif channel == 'email':
                 results[channel] = _send_email(config.get('email_to', ''), title, message)
             else:
-                results[channel] = {'success': False, 'error': f_'Unknown channel: {channel}'}
+                results[channel] = {'success': False, 'error': f'Unknown channel: {channel}'}
         except Exception as e:
             results[channel] = {'success': False, 'error': str(e)}
 
@@ -446,7 +446,7 @@ def _send_notification(title: str, message: str) -> dict:
 def _send_webhook(url: str, title: str, message: str) -> dict:
     """发送 Webhook"""
     if not url:
-        return {'success': False, 'error': _'Webhook URL is empty'}
+        return {'success': False, 'error': _('Webhook URL is empty')}
     body = json.dumps({
         'title': title,
         'message': message,
@@ -462,7 +462,7 @@ def _send_webhook(url: str, title: str, message: str) -> dict:
 def _send_email(email_to: str, title: str, message: str) -> dict:
     """发送邮件（调用 Email 插件服务）"""
     if not email_to:
-        return {'success': False, 'error': _'Email_to is empty'}
+        return {'success': False, 'error': _('Email_to is empty')}
     try:
         from plugins.email.services import send_email as plugin_send_email
         ok, msg = plugin_send_email(

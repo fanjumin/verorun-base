@@ -81,7 +81,7 @@ def _load_all_role_yamls():
             raw['allowed_tools'] = json.dumps(raw.get('allowed_tools', []))
             roles.append(raw)
         except Exception as e:
-            print(f_'[RoleYAML] Skipped {fname}: {e}')
+            print(f'[RoleYAML] Skipped {fname}: {e}')
     return roles
 
 
@@ -369,7 +369,7 @@ def seed_default_agents():
     """
     roles = load_system_roles()
     if not roles:
-        print(_'[Seed] Role YAML file not found, skipped seed data')
+        print(_('[Seed] Role YAML file not found, skipped seed data'))
         return
 
     yaml_slugs = set()
@@ -400,7 +400,7 @@ def seed_default_agents():
                     a.get('system_prompt', ''),
                     a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1)
                 ))
-                print(f_'[Seed] Insert system role: {slug}')
+                print(f'[Seed] Insert system role: {slug}')
             else:
                 # UPDATE existing system role — sync all fields from YAML
                 conn.execute("""
@@ -431,7 +431,7 @@ def seed_default_agents():
                 tuple(yaml_slugs)
             ).rowcount
         if deleted:
-            print(f_'[Seed] Cleaned up {deleted} old system roles')
+            print(f'[Seed] Cleaned up {deleted} old system roles')
 
         conn.commit()
 
@@ -468,7 +468,7 @@ def register_plugin_roles(plugin_id, declare_roles_list):
                     r.get('is_active', 1),
                 ))
                 count += 1
-                print(f_'[PluginRoles] Register plugin role: {slug} (from {plugin_id})')
+                print(f'[PluginRoles] Register plugin role: {slug} (from {plugin_id})')
         if count:
             conn.commit()
     return count
@@ -483,7 +483,7 @@ def unregister_plugin_roles(plugin_id, declare_roles_list):
     with get_db() as conn:
         for slug in slugs:
             conn.execute("DELETE FROM agent_matrix WHERE slug=%s AND is_system=0", (slug,))
-            print(f_'[PluginRoles] Uninstall plugin role: {slug} (from {plugin_id})')
+            print(f'[PluginRoles] Uninstall plugin role: {slug} (from {plugin_id})')
         conn.commit()
 
 
@@ -601,7 +601,7 @@ def delete_agent(agent_id):
         if not row:
             return False
         if row['is_system']:
-            raise PermissionError(_"System roles cannot be deleted, only disabled")
+            raise PermissionError(_("System roles cannot be deleted, only disabled"))
         conn.execute("DELETE FROM agent_matrix WHERE id=%s", (agent_id,))
         conn.commit()
         return True

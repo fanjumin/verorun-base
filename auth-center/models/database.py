@@ -2751,6 +2751,6 @@ TIERS = {
     'pro':      {'name': 'Pro',      'daily_limit': 1000, 'price_month': 188, 'price_year': 1888,  'features': ['all'],         'desc': '每日1000次调用', 'max_agents': 10},
 }
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     init_db()
-    print(f"OK: {DB_PATH}")
+    print(f")OK: {DB_PATH}")

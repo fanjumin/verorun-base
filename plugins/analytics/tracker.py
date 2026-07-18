@@ -2,7 +2,7 @@
 """
 analytics/tracker.py — 自定义事件追踪 + 告警管理
 
-用于记录业务事件（如_"Launch Agent"、_"View Stock Details"、_"Create Workflow"等）
+用于记录业务事件（如_("Launch Agent")、_("View Stock Details")、_("Create Workflow")等）
 可通过 API 调用或 Workflow 节点触发。
 
 用法:
@@ -268,12 +268,12 @@ def generate_insight_text(report: dict) -> str:
     """
     lines = []
     s = report['summary']
-    lines.append(f_"📊 Statistics Analysis Report ({report['period']})")
+    lines.append(f"📊 Statistics Analysis Report ({report['period']})")
     lines.append(f"━━━━━━━━━━━━━━━━━━")
-    lines.append(f_"Total Views (PV): {s['total_pv']}")
-    lines.append(f_"Unique Visitors (UV): {s['total_uv']}")
-    lines.append(f_"Total Sessions: {s['total_sessions']}")
-    lines.append(f_"Daily PV: {s['avg_daily_pv']}  |  Daily UV: {s['avg_daily_uv']}")
+    lines.append(f"Total Views (PV): {s['total_pv']}")
+    lines.append(f"Unique Visitors (UV): {s['total_uv']}")
+    lines.append(f"Total Sessions: {s['total_sessions']}")
+    lines.append(f"Daily PV: {s['avg_daily_pv']}  |  Daily UV: {s['avg_daily_uv']}")
     lines.append("")
 
     # 趋势
@@ -282,21 +282,21 @@ def generate_insight_text(report: dict) -> str:
         first = report['trend'][0] if report['trend'] else {}
         if last and first:
             pv_change = ((last['pv'] - first['pv']) / max(first['pv'], 1)) * 100
-            lines.append(f_"📈 Traffic Change: {pv_change:+.1f}%")
-            lines.append(f_"  Bounce Rate: {last.get('bounce_rate', 0):.1f}%")
-            lines.append(f_"  Average Session Duration: {last.get('avg_duration', 0):.0f}s")
+            lines.append(f"📈 Traffic Change: {pv_change:+.1f}%")
+            lines.append(f"  Bounce Rate: {last.get('bounce_rate', 0):.1f}%")
+            lines.append(f"  Average Session Duration: {last.get('avg_duration', 0):.0f}s")
     lines.append("")
 
     # 热门来源
     if report['sources']:
-        lines.append(_"🔗 Top Sources:")
+        lines.append(_("🔗 Top Sources:"))
         for src in report['sources'][:5]:
             lines.append(f"  • {src['source_name']}: {src['pv']} PV ({src.get('pct', 0):.1f}%)")
     lines.append("")
 
     # 热门页面
     if report['hot_pages']:
-        lines.append(_"📄 Popular Pages:")
+        lines.append(_("📄 Popular Pages:"))
         for pg in report['hot_pages'][:5]:
             lines.append(f"  • {pg['path']}: {pg['pv']} PV / {pg['uv']} UV")
     lines.append("")

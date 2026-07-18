@@ -100,9 +100,9 @@ run(f'PGPASSWORD=***REMOVED*** psql -h localhost -U easykai -d verorun -c "{sql.
 print('   DB cleaned (public schema recreated)')
 
 # Clear __pycache__
-run(f'rm -rf {BASE}/auth-center/models/__pycache__', 1)
-run(f'rm -rf {BASE}/admin/__pycache__ {BASE}/platform/__pycache__', 1)
-run('rm -f /tmp/auth_8081.log /tmp/platform_8083.log /tmp/admin_8084.log', 1)
+run(f'rm -rf {BASE}/auth-center/models/__pycache__(', 1)
+run(f')rm -rf {BASE}/admin/__pycache__ {BASE}/platform/__pycache__(', 1)
+run(')rm -f /tmp/auth_8081.log /tmp/platform_8083.log /tmp/admin_8084.log', 1)
 print('   Cache + logs cleared')
 
 # ─── Step 3: Start auth (creates all tables) ─────────────────

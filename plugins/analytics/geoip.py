@@ -52,7 +52,7 @@ def _init_ip2region() -> bool:
     """初始化 ip2region（优先于 MaxMind）"""
     global _ip2region_searcher
     if not os.path.exists(IP2REGION_DB):
-        print(f_'[Analytics] ℹ️ ip2region database not found: {IP2REGION_DB}')
+        print(f'[Analytics] ℹ️ ip2region database not found: {IP2REGION_DB}')
         return False
     try:
         sys.path.insert(0, os.path.dirname(__file__))
@@ -60,17 +60,17 @@ def _init_ip2region() -> bool:
         from ip2region.searcher import new_with_buffer
         with open(IP2REGION_DB, 'rb') as f:
             _ip2region_searcher = new_with_buffer(util.IPv4, f.read())
-        print(f_'[Analytics] ✅ ip2region loaded: {IP2REGION_DB}')
+        print(f'[Analytics] ✅ ip2region loaded: {IP2REGION_DB}')
         return True
     except Exception as e:
-        print(f_'[Analytics] ⚠️ ip2region loading failed: {e}')
+        print(f'[Analytics] ⚠️ ip2region loading failed: {e}')
         return False
 
 
 def _ip2region_lookup(ip: str) -> dict:
     """
-    ip2region 查询，解析 _"Country|Region|Province|City|ISP" 格式
-    返回: {'country': _'China', 'city': _'Nanjing'}
+    ip2region 查询，解析 _("Country|Region|Province|City|ISP") 格式
+    返回: {'country': _('China'), 'city': _('Nanjing')}
     """
     global _ip2region_searcher
     if not _ip2region_searcher:
@@ -92,34 +92,34 @@ def _ip2region_lookup(ip: str) -> dict:
 
 # 常用国家名 → ISO 代码映射（中文 + 英文）
 _COUNTRY_MAP = {
-    _'China': 'CN', 'China': 'CN',
-    _'United States': 'US', 'United States': 'US',
-    _'Japan': 'JP', 'Japan': 'JP',
-    _'South Korea': 'KR', 'South Korea': 'KR', 'Korea': 'KR',
-    _'United Kingdom': 'GB', 'United Kingdom': 'GB',
-    _'Germany': 'DE', 'Germany': 'DE',
-    _'France': 'FR', 'France': 'FR',
-    _'Russia': 'RU', 'Russia': 'RU',
-    _'India': 'IN', 'India': 'IN',
-    _'Brazil': 'BR', 'Brazil': 'BR',
-    _'Canada': 'CA', 'Canada': 'CA',
-    _'Australia': 'AU', 'Australia': 'AU',
-    _'Singapore': 'SG', 'Singapore': 'SG',
-    _'Malaysia': 'MY', 'Malaysia': 'MY',
-    _'Thailand': 'TH', 'Thailand': 'TH',
-    _'Vietnam': 'VN', 'Vietnam': 'VN',
-    _'Indonesia': 'ID', 'Indonesia': 'ID',
-    _'Philippines': 'PH', 'Philippines': 'PH',
-    _'Netherlands': 'NL', 'Netherlands': 'NL',
-    _'Italy': 'IT', 'Italy': 'IT',
-    _'Spain': 'ES', 'Spain': 'ES',
-    _'Sweden': 'SE', 'Sweden': 'SE',
-    _'Switzerland': 'CH', 'Switzerland': 'CH',
-    _'Hong Kong': 'HK', 'Hong Kong': 'HK',
-    _'Taiwan': 'TW', 'Taiwan': 'TW',
-    _'Macau': 'MO', 'Macau': 'MO',
-    _'United Arab Emirates': 'AE', 'United Arab Emirates': 'AE',
-    _'Saudi Arabia': 'SA', 'Saudi Arabia': 'SA',
+    _('China'): 'CN', 'China': 'CN',
+    _('United States'): 'US', 'United States': 'US',
+    _('Japan'): 'JP', 'Japan': 'JP',
+    _('South Korea'): 'KR', 'South Korea': 'KR', 'Korea': 'KR',
+    _('United Kingdom'): 'GB', 'United Kingdom': 'GB',
+    _('Germany'): 'DE', 'Germany': 'DE',
+    _('France'): 'FR', 'France': 'FR',
+    _('Russia'): 'RU', 'Russia': 'RU',
+    _('India'): 'IN', 'India': 'IN',
+    _('Brazil'): 'BR', 'Brazil': 'BR',
+    _('Canada'): 'CA', 'Canada': 'CA',
+    _('Australia'): 'AU', 'Australia': 'AU',
+    _('Singapore'): 'SG', 'Singapore': 'SG',
+    _('Malaysia'): 'MY', 'Malaysia': 'MY',
+    _('Thailand'): 'TH', 'Thailand': 'TH',
+    _('Vietnam'): 'VN', 'Vietnam': 'VN',
+    _('Indonesia'): 'ID', 'Indonesia': 'ID',
+    _('Philippines'): 'PH', 'Philippines': 'PH',
+    _('Netherlands'): 'NL', 'Netherlands': 'NL',
+    _('Italy'): 'IT', 'Italy': 'IT',
+    _('Spain'): 'ES', 'Spain': 'ES',
+    _('Sweden'): 'SE', 'Sweden': 'SE',
+    _('Switzerland'): 'CH', 'Switzerland': 'CH',
+    _('Hong Kong'): 'HK', 'Hong Kong': 'HK',
+    _('Taiwan'): 'TW', 'Taiwan': 'TW',
+    _('Macau'): 'MO', 'Macau': 'MO',
+    _('United Arab Emirates'): 'AE', 'United Arab Emirates': 'AE',
+    _('Saudi Arabia'): 'SA', 'Saudi Arabia': 'SA',
 }
 
 def _country_name_to_code(name: str) -> str:
@@ -145,24 +145,24 @@ def init_geoip():
     db_path = _find_db()
     if not db_path:
         if not _ip2region_searcher:
-            print(f_'[Analytics] ℹ️ GeoIP databases not found, using ip-api as fallback')
+            print(f'[Analytics] ℹ️ GeoIP databases not found, using ip-api as fallback')
         else:
-            print(f_'[Analytics] ℹ️ GeoLite2 database not found, ip2region + ip-api available')
+            print(f'[Analytics] ℹ️ GeoLite2 database not found, ip2region + ip-api available')
         return _ip2region_searcher is not None
     try:
         import geoip2.database
         _geoip_reader = geoip2.database.Reader(db_path)
-        print(f_'[Analytics] ✅ GeoIP loaded: {db_path}')
+        print(f'[Analytics] ✅ GeoIP loaded: {db_path}')
         return True
     except Exception as e:
-        print(f_'[Analytics] ⚠️ GeoIP loading failed: {e}')
+        print(f'[Analytics] ⚠️ GeoIP loading failed: {e}')
         return _ip2region_searcher is not None
 
 
 def geoip_lookup(ip: str) -> dict:
     """
     IP 地理查询（ip2region → MaxMind → ip-api）
-    返回: {'country': 'CN', 'city': _'Nanjing'}
+    返回: {'country': 'CN', 'city': _('Nanjing')}
     失败返回空 dict
     """
     global _geoip_reader, _ip2region_searcher
@@ -252,11 +252,11 @@ def download_geolite2(output_path: str = None):
     print()
     print("1. 注册 MaxMind 账号: https://www.maxmind.com/en/geolite2/signup")
     print("2. 创建许可证密钥: https://www.maxmind.com/en/accounts/current/license")
-    print(_"3. After Downloading, Place in Any of the Following Paths:")
+    print(_("3. After Downloading, Place in Any of the Following Paths:"))
     for p in GEOIP_DB_CANDIDATES:
         print(f"   • {p}")
     print()
-    print(_"Or run:")
+    print(_("Or run:"))
     print("  wget 'https://download.maxmind.com/app/geoip_download?" +
           "edition_id=GeoLite2-City&license_key=YOUR_KEY&suffix=tar.gz'")
     print("  tar -xzf GeoLite2-City_*.tar.gz")

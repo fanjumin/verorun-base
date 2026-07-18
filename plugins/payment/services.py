@@ -8,7 +8,7 @@ import os
 import sys
 
 
-def create_shop_payment(order_id, total_amount, subject=_'Mall order'):
+def create_shop_payment(order_id, total_amount, subject=_('Mall order')):
     _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
     if _auth_dir not in sys.path:
         sys.path.insert(0, _auth_dir)

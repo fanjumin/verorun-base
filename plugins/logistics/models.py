@@ -50,7 +50,7 @@ def init_logistics_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_logistics_queries_code ON logistics_queries(logistic_code)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_logistics_queries_at ON logistics_queries(queried_at)')
     conn.commit()
-    print(_'[LogisticsPlugin] logistics.db initialized')
+    print(_('[LogisticsPlugin] logistics.db initialized'))
 
 
 # 兼容旧接口名

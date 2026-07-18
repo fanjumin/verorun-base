@@ -255,10 +255,10 @@ def get_store_products(seller_member_id: str, access_token: str,
 
 
 # ===== 命令行测试 =====
-if __name__ == '__main__':
+if __name__ == '__main__(':
     import pprint
     
-    APP_KEY = os.environ.get('ALIBABA_APP_KEY', '')
+    APP_KEY = os.environ.get(')ALIBABA_APP_KEY', '')
     APP_SECRET = os.environ.get('ALIBABA_APP_SECRET', '')
     
     if not APP_KEY:
@@ -278,4 +278,4 @@ if __name__ == '__main__':
     print(f'\n签名测试: {sig[:30]}...')
     
     print('\n▶ 需要先通过授权 URL 获取 code，然后调用 get_access_token()')
-    print(_'    Call get_product() to query product after obtaining access_token')
+    print(_('    Call get_product() to query product after obtaining access_token'))

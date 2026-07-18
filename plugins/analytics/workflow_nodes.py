@@ -298,7 +298,7 @@ def register_analytics_handlers(engine):
     engine.register_node_handler('analytics_event', handle_analytics_event)
     engine.register_node_handler('analytics_cleanup', handle_analytics_cleanup)
 
-    print(f_'[Analytics Workflow] ✅ Registered 6 custom node processors')
+    print(f'[Analytics Workflow] ✅ Registered 6 custom node processors')
 
 
 # ─── 快捷方式（创建预设工作流） ────────────────────────────────────────────────
@@ -313,22 +313,22 @@ def create_daily_report_workflow(conn) -> int:
             {
                 "id": "generate_report",
                 "type": "analytics_report",
-                "name": _"Generate Daily Report",
+                "name": _("Generate Daily Report"),
                 "config": {"days": 1, "report_type": "full", "output": "json"}
             },
             {
                 "id": "ai_insight",
                 "type": "analytics_insight",
-                "name": _"AI Interpretation",
+                "name": _("AI Interpretation"),
                 "config": {"days": 1, "use_ai": True}
             },
             {
                 "id": "notify_admin",
                 "type": "notify",
-                "name": _"Push Administrator",
+                "name": _("Push Administrator"),
                 "config": {
                     "channels": ["notification"],
-                    "title": _"📊 Daily Analysis Report"
+                    "title": _("📊 Daily Analysis Report")
                 }
             }
         ],
@@ -341,7 +341,7 @@ def create_daily_report_workflow(conn) -> int:
     from orchestrator import models as om
     wf_id = om.create_workflow(
         conn=conn,
-        name=_"📊 Daily Analysis Report",
+        name=_("📊 Daily Analysis Report"),
         description="每天自动生成分析报告并 AI 解读",
         definition=definition,
         is_active=1,
@@ -356,22 +356,22 @@ def create_weekly_report_workflow(conn) -> int:
             {
                 "id": "generate_report",
                 "type": "analytics_report",
-                "name": _"Generate Weekly Report",
+                "name": _("Generate Weekly Report"),
                 "config": {"days": 7, "report_type": "full", "output": "json"}
             },
             {
                 "id": "ai_insight",
                 "type": "analytics_insight",
-                "name": _"Deep AI Interpretation",
+                "name": _("Deep AI Interpretation"),
                 "config": {"days": 7, "use_ai": True, "include_raw": True}
             },
             {
                 "id": "notify_admin",
                 "type": "notify",
-                "name": _"Push Report",
+                "name": _("Push Report"),
                 "config": {
                     "channels": ["notification", "email"],
-                    "title": _"📊 Weekly Operations Report"
+                    "title": _("📊 Weekly Operations Report")
                 }
             }
         ],
@@ -384,7 +384,7 @@ def create_weekly_report_workflow(conn) -> int:
     from orchestrator import models as om
     wf_id = om.create_workflow(
         conn=conn,
-        name=_"📊 Weekly Operations Report",
+        name=_("📊 Weekly Operations Report"),
         description="每周自动生成长周期分析报告和 AI 深度解读",
         definition=definition,
         is_active=1,

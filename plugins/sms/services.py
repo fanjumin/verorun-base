@@ -113,7 +113,7 @@ def _log_send(phone, code, purpose, provider, status, error=''):
         )
         conn.commit()
     except Exception as e:
-        print(f_'[SmsPlugin] Log write failed: {e}')
+        print(f'[SmsPlugin] Log write failed: {e}')
 
 
 def check_rate_limit(phone, max_per_hour=5):

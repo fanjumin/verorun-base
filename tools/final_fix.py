@@ -28,12 +28,12 @@ sftp = paramiko.SFTPClient.from_transport(transport)
 sftp.put(os.path.join(LOCAL, 'auth-center/models/cms.py').replace('\\', '/'),
          os.path.join(BASE, 'auth-center/models/cms.py').replace('\\', '/'))
 sftp.close()
-run(f"rm -rf {BASE}/auth-center/models/__pycache__", 1)
+run(f"rm -rf {BASE}/auth-center/models/__pycache__(", 1)
 print('  done')
 
 # Kill ALL python processes (including old auth)
 print('\n=== Kill all python processes ===')
-run("pkill -9 -f 'python3.*app\\.py' 2>/dev/null; sleep 2; echo killed", 3)
+run(")pkill -9 -f 'python3.*app\\.py' 2>/dev/null; sleep 2; echo killed", 3)
 # Verify nothing on our ports
 for _,port,_ in SERVICES:
     r = run(f"ss -tlnp | grep ':{port}' || echo 'free'", 1)

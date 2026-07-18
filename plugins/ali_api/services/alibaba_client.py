@@ -55,7 +55,7 @@ class AlibabaClient:
         self.sign_method = config['alibaba']['sign_method']
         
         if not self.app_key or not self.app_secret:
-            raise ValueError(_"Alibaba AppKey and AppSecret must be configured")
+            raise ValueError(_("Alibaba AppKey and AppSecret must be configured"))
     
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """生成 HMAC-SHA1 签名"""
@@ -83,7 +83,7 @@ class AlibabaClient:
             import base64
             signature = base64.b64encode(signature).decode('utf-8')
         else:
-            raise ValueError(f_"Unsupported signature method: {self.sign_method}")
+            raise ValueError(f"Unsupported signature method: {self.sign_method}")
         
         return signature
     
@@ -151,7 +151,7 @@ class AlibabaClient:
                     
                     # 检查错误
                     if 'error' in result:
-                        error_msg = result.get('error_message', _'Unknown error')
+                        error_msg = result.get('error_message', _('Unknown error'))
                         error_code = result.get('error_code', 'UNKNOWN')
                         logger.error(f"阿里巴巴API错误: {error_code} - {error_msg}")
                         return False, result, error_msg
@@ -161,16 +161,16 @@ class AlibabaClient:
                     return True, result, None
                     
             except urllib.error.HTTPError as e:
-                last_error = f_"HTTP Error: {e.code} - {e.reason}"
+                last_error = f"HTTP Error: {e.code} - {e.reason}"
                 logger.error(f"阿里巴巴API HTTP错误 (尝试 {attempt+1}/{max_retries}): {last_error}")
             except urllib.error.URLError as e:
-                last_error = f_"URL error: {e.reason}"
+                last_error = f"URL error: {e.reason}"
                 logger.error(f"阿里巴巴API URL错误 (尝试 {attempt+1}/{max_retries}): {last_error}")
             except json.JSONDecodeError as e:
-                last_error = f_"JSON Parsing Error: {e}"
+                last_error = f"JSON Parsing Error: {e}"
                 logger.error(f"阿里巴巴API JSON解析错误 (尝试 {attempt+1}/{max_retries}): {last_error}")
             except Exception as e:
-                last_error = f_"Unknown error: {e}"
+                last_error = f"Unknown error: {e}"
                 logger.error(f"阿里巴巴API未知错误 (尝试 {attempt+1}/{max_retries}): {last_error}")
             
             # 重试延迟
@@ -390,21 +390,21 @@ def get_client() -> AlibabaClient:
         _client_instance = AlibabaClient()
     return _client_instance
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     # 测试客户端
     import pprint
     
     client = AlibabaClient()
-    print(_"Alibaba client initialized successfully")
+    print(_")Alibaba client initialized successfully")
     
     # 测试配置
     print(f"AppKey: {client.app_key[:8]}...")
-    print(f_"API Gateway: {client.api_gateway}")
+    print(f"API Gateway: {client.api_gateway}")
     
     # 测试签名生成
     test_params = {'test': 'value', 'app_key': 'test_key'}
     try:
         signature = client._generate_signature(test_params)
-        print(f_"Signature Test: {signature[:20]}...")
+        print(f"Signature Test: {signature[:20]}...")
     except Exception as e:
-        print(f_"Signature Test Failed: {e}")
+        print(f"Signature Test Failed: {e}")

@@ -37,7 +37,7 @@ def create_social_media():
     is_enabled = 1 if data.get('is_enabled', True) else 0
     
     if not platform_name or not icon_value or not url:
-        return jsonify({'success': False, 'error': _'Platform name, icon, and link are required fields'}), 400
+        return jsonify({'success': False, 'error': _('Platform name, icon, and link are required fields')}), 400
     
     # 获取最大 display_order
     with get_db() as conn:
@@ -51,7 +51,7 @@ def create_social_media():
         conn.commit()
     
     _log(admin['user_id'], 'create', 'social_media', str(new_id), platform_name)
-    return jsonify({'success': True, 'data': {'id': new_id, 'message': _'Creation successful'}})
+    return jsonify({'success': True, 'data': {'id': new_id, 'message': _('Creation successful')}})
 
 
 @social_media_bp.route('/social-media/<int:sm_id>', methods=['PUT'])
@@ -69,7 +69,7 @@ def update_social_media(sm_id):
     is_enabled = 1 if data.get('is_enabled', True) else 0
     
     if not platform_name or not icon_value or not url:
-        return jsonify({'success': False, 'error': _'Platform name, icon, and link are required fields'}), 400
+        return jsonify({'success': False, 'error': _('Platform name, icon, and link are required fields')}), 400
     
     with get_db() as conn:
         conn.execute(
@@ -79,7 +79,7 @@ def update_social_media(sm_id):
         conn.commit()
     
     _log(admin['user_id'], 'update', 'social_media', str(sm_id), platform_name)
-    return jsonify({'success': True, 'message': _'Update successful'})
+    return jsonify({'success': True, 'message': _('Update successful')})
 
 
 @social_media_bp.route('/social-media/<int:sm_id>', methods=['DELETE'])
@@ -93,13 +93,13 @@ def delete_social_media(sm_id):
         # 获取要删除的记录名称
         row = conn.execute('SELECT platform_name FROM social_media_links WHERE id=%s', (sm_id,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': _'Record does not exist'}), 404
+            return jsonify({'success': False, 'error': _('Record does not exist')}), 404
         
         conn.execute('DELETE FROM social_media_links WHERE id=%s', (sm_id,))
         conn.commit()
     
     _log(admin['user_id'], 'delete', 'social_media', str(sm_id), row['platform_name'])
-    return jsonify({'success': True, 'message': _'Deletion Successful'})
+    return jsonify({'success': True, 'message': _('Deletion Successful')})
 
 
 @social_media_bp.route('/social-media/reorder', methods=['PUT'])
@@ -112,7 +112,7 @@ def reorder_social_media():
     order_list = data.get('order', [])  # [{'id': 1, 'order': 1}, ...]
     
     if not order_list:
-        return jsonify({'success': False, 'error': _'Sort list cannot be empty'}), 400
+        return jsonify({'success': False, 'error': _('Sort list cannot be empty')}), 400
     
     with get_db() as conn:
         for item in order_list:
@@ -122,8 +122,8 @@ def reorder_social_media():
                 conn.execute('UPDATE social_media_links SET display_order=%s WHERE id=%s', (order, sm_id))
         conn.commit()
     
-    _log(admin['user_id'], 'reorder', 'social_media', '', f_'Sorted {len(order_list)} items')
-    return jsonify({'success': True, 'message': _'Sort successful'})
+    _log(admin['user_id'], 'reorder', 'social_media', '', f'Sorted {len(order_list)} items')
+    return jsonify({'success': True, 'message': _('Sort successful')})
 
 
 # ════════════════════════════════════════════════════════════════

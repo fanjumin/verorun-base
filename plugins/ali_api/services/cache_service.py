@@ -369,51 +369,51 @@ def get_cache_service() -> CacheService:
         _cache_service = CacheService()
     return _cache_service
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     # 测试缓存服务
     import pprint
     
     cache = CacheService()
-    print(_"Cache Service Test:")
+    print(_")Cache Service Test:")
     
     # 测试基本缓存
-    print(_"1. Basic Cache Test...")
-    cache.set("test:key", {"name": _"Test", "value": 123}, 10)
+    print(_("1. Basic Cache Test..."))
+    cache.set("test:key", {"name": _("Test"), "value": 123}, 10)
     found, value = cache.get("test:key")
-    print(f_"   Get Cache: {'Success' if found else 'Failed'} - {value}")
+    print(f"   Get Cache: {'Success' if found else 'Failed'} - {value}")
     
     # 测试商品缓存
     print("\n2. 商品缓存测试...")
     product_data = {
         "product_id": "12345",
-        "title": _"Test Products",
+        "title": _("Test Products"),
         "price": 99.99,
     }
     cache.set_product("12345", product_data)
     found, cached_product = cache.get_product("12345")
-    print(f_"   Get Product Cache: {'Success' if found else 'Failed'} - {cached_product}")
+    print(f"   Get Product Cache: {'Success' if found else 'Failed'} - {cached_product}")
     
     # 测试API响应缓存
     print("\n3. API响应缓存测试...")
-    params = {"keyword": _"Phone", "page": 1}
+    params = {"keyword": _("Phone"), "page": 1}
     response = {"success": True, "data": []}
     cache.set_api_response("product.search", params, response)
     found, cached_response = cache.get_api_response("product.search", params)
-    print(f_"   Get API Cache: {'Success' if found else 'Failed'} - {cached_response}")
+    print(f"   Get API Cache: {'Success' if found else 'Failed'} - {cached_response}")
     
     # 测试缓存装饰器
     print("\n4. 缓存装饰器测试...")
     
     @cached(ttl=10, key_prefix="test")
     def expensive_operation(x, y):
-        print(f_"   Execute Expensive Operation: {x} + {y}")
+        print(f"   Execute Expensive Operation: {x} + {y}")
         return x + y
     
     result1 = expensive_operation(10, 20)
-    print(f_"   First Call Result: {result1}")
+    print(f"   First Call Result: {result1}")
     
     result2 = expensive_operation(10, 20)
-    print(f_"   Second Call Result: {result2} (Should come from cache)")
+    print(f"   Second Call Result: {result2} (Should come from cache)")
     
     print("\n5. 缓存统计:")
     stats = cache.stats()

@@ -16,26 +16,26 @@ payment_admin_bp = Blueprint('payment_admin', __name__, url_prefix='/admin/payme
 PAYMENT_PROVIDERS = {
     'alipay': {
         'label': 'Alipay',
-        'label_zh': _'Alipay',
+        'label_zh': _('Alipay'),
         'market': 'cn',
         'fields': [
-            {'key': 'app_id', 'label': 'Alipay App ID', 'label_zh': _'Alipay App ID', 'type': 'text'},
-            {'key': 'private_key', 'label': 'Alipay Private Key', 'label_zh': _'Alipay Payment Private Key', 'type': 'password'},
-            {'key': 'public_key', 'label': 'Alipay Public Key', 'label_zh': _'Alipay Payment Public Key', 'type': 'password'},
-            {'key': 'notify_base', 'label': 'Payment Callback Domain', 'label_zh': _'Payment Callback Domain', 'type': 'text'},
-            {'key': 'sandbox', 'label': 'Sandbox Mode', 'label_zh': _'Sandbox Mode', 'type': 'checkbox', 'hint': 'Use Alipay sandbox environment for testing', 'hint_zh': _'Test using Alipay sandbox environment'},
+            {'key': 'app_id', 'label': 'Alipay App ID', 'label_zh': _('Alipay App ID'), 'type': 'text'},
+            {'key': 'private_key', 'label': 'Alipay Private Key', 'label_zh': _('Alipay Payment Private Key'), 'type': 'password'},
+            {'key': 'public_key', 'label': 'Alipay Public Key', 'label_zh': _('Alipay Payment Public Key'), 'type': 'password'},
+            {'key': 'notify_base', 'label': 'Payment Callback Domain', 'label_zh': _('Payment Callback Domain'), 'type': 'text'},
+            {'key': 'sandbox', 'label': 'Sandbox Mode', 'label_zh': _('Sandbox Mode'), 'type': 'checkbox', 'hint': 'Use Alipay sandbox environment for testing', 'hint_zh': _('Test using Alipay sandbox environment')},
         ]
     },
     'wechat': {
         'label': 'WeChat Pay',
-        'label_zh': _'WeChat Pay',
+        'label_zh': _('WeChat Pay'),
         'market': 'cn',
         'fields': [
-            {'key': 'app_id', 'label': 'WeChat Pay AppID', 'label_zh': _'WeChat Pay AppID', 'type': 'text'},
-            {'key': 'mchid', 'label': 'WeChat Merchant ID', 'label_zh': _'WeChat Pay Merchant ID', 'type': 'text'},
-            {'key': 'api_v3_key', 'label': 'WeChat Pay API V3 Key', 'label_zh': _'WeChat Pay API V3 Key', 'type': 'password'},
-            {'key': 'cert_serial', 'label': 'WeChat Cert Serial Number', 'label_zh': _'WeChat Pay Certificate Serial Number', 'type': 'text'},
-            {'key': 'plan_id', 'label': 'WeChat Pay Plan ID', 'label_zh': _'WeChat Pay Deduction Plan ID', 'type': 'text'},
+            {'key': 'app_id', 'label': 'WeChat Pay AppID', 'label_zh': _('WeChat Pay AppID'), 'type': 'text'},
+            {'key': 'mchid', 'label': 'WeChat Merchant ID', 'label_zh': _('WeChat Pay Merchant ID'), 'type': 'text'},
+            {'key': 'api_v3_key', 'label': 'WeChat Pay API V3 Key', 'label_zh': _('WeChat Pay API V3 Key'), 'type': 'password'},
+            {'key': 'cert_serial', 'label': 'WeChat Cert Serial Number', 'label_zh': _('WeChat Pay Certificate Serial Number'), 'type': 'text'},
+            {'key': 'plan_id', 'label': 'WeChat Pay Plan ID', 'label_zh': _('WeChat Pay Deduction Plan ID'), 'type': 'text'},
         ]
     },
     'stripe': {
@@ -56,7 +56,7 @@ PAYMENT_PROVIDERS = {
             {'key': 'client_id', 'label': 'Client ID', 'label_zh': 'Client ID', 'type': 'text'},
             {'key': 'client_secret', 'label': 'Client Secret', 'label_zh': 'Client Secret', 'type': 'password'},
             {'key': 'webhook_id', 'label': 'Webhook ID', 'label_zh': 'Webhook ID', 'type': 'text'},
-            {'key': 'mode', 'label': 'Mode', 'label_zh': _'Mode', 'type': 'select', 'options': [{'value': 'sandbox', 'label': 'Sandbox (Test)', 'label_zh': _'Sandbox (Test)'}, {'value': 'live', 'label': 'Live (Production)', 'label_zh': _'Production Environment'}], 'default': 'sandbox'},
+            {'key': 'mode', 'label': 'Mode', 'label_zh': _('Mode'), 'type': 'select', 'options': [{'value': 'sandbox', 'label': 'Sandbox (Test)', 'label_zh': _('Sandbox (Test)')}, {'value': 'live', 'label': 'Live (Production)', 'label_zh': _('Production Environment')}], 'default': 'sandbox'},
         ]
     }
 }

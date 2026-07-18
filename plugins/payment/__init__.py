@@ -27,7 +27,7 @@ class PaymentPlugin(BasePlugin):
 
     def on_enable(self, registry):
         self._init_db()
-        print(_'[PaymentPlugin] ✅ Payment plugin enabled (standalone database)')
+        print(_('[PaymentPlugin] ✅ Payment plugin enabled (standalone database)'))
         return True
 
     def _init_db(self):
@@ -42,12 +42,12 @@ class PaymentPlugin(BasePlugin):
         return [payment_admin_bp]
 
     def on_disable(self, registry):
-        print(_'[PaymentPlugin] ⚠️ Payment plugin disabled')
+        print(_('[PaymentPlugin] ⚠️ Payment plugin disabled'))
         return True
 
     # ── 对外接口 ──
 
-    def create_shop_payment(self, order_id, total_amount, subject=_'Mall order'):
+    def create_shop_payment(self, order_id, total_amount, subject=_('Mall order')):
         from .services import create_shop_payment as _c
         return _c(order_id, total_amount, subject)
 

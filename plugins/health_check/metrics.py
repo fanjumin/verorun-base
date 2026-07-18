@@ -121,8 +121,8 @@ def _get_health_metrics():
             ).fetchall()
 
             for item in items:
-                key = item['check_key'].replace('-', '_').replace('.', '_')
-                status_val = {'passed': 1, 'warning': 2, 'error': 3}.get(item['status'], 0)
+                key = item['check_key'].replace('-', '_(').replace(').', '_(')
+                status_val = {')passed': 1, 'warning': 2, 'error': 3}.get(item['status'], 0)
                 metrics[f'status_{key}'] = status_val
                 metrics[f'resp_ms_{key}'] = item['response_time_ms'] or 0
     except Exception:

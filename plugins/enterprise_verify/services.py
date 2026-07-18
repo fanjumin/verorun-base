@@ -43,7 +43,7 @@ def ocr_business_license(image_base64: str) -> dict:
     """
     api_key = _get_siliconflow_api_key()
     if not api_key:
-        raise RuntimeError(_'SiliconFlow API Key not configured (system_config.siliconflow_api_key)')
+        raise RuntimeError(_('SiliconFlow API Key not configured (system_config.siliconflow_api_key)'))
 
     if ',' in image_base64:
         image_base64 = image_base64.split(',', 1)[1]
@@ -70,12 +70,12 @@ def ocr_business_license(image_base64: str) -> dict:
                         '<|grounding|>Extract all text from this business license image. '
                         'Return ONLY valid JSON with these exact fields:\n'
                         '{\n'
-                        '  "company_name": _"Company Name",\n'
-                        '  "reg_num": _"Unified Social Credit Code (18 digits)",\n'
-                        '  "legal_person": _"Legal Representative",\n'
-                        '  "address": _"Registered Address",\n'
-                        '  "registered_capital": _"Registered Capital",\n'
-                        '  "business_scope": _"Business Scope"\n'
+                        '  "company_name": _("Company Name"),\n'
+                        '  "reg_num": _("Unified Social Credit Code (18 digits)"),\n'
+                        '  "legal_person": _("Legal Representative"),\n'
+                        '  "address": _("Registered Address"),\n'
+                        '  "registered_capital": _("Registered Capital"),\n'
+                        '  "business_scope": _("Business Scope")\n'
                         '}\n'
                         'Fill empty string for any field not found. MUST output pure JSON.'
                     ),
@@ -114,10 +114,10 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
     返回: {decision: 'approve'|'pending', confidence: float, reason: str}
     """
     if not company_name or not tax_id:
-        return {'decision': 'pending', 'confidence': 0.0, 'reason': _'Company name or tax number is empty'}
+        return {'decision': 'pending', 'confidence': 0.0, 'reason': _('Company name or tax number is empty')}
 
     if not _validate_tax_id(tax_id):
-        return {'decision': 'pending', 'confidence': 0.0, 'reason': _'Incorrect format for Unified Social Credit Code'}
+        return {'decision': 'pending', 'confidence': 0.0, 'reason': _('Incorrect format for Unified Social Credit Code')}
 
     api_key = _get_siliconflow_api_key()
     if api_key:
@@ -138,9 +138,9 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
             result = json.loads(text)
             confidence = result.get('confidence', 0.0)
             if confidence >= 0.8 and result.get('decision') == 'approve':
-                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', _'AI Review Passed')}
-            return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', _'AI Review Uncertain, Requires Manual Verification')}
+                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', _('AI Review Passed'))}
+            return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', _('AI Review Uncertain, Requires Manual Verification'))}
         except Exception:
             pass
 
-    return {'decision': 'approved', 'confidence': 0.85, 'reason': _'Format validated and automatically certified'}
+    return {'decision': 'approved', 'confidence': 0.85, 'reason': _('Format validated and automatically certified')}

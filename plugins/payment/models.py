@@ -61,7 +61,7 @@ def _rebuild_db():
     )''')
     conn.commit()
     conn.close()
-    print(f_'[PaymentPlugin] 🛠️ Schema payment recreated')
+    print(f'[PaymentPlugin] 🛠️ Schema payment recreated')
 
 
 def _connect_db():
@@ -79,7 +79,7 @@ def _connect_db():
         conn.execute("SELECT 1").fetchone()
         return conn
     except psycopg2.DatabaseError as e:
-        print(f_'[PaymentPlugin] ⚠️ Database damaged, auto-recreated: {e}')
+        print(f'[PaymentPlugin] ⚠️ Database damaged, auto-recreated: {e}')
         _rebuild_db()
         conn = PgConnection(psycopg2.connect(
             host=os.environ.get('PG_HOST','localhost'),
@@ -139,7 +139,7 @@ def init_payment_tables():
         UNIQUE(provider, config_key)
     )''')
     conn.commit()
-    print(f_'[PaymentPlugin] ✅ Schema payment is ready')
+    print(f'[PaymentPlugin] ✅ Schema payment is ready')
 
 
 # ── 配置读写（替代主库 scfg/gc） ──
@@ -218,9 +218,9 @@ def migrate_from_main_db():
                 r = conn.execute('SELECT value FROM system_config WHERE key=%s', (key,)).fetchone()
                 if r and r['value']:
                     set_payment_config('wechat', key.replace('wechat_', ''), r['value'])
-        print(_'[PaymentPlugin] ✅ Main database payment credentials migrated to standalone database')
+        print(_('[PaymentPlugin] ✅ Main database payment credentials migrated to standalone database'))
     except Exception as e:
-        print(f_'[PaymentPlugin] ⚠️ Failed to migrate payment credentials (normal on first run): {e}')
+        print(f'[PaymentPlugin] ⚠️ Failed to migrate payment credentials (normal on first run): {e}')
 
 
 ensure_payment_tables = init_payment_tables

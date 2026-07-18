@@ -145,4 +145,4 @@ def init_cf_db():
         );
     """)
     conn.commit()
-    print(_'[ContentFactoryPlugin] PG schema content_factory initialized (5 tables)')
+    print(_('[ContentFactoryPlugin] PG schema content_factory initialized (5 tables)'))

@@ -20,7 +20,7 @@ def _call_qwen(prompt: str, max_tokens: int = 4096) -> Optional[str]:
     import requests, json
     api_key = _get_ai_key()
     if not api_key:
-        raise RuntimeError(_"DashScope Text Key is not configured")
+        raise RuntimeError(_("DashScope Text Key is not configured"))
     url = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
     body = {'model': 'qwen-turbo', 'messages': [{'role': 'user', 'content': prompt}],
@@ -34,10 +34,10 @@ def _call_qwen(prompt: str, max_tokens: int = 4096) -> Optional[str]:
 PROCESS_PROMPT = """请处理以下原始内容，输出JSON：
 
 {{
-  "title": _"Optimized Title (Concise and powerful, within 20 characters)",
-  "summary": _"One-sentence summary (within 50 characters)",
-  "body": _"Reformat the main text with Markdown. Leave a blank line between paragraphs, use '-' for lists, and bold numbers and percentages with **. Do not use ```.",
-  "keywords": [_"Keyword 1", _"Keyword 2", _"Keyword 3"],
+  "title": _("Optimized Title (Concise and powerful, within 20 characters)"),
+  "summary": _("One-sentence summary (within 50 characters)"),
+  "body": _("Reformat the main text with Markdown. Leave a blank line between paragraphs, use '-' for lists, and bold numbers and percentages with **. Do not use ```."),
+  "keywords": [_("Keyword 1"), _("Keyword 2"), _("Keyword 3")],
   "risk_level": "low / normal / high / critical"
 }}
 
@@ -52,9 +52,9 @@ def process_raw_content(raw_id: int, admin_id: int = 1) -> dict:
     conn = get_cf_db()
     raw = conn.execute('SELECT * FROM raw_contents WHERE id=?', (raw_id,)).fetchone()
     if not raw:
-        return {'success': False, 'error': _'Content does not exist'}
+        return {'success': False, 'error': _('Content does not exist')}
     if raw['status'] == 'processed':
-        return {'success': False, 'error': _'Already processed'}
+        return {'success': False, 'error': _('Already processed')}
 
     conn.execute("UPDATE raw_contents SET status='processing' WHERE id=?", (raw_id,))
     conn.commit()
@@ -68,7 +68,7 @@ def process_raw_content(raw_id: int, admin_id: int = 1) -> dict:
         except:
             pass
 
-        prompt = PROCESS_PROMPT.format(title=raw['title'] or _'No Title', author=raw['author'] or _'Unknown', content=raw_content)
+        prompt = PROCESS_PROMPT.format(title=raw['title'] or _('No Title'), author=raw['author'] or _('Unknown'), content=raw_content)
         result_text = _call_qwen(prompt)
         data = json.loads(result_text)
 
@@ -96,9 +96,9 @@ def process_raw_content(raw_id: int, admin_id: int = 1) -> dict:
             if cleaned.endswith('```'): cleaned = cleaned.rsplit('```', 1)[0]
             data = json.loads(cleaned.strip())
         except:
-            conn.execute(_"UPDATE raw_contents SET status='failed', error_msg='JSON parsing failed' WHERE id=?", (raw_id,))
+            conn.execute(_("UPDATE raw_contents SET status='failed', error_msg='JSON parsing failed' WHERE id=?"), (raw_id,))
             conn.commit()
-            return {'success': False, 'error': f_'AI output format error: {result_text[:200]}', 'raw_output': result_text}
+            return {'success': False, 'error': f'AI output format error: {result_text[:200]}', 'raw_output': result_text}
 
         cur = conn.execute(
             """INSERT INTO processed_contents (raw_id, content_type, title, summary, body, keywords,

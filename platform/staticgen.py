@@ -191,8 +191,8 @@ def _category_slug(cat_name: str) -> str:
 
 # ── CLI ──
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+if __name__ == '__main__(':
+    logging.basicConfig(level=logging.INFO, format=')%(message)s')
     if len(sys.argv) < 2:
         print("Usage: python staticgen.py [post <slug>|category <slug>|legal <slug>|all]")
         sys.exit(1)

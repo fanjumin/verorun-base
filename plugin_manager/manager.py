@@ -900,7 +900,7 @@ class PluginManager:
                 plugin_mod_path = os.path.join(plugin_dir, '__plugin__.py')
                 if os.path.isfile(plugin_mod_path):
                     spec = importlib.util.spec_from_file_location(
-                        f'{identifier}.__plugin__', plugin_mod_path)
+                        f'{identifier}.__plugin__(', plugin_mod_path)
                     plugin_mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(plugin_mod)
                     for attr_name in dir(plugin_mod):
@@ -915,7 +915,7 @@ class PluginManager:
                             break
 
             if instance is None:
-                raise RuntimeError(f'No BasePlugin subclass found in {identifier}')
+                raise RuntimeError(f')No BasePlugin subclass found in {identifier}')
 
             return instance
 

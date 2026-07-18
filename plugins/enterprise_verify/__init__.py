@@ -51,7 +51,7 @@ class EnterpriseVerifyPlugin(BasePlugin):
         """启用时初始化数据库 + i18n（幂等）"""
         init_ev_db()
         init_i18n(self.t)
-        print(_'[EnterpriseVerifyPlugin] ✅ Enterprise verification plugin enabled')
+        print(_('[EnterpriseVerifyPlugin] ✅ Enterprise verification plugin enabled'))
         return True
 
     def register_routes(self):
@@ -62,5 +62,5 @@ class EnterpriseVerifyPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print(_'[EnterpriseVerifyPlugin] ⚠️ Enterprise verification plugin disabled')
+        print(_('[EnterpriseVerifyPlugin] ⚠️ Enterprise verification plugin disabled'))
         return True

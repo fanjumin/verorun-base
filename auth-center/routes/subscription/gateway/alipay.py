@@ -128,11 +128,11 @@ def call_alipay_page_pay(order_no, description, amount_fen):
     返回前端可以直接跳转的 form_html 或 qr_code
     """
     if _is_stub():
-        return {'stub': True, 'note': _'Development mode - Alipay not configured', 'stub_auto_confirm': True}
+        return {'stub': True, 'note': _('Development mode - Alipay not configured'), 'stub_auto_confirm': True}
 
     private_key = _get_private_key()
     if not private_key:
-        return {'stub': True, 'note': _'Missing Alipay private key certificate'}
+        return {'stub': True, 'note': _('Missing Alipay private key certificate')}
 
     params = {
         'app_id': ALIPAY_APP_ID,
@@ -158,7 +158,7 @@ def call_alipay_page_pay(order_no, description, amount_fen):
     form_html = '<form id="alipay_submit" name="alipay_submit" action="' + ALIPAY_GATEWAY + '" method="POST" accept-charset="utf-8">'
     for k, v in params.items():
         form_html += f'<input type="hidden" name="{k}" value="{v}"/>'
-    form_html += _'<input type="submit" value="Alipay Payment" style="display:none"></form>'
+    form_html += _('<input type="submit" value="Alipay Payment" style="display:none"></form>')
     form_html += '<script>document.forms["alipay_submit"].submit();</script>'
 
     # 同时生成 GET URL（更可靠，前端可直接跳转）
@@ -191,7 +191,7 @@ def create_cycle_sign_request(user_id, plan_key, period, price_fen):
 
     private_key = _get_private_key()
     if not private_key:
-        return {'stub': True, 'error': _'Missing Alipay private key certificate'}
+        return {'stub': True, 'error': _('Missing Alipay private key certificate')}
 
     external_agreement_no = 'AG' + datetime.now().strftime('%Y%m%d%H%M%S') + secrets.token_hex(4).upper()
 
@@ -241,7 +241,7 @@ def execute_charge(agreement_id, order_no, amount_fen, subject=None):
 
     private_key = _get_private_key()
     if not private_key:
-        return False, _'Missing Alipay private key'
+        return False, _('Missing Alipay private key')
 
     params = {
         'app_id': ALIPAY_APP_ID,
@@ -277,7 +277,7 @@ def execute_charge(agreement_id, order_no, amount_fen, subject=None):
             # 处理中/未知 → 需要主动查询
             return _poll_charge_result(order_no)
         else:
-            return False, response.get('sub_msg', _'Payment failed')
+            return False, response.get('sub_msg', _('Payment failed'))
     except Exception as e:
         return False, str(e)
 
@@ -287,7 +287,7 @@ def _poll_charge_result(order_no, max_retries=5):
     import urllib.request, urllib.parse
     private_key = _get_private_key()
     if not private_key:
-        return False, _'Missing Alipay private key'
+        return False, _('Missing Alipay private key')
 
     for i in range(max_retries):
         time.sleep(3)
@@ -313,10 +313,10 @@ def _poll_charge_result(order_no, max_retries=5):
             if query_resp.get('trade_status') == 'TRADE_SUCCESS':
                 return True, None
             elif query_resp.get('trade_status') == 'TRADE_CLOSED':
-                return False, _'Trading is closed'
+                return False, _('Trading is closed')
         except Exception:
             continue
-    return False, _'Query Timeout'
+    return False, _('Query Timeout')
 
 
 def unsign_agreement(agreement_id):

@@ -63,7 +63,7 @@ def get_access_token(code, site_domain=None):
     """用授权码换 access_token + open_id，按域名选择凭证"""
     cfg = _get_config(site_domain)
     if not cfg:
-        return {'error': _'TikTok Login Not Configured', 'open_id': 'stub_open_' + code[:8],
+        return {'error': _('TikTok Login Not Configured'), 'open_id': 'stub_open_' + code[:8],
                 'union_id': 'stub_union', 'access_token': 'stub_token',
                 'refresh_token': 'stub_refresh', 'expires_in': 86400}
 
@@ -91,7 +91,7 @@ def get_access_token(code, site_domain=None):
                 'refresh_token': d.get('refresh_token', ''),
                 'expires_in': d.get('expires_in', 0),
             }
-        msg = body.get('message', _'TikTok API Error')
+        msg = body.get('message', _('TikTok API Error'))
         err = body.get('data', {}).get('description', msg)
         return {'error': err}
     except Exception as e:
@@ -101,7 +101,7 @@ def get_access_token(code, site_domain=None):
 def get_user_info(open_id, access_token, site_domain=None):
     """获取用户昵称和头像"""
     if is_stub(site_domain):
-        return {'nickname': _'TikTok User_' + open_id[-4:], 'avatar': '',
+        return {'nickname': _('TikTok User_') + open_id[-4:], 'avatar': '',
                 'open_id': open_id, 'union_id': 'stub_union'}
     url = ('https://open.douyin.com/oauth/userinfo?'
            + urllib.parse.urlencode({'access_token': access_token, 'open_id': open_id}))
@@ -116,7 +116,7 @@ def get_user_info(open_id, access_token, site_domain=None):
                 'open_id': d['open_id'],
                 'union_id': d.get('union_id', ''),
             }
-        return {'error': d.get('description', body.get('message', _'Failed to Get User Info'))}
+        return {'error': d.get('description', body.get('message', _('Failed to Get User Info')))}
     except Exception as e:
         return {'error': str(e)}
 
@@ -245,7 +245,7 @@ def code2session(code, site_domain=None):
                 'unionid': data.get('unionid', ''),
                 'error': None
             }
-        msg = data.get('description', body.get('message', _'TikTok API Error'))
+        msg = data.get('description', body.get('message', _('TikTok API Error')))
         return {'openid': None, 'session_key': None, 'unionid': None, 'error': msg}
     except Exception as e:
         return {'openid': None, 'session_key': None, 'unionid': None, 'error': str(e)}

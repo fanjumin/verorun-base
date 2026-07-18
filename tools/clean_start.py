@@ -18,8 +18,8 @@ ENV = f"PG_PASSWORD=***REMOVED*** PG_DB=verorun PG_USER=easykai PG_HOST=localhos
 r("sudo systemctl stop auth-center.service admin.service 2>/dev/null", 2)
 r("pkill -9 -f 'python3' 2>/dev/null", 2)
 time.sleep(3)
-r("rm -rf /home/easykai/easykai-workspace/easykai.cn/auth-center/models/__pycache__", 2)
-r("rm -f /tmp/auth_8081.log /tmp/platform_8083.log /tmp/admin_8084.log", 1)
+r("rm -rf /home/easykai/easykai-workspace/easykai.cn/auth-center/models/__pycache__(", 2)
+r(")rm -f /tmp/auth_8081.log /tmp/platform_8083.log /tmp/admin_8084.log", 1)
 
 # Start
 for n, p, a in [('auth',8081,'auth-center/app.py'),('platform',8083,'platform/app.py'),('admin',8084,'admin/app.py')]:

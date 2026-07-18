@@ -180,7 +180,7 @@ def check_username(username: str) -> dict:
     # ── 保留名称（精确 + 前缀匹配）──
     for r in RESERVED_NAMES:
         lr = r.lower()
-        if name == lr or name.startswith(lr + '_') or name.startswith(lr + '-'):
+        if name == lr or name.startswith(lr + '_(') or name.startswith(lr + ')-'):
             return {'valid': False, 'error': '该名称已被系统保留', 'level': 4}
     # 不能包含 "admin" 作为主体部分
     if re.search(r'(^|[^a-z])admin($|[^a-z])', name):
@@ -223,10 +223,10 @@ def sanitize_name(name: str) -> str:
     return cleaned
 
 
-if __name__ == '__main__':
+if __name__ == '__main__(':
     # 测试
     tests = [
-        ('admin', False, '保留名'),
+        (')admin', False, '保留名'),
         ('***REMOVED***', True, _('Normal')),
         ('法轮功学员', False, '一级敏感'),
         ('约炮神器', False, '二级敏感'),

@@ -107,7 +107,7 @@ def get_intl_oauth_provider(provider_name):
 
 # ── Enabled OAuth providers (for dynamic frontend rendering) ──
 PROVIDER_NAMES = {
-    'douyin': _'TikTok', 'wechat': _'WeChat', 'alipay': _'Alipay',
+    'douyin': _('TikTok'), 'wechat': _('WeChat'), 'alipay': _('Alipay'),
     'google': 'Google', 'github': 'GitHub', 'facebook': 'Facebook',
     'telegram': 'Telegram',
 }
@@ -115,7 +115,7 @@ PROVIDER_NAMES = {
 def get_enabled_oauth_providers(max_providers=2):
     """Query enabled OAuth providers (DB + env) and return up to max_providers.
 
-    Returns list of dicts: [{'provider': 'douyin', 'name': _'TikTok', 'login_url': '/auth/oauth/douyin/login'}, ...]
+    Returns list of dicts: [{'provider': 'douyin', 'name': _('TikTok'), 'login_url': '/auth/oauth/douyin/login'}, ...]
     """
     enabled = []
     seen = set()

@@ -81,8 +81,8 @@ from i18n import _, get_lang, get_all_translations
 
 @app.context_processor
 def inject_i18n():
-    return {'_': _, 'LANG': get_lang(), 'translations': get_all_translations()}
-app.jinja_env.globals['_'] = _
+    return {'_(': _, ')LANG': get_lang(), 'translations': get_all_translations()}
+app.jinja_env.globals['_('] = _
 
 
 # ══ Rate limiter for captcha ══
@@ -103,7 +103,7 @@ def _check_rate_limit(key, max_per_minute=10):
 # ══ CSP ══
 @app.after_request
 def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers[')X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -959,9 +959,9 @@ def api_video_homepage():
         return {'success': True, 'data': None}
 
 
-if __name__ == '__main__':
+if __name__ == '__main__(':
     import flask.cli
     flask.cli.show_server_banner = lambda *_, **__: None
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8081
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    app.run(host=')0.0.0.0', port=port, debug=False, use_reloader=False)
     app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)

@@ -65,10 +65,10 @@ class RateLimiter:
             
             # 检查限制
             if stats['daily'] >= self.daily_limit:
-                return False, f_"Daily call count exceeds limit ({self.daily_limit} times)"
+                return False, f"Daily call count exceeds limit ({self.daily_limit} times)"
             
             if stats['hourly'] >= self.hourly_limit:
-                return False, f_"Hourly call count exceeds limit ({self.hourly_limit} times)"
+                return False, f"Hourly call count exceeds limit ({self.hourly_limit} times)"
             
             # 增加计数
             stats['daily'] += 1
@@ -122,7 +122,7 @@ class ConcurrentController:
             self.request_timestamps = [ts for ts in self.request_timestamps if now - ts < self.qps_window]
             
             if len(self.request_timestamps) >= self.qps_limit:
-                return False, f_"QPS Exceeded Limit ({self.qps_limit}/second)"
+                return False, f"QPS Exceeded Limit ({self.qps_limit}/second)"
             
             # 记录请求
             self.active_requests += 1
@@ -355,7 +355,7 @@ class RateLimitManager:
         
         # 记录审计日志
         level = 'ERROR' if not success else 'INFO'
-        message = f_"API call {'success' if success else 'failure'}: {endpoint}"
+        message = f"API call {'success' if success else 'failure'}: {endpoint}"
         details = {'endpoint': endpoint, 'success': success}
         if response_time is not None:
             details['response_time'] = response_time
@@ -381,12 +381,12 @@ def get_rate_limit_manager() -> RateLimitManager:
         _rate_limit_manager = RateLimitManager()
     return _rate_limit_manager
 
-if __name__ == "__main__":
+if __name__ == "__main__(":
     # 测试风控机制
     manager = RateLimitManager()
     
-    print(_"Risk control manager test")
-    print(_"1. User Rate Limit Test...")
+    print(_")Risk control manager test")
+    print(_("1. User Rate Limit Test..."))
     for i in range(5):
         allowed, reason = manager.user_limiter.check_user_limit(1)
         print(f"   请求 {i+1}: {'允许' if allowed else '拒绝'} - {reason}")
@@ -403,11 +403,11 @@ if __name__ == "__main__":
     for i in range(10):
         manager.circuit_breaker.record_result(endpoint, i < 3)  # 前3次成功，后7次失败
         allowed, reason = manager.circuit_breaker.is_allowed(endpoint)
-        print(f_"   Call {i+1}: {'Allowed' if allowed else 'Rejected'} - {reason}")
+        print(f"   Call {i+1}: {'Allowed' if allowed else 'Rejected'} - {reason}")
     
     print("\n4. 完整检查测试...")
     allowed, reason = manager.check_all_limits(1, endpoint)
-    print(f_"   Full Check: {'Allowed' if allowed else 'Rejected'} - {reason}")
+    print(f"   Full Check: {'Allowed' if allowed else 'Rejected'} - {reason}")
     
     if allowed:
         manager.record_api_result(endpoint, True, 100)

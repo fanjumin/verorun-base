@@ -67,15 +67,15 @@ import os as _os
 
 @app.context_processor
 def inject_i18n():
-    return {'_': _, 'LANG': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
+    return {'_(': _, ')LANG': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
 
-app.jinja_env.globals['_'] = _
+app.jinja_env.globals['_('] = _
 
 
 # ══ Content Security Policy (CSP) ══
 @app.after_request
 def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers[')X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -845,6 +845,6 @@ def serve_theme_file(slug, filename):
     return send_from_directory(theme_static, filename)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__(':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8084
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host=')0.0.0.0', port=port, debug=False)

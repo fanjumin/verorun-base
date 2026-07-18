@@ -343,7 +343,7 @@ def init_analytics_tables(db_path=None):
             except Exception as e:
                 print(f'[Analytics] ⚠️ Schema error: {e}')
     conn.commit()
-    print(f_'[Analytics] ✅ PG schema analytics initialized (11 tables)')
+    print(f'[Analytics] ✅ PG schema analytics initialized (11 tables)')
 
 
 # ─── 哈希与匿名化工具 ──────────────────────────────────────────────────────────
@@ -826,16 +826,16 @@ def get_city_distribution(conn, days: int = 30, country: str = ''):
 
 # 拼音城市名 → 中文映射（ip2region未覆盖时的回退）
 _PINYIN_CITY_MAP = {
-    'Beijing': _'Beijing', 'Shanghai': _'Shanghai', 'Guangzhou': _'Guangzhou', 'Shenzhen': _'Shenzhen',
-    'Hangzhou': _'Hangzhou', 'Nanjing': _'Nanjing', 'Chengdu': _'Chengdu', 'Wuhan': _'Wuhan',
-    'Tianjin': _'Tianjin"', 'Chongqing': _'Chongqing', "Xi'an": _'Xi'an', 'Xian': _'Xi'an',
-    'Suzhou': _'Suzhou', 'Changsha': _'Changsha', 'Zhengzhou': _'Zhengzhou', 'Qingdao': _'Qingdao',
-    'Dalian': _'Dalian"', 'Xiamen': _'Xiamen', 'Fuzhou': _'Fuzhou', 'Hefei': _'Hefei',
-    'Jinan': _'Jinan', 'Shenyang': _'Shenyang', 'Kunming': _'Kunming', 'Harbin': _'Harbin',
-    'Changchun': _'Changchun', 'Taiyuan': _'Taiyuan"', 'Guiyang': _'Guiyang', 'Nanning': _'Nanning',
-    'Shijiazhuang': _'Shijiazhuang', 'Nanchang': _'Nanchang', 'Lanzhou': _'Lanzhou', 'Urumqi': _'Urumqi',
-    'Foshan': _'Foshan', 'Dongguan': _'Dongguan', 'Wuxi': _'Wuxi', 'Ningbo': _'Ningbo',
-    'Wenzhou': _'Wenzhou', 'Zhuhai': _'Zhuhai', 'Haikou': _'Haikou', 'Sanya': _'Sanya',
+    'Beijing': _('Beijing'), 'Shanghai': _('Shanghai'), 'Guangzhou': _('Guangzhou'), 'Shenzhen': _('Shenzhen'),
+    'Hangzhou': _('Hangzhou'), 'Nanjing': _('Nanjing'), 'Chengdu': _('Chengdu'), 'Wuhan': _('Wuhan'),
+    'Tianjin': _('Tianjin"'), 'Chongqing': _('Chongqing'), "Xi'an": _('Xi')an', 'Xian': _('Xi')an',
+    'Suzhou': _('Suzhou'), 'Changsha': _('Changsha'), 'Zhengzhou': _('Zhengzhou'), 'Qingdao': _('Qingdao'),
+    'Dalian': _('Dalian"'), 'Xiamen': _('Xiamen'), 'Fuzhou': _('Fuzhou'), 'Hefei': _('Hefei'),
+    'Jinan': _('Jinan'), 'Shenyang': _('Shenyang'), 'Kunming': _('Kunming'), 'Harbin': _('Harbin'),
+    'Changchun': _('Changchun'), 'Taiyuan': _('Taiyuan"'), 'Guiyang': _('Guiyang'), 'Nanning': _('Nanning'),
+    'Shijiazhuang': _('Shijiazhuang'), 'Nanchang': _('Nanchang'), 'Lanzhou': _('Lanzhou'), 'Urumqi': _('Urumqi'),
+    'Foshan': _('Foshan'), 'Dongguan': _('Dongguan'), 'Wuxi': _('Wuxi'), 'Ningbo': _('Ningbo'),
+    'Wenzhou': _('Wenzhou'), 'Zhuhai': _('Zhuhai'), 'Haikou': _('Haikou'), 'Sanya': _('Sanya'),
 }
 
 def _to_chinese_city(name: str) -> str:
@@ -1010,7 +1010,7 @@ def check_alerts(conn) -> list:
                 )
                 conn.commit()
         except Exception as e:
-            print(f_'[Analytics] ⚠️ Alert check failed [{alert["name"]}]: {e}')
+            print(f'[Analytics] ⚠️ Alert check failed [{alert["name"]}]: {e}')
     return triggered
 
 

@@ -95,7 +95,7 @@ class AliApiPlugin(BasePlugin):
                 conn.commit()
                 logger.info(f'[AliApi] 已为订单 {order_id} 创建采购单草稿')
         except Exception as e:
-            print(f_'[AliApi] Order listening exception: {e}')
+            print(f'[AliApi] Order listening exception: {e}')
 
     def register_routes(self):
         """注册路由蓝图"""

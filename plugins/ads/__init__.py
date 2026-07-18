@@ -40,7 +40,7 @@ class AdsPlugin(BasePlugin):
         """启用时初始化数据库 + i18n（幂等）"""
         init_ad_db()
         init_i18n(self.t)
-        print(_'[AdsPlugin] ✅ Advertising management plugin is enabled')
+        print(_('[AdsPlugin] ✅ Advertising management plugin is enabled'))
         return True
 
     def register_routes(self):
@@ -49,5 +49,5 @@ class AdsPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print(_'[AdsPlugin] ⚠️ Advertising management plugin is disabled')
+        print(_('[AdsPlugin] ⚠️ Advertising management plugin is disabled'))
         return True

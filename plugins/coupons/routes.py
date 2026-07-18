@@ -54,18 +54,18 @@ def _require_auth():
     """从请求头解析用户 JWT（读取环境变量 JWT_SECRET）。"""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
-        return None, jsonify({'success': False, 'error': _t(_'Not logged in')}), 401
+        return None, jsonify({'success': False, 'error': _t(_('Not logged in'))}), 401
     token = auth[7:]
     try:
         import jwt as pyjwt
         import os
         secret = os.environ.get('JWT_SECRET', '')
         if not secret:
-            return None, jsonify({'success': False, 'error': _t(_'Token is invalid or expired')}), 401
+            return None, jsonify({'success': False, 'error': _t(_('Token is invalid or expired'))}), 401
         payload = pyjwt.decode(token, secret, algorithms=['HS256'])
         return payload, None, None
     except Exception:
-        return None, jsonify({'success': False, 'error': _t(_'Token is invalid or expired')}), 401
+        return None, jsonify({'success': False, 'error': _t(_('Token is invalid or expired'))}), 401
 
 
 def _require_admin():
@@ -74,7 +74,7 @@ def _require_admin():
     if err_resp:
         return None, err_resp
     if not payload.get('is_admin'):
-        return None, jsonify({'success': False, 'error': _t(_'No Permission')}), 403
+        return None, jsonify({'success': False, 'error': _t(_('No Permission'))}), 403
     return payload, None
 
 
@@ -126,12 +126,12 @@ def admin_create():
         return err, 403
     data = request.get_json() or {}
     if not data.get('code') or data.get('value') is None:
-        return jsonify({'success': False, 'error': _t(_'Missing required field')}), 400
+        return jsonify({'success': False, 'error': _t(_('Missing required field'))}), 400
     try:
         cid = _engine.create(data)
         with _get_db() as conn:
             _log_admin_action(conn, payload['user_id'], 'create', 'coupon', cid, data['code'])
-        return jsonify({'success': True, 'data': {'id': cid}, 'message': _t(_'Coupon has been created')})
+        return jsonify({'success': True, 'data': {'id': cid}, 'message': _t(_('Coupon has been created'))})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -145,7 +145,7 @@ def admin_update(cid):
     _engine.update(cid, data)
     with _get_db() as conn:
         _log_admin_action(conn, payload['user_id'], 'update', 'coupon', cid)
-    return jsonify({'success': True, 'message': _t(_'Coupon has been updated')})
+    return jsonify({'success': True, 'message': _t(_('Coupon has been updated'))})
 
 
 @coupon_bp.route('/admin/delete/<int:cid>', methods=['POST'])
@@ -156,7 +156,7 @@ def admin_delete(cid):
     _engine.delete(cid)
     with _get_db() as conn:
         _log_admin_action(conn, payload['user_id'], 'delete', 'coupon', cid)
-    return jsonify({'success': True, 'message': _t(_'Coupon has been deleted')})
+    return jsonify({'success': True, 'message': _t(_('Coupon has been deleted'))})
 
 
 @coupon_bp.route('/admin/stats', methods=['GET'])
@@ -187,9 +187,9 @@ def admin_distribute():
     count = _engine.distribute(coupon_id, user_ids)
     with _get_db() as conn:
         _log_admin_action(conn, payload['user_id'], 'distribute', 'coupon', coupon_id,
-                          f_'{_t("Sent to")}{count}{_t("users")}')
+                          f'{_t("Sent to")}{count}{_t("users")}')
     return jsonify({'success': True, 'data': {'total': count},
-                    'message': f_'{_t("Sent to")} {count} {_t("users")}'})
+                    'message': f'{_t("Sent to")} {count} {_t("users")}'})
 
 
 @coupon_bp.route('/admin/redemptions/<int:cid>', methods=['GET'])
@@ -214,7 +214,7 @@ def api_validate():
         return err, status
     uid = payload['user_id']
     if not _check_rate_limit(uid, 'coupon_validate'):
-        return jsonify({'success': False, 'error': _t(_'Too frequent actions')}), 429
+        return jsonify({'success': False, 'error': _t(_('Too frequent actions'))}), 429
     data = request.get_json() or {}
     code = data.get('code', '').strip().upper()
     amount = _safe_float(data.get('amount', 0))
@@ -283,11 +283,11 @@ def api_ai_recommend():
     # 序列化 coupon（避免前端无法处理）
     if result.get('best'):
         result['best'] = {k: v for k, v in result['best'].items()
-                          if not k.startswith('_') and isinstance(v, (str, int, float, bool, type(None)))}
-    result['recommended'] = [
+                          if not k.startswith('_(') and isinstance(v, (str, int, float, bool, type(None)))}
+    result[')recommended'] = [
         {k: v for k, v in c.items()
-         if not k.startswith('_') and isinstance(v, (str, int, float, bool, type(None)))}
-        for c in result.get('recommended', [])
+         if not k.startswith('_(') and isinstance(v, (str, int, float, bool, type(None)))}
+        for c in result.get(')recommended', [])
     ]
     return jsonify({'success': True, 'data': result})
 
@@ -298,10 +298,10 @@ def api_scenes():
     locale = request.args.get('locale', 'zh-CN')
     scenes = []
     for name in dir(SceneName):
-        if name.startswith('_'):
+        if name.startswith('_('):
             continue
         val = getattr(SceneName, name)
-        if isinstance(val, str) and val.startswith(('shop_', 'purchase_', 'ai_', 'subscription_', 'new_', 'promo_', 'referral_')):
+        if isinstance(val, str) and val.startswith((')shop_', 'purchase_', 'ai_', 'subscription_', 'new_', 'promo_', 'referral_')):
             scenes.append({
                 'name': val,
                 'label': get_scene_label(val, locale),
@@ -321,7 +321,7 @@ def api_apply():
     order_no = data.get('order_no', '')
     amount = _safe_float(data.get('amount', 0))
     if not code or not order_no:
-        return jsonify({'success': False, 'error': _t(_'Missing parameter')}), 400
+        return jsonify({'success': False, 'error': _t(_('Missing parameter'))}), 400
     result = _engine.apply_to_order(code, uid, order_no, amount)
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 400

@@ -38,16 +38,16 @@ class ImGatewayPlugin(BasePlugin):
         try:
             n = migrate_from_main_db()
             if n:
-                print(f_'[ImGatewayPlugin] ✅ Migrated {n} channel configurations from main database')
+                print(f'[ImGatewayPlugin] ✅ Migrated {n} channel configurations from main database')
         except Exception as e:
-            print(f_'[ImGatewayPlugin] ⚠️ Channel configuration migration warning: {e}')
+            print(f'[ImGatewayPlugin] ⚠️ Channel configuration migration warning: {e}')
         return True
 
     def on_enable(self, registry):
         """启用时初始化数据库 + i18n（幂等）"""
         init_im_db()
         init_i18n(self.t)
-        print(_'[ImGatewayPlugin] ✅ IM gateway plugin enabled')
+        print(_('[ImGatewayPlugin] ✅ IM gateway plugin enabled'))
         return True
 
     def register_routes(self):
@@ -57,7 +57,7 @@ class ImGatewayPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print(_'[ImGatewayPlugin] ⚠️ IM gateway plugin disabled')
+        print(_('[ImGatewayPlugin] ⚠️ IM gateway plugin disabled'))
         return True
 
     # ── 对外接口：供主系统（媒体库）调用推送 ──
@@ -66,7 +66,7 @@ class ImGatewayPlugin(BasePlugin):
         """向指定频道推送媒体文件。
 
         供主系统 media_library_push 调用。插件禁用时该实例不存在，
-        主系统需据此提示_"IM Gateway is not enabled"。
+        主系统需据此提示_("IM Gateway is not enabled")。
 
         Args:
             channel: 'feishu' | 'wecom'
@@ -80,5 +80,5 @@ class ImGatewayPlugin(BasePlugin):
         from .adapters import get_adapter
         adapter = get_adapter(channel)
         if adapter is None:
-            raise Exception(f_'Channel {channel} does not support media push')
+            raise Exception(f'Channel {channel} does not support media push')
         adapter.push_media(file_url, filename, mime)

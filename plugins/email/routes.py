@@ -72,7 +72,7 @@ def admin_email_send():
     attachments = data.get('attachments')
     reply_to_uid = data.get('reply_to_uid')
     if not to_addr or not subject or (not body and not body_html):
-        return jsonify({'success': False, 'error': _'Recipient, subject, and content cannot be empty'}), 400
+        return jsonify({'success': False, 'error': _('Recipient, subject, and content cannot be empty')}), 400
     from plugins.email.services import send_email
     try:
         ok, msg = send_email(to_addr, subject, body or '',
