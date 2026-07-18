@@ -10,9 +10,10 @@ _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
 if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 
-currency_bp = Blueprint('currency', __name__, url_prefix='/admin/currency')
+currency_bp = Blueprint('currency', __name__, url_prefix='/admin/currency',
+                        template_folder='templates')
 
 
 def _require_admin():
@@ -25,6 +26,16 @@ def _log(admin_id, action, target_type='', target_id='', detail=''):
     """复用主系统的操作日志"""
     from routes.admin import _log as _l
     _l(admin_id, action, target_type, target_id, detail)
+
+
+# ── 管理页面 ──────────────────────────────────────
+
+@currency_bp.route('/', methods=['GET'])
+def admin_page():
+    admin, err = _require_admin()
+    if err:
+        return err
+    return render_template('admin_currency.html')
 
 
 # ── 公有 API（无需管理员登录） ──────────────────────────

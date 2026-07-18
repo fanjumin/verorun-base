@@ -49,7 +49,8 @@
         "key": "currency_converter",
         "group": "Payment & Operations",
         "icon": "currency",
-        "label": "Currency Settings"
+        "label": "Currency Settings",
+        "embed_url": "/admin/currency/"
     },
 
     "settings_schema": {
