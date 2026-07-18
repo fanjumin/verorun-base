@@ -155,6 +155,12 @@ try:
     auto_register_sub_agent()
 except Exception as e:
     print(f'[CleanerAgent] ⚠️ 自动注册失败: {e}')
+# 启动知识库定期维护调度器（阶段三）
+try:
+    from routes.cleaner_agent import init_kb_scheduler
+    init_kb_scheduler()
+except Exception as e:
+    print(f'[KnowledgeMaintenance] ⚠️ 调度器启动失败: {e}')
 init_cms_tables()
 
 # ===== PluginManager（新插件系统）=====

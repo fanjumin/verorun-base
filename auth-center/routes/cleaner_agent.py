@@ -5,6 +5,7 @@
 """
 import sys, os, json, re
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request
 from models import get_db
 
@@ -376,6 +377,158 @@ def auto_register_sub_agent():
         print(f'[CleanerAgent] ✅ 已自动注册为矩阵子Agent')
     except Exception as e:
         print(f'[CleanerAgent] 自动注册跳过: {e}')
+
+
+# =============================================
+# 阶段三：定期维护任务（APScheduler）
+# =============================================
+
+import logging
+_kb_logger = logging.getLogger('knowledge_maintenance')
+_kb_scheduler = None
+
+
+def _run_time_decay():
+    """
+    时间衰减：每周执行。
+    - 180 天未命中 + quality_score < 0.3 → 软删除
+    - 365 天未命中 → 软删除
+    - 180 天未命中 + quality_score >= 0.3 → 降低 quality_score
+    """
+    try:
+        with get_db() as conn:
+            now = datetime.now()
+            threshold_365 = (now - timedelta(days=365)).isoformat()
+            threshold_180 = (now - timedelta(days=180)).isoformat()
+
+            # 365 天 → 软删除
+            result = conn.execute(
+                """UPDATE knowledge_blocks SET deleted_at=NOW()
+                   WHERE deleted_at IS NULL AND created_at < %s AND hit_count = 0""",
+                (threshold_365,)
+            )
+            deleted_365 = result.rowcount
+
+            # 180 天 + quality < 0.3 → 软删除
+            result = conn.execute(
+                """UPDATE knowledge_blocks SET deleted_at=NOW()
+                   WHERE deleted_at IS NULL AND created_at < %s
+                   AND hit_count = 0 AND quality_score < 0.3""",
+                (threshold_180,)
+            )
+            deleted_180 = result.rowcount
+
+            # 180 天 + quality >= 0.3 → 降分但不删除
+            result = conn.execute(
+                """UPDATE knowledge_blocks
+                   SET quality_score = GREATEST(quality_score - 0.2, 0.0)
+                   WHERE deleted_at IS NULL AND created_at < %s
+                   AND hit_count = 0 AND quality_score >= 0.3""",
+                (threshold_180,)
+            )
+            downgraded = result.rowcount
+
+            conn.commit()
+
+        _kb_logger.info(
+            f'[TimeDecay] 365d deleted={deleted_365}, '
+            f'180d deleted={deleted_180}, downgraded={downgraded}'
+        )
+    except Exception as e:
+        _kb_logger.error(f'[TimeDecay] Failed: {e}')
+
+
+def _run_redundancy_check():
+    """
+    冗余检测：每月执行。
+    全量 Jaccard 关键词去重，相似度 > 90% 的条目对记录日志。
+    """
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                """SELECT id, title, keywords, category
+                   FROM knowledge_blocks WHERE deleted_at IS NULL"""
+            ).fetchall()
+
+        if len(rows) < 2:
+            return
+
+        entries = [dict(r) for r in rows]
+        duplicates = []
+
+        for i in range(len(entries)):
+            for j in range(i + 1, len(entries)):
+                e1, e2 = entries[i], entries[j]
+                if e1['category'] != e2['category']:
+                    continue
+                jac = _jaccard_similarity(
+                    e1.get('keywords', ''), e2.get('keywords', '')
+                )
+                if jac > 0.90:
+                    duplicates.append({
+                        'kb1': e1['id'], 'kb2': e2['id'],
+                        'title1': e1['title'], 'title2': e2['title'],
+                        'category': e1['category'], 'jaccard': round(jac, 3),
+                    })
+
+        if duplicates:
+            _kb_logger.warning(
+                f'[Redundancy] Found {len(duplicates)} duplicate pairs: {duplicates[:20]}'
+            )
+        else:
+            _kb_logger.info('[Redundancy] No duplicates found')
+    except Exception as e:
+        _kb_logger.error(f'[Redundancy] Failed: {e}')
+
+
+def init_kb_scheduler():
+    """
+    初始化知识库定期维护调度器。
+    在 admin/app.py 启动时调用一次。
+    """
+    global _kb_scheduler
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+
+        if _kb_scheduler is not None:
+            return  # 已初始化
+
+        _kb_scheduler = BackgroundScheduler(
+            daemon=True,
+            job_defaults={'misfire_grace_time': 3600},
+        )
+
+        # 时间衰减：每周日凌晨 3:00
+        _kb_scheduler.add_job(
+            _run_time_decay,
+            CronTrigger(day_of_week='sun', hour=3, minute=0),
+            id='kb_time_decay',
+            name='Knowledge Time Decay',
+            replace_existing=True,
+        )
+
+        # 冗余检测：每月1日凌晨 4:00
+        _kb_scheduler.add_job(
+            _run_redundancy_check,
+            CronTrigger(day=1, hour=4, minute=0),
+            id='kb_redundancy',
+            name='Knowledge Redundancy Check',
+            replace_existing=True,
+        )
+
+        _kb_scheduler.start()
+        _kb_logger.setLevel(logging.INFO)
+        if not _kb_logger.handlers:
+            h = logging.StreamHandler()
+            h.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s %(message)s'))
+            _kb_logger.addHandler(h)
+        _kb_logger.info('[KnowledgeMaintenance] Scheduler started (weekly decay + monthly redundancy)')
+
+    except ImportError:
+        print('[KnowledgeMaintenance] APScheduler not available, skip')
+    except Exception as e:
+        print(f'[KnowledgeMaintenance] Scheduler init failed: {e}')
 
 
 # =============================================
