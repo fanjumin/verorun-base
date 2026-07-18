@@ -402,7 +402,8 @@ window.l_publish_history=function(){
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
   fetch("/admin/social/history?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success){document.getElementById("mc").innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
-    var items=d.data||d.items||[];
+    var data=d.data||{};
+    var items=Array.isArray(data)?data:(data.items||[]);
     if(!items.length){document.getElementById("mc").innerHTML='<div class="em">{{ _('No Publication Records') }}</div>';return}
     var h='<div class="cd"><div class="st">{{ _('Publish History') }} ('+items.length+')</div><table><tr><th>{{ _('Platform') }}</th><th>{{ _('Title') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>';
     items.forEach(function(r){

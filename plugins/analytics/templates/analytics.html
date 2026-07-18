@@ -985,7 +985,7 @@ function renderSourcesChart(data) {
 function renderSourcesTable(data) {
   var html = '<table class="data-table"><thead><tr><th>{{ _('Type') }}</th><th>{{ _('Source') }}</th><th>PV</th><th>UV</th><th>{{ _('Percentage') }}</th></tr></thead><tbody>';
   data.forEach(function(d){
-    var pct = d.pct || 0;
+    var pct = parseFloat(d.pct) || 0;
     html += '<tr>' +
       '<td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(99,102,241,0.1);color:var(--indigo)">' + d.source_type + '</span></td>' +
       '<td>' + d.source_name + '</td>' +
