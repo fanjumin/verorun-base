@@ -143,6 +143,166 @@ class AgentOrchestrator:
         }
 
     # -------------------------------------------------------
+    # 智能记忆：对话结束自动提取（Write 层）
+    # -------------------------------------------------------
+    _extraction_executor = None
+
+    @classmethod
+    def _get_executor(cls):
+        """延迟创建 ThreadPoolExecutor（避免多进程问题）"""
+        import concurrent.futures
+        if cls._extraction_executor is None:
+            cls._extraction_executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix='kb_extract_'
+            )
+        return cls._extraction_executor
+
+    def _on_task_complete(self, conversation_text: str, user_id: int, task_result: dict):
+        """对话结束 → 异步判断 → 送 Cleaner（不阻塞响应）"""
+        try:
+            self._get_executor().submit(
+                self._async_extract_and_store, conversation_text, user_id, task_result
+            )
+        except Exception as e:
+            logger.warning(f"提交知识提取任务失败 user={user_id}: {e}")
+
+    def _async_extract_and_store(self, conversation_text: str, user_id: int, task_result: dict):
+        """后台线程执行提取+入库（不阻塞对话响应）"""
+        try:
+            if not self._should_extract(conversation_text, task_result):
+                return
+
+            facts = self._extract_facts(conversation_text)
+            if not facts:
+                return
+
+            from auth_center.routes.cleaner_agent import process_clean_content
+            for fact in facts:
+                try:
+                    process_clean_content(fact, admin_id=user_id)
+                except Exception as e:
+                    logger.warning(f"单条知识入库失败 user={user_id}: {e}")
+        except Exception as e:
+            logger.error(f"自动知识提取失败 user={user_id}: {e}")
+
+    def _should_extract(self, conversation_text: str, task_result: dict) -> bool:
+        """判断对话是否值得提取知识"""
+        import hashlib
+
+        conv = (conversation_text or '').strip()
+        if not conv:
+            return False
+
+        # 纯寒暄过滤：太短的跳过
+        if len(conv) < 20:
+            return False
+
+        # 敏感信息过滤
+        import re
+        sensitive_patterns = [
+            r'\b1[3-9]\d{9}\b',           # 手机号
+            r'\b\d{6}(19|20)\d{8}[\dXx]\b',  # 身份证
+            r'(password|密码|secret|密钥|AKSK|access_key)',  # 密钥类
+        ]
+        for pat in sensitive_patterns:
+            if re.search(pat, conv, re.IGNORECASE):
+                return False
+
+        # 幂等保护：已处理过的跳过
+        try:
+            conv_hash = hashlib.md5(conv.encode()).hexdigest()
+            from models import get_db
+            with get_db() as conn:
+                exists = conn.execute(
+                    "SELECT 1 FROM knowledge_queue WHERE processed_hash = %s LIMIT 1",
+                    (conv_hash,)
+                ).fetchone()
+                if exists:
+                    return False
+                # 标记为已处理
+                conn.execute(
+                    "INSERT INTO knowledge_queue (source, raw_content, status, processed_hash) VALUES (%s,%s,%s,%s)",
+                    ('auto_extract', conv[:500], 'processed', conv_hash)
+                )
+                conn.commit()
+        except Exception:
+            pass  # 幂等检查失败不影响提取
+
+        # 必须有实质内容才提取
+        return True
+
+    def _extract_facts(self, conversation_text: str) -> list:
+        """
+        用轻量 LLM 调用从对话中提取关键事实。
+        返回事实列表，每条为简洁陈述句。
+        失败返回空列表，不影响对话响应。
+        """
+        import requests, json as _json
+
+        prompt = (
+            "从以下对话中提取关键事实，每条一行，简洁陈述。只提取客观事实，不推测。\n"
+            "格式：每行一条事实，以 '- ' 开头。\n"
+            "跳过寒暄和闲聊。如果对话中没有任何值得记录的事实，输出 '无'。\n\n"
+            "对话：\n" + conversation_text[:4000] + "\n\n"
+            "输出示例：\n"
+            "- 用户经营餐饮品牌\n"
+            "- 用户偏好暖色调设计\n"
+            "- 用户上次建了名为XX餐厅的官网\n"
+        )
+
+        try:
+            # 使用与 orchestrator 相同的 AI 配置
+            agent = self.models.get_agent(1)  # Master Agent 配置
+            if not agent:
+                return []
+
+            api_url = os.environ.get(
+                'EASYKAI_LLM_URL',
+                agent.get('api_url', 'https://api.deepseek.com/v1/chat/completions')
+            )
+            api_key = os.environ.get(
+                'EASYKAI_LLM_KEY',
+                agent.get('api_key', '')
+            )
+            model = os.environ.get(
+                'EASYKAI_LLM_MODEL',
+                agent.get('model_name', 'deepseek-chat')
+            )
+
+            resp = requests.post(
+                api_url,
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json',
+                },
+                json={
+                    'model': model,
+                    'messages': [{'role': 'user', 'content': prompt}],
+                    'max_tokens': 500,
+                    'temperature': 0.3,
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            content = resp.json()['choices'][0]['message']['content']
+
+            # 解析事实列表
+            facts = []
+            for line in content.strip().split('\n'):
+                line = line.strip()
+                if line.startswith('- ') and len(line) > 3:
+                    fact = line[2:].strip()
+                    if fact and fact != '无':
+                        facts.append(fact)
+
+            logger.info(f"提取事实 {len(facts)} 条: {facts}")
+            return facts
+
+        except Exception as e:
+            logger.warning(f"事实提取 LLM 调用失败: {e}")
+            return []
+
+    # -------------------------------------------------------
     # 任务分解
     # -------------------------------------------------------
 

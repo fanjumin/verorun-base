@@ -2314,6 +2314,63 @@ def init_db():
                 print(f'[Migration] user_tickets.assigned_name skipped: {e}')
         m.commit()
 
+    # ── Migration: knowledge_blocks 智能记忆字段 + knowledge_history 表 (2026-07-18) ──
+    with get_db() as m:
+        kb_cols = get_table_columns(m, 'knowledge_blocks')
+        for col_name, col_def in [
+            ('source',        "VARCHAR(20) DEFAULT 'manual'"),
+            ('hit_count',     "INTEGER DEFAULT 0"),
+            ('quality_score', "REAL DEFAULT 0.5"),
+            ('updated_at',    "DATETIME DEFAULT NULL"),
+            ('deleted_at',    "DATETIME DEFAULT NULL"),
+        ]:
+            if col_name not in kb_cols:
+                try:
+                    m.execute(f"ALTER TABLE knowledge_blocks ADD COLUMN {col_name} {col_def}")
+                    print(f'[Migration] knowledge_blocks.{col_name} added')
+                except Exception as e:
+                    print(f'[Migration] knowledge_blocks.{col_name} skipped: {e}')
+        m.commit()
+
+        # 索引
+        for idx_name, idx_col in [
+            ('idx_kb_source',    'source'),
+            ('idx_kb_quality',   'quality_score'),
+            ('idx_kb_deleted',   'deleted_at'),
+            ('idx_kb_hit_count', 'hit_count'),
+        ]:
+            try:
+                m.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON knowledge_blocks({idx_col})")
+            except Exception as e:
+                print(f'[Migration] {idx_name} skipped: {e}')
+        m.commit()
+
+        # knowledge_history 版本历史表
+        m.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_history (
+                id               VARCHAR(64) PRIMARY KEY,
+                kb_id            VARCHAR(64) NOT NULL,
+                previous_title   VARCHAR(200),
+                previous_content TEXT,
+                changed_at       DATETIME DEFAULT NOW()
+            )
+        """)
+        m.execute('CREATE INDEX IF NOT EXISTS idx_kh_kb_id ON knowledge_history(kb_id)')
+        m.commit()
+        print('[Migration] knowledge_history table created')
+
+    # ── Migration: knowledge_queue 幂等 hash (2026-07-18) ──
+    with get_db() as m:
+        kq_cols = get_table_columns(m, 'knowledge_queue')
+        if 'processed_hash' not in kq_cols:
+            try:
+                m.execute("ALTER TABLE knowledge_queue ADD COLUMN processed_hash VARCHAR(64) DEFAULT NULL")
+                m.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_queue_hash ON knowledge_queue(processed_hash)")
+                print('[Migration] knowledge_queue.processed_hash added')
+            except Exception as e:
+                print(f'[Migration] knowledge_queue.processed_hash skipped: {e}')
+        m.commit()
+
 
 def _get_default_interests():
     """6 大类 ~35 个兴趣标签"""

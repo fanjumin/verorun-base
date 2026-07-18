@@ -33,6 +33,96 @@ def _m():
 
 
 # ============================================================
+# RAG 知识检索（Read 层）
+# ============================================================
+
+def _inject_knowledge(user_message: str, top_k: int = 5) -> str:
+    """
+    基于用户输入实时检索 knowledge_blocks，拼入 system prompt。
+    复用 platform/api_v1.py 的中文双字组合评分算法。
+    返回格式化的知识文本，无结果返回空字符串。
+    """
+    try:
+        conn = _m().get_db()
+        blocks = conn.execute(
+            """SELECT id, title, content, keywords, category
+               FROM knowledge_blocks
+               WHERE deleted_at IS NULL
+               ORDER BY priority DESC, quality_score DESC"""
+        ).fetchall()
+
+        if not blocks:
+            return ''
+
+        # 中文双字组合 + 字符评分（与 _rag_search 一致）
+        query = (user_message or '').replace(' ', '')
+        chars = list(query)
+        bigrams = [query[i:i+2] for i in range(len(query)-1)]
+        search_terms = set(chars + bigrams)
+
+        scored = []
+        for block in blocks:
+            score = 0.0
+            keywords = (block['keywords'] or '').split(',')
+            content = block['content'] or ''
+            title = block['title'] or ''
+
+            # 关键词匹配
+            kw_matches = sum(1 for kw in keywords if kw and kw in query)
+            if kw_matches > 0:
+                score += min(kw_matches / len(keywords), 1.0) * 0.6
+
+            # 字符重叠度
+            content_chars = set(content)
+            title_chars = set(title)
+            char_overlap = len(search_terms & content_chars) / max(len(search_terms), 1)
+            title_overlap = len(search_terms & title_chars) / max(len(search_terms), 1)
+            score += char_overlap * 0.25 + title_overlap * 0.15
+
+            # 精确匹配加分
+            if query in content:
+                score += 0.3
+            if query in title:
+                score += 0.2
+
+            if score > 0:
+                scored.append((block, score))
+
+        scored.sort(key=lambda x: -x[1])
+        top = scored[:top_k]
+
+        # 更新命中计数和质量分
+        for block, score in top:
+            if score > 0.3:
+                try:
+                    conn.execute(
+                        "UPDATE knowledge_blocks SET hit_count = hit_count + 1 WHERE id = %s",
+                        (block['id'],)
+                    )
+                except Exception:
+                    pass
+
+        # 拼成文本
+        lines = []
+        for block, score in top:
+            if score > 0.3:
+                lines.append(
+                    f"- [{block['category']}] {block['title']}: {block['content'][:200]}"
+                )
+
+        if not lines:
+            return ''
+
+        conn.commit()
+        return '\n\n=== 知识库（自动检索） ===\n' + '\n'.join(lines) + '\n=== 知识库结束 ==='
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"RAG 检索失败: {e}")
+        return ''
+
+
+# ============================================================
 # 鉴权
 # ============================================================
 
@@ -382,6 +472,8 @@ def chat_with_master():
             session_id=session_id,
             mode=mode
         )
+        # Write 层：对话结束自动提取知识（异步，不阻塞响应）
+        orchestrator._on_task_complete(message, admin.get('user_id', 0), result)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -549,6 +641,8 @@ def chat_tool():
                 session_id=session_id,
                 mode='fast'
             )
+            # Write 层：对话结束自动提取知识（异步）
+            orchestrator._on_task_complete(message, admin.get('user_id', 0), result)
             return _success({
                 'session_id': session_id,
                 'summary': result.get('summary', ''),
@@ -689,6 +783,8 @@ def chat_tool():
                 session_id=session_id,
                 mode='fast'
             )
+            # Write 层：对话结束自动提取知识（异步）
+            orchestrator._on_task_complete(message, admin.get('user_id', 0), result)
             return _success({
                 'session_id': session_id,
                 'summary': result.get('summary', ''),
@@ -1235,19 +1331,23 @@ def chat_stream_sse():
     orch = AgentOrchestrator(models_module=_m())
     base_prompt = orch._load_prompt(agent_config.get('system_prompt', ''))
 
-    # 加载知识库
-    knowledge = ''
+    # 加载知识库（实时 RAG 检索 + 静态兜底）
+    knowledge = _inject_knowledge(user_message=message)
+    # 兜底：保留 system_config.chatbot_knowledge_base 作为静态基础知识
+    static_knowledge = ''
     with _m().get_db() as conn:
         row = conn.execute(
             "SELECT value FROM system_config WHERE key='chatbot_knowledge_base'"
         ).fetchone()
         if row and row['value']:
-            knowledge = row['value']
+            static_knowledge = row['value']
 
-    # 构建完整的 system prompt
+    # 构建完整的 system prompt（先静态知识，后动态知识）
     full_system = base_prompt
+    if static_knowledge:
+        full_system += f"\n\n=== 基础知识库 ===\n{static_knowledge}\n=== 基础知识库结束 ==="
     if knowledge:
-        full_system += f"\n\n=== 知识库 ===\n{knowledge}\n=== 知识库结束 ==="
+        full_system += knowledge
 
     agent_config['system_prompt'] = full_system
 
