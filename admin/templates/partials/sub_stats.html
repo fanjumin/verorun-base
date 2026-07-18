@@ -3,16 +3,19 @@ window.l_sub_stats=function(){
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
   fetch("/admin/revenue/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return _fallback_sub_stats();
-    var ds=d.data;
+    var ds=d.data||{};
+    var summary=ds.summary||{};
+    var mrr=ds.mrr||0;
+    var activeSubs=ds.active_subscriptions||0;
     var h='<div class="g2">';
-    h+=hk("{{ _('Today Revenue') }}","¥"+ds.summary.today_revenue,"#d2a8ff");
-    h+=hk("{{ _('Monthly Revenue') }}","¥"+ds.summary.this_month,"#f0883e");
-    h+=hk("{{ _('Last Month Revenue') }}","¥"+ds.summary.last_month,"");
-    h+=hk("{{ _('MoM') }}",(ds.summary.month_change>=0?'+':'')+ds.summary.month_change_pct+'%',ds.summary.month_change>=0?'#3fb950':'#f85149');
-    h+=hk("MRR","¥"+ds.mrr,"#00d4aa");
-    h+=hk("{{ _('Active Subscriptions') }}",ds.active_subscriptions,"#58a6ff");
-    h+=hk("{{ _('Paid Users') }}",ds.total_paid_users,"");
-    h+=hk("{{ _('This Year') }}","¥"+ds.summary.this_year,"#58a6ff");
+    h+=hk("{{ _('Today Revenue') }}","¥"+(summary.today_revenue||0),"#d2a8ff");
+    h+=hk("{{ _('Monthly Revenue') }}","¥"+(summary.this_month||0),"#f0883e");
+    h+=hk("{{ _('Last Month Revenue') }}","¥"+(summary.last_month||0),"");
+    h+=hk("{{ _('MoM') }}",((summary.month_change||0)>=0?'+':'')+(summary.month_change_pct||0)+'%',(summary.month_change||0)>=0?'#3fb950':'#f85149');
+    h+=hk("MRR","¥"+mrr,"#00d4aa");
+    h+=hk("{{ _('Active Subscriptions') }}",activeSubs,"#58a6ff");
+    h+=hk("{{ _('Paid Users') }}",ds.total_paid_users||0,"");
+    h+=hk("{{ _('This Year') }}","¥"+(summary.this_year||0),"#58a6ff");
     h+='</div>';
 
     // 30-day trend bar chart

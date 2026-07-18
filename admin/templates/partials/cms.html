@@ -397,6 +397,23 @@ function cmsAicover(){
 
 // ── Publish History ──
 
+window.l_publish_history=function(){
+  document.getElementById("pt").textContent="{{ _('Publish History') }}";
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  fetch("/admin/social/history?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){document.getElementById("mc").innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var items=d.data||d.items||[];
+    if(!items.length){document.getElementById("mc").innerHTML='<div class="em">{{ _('No Publication Records') }}</div>';return}
+    var h='<div class="cd"><div class="st">{{ _('Publish History') }} ('+items.length+')</div><table><tr><th>{{ _('Platform') }}</th><th>{{ _('Title') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>{{ _('Time') }}</th></tr>';
+    items.forEach(function(r){
+      var stHtml={published:'<span class="bdg on">{{ _('Published') }}</span>',draft:'<span class="bdg pd">{{ _('Draft') }}</span>',publishing:'<span class="bdg pd">{{ _('Publishing') }}</span>',failed:'<span class="bdg off">{{ _('Failed') }}</span>'}[r.status]||'<span class="bdg pd">'+esc(r.status||'')+'</span>';
+      h+='<tr><td>'+esc(r.platform||'')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-weight:600">'+esc(r.title||"-")+'</td><td style="font-size:10px">'+esc(r.content_type||'')+'</td><td>'+stHtml+'</td><td style="font-size:10px">'+(r.created_at||"").slice(0,16)+'</td></tr>';
+    });
+    h+='</table></div>';
+    document.getElementById("mc").innerHTML=h;
+  }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('Request Failed') }}</div>'});
+};
+
 var cmsHistoryVisible=false;
 function cmsToggleSocialHistory(){
   cmsHistoryVisible=!cmsHistoryVisible;
