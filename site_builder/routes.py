@@ -334,7 +334,7 @@ def preview_site_page():
 
     raw_tokens = get_draft_tokens()
     if raw_tokens is None:
-        return 'No draft to preview. Generate a plan and execute first.', 404
+        raw_tokens = {}
 
     # Ensure nested keys exist to prevent Jinja2 UndefinedError
     draft_tokens = {
