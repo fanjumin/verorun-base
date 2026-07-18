@@ -568,6 +568,15 @@ def _fulfill_order(order_no, payment_method=None, channel_order_id=None, notify_
 
         conn.commit()
 
+    # ── 模块履约（item_type='module'）──
+    if item_type == 'module':
+        try:
+            from services.module_policy import get_policy_engine
+            engine = get_policy_engine()
+            engine.record_payment(uid, plan_key)
+        except Exception as e:
+            print(f'[ModuleFulfill] record_payment failed: {e}')
+
     # 自动生成发票
     try:
         from services.invoice_service import create_invoice_record
@@ -993,6 +1002,289 @@ def admin_refund_order(order_no):
         conn.commit()
 
     return jsonify({'success': True, 'message': 'Refunded'})
+
+# ═══════════════════════════════════════════════════════════════
+# Phase 3: 单模块购买 + 退款
+# ═══════════════════════════════════════════════════════════════
+
+@sub_bp.route('/module/pay', methods=['POST'])
+def pay_module():
+    """
+    单模块购买
+    POST: { module_key, period, payment_method }
+    """
+    payload = _require_auth()
+    if not payload:
+        return api_err(_('Please log in first'), 401)
+    uid = payload['user_id']
+    data = request.get_json() or {}
+
+    module_key = data.get('module_key', '').strip()
+    period = data.get('period', 'month')
+    payment_method = data.get('payment_method', 'wechat')
+
+    # 验证模块
+    try:
+        from services.module_policy import MODULE_POLICIES, get_policy_engine
+    except ImportError:
+        return api_err('Module policy system unavailable', 500)
+
+    policy = MODULE_POLICIES.get(module_key)
+    if not policy:
+        return api_err(f'Unknown module: {module_key}')
+
+    # 验证周期
+    valid_periods = ('month', 'year')
+    if period not in valid_periods:
+        return api_err(f'period must be one of: {"/".join(valid_periods)}')
+
+    # 计算价格
+    price_map = {'month': 'price_month_fen', 'year': 'price_year_fen'}
+    amount_fen = policy.get(price_map[period], 0)
+    if amount_fen <= 0:
+        return api_err('Module has no pricing, contact support')
+
+    # 创建订单
+    order_no = new_order_no('MOD')
+    module_name = policy.get('name', module_key)
+    period_label = _('Monthly payment') if period == 'month' else _('Annual Payment')
+    desc = f'{module_name} {period_label}'
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO subscription_orders
+               (order_no, user_id, amount_fen, item_type, plan_key, period, payment_method, status)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (order_no, uid, amount_fen, 'module', module_key, period, payment_method, 'pending'))
+        conn.commit()
+
+    # 生成支付参数
+    pay_params = _generate_pay_params(order_no, desc, amount_fen, payment_method)
+
+    return api_res({
+        'order_no': order_no,
+        'module_key': module_key,
+        'module_name': module_name,
+        'period': period,
+        'amount': f'¥{amount_fen/100:.2f}',
+        'amount_fen': amount_fen,
+        'pay_params': pay_params,
+        'stub': pay_params.get('stub', False),
+    }, status=201)
+
+
+@sub_bp.route('/module/refund', methods=['POST'])
+def refund_module():
+    """
+    模块退款（14日内自动退）
+    POST: { module_key }
+    """
+    payload = _require_auth()
+    if not payload:
+        return api_err(_('Please log in first'), 401)
+    uid = payload['user_id']
+    data = request.get_json() or {}
+    module_key = data.get('module_key', '').strip()
+
+    if not module_key:
+        return api_err('module_key is required')
+
+    try:
+        from services.module_policy import MODULE_POLICIES, get_policy_engine
+    except ImportError:
+        return api_err('Module policy system unavailable', 500)
+
+    engine = get_policy_engine()
+    state = engine._get_module_state(uid, module_key)
+
+    if not state:
+        return api_err(f'No subscription record for module: {module_key}')
+
+    status = state.get('status', '')
+    if status != 'paying':
+        return api_err(f'Module is not in refundable status (current: {status})')
+
+    # 检查退款窗口
+    refund_until_str = state.get('refundable_until', '')
+    if refund_until_str:
+        try:
+            refund_until = datetime.fromisoformat(refund_until_str)
+            if datetime.now() > refund_until:
+                return api_err('Refund window has expired')
+        except (ValueError, TypeError):
+            pass
+
+    # 查找原始订单
+    with get_db() as conn:
+        order = conn.execute(
+            """SELECT * FROM subscription_orders
+               WHERE user_id=%s AND plan_key=%s AND item_type='module' AND status='paid'
+               ORDER BY paid_at DESC LIMIT 1""",
+            (uid, module_key)
+        ).fetchone()
+
+        if not order:
+            return api_err('No paid order found for this module')
+
+        payment_method = order['payment_method'] or ''
+        channel_order_id = order['channel_order_id'] or ''
+        amount_fen = order['amount_fen']
+        order_no = order['order_no']
+
+    # 调用支付网关退款
+    refund_result = {'success': False, 'refund_no': '', 'error': 'Unknown payment method'}
+    if payment_method == 'alipay':
+        from .gateway.alipay import refund_order as _alipay_refund
+        refund_result = _alipay_refund(order_no, amount_fen)
+    elif payment_method == 'wechat':
+        from .gateway.wechat import refund_order as _wechat_refund
+        refund_result = _wechat_refund(order_no, amount_fen)
+    elif payment_method == 'stripe':
+        from .gateway.stripe import refund_order as _stripe_refund
+        refund_result = _stripe_refund(channel_order_id, amount_fen)
+    elif payment_method == 'paypal':
+        from .gateway.paypal import refund_order as _paypal_refund
+        refund_result = _paypal_refund(channel_order_id, amount_fen)
+
+    if not refund_result.get('success'):
+        return jsonify({'success': False, 'error': refund_result.get('error', 'Refund failed')}), 400
+
+    # 更新订单状态
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE subscription_orders SET status='refunded', updated_at=NOW() WHERE order_no=%s",
+            (order_no,)
+        )
+        conn.commit()
+
+    # 关闭模块
+    engine.refund_module(uid, module_key)
+
+    return jsonify({'success': True, 'message': f'Module {module_key} refunded'})
+
+
+@sub_bp.route('/admin/subscriptions/<int:user_id>/modules', methods=['GET'])
+def admin_user_modules(user_id):
+    """管理后台：查看用户模块状态"""
+    admin, err = _require_admin()
+    if err: return err
+
+    try:
+        from services.module_policy import MODULE_POLICIES, get_policy_engine
+    except ImportError:
+        return jsonify({'success': False, 'error': 'Module policy unavailable'}), 500
+
+    engine = get_policy_engine()
+    modules = []
+
+    for module_key, policy in MODULE_POLICIES.items():
+        state = engine._get_module_state(user_id, module_key)
+        modules.append({
+            'module_key': module_key,
+            'name': policy.get('name', module_key),
+            'desc': policy.get('desc', ''),
+            'pattern': policy.get('pattern', ''),
+            'status': state.get('status', 'unused') if state else 'unused',
+            'trial_end': state.get('trial_end', '') if state else '',
+            'paid_at': state.get('paid_at', '') if state else '',
+            'refundable_until': state.get('refundable_until', '') if state else '',
+            'price_month': f'¥{policy.get("price_month_fen", 0)/100:.2f}',
+            'price_year': f'¥{policy.get("price_year_fen", 0)/100:.2f}',
+        })
+
+    return api_res(modules)
+
+
+@sub_bp.route('/admin/module-pricing', methods=['GET'])
+def admin_module_pricing_list():
+    """管理后台：查看模块定价"""
+    admin, err = _require_admin()
+    if err: return err
+
+    try:
+        from services.module_policy import get_policy_engine
+        engine = get_policy_engine()
+        policies = engine.list_all_policies()
+    except ImportError:
+        return jsonify({'success': False, 'error': 'Module policy unavailable'}), 500
+
+    # 补充 DB 原始数据
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM module_pricing ORDER BY sort_order"
+        ).fetchall()
+        db_map = {r['module_key']: dict(r) for r in rows}
+
+    result = []
+    for key, pol in policies.items():
+        item = {
+            'module_key': key,
+            'name': pol.get('name', key),
+            'desc': pol.get('desc', ''),
+            'pattern': pol.get('pattern', ''),
+            'price_month_fen': pol.get('price_month_fen', 0),
+            'price_year_fen': pol.get('price_year_fen', 0),
+            'trial_days': pol.get('trial_days', 14),
+            'trial_daily_limit': pol.get('trial_daily_limit'),
+            'post_trial_action': pol.get('post_trial_action', ''),
+            'refund_days': pol.get('refund_days', 0),
+            'limit_even_byok': pol.get('limit_even_byok', False),
+            'source': 'db' if key in db_map else 'default',
+        }
+        result.append(item)
+
+    return api_res(result)
+
+
+@sub_bp.route('/admin/module-pricing/<module_key>', methods=['PUT'])
+def admin_module_pricing_update(module_key):
+    """管理后台：更新模块定价"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True) or {}
+    if not data:
+        return api_err('No data provided')
+
+    with get_db() as conn:
+        # Upsert
+        conn.execute(
+            """INSERT INTO module_pricing
+               (module_key, name, description, pattern, price_month_fen, price_year_fen,
+                trial_days, trial_daily_limit, post_trial_action, refund_days, limit_even_byok, is_active)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
+               ON CONFLICT (module_key) DO UPDATE SET
+                name=EXCLUDED.name, description=EXCLUDED.description,
+                pattern=EXCLUDED.pattern, price_month_fen=EXCLUDED.price_month_fen,
+                price_year_fen=EXCLUDED.price_year_fen, trial_days=EXCLUDED.trial_days,
+                trial_daily_limit=EXCLUDED.trial_daily_limit, post_trial_action=EXCLUDED.post_trial_action,
+                refund_days=EXCLUDED.refund_days, limit_even_byok=EXCLUDED.limit_even_byok,
+                updated_at=NOW()""",
+            (
+                module_key,
+                data.get('name', ''),
+                data.get('desc', ''),
+                data.get('pattern', 'interactive'),
+                data.get('price_month_fen', 0),
+                data.get('price_year_fen', 0),
+                data.get('trial_days', 14),
+                data.get('trial_daily_limit'),
+                data.get('post_trial_action', 'lock'),
+                data.get('refund_days', 0),
+                1 if data.get('limit_even_byok') else 0,
+            )
+        )
+        conn.commit()
+
+    # 刷新引擎缓存
+    try:
+        from services.module_policy import get_policy_engine
+        get_policy_engine().reload_policies()
+    except Exception:
+        pass
+
+    return api_res({'module_key': module_key}, 'Updated')
+
 
 @sub_bp.route('/admin/stats', methods=['GET'])
 def admin_stats():

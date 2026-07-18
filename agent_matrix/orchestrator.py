@@ -30,7 +30,7 @@ class AgentOrchestrator:
     # 外部入口
     # -------------------------------------------------------
 
-    def process_instruction(self, instruction: str, master_agent_id: int, session_id: str = None, mode: str = 'fast'):
+    def process_instruction(self, instruction: str, master_agent_id: int, session_id: str = None, mode: str = 'fast', user_id: int = 0):
         """
         处理用户指令的完整流程（同步版本）
 
@@ -100,8 +100,8 @@ class AgentOrchestrator:
         if session_id:
             self.models.add_message(session_id, 'user', instruction, master_task_id=master_task_id)
 
-        # 5. 下发子任务（传入原始指令用于参考图识别）
-        sub_results = self.dispatch_sub_tasks(decomposed, master_task_id, session_id, original_instruction=instruction)
+        # 5. 下发子任务（传入原始指令用于参考图识别 + user_id 用于模块策略校验）
+        sub_results = self.dispatch_sub_tasks(decomposed, master_task_id, session_id, original_instruction=instruction, user_id=user_id)
 
         # 6. 汇总结果
         all_completed = all(r.get('status') == 'completed' for r in sub_results)
@@ -502,7 +502,7 @@ class AgentOrchestrator:
     # 任务分发与执行
     # -------------------------------------------------------
 
-    def dispatch_sub_tasks(self, tasks: list, master_task_id: str, session_id: str = None, original_instruction: str = ''):
+    def dispatch_sub_tasks(self, tasks: list, master_task_id: str, session_id: str = None, original_instruction: str = '', user_id: int = 0):
         """
         并行分发并执行子任务（ThreadPoolExecutor + 超时熔断）
 
@@ -537,6 +537,41 @@ class AgentOrchestrator:
                     'error': _'Agent configuration does not exist',
                     'title': task_def.get('title', ''),
                 }
+
+            # ── Phase 1: 模块策略校验 ──
+            module_key = None
+            _policy_engine = None
+            if user_id and agent_config:
+                try:
+                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
+                    from services.module_policy import get_policy_engine, get_module_key
+                    _policy_engine = get_policy_engine()
+                    module_key = get_module_key(agent_config, task_def)
+
+                    if module_key:
+                        # 1. 检查模块是否可用
+                        allowed, reason = _policy_engine.check_access(user_id, module_key)
+                        if not allowed:
+                            return {
+                                'sub_task_id': None,
+                                'agent_name': task_def.get('target_agent_name', '?'),
+                                'status': 'blocked',
+                                'error': reason or f'Module {module_key} is unavailable',
+                                'title': task_def.get('title', ''),
+                            }
+
+                        # 2. 检查配额（仅 interactive 模式生效）
+                        ok, used, limit = _policy_engine.check_quota(user_id, module_key)
+                        if not ok:
+                            return {
+                                'sub_task_id': None,
+                                'agent_name': task_def.get('target_agent_name', '?'),
+                                'status': 'blocked',
+                                'error': f'Module {module_key} daily quota exhausted ({used}/{limit}), please upgrade',
+                                'title': task_def.get('title', ''),
+                            }
+                except Exception as e:
+                    logger.warning(f"[ModulePolicy] check failed for user={user_id}: {e}")
 
             # 创建子任务记录
             sub_task_id = self.models.create_task({
@@ -577,6 +612,13 @@ class AgentOrchestrator:
                     self_review=exec_result.get('self_review', '')
                 )
                 self.models.update_agent_stats(target_id, success=True)
+
+                # Phase 1: 记录模块用量（仅成功执行 + 付费模块）
+                if module_key and user_id and _policy_engine:
+                    try:
+                        _policy_engine.record_usage(user_id, module_key, target_id, sub_task_id)
+                    except Exception as _pe:
+                        logger.warning(f"[ModulePolicy] record_usage failed: {_pe}")
             else:
                 self.models.update_task_status(
                     sub_task_id, 'failed',

@@ -285,6 +285,21 @@ def init_agent_matrix_tables():
             );
 
             CREATE INDEX IF NOT EXISTS idx_tkd_date ON agent_token_daily(stat_date);
+
+            -- ================================================
+            -- 7. 模块用量日志表 (Phase 1 模块化订阅)
+            -- ================================================
+            CREATE TABLE IF NOT EXISTS module_usage_log (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id     BIGINT NOT NULL,
+                module_key  TEXT NOT NULL,
+                agent_id    BIGINT NOT NULL,
+                task_id     TEXT NOT NULL,
+                used_at     TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_mul_user_module ON module_usage_log(user_id, module_key);
+            CREATE INDEX IF NOT EXISTS idx_mul_used_at ON module_usage_log(used_at);
         """)
         conn.commit()
 

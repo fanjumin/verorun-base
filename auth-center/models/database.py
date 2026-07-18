@@ -2503,6 +2503,66 @@ else:
             except Exception as e:
                 print(f'[i18n] subscription_plans.currency skipped: {e}')
 
+# ── Phase 2: 模块化订阅 — module_states 字段 ──
+with get_db() as m:
+    sub_cols = get_table_columns(m, 'subscriptions')
+    if 'module_states' not in sub_cols:
+        try:
+            m.execute("ALTER TABLE subscriptions ADD COLUMN module_states TEXT DEFAULT '{}'")
+            print('[Phase2] subscriptions.module_states added')
+        except Exception as e:
+            print(f'[Phase2] subscriptions.module_states skipped: {e}')
+
+# ── Phase 4: 模块定价表（后台可修改）──
+with get_db() as m:
+    try:
+        m.execute('''
+            CREATE TABLE IF NOT EXISTS module_pricing (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                module_key      TEXT UNIQUE NOT NULL,
+                name            TEXT DEFAULT '',
+                description     TEXT DEFAULT '',
+                pattern         TEXT DEFAULT 'interactive',
+                price_month_fen BIGINT DEFAULT 0,
+                price_year_fen  BIGINT DEFAULT 0,
+                trial_days      BIGINT DEFAULT 14,
+                trial_daily_limit BIGINT DEFAULT NULL,
+                post_trial_action TEXT DEFAULT 'lock',
+                refund_days     BIGINT DEFAULT 0,
+                limit_even_byok BIGINT DEFAULT 0,
+                is_active       BIGINT DEFAULT 1,
+                sort_order      BIGINT DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        ''')
+        m.commit()
+
+        # 种子数据（幂等，已存在则跳过）
+        seeds = [
+            ('site_builder', 'Site Builder Pro', 'LLM 一键生成多页面品牌官网', 'one_shot', 19900, 199900, 14, None, 'lock', 14, 0),
+            ('content_factory', 'Content Factory', 'AI 内容工厂，批量生成文章', 'interactive', 9900, 99000, 14, 3, 'lock', 0, 1),
+            ('cms', 'AI CMS', '智能内容管理，对话生成+编辑+发布', 'interactive', 9900, 99000, 14, 5, 'lock', 0, 1),
+            ('commerce_plus', 'Commerce Plus', '1688 供应链采集 + 电商商城', 'interactive', 19900, 199900, 14, None, 'lock', 0, 0),
+            ('service_hub', 'Service Hub', '智能客服 + FAQ + 工单系统', 'interactive', 9900, 99000, 14, None, 'lock', 0, 0),
+            ('workflow', 'Workflow Engine', '自动化工作流 + 定时任务', 'continuous', 14900, 149900, 14, None, 'pause', 0, 0),
+            ('social_push', 'Social Media Suite', '多平台一键内容分发', 'publish', 4900, 49000, 14, None, 'pay_per_use', 0, 0),
+            ('mini_app', 'Mini-App Generator', '抖音/微信小程序源码生成', 'one_shot', 29900, 299900, 14, None, 'lock', 14, 0),
+        ]
+        for s in seeds:
+            m.execute(
+                """INSERT INTO module_pricing
+                   (module_key, name, description, pattern, price_month_fen, price_year_fen,
+                    trial_days, trial_daily_limit, post_trial_action, refund_days, limit_even_byok)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (module_key) DO NOTHING""",
+                s
+            )
+        m.commit()
+        print('[Phase4] module_pricing table + seed data created')
+    except Exception as e:
+        print(f'[Phase4] module_pricing skipped: {e}')
+
 # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
 with get_db() as m:
     user_cols = get_table_columns(m, 'users')

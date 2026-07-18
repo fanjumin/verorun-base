@@ -470,7 +470,8 @@ def chat_with_master():
             instruction=message,
             master_agent_id=master_id,
             session_id=session_id,
-            mode=mode
+            mode=mode,
+            user_id=admin.get('user_id', 0)
         )
         # Write 层：对话结束自动提取知识（异步，不阻塞响应）
         orchestrator._on_task_complete(message, admin.get('user_id', 0), result)
@@ -639,7 +640,8 @@ def chat_tool():
                 instruction=message,
                 master_agent_id=master['id'],
                 session_id=session_id,
-                mode='fast'
+                mode='fast',
+                user_id=admin.get('user_id', 0)
             )
             # Write 层：对话结束自动提取知识（异步）
             orchestrator._on_task_complete(message, admin.get('user_id', 0), result)
@@ -781,7 +783,8 @@ def chat_tool():
                 instruction=message,
                 master_agent_id=master['id'],
                 session_id=session_id,
-                mode='fast'
+                mode='fast',
+                user_id=admin.get('user_id', 0)
             )
             # Write 层：对话结束自动提取知识（异步）
             orchestrator._on_task_complete(message, admin.get('user_id', 0), result)
