@@ -200,7 +200,7 @@ TOOL_SCHEMAS = {
                 "properties": {
                     "topic": {"type": "string", "description": "PPT 主题（必填）"},
                     "pages": {"type": "integer", "description": "页数，默认 10，范围 3-20", "default": 10},
-                    "style": {"type": "string", "description": "风格描述，如'Dark 科技风'、'简约商务'、'教育风格'等", "default": "Dark 科技风，16:9"}
+                    "style": {"type": "string", "description": "风格描述，如'Dark 科技风'、'简约商务'、'教育风格'等", "default": _"Dark Tech Style, 16:9"}
                 },
                 "required": ["topic"]
             }
@@ -280,7 +280,7 @@ def _tool_get_system_health(args):
                 "ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
             if not run:
-                return "暂无健康巡检记录。"
+                return _"No health inspection records."
             run = dict(run)
             total = run.get('total_checks', 0) or 0
             passed = run.get('passed', 0) or 0
@@ -295,21 +295,21 @@ def _tool_get_system_health(args):
                 (run['id'],)
             ).fetchall()
         lines = [
-            f"健康分: {score}/100",
-            f"检查总数: {total}, 通过: {passed}, 警告: {warnings}, 错误: {errors}",
-            f"巡检时间: {run.get('created_at', '')}",
+            f_"Health Score: {score}/100",
+            f_"Total Checks: {total}, Passed: {passed}, Warnings: {warnings}, Errors: {errors}",
+            f_"Inspection Time: {run.get('created_at', '')}",
         ]
         abnormal = [dict(i) for i in items if i['status'] != 'passed']
         if abnormal:
-            lines.append("异常项:")
+            lines.append(_"Abnormal items:")
             for i in abnormal[:15]:
                 lines.append(f"  - [{i['status']}] {i['check_name']}: {(i['message'] or '')[:80]}")
         else:
-            lines.append("所有检查项均通过。")
+            lines.append(_"All checks passed.")
         return '\n'.join(lines)
     except Exception as e:
         logger.warning(f"[tool:get_system_health] 执行失败: {e}")
-        return f"获取健康状态失败: {e}"
+        return f_"Failed to Get Health Status: {e}"
 
 
 def _tool_query_stats(args):
@@ -323,7 +323,7 @@ def _tool_query_stats(args):
         return generate_insight_text(report)
     except Exception as e:
         logger.warning(f"[tool:query_stats] 执行失败: {e}")
-        return f"查询统计数据失败: {e}"
+        return f_"Failed to Query Data Statistics: {e}"
 
 
 def _tool_search_knowledge(args):
@@ -331,23 +331,23 @@ def _tool_search_knowledge(args):
     try:
         keyword = str(args.get('keyword', '')).strip()
         if not keyword:
-            return "未提供检索关键词。"
+            return _"No search keyword provided."
         with _get_matrix_db() as conn:
             row = conn.execute(
                 "SELECT value FROM system_config WHERE key='chatbot_knowledge_base'"
             ).fetchone()
         content = (row['value'] if row and row['value'] else '') or ''
         if not content:
-            return "知识库为空。"
+            return _"The knowledge base is empty."
         # 简单按段落匹配，返回命中片段
         blocks = [b.strip() for b in content.split('\n\n') if b.strip()]
         hits = [b for b in blocks if keyword.lower() in b.lower()]
         if not hits:
-            return f"知识库中未找到与「{keyword}」相关的内容。"
+            return f_"No content related to 「{keyword}」 found in the knowledge base."
         return '\n---\n'.join(hits[:5])[:2000]
     except Exception as e:
         logger.warning(f"[tool:search_knowledge] 执行失败: {e}")
-        return f"检索知识库失败: {e}"
+        return f_"Failed to retrieve knowledge base: {e}"
 
 
 def _tool_ads_list(args):
@@ -360,21 +360,21 @@ def _tool_ads_list(args):
             active_only=args.get('active_only', False)
         )
         if not res['success']:
-            return f"获取广告列表失败: {res.get('error')}"
+            return f_"Failed to Get Ad List: {res.get('error')}"
         ads = res.get('data', [])
         if not ads:
-            return "暂无广告位。"
-        lines = [f"共 {len(ads)} 个广告位："]
+            return _"No ad space."
+        lines = [f_"Total {len(ads)} Ad Positions:"]
         for a in ads:
-            status = '启用' if a.get('is_active') else '停用'
+            status = _'Enable' if a.get('is_active') else _'Deactivate'
             lines.append(
-                f"ID {a['id']}: {a['name']} | 站点 {a.get('site_key','default')} | "
-                f"位置 {a.get('position','-')} | 类型 {a.get('ad_type','image')} | {status}"
+                f_"ID {a['id']}: {a['name']} | Site {a.get('site_key','default')} |"
+                f_"Location {a.get('position','-')} | Type {a.get('ad_type','image')} | {status}"
             )
         return '\n'.join(lines)
     except Exception as e:
         logger.warning(f"[tool:ads_list] 执行失败: {e}")
-        return f"获取广告列表失败: {e}"
+        return f_"Failed to Get Ad List: {e}"
 
 
 def _tool_ads_create(args):
@@ -383,11 +383,11 @@ def _tool_ads_create(args):
         import plugins.ads.ai_tools as ads_tools
         res = ads_tools.create_ad(args)
         if res['success']:
-            return f"✅ 广告已创建，ID: {res['data']['id']}"
-        return f"❌ 创建失败: {res.get('error')}"
+            return f_"✅ Ad created, ID: {res['data']['id']}"
+        return f_"❌ Creation Failed: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_create] 执行失败: {e}")
-        return f"创建广告失败: {e}"
+        return f_"Ad creation failed: {e}"
 
 
 def _tool_ads_update(args):
@@ -398,11 +398,11 @@ def _tool_ads_update(args):
         updates = args.get('updates', {})
         res = ads_tools.update_ad(ad_id, updates)
         if res['success']:
-            return f"✅ 广告 {ad_id} 已更新"
-        return f"❌ 更新失败: {res.get('error')}"
+            return f_"✅ Ad {ad_id} updated"
+        return f_"❌ Update Failed: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_update] 执行失败: {e}")
-        return f"更新广告失败: {e}"
+        return f_"Failed to update ad: {e}"
 
 
 def _tool_ads_delete(args):
@@ -411,11 +411,11 @@ def _tool_ads_delete(args):
         import plugins.ads.ai_tools as ads_tools
         res = ads_tools.delete_ad(args.get('ad_id'))
         if res['success']:
-            return f"✅ 广告 {args.get('ad_id')} 已删除"
-        return f"❌ 删除失败: {res.get('error')}"
+            return f_"✅ Ad {args.get('ad_id')} deleted"
+        return f_"❌ Deletion Failed: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_delete] 执行失败: {e}")
-        return f"删除广告失败: {e}"
+        return f_"Failed to Delete Ad: {e}"
 
 
 def _tool_ads_get_stats(args):
@@ -428,24 +428,24 @@ def _tool_ads_get_stats(args):
             days=int(args.get('days', 7))
         )
         if not res['success']:
-            return f"查询统计失败: {res.get('error')}"
+            return f_"Query Statistics Failed: {res.get('error')}"
         data = res.get('data', {})
         total = data.get('total', {})
         daily = data.get('daily', [])
         lines = [
-            f"=== 广告统计（最近 {args.get('days',7)} 天）===",
-            f"展示量: {total.get('impressions', 0)}",
-            f"点击量: {total.get('clicks', 0)}",
+            f_"=== Advertising Statistics (Last {args.get('days',7)} Days) ==="",
+            f_"Impressions: {total.get('impressions', 0)}",
+            f_"Clicks: {total.get('clicks', 0)}",
             f"CTR: {total.get('ctr', 0)}%",
         ]
         if daily:
-            lines.append("每日趋势:")
+            lines.append(_"Daily Trend:")
             for r in daily[-10:]:
-                lines.append(f"  {r['stat_date']}: 展示 {r.get('impressions',0)} 点击 {r.get('clicks',0)}")
+                lines.append(f_"  {r['stat_date']}: Impressions {r.get('impressions',0)} Clicks {r.get('clicks',0)}")
         return '\n'.join(lines)
     except Exception as e:
         logger.warning(f"[tool:ads_get_stats] 执行失败: {e}")
-        return f"查询广告统计失败: {e}"
+        return f_"Failed to Query Ad Statistics: {e}"
 
 
 def _tool_ads_analyze(args):
@@ -455,10 +455,10 @@ def _tool_ads_analyze(args):
         res = ads_tools.analyze_ads(days=int(args.get('days', 7)))
         if res['success']:
             return res['data']
-        return f"分析失败: {res.get('error')}"
+        return f_"Analysis failed: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_analyze] 执行失败: {e}")
-        return f"广告分析失败: {e}"
+        return f_"Advertisement analysis failed: {e}"
 
 
 def _tool_ads_render_snippet(args):
@@ -473,20 +473,20 @@ def _tool_ads_render_snippet(args):
         )
         if res['success']:
             return "在模板中加入以下代码即可渲染广告位：\n```jinja2\n" + res['data'] + "\n```"
-        return f"生成代码失败: {res.get('error')}"
+        return f_"Failed to generate code: {res.get('error')}"
     except Exception as e:
         logger.warning(f"[tool:ads_render_snippet] 执行失败: {e}")
-        return f"生成广告渲染代码失败: {e}"
+        return f_"Failed to generate ad rendering code: {e}"
 
 
 def _tool_generate_ppt(args):
     """使用 AI 生成 PPT 文件"""
     try:
-        topic = str(args.get('topic', '未命名主题')).strip()
+        topic = str(args.get('topic', _'Untitled topic')).strip()
         if not topic:
             return '❌ 请提供 PPT 主题'
         pages = max(3, min(int(args.get('pages', 10) or 10), 20))
-        style = str(args.get('style', 'Dark 科技风，16:9'))
+        style = str(args.get('style', _'Dark Tech Style, 16:9'))
         from agent_matrix.routes import _generate_ppt_file
         filename = _generate_ppt_file(topic, pages, style)
         if filename:
@@ -494,7 +494,7 @@ def _tool_generate_ppt(args):
         return '❌ PPT 生成失败，请检查后端日志'
     except Exception as e:
         logger.warning(f"[tool:generate_ppt] 执行失败: {e}")
-        return f'❌ PPT 生成异常: {e}'
+        return f_'❌ PPT Generation Error: {e}'
 
 
 def _tool_generate_image(args):
@@ -514,7 +514,7 @@ def _tool_generate_image(args):
             row = conn.execute("SELECT value FROM system_config WHERE key='siliconflow_api_key'").fetchone()
         api_key = row['value'] if row else os.environ.get('SILICONFLOW_API_KEY', '')
         if not api_key:
-            return '❌ 硅基流动 API Key 未配置'
+            return _'❌ Si Ji Liu Dong API Key Not Configured'
 
         # 风格 → 模型映射
         style_map = {
@@ -555,16 +555,16 @@ def _tool_generate_image(args):
             urls.append(download_url)
 
         if not urls:
-            return '❌ 图像生成 API 返回为空'
+            return _'❌ Image Generation API Returned Empty'
 
-        lines = [f'✅ 已生成 {len(urls)} 张图像：']
+        lines = [f_'✅ Generated {len(urls)} images:']
         for u in urls:
             lines.append(f'  {u}')
         return '\n'.join(lines)
 
     except Exception as e:
         logger.warning(f"[tool:generate_image] 执行失败: {e}")
-        return f'❌ 图像生成异常: {e}'
+        return f_'❌ Image Generation Error: {e}'
 
 
 def _tool_generate_markdown(args):
@@ -577,12 +577,12 @@ def _tool_generate_markdown(args):
         style = str(args.get('style', 'technical'))
 
         style_prompt = {
-            'technical': '技术文档风格，结构清晰、层次分明、专业术语使用英文',
-            'professional': '商务报告风格，语言正式、段落完整、结论明确',
-            'creative': '创意写作风格，语言生动、有感染力',
-            'simple': '简洁风格，要点式罗列，便于快速阅读',
-            'list': '清单/列表风格，以条目和子条目为主',
-        }.get(style, '技术文档风格')
+            'technical': _'Technical Document Style: Clear structure, well-defined hierarchy, professional terms in English',
+            'professional': _'Business report style, formal language, complete paragraphs, clear conclusions',
+            'creative': _'Creative Writing Style, Lively and Persuasive Language',
+            'simple': _'Concise style, bullet points for quick reading',
+            'list': _'List Style, Mainly Items and Sub-items',
+        }.get(style, _'Technical Document Style')
 
         prompt_text = f'请撰写一篇关于"{topic}"的Markdown文档。\n风格要求：{style_prompt}'
         if outline:
@@ -613,7 +613,7 @@ def _tool_generate_markdown(args):
         resp = client.chat.completions.create(
             model=model,
             messages=[
-                {'role': 'system', 'content': '你是专业文档撰写助手。只输出 Markdown 内容，不包含多余说明。'},
+                {'role': 'system', 'content': _'You are a professional document writing assistant. Output only Markdown content, without any additional explanations.'},
                 {'role': 'user', 'content': prompt_text}
             ],
             temperature=0.5,
@@ -639,7 +639,7 @@ def _tool_generate_markdown(args):
 
     except Exception as e:
         logger.warning(f"[tool:generate_markdown] 执行失败: {e}")
-        return f'❌ Markdown 生成异常: {e}'
+        return f_'❌ Markdown Generation Error: {e}'
 
 
 def _tool_generate_docx(args):
@@ -652,12 +652,12 @@ def _tool_generate_docx(args):
         style = str(args.get('style', 'professional'))
 
         style_desc = {
-            'professional': '专业商务风格，使用正式的标题和段落格式',
-            'formal': '正式公文风格，章节目录清晰，语言严谨',
-            'creative': '创意设计风格，灵活的版式和现代感',
-            'simple': '简洁风格，要点突出，便于快速阅读',
-            'report': '报告风格，包含摘要、数据分析、结论和建议',
-        }.get(style, '专业商务风格')
+            'professional': _'Professional business style, using formal titles and paragraph formats',
+            'formal': _'Formal official document style, clear chapters and sections, rigorous language',
+            'creative': _'Creative Design Style, Flexible Layouts and Modern Feel',
+            'simple': _'Concise style, key points highlighted for quick reading',
+            'report': _'Report Style: Includes summary, data analysis, conclusions, and recommendations',
+        }.get(style, _'Professional business style')
 
         prompt_text = f'请撰写一篇关于"{topic}"的Word文档，包含{sections}个章节。\n风格要求：{style_desc}\n请输出Markdown格式，包含标题（##）、段落、列表。'
 
@@ -673,7 +673,7 @@ def _tool_generate_docx(args):
                 api_key = row['value']
                 base_url, model = 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'qwen-turbo'
             else:
-                return '❌ API Key 未配置'
+                return _'❌ API Key Not Configured'
         else:
             base_url, model = 'https://api.siliconflow.cn/v1', 'Qwen/Qwen2.5-14B-Instruct'
 
@@ -682,14 +682,14 @@ def _tool_generate_docx(args):
         resp = client.chat.completions.create(
             model=model,
             messages=[
-                {'role': 'system', 'content': '你是专业文档撰写助手。输出结构化的 Markdown 内容，包含多级标题和段落，不包含多余说明。'},
+                {'role': 'system', 'content': _'You are a professional document writing assistant. Output structured Markdown content with multiple levels of headings and paragraphs, without any additional explanations.'},
                 {'role': 'user', 'content': prompt_text}
             ],
             temperature=0.5, max_tokens=4096
         )
         md_content = resp.choices[0].message.content or ''
         if not md_content.strip():
-            return '❌ AI 内容生成为空'
+            return _'❌ AI Content Generation is Empty'
 
         # 用 python-docx 渲染
         from docx import Document
@@ -738,7 +738,7 @@ def _tool_generate_docx(args):
 
     except Exception as e:
         logger.warning(f"[tool:generate_docx] 执行失败: {e}")
-        return f'❌ Word 文档生成异常: {e}'
+        return f_'❌ Word Document Generation Error: {e}'
 
 
 TOOL_EXECUTORS = {
@@ -785,11 +785,11 @@ def execute_tool(name, args):
     """执行指定工具，返回字符串结果。未知工具或异常均返回错误字符串。"""
     executor = TOOL_EXECUTORS.get(name)
     if not executor:
-        return f"未知工具: {name}"
+        return f_"Unknown tool: {name}"
     if not isinstance(args, dict):
         args = {}
     try:
         return executor(args)
     except Exception as e:
         logger.warning(f"[tool:{name}] 未捕获异常: {e}")
-        return f"工具 {name} 执行异常: {e}"
+        return f_"Tool {name} execution error: {e}"

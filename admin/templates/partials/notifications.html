@@ -34,7 +34,7 @@ function notifShowPush(){
     +'</select></div>'
     +'<div class="f"><label>{{ _('Title') }}</label><input id="notifTitle" placeholder="{{ _('Notification Title') }}" style="flex:1"></div>'
     +'<div class="f"><label>{{ _('Content') }}</label><textarea id="notifContent_" rows="4" placeholder="{{ _('Notification Content') }}，{{ _('Support') }}HTML" style="flex:1;min-height:80px"></textarea></div>'
-    +'<div class="f"><label>{{ _('Redirect Link') }}</label><input id="notifLink" placeholder="{{ _('Optional') }}，如 /user/coupons" style="flex:1"></div>'
+    +'<div class="f"><label>{{ _('Redirect Link') }}</label><input id="notifLink" placeholder={{ _('Optional, e.g. /user/coupons') | tojson }} style="flex:1"></div>'
     +'<div class="f"><label></label><button class="btn bp" onclick="notifSend()">📤 {{ _('Send Notification') }}</button> '
     +'<span id="notifSendResult" style="font-size:12px;color:var(--dim)"></span></div>'
     +'</div></div>';
@@ -69,8 +69,8 @@ function notifSend(){
     headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
     body:JSON.stringify(data)
   }).then(function(r){return r.json()}).then(function(d){
-    if(d.success)resultEl.textContent="{{ _('已发送 ') }}"+d.sent+"/"+d.total+" 条";
-    else resultEl.textContent="{{ _('发送失败: ') }}"+(d.error||"{{ _('Unknown Error') }}");
+    if(d.success)resultEl.textContent={{ _('{{ _('Sent ') }}') | tojson }}+d.sent+"/"+d.total+" 条";
+    else resultEl.textContent={{ _('{{ _('Failed to Send: ') }}') | tojson }}+(d.error||"{{ _('Unknown Error') }}");
   }).catch(function(){resultEl.textContent="{{ _('Request Failed') }}"});
 }
 
@@ -124,7 +124,7 @@ function notifToggleTemplate(tid,newState){
 }
 
 function notifNewTemplate(){
-  var eventType=prompt("{{ _('Event Type') }}（如 user.realname_verified）:");
+  var eventType=prompt({{ _('{{ _('Event Type') }} (e.g. user.realname_verified):') | tojson }});
   if(!eventType)return;
   var titleTmpl=prompt("{{ _('Title Template') }}（{{ _('Support') }} {variable} {{ _('Variables') }}）:");
   if(!titleTmpl)return;

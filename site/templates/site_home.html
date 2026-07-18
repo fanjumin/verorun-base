@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>{{ site.name }} - {{ _('智能建站平台') }}</title>
+<title>{{ _('{{ site.name }} - {{ _('Intelligent Website Building Platform') }}') }}</title>
     <style>
         :root {
             --primary-color: {{ site.theme_color }};
@@ -121,26 +121,26 @@
                     {% for plan in plans %}
                         <div class="pricing-card {% if plan.tier == 'enterprise' %}enterprise{% endif %}">
 <h3>{{ plan.name }}</h3>
-<div class="price">{% if plan.price > 0 %}¥{{ plan.price }}/{{ plan.period }}{% else %}免费{% endif %}</div>
+<div class="price">{{ _('{% if plan.price > 0 %}¥{{ plan.price }}/{{ plan.period }}{% else %}Free{% endif %}') }}</div>
 <ul>
                                 {% for feature in (plan.features_list if plan.features_list else []) %}
                                     <li>✓ {{ feature }}</li>
                                 {% endfor %}
                             </ul>
-<a class="btn {% if plan.tier == 'free' %}btn-outline{% endif %}" href="/pricing">{% if plan.tier == 'free' %}免费试用{% else %}立即购买{% endif %}</a>
+<a class="btn {% if plan.tier == 'free' %}btn-outline{% endif %}" href="/pricing">{{ _('{% if plan.tier == 'free' %}Free Trial{% else %}Buy Now{% endif %}') }}</a>
 </div>
                     {% endfor %}
                 {% else %}
                     {% for tier, config in tiers.items() %}
                         <div class="pricing-card {% if tier == 'enterprise' %}enterprise{% endif %}">
 <h3>{{ config.name }}</h3>
-<div class="price">{% if config.price > 0 %}¥{{ config.price }}/月{% else %}免费{% endif %}</div>
+<div class="price">{{ _('{% if config.price > 0 %}¥{{ config.price }}/month{% else %}Free{% endif %}') }}</div>
 <ul>
                                 {% for feature in config.features %}
                                     <li>✓ {{ feature }}</li>
                                 {% endfor %}
                             </ul>
-<a class="btn {% if tier == 'free' %}btn-outline{% endif %}" href="/pricing">{% if tier == 'free' %}免费试用{% else %}立即购买{% endif %}</a>
+<a class="btn {% if tier == 'free' %}btn-outline{% endif %}" href="/pricing">{{ _('{% if tier == 'free' %}Free Trial{% else %}Buy Now{% endif %}') }}</a>
 </div>
                     {% endfor %}
                 {% endif %}

@@ -30,7 +30,7 @@ class LogisticsPlugin(BasePlugin):
         """启用时初始化数据库（幂等）"""
         from .models import init_logistics_db
         init_logistics_db()
-        print('[LogisticsPlugin] ✅ 物流配送插件已启用 (logistics.db)')
+        print(_'[LogisticsPlugin] ✅ Logistics plugin enabled (logistics.db)')
         return True
 
     def register_routes(self):
@@ -39,7 +39,7 @@ class LogisticsPlugin(BasePlugin):
         return [logistics_bp]
 
     def on_disable(self, registry):
-        print('[LogisticsPlugin] ⚠️  物流配送插件已禁用')
+        print(_'[LogisticsPlugin] ⚠️ Logistics plugin disabled')
         return True
 
     # ── 对外接口 ──

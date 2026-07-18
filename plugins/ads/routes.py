@@ -104,7 +104,7 @@ def create_ad():
     data = request.get_json() or {}
     name = data.get('name', '').strip()
     if not name:
-        return jsonify({'success': False, 'error': '广告名称不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Advertisement name cannot be empty'}), 400
 
     from plugins.ads.models import get_ads_db
     conn = get_ads_db()
@@ -150,7 +150,7 @@ def update_ad(ad_id):
     conn = get_ads_db()
     existing = conn.execute('SELECT id FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
     if not existing:
-        return jsonify({'success': False, 'error': '广告不存在'}), 404
+        return jsonify({'success': False, 'error': _'Advertisement does not exist'}), 404
     conn.execute('''UPDATE ad_placements SET
         name=?, site_key=?, zone_id=?, position=?, page=?, ad_type=?, image_url=?,
         link_url=?, ad_code=?, width=?, height=?, targeting_rules=?, schedule_start=?,
@@ -221,12 +221,12 @@ def create_zone():
     name = data.get('name', '').strip()
     identifier = data.get('identifier', '').strip()
     if not name or not identifier:
-        return jsonify({'success': False, 'error': '区域名称和标识不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Region name and identifier cannot be empty'}), 400
     from plugins.ads.models import create_zone as _create_zone
     try:
         zone_id = _create_zone(data)
     except Exception as e:
-        return jsonify({'success': False, 'error': f'创建失败: {e}'}), 400
+        return jsonify({'success': False, 'error': f_'Creation failed: {e}'}), 400
     _log(admin['user_id'], 'create_ad_zone', detail=f'id={zone_id} name={name}')
     return jsonify({'success': True, 'data': {'id': zone_id}})
 
@@ -239,7 +239,7 @@ def update_zone(zone_id):
     data = request.get_json() or {}
     from plugins.ads.models import update_zone as _update_zone, get_zone
     if not get_zone(zone_id):
-        return jsonify({'success': False, 'error': '区域不存在'}), 404
+        return jsonify({'success': False, 'error': _'Region does not exist'}), 404
     _update_zone(zone_id, data)
     _log(admin['user_id'], 'update_ad_zone', detail=f'id={zone_id}')
     return jsonify({'success': True})
@@ -252,7 +252,7 @@ def delete_zone(zone_id):
         return err
     from plugins.ads.models import delete_zone as _delete_zone, get_zone
     if not get_zone(zone_id):
-        return jsonify({'success': False, 'error': '区域不存在'}), 404
+        return jsonify({'success': False, 'error': _'Region does not exist'}), 404
     _delete_zone(zone_id)
     _log(admin['user_id'], 'delete_ad_zone', detail=f'id={zone_id}')
     return jsonify({'success': True})
@@ -268,7 +268,7 @@ def api_record_impression():
     data = request.get_json() or {}
     ad_id = data.get('ad_id')
     if not ad_id:
-        return jsonify({'success': False, 'error': 'ad_id 必填'}), 400
+        return jsonify({'success': False, 'error': _'ad_id required'}), 400
     try:
         from plugins.ads.models import record_impression
         record_impression(ad_id)
@@ -283,7 +283,7 @@ def api_record_click():
     data = request.get_json() or {}
     ad_id = data.get('ad_id')
     if not ad_id:
-        return jsonify({'success': False, 'error': 'ad_id 必填'}), 400
+        return jsonify({'success': False, 'error': _'ad_id required'}), 400
     try:
         from plugins.ads.models import record_click
         record_click(

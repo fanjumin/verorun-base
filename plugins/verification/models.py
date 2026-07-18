@@ -44,7 +44,7 @@ def init_verification_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ver_requests_user ON verification_requests(user_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_ver_requests_req ON verification_requests(request_id)')
     conn.commit()
-    print('[VerificationPlugin] verification.db 已初始化')
+    print(_'[VerificationPlugin] verification.db has been initialized')
 
 
 def migrate_from_main_db():
@@ -57,7 +57,7 @@ def migrate_from_main_db():
     conn = get_verification_db()
     existing = conn.execute('SELECT COUNT(*) FROM verification_requests').fetchone()['count']
     if existing > 0:
-        print('[VerificationPlugin] verification_requests 已有数据，跳过迁移')
+        print(_'[VerificationPlugin] verification_requests already has data, migration skipped')
         return
 
     try:
@@ -74,9 +74,9 @@ def migrate_from_main_db():
             )
             count += 1
         conn.commit()
-        print(f'[VerificationPlugin] 从主库迁移 {count} 条 verification_requests 记录')
+        print(f_'[VerificationPlugin] Migrated {count} verification_requests records from main database')
     except Exception as e:
-        print(f'[VerificationPlugin] 迁移 verification_requests 失败: {e}')
+        print(f_'[VerificationPlugin] Failed to migrate verification_requests: {e}')
 
 
 ensure_verification_tables = init_verification_db

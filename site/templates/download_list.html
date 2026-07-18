@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>{{ brand.seo_title if brand else '下载 — EasyKai' }}</title>
+<title>{{ _('{{ brand.seo_title if brand else 'Download — EasyKai' }}') }}</title>
 <meta content="{{ brand.seo_desc if brand else '下载 Hermes Agent 框架、EasyKai Skills、SDK 和插件 — 为 智能体 构建金融能力。' }}" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <!-- Fonts -->
@@ -101,7 +101,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label={{ _('Menu') | tojson }} class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/">{{ _('Home') }}</a>
       {% for nav in header_nav %}
@@ -194,7 +194,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="dl-empty">{{ _('{% if current_cat %}该分类暂无下载项。{% else %}暂无下载项，敬请期待。{% endif %}') }}</div>
+    <div class="dl-empty">{{ _('{% if current_cat %}No downloads in this category.{% else %}No downloads yet, stay tuned.{% endif %}') }}</div>
     {% endif %}
   </div>
 </section>
@@ -220,7 +220,7 @@
     var token = localStorage.getItem('hermes_token') || localStorage.getItem('token') || '';
     if (token && token.split('.').length === 3) {
       var area = document.getElementById('nav-auth-area');
-      if (area) area.innerHTML = '<a href="{{ deploy.url('platform') }}" class="nav-cta">控制台</a>';
+      if (area) area.innerHTML = '<a href="{{ deploy.url('platform') }}" class="nav-cta">{{ _('Console') }}</a>';
     }
   } catch(e) {}
 })();

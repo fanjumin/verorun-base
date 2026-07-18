@@ -109,7 +109,7 @@ class ReviewsPlugin(BasePlugin):
                 d['avatar'] = uinfo.get('avatar', '')
                 d['is_anonymous'] = bool(d['is_anonymous'])
                 if d['is_anonymous']:
-                    d['username'] = _t('匿***')
+                    d['username'] = _t(_'Anonymous***')
                     d['avatar'] = ''
                 reviews.append(d)
 
@@ -142,7 +142,7 @@ class ReviewsPlugin(BasePlugin):
             order_id = (data.get('order_id') or '').strip()
 
             if rating < 1 or rating > 5:
-                return jsonify({'success': False, 'error': _t('评分需在1-5之间')}), 400
+                return jsonify({'success': False, 'error': _t(_'Rating must be between 1-5')}), 400
             if not content:
                 return jsonify({'success': False, 'error': _t('请填写评价内容')}), 400
 
@@ -163,7 +163,7 @@ class ReviewsPlugin(BasePlugin):
                     (uid, product_id, order_id)
                 ).fetchone()
                 if existing:
-                    return jsonify({'success': False, 'error': _t('您已评价过该商品')}), 400
+                    return jsonify({'success': False, 'error': _t(_'You have already reviewed this product')}), 400
 
                 conn.execute(
                     '''INSERT INTO product_reviews (user_id, product_id, order_id, rating, content,
@@ -174,7 +174,7 @@ class ReviewsPlugin(BasePlugin):
                 )
                 conn.commit()
 
-            return jsonify({'success': True, 'message': _t('评价成功')})
+            return jsonify({'success': True, 'message': _t(_'Review successful')})
 
         @bp.route('/api/<int:review_id>', methods=['DELETE'])
         def delete_review(review_id):
@@ -191,10 +191,10 @@ class ReviewsPlugin(BasePlugin):
                     (review_id, uid)
                 ).fetchone()
                 if not row:
-                    return jsonify({'success': False, 'error': _t('评价不存在')}), 404
+                    return jsonify({'success': False, 'error': _t(_'Review does not exist')}), 404
                 conn.execute("UPDATE product_reviews SET is_active=0 WHERE id=%s", (review_id,))
                 conn.commit()
-            return jsonify({'success': True, 'message': _t('评价删除成功')})
+            return jsonify({'success': True, 'message': _t(_'Review deleted successfully')})
 
         @bp.route('/api/user/reviews', methods=['GET'])
         def my_reviews():
@@ -260,7 +260,7 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload or not payload.get('is_admin'):
-                return jsonify({'success': False, 'error': _t('无权限')}), 403
+                return jsonify({'success': False, 'error': _t(_'No Permission')}), 403
             page = request.args.get('page', 1, type=int)
             size = request.args.get('size', 20, type=int)
             offset = (page - 1) * size
@@ -313,7 +313,7 @@ class ReviewsPlugin(BasePlugin):
             auth = request.headers.get('Authorization', '')
             payload = validate_token(auth.replace('Bearer ', ''))
             if not payload or not payload.get('is_admin'):
-                return jsonify({'success': False, 'error': _t('无权限')}), 403
+                return jsonify({'success': False, 'error': _t(_'No Permission')}), 403
             reply = (request.get_json() or {}).get('reply', '').strip()
             if not reply:
                 return jsonify({'success': False, 'error': _t('请输入回复内容')}), 400
@@ -323,6 +323,6 @@ class ReviewsPlugin(BasePlugin):
                     (reply, rid)
                 )
                 conn.commit()
-            return jsonify({'success': True, 'message': _t('回复成功')})
+            return jsonify({'success': True, 'message': _t(_'Reply successful')})
 
         return [bp]

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>文档中心 — {{ brand.site_name_en if brand else '' }}</title>
+<title>{{ _('Document Center — {{ brand.site_name_en if brand else '' }}') }}</title>
 <meta name="description" content="EasyKai 文档中心 — 快速入门、金融分析、帮助中心一站式技术文档。">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,22 +36,22 @@
       <div class="logo-icon">E</div>
       <span>{{ brand.site_name_en if brand else '' }}</span>
     </a>
-    <button class="mobile-toggle" onclick="toggleMobileNav()" aria-label="菜单">☰</button>
+    <button class="mobile-toggle" onclick="toggleMobileNav()" aria-label={{ _('Menu') | tojson }}>☰</button>
     <div class="nav-links" id="navLinks">
-      <a href="/services">服务</a>
-      <a href="/docs" class="active">文档</a>
-      <a href="/insights">动态</a>
-      <a href="/download">下载</a>
-      <a href="/community">社区</a>
-      <a href="/start" class="nav-cta">🚀 立即开始</a>
+      <a href="/services">{{ _('Service') }}</a>
+      <a href="/docs" class="active">{{ _('Document') }}</a>
+      <a href="/insights">{{ _('Dynamic') }}</a>
+      <a href="/download">{{ _('Download') }}</a>
+      <a href="/community">{{ _('Community') }}</a>
+      <a href="/start" class="nav-cta">{{ _('🚀 Start now') }}</a>
     </div>
   </div>
 </nav>
 
 
 <div class="docs-hero">
-  <h1>📚 文档中心</h1>
-  <p>从零开始了解 EasyKai 平台，快速上手 Agent 开发与金融分析。</p>
+  <h1>{{ _('📚 Document Center') }}</h1>
+  <p>{{ _('Start from scratch to understand the EasyKai platform and quickly get started with Agent development and financial analysis.') }}</p>
 </div>
 
 <div class="docs-grid">
@@ -61,13 +61,13 @@
     <div class="cat-icon">{{ cat.icon }}</div>
     <h3>{{ cat.name }}</h3>
     <p>{{ {
-      'getting-started': '安装 Hermes 客户端、获取 API Key、创建第一个 Agent — 5 分钟即可上手。',
-      'finance': '易站 (TradeMind) A股智能分析使用指南、技术指标详解与量化策略实战。',
-      'insights': '产品更新、版本发布、新功能公告与路线图。',
-      'help': '常见问题、故障排除、账号管理与计费说明。',
-      'legal': '隐私政策、服务条款、AI 服务说明等法律合规文件。'
-    }.get(cat.slug, '浏览全部文章') }}</p>
-    <div class="cat-count">浏览全部 →</div>
+      'getting-started': {{ _('Install Hermes Client, Get API Key, Create First Agent — Get Started in 5 Minutes.') | tojson }},
+      'finance': {{ _('Yizhan (TradeMind) A-Share Smart Analysis Guide, Technical Indicator Explanation and Quantitative Strategy Practice.') | tojson }},
+      'insights': {{ _('Product updates, version releases, new feature announcements, and roadmap.') | tojson }},
+      'help': {{ _('Frequently Asked Questions, Troubleshooting, Account Management, and Billing Instructions.') | tojson }},
+      'legal': {{ _('Privacy Policy, Terms of Service, AI Service Description, and other legal compliance documents.') | tojson }}
+    }.get(cat.slug, {{ _('Browse All Articles') | tojson }}) }}</p>
+    <div class="cat-count">{{ _('Browse All →') }}</div>
   </a>
   {% endfor %}
 {% else %}
@@ -82,26 +82,26 @@
         <div style="width:32px;height:32px;background:var(--gradient-primary);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:14px;font-weight:900;color:#fff">E</div>
         <span style="font-family:var(--font-display);font-weight:700;font-size:16px;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent">{{ brand.site_name_en if brand else '' }}</span>
       </div>
-      <p style="font-size:13px;color:var(--text-muted)">为 智能体 构建金融分析、协作与市场认知能力。</p>
+      <p style="font-size:13px;color:var(--text-muted)">{{ _('Build financial analysis, collaboration, and market awareness for the agent.') }}</p>
     </div>
-    <div class="footer-col"><h4>文档</h4>
-      <a href="/docs/getting-started/">快速入门</a>
-      <a href="/docs/finance/">金融分析</a>
-      <a href="/docs/help/">帮助中心</a>
+    <div class="footer-col"><h4>{{ _('Document') }}</h4>
+      <a href="/docs/getting-started/">{{ _('Quick Start') }}</a>
+      <a href="/docs/finance/">{{ _('Financial Analysis') }}</a>
+      <a href="/docs/help/">{{ _('Help Center') }}</a>
     </div>
-    <div class="footer-col"><h4>社区</h4>
-      <a href="/community">Agent 社区</a>
-      <a href="/insights">产品动态</a>
+    <div class="footer-col"><h4>{{ _('Community') }}</h4>
+      <a href="/community">{{ _('Agent Community') }}</a>
+      <a href="/insights">{{ _('Product updates') }}</a>
     </div>
-    <div class="footer-col"><h4>法律</h4>
-      <a href="/legal/privacy">隐私政策</a>
-      <a href="/legal/terms">服务条款</a>
-      <a href="/legal/ai-disclosure">AI 服务说明</a>
+    <div class="footer-col"><h4>{{ _('Law') }}</h4>
+      <a href="/legal/privacy">{{ _('Privacy Policy') }}</a>
+      <a href="/legal/terms">{{ _('Terms of Service') }}</a>
+      <a href="/legal/ai-disclosure">{{ _('AI Service Description') }}</a>
     </div>
   </div>
   <div class="footer-bottom" style="max-width:1200px;margin:0 auto;padding-top:20px">
     <span>{{ (brand.copyright | safe) if brand else '&copy; 2026 EasyKai' }}</span>
-    <span class="disclaimer">本平台内容为 智能体 研究观点与社区交流，不构成投资建议。</span>
+    <span class="disclaimer">{{ _('The content on this platform is for research insights and community discussions about AI agents and does not constitute investment advice.') }}</span>
   </div>
 </footer>
 

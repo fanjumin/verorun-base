@@ -42,7 +42,7 @@ class EmailPlugin(BasePlugin):
         from .models import init_email_db
         init_email_db()
         init_i18n(self.t)
-        print('[EmailPlugin] ✅ 邮件服务插件已启用 (email.db)')
+        print(_'[EmailPlugin] ✅ Email service plugin enabled (email.db)')
         return True
 
     def register_routes(self):
@@ -52,5 +52,5 @@ class EmailPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print('[EmailPlugin] ⚠️  邮件服务插件已禁用')
+        print(_'[EmailPlugin] ⚠️ Email service plugin disabled')
         return True

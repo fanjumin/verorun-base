@@ -28,7 +28,7 @@ class FeishuAdapter(BaseIMAdapter):
         app_id = (data.get('app_id') or '').strip()
         app_secret = (data.get('app_secret') or '').strip()
         if not app_id or not app_secret:
-            return False, 'App ID 和 App Secret 不能为空'
+            return False, _'App ID and App Secret cannot be empty'
         try:
             import requests as _req
             resp = _req.post(
@@ -38,10 +38,10 @@ class FeishuAdapter(BaseIMAdapter):
             )
             rd = resp.json()
             if rd.get('code') == 0:
-                return True, '飞书连接成功！'
-            return False, f"飞书返回错误: {rd.get('msg', '未知')} (code={rd.get('code')})"
+                return True, _'FeiShu connection successful!'
+            return False, f_"FeiShu returned error: {rd.get('msg', 'unknown')} (code={rd.get('code')})"
         except Exception as e:
-            return False, f'连接失败: {str(e)}'
+            return False, f_'Connection failed: {str(e)}'
 
     def get_env_fallback(self):
         cfg = {}
@@ -71,7 +71,7 @@ class FeishuAdapter(BaseIMAdapter):
             "SELECT config_json FROM channel_configs WHERE channel='feishu' AND is_enabled=1 LIMIT 1"
         ).fetchone()
         if not row or not row['config_json']:
-            raise Exception("飞书通道未配置")
+            raise Exception(_"FeiShu channel not configured")
         return _json.loads(row['config_json'])
 
     def push_media(self, file_url, filename, mime):
@@ -79,7 +79,7 @@ class FeishuAdapter(BaseIMAdapter):
         app_id = cfg.get('app_id', '')
         app_secret = cfg.get('app_secret', '')
         if not app_id or not app_secret:
-            raise Exception("飞书 App ID 或 App Secret 为空")
+            raise Exception(_"FeiShu App ID or App Secret is empty")
         token_resp = _json.loads(_ur.urlopen(
             _ur.Request('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
                         data=_json.dumps({"app_id": app_id, "app_secret": app_secret}).encode(),
@@ -87,11 +87,11 @@ class FeishuAdapter(BaseIMAdapter):
         ).read())
         token = token_resp.get('tenant_access_token', '')
         if not token:
-            raise Exception("飞书 Token 获取失败: " + str(token_resp))
+            raise Exception(_"FeiShu Token acquisition failed: " + str(token_resp))
 
         chat_id = cfg.get('chat_id', '')
         if not chat_id:
-            raise Exception("飞书群 chat_id 未配置")
+            raise Exception(_"FeiShu group chat_id not configured")
 
         if mime.startswith('image/'):
             body = {
@@ -105,12 +105,12 @@ class FeishuAdapter(BaseIMAdapter):
             }
         else:
             card = {
-                "header": {"title": {"tag": "plain_text", "content": "媒体文件"}, "template": "blue"},
+                "header": {"title": {"tag": "plain_text", "content": _"Media File""}, "template": "blue"},
                 "elements": [
                     {"tag": "div", "text": {"tag": "lark_md",
                      "content": "**{}**".format(filename)}},
                     {"tag": "action", "actions": [
-                        {"tag": "button", "text": {"tag": "plain_text", "content": "下载"},
+                        {"tag": "button", "text": {"tag": "plain_text", "content": _"Download"},
                          "type": "primary", "url": file_url}
                     ]}
                 ]
@@ -123,7 +123,7 @@ class FeishuAdapter(BaseIMAdapter):
             headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
         )).read())
         if resp.get('code', -1) != 0:
-            raise Exception(resp.get('msg', '飞书消息发送失败'))
+            raise Exception(resp.get('msg', _'FeiShu message sending failed'))
 
     def _upload_image(self, token, file_url):
         img_data = _ur.urlopen(file_url).read()
@@ -140,7 +140,7 @@ class FeishuAdapter(BaseIMAdapter):
                      'Content-Type': 'multipart/form-data; boundary=' + boundary}
         )).read())
         if resp.get('code', -1) != 0:
-            raise Exception("上传图片失败: " + resp.get('msg', ''))
+            raise Exception(_"Upload image failed: " + resp.get('msg', ''))
         return resp['data']['image_key']
 
     def _upload_file(self, token, file_url, filename, mime):
@@ -164,5 +164,5 @@ class FeishuAdapter(BaseIMAdapter):
                      'Content-Type': 'multipart/form-data; boundary=' + boundary}
         )).read())
         if resp.get('code', -1) != 0:
-            raise Exception("上传文件失败: " + resp.get('msg', ''))
+            raise Exception(_"Upload file failed: " + resp.get('msg', ''))
         return resp['data']['file_key']

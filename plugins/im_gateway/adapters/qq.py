@@ -21,6 +21,6 @@ class QQAdapter(BaseIMAdapter):
         app_id = (data.get('app_id') or '').strip()
         app_key = (data.get('app_key') or '').strip()
         if not app_id or not app_key:
-            return False, 'App ID 和 App Key 不能为空'
+            return False, _'App ID and App Key cannot be empty'
         # 无标准单次 token 接口，仅参数校验
-        return True, 'QQ 凭证已接受（未做第三方 API 调用）'
+        return True, _'QQ Credentials Accepted (No Third-party API Called)'

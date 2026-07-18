@@ -46,7 +46,7 @@ class BaseIMAdapter(ABC):
 
     def push_media(self, file_url, filename, mime):
         """向该频道推送媒体文件。默认不支持，子类覆写。"""
-        raise Exception(f'{self.channel} 暂不支持媒体推送')
+        raise Exception(f_'{self.channel} does not support media push')
 
     # ── 工具方法 ──
 

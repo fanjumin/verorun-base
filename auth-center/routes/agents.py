@@ -23,7 +23,7 @@ def _require_auth():
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
     payload = validate_token(token)
     if not payload:
-        return None, (jsonify({'success': False, 'error': '未登录或Token已过期'}), 401)
+        return None, (jsonify({'success': False, 'error': _'Not logged in or token expired'}), 401)
     return payload, None
 
 
@@ -84,7 +84,7 @@ def agent_create():
     default_scopes = data.get('default_scopes', ['stock:read', 'market:alert'])
     
     if not agent_name:
-        return jsonify({'success': False, 'error': 'Agent 名称不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Agent name cannot be empty'}), 400
     
     if agent_type not in ('personal', 'community', 'trading'):
         agent_type = 'personal'
@@ -96,7 +96,7 @@ def agent_create():
         max_agents = TIERS.get(tier, {}).get('max_agents', 1)
         existing_count = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE user_id=%s", (uid,)).fetchone()['c']
         if existing_count >= max_agents:
-            return jsonify({'success': False, 'error': f'你的{tier}套餐最多创建{max_agents}个Agent，当前已有{existing_count}个'}), 400
+            return jsonify({'success': False, 'error': f_'Your {tier} plan allows up to {max_agents} Agents, and you currently have {existing_count}'}), 400
         
         # Check duplicate name for this user
         existing = conn.execute(
@@ -104,7 +104,7 @@ def agent_create():
             (uid, agent_name)
         ).fetchone()
         if existing:
-            return jsonify({'success': False, 'error': f'已存在名为 "{agent_name}" 的 Agent'}), 400
+            return jsonify({'success': False, 'error': f_'An Agent named "{agent_name}" already exists'}), 400
         
         scopes_str = _json.dumps(default_scopes if isinstance(default_scopes, list) else ['stock:read', 'market:alert'])
         metadata_str = _json.dumps(data.get('metadata', {}))
@@ -125,7 +125,7 @@ def agent_create():
         'default_scopes': default_scopes,
         'status': 'active',
         'created_at': 'now',
-        'message': 'Agent 创建成功！现在可以生成 API Key。',
+        'message': _'Agent created successfully! You can now generate an API Key.',
     }})
 
 
@@ -147,7 +147,7 @@ def agent_detail(aid):
             (aid, uid)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         
         d = dict(row)
         try:
@@ -198,7 +198,7 @@ def agent_update(aid):
             params.append(val)
     
     if not fields:
-        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
+        return jsonify({'success': False, 'error': _'No fields to update'}), 400
     
     fields.append("updated_at=NOW()")
     params.extend([aid, uid])
@@ -207,7 +207,7 @@ def agent_update(aid):
         # Verify ownership
         row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         conn.execute(
             f'UPDATE user_agents SET {", ".join(fields)} WHERE id=%s AND user_id=%s',
             params
@@ -215,7 +215,7 @@ def agent_update(aid):
         conn.commit()
     
     _log(aid, uid, 'update', f'Updated fields: {", ".join(data.keys())}')
-    return jsonify({'success': True, 'message': 'Agent 已更新'})
+    return jsonify({'success': True, 'message': _'Agent has been updated'})
 
 
 # =============================================
@@ -231,7 +231,7 @@ def agent_delete(aid):
     with get_db() as conn:
         row = conn.execute("SELECT id, agent_name FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         
         agent_name = row['agent_name']
         # Delete in FK order: api_keys → logs → agent
@@ -249,7 +249,7 @@ def agent_delete(aid):
         )
         conn.commit()
     
-    return jsonify({'success': True, 'message': f'Agent "{agent_name}" 已删除'})
+    return jsonify({'success': True, 'message': f_'Agent "{agent_name}" has been deleted'})
 
 
 # =============================================
@@ -264,7 +264,7 @@ def agent_keys_list(aid):
     with get_db() as conn:
         row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         
         keys = conn.execute(
             "SELECT id, key_prefix, name, scopes, status, expire_at, "
@@ -305,7 +305,7 @@ def agent_key_create(aid):
             (aid, uid)
         ).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
     
     # Generate key
     raw_key = 'ek-' + secrets.token_hex(24)
@@ -352,16 +352,16 @@ def agent_key_revoke(aid, kid):
         # Verify agent belongs to user
         row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         # Verify key belongs to agent
         key = conn.execute("SELECT id, name FROM agent_api_keys WHERE id=%s AND agent_id=%s", (kid, aid)).fetchone()
         if not key:
-            return jsonify({'success': False, 'error': '密钥不存在'}), 404
+            return jsonify({'success': False, 'error': _'Key does not exist'}), 404
         conn.execute("UPDATE agent_api_keys SET status='revoked' WHERE id=%s", (kid,))
         conn.commit()
     
     _log(aid, uid, 'revoke_key', f'Key "{key["name"] or kid}" revoked')
-    return jsonify({'success': True, 'message': '密钥已撤销'})
+    return jsonify({'success': True, 'message': _'Key has been canceled'})
 
 
 # =============================================
@@ -377,14 +377,14 @@ def agent_key_rotate(aid, kid):
     with get_db() as conn:
         row = conn.execute("SELECT id FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         
         key = conn.execute(
             "SELECT id, name, key_prefix FROM agent_api_keys WHERE id=%s AND agent_id=%s AND status='active'",
             (kid, aid)
         ).fetchone()
         if not key:
-            return jsonify({'success': False, 'error': '密钥不存在或已失效'}), 404
+            return jsonify({'success': False, 'error': _'Key does not exist or has expired'}), 404
     
     # Generate new key
     raw_key = 'ek-' + secrets.token_hex(24)
@@ -415,7 +415,7 @@ def agent_key_rotate(aid, kid):
         'key': raw_key,
         'key_prefix': new_prefix,
         'rotated_from': kid,
-        'warning': '⚠️ 新密钥只显示一次！旧密钥已自动撤销。',
+        'warning': _'⚠️ New key is shown only once! Old key has been automatically revoked.',
     }})
 
 
@@ -431,7 +431,7 @@ def agent_stats(aid):
     with get_db() as conn:
         row = conn.execute("SELECT id, agent_name FROM user_agents WHERE id=%s AND user_id=%s", (aid, uid)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': 'Agent 不存在或不属于当前用户'}), 404
+            return jsonify({'success': False, 'error': _'Agent does not exist or does not belong to the current user'}), 404
         
         # Total calls
         total_calls = conn.execute(

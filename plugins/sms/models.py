@@ -60,7 +60,7 @@ def init_sms_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_sms_logs_phone ON sms_logs(phone)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_sms_logs_created ON sms_logs(created_at)')
     conn.commit()
-    print('[SmsPlugin] sms.db 已初始化')
+    print(_'[SmsPlugin] sms.db has been initialized')
 
 
 def migrate_from_main_db():
@@ -73,7 +73,7 @@ def migrate_from_main_db():
     conn = get_sms_db()
     existing = conn.execute('SELECT COUNT(*) FROM sms_templates').fetchone()['count']
     if existing > 0:
-        print('[SmsPlugin] sms_templates 已有数据，跳过迁移')
+        print(_'[SmsPlugin] sms_templates already has data, migration skipped')
         return
 
     try:
@@ -90,9 +90,9 @@ def migrate_from_main_db():
             )
             count += 1
         conn.commit()
-        print(f'[SmsPlugin] 从主库迁移 {count} 条 sms_templates 记录')
+        print(f_'[SmsPlugin] Migrated {count} sms_templates records from main database')
     except Exception as e:
-        print(f'[SmsPlugin] 迁移 sms_templates 失败（主库可能无此表）: {e}')
+        print(f_'[SmsPlugin] Failed to migrate sms_templates (main database may not have this table): {e}')
 
 
 # 兼容旧接口名

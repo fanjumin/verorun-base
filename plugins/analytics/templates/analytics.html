@@ -1004,52 +1004,52 @@ function renderSourcesTable(data) {
 
 // 城市 → 省份映射（覆盖主要城市，省份名匹配 GeoJSON 全名）
 var _CITY_PROVINCE = {
-  '北京':'北京市','北京市':'北京市','上海':'上海市','上海市':'上海市',
-  '天津':'天津市','天津市':'天津市','重庆':'重庆市','重庆市':'重庆市',
-  '广州':'广东省','广州市':'广东省','深圳':'广东省','深圳市':'广东省','东莞':'广东省','东莞市':'广东省','佛山':'广东省','佛山市':'广东省','珠海':'广东省','珠海市':'广东省','惠州':'广东省','惠州市':'广东省','中山':'广东省','中山市':'广东省','汕头':'广东省','江门':'广东省','湛江':'广东省',
-  '南京':'江苏省','南京市':'江苏省','苏州':'江苏省','苏州市':'江苏省','无锡':'江苏省','无锡市':'江苏省','常州':'江苏省','常州市':'江苏省','南通':'江苏省','南通市':'江苏省','徐州':'江苏省','徐州市':'江苏省','扬州':'江苏省','扬州市':'江苏省','镇江':'江苏省','盐城':'江苏省','泰州':'江苏省',
-  '杭州':'浙江省','杭州市':'浙江省','宁波':'浙江省','宁波市':'浙江省','温州':'浙江省','温州市':'浙江省','嘉兴':'浙江省','嘉兴市':'浙江省','绍兴':'浙江省','绍兴市':'浙江省','金华':'浙江省','金华市':'浙江省','台州':'浙江省','湖州':'浙江省',
-  '成都':'四川省','成都市':'四川省','绵阳':'四川省','绵阳市':'四川省','宜宾':'四川省','宜宾市':'四川省','德阳':'四川省','泸州':'四川省',
-  '武汉':'湖北省','武汉市':'湖北省','宜昌':'湖北省','宜昌市':'湖北省','襄阳':'湖北省','襄阳市':'湖北省','荆州':'湖北省','黄石':'湖北省',
-  '长沙':'湖南省','长沙市':'湖南省','株洲':'湖南省','株洲市':'湖南省','岳阳':'湖南省','岳阳市':'湖南省','衡阳':'湖南省','常德':'湖南省',
-  '西安':'陕西省','西安市':'陕西省','咸阳':'陕西省','咸阳市':'陕西省','宝鸡':'陕西省',
-  '郑州':'河南省','郑州市':'河南省','洛阳':'河南省','洛阳市':'河南省','开封':'河南省','开封市':'河南省','新乡':'河南省','南阳':'河南省',
-  '济南':'山东省','济南市':'山东省','青岛':'山东省','青岛市':'山东省','烟台':'山东省','烟台市':'山东省','潍坊':'山东省','潍坊市':'山东省','威海':'山东省','威海市':'山东省','临沂':'山东省','临沂市':'山东省','淄博':'山东省','济宁':'山东省','日照':'山东省',
-  '福州':'福建省','福州市':'福建省','厦门':'福建省','厦门市':'福建省','泉州':'福建省','泉州市':'福建省','漳州':'福建省','莆田':'福建省',
-  '合肥':'安徽省','合肥市':'安徽省','芜湖':'安徽省','芜湖市':'安徽省','蚌埠':'安徽省','蚌埠市':'安徽省','马鞍山':'安徽省','安庆':'安徽省',
-  '沈阳':'辽宁省','沈阳市':'辽宁省','大连':'辽宁省','大连市':'辽宁省','鞍山':'辽宁省','抚顺':'辽宁省',
-  '哈尔滨':'黑龙江省','哈尔滨市':'黑龙江省','大庆':'黑龙江省','齐齐哈尔':'黑龙江省',
-  '长春':'吉林省','长春市':'吉林省','吉林':'吉林省',
-  '石家庄':'河北省','石家庄市':'河北省','唐山':'河北省','唐山市':'河北省','保定':'河北省','保定市':'河北省','廊坊':'河北省','廊坊市':'河北省','邯郸':'河北省','秦皇岛':'河北省',
-  '太原':'山西省','太原市':'山西省','大同':'山西省','临汾':'山西省',
-  '昆明':'云南省','昆明市':'云南省','大理':'云南省','丽江':'云南省',
-  '贵阳':'贵州省','贵阳市':'贵州省','遵义':'贵州省','遵义市':'贵州省',
-  '南宁':'广西壮族自治区','南宁市':'广西壮族自治区','桂林':'广西壮族自治区','桂林市':'广西壮族自治区','柳州':'广西壮族自治区',
-  '南昌':'江西省','南昌市':'江西省','九江':'江西省','赣州':'江西省',
-  '海口':'海南省','海口市':'海南省','三亚':'海南省','三亚市':'海南省',
-  '兰州':'甘肃省','兰州市':'甘肃省','天水':'甘肃省',
-  '呼和浩特':'内蒙古自治区','呼和浩特市':'内蒙古自治区','包头':'内蒙古自治区',
-  '乌鲁木齐':'新疆维吾尔自治区','乌鲁木齐市':'新疆维吾尔自治区',
-  '拉萨':'西藏自治区','拉萨市':'西藏自治区',
-  '西宁':'青海省','西宁市':'青海省',
-  '银川':'宁夏回族自治区','银川市':'宁夏回族自治区',
-  '香港':'香港特别行政区','澳门':'澳门特别行政区',
-  '台湾':'台湾省','台北':'台湾省','台北市':'台湾省','新北':'台湾省','高雄':'台湾省',
+  {{ _('Beijing') | tojson }}:{{ _('Beijing') | tojson }},{{ _('Beijing') | tojson }}:{{ _('Beijing') | tojson }},{{ _('Shanghai') | tojson }}:{{ _('Shanghai City') | tojson }},{{ _('Shanghai City') | tojson }}:{{ _('Shanghai City') | tojson }},
+  {{ _('Tianjin"') | tojson }}:{{ _('Tianjin City"') | tojson }},{{ _('Tianjin City"') | tojson }}:{{ _('Tianjin City"') | tojson }},{{ _('Chongqing') | tojson }}:{{ _('Chongqing City') | tojson }},{{ _('Chongqing City') | tojson }}:{{ _('Chongqing City') | tojson }},
+  {{ _('Guangzhou') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Guangzhou City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Shenzhen') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Shenzhen City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Dongguan') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Dongguan City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Foshan') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Foshan City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Zhuhai') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Zhuhai City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Huizhou') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Huizhou City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Zhongshan') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Zhongshan City') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Shantou') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Jiangmen') | tojson }}:{{ _('Guangdong Province') | tojson }},{{ _('Zhanjiang') | tojson }}:{{ _('Guangdong Province') | tojson }},
+  {{ _('Nanjing') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Nanjing City') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Suzhou') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Suzhou City') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Wuxi') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Wuxi City') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Changzhou') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Changzhou City') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Nantong') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Nantong City') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Xuzhou') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Xuzhou') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Yangzhou') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Yangzhou City') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Zhenjiang') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Yancheng') | tojson }}:{{ _('Jiangsu Province') | tojson }},{{ _('Taizhou') | tojson }}:{{ _('Jiangsu Province') | tojson }},
+  {{ _('Hangzhou') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Hangzhou') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Ningbo') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Ningbo City') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Wenzhou') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Wenzhou City') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Jiaxing') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Jiaxing City') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Shaoxing') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Shaoxing City') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Jinhua') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Jinhua City') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Taizhou') | tojson }}:{{ _('Zhejiang Province') | tojson }},{{ _('Huzhou') | tojson }}:{{ _('Zhejiang Province') | tojson }},
+  {{ _('Chengdu') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Chengdu City') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Mianyang') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Mianyang City') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Yibin') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Yibin City') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Deyang') | tojson }}:{{ _('Sichuan Province') | tojson }},{{ _('Luzhou') | tojson }}:{{ _('Sichuan Province') | tojson }},
+  {{ _('Wuhan') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Wuhan City') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Yichang') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Yichang City') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Xiangyang') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Xiangyang City') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Jingzhou') | tojson }}:{{ _('Hubei Province') | tojson }},{{ _('Huangshi') | tojson }}:{{ _('Hubei Province') | tojson }},
+  {{ _('Changsha') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Changsha City') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Zhuzhou') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Zhuzhou City') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Yueyang') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Yueyang City') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Hengyang') | tojson }}:{{ _('Hunan Province') | tojson }},{{ _('Changde') | tojson }}:{{ _('Hunan Province') | tojson }},
+  {{ _('Xi'an') | tojson }}:{{ _('Shaanxi Province') | tojson }},{{ _('Xi'an City') | tojson }}:{{ _('Shaanxi Province') | tojson }},{{ _('Xianyang') | tojson }}:{{ _('Shaanxi Province') | tojson }},{{ _('Xianyang City') | tojson }}:{{ _('Shaanxi Province') | tojson }},{{ _('Baoji') | tojson }}:{{ _('Shaanxi Province') | tojson }},
+  {{ _('Zhengzhou') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Zhengzhou City') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Luoyang') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Luoyang City') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Kaifeng') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Kaifeng City') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Xinxiang') | tojson }}:{{ _('Henan Province') | tojson }},{{ _('Nanyang') | tojson }}:{{ _('Henan Province') | tojson }},
+  {{ _('Jinan') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Jinan City') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Qingdao') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Qingdao City') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Yantai') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Yantai City') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Weifang') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Weifang City') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Weihai"') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Weihai City"') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Linyi') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Linyi City') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Zibo') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Jining') | tojson }}:{{ _('Shandong Province') | tojson }},{{ _('Rizhao') | tojson }}:{{ _('Shandong Province') | tojson }},
+  {{ _('Fuzhou') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Fuzhou City') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Xiamen') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Xiamen City') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Quanzhou') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Quanzhou City') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Zhangzhou') | tojson }}:{{ _('Fujian Province') | tojson }},{{ _('Putian') | tojson }}:{{ _('Fujian Province') | tojson }},
+  {{ _('Hefei') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Hefei City') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Wuhu') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Wuhu City') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Bengbu') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Bengbu City') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Maanshan') | tojson }}:{{ _('Anhui Province') | tojson }},{{ _('Anqing') | tojson }}:{{ _('Anhui Province') | tojson }},
+  {{ _('Shenyang') | tojson }}:{{ _('Liaoning Province') | tojson }},{{ _('Shenyang City') | tojson }}:{{ _('Liaoning Province') | tojson }},{{ _('Dalian"') | tojson }}:{{ _('Liaoning Province') | tojson }},{{ _('Dalian City"') | tojson }}:{{ _('Liaoning Province') | tojson }},{{ _('Anshan') | tojson }}:{{ _('Liaoning Province') | tojson }},{{ _('Fushun') | tojson }}:{{ _('Liaoning Province') | tojson }},
+  {{ _('Harbin') | tojson }}:{{ _('Heilongjiang Province') | tojson }},{{ _('Harbin City') | tojson }}:{{ _('Heilongjiang Province') | tojson }},{{ _('Daqing"') | tojson }}:{{ _('Heilongjiang Province') | tojson }},{{ _('Qiqihar') | tojson }}:{{ _('Heilongjiang Province') | tojson }},
+  {{ _('Changchun') | tojson }}:{{ _('Jilin Province') | tojson }},{{ _('Changchun City') | tojson }}:{{ _('Jilin Province') | tojson }},{{ _('Jilin') | tojson }}:{{ _('Jilin Province') | tojson }},
+  {{ _('Shijiazhuang') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Shijiazhuang City') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Tangshan') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Tangshan City') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Baoding') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Baoding City') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Langfang') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Langfang City') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Handan') | tojson }}:{{ _('Hebei Province') | tojson }},{{ _('Qinhuangdao') | tojson }}:{{ _('Hebei Province') | tojson }},
+  {{ _('Taiyuan"') | tojson }}:{{ _('Shanxi Province') | tojson }},{{ _('Taiyuan City"') | tojson }}:{{ _('Shanxi Province') | tojson }},{{ _('Datong"') | tojson }}:{{ _('Shanxi Province') | tojson }},{{ _('Linfen') | tojson }}:{{ _('Shanxi Province') | tojson }},
+  {{ _('Kunming') | tojson }}:{{ _('Yunnan Province') | tojson }},{{ _('Kunming City') | tojson }}:{{ _('Yunnan Province') | tojson }},{{ _('Dali"') | tojson }}:{{ _('Yunnan Province') | tojson }},{{ _('Lijiang') | tojson }}:{{ _('Yunnan Province') | tojson }},
+  {{ _('Guiyang') | tojson }}:{{ _('Guizhou Province') | tojson }},{{ _('Guiyang City') | tojson }}:{{ _('Guizhou Province') | tojson }},{{ _('Zunyi') | tojson }}:{{ _('Guizhou Province') | tojson }},{{ _('Zunyi City') | tojson }}:{{ _('Guizhou Province') | tojson }},
+  {{ _('Nanning') | tojson }}:{{ _('Guangxi Zhuang Autonomous Region') | tojson }},{{ _('Nanning City') | tojson }}:{{ _('Guangxi Zhuang Autonomous Region') | tojson }},{{ _('Guilin') | tojson }}:{{ _('Guangxi Zhuang Autonomous Region') | tojson }},{{ _('Guilin City') | tojson }}:{{ _('Guangxi Zhuang Autonomous Region') | tojson }},{{ _('Liuzhou') | tojson }}:{{ _('Guangxi Zhuang Autonomous Region') | tojson }},
+  {{ _('Nanchang') | tojson }}:{{ _('Jiangxi Province') | tojson }},{{ _('Nanchang City') | tojson }}:{{ _('Jiangxi Province') | tojson }},{{ _('Jiujiang') | tojson }}:{{ _('Jiangxi Province') | tojson }},{{ _('Ganzhou') | tojson }}:{{ _('Jiangxi Province') | tojson }},
+  {{ _('Haikou') | tojson }}:{{ _('Hainan Province') | tojson }},{{ _('Haikou City') | tojson }}:{{ _('Hainan Province') | tojson }},{{ _('Sanya') | tojson }}:{{ _('Hainan Province') | tojson }},{{ _('Sanya City') | tojson }}:{{ _('Hainan Province') | tojson }},
+  {{ _('Lanzhou') | tojson }}:{{ _('Gansu Province') | tojson }},{{ _('Lanzhou City') | tojson }}:{{ _('Gansu Province') | tojson }},{{ _('Tianshui"') | tojson }}:{{ _('Gansu Province') | tojson }},
+  {{ _('Hohhot') | tojson }}:{{ _('Inner Mongolia Autonomous Region') | tojson }},{{ _('Hohhot City') | tojson }}:{{ _('Inner Mongolia Autonomous Region') | tojson }},{{ _('Baotou') | tojson }}:{{ _('Inner Mongolia Autonomous Region') | tojson }},
+  {{ _('Urumqi') | tojson }}:{{ _('Xinjiang Uyghur Autonomous Region') | tojson }},{{ _('Urumqi City') | tojson }}:{{ _('Xinjiang Uyghur Autonomous Region') | tojson }},
+  {{ _('Lhasa') | tojson }}:{{ _('Tibet Autonomous Region') | tojson }},{{ _('Lhasa City') | tojson }}:{{ _('Tibet Autonomous Region') | tojson }},
+  {{ _('Xining') | tojson }}:{{ _('Qinghai Province') | tojson }},{{ _('Xining City') | tojson }}:{{ _('Qinghai Province') | tojson }},
+  {{ _('Yinchuan') | tojson }}:{{ _('Ningxia Hui Autonomous Region') | tojson }},{{ _('Yinchuan City') | tojson }}:{{ _('Ningxia Hui Autonomous Region') | tojson }},
+  {{ _('Hong Kong') | tojson }}:{{ _('Hong Kong Special Administrative Region') | tojson }},{{ _('Macau') | tojson }}:{{ _('Macau Special Administrative Region') | tojson }},
+  {{ _('Taiwan') | tojson }}:{{ _('Taiwan Province') | tojson }},{{ _('Taipei') | tojson }}:{{ _('Taiwan Province') | tojson }},{{ _('Taipei City') | tojson }}:{{ _('Taiwan Province') | tojson }},{{ _('New Taipei') | tojson }}:{{ _('Taiwan Province') | tojson }},{{ _('Kaohsiung') | tojson }}:{{ _('Taiwan Province') | tojson }},
   // 英文拼音回退（MaxMind 返回）
-  'Beijing':'北京市','Shanghai':'上海市','Tianjin':'天津市','Chongqing':'重庆市',
-  'Guangzhou':'广东省','Shenzhen':'广东省','Dongguan':'广东省','Foshan':'广东省','Zhuhai':'广东省',
-  'Nanjing':'江苏省','Suzhou':'江苏省','Wuxi':'江苏省','Changzhou':'江苏省','Nantong':'江苏省',
-  'Hangzhou':'浙江省','Ningbo':'浙江省','Wenzhou':'浙江省','Jiaxing':'浙江省',
-  'Chengdu':'四川省','Wuhan':'湖北省','Changsha':'湖南省',"Xian":"陕西省","Xi'an":"陕西省",
-  'Zhengzhou':'河南省','Jinan':'山东省','Qingdao':'山东省','Yantai':'山东省',
-  'Fuzhou':'福建省','Xiamen':'福建省','Quanzhou':'福建省',
-  'Hefei':'安徽省','Shenyang':'辽宁省','Dalian':'辽宁省',
-  'Harbin':'黑龙江省','Changchun':'吉林省',
-  'Shijiazhuang':'河北省','Tangshan':'河北省',
-  'Taiyuan':'山西省','Kunming':'云南省','Guiyang':'贵州省',
-  'Nanning':'广西壮族自治区','Nanchang':'江西省',
-  'Haikou':'海南省','Sanya':'海南省',
-  'Lanzhou':'甘肃省','Urumqi':'新疆维吾尔自治区',
+  'Beijing':{{ _('Beijing') | tojson }},'Shanghai':{{ _('Shanghai City') | tojson }},'Tianjin':{{ _('Tianjin City"') | tojson }},'Chongqing':{{ _('Chongqing City') | tojson }},
+  'Guangzhou':{{ _('Guangdong Province') | tojson }},'Shenzhen':{{ _('Guangdong Province') | tojson }},'Dongguan':{{ _('Guangdong Province') | tojson }},'Foshan':{{ _('Guangdong Province') | tojson }},'Zhuhai':{{ _('Guangdong Province') | tojson }},
+  'Nanjing':{{ _('Jiangsu Province') | tojson }},'Suzhou':{{ _('Jiangsu Province') | tojson }},'Wuxi':{{ _('Jiangsu Province') | tojson }},'Changzhou':{{ _('Jiangsu Province') | tojson }},'Nantong':{{ _('Jiangsu Province') | tojson }},
+  'Hangzhou':{{ _('Zhejiang Province') | tojson }},'Ningbo':{{ _('Zhejiang Province') | tojson }},'Wenzhou':{{ _('Zhejiang Province') | tojson }},'Jiaxing':{{ _('Zhejiang Province') | tojson }},
+  'Chengdu':{{ _('Sichuan Province') | tojson }},'Wuhan':{{ _('Hubei Province') | tojson }},'Changsha':{{ _('Hunan Province') | tojson }},"Xian":{{ _('Shaanxi Province') | tojson }},"Xi'an":{{ _('Shaanxi Province') | tojson }},
+  'Zhengzhou':{{ _('Henan Province') | tojson }},'Jinan':{{ _('Shandong Province') | tojson }},'Qingdao':{{ _('Shandong Province') | tojson }},'Yantai':{{ _('Shandong Province') | tojson }},
+  'Fuzhou':{{ _('Fujian Province') | tojson }},'Xiamen':{{ _('Fujian Province') | tojson }},'Quanzhou':{{ _('Fujian Province') | tojson }},
+  'Hefei':{{ _('Anhui Province') | tojson }},'Shenyang':{{ _('Liaoning Province') | tojson }},'Dalian':{{ _('Liaoning Province') | tojson }},
+  'Harbin':{{ _('Heilongjiang Province') | tojson }},'Changchun':{{ _('Jilin Province') | tojson }},
+  'Shijiazhuang':{{ _('Hebei Province') | tojson }},'Tangshan':{{ _('Hebei Province') | tojson }},
+  'Taiyuan':{{ _('Shanxi Province') | tojson }},'Kunming':{{ _('Yunnan Province') | tojson }},'Guiyang':{{ _('Guizhou Province') | tojson }},
+  'Nanning':{{ _('Guangxi Zhuang Autonomous Region') | tojson }},'Nanchang':{{ _('Jiangxi Province') | tojson }},
+  'Haikou':{{ _('Hainan Province') | tojson }},'Sanya':{{ _('Hainan Province') | tojson }},
+  'Lanzhou':{{ _('Gansu Province') | tojson }},'Urumqi':{{ _('Xinjiang Uyghur Autonomous Region') | tojson }},
 };
 
 function loadChinaCities() {
@@ -1334,14 +1334,14 @@ function renderDeviceChart(data) {
 
 function renderDeviceDetail(browsers, osList) {
   var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">';
-  html += '<div><div class="label" style="margin-bottom:8px">浏览器 Top 5</div>';
+  html += {{ _('<div><div class="label" style="margin-bottom:8px">Top 5 Browsers</div>') | tojson }};
   html += '<table class="data-table"><thead><tr><th>{{ _('Browser') }}</th><th>PV</th></tr></thead><tbody>';
   browsers.slice(0, 5).forEach(function(d){
     html += '<tr><td>' + d.browser + '</td><td style="color:var(--blue)">' + (d.pv||0).toLocaleString() + '</td></tr>';
   });
   html += '</tbody></table></div>';
 
-  html += '<div><div class="label" style="margin-bottom:8px">操作系统 Top 5</div>';
+  html += {{ _('<div><div class="label" style="margin-bottom:8px">Top 5 Operating Systems</div>') | tojson }};
   html += '<table class="data-table"><thead><tr><th>OS</th><th>PV</th></tr></thead><tbody>';
   osList.slice(0, 5).forEach(function(d){
     html += '<tr><td>' + d.os_name + '</td><td style="color:var(--blue)">' + (d.pv||0).toLocaleString() + '</td></tr>';

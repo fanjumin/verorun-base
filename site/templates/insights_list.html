@@ -41,7 +41,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label={{ _('Menu') | tojson }} class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a href="/docs">{{ _('Docs') }}</a>
@@ -55,7 +55,7 @@
 <div class="blog-header">
 <div class="section-label" style="margin-bottom:12px">Insights</div>
 <h1>{{ _('Industry Insights') }}</h1>
-<p class="section-subtitle" style="margin:0 auto">{{ brand.tagline if brand and brand.tagline else '智能体趋势 · 股票市场研究 · Hermes生态' }}</p>
+<p class="section-subtitle" style="margin:0 auto">{{ _('{{ brand.tagline if brand and brand.tagline else 'Agent Trends · Stock Market Research · Hermes Ecosystem' }}') }}</p>
 </div>
 <div class="post-list">
   {% if posts %}

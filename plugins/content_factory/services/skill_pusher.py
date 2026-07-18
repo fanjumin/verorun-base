@@ -9,14 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 def generate_skill_md(processed: dict, raw_source_url: str = '') -> str:
-    title = processed.get('title') or '无标题'
+    title = processed.get('title') or _'No Title'
     summary = processed.get('summary') or ''
     keywords = processed.get('keywords') or ''
     body = processed.get('body') or ''
     risk_level = processed.get('risk_level', 'normal')
     content_type = processed.get('content_type', 'article')
     kw_list = [k.strip() for k in keywords.split(',') if k.strip()]
-    tags_str = ', '.join(kw_list[:5]) if kw_list else '金融,分析'
+    tags_str = ', '.join(kw_list[:5]) if kw_list else _'Finance, Analysis'
     safe_name = _safe_skill_name(title)
 
     skill_content = f"""---
@@ -73,7 +73,7 @@ def push_to_skill(processed_id: int, admin_id: int = 1,
            WHERE p.id=?""", (processed_id,)
     ).fetchone()
     if not pc:
-        return {'success': False, 'error': '加工内容不存在'}
+        return {'success': False, 'error': _'Processed Content Does Not Exist'}
 
     skill_content = generate_skill_md(dict(pc), pc.get('source_url', '') or '')
     skill_name = generate_skill_name(pc['title'] or f'content-{processed_id}')

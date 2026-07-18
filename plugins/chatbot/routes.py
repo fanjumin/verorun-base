@@ -80,7 +80,7 @@ def parse_escalation_from_reply(full_reply):
     try:
         data = json.loads(json_part[brace_start:brace_end + 1])
         ticket_data = {
-            'title': str(data.get('title', '用户咨询'))[:200],
+            'title': str(data.get('title', _'User Inquiry'))[:200],
             'content': str(data.get('content', '')),
             'contact': str(data.get('contact', '')),
         }
@@ -100,7 +100,7 @@ def _require_admin():
         token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
-        return (jsonify({'success': False, 'error': '需要管理权限'}), 401)
+        return (jsonify({'success': False, 'error': _'Requires management permissions'}), 401)
     return None
 
 
@@ -163,7 +163,7 @@ def log_session_route():
     escalated = data.get('escalated', False)
     source = data.get('source', 'chatbot')
     if not session_id:
-        return jsonify({'success': False, 'error': 'session_id 不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Session_id cannot be empty'}), 400
     ls, _, _ = _stats_import()
     ok = ls(session_id, user_query, ai_reply, escalated=escalated, source=source)
     return jsonify({'success': ok})
@@ -223,7 +223,7 @@ def qa_check():
         result = qa_check_conversation(session_id, user_query, ai_reply)
         if result:
             return jsonify({'success': True, 'data': result})
-        return jsonify({'success': False, 'error': '质检失败'}), 500
+        return jsonify({'success': False, 'error': _'Quality Inspection Failed'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -235,13 +235,13 @@ def copilot_suggest():
     user_query = data.get('user_query', '')
     history = data.get('history', '')  # 之前的对话记录
     if not user_query:
-        return jsonify({'success': False, 'error': '缺少用户消息'}), 400
+        return jsonify({'success': False, 'error': _'Missing user message'}), 400
     try:
         import sys as _sys, os as _os, json as _json
         _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..'))
         from agent_matrix.engine import AIEngine
 
-        context = f"对话历史：\n{history[:500]}\n\n用户最新消息：{user_query[:300]}" if history else f"用户消息：{user_query[:300]}"
+        context = f"对话历史：\n{history[:500]}\n\n用户最新消息：{user_query[:300]}" if history else f_"User Message: {user_query[:300]}"
         prompt = f"""你是一个 AI 坐席助手（Agent Copilot）。根据以下对话，生成 2-3 条回复建议供坐席选择。
 
 要求：
@@ -252,12 +252,12 @@ def copilot_suggest():
 
 {context}
 
-输出格式：{{"suggestions": ["建议1", "建议2", "建议3"]}}"""
+输出格式：{{"suggestions": [_"Suggestion 1", _"Suggestion 2", _"Suggestion 3"]}}"""
 
         engine = AIEngine({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
         reply = ''
         for token in engine.chat_stream([
-            {'role': 'system', 'content': '你是坐席助手。只输出 JSON。'},
+            {'role': 'system', 'content': _'You are an agent assistant. Output only JSON.'},
             {'role': 'user', 'content': prompt}
         ], temperature=0.3, max_tokens=256):
             if not token.startswith('Error:'):
@@ -312,13 +312,13 @@ def csat():
     session_id = data.get('session_id', '')
     score = data.get('score', 0)
     if not session_id:
-        return jsonify({'success': False, 'error': 'session_id 不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Session_id cannot be empty'}), 400
     try:
         score = int(score)
         if score < 1 or score > 5:
-            return jsonify({'success': False, 'error': '评分范围 1-5'}), 400
+            return jsonify({'success': False, 'error': _'Rating range 1-5'}), 400
     except (ValueError, TypeError):
-        return jsonify({'success': False, 'error': '评分无效'}), 400
+        return jsonify({'success': False, 'error': _'Invalid rating'}), 400
     _, _, rc = _stats_import()
     ok = rc(session_id, score)
     return jsonify({'success': ok})
@@ -390,14 +390,14 @@ def escalate():
     session_id = data.get('session_id')
 
     if not title or not content:
-        return jsonify({'success': False, 'error': '标题和内容不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Title and Content cannot be empty'}), 400
 
     result = create_ticket_from_chat(title, content, contact,
                                      user_id=user_id, session_id=session_id)
     if result['success']:
         return jsonify({'success': True, 'data': {'ticket_id': result['ticket_id']}})
     else:
-        return jsonify({'success': False, 'error': result.get('error', '创建工单失败')}), 500
+        return jsonify({'success': False, 'error': result.get('error', _'Ticket creation failed')}), 500
 
 
 @chatbot_bp.route('/settings', methods=['POST'])

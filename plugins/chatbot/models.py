@@ -107,7 +107,7 @@ def init_chatbot_tables():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_cs_session ON chatbot_sessions(session_id)')
 
     conn.commit()
-    print(f'[ChatbotPlugin] PG schema chatbot 已就绪（{_DB_PATH}）')
+    print(f_'[ChatbotPlugin] PG schema chatbot is ready ({_DB_PATH})')
 
 
 # ── 配置读写 ──
@@ -226,9 +226,9 @@ def migrate_from_main():
                         set_config('chatbot', r['key'], r['value'])
                         migrated += 1
                 if migrated:
-                    print(f'[ChatbotPlugin] 已迁移 {migrated}/{len(main_rows)} 条 plugin_configs（跳过已有）')
+                    print(f_'[ChatbotPlugin] Migrated {migrated}/{len(main_rows)} plugin_configs (skipped existing)')
                 else:
-                    print(f'[ChatbotPlugin] 跳过迁移，所有 {len(main_rows)} 条 plugin_configs 均已存在')
+                    print(f_'[ChatbotPlugin] Skipped migration, all {len(main_rows)} plugin_configs already exist')
 
             # 迁移 agent（仅迁移 chatbot 相关的 agent_matrix 记录）
             agent_rows = mc.execute(
@@ -244,7 +244,7 @@ def migrate_from_main():
                         capabilities=r.get('capabilities', '[]'),
                         is_active=r.get('is_active', 1)
                     )
-                print(f'[ChatbotPlugin] 已迁移 {len(agent_rows)} 条 agent_registry')
+                print(f_'[ChatbotPlugin] Migrated {len(agent_rows)} agent_registry entries')
 
             # 迁移 chatbot_sessions（仅最近 30 天）
             session_rows = mc.execute(
@@ -265,6 +265,6 @@ def migrate_from_main():
                          r.get('sentiment', ''), r.get('created_at', ''))
                     )
                 conn.commit()
-                print(f'[ChatbotPlugin] 已迁移 {len(session_rows)} 条 chatbot_sessions')
+                print(f_'[ChatbotPlugin] Migrated {len(session_rows)} chatbot_sessions entries')
     except Exception as e:
-        print(f'[ChatbotPlugin] 迁移主库数据失败（首次运行正常）: {e}')
+        print(f_'[ChatbotPlugin] Failed to migrate main database data (normal on first run): {e}')

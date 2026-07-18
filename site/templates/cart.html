@@ -109,11 +109,11 @@ function checkout(){
 }
 
 function loadCart(){
-  if(!T){document.getElementById("cartContent").innerHTML='<div class="empty-state"><div class="icon">🔒</div><div>{{ _('Please') }} <a href="/login?redirect=/shop/cart">{{ _('Log In') }}</a> 查看购物车</div></div>';return}
+  if(!T){document.getElementById("cartContent").innerHTML='<div class="empty-state"><div class="icon">🔒</div><div>{{ _('Please') }} <a href="/login?redirect=/shop/cart">{{ _('Log In{{ _(') }}</a> View Cart</div></div>"') | tojson }};return}
   fetch("/shop/api/cart",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var cart=d.data, items=cart.items||[], h="";
-    if(!items.length){h='<div class="empty-state"><div class="icon">🛒</div><div>{{ _('Your cart is empty') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">→ 去逛逛</a></div>'}
+    if(!items.length){h='<div class="empty-state"><div class="icon">🛒</div><div>{{ _('Your cart is empty') }}</div><a href="/shop" style="color:var(--accent);margin-top:12px;display:inline-block">{{ _('→ Go Browse') }}</a></div>'}
     else{
       items.forEach(function(it){
         h+='<div class="cart-item" id="ci-'+it.id+'">';

@@ -53,13 +53,13 @@ _ENV_MAP = {
 }
 
 CONFIG_DEFS = {
-    'smtp_host':  {'label': 'SMTP 服务器',    'default': 'smtp.qiye.aliyun.com', 'sensitive': False},
-    'smtp_port':  {'label': 'SMTP 端口',      'default': '465',                  'sensitive': False},
-    'smtp_user':  {'label': 'SMTP 账号',      'default': '',                     'sensitive': False},
-    'smtp_pass':  {'label': 'SMTP 密码',      'default': '',                     'sensitive': True},
-    'smtp_from':  {'label': '发件人地址',      'default': '',                     'sensitive': False},
-    'imap_host':  {'label': 'IMAP 服务器',     'default': 'imap.qiye.aliyun.com','sensitive': False},
-    'imap_port':  {'label': 'IMAP 端口',       'default': '993',                  'sensitive': False},
+    'smtp_host':  {'label': _'SMTP Server',    'default': 'smtp.qiye.aliyun.com', 'sensitive': False},
+    'smtp_port':  {'label': _'SMTP Port',      'default': '465',                  'sensitive': False},
+    'smtp_user':  {'label': _'SMTP Account',      'default': '',                     'sensitive': False},
+    'smtp_pass':  {'label': _'SMTP Password',      'default': '',                     'sensitive': True},
+    'smtp_from':  {'label': _'Sender address',      'default': '',                     'sensitive': False},
+    'imap_host':  {'label': _'IMAP Server',     'default': 'imap.qiye.aliyun.com','sensitive': False},
+    'imap_port':  {'label': _'IMAP Port',       'default': '993',                  'sensitive': False},
 }
 
 
@@ -205,7 +205,7 @@ def _get_email_body(msg):
             plain_text = _decode_body(payload, encoding)
         elif ct == "text/html":
             html_text = _decode_body(payload, encoding)
-    return plain_text or "(无文本内容)", html_text
+    return plain_text or _"(无文本内容)"", html_text
 
 
 def _get_attachments_from_msg(msg):
@@ -249,11 +249,11 @@ def fetch_inbox(page=1, per_page=20):
     try:
         imap = _connect_imap()
     except Exception as e:
-        return {"error": f"IMAP 连接失败: {e}", "items": [], "total": 0}
+        return {"error": f_"IMAP Connection Failed: {e}", "items": [], "total": 0}
     try:
         status, data = imap.search(None, "ALL")
         if status != "OK":
-            return {"error": "无法搜索收件箱", "items": [], "total": 0}
+            return {"error": _"Failed to Search Inbox", "items": [], "total": 0}
         all_uids = data[0].split()
         total = len(all_uids)
         start = max(0, total - page * per_page)
@@ -281,7 +281,7 @@ def _fetch_one_inbox(imap, uid):
             return None
         raw_header = msg_data[0][1] if isinstance(msg_data[0], tuple) else b""
         msg = email.message_from_bytes(raw_header)
-        subject = _decode_mime_header(msg.get("Subject", "(无主题)"))
+        subject = _decode_mime_header(msg.get("Subject", _"(无主题)""))
         _from = _decode_mime_header(msg.get("From", ""))
         date_str = msg.get("Date", "")
 
@@ -307,16 +307,16 @@ def read_email(uid):
     try:
         imap = _connect_imap()
     except Exception as e:
-        return {"error": f"IMAP 连接失败: {e}"}
+        return {"error": f_"IMAP Connection Failed: {e}"}
     try:
         uid_bytes = str(uid).encode() if isinstance(uid, int) else uid.encode() if isinstance(uid, str) else uid
         status, msg_data = imap.uid("fetch", uid_bytes, "(BODY[])")
         if status != "OK":
             imap.logout()
-            return {"error": "无法读取邮件"}
+            return {"error": _"Failed to Read Email"}
         raw_email = msg_data[0][1] if isinstance(msg_data[0], tuple) else b""
         msg = email.message_from_bytes(raw_email)
-        subject = _decode_mime_header(msg.get("Subject", "(无主题)"))
+        subject = _decode_mime_header(msg.get("Subject", _"(无主题)""))
         _from = _decode_mime_header(msg.get("From", ""))
         _to = _decode_mime_header(msg.get("To", ""))
         _cc = _decode_mime_header(msg.get("Cc", ""))
@@ -351,7 +351,7 @@ def get_attachment(uid, filename):
         status, msg_data = imap.uid("fetch", uid_bytes, "(BODY[])")
         if status != "OK":
             imap.logout()
-            return None, "无法读取邮件"
+            return None, _"Failed to Read Email"
         raw_email = msg_data[0][1] if isinstance(msg_data[0], tuple) else b""
         msg = email.message_from_bytes(raw_email)
         attachments = _get_attachments_from_msg(msg)
@@ -360,7 +360,7 @@ def get_attachment(uid, filename):
             if att["filename"] == filename and not att.get("too_large"):
                 data = base64.b64decode(att["data"])
                 return data, att["content_type"]
-        return None, "附件不存在"
+        return None, _"Attachment does not exist"
     except Exception as e:
         try:
             imap.logout()
@@ -400,9 +400,9 @@ def send_email(to_addr, subject, body_text, body_html=None, cc=None, reply_to=No
             data = base64.b64decode(att["data"]) if isinstance(att["data"], str) else att["data"]
             total_attach_size += len(data)
             if len(data) > _MAX_ATTACHMENT_SIZE:
-                return False, f"附件 {att['filename']} 超过 10MB 限制"
+                return False, f_"Attachment {att['filename']} exceeds 10MB limit"
     if total_attach_size > 50 * 1024 * 1024:
-        return False, "附件总大小超过 50MB 限制"
+        return False, _"Total attachment size exceeds 50MB limit"
 
     # Build message
     if attachments:
@@ -463,17 +463,17 @@ def send_email(to_addr, subject, body_text, body_html=None, cc=None, reply_to=No
         db.commit()
 
         logger.info(f"Email sent to {to_addr}: {subject}")
-        return True, "发送成功"
+        return True, _"Send Successfully"
 
     except smtplib.SMTPAuthenticationError:
         logger.error("SMTP 认证失败")
         return False, "SMTP 认证失败，请检查 SMTP_USER/SMTP_PASS"
     except smtplib.SMTPException as e:
         logger.error(f"SMTP 发送失败: {e}")
-        return False, f"SMTP 错误: {e}"
+        return False, f_"SMTP Error: {e}"
     except Exception as e:
         logger.error(f"邮件发送异常: {e}")
-        return False, f"发送异常: {e}"
+        return False, f_"Send Exception: {e}"
 
 
 def get_sent_emails(page=1, per_page=20):
@@ -493,7 +493,7 @@ def get_sent_emails(page=1, per_page=20):
 def send_contact_email(name, email_addr, subject, message):
     """发送联系表单邮件到管理员。"""
     admin_email = os.environ.get("CONTACT_TO", "")
-    full_subject = f"[联系表单] {subject}"
+    full_subject = f_"[Contact Form] {subject}"
 
     try:
         # brand_service 来自主系统，这是跨模块调用（非数据库依赖）

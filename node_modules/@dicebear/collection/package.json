@@ -1,0 +1,95 @@
+{
+  "name": "@dicebear/collection",
+  "version": "9.4.2",
+  "description": "Avatar style collection for DiceBear",
+  "keywords": [
+    "dicebear"
+  ],
+  "bugs": {
+    "url": "https://github.com/dicebear/dicebear/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dicebear/dicebear.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./async": "./lib/async.js"
+  },
+  "types": "./lib/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "async": [
+        "lib/async.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "LICENSE",
+    "lib",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "prebuild": "del-cli lib",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@dicebear/adventurer": "9.4.2",
+    "@dicebear/adventurer-neutral": "9.4.2",
+    "@dicebear/avataaars": "9.4.2",
+    "@dicebear/avataaars-neutral": "9.4.2",
+    "@dicebear/big-ears": "9.4.2",
+    "@dicebear/big-ears-neutral": "9.4.2",
+    "@dicebear/big-smile": "9.4.2",
+    "@dicebear/bottts": "9.4.2",
+    "@dicebear/bottts-neutral": "9.4.2",
+    "@dicebear/croodles": "9.4.2",
+    "@dicebear/croodles-neutral": "9.4.2",
+    "@dicebear/dylan": "9.4.2",
+    "@dicebear/fun-emoji": "9.4.2",
+    "@dicebear/glass": "9.4.2",
+    "@dicebear/icons": "9.4.2",
+    "@dicebear/identicon": "9.4.2",
+    "@dicebear/initials": "9.4.2",
+    "@dicebear/lorelei": "9.4.2",
+    "@dicebear/lorelei-neutral": "9.4.2",
+    "@dicebear/micah": "9.4.2",
+    "@dicebear/miniavs": "9.4.2",
+    "@dicebear/notionists": "9.4.2",
+    "@dicebear/notionists-neutral": "9.4.2",
+    "@dicebear/open-peeps": "9.4.2",
+    "@dicebear/personas": "9.4.2",
+    "@dicebear/pixel-art": "9.4.2",
+    "@dicebear/pixel-art-neutral": "9.4.2",
+    "@dicebear/rings": "9.4.2",
+    "@dicebear/shapes": "9.4.2",
+    "@dicebear/thumbs": "9.4.2",
+    "@dicebear/toon-head": "9.4.2"
+  },
+  "devDependencies": {
+    "@dicebear/core": "9.4.2",
+    "@rollup/plugin-commonjs": "^28.0.9",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@tsconfig/recommended": "^1.0.13",
+    "del-cli": "^7.0.0",
+    "rollup": "^4.57.1",
+    "tmp": "^0.2.5",
+    "typescript": "^5.9.3",
+    "webpack": "^5.104.1"
+  },
+  "peerDependencies": {
+    "@dicebear/core": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

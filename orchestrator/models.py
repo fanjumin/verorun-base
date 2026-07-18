@@ -85,8 +85,8 @@ def init_orchestrator_tables():
                 -- 调度方式
                 job_type        TEXT NOT NULL DEFAULT 'cron'
                                 CHECK(job_type IN ('cron','interval','once')),
-                cron_expr       TEXT DEFAULT '',          -- 标准Cron: '0 30 9 * * 1-5'
-                natural_expr    TEXT DEFAULT '',          -- 自然语言: '每个交易日 9:30'
+                cron_expr       TEXT DEFAULT '_',          -- Standard Cron: '0 30 9 * * 1-5'
+                natural_expr    TEXT DEFAULT '_',          -- Natural Language: '每个交易日 9:30'
                 interval_seconds BIGINT DEFAULT 0,       -- 固定间隔（秒）
                 timezone        TEXT DEFAULT 'Asia/Shanghai',
                 calendar        TEXT DEFAULT '{}',        -- JSON: {workdays_only, exclude_holidays, trade_days_only}
@@ -170,14 +170,14 @@ def init_orchestrator_tables():
                 --   "nodes": [{
                 --     "id": "node_1",
                 --     "type": "ai_agent|data_collect|ai_process|condition|approval|publish|notify|wait|sub_workflow|market_check",
-                --     "name": "采集36氪",
+                --     "name": _"Scrape 36Kr",
                 --     "config": {...},   -- 节点类型特定配置
                 --     "position": {x, y}  -- 可视化编辑器坐标
                 --   }],
                 --   "edges": [{
                 --     "from": "node_1",
                 --     "to": "node_2",
-                --     "condition": ""  -- 条件分支: "success"|"failure"|"${var} > 0.05"
+                --     "condition": "_"  -- Conditional Branch: "success"|"failure"|"${var} > 0.05"
                 --   }]
                 -- }
                 definition      TEXT NOT NULL DEFAULT '{"nodes":[],"edges":[]}',
@@ -369,7 +369,7 @@ def init_orchestrator_tables():
 
             -- 预置默认系统 Agent（仅当没有数据时插入）
             INSERT INTO system_agents (name, description, provider, model, api_key_ref, system_prompt, capabilities)
-            VALUES ('default-system-agent', '平台默认自动调度 Agent，执行内容工厂、市场监控等自动化任务',
+            VALUES ('default-system-agent', _'The platform defaults to automatically scheduling Agents to perform automated tasks such as content factory and market monitoring',
                     'dashscope', 'qwen-turbo', 'dashscope_text_key',
                     '你是平台的自动化调度助手。你的职责是执行定时任务、处理工作流、生成内容、监控市场数据。请严格按照任务要求输出结果。',
                     '["content_factory","market_monitor","data_analysis","report_generation"]')

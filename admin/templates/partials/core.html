@@ -51,44 +51,44 @@ function goPlugin(key,embedUrl){
 // Coupon Plugin Bridge
 window.l_shop_coupons=function(){window.l_coupons_plugin()};
 window.l_coupons_plugin=function(){
-  document.getElementById("pt").textContent="{{ _('智能优惠券') }}";
-  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('加载中...') }}</div>';
+  document.getElementById("pt").textContent={{ _('{{ _('Smart Coupon') }}') | tojson }};
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('{{ _('Loading...') }}') }}</div>';
   loadPluginCouponView();
 };
 function loadPluginCouponView(){
   fetch("/plugin/coupons/admin/list",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
     if(!r.ok){
-      document.getElementById("mc").innerHTML='<div class="em">{{ _('插件路由未注册，请先启用插件') }} (404)</div>';
+      document.getElementById("mc").innerHTML='<div class="em">{{ _('Plugin route not registered, enable the plugin first') }} (404)</div>';
       return Promise.reject();
     }
     return r.json()
   }).then(function(d){
     if(!d.success)return;
     var cs=d.data||[];
-    var h='<div class="sbar"><button class="btn bp" onclick="showPluginCouponForm()">+ {{ _('新建优惠券') }}</button>';
-    h+='<button class="btn bs bo" onclick="loadPluginCouponStats()">📊 {{ _('统计') }}</button>';
-    h+='<input id="cpSearch" placeholder="{{ _('搜索') }}" oninput="filterPluginCoupons()" style="flex:1;max-width:200px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"></div>';
+    var h='<div class="sbar"><button class="btn bp" onclick="showPluginCouponForm()">{{ _('+ {{ _('New Coupon') }}') }}</button>';
+    h+='<button class="btn bs bo" onclick="loadPluginCouponStats()">{{ _('📊 {{ _('Statistics') }}') }}</button>';
+    h+='<input id="cpSearch" placeholder={{ _('{{ _('Search') }}') | tojson }} oninput="filterPluginCoupons()" style="flex:1;max-width:200px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"></div>';
     h+='<div class="gr" id="cpSummary"></div>';
-    h+='<div class="cd" id="cpForm" style="display:none;margin-top:16px"><div class="st" id="cpFormTitle">{{ _('新建优惠券') }}</div>';
-    h+='<div class="g2"><div><label>{{ _('优惠码') }}</label><input class="in" id="cpCode" style="width:100%;font-family:monospace" placeholder="SUMMER2026"></div>';
-    h+='<div><label>{{ _('名称') }}</label><input class="in" id="cpName" style="width:100%" placeholder="{{ _('夏季大促') }}"></div></div>';
-    h+='<div class="g3"><div><label>{{ _('分类') }}</label><select class="sl" id="cpCategory"><option value="general">{{ _('通用券') }}</option><option value="new_user">{{ _('新人券') }}</option><option value="threshold">{{ _('满减券') }}</option><option value="promotion">{{ _('推广券') }}</option></select></div>';
-    h+='<div><label>{{ _('类型') }}</label><select class="sl" id="cpType" onchange="toggleCpType()"><option value="fixed">{{ _('固定金额') }}</option><option value="percent">{{ _('百分比') }}</option><option value="free_shipping">{{ _('免运费') }}</option></select></div>';
-    h+='<div><label>{{ _('面值') }}</label><input class="in" id="cpValue" type="number" step="0.01" placeholder="0.00" style="width:100%"></div></div>';
-    h+='<div class="g3"><div><label>{{ _('最低消费') }}(¥)</label><input class="in" id="cpMin" type="number" step="0.01" value="0" style="width:100%"></div>';
-    h+='<div><label>{{ _('场景') }}</label><select class="sl" id="cpScene"><option value="">{{ _('通用') }}</option></select></div>';
-    h+='<div><label>{{ _('每人限用') }}</label><input class="in" id="cpPerUser" type="number" value="1" style="width:100%"></div></div>';
-    h+='<div class="g2"><div><label>{{ _('总限制') }}(0=无限)</label><input class="in" id="cpLimit" type="number" value="0" style="width:100%"></div>';
-    h+='<div><label>{{ _('过期') }}</label><input class="in" id="cpExpire" type="date" style="width:100%"></div></div>';
-    h+='<div><label>{{ _('描述') }}</label><textarea class="ta" id="cpDesc" style="width:100%;height:50px;font-size:11px" placeholder="{{ _('可选') }}"></textarea></div>';
-    h+='<div><label>{{ _('适用商品') }} ID ({{ _('逗号分隔') }})</label><input class="in" id="cpProducts" style="width:100%;font-family:monospace" placeholder="1,5,12"></div>';
-    h+='<div style="margin-top:8px;display:flex;gap:8px"><button class="btn bp" onclick="savePluginCoupon()">{{ _('保存') }}</button><button class="btn bo" onclick="hidePluginCouponForm()">{{ _('取消') }}</button></div>';
+    h+='<div class="cd" id="cpForm" style="display:none;margin-top:16px"><div class="st" id="cpFormTitle">{{ _('{{ _('Create Coupon') }}') }}</div>';
+    h+='<div class="g2"><div><label>{{ _('Coupon Code') }}</label><input class="in" id="cpCode" style="width:100%;font-family:monospace" placeholder="SUMMER2026"></div>';
+    h+='<div><label>{{ _('{{ _('Name') }}') }}</label><input class="in" id="cpName" style="width:100%" placeholder={{ _('{{ _('Summer Sale') }}') | tojson }}></div></div>';
+    h+='<div class="g3"><div><label>{{ _('Category') }}</label><select class="sl" id="cpCategory"><option value="general">{{ _('{{ _('General Coupon') }}') }}</option><option value="new_user">{{ _('{{ _('New User Coupon') }}') }}</option><option value="threshold">{{ _('{{ _('Full Reduction Coupon') }}') }}</option><option value="promotion">{{ _('{{ _('Promotion Coupon') }}') }}</option></select></div>';
+    h+='<div><label>{{ _('{{ _('Type') }}') }}</label><select class="sl" id="cpType" onchange="toggleCpType()"><option value="fixed">{{ _('{{ _('Fixed Amount') }}') }}</option><option value="percent">{{ _('{{ _('Percentage') }}') }}</option><option value="free_shipping">{{ _('Free Shipping') }}</option></select></div>';
+    h+='<div><label>{{ _('{{ _('Denomination') }}') }}</label><input class="in" id="cpValue" type="number" step="0.01" placeholder="0.00" style="width:100%"></div></div>';
+    h+='<div class="g3"><div><label>{{ _('{{ _('Minimum Spend') }}(¥)') }}</label><input class="in" id="cpMin" type="number" step="0.01" value="0" style="width:100%"></div>';
+    h+='<div><label>{{ _('{{ _('Scenario') }}') }}</label><select class="sl" id="cpScene"><option value="">{{ _('{{ _('General') }}') }}</option></select></div>';
+    h+='<div><label>{{ _('{{ _('Limit per User') }}') }}</label><input class="in" id="cpPerUser" type="number" value="1" style="width:100%"></div></div>';
+    h+='<div class="g2"><div><label>{{ _('{{ _('Total Limit') }}(0=Unlimited)') }}</label><input class="in" id="cpLimit" type="number" value="0" style="width:100%"></div>';
+    h+='<div><label>{{ _('{{ _('Expired') }}') }}</label><input class="in" id="cpExpire" type="date" style="width:100%"></div></div>';
+    h+='<div><label>{{ _('{{ _('Description') }}') }}</label><textarea class="ta" id="cpDesc" style="width:100%;height:50px;font-size:11px" placeholder={{ _('{{ _('Optional') }}') | tojson }}></textarea></div>';
+    h+='<div><label>{{ _('Applicable Products') }} ID ({{ _('Comma Separated') }})</label><input class="in" id="cpProducts" style="width:100%;font-family:monospace" placeholder="1,5,12"></div>';
+    h+='<div style="margin-top:8px;display:flex;gap:8px"><button class="btn bp" onclick="savePluginCoupon()">{{ _('Save') }}</button><button class="btn bo" onclick="hidePluginCouponForm()">{{ _('{{ _('Cancel') }}') }}</button></div>';
     h+='<input type="hidden" id="cpEditId" value=""></div>';
-    h+='<div class="cd"><div class="st">{{ _('优惠券列表') }} ('+cs.length+')</div><div style="overflow-x:auto"><table id="cpTable"><tr><th>ID</th><th>{{ _('码') }}</th><th>{{ _('名称') }}</th><th>{{ _('分类') }}</th><th>{{ _('类型') }}</th><th>{{ _('面值') }}</th><th>{{ _('最低') }}</th><th>{{ _('场景') }}</th><th>{{ _('使用/总') }}</th><th>{{ _('过期') }}</th><th>{{ _('状态') }}</th><th>{{ _('操作') }}</th></tr>';
-    if(!cs.length)h+='<tr><td colspan="12"><div class="em">{{ _('暂无优惠券') }}</div></td></tr>';
+    h+='<div class="cd"><div class="st">{{ _('Coupon List ('+cs.length+')') }}</div><div style="overflow-x:auto"><table id="cpTable"><tr><th>ID</th><th>{{ _('{{ _('Code') }}') }}</th><th>{{ _('{{ _('Name') }}') }}</th><th>{{ _('Category') }}</th><th>{{ _('{{ _('Type') }}') }}</th><th>{{ _('{{ _('Denomination') }}') }}</th><th>{{ _('{{ _('Minimum') }}') }}</th><th>{{ _('{{ _('Scenario') }}') }}</th><th>{{ _('Used/Total') }}</th><th>{{ _('{{ _('Expired') }}') }}</th><th>{{ _('{{ _('Status') }}') }}</th><th>{{ _('{{ _('Action') }}') }}</th></tr>';
+    if(!cs.length)h+='<tr><td colspan="12"><div class="em">{{ _('{{ _('No Coupons Available') }}') }}</div></td></tr>';
     else cs.forEach(function(c){
-      var st=c.is_active?'<span class="bdg on">{{ _('启用') }}</span>':'<span class="bdg off">{{ _('禁用') }}</span>';
-      var sceneLabel=c.scene||'{{ _('通用') }}';
+      var st=c.is_active?'<span class="bdg on">{{ _('{{ _('Enable') }}') }}</span>':'<span class="bdg off">{{ _('{{ _('Disable') }}') }}</span>';
+      var sceneLabel=c.scene||{{ _('{{ _('General') }}') | tojson }};
       h+='<tr class="cpRow" data-search="'+(c.code+' '+c.name).toLowerCase()+'"><td>'+c.id+'</td>';
       h+='<td style="font-family:monospace">'+esc(c.code)+'</td>';
       h+='<td>'+esc(c.name||'-')+'</td>';
@@ -98,20 +98,20 @@ function loadPluginCouponView(){
       h+='<td>¥'+(c.min_amount||0)+'</td>';
       h+='<td>'+sceneLabel+'</td>';
       h+='<td>'+c.used_count+'/'+(c.usage_limit||'∞')+'</td>';
-      h+='<td style="font-size:10px;white-space:nowrap">'+(c.expire_at?c.expire_at.slice(0,10):'{{ _('永久') }}')+'</td><td>'+st+'</td>';
-      h+='<td style="white-space:nowrap"><button class="btn bs bo" onclick="showPluginCouponForm('+c.id+')">{{ _('编辑') }}</button> ';
-      h+='<button class="btn bs bo" onclick="togglePluginCoupon('+c.id+','+(c.is_active?0:1)+')">'+(c.is_active?'{{ _('禁用') }}':'{{ _('启用') }}')+'</button> ';
-      h+='<button class="btn bs bo" onclick="showPluginDistribute('+c.id+',\''+esc(c.code)+'\')">{{ _('发放') }}</button> ';
-      h+='<button class="btn bs bo" onclick="showPluginRedemptions('+c.id+')">{{ _('记录') }}</button></td></tr>';
+      h+='<td style="font-size:10px;white-space:nowrap">'+(c.expire_at?c.expire_at.slice(0,10):'{{ _({{ _('Permanent') | tojson }}) }}')+'</td><td>'+st+'</td>';
+      h+='<td style="white-space:nowrap"><button class="btn bs bo" onclick="showPluginCouponForm('+c.id+')">{{ _('{{ _('Edit') }}') }}</button> ';
+      h+='<button class="btn bs bo" onclick="togglePluginCoupon('+c.id+','+(c.is_active?0:1)+')">'+(c.is_active?{{ _('{{ _('Disable') }}') | tojson }}:{{ _('{{ _('Enable') }}') | tojson }})+'</button> ';
+      h+='<button class="btn bs bo" onclick="showPluginDistribute('+c.id+',\''+esc(c.code)+'\')">{{ _('{{ _('Issue') }}') }}</button> ';
+      h+='<button class="btn bs bo" onclick="showPluginRedemptions('+c.id+')">{{ _('{{ _('Record') }}') }}</button></td></tr>';
     });
     h+='</table></div></div>';
-    h+='<div class="cd" id="cpDistForm" style="display:none;margin-top:16px"><div class="st">{{ _('发放优惠券') }} <span id="cpDistCode"></span></div>';
-    h+='<div style="margin-bottom:8px"><label><input type="radio" name="cpDistMode" value="all" checked onchange="toggleCpDistMode()"> {{ _('发放给所有人') }}</label>';
-    h+='<label style="margin-left:16px"><input type="radio" name="cpDistMode" value="specific" onchange="toggleCpDistMode()"> {{ _('指定用户') }}ID</label></div>';
-    h+='<div id="cpDistIds" style="display:none"><textarea class="ta" id="cpDistIdsInput" placeholder="{{ _('每行一个用户') }}ID" style="width:100%;height:80px;font-size:11px"></textarea></div>';
-    h+='<div style="margin-top:8px"><button class="btn bp" onclick="doPluginDistribute()">{{ _('确认发放') }}</button> <button class="btn bo" onclick="document.getElementById(\'cpDistForm\').style.display=\'none\'">{{ _('取消') }}</button></div>';
+    h+='<div class="cd" id="cpDistForm" style="display:none;margin-top:16px"><div class="st">{{ _({{ _('Issue Coupon') | tojson }}) }} <span id="cpDistCode"></span></div>';
+    h+='<div style="margin-bottom:8px"><label><input type="radio" name="cpDistMode" value="all" checked onchange="toggleCpDistMode()"> {{ _({{ _('Distribute to All') | tojson }}) }}</label>';
+    h+='<label style="margin-left:16px"><input type="radio" name="cpDistMode" value="specific" onchange="toggleCpDistMode()"> {{ _({{ _('Specific User') | tojson }}) }}ID</label></div>';
+    h+='<div id="cpDistIds" style="display:none"><textarea class="ta" id="cpDistIdsInput" placeholder={{ _('{{ _('One User') }}ID per line') | tojson }} style="width:100%;height:80px;font-size:11px"></textarea></div>';
+    h+='<div style="margin-top:8px"><button class="btn bp" onclick="doPluginDistribute()">{{ _('{{ _('Confirm Issue') }}') }}</button> <button class="btn bo" onclick="document.getElementById(\'cpDistForm\').style.display=\'none\'">{{ _('{{ _('Cancel') }}') }}</button></div>';
     h+='<input type="hidden" id="cpDistId"></div>';
-    h+='<div class="cd" id="cpRedemptionLog" style="display:none;margin-top:16px"><div class="st">{{ _('使用记录') }}</div><div id="cpRedemptionContent"></div></div>';
+    h+='<div class="cd" id="cpRedemptionLog" style="display:none;margin-top:16px"><div class="st">{{ _('Usage Record') }}</div><div id="cpRedemptionContent"></div></div>';
     document.getElementById("mc").innerHTML=h;
     loadPluginCouponStats(true);
     loadSceneOptions();
@@ -142,7 +142,7 @@ function toggleCpType(){
 }
 function showPluginCouponForm(id){
   document.getElementById("cpEditId").value=id||"";
-  document.getElementById("cpFormTitle").textContent=id?"{{ _('编辑优惠券') }}":"{{ _('新建优惠券') }}";
+  document.getElementById("cpFormTitle").textContent=id?{{ _('{{ _('Edit Coupon') }}') | tojson }}:{{ _('{{ _('Create Coupon') }}') | tojson }};
   if(id){
     fetch("/plugin/coupons/admin/list",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
       var c=(d.data||[]).find(function(x){return x.id==id});if(!c)return;
@@ -187,37 +187,37 @@ function savePluginCoupon(){
     description: document.getElementById("cpDesc").value.trim(),
     applicable_products: document.getElementById("cpProducts").value.trim()
   };
-  if(!data.code){showToast("{{ _('请输入优惠码') }}","error");return;}
+  if(!data.code){showToast("{{ _('Enter coupon code') }}","error");return;}
   var url=id?"/plugin/coupons/admin/update/"+id:"/plugin/coupons/admin/create";
   fetch(url,{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.success){showToast(id?"✅ {{ _('已更新') }}":"✅ {{ _('已创建') }}","success");hidePluginCouponForm();l_coupons_plugin()}
-      else showToast(d.error||"{{ _('失败') }}","error");
+      if(d.success){showToast(id?{{ _('✅ {{ _('Updated') }}') | tojson }}:{{ _('✅ {{ _('Created') }}') | tojson }},"success");hidePluginCouponForm();l_coupons_plugin()}
+      else showToast(d.error||{{ _('{{ _('Failed') }}') | tojson }},"error");
     });
 }
 function togglePluginCoupon(id,active){
   fetch("/plugin/coupons/admin/update/"+id,{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({is_active:active})})
-    .then(function(r){return r.json()}).then(function(d){if(d.success){showToast("✅ {{ _('完成') }}","success");l_coupons_plugin()}});
+    .then(function(r){return r.json()}).then(function(d){if(d.success){showToast({{ _('✅ {{ _('Completed') }}') | tojson }},"success");l_coupons_plugin()}});
 }
 function loadPluginCouponStats(summaryOnly){
   fetch("/plugin/coupons/admin/stats",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var s=d.data;
     var el=document.getElementById("cpSummary");
-    if(el)el.innerHTML=hk("{{ _('总优惠券') }}",s.total_coupons,"")+hk("{{ _('启用') }}",s.active_coupons,"#3fb950")+hk("{{ _('总使用') }}",s.total_used,"#58a6ff")+hk("{{ _('总节省') }}","¥"+s.total_discount,"#d2a8ff");
+    if(el)el.innerHTML=hk("{{ _('Total Coupons') }}",s.total_coupons,"")+hk({{ _('{{ _('Enable') }}') | tojson }},s.active_coupons,"#3fb950")+hk("{{ _('Total Used') }}",s.total_used,"#58a6ff")+hk("{{ _('Total Saved') }}","¥"+s.total_discount,"#d2a8ff");
     if(!summaryOnly){
-      var h='<div class="gr">'+hk("{{ _('总优惠券') }}",s.total_coupons,"")+hk("{{ _('启用') }}",s.active_coupons,"#3fb950")+hk("{{ _('总使用') }}",s.total_used,"#58a6ff")+hk("{{ _('总节省') }}","¥"+s.total_discount,"#d2a8ff")+'</div>';
+      var h='<div class="gr">'+hk("{{ _('Total Coupons') }}",s.total_coupons,"")+hk({{ _('{{ _('Enable') }}') | tojson }},s.active_coupons,"#3fb950")+hk("{{ _('Total Used') }}",s.total_used,"#58a6ff")+hk("{{ _('Total Saved') }}","¥"+s.total_discount,"#d2a8ff")+'</div>';
       if(s.by_category&&s.by_category.length){
-        h+='<div class="cd"><div class="st">{{ _('分类统计') }}</div><table><tr><th>{{ _('分类') }}</th><th>{{ _('数量') }}</th></tr>';
+        h+='<div class="cd"><div class="st">{{ _('{{ _('Category Statistics') }}') }}</div><table><tr><th>{{ _('Category') }}</th><th>{{ _('{{ _('Quantity') }}') }}</th></tr>';
         s.by_category.forEach(function(x){h+='<tr><td>'+esc(x.coupon_category)+'</td><td>'+x.c+'</td></tr>'});
         h+='</table></div>';
       }
       if(s.top_used&&s.top_used.length){
-        h+='<div class="cd"><div class="st">{{ _('使用排行') }} Top 10</div><table><tr><th>{{ _('码') }}</th><th>{{ _('名称') }}</th><th>{{ _('使用次数') }}</th></tr>';
+        h+='<div class="cd"><div class="st">{{ _('Usage Rank Top 10') }}</div><table><tr><th>{{ _('{{ _('Code') }}') }}</th><th>{{ _('{{ _('Name') }}') }}</th><th>{{ _('Usage Count') }}</th></tr>';
         s.top_used.forEach(function(x){h+='<tr><td>'+esc(x.code)+'</td><td>'+esc(x.name||'-')+'</td><td>'+x.used_count+'</td></tr>'});
         h+='</table></div>';
       }
-      h+='<div style="margin-top:8px"><button class="btn bo" onclick="l_coupons_plugin()">← {{ _('返回列表') }}</button></div>';
+      h+='<div style="margin-top:8px"><button class="btn bo" onclick="l_coupons_plugin()">{{ _('← {{ _('Return to List') }}') }}</button></div>';
       document.getElementById("mc").innerHTML=h;
     }
   });
@@ -238,26 +238,26 @@ function doPluginDistribute(){
   var data={coupon_id:parseInt(cid),all_users:mode==="all"};
   if(mode==="specific"){
     var ids=document.getElementById("cpDistIdsInput").value.trim().split("\n").map(function(x){return parseInt(x.trim())}).filter(function(x){return!isNaN(x)});
-    if(!ids.length){showToast("{{ _('请输入用户') }}ID","error");return}
+    if(!ids.length){showToast("{{ _('Enter User') }}ID","error");return}
     data.user_ids=ids;
   }
   fetch("/plugin/coupons/admin/distribute",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.success){showToast(d.message||"✅ {{ _('已发放') }}","success");document.getElementById("cpDistForm").style.display="none";l_coupons_plugin()}
-      else showToast(d.error||"{{ _('失败') }}","error");
+      if(d.success){showToast(d.message||{{ _('✅ {{ _('Issued') }}') | tojson }},"success");document.getElementById("cpDistForm").style.display="none";l_coupons_plugin()}
+      else showToast(d.error||{{ _('{{ _('Failed') }}') | tojson }},"error");
     });
 }
 function showPluginRedemptions(cid){
   var el=document.getElementById("cpRedemptionLog");
   var content=document.getElementById("cpRedemptionContent");
   el.style.display="block";
-  content.innerHTML='<div class="lo"><div class="s"></div>{{ _('加载中...') }}</div>';
+  content.innerHTML='<div class="lo"><div class="s"></div>{{ _('{{ _('Loading...') }}') }}</div>';
   el.scrollIntoView({behavior:"smooth"});
   fetch("/plugin/coupons/admin/redemptions/"+cid,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var rs=d.data;
-    var h='<div style="margin-bottom:6px;color:var(--dim)">{{ _('共') }} '+rs.total+' {{ _('条记录') }}</div><table><tr><th>ID</th><th>{{ _('用户') }}</th><th>{{ _('订单号') }}</th><th>{{ _('折扣') }}(分)</th><th>{{ _('时间') }}</th></tr>';
-    if(!rs.redemptions||!rs.redemptions.length)h+='<tr><td colspan="5"><div class="em">{{ _('无使用记录') }}</div></td></tr>';
+    var h='<div style="margin-bottom:6px;color:var(--dim)">{{ _('Total '+rs.total+' Records') }}</div><table><tr><th>ID</th><th>{{ _('{{ _('User') }}') }}</th><th>{{ _('{{ _('Order Number') }}') }}</th><th>{{ _('Discount{{ _(') }}(min)</th><th>{{ _("') | tojson }}Time') }}</th></tr>';
+    if(!rs.redemptions||!rs.redemptions.length)h+='<tr><td colspan="5"><div class="em">{{ _('{{ _('No Usage Record') }}') }}</div></td></tr>';
     else rs.redemptions.forEach(function(r){
       h+='<tr><td>'+r.id+'</td><td>'+(r.nickname||r.phone||'#'+r.user_id)+'</td><td style="font-size:10px">'+esc(r.order_no)+'</td><td>'+(r.discount_fen/100).toFixed(2)+'</td><td style="font-size:10px;color:var(--dim)">'+(r.created_at||'').slice(0,16)+'</td></tr>';
     });

@@ -236,7 +236,7 @@
 <div class="reg-captcha-hint">{{ _('Captcha verification ensures platform security and prevents automated registrations') }}</div>
 <div class="reg-notice">
 <span class="rn-icon">🛡️</span>
-<div>{% if brand and brand.site_name_en %}{{ brand.site_name_en }}{% endif %} {{ _('已通过') }}<strong>{{ _('Level 3 National Info Security Certification') }}</strong> — {{ _('your personal info is strictly protected and will not be shared.') }}</div>
+<div>{{ _('{% if brand and brand.site_name_en %}{{ brand.site_name_en }}{% endif %} {{ _('Passed') }}') }}<strong>{{ _('Level 3 National Info Security Certification') }}</strong> — {{ _('your personal info is strictly protected and will not be shared.') }}</div>
 </div>
 <div class="reg-actions" style="justify-content:center">
 <button class="rf-btn-primary" disabled="" id="captchaNextBtn" onclick="captchaNext()" type="button">

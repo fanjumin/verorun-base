@@ -91,9 +91,9 @@ def admin_oauth_save():
     secret = d.get('client_secret', '').strip()
 
     if provider not in VALID_PROVIDERS:
-        return jsonify({'success': False, 'error': f'不支持的 provider: {provider}'}), 400
+        return jsonify({'success': False, 'error': f_'Unsupported provider: {provider}'}), 400
     if not domain or not key:
-        return jsonify({'success': False, 'error': '域名和 Client Key 不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Domain and Client Key cannot be empty'}), 400
 
     # 检查该站点已启用的第三方登录数量（最多 2 个）
     with _get_oauth_db() as conn:
@@ -118,7 +118,7 @@ def admin_oauth_save():
             if existing and existing['client_secret']:
                 secret = existing['client_secret']
             else:
-                return jsonify({'success': False, 'error': 'Client Secret 不能为空（首次配置）'}), 400
+                return jsonify({'success': False, 'error': _'Client Secret cannot be empty (first configuration)'}), 400
 
         now = datetime.now().isoformat()
         row = conn.execute(

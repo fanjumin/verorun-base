@@ -62,27 +62,27 @@ class AgentRunner:
         task_id = task.get('task_id', 'unknown')
 
         # 1. 日志：开始执行
-        self._log(task_id, 'info', 'execution', f'🤖 {self.name} 开始执行任务')
-        logs.append(f'[{self.name}] 接收任务: {task.get("title", "")}')
+        self._log(task_id, 'info', 'execution', f_'🤖 {self.name} starts executing the task')
+        logs.append(f_'[{self.name}] Received task: {task.get("title", "")}')
 
         # 2. 构建完整的 Prompt
         user_query = self._build_query(task)
-        logs.append(f'[Prompt] 构造完成')
+        logs.append(f_'[Prompt] Construction completed')
 
         # 3. 调用 LLM
         engine = self._get_engine()
         if not engine or not engine.is_ready():
-            err_msg = f'AI 引擎未就绪（{self.config.get("provider", "?")}/{self.config.get("model_name", "?")}）'
+            err_msg = f_'AI Engine Not Ready ({self.config.get("provider", "?")}/{self.config.get("model_name", "?")})'
             self._log(task_id, 'error', 'execution', err_msg)
             return self._fail(err_msg, logs)
 
         self._log(task_id, 'info', 'api_call',
-                   f'调用 {self.config.get("provider")}/{self.config.get("model_name")}')
+                   f_'Call {self.config.get("provider")}/{self.config.get("model_name")}')
 
         # 按 allowed_tools 白名单决定是否启用 ReAct 工具循环
         tools = self._get_tools()
         if tools:
-            logs.append(f'[Tools] 启用 {len(tools)} 个工具，进入 ReAct 循环')
+            logs.append(f_'[Tools] Enabled {len(tools)} tools, entering ReAct loop')
             response = self._run_react_loop(engine, user_query, history, tools, logs, task_id)
         elif history:
             response = engine.ask_with_history(history, user_query)
@@ -93,16 +93,16 @@ class AgentRunner:
             self._log(task_id, 'error', 'execution', response)
             return self._fail(response, logs)
 
-        logs.append(f'[LLM] 响应长度: {len(response)} 字符')
-        self._log(task_id, 'info', 'execution', f'LLM 响应完成 ({len(response)} 字符)')
+        logs.append(f_'[LLM] Response length: {len(response)} characters')
+        self._log(task_id, 'info', 'execution', f_'LLM Response Completed ({len(response)} characters)')
 
         # 4. 自检 (Self-Critique)
         self_review = self._self_critique(response, task)
-        logs.append(f'[Self-Critique] {self_review.get("review", "无")}')
+        logs.append(f_'[Self-Critique] {self_review.get("review", "None")}')
 
         confidence = self_review.get('confidence', 0.85)
         self._log(task_id, 'info', 'self_review',
-                   f'自检完成: confidence={confidence}, review={self_review.get("review", "")[:100]}')
+                   f_'Self-check Complete: confidence={confidence}, review={self_review.get("review", "")[:100]}')
 
         # 5. 如果置信度过低，重试
         retries = 0
@@ -115,14 +115,14 @@ class AgentRunner:
 
             # 用更明确的 prompt 重试，带入自检发现的问题点
             issues = self_review.get('issues', [])
-            issues_str = ('\n'.join(f'- {i}' for i in issues)) if issues else '（无具体问题清单）'
+            issues_str = ('\n'.join(f'- {i}' for i in issues)) if issues else _'(No specific issue list)'
             retry_query = (
                 f"之前的结果不理想（置信度: {confidence}）。\n"
                 f"自检反馈: {self_review.get('review', '')}\n"
                 f"需改进的问题:\n{issues_str}\n"
-                f"改进建议: {self_review.get('suggestion', '') or '无'}\n\n"
+                f"改进建议: {self_review.get('suggestion', '') or _'None'}\n\n"
                 f"请针对上述问题重新执行任务。\n\n"
-                f"原任务: {user_query}"
+                f_"Original task: {user_query}"
             )
             response = engine.ask(retry_query)
             if response.startswith('Error:'):
@@ -138,7 +138,7 @@ class AgentRunner:
             self.models.update_agent_stats(self.agent_id, success=(confidence >= 0.7))
 
         if confidence >= 0.7:
-            self._log(task_id, 'info', 'execution', f'✅ 任务完成, confidence={confidence}')
+            self._log(task_id, 'info', 'execution', f_'✅ Task completed, confidence={confidence}')
             return {
                 'status': 'completed',
                 'response': response,
@@ -148,7 +148,7 @@ class AgentRunner:
                 'retries': retries
             }
         else:
-            err_msg = f'重试 {retries} 次后 confidence={confidence} 仍低于阈值'
+            err_msg = f_'After {retries} retries, confidence={confidence} is still below threshold'
             self._log(task_id, 'error', 'execution', err_msg)
             return self._fail(err_msg, logs, confidence)
 
@@ -192,7 +192,7 @@ class AgentRunner:
             # 模型未请求工具 → 终态答复
             if not tool_calls:
                 self._log(task_id, 'info', 'execution',
-                           f'ReAct 于第 {round_i} 轮结束（无更多工具调用）')
+                           f_'ReAct ended at round {round_i} (No More Tool Calls)')
                 return last_text or ''
 
             # 把 assistant 的 tool_calls 消息追加回上下文
@@ -218,7 +218,7 @@ class AgentRunner:
                     args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                 except (json.JSONDecodeError, TypeError):
                     args = {}
-                self._log(task_id, 'info', 'tool_call', f'调用工具 {name} args={args}')
+                self._log(task_id, 'info', 'tool_call', f_'Call tool {name} args={args}')
                 logs.append(f'[ReAct #{round_i}] 调用工具 {name}')
                 result = execute_tool(name, args)
                 messages.append({
@@ -228,11 +228,11 @@ class AgentRunner:
                 })
 
         # 达到轮次上限，做最后一次无工具收尾
-        logs.append(f'[ReAct] 达到最大轮次 {max_rounds}，强制收尾')
+        logs.append(f_'[ReAct] Reached maximum rounds {max_rounds}, forced termination')
         final = engine.chat_with_tools(messages, tools)
         if final is not None and final.content:
             return final.content
-        return last_text or '（工具循环达到上限，未产出最终答复）'
+        return last_text or _'(Tool loop reached limit, no final response generated)'
 
     def _build_query(self, task):
         """构造发给 LLM 的用户消息"""
@@ -282,21 +282,21 @@ class AgentRunner:
         confidence = 0.85
 
         if len(response) < 50:
-            review_parts.append("输出过短 (<50字符)")
+            review_parts.append(_"Output is too short (<50 characters)")
             confidence = max(0.3, confidence - 0.3)
         else:
-            review_parts.append(f"输出长度合理 ({len(response)}字符)")
+            review_parts.append(f_"Output length is reasonable ({len(response)} characters)")
 
         if isinstance(expected, dict) and expected.get('fields'):
             # 检查是否包含期望字段
             matched = sum(1 for f in expected['fields'] if f in response.lower())
             field_ratio = matched / len(expected['fields'])
             if field_ratio < 0.5:
-                review_parts.append(f"期望字段匹配率低 ({matched}/{len(expected['fields'])})")
+                review_parts.append(f_"Low expected field match rate ({matched}/{len(expected['fields'])})")
                 confidence = max(0.4, confidence - 0.2)
 
-        if 'Error' in response or '错误' in response or '失败' in response:
-            review_parts.append("输出包含错误/失败信息")
+        if 'Error' in response or _'Error' in response or _'Failed"' in response:
+            review_parts.append(_"Output contains error/failure information")
             confidence = max(0.2, confidence - 0.3)
 
         confidence = round(confidence, 2)
@@ -324,7 +324,7 @@ class AgentRunner:
         critique_prompt = (
             "你是严格的质量审查员。请评估下面的【任务】与【输出】是否达标，"
             "只输出纯 JSON（不要 markdown 代码块），格式：\n"
-            '{"confidence": 0.0-1.0 的浮点数, "issues": ["问题1", ...], "suggestion": "改进建议"}\n\n'
+            '{"confidence_": 0.0-1.0 Floating Point Number, "issues": [_"Question 1", ...], "suggestion": _"Improvement suggestions"}\n\n'
             f"【任务】{task.get('title', '')}\n{task.get('description', '')}\n\n"
             f"【输出】\n{response[:2000]}"
         )
@@ -341,7 +341,7 @@ class AgentRunner:
             conf = round(max(0.0, min(1.0, conf)), 2)
             issues = data.get('issues', []) or []
             suggestion = data.get('suggestion', '') or ''
-            review = 'LLM自评: ' + (suggestion or '通过')
+            review = _'LLM Self-Evaluation: ' + (suggestion or _'Approved')
             if issues:
                 review += ' | 问题: ' + '; '.join(str(i) for i in issues)
             return {

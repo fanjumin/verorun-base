@@ -48,7 +48,7 @@ class CouponEngine:
                 'SELECT id FROM coupons WHERE code=?', (data['code'].upper(),)
             ).fetchone()
             if existing:
-                raise ValueError(self._t('优惠券代码已存在'))
+                raise ValueError(self._t(_'Coupon code already exists'))
             cur = conn.execute(
                 '''INSERT INTO coupons (code, name, coupon_type, value, min_amount, min_quantity,
                    usage_limit, per_user_limit, expire_at, is_active, description, coupon_category,
@@ -181,34 +181,34 @@ class CouponEngine:
         """
         cpn = self.get_by_code(code)
         if not cpn:
-            return {'valid': False, 'error': self._t('优惠券无效')}
+            return {'valid': False, 'error': self._t(_'Coupon is invalid')}
 
         if cpn['usage_limit'] and cpn['used_count'] >= cpn['usage_limit']:
-            return {'valid': False, 'error': self._t('优惠券已用完')}
+            return {'valid': False, 'error': self._t(_'Coupon has been used up')}
 
         now = datetime.now().isoformat()
         if cpn['expire_at'] and cpn['expire_at'] < now:
-            return {'valid': False, 'error': self._t('优惠券已过期')}
+            return {'valid': False, 'error': self._t(_'Coupon has expired')}
         if cpn.get('active_from') and cpn['active_from'] > now:
-            return {'valid': False, 'error': self._t('优惠券尚未生效')}
+            return {'valid': False, 'error': self._t(_'Coupon has not taken effect')}
         if cpn.get('active_to') and cpn['active_to'] < now:
-            return {'valid': False, 'error': self._t('优惠券已过期')}
+            return {'valid': False, 'error': self._t(_'Coupon has expired')}
 
         if amount < cpn['min_amount']:
-            return {'valid': False, 'error': self._t('未达到最低消费') + f' ¥{cpn["min_amount"]}'}
+            return {'valid': False, 'error': self._t(_'Minimum consumption not met') + f' ¥{cpn["min_amount"]}'}
 
         if cpn['min_quantity'] and quantity < cpn['min_quantity']:
-            return {'valid': False, 'error': self._t('至少需要购买 {n} 件商品', n=cpn['min_quantity'])}
+            return {'valid': False, 'error': self._t(_'At least {n} items need to be purchased', n=cpn['min_quantity'])}
 
         # 场景检查
         if scene and cpn.get('scene') and cpn['scene'] != scene:
-            return {'valid': False, 'error': self._t('该优惠券不适用于当前场景')}
+            return {'valid': False, 'error': self._t(_'This coupon is not applicable to the current scenario')}
 
         # 适用套餐检查（订阅独有）
         if plan and cpn.get('applicable_plans'):
             allowed = str(cpn['applicable_plans']).split(',')
             if plan not in allowed:
-                return {'valid': False, 'error': self._t('该优惠券不适用于当前套餐')}
+                return {'valid': False, 'error': self._t(_'This coupon is not applicable to the current package')}
 
         # 新人专享（读主库）
         if cpn.get('coupon_category') == 'new_user' and user_id:
@@ -217,13 +217,13 @@ class CouponEngine:
                     'SELECT id FROM order_items WHERE user_id=? LIMIT 1', (user_id,)
                 ).fetchone()
             if has:
-                return {'valid': False, 'error': self._t('仅限新用户使用')}
+                return {'valid': False, 'error': self._t(_'Available only to new users')}
 
         # 适用商品
         if cpn.get('applicable_products') and product_id:
             allowed = str(cpn['applicable_products']).split(',')
             if str(product_id) not in allowed:
-                return {'valid': False, 'error': self._t('该商品不适用此优惠券')}
+                return {'valid': False, 'error': self._t(_'This item is not applicable for this coupon')}
 
         # 每人限用
         if user_id:
@@ -234,7 +234,7 @@ class CouponEngine:
                     (cpn['id'], user_id)
                 ).fetchone()['c']
             if uc >= per_limit:
-                return {'valid': False, 'error': self._t('您已使用过此优惠券')}
+                return {'valid': False, 'error': self._t(_'You have already used this coupon')}
 
         discount = self._calc_discount(cpn, amount)
         return {'valid': True, 'discount': round(discount, 2), 'coupon': cpn}
@@ -262,7 +262,7 @@ class CouponEngine:
         """将优惠券应用到订单（更新 used_count + 插入 coupon_redemptions）。"""
         cpn = self.get_by_code(code)
         if not cpn:
-            return {'success': False, 'error': '优惠券无效'}
+            return {'success': False, 'error': _'Coupon is invalid'}
 
         result = self.validate(code, amount, user_id=user_id)
         if not result['valid']:
@@ -412,15 +412,15 @@ class CouponEngine:
             ctype = d['coupon_type']
             val = d['value']
             if ctype == 'fixed':
-                desc = self._t('¥{val} 优惠券', val=val)
+                desc = self._t(_'¥{val} Coupon', val=val)
             elif ctype == 'percent':
-                desc = self._t('{pct}% 折扣', pct=int(val))
+                desc = self._t(_'{pct}% Discount', pct=int(val))
             elif ctype == 'free_shipping':
-                desc = self._t('免运费')
+                desc = self._t(_'Free Shipping')
             else:
-                desc = self._t('优惠 {val}', val=val)
+                desc = self._t(_'Discount {val}', val=val)
             if d['min_amount'] and d['min_amount'] > 0:
-                desc += self._t('（满¥{amt}可用）', amt=d['min_amount'])
+                desc += self._t(_'(Available when ¥{amt} or more)', amt=d['min_amount'])
             d['description'] = d.get('description') or desc
             results.append(d)
         return results

@@ -41,9 +41,9 @@ def sms_templates_list():
     ).fetchall()
     templates = [dict(r) for r in rows]
     categories = {
-        'captcha': {'title': '验证码', 'items': []},
-        'notice':  {'title': '短信通知', 'items': []},
-        'promo':   {'title': '短信推广', 'items': []},
+        'captcha': {'title': _'Verification code', 'items': []},
+        'notice':  {'title': _'SMS Notification', 'items': []},
+        'promo':   {'title': _'SMS Promotion', 'items': []},
     }
     for t in templates:
         cat = t.get('category', 'promo')
@@ -65,9 +65,9 @@ def sms_template_create():
     template_code = data.get('template_code', '').strip()
     note = data.get('note', '').strip()
     if not category or not name or not template_code:
-        return jsonify({'success': False, 'error': '分类、名称、模板代码不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Category, name, and template code cannot be empty'}), 400
     if category not in ('captcha', 'notice', 'promo'):
-        return jsonify({'success': False, 'error': '无效的分类，必须为 captcha/notice/promo'}), 400
+        return jsonify({'success': False, 'error': _'Invalid category, must be captcha/notice/promo'}), 400
     conn = get_sms_db()
     row = conn.execute('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM sms_templates').fetchone()
     sort_order = row['n']
@@ -96,7 +96,7 @@ def sms_template_update(tid):
             fields.append(f'{key}=?')
             params.append(data[key])
     if not fields:
-        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
+        return jsonify({'success': False, 'error': _'No fields to update'}), 400
     params.append(tid)
     conn = get_sms_db()
     conn.execute(
@@ -160,12 +160,12 @@ def sms_test_send():
     phone = data.get('phone', '').strip()
     code = data.get('code', '123456')
     if not phone:
-        return jsonify({'success': False, 'error': '手机号不能为空'}), 400
+        return jsonify({'success': False, 'error': _'Phone number cannot be empty'}), 400
     from plugins.sms.services import send_sms
     result = send_sms(phone, code, purpose='test')
     if result.get('success'):
         return jsonify({'success': True, 'data': result})
-    return jsonify({'success': False, 'error': result.get('error', '发送失败')}), 400
+    return jsonify({'success': False, 'error': result.get('error', _'Send Failed')}), 400
 
 
 # ─── PluginManager 标准化配置 ─────────────────────────────────────────

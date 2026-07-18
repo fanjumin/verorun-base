@@ -39,7 +39,7 @@ class AgentOrchestrator:
             'decomposition': [...],
             'sub_task_results': [...],
             'status': 'completed' | 'failed',
-            'summary': '汇总报告',
+            'summary': _'Summary Report',
             'all_completed': bool
         }
         """
@@ -78,11 +78,11 @@ class AgentOrchestrator:
         # 2. 获取 Master Agent 配置
         master_config = self.models.get_agent(master_agent_id)
         if not master_config:
-            self.models.update_task_status(master_task_id, 'failed', error_message='Master Agent 不存在')
-            return {'status': 'failed', 'error': 'Master Agent 不存在'}
+            self.models.update_task_status(master_task_id, 'failed', error_message=_'Master Agent does not exist')
+            return {'status': 'failed', 'error': _'Master Agent does not exist'}
 
         self._add_task_log(master_task_id, master_agent_id, 'info', 'execution',
-                           f'开始处理指令: {instruction[:80]}...')
+                           f_'Start processing instruction: {instruction[:80]}...')
 
         # 3. 任务分解
         try:
@@ -90,11 +90,11 @@ class AgentOrchestrator:
         except Exception as e:
             self.models.update_task_status(master_task_id, 'failed', error_message=str(e))
             self._add_task_log(master_task_id, master_agent_id, 'error', 'execution',
-                               f'任务分解失败: {e}')
-            return {'status': 'failed', 'error': f'任务分解失败: {e}', 'master_task_id': master_task_id}
+                               f_'Task decomposition failed: {e}')
+            return {'status': 'failed', 'error': f_'Task decomposition failed: {e}', 'master_task_id': master_task_id}
 
         self._add_task_log(master_task_id, master_agent_id, 'info', 'execution',
-                           f'任务分解完成: {len(decomposed)} 个子任务')
+                           f_'Task decomposition completed: {len(decomposed)} sub-tasks')
 
         # 4. 保存会话消息
         if session_id:
@@ -111,17 +111,17 @@ class AgentOrchestrator:
         if all_completed:
             self.models.update_task_status(master_task_id, 'completed',
                                            confidence=1.0,
-                                           self_review=f'所有子任务完成 ({total_time}s)')
+                                           self_review=f_'All subtasks completed ({total_time}s)')
         else:
             failed_count = sum(1 for r in sub_results if r.get('status') == 'failed')
             self.models.update_task_status(
                 master_task_id,
                 'completed' if failed_count < len(sub_results) else 'failed',
-                self_review=f'{len(sub_results)}个子任务, {failed_count}个失败 ({total_time}s)'
+                self_review=f_'{len(sub_results)} sub-tasks, {failed_count} failed ({total_time}s)'
             )
 
         self._add_task_log(master_task_id, master_agent_id, 'info', 'execution',
-                           f'任务完成 ({total_time}s), 状态: {"全部完成" if all_completed else "部分失败"}')
+                           f_'Task completed ({total_time}s), Status: {"All Completed" if all_completed else "Partially Failed"}')
 
         # 8. 保存会话回复
         summary = self._build_summary(decomposed, sub_results, total_time, all_completed)
@@ -361,13 +361,13 @@ class AgentOrchestrator:
 {{
   "tasks": [
     {{
-      "title": "子任务简要标题",
+      "title": _"Sub-task Summary Title",
       "description": "子任务详细描述，包含执行要求",
-      "target_agent_name": "目标 Agent 名称（必须在上面的列表中）",
+      "target_agent_name": _"Target Agent Name (must be in the list above)",
       "task_type": "execute",
       "priority": 5,
-      "input_data": {{"action": "具体操作", "params": {{...}}}},
-      "expected_output": {{"fields": ["期望输出的字段名"]}}
+      "input_data": {{"action": _"Specific Operation", "params": {{...}}}},
+      "expected_output": {{"fields": [_"Expected output field name"]}}
     }}
   ]
 }}
@@ -403,8 +403,8 @@ class AgentOrchestrator:
             return self._template_decompose(instruction, sub_agents)
 
         # 图像关键词集合（与 _template_decompose 同步）
-        _ai_image_kw = {'图片', '图像', '配图', '封面', '海报', '生成图片', '文生图',
-                        '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'}
+        _ai_image_kw = {_'Picture', _'Image', _'Illustration', _'Cover', _'Poster', _'Generate Image', _'Text to Image',
+                        _'Draw', _'Crop', _'Compress', _'Format Conversion', _'Image Library', _'Social Media Cover Image'}
 
         # 将 Agent 名称映射为 ID
         agent_map = {a['name']: a for a in sub_agents}
@@ -439,8 +439,8 @@ class AgentOrchestrator:
         matched = []
 
         # 图像关键词集合（始终匹配）
-        _image_kw = {'图片', '图像', '配图', '封面', '海报', '生成图片', '文生图',
-                     '画图', '裁剪', '压缩', '格式转换', '图库', '社交媒体配图'}
+        _image_kw = {_'Picture', _'Image', _'Illustration', _'Cover', _'Poster', _'Generate Image', _'Text to Image',
+                     _'Draw', _'Crop', _'Compress', _'Format Conversion', _'Image Library', _'Social Media Cover Image'}
 
         # 从 sub_agents 动态构建关键词映射
         agent_keywords = {}
@@ -534,7 +534,7 @@ class AgentOrchestrator:
                     'sub_task_id': None,
                     'agent_name': task_def.get('target_agent_name', '?'),
                     'status': 'failed',
-                    'error': 'Agent 配置不存在',
+                    'error': _'Agent configuration does not exist',
                     'title': task_def.get('title', ''),
                 }
 
@@ -646,7 +646,7 @@ class AgentOrchestrator:
                                 'sub_task_id': None,
                                 'agent_name': task_def.get('target_agent_name', '?'),
                                 'status': 'failed',
-                                'error': '任务执行超时（300s）',
+                                'error': _'Task execution timed out (300s)',
                                 'title': task_def.get('title', ''),
                             })
                             completed_count += 1
@@ -716,7 +716,7 @@ class AgentOrchestrator:
             history = self._compress_history(conv, agent_config)
         if session_id:
             self.models.add_message(
-                session_id, 'sub', f"开始执行: {task_def.get('title', '')}",
+                session_id, 'sub_', f"Start Execution: {task_def.get('title', '')}",
                 agent_id=target_id, agent_name=agent_config.get('name', ''),
                 master_task_id=master_task_id
             )
@@ -769,16 +769,16 @@ class AgentOrchestrator:
                 except:
                     pass
             self._add_task_log(sub_task_id, target_id, 'info', 'image_gen',
-                               f'参考图: {ref_image_url or "无"}')
+                               f_'Reference image: {ref_image_url or "none"}')
 
             # 视觉识别
             vision_analysis = ''
             if ref_image_url and prompt:
                 try:
                     from services.ai_content_generator import analyze_image
-                    if any(kw in prompt for kw in ['提取','裁剪','截取','抠图','取出']):
+                    if any(kw in prompt for kw in [_'Extract',_'Crop',_'Capture',_'Background Removal',_'Withdraw']):
                         vq = f'用户要求: {prompt}\n请分析这张图片中用户想要提取的区域的精确位置坐标(x,y,width,height)，只返回JSON: {{"x":数字,"y":数字,"w":数字,"h":数字}}'
-                    elif any(kw in prompt for kw in ['添加文字','写文字','加文字']):
+                    elif any(kw in prompt for kw in [_'Add Text',_'Write Text',_'Add Text']):
                         vq = f'用户要求: {prompt}\n请描述图片的布局，建议文字添加的最佳位置'
                     else:
                         vq = f'用户要求: {prompt}\n请详细描述这张图片的内容、风格、颜色、布局'
@@ -810,16 +810,16 @@ class AgentOrchestrator:
                 img = _PIL.open(ref_path)
                 w, h = img.size
                 if crop_coords: box = crop_coords
-                elif '左上角' in p: box = (0, 0, min(int(w*0.20),400), min(int(h*0.15),200))
-                elif '右上角' in p: box = (max(0,w-min(int(w*0.20),400)), 0, w, min(int(h*0.15),200))
-                elif '左下角' in p: box = (0, max(0,h-min(int(h*0.15),200)), min(int(w*0.20),400), h)
-                elif '右下角' in p: box = (max(0,w-min(int(w*0.20),400)), max(0,h-min(int(h*0.15),200)), w, h)
-                elif '中间' in p: box = (int(w*0.25), int(h*0.25), int(w*0.75), int(h*0.75))
+                elif _'Top-left' in p: box = (0, 0, min(int(w*0.20),400), min(int(h*0.15),200))
+                elif _'Top Right' in p: box = (max(0,w-min(int(w*0.20),400)), 0, w, min(int(h*0.15),200))
+                elif _'Bottom-left' in p: box = (0, max(0,h-min(int(h*0.15),200)), min(int(w*0.20),400), h)
+                elif _'Bottom Right' in p: box = (max(0,w-min(int(w*0.20),400)), max(0,h-min(int(h*0.15),200)), w, h)
+                elif _'Middle' in p: box = (int(w*0.25), int(h*0.25), int(w*0.75), int(h*0.75))
                 else: box = (0, 0, min(int(w*0.20),400), min(int(h*0.15),200))
                 cr = img.crop(box)
                 fn = f'{uuid.uuid4().hex}.png'
                 cr.save(os.path.join(TEMP_DIR, fn))
-                return f'/static/uploads/temp/{fn}', f'已裁剪区域 {box}'
+                return f'/static/uploads/temp/{fn}', f_'Cropped area {box}'
 
             def _op_resize(p, ref_path):
                 from PIL import Image as _PIL
@@ -827,41 +827,41 @@ class AgentOrchestrator:
                 nums = _re.findall(r'(\d+)\s*[xX*]\s*(\d+)', p)
                 nw, nh = (int(nums[0][0]), int(nums[0][1])) if nums else (img.width//2, img.height//2)
                 img.resize((nw, nh)).save(os.path.join(TEMP_DIR, fn := f'{uuid.uuid4().hex}.png'))
-                return f'/static/uploads/temp/{fn}', f'已缩放至 {nw}x{nh}'
+                return f'/static/uploads/temp/{fn}', f_'Scaled to {nw}x{nh}'
 
             def _op_add_text(p, ref_path):
                 from PIL import Image, ImageDraw, ImageFont
                 img = Image.open(ref_path).convert('RGBA')
                 txt = Image.new('RGBA', img.size, (0,0,0,0))
                 draw = ImageDraw.Draw(txt)
-                text = p.replace('添加文字','').replace('写文字','').replace('加文字','').replace('加水印','').strip().strip('，,') or 'EasyKai'
+                text = p.replace(_'Add Text','').replace(_'Write Text','').replace(_'Add Text','').replace(_'Add Watermark','').strip().strip('，,') or 'EasyKai'
                 try: font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 36)
                 except: font = ImageFont.load_default()
                 bbox = draw.textbbox((0,0), text, font=font)
                 x, y = (img.width-(bbox[2]-bbox[0]))//2, img.height-(bbox[3]-bbox[1])-20
                 draw.text((x,y), text, fill=(255,255,255,255), font=font)
                 Image.alpha_composite(img, txt).convert('RGB').save(os.path.join(TEMP_DIR, fn := f'{uuid.uuid4().hex}.png'))
-                return f'/static/uploads/temp/{fn}', f'已添加文字"{text}"'
+                return f'/static/uploads/temp/{fn}', f_'Added text "{text}"'
 
             def _op_rotate(p, ref_path):
                 from PIL import Image as _PIL
                 deg = _re.findall(r'(\d+)', p)
                 _PIL.open(ref_path).rotate(int(deg[0]) if deg else 90, expand=True).save(
                     os.path.join(TEMP_DIR, fn := f'{uuid.uuid4().hex}.png'))
-                return f'/static/uploads/temp/{fn}', f'已旋转 {deg[0] if deg else 90}度'
+                return f'/static/uploads/temp/{fn}', f_'Rotated {deg[0] if deg else 90} degrees'
 
             def _op_compress(p, ref_path):
                 from PIL import Image as _PIL
                 fn = f'{uuid.uuid4().hex}.jpg'
                 _PIL.open(ref_path).convert('RGB').save(os.path.join(TEMP_DIR, fn), quality=60)
-                return f'/static/uploads/temp/{fn}', '已压缩(quality=60)'
+                return f'/static/uploads/temp/{fn}', _'Compressed (quality=60)'
 
             action_map = [
-                (['提取','裁剪','截取','抠图','取出','扣图'], _op_crop),
-                (['添加文字','写文字','加文字','加水印'], _op_add_text),
-                (['压缩','减小'], _op_compress),
-                (['缩放','调整大小','放大','缩小'], _op_resize),
-                (['旋转','翻转'], _op_rotate),
+                ([_'Extract',_'Crop',_'Capture',_'Background Removal',_'Withdraw',_'Cut-out'], _op_crop),
+                ([_'Add Text',_'Write Text',_'Add Text',_'Add Watermark'], _op_add_text),
+                ([_'Compress',_'Decrease'], _op_compress),
+                ([_'Zoom',_'Resize',_'Zoom in',_'Zoom In'], _op_resize),
+                ([_'Rotate',_'Flip'], _op_rotate),
             ]
 
             op_result = None
@@ -886,7 +886,7 @@ class AgentOrchestrator:
                     fn = f'{uuid.uuid4().hex}{ext}'
                     with open(os.path.join(TEMP_DIR, fn), 'wb') as f: f.write(img_data)
                     exec_result['image_url'] = f'/static/uploads/temp/{fn}'
-                    exec_result['response'] = '图片已生成'
+                    exec_result['response'] = _'Picture generated'
             elif prompt:
                 from services.ai_content_generator import generate_image
                 import urllib.request as _urlreq
@@ -897,10 +897,10 @@ class AgentOrchestrator:
                     fn = f'{uuid.uuid4().hex}{ext}'
                     with open(os.path.join(TEMP_DIR, fn), 'wb') as f: f.write(img_data)
                     exec_result['image_url'] = f'/static/uploads/temp/{fn}'
-                    exec_result['response'] = '图片已生成'
+                    exec_result['response'] = _'Picture generated'
         except Exception as img_err:
             exec_result['status'] = 'failed'
-            exec_result['response'] = f'图片生成失败: {str(img_err)}'
+            exec_result['response'] = f_'Picture generation failed: {str(img_err)}'
             self._add_task_log(sub_task_id, target_id, 'error', 'image_gen', str(img_err))
 
         return exec_result
@@ -921,11 +921,11 @@ class AgentOrchestrator:
             conf = result.get('confidence', 0)
             title = task.get('title', '')
             parts.append(f"{icon} #{i} [{agent}] {title}")
-            parts.append(f"   ├ 置信度: {conf}")
+            parts.append(f_"   ├ Confidence: {conf}")
             if result.get('self_review'):
-                parts.append(f"   └ 自检: {result['self_review']}")
+                parts.append(f_"   └ Self-check: {result['self_review']}")
             if result.get('status') == 'failed':
-                parts.append(f"   └ 错误: {result.get('response', '')[:200]}")
+                parts.append(f_"   └ Error: {result.get('response', '')[:200]}")
             # 添加子任务的实际产出内容
             resp = result.get('response', '')
             if resp and result.get('status') == 'completed' and len(resp) > 5:

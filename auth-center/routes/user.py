@@ -565,37 +565,37 @@ def usage_history():
 CONFIG_SCHEMA = {
     # ├─ 邮箱配置（SMTP/IMAP 已迁移至 Email 插件，由插件独立管理） ─
     # ├─ 短信配置 ─
-    'aliyun_sms_sign_name':    {'label': '短信签名',      'category': 'sms', 'sensitive': False, 'placeholder': '徐州易开网络科技'},
-    'aliyun_sms_access_key':   {'label': 'AccessKey ID',   'category': 'sms', 'sensitive': True,  'placeholder': '输入 AccessKey ID'},
-    'aliyun_sms_secret':       {'label': 'AccessKey Secret','category': 'sms', 'sensitive': True,  'placeholder': '输入 AccessKey Secret'},
+    'aliyun_sms_sign_name':    {'label': _'SMS Signature',      'category': 'sms', 'sensitive': False, 'placeholder': _'Xuzhou Yikai Network Technology'},
+    'aliyun_sms_access_key':   {'label': 'AccessKey ID',   'category': 'sms', 'sensitive': True,  'placeholder': _'Enter AccessKey ID'},
+    'aliyun_sms_secret':       {'label': 'AccessKey Secret','category': 'sms', 'sensitive': True,  'placeholder': _'Enter AccessKey Secret'},
     # ├─ 联系邮箱 ─
-    'contact_email':           {'label': '联系邮箱',       'category': 'other', 'sensitive': False, 'placeholder': 'myname@163.com'},
+    'contact_email':           {'label': _'Contact Email',       'category': 'other', 'sensitive': False, 'placeholder': 'myname@163.com'},
     # ├─ 社媒推送配置 ─
-    'wechat_token':            {'label': '公众号 Token',       'category': 'social', 'sensitive': True,  'placeholder': '输入 Token (可选)'},
+    'wechat_token':            {'label': _'Official Account Token',       'category': 'social', 'sensitive': True,  'placeholder': _'Enter Token (Optional)'},
     # ├─ 微博推送 ─
-    'weibo_app_key':           {'label': '微博 App Key',       'category': 'social', 'sensitive': False, 'placeholder': 'App Key'},
-    'weibo_app_secret':        {'label': '微博 App Secret',    'category': 'social', 'sensitive': True,  'placeholder': 'App Secret'},
-    'weibo_access_token':      {'label': '微博 Access Token',  'category': 'social', 'sensitive': True,  'placeholder': '用户授权Token'},
+    'weibo_app_key':           {'label': _'Weibo App Key',       'category': 'social', 'sensitive': False, 'placeholder': 'App Key'},
+    'weibo_app_secret':        {'label': _'Weibo App Secret',    'category': 'social', 'sensitive': True,  'placeholder': 'App Secret'},
+    'weibo_access_token':      {'label': _'Weibo Access Token',  'category': 'social', 'sensitive': True,  'placeholder': _'User Authorization Token'},
     # ├─ 今日头条推送 ─
-    'toutiao_app_id':          {'label': '头条号 App ID',      'category': 'social', 'sensitive': False, 'placeholder': '头条开放平台 App ID'},
-    'toutiao_app_secret':      {'label': '头条号 App Secret',  'category': 'social', 'sensitive': True,  'placeholder': 'App Secret'},
-    'toutiao_access_token':    {'label': '头条号 Access Token','category': 'social', 'sensitive': True,  'placeholder': '接口调用Token'},
+    'toutiao_app_id':          {'label': _'Toutiao Account App ID"',      'category': 'social', 'sensitive': False, 'placeholder': _'Toutiao Open Platform App ID"'},
+    'toutiao_app_secret':      {'label': _'Toutiao Account App Secret"',  'category': 'social', 'sensitive': True,  'placeholder': 'App Secret'},
+    'toutiao_access_token':    {'label': _'Toutiao Account Access Token"','category': 'social', 'sensitive': True,  'placeholder': _'API Call Token'},
     # ├─ 小程序 AI 配置 ─
-    'mp_ai_provider':          {'label': 'AI 供应商',          'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek / dashscope / openai / openrouter'},
-    'mp_ai_model':             {'label': '模型名称',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek-chat / qwen-turbo / gpt-4o-mini'},
+    'mp_ai_provider':          {'label': _'AI Provider',          'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek / dashscope / openai / openrouter'},
+    'mp_ai_model':             {'label': _'Model Name',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek-chat / qwen-turbo / gpt-4o-mini'},
     'mp_ai_base_url':          {'label': 'API 地址',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'https://api.deepseek.com'},
-    'mp_ai_api_key':           {'label': 'API Key',            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': '输入 API Key'},
+    'mp_ai_api_key':           {'label': 'API Key',            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': _'Enter API Key'},
     # ├─ 支付配置（已迁移至 PaymentPlugin 插件管理） ─
     # ├─ 实名认证（已迁移至 VerificationPlugin 插件管理） ─
     # ├─ 后台访问控制 ─
-    'admin_allowed_domains':   {'label': '允许的管理后台域名', 'category': 'admin_access', 'sensitive': False,
+    'admin_allowed_domains':   {'label': _'Allowed Management Backend Domains', 'category': 'admin_access', 'sensitive': False,
                                 'placeholder': 'agent.easykai.cn, admin.easykai.cn'},
 }
 
 CONFIG_CATEGORIES = [
-    {'id': 'social', 'title': '社媒推送'},
-    {'id': 'miniapp_ai', 'title': '小程序 AI 配置'},
-    {'id': 'admin_access', 'title': '后台访问控制'},
+    {'id': 'social', 'title': _'Social Media Push'},
+    {'id': 'miniapp_ai', 'title': _'Mini Program AI Configuration'},
+    {'id': 'admin_access', 'title': _'Backend Access Control'},
 ]
 
 
@@ -686,11 +686,11 @@ def upload_config_csv():
         with get_db() as conn:
             conn.execute(
                 "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
-                ('aliyun_sms_access_key', access_key, '阿里云短信 AccessKey ID', user_id)
+                ('aliyun_sms_access_key', access_key, _'Aliyun SMS AccessKey ID', user_id)
             )
             conn.execute(
                 "INSERT INTO system_config (key, value, description, updated_at, updated_by) VALUES (%s, %s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
-                ('aliyun_sms_secret', access_secret, '阿里云短信 AccessKey Secret', user_id)
+                ('aliyun_sms_secret', access_secret, _'Aliyun SMS AccessKey Secret', user_id)
             )
             conn.commit()
         return jsonify({'success': True, 'message': 'AccessKey configuration imported', 'access_key_prefix': access_key[:8]+'...'})
@@ -1106,7 +1106,7 @@ def update_user_interests():
             else:
                 cursor = conn.execute(
                     'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
-                    (name, '自定义', 999, 0, 1)
+                    (name, _'Custom', 999, 0, 1)
                 )
                 iid = cursor.fetchone()['id']
             conn.execute(

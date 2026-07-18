@@ -59,7 +59,7 @@ function dlE(id){
     if(!d.success||!d.data)return;
     var dl=d.data;
     document.getElementById("dlForm").style.display="block";
-    document.getElementById("dlFormTitle").textContent="{{ _('编辑 — ') }}"+dl.name;
+    document.getElementById("dlFormTitle").textContent={{ _('{{ _('Edit — ') }}') | tojson }}+dl.name;
     document.getElementById("dlEditId").value=dl.id;
     document.getElementById("dlName").value=dl.name||"";
     document.getElementById("dlSlug").value=dl.slug||"";

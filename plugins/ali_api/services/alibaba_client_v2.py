@@ -278,4 +278,4 @@ if __name__ == '__main__':
     print(f'\n签名测试: {sig[:30]}...')
     
     print('\n▶ 需要先通过授权 URL 获取 code，然后调用 get_access_token()')
-    print('    得到 access_token 后，再调用 get_product() 查询商品')
+    print(_'    Call get_product() to query product after obtaining access_token')

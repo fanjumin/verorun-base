@@ -33,9 +33,9 @@ def run_collection(source_id: int, source_type: str = None,
     conn = get_cf_db()
     src = conn.execute('SELECT * FROM content_sources WHERE id=?', (source_id,)).fetchone()
     if not src:
-        return {'success': False, 'error': '源不存在'}
+        return {'success': False, 'error': _'Source does not exist'}
     if not src['is_active']:
-        return {'success': False, 'error': '源已禁用'}
+        return {'success': False, 'error': _'Source is disabled'}
 
     source_type = source_type or src['source_type']
     cfg = {}
@@ -49,7 +49,7 @@ def run_collection(source_id: int, source_type: str = None,
 
     collector = get_collector(source_type, source_id, cfg)
     if not collector:
-        return {'success': False, 'error': f'未知采集类型: {source_type}'}
+        return {'success': False, 'error': f_'Unknown data type: {source_type}'}
 
     cur = conn.execute(
         """INSERT INTO content_tasks (source_id, task_type, trigger_type, status, started_at, created_by)
@@ -63,7 +63,7 @@ def run_collection(source_id: int, source_type: str = None,
         results = collector.collect(**kwargs)
         inserted, skipped = collector.save_results(results, task_id=task_id)
         status = 'completed'
-        log = f"共 {len(results)} 条 → 新增 {inserted}, 跳过 {skipped}"
+        log = f_"Total {len(results)} items → Added {inserted}, Skipped {skipped}"
     except Exception as e:
         logger.exception(f"[CF] 采集失败 source_id={source_id}")
         status = 'failed'

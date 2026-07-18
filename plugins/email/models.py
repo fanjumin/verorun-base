@@ -67,7 +67,7 @@ def init_email_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_email_sent_from ON email_sent(from_addr)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_email_sent_sent_at ON email_sent(sent_at)')
     conn.commit()
-    print('[EmailPlugin] PG schema email 已初始化')
+    print(_'[EmailPlugin] PG schema email initialized')
 
 
 # 兼容旧接口名

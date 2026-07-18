@@ -47,7 +47,7 @@ def login_with_code():
     请求体：
     {
         "code": "xxxxx",           // 必填，tt.login() 返回的 code
-        "nickname": "用户昵称",     // 可选，用于更新用户信息
+        "nickname": _"User Nickname",     // 可选，用于更新用户信息
         "avatar": "https://..."    // 可选，用于更新用户头像
     }
     
@@ -58,9 +58,9 @@ def login_with_code():
             "token": "jwt_token",
             "user": {
                 "id": 123,
-                "username": "抖音用户xxx",
-                "douyin_nickname": "用户昵称",
-                "douyin_avatar": "头像URL",
+                "username": _"TikTok User xxx",
+                "douyin_nickname": _"User Nickname",
+                "douyin_avatar": _"Avatar URL"",
                 "is_new_user": true/false
             }
         }
@@ -72,19 +72,19 @@ def login_with_code():
     avatar = data.get('avatar', '')
 
     if not code:
-        return api_err('code 是必需的', 400)
+        return api_err(_'Code is required', 400)
 
     domain = _get_site_domain()
     
     # 调用 code2session 获取 openid
     result = code2session(code, site_domain=domain)
     if result.get('error'):
-        return api_err(f'抖音登录失败: {result["error"]}', 500)
+        return api_err(f_'TikTok Login Failed: {result["error"]}', 500)
 
     openid = result['openid']
 
     if not openid:
-        return api_err('无法获取用户标识', 500)
+        return api_err(_'Failed to Obtain User Identifier', 500)
 
     # 查找或创建用户
     with get_db() as conn:
@@ -111,7 +111,7 @@ def login_with_code():
         else:
             # 新用户：自动创建
             is_new_user = True
-            display_name = nickname or f'抖音用户_{openid[-6:]}'
+            display_name = nickname or f_'TikTok User_{openid[-6:]}'
             safe_name = sanitize_name(display_name) if nickname else f'dy_{openid[-8:]}'
             
             conn.execute('''
@@ -170,11 +170,11 @@ def user_info():
     """
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
-        return api_err('未提供有效的Token', 401)
+        return api_err(_'No valid token provided', 401)
     token = auth.replace('Bearer ', '')
     user_id = get_current_user_id(token)
     if not user_id:
-        return api_err('无效或过期的Token', 401)
+        return api_err(_'Invalid or Expired Token', 401)
     
     with get_db() as conn:
         user = conn.execute('''
@@ -184,7 +184,7 @@ def user_info():
             FROM users WHERE id = %s
         ''', (user_id,)).fetchone()
         if not user:
-            return api_err('用户不存在', 404)
+            return api_err(_'User does not exist', 404)
         
         # Convert to dict and sanitize
         user_dict = {
@@ -210,11 +210,11 @@ def unbind_douyin():
     """
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
-        return api_err('未提供有效的Token', 401)
+        return api_err(_'No valid token provided', 401)
     token = auth.replace('Bearer ', '')
     user_id = get_current_user_id(token)
     if not user_id:
-        return api_err('无效或过期的Token', 401)
+        return api_err(_'Invalid or Expired Token', 401)
     
     with get_db() as conn:
         # Check if user has Douyin bound
@@ -223,7 +223,7 @@ def unbind_douyin():
             (user_id,)
         ).fetchone()
         if not current or not current['douyin_open_id']:
-            return api_err('当前用户未绑定抖音账号', 400)
+            return api_err(_'Current user has not bound a Douyin account', 400)
         
         # Unbind: set Douyin fields to NULL/empty
         conn.execute('''
@@ -235,7 +235,7 @@ def unbind_douyin():
         ''', (user_id,))
         conn.commit()
         
-        return api_ok({'message': '抖音账号已成功解绑'})
+        return api_ok({'message': _'TikTok Account Successfully Unlinked'})
 
 
 @douyin_mp_bp.route('/user/bind_status', methods=['GET'])
@@ -245,11 +245,11 @@ def bind_status():
     """
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
-        return api_err('未提供有效的Token', 401)
+        return api_err(_'No valid token provided', 401)
     token = auth.replace('Bearer ', '')
     user_id = get_current_user_id(token)
     if not user_id:
-        return api_err('无效或过期的Token', 401)
+        return api_err(_'Invalid or Expired Token', 401)
     
     with get_db() as conn:
         douyin_open_id = conn.execute(
