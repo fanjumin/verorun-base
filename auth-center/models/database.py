@@ -1125,13 +1125,17 @@ def init_db():
         try:
             bm.execute("ALTER TABLE brand_settings ADD COLUMN logo_full_url TEXT NOT NULL DEFAULT ''")
         except Exception:
-            pass
+            bm.rollback()
         try:
             bm.execute("ALTER TABLE brand_settings ADD COLUMN logo_icon_url TEXT NOT NULL DEFAULT ''")
         except Exception:
-            pass
-        bm.execute("UPDATE brand_settings SET logo_full_url = logo_url WHERE logo_full_url = '' AND logo_url != ''")
-        bm.commit()
+            bm.rollback()
+        try:
+            bm.execute("UPDATE brand_settings SET logo_full_url = logo_url WHERE logo_full_url = '' AND logo_url != ''")
+            bm.commit()
+        except Exception as e:
+            bm.rollback()
+            print(f'[Migration] brand_settings logo migration skipped: {e}')
     # ── 品牌设置字段迁移：新增 company_name / tagline / icp / security / contact_email ──
     with get_db() as bm:
         for col, default_val in [
@@ -1156,7 +1160,7 @@ def init_db():
     # ── Migration: migrate users.agent_id → user_agents (2026-05-10) ──
     with get_db() as m:
         # Check if legacy agent_id column exists in users table
-        user_cols = [c['name'] for c in get_table_columns(m, 'users')]
+        user_cols = get_table_columns(m, 'users')
         has_legacy_agent = 'agent_id' in user_cols
         
         if has_legacy_agent:
@@ -1185,7 +1189,7 @@ def init_db():
             print('[Migration] No legacy agent_id column — skipping migration')
         
         # Add agent_id FK column to api_keys if not present
-        cols = [c['name'] for c in get_table_columns(m, 'api_keys')]
+        cols = get_table_columns(m, 'api_keys')
         if 'associated_agent_id' not in cols:
             try:
                 m.execute('ALTER TABLE api_keys ADD COLUMN associated_agent_id BIGINT DEFAULT 0')
@@ -1212,8 +1216,7 @@ def init_db():
 
     # ── IAM v2 migration: add new columns (2026-05-11) ──
     with get_db() as m:
-        cur = get_table_columns(m, 'users')
-        cols = [r['name'] for r in cur.fetchall()]
+        cols = get_table_columns(m, 'users')
         if 'display_name' not in cols:
             for col_def in [
                 ("display_name", "TEXT DEFAULT ''"),
@@ -2056,11 +2059,14 @@ def init_db():
 
     # ── Migration: tm_brand_settings site_name_cn → VeroRun ──
     with get_db() as m:
-        row = m.execute("SELECT site_name_cn FROM tm_brand_settings WHERE id=1").fetchone()
-        if row and row["site_name_cn"] == 'TradeMind':
-            m.execute("UPDATE tm_brand_settings SET site_name_cn='VeroRun' WHERE id=1")
-            m.commit()
-            print("[Migration] tm_brand_settings.site_name_cn updated to VeroRun")
+        try:
+            row = m.execute("SELECT site_name_cn FROM tm_brand_settings WHERE id=1").fetchone()
+            if row and row["site_name_cn"] == 'TradeMind':
+                m.execute("UPDATE tm_brand_settings SET site_name_cn='VeroRun' WHERE id=1")
+                m.commit()
+                print("[Migration] tm_brand_settings.site_name_cn updated to VeroRun")
+        except Exception:
+            m.rollback()  # tm_brand_settings table no longer exists
 
 
 
@@ -2255,7 +2261,7 @@ def init_db():
     # ── Migration: orders user_deleted soft-delete ──
     with get_db() as m:
         for table in ['subscription_orders']:  # order_items user_deleted handled by init_shop_db()
-            cols = [r['name'] for r in m.execute(f'get_table_columns(conn, table)').fetchall()]
+            cols = get_table_columns(m, table)
             if 'user_deleted' not in cols:
                 try:
                     m.execute(f"ALTER TABLE {table} ADD COLUMN user_deleted BIGINT DEFAULT 0")
