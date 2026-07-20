@@ -7,7 +7,7 @@ function _render_dashboard(ds){
   h+=hk("{{ _("Active Subscriptions") }}",ds.active_subscriptions,"g");
   h+=hk("{{ _("Today") }} API {{ _("Call") }}",ds.today_calls,"b");
   h+=hk("{{ _("Active") }} Agent",ds.active_agents+"/"+ds.total_agents,"g");
-  h+=hk("{{ _("Monthly Revenue") }}","\u00a5"+ds.monthly_revenue,"g");
+  h+=hk("{{ _("Monthly Revenue") }}","\u00a5"+(ds.monthly_revenue||0).toFixed(2),"g");
   h+='</div>';
   var tt=ds.today_tokens||0, ta=ds.top_token_agents||[];
   var tf=function(n){if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return n.toString()};
@@ -25,17 +25,19 @@ function _render_dashboard(ds){
   h+=hk("{{ _("Pending Ticket") }}",ds.pending_contacts,ds.pending_contacts>0?"r":"");
   h+=hk("{{ _("Today Failed Tasks") }}",ds.today_failed_tasks,ds.today_failed_tasks>0?"r":"");
   h+='</div>';
-  h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Today Traffic') }}</div></div>';
-  h+='<div class="gr">';
-  h+=hk("PV",ds.today_pv,"b");
-  h+=hk("UV",ds.today_uv,"g");
-  h+=hk("{{ _("Online Now") }}",ds.online_now,"g");
-  h+='</div>';
-  if(ds.top_pages&&ds.top_pages.length){
-    h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Popular Pages') }}</div><table style="font-size:12px;margin-top:8px">';
-    h+='<tr><th>{{ _('Page') }}</th><th style="text-align:right">PV</th></tr>';
-    ds.top_pages.forEach(function(p){h+='<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.path+'</td><td style="text-align:right">'+p.pv+'</td></tr>'});
-    h+='</table></div>';
+  if(ds.today_pv!==undefined&&ds.today_uv!==undefined){
+    h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Today Traffic') }}</div></div>';
+    h+='<div class="gr">';
+    h+=hk("PV",ds.today_pv,"b");
+    h+=hk("UV",ds.today_uv,"g");
+    h+=hk("{{ _("Online Now") }}",ds.online_now,"g");
+    h+='</div>';
+    if(ds.top_pages&&ds.top_pages.length){
+      h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Popular Pages') }}</div><table style="font-size:12px;margin-top:8px">';
+      h+='<tr><th>{{ _('Page') }}</th><th style="text-align:right">PV</th></tr>';
+      ds.top_pages.forEach(function(p){h+='<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.path+'</td><td style="text-align:right">'+p.pv+'</td></tr>'});
+      h+='</table></div>';
+    }
   }
   h+='<div class="g2" style="margin-top:4px">';
   h+='<div class="cd"><div class="st">{{ _('Recent Registrations') }}</div><table style="font-size:12px;margin-top:8px">';
@@ -55,11 +57,13 @@ function _render_dashboard(ds){
   h+='</table></div>';
   h+='</div>';
   // --- Charts section ---
-  h+='<div class="cd chart-section" style="margin-top:4px"><div class="st">{{ _('Data Trends') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div></div>';
-  h+='<div class="g2" style="margin-top:4px">';
-  h+='<div class="cd"><div id="trendChart" style="width:100%;height:280px"></div></div>';
-  h+='<div class="cd"><div id="revenueChart" style="width:100%;height:280px"></div></div>';
-  h+='</div>';
+  if(ds.trend_30d!==undefined){
+    h+='<div class="cd chart-section" style="margin-top:4px"><div class="st">{{ _('Data Trends') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div></div>';
+    h+='<div class="g2" style="margin-top:4px">';
+    h+='<div class="cd"><div id="trendChart" style="width:100%;height:280px"></div></div>';
+    h+='<div class="cd"><div id="revenueChart" style="width:100%;height:280px"></div></div>';
+    h+='</div>';
+  }
   document.getElementById("mc").innerHTML=h;
   // Initialize charts after DOM is set
   _initCharts(ds);

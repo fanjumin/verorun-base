@@ -2,10 +2,17 @@
 """Admin Routes -- site management panel"""
 import sys, os, json, socket, time
 from datetime import datetime, timedelta
+
+# ═══ Cache stdlib platform BEFORE inserting project root into sys.path ═══
+# Prevents project's platform/ directory from shadowing stdlib platform module
+import platform as _stdlib_platform
+_ = _stdlib_platform.system
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify
 from i18n import _
 from models import get_db
+from plugin_manager.hooks import get_hook_registry
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -186,46 +193,6 @@ def _build_dashboard_data(conn):
         data['recent_orders'] = [dict(r) for r in conn.execute(
             "SELECT id, user_id, item_desc, amount, status, paid_at FROM billing_orders ORDER BY created_at DESC LIMIT 5").fetchall()]
     except: pass
-    # --- Analytics snapshot ---
-    @_qcached('dash_pvuv', ttl=10)
-    def _qpvuv(): return _safe("SELECT pv, uv FROM analytics_daily_stats WHERE date=CURRENT_DATE")
-    pvuv = _qpvuv()
-    data['today_pv'] = pvuv['pv'] if pvuv else 0
-    data['today_uv'] = pvuv['uv'] if pvuv else 0
-    @_qcached('dash_online', ttl=5)
-    def _qonline(): return _safe("SELECT COUNT(DISTINCT visitor_hash) as c FROM analytics_visitor_sessions WHERE last_active_at>=NOW() - INTERVAL '5 minutes'")
-    online = _qonline()
-    data['online_now'] = online['c'] if online else 0
-    @_qcached('dash_toppages', ttl=10)
-    def _qpages(): return _safe_all("SELECT path, pv FROM analytics_page_stats WHERE date=CURRENT_DATE ORDER BY pv DESC LIMIT 3")
-    data['top_pages'] = [{'path': r['path'], 'pv': r['pv']} for r in _qpages()]
-    # --- Token 用量 ---
-    @_qcached('dash_tokens', ttl=15)
-    def _qtokens():
-        r = _safe("SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=CURRENT_DATE")
-        return r['c'] if r else 0
-    data['today_tokens'] = _qtokens()
-    @_qcached('dash_topagents', ttl=15)
-    def _qtopagents():
-        return [dict(r) for r in _safe_all(
-            "SELECT t.agent_id, t.agent_name, t.total_tokens as total "
-            "FROM agent_token_daily t WHERE t.stat_date=CURRENT_DATE ORDER BY t.total_tokens DESC LIMIT 3")]
-    data['top_token_agents'] = _qtopagents()
-
-    # --- Trend data for charts ---
-    @_qcached('dash_trend30', ttl=30)
-    def _qtrend():
-        return [dict(r) for r in _safe_all(
-            "SELECT date, pv, uv FROM analytics_daily_stats "
-            "WHERE date >= CURRENT_DATE - INTERVAL '30 days' ORDER BY date ASC")]
-    data['trend_30d'] = _qtrend()
-    @_qcached('dash_revtrend30', ttl=30)
-    def _qrevtrend():
-        return [dict(r) for r in _safe_all(
-            "SELECT DATE(paid_at) as date, COALESCE(SUM(amount),0) as revenue "
-            "FROM billing_orders WHERE status='paid' AND paid_at >= CURRENT_DATE - INTERVAL '30 days' "
-            "GROUP BY DATE(paid_at) ORDER BY date ASC")]
-    data['revenue_trend_30d'] = _qrevtrend()
 
     # --- Service health (outside DB) ---
     import socket
@@ -244,6 +211,9 @@ def _build_dashboard_data(conn):
         futures = {ex.submit(_check_service, n, p): (n, p) for n, p in services}
         for f in as_completed(futures):
             data['services'].append(f.result())
+
+    # --- 收集所有已激活插件注入的仪表盘数据 ---
+    data = get_hook_registry().apply_filters('dashboard.data', data, conn=conn)
 
     return data
 
