@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{{ _('Login — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}') }}</title>
+<title>{{ _('Login') }} — {{ brand.site_name_cn if brand and brand.site_name_cn else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
-<link rel="stylesheet" href="/puzzle-captcha.css">
+<link rel="stylesheet" href="/static/puzzle-captcha.css">
 <style>
 /* ═══════════════════════════════════════════════════════
    VeroRun Admin Login — Dark Fintech, Glassmorphism
@@ -459,13 +459,13 @@ body::after {
 </div>
 
 <div class="tm-footer">
-  {{ brand.software_name if brand else '' }} v0.7.1 | {{ brand.software_slogan if brand else '' }} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '' }}</a>
+  {{ brand.software_name if brand else '' }} v{{ brand.version if brand else '' }} | {{ brand.software_slogan if brand else '' }} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe if brand and brand.icp_number else '' }}</a>
 </div>
 
 </div><!-- /tm-page -->
 
-<script src="/admin/static/lib/vue.global.prod.js"></script>
-<script src="/puzzle-captcha.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/static/puzzle-captcha.js"></script>
 <script>
 let cd = 0, cdTimer = null, tab = 'sms', capToken = '', capSolved = false, capLoadFailed = false;
 

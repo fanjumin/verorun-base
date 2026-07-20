@@ -67,15 +67,15 @@ import os as _os
 
 @app.context_processor
 def inject_i18n():
-    return {'_(': _, ')LANG': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
+    return {'_': _, ')LANG': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
 
-app.jinja_env.globals['_('] = _
+app.jinja_env.globals['_'] = _
 
 
 # ══ Content Security Policy (CSP) ══
 @app.after_request
 def add_security_headers(response):
-    response.headers[')X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -843,6 +843,24 @@ def serve_theme_file(slug, filename):
     if not os.path.isdir(theme_static):
         return 'Theme not found', 404
     return send_from_directory(theme_static, filename)
+
+
+# ── 插件 404 兜底：插件未启用时返回空 JSON ──
+PLUGIN_FALLBACK_PATHS = [
+    '/admin/automation/',
+    '/admin/social/',
+    '/admin/content-factory/',
+    '/admin/channels/',
+    '/plugin/coupons/',
+]
+
+@app.errorhandler(404)
+def plugin_fallback_404(e):
+    for prefix in PLUGIN_FALLBACK_PATHS:
+        if request.path.startswith(prefix):
+            return '<html><body style="background:#0d1117;color:#8b949e;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0"><div style="text-align:center"><h2 style="color:#f85149">Plugin Not Available</h2><p>This plugin is currently disabled or not installed.</p></div></body></html>', 200, {'Content-Type': 'text/html; charset=utf-8'}
+    # Non-plugin 404 — return plain text
+    return 'Not Found', 404
 
 
 if __name__ == '__main__(':

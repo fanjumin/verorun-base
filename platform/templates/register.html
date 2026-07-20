@@ -7,7 +7,7 @@
 <title>{{ _('Sign Up') }} — {{ brand.site_name_en if brand else '' }}</title>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="/static/css/design-system.css" rel="stylesheet"/>
-<link href="/puzzle-captcha.css" rel="stylesheet"/>
+<link href="/static/puzzle-captcha.css" rel="stylesheet"/>
 <style>
 /* ── Register Page Specific ── */
 .reg-page{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-deep)}
@@ -378,7 +378,7 @@
 </div><!-- /reg-page -->
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="/puzzle-captcha.js"></script>
+<script src="/static/puzzle-captcha.js"></script>
 <script>
 /* ════════════════════════════════════════════════════════════
    VeroRun Registration Wizard

@@ -159,15 +159,15 @@ def validate_config() -> Dict[str, Any]:
     
     # 检查阿里巴巴API配置
     if not ALIBABA_CONFIG["app_key"]:
-        errors.append(_("ALIBABA_APP_KEY not configured"))
+        errors.append("ALIBABA_APP_KEY 未配置")
     if not ALIBABA_CONFIG["app_secret"]:
-        errors.append(_("ALIBABA_APP_SECRET not configured"))
+        errors.append("ALIBABA_APP_SECRET 未配置")
     
     # 检查风控配置
     if RATE_LIMIT_CONFIG["user_daily_limit"] <= 0:
-        errors.append(_("User daily rate limit must be greater than 0"))
+        errors.append("用户每日限流必须大于0")
     if RATE_LIMIT_CONFIG["global_concurrent_limit"] <= 0:
-        errors.append(_("Global Concurrency Limit Must Be Greater Than 0"))
+        errors.append("全局并发限制必须大于0")
     
     import logging
     if errors:
@@ -185,8 +185,8 @@ def validate_config() -> Dict[str, Any]:
 # 导出配置（非阻塞验证）
 config = validate_config()
 
-if __name__ == "__main__(":
+if __name__ == "__main__":
     # 测试配置
     import pprint
-    print(_")Alibaba API configuration verified:")
+    print("阿里巴巴API配置验证通过:")
     pprint.pprint(config, depth=2)

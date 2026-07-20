@@ -61,7 +61,7 @@ class AIProcessor:
     def _call_ai(self, prompt: str, max_tokens: int = None, temperature: float = None) -> Tuple[bool, Optional[str]]:
         """调用AI接口"""
         if not self.engine or not self.engine.client:
-            return False, _("AI Engine Not Initialized")
+            return False, "AI引擎未初始化"
         
         try:
             from openai import OpenAIError
@@ -87,19 +87,19 @@ class AIProcessor:
                 content = response.choices[0].message.content.strip()
                 return True, content
             else:
-                return False, _("AI returned empty content")
+                return False, "AI返回空内容"
                 
         except OpenAIError as e:
             logger.error(f"OpenAI调用错误: {e}")
-            return False, f"AI call failed: {e}"
+            return False, f"AI调用失败: {e}"
         except Exception as e:
-            logger.error(f"AI call exception: {e}")
-            return False, f"AI call exception: {e}"
+            logger.error(f"AI调用异常: {e}")
+            return False, f"AI调用异常: {e}"
     
     def optimize_title(self, original_title: str, category: str = None, keywords: str = None) -> Tuple[bool, Optional[str]]:
         """优化商品标题"""
         if not original_title or len(original_title.strip()) == 0:
-            return False, _("Original title cannot be empty")
+            return False, "原始标题不能为空"
         
         # 构建提示词
         prompt = config['ai']['title_prompt'].format(title=original_title)
@@ -138,13 +138,13 @@ class AIProcessor:
         category = product_info.get('category', '')
         
         if not original_title:
-            return False, _("Original title cannot be empty")
+            return False, "原始标题不能为空"
         
-        specs_text = json.dumps(specs, ensure_ascii=False, indent=2) if specs else _('None')
+        specs_text = json.dumps(specs, ensure_ascii=False, indent=2) if specs else '无'
         
         prompt = f"""你是一个电商标题优化专家。请根据以下1688商品信息，生成 3 个优化后的商品标题。
 原始标题：{original_title}
-商品描述：{description[:200] if description else _('None')}
+商品描述：{description[:200] if description else '无'}
 商品规格：{specs_text}
 商品类目：{category}
 
@@ -156,7 +156,7 @@ class AIProcessor:
 5. 3 个标题风格不同：①专业型 ②吸引力型 ③简洁型
 
 请以 JSON 格式返回，不要包含任何其他文本：
-[{{"id":1,"title":_("Title 1"),"style":"professional","reason":_("Select reason...")}}, ...]"""
+[{{"id":1,"title":"标题1","style":"professional","reason":"选择理由..."}}, ...]"""
         
         success, response = self._call_ai(prompt, max_tokens=800, temperature=0.8)
         
@@ -175,12 +175,12 @@ class AIProcessor:
                 try:
                     options = json.loads(json_match.group(1))
                 except json.JSONDecodeError:
-                    return False, _("Invalid JSON format returned by AI")
+                    return False, "AI返回的JSON格式无效"
             else:
-                return False, _("Invalid JSON format returned by AI")
+                return False, "AI返回的JSON格式无效"
         
         if not isinstance(options, list) or len(options) == 0:
-            return False, _("AI did not generate valid title options")
+            return False, "AI未生成有效的标题选项"
         
         # 规范化输出
         result = []
@@ -197,7 +197,7 @@ class AIProcessor:
     def optimize_description(self, original_description: str, product_features: Dict[str, Any] = None) -> Tuple[bool, Optional[str]]:
         """优化商品描述"""
         if not original_description or len(original_description.strip()) == 0:
-            return False, _("Original description cannot be empty")
+            return False, "原始描述不能为空"
         
         # 构建提示词
         prompt = config['ai']['description_prompt'].format(description=original_description)
@@ -352,7 +352,7 @@ class AIProcessor:
         
         for i, product in enumerate(products):
             try:
-                logger.info(f"处理商品 {i+1}/{len(products)}: {product.get('title', _('Unknown'))}")
+                logger.info(f"处理商品 {i+1}/{len(products)}: {product.get('title', '未知')}")
                 
                 success, result = self.generate_marketing_copy(product)
                 
@@ -368,7 +368,7 @@ class AIProcessor:
                     results['results'].append({
                         'product_id': product.get('product_id', f'unknown_{i}'),
                         'success': False,
-                        'error': _('AI Processing Failed'),
+                        'error': 'AI处理失败',
                     })
                 
                 results['processed'] += 1
@@ -400,45 +400,45 @@ def is_ai_available() -> bool:
     processor = get_ai_processor()
     return processor.engine is not None
 
-if __name__ == "__main__(":
+if __name__ == "__main__":
     # 测试AI处理器
     import pprint
     
-    print(_")AI Processor Test")
+    print("AI处理器测试")
     
     processor = AIProcessor()
     
     if not processor.engine:
         print("AI引擎初始化失败，请检查配置")
     else:
-        print(f"AI Engine Initialized Successfully: {processor.provider}/{processor.model}")
+        print(f"AI引擎初始化成功: {processor.provider}/{processor.model}")
         
         # 测试标题优化
         print("\n1. 标题优化测试...")
-        original_title = _("2024 New Smartphone 6.7-inch Screen 5000mAh Battery 128GB Storage")
-        success, optimized = processor.optimize_title(original_title, _("Mobile Electronics"), _("Smartphone, Large Screen, Long Battery Life"))
-        print(f"   Original Title: {original_title}")
-        print(f"   Optimization Result: {'Success' if success else 'Failed'} - {optimized}")
+        original_title = "2024新款智能手机 6.7英寸大屏 5000mAh电池 128GB存储"
+        success, optimized = processor.optimize_title(original_title, "手机数码", "智能手机 大屏 长续航")
+        print(f"   原始标题: {original_title}")
+        print(f"   优化结果: {'成功' if success else '失败'} - {optimized}")
         
         # 测试描述优化
         print("\n2. 描述优化测试...")
-        original_desc = _("This is a new smartphone with a large screen, large battery capacity, and large storage space.")
+        original_desc = "这是一款新款智能手机，屏幕大，电池容量大，存储空间大。"
         success, optimized_desc = processor.optimize_description(original_desc)
-        print(f"   Original Description: {original_desc}")
-        print(f"   Optimization Result: {'Success' if success else 'Failed'} - {optimized_desc[:50]}...")
+        print(f"   原始描述: {original_desc}")
+        print(f"   优化结果: {'成功' if success else '失败'} - {optimized_desc[:50]}...")
         
         # 测试营销文案生成
         print("\n3. 营销文案生成测试...")
         product_info = {
-            'title': _("Wireless Bluetooth Earphones Noise Cancellation Sports"),
+            'title': "无线蓝牙耳机 降噪 运动",
             'description': "无线蓝牙耳机，支持降噪，适合运动使用。",
-            'category': _("Digital accessories"),
-            'specs': {_("Bluetooth Version"): "5.0", _("Endurance"): _("20 Hours"), _("Waterproof rating"): "IPX4"},
+            'category': "数码配件",
+            'specs': {"蓝牙版本": "5.0", "续航": "20小时", "防水等级": "IPX4"},
         }
         success, marketing_copy = processor.generate_marketing_copy(product_info)
-        print(f"   Generation Result: {'Success' if success else 'Failed'}")
+        print(f"   生成结果: {'成功' if success else '失败'}")
         if success:
             pprint.pprint(marketing_copy)
         
         print("\n4. AI服务可用性检查")
-        print(f"   AI Available: {is_ai_available()}")
+        print(f"   AI可用: {is_ai_available()}")
