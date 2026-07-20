@@ -29,7 +29,7 @@ def init_i18n(t_func):
 
 # ── Blueprint ────────────────────────────────────────────────────────────
 
-sub_bp = Blueprint('subscription', __name__, url_prefix='')
+sub_bp = Blueprint('sub_plugin', __name__, url_prefix='/')
 
 
 # ── 辅助 ─────────────────────────────────────────────────────────────────

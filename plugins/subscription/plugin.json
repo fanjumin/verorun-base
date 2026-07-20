@@ -38,7 +38,7 @@
         "key": "subscription",
         "icon": "subscriptions",
         "label": "Subscriptions",
-        "embed_url": "/plugin/subscription/admin/subscription/"
+        "embed_url": "/admin/subscription/"
     },
     "settings_schema": {
         "type": "object",
