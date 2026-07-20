@@ -476,6 +476,12 @@ def init_db():
                 updated_at      TIMESTAMP DEFAULT NOW(),
                 updated_by      BIGINT DEFAULT 0
             );
+            INSERT OR IGNORE INTO system_config (key, value, description) VALUES
+                ('default_language', 'zh-CN', 'Default system language'),
+                ('default_timezone', 'Asia/Shanghai', 'Default timezone'),
+                ('site_name', 'VeroRun', 'Site display name'),
+                ('admin_email', '', 'Admin contact email'),
+                ('maintenance_mode', '0', 'System maintenance mode');
             CREATE TABLE IF NOT EXISTS user_notifications (
                 id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 user_id         BIGINT REFERENCES users(id),

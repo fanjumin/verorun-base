@@ -42,9 +42,15 @@ function goPlugin(key,embedUrl){
   ifr.src=embedUrl;
   document.getElementById("mc").innerHTML='';
   document.getElementById("mc").appendChild(ifr);
-  // Token via postMessage
+  // Token via postMessage (handle both absolute and relative URLs)
   ifr.addEventListener('load', function() {
-    ifr.contentWindow.postMessage({type:'sso_token',token:T||''}, new URL(embedUrl).origin);
+    var targetOrigin;
+    try {
+      targetOrigin = new URL(embedUrl).origin;
+    } catch(e) {
+      targetOrigin = window.location.origin;
+    }
+    ifr.contentWindow.postMessage({type:'sso_token',token:T||''}, targetOrigin);
   });
 }
 

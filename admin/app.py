@@ -37,6 +37,7 @@ import time as _time
 # ── PluginManager ──
 from plugin_manager.manager import PluginManager
 from plugin_manager.routes import bp as plugin_bp
+from captcha_bp import captcha_bp
 
 # ══ Simple in-memory rate limiter for captcha consume ══
 _captcha_rate_limit = {}
@@ -169,6 +170,7 @@ try:
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
+    app.register_blueprint(captcha_bp)
     # 启动期挂载全部已安装插件（含 disabled）的路由，运行时由门卫按启用状态放行/拦截，
     # 从而实现后台启用/禁用插件免重启（Flask 3 运行时无法动态注册蓝图）。
     pm.mount_all_routes()

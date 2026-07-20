@@ -11,6 +11,7 @@ API 端点统计: ~35 个
 """
 import os, sys, json, logging
 
+from i18n import _
 from flask import Blueprint, request, jsonify, send_from_directory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1562,9 +1563,10 @@ def token_stats():
             """).fetchall()
 
             # ── 按用户汇总 ──
+            unknown_label = _('Unknown user')
             user_rows = conn.execute(f"""
                 SELECT t.user_id,
-                       COALESCE(u.username, u.phone, _('Unknown user')) AS username,
+                       COALESCE(u.username, u.phone, '{unknown_label}') AS username,
                        t.agent_id, t.agent_name,
                        COALESCE(t.model_name, '') AS model_name,
                        COALESCE(t.dimension, 'text') AS dimension,
@@ -1573,7 +1575,7 @@ def token_stats():
                 FROM agent_token_logs t
                 LEFT JOIN users u ON u.id = t.user_id
                 WHERE {date_where_t}
-                GROUP BY t.user_id, t.agent_id, t.agent_name, t.model_name, t.dimension, COALESCE(u.username, u.phone, _('Unknown user'))
+                GROUP BY t.user_id, t.agent_id, t.agent_name, t.model_name, t.dimension, COALESCE(u.username, u.phone, '{unknown_label}')
                 ORDER BY total DESC
                 LIMIT 50
             """).fetchall()
@@ -1602,16 +1604,26 @@ def token_stats():
                 GROUP BY agent_id, agent_name
             """).fetchall()
 
+        total_row_d = dict(total_row)
+        for k in total_row_d:
+            total_row_d[k] = float(total_row_d[k]) if hasattr(total_row_d[k], 'real') else total_row_d[k]
+        by_dim_d = []
+        for r in by_dim_rows:
+            d = dict(r)
+            d['total'] = float(d['total'])
+            d['calls'] = int(d['calls'])
+            by_dim_d.append(d)
+        today_total_val = float(today_total['total']) if today_total else 0
         return _success({
             'period': period,
             'dimension': dim or 'all',
-            'total': dict(total_row),
-            'by_dimension': [dict(r) for r in by_dim_rows],
+            'total': total_row_d,
+            'by_dimension': by_dim_d,
             'agent_models': [dict(r) for r in am_rows],
             'users': [dict(r) for r in user_rows],
             'cost_estimate': round(cost_est, 2),
             'pricing': pricing,
-            'today_matrix_total': today_total['total'] if today_total else 0,
+            'today_matrix_total': today_total_val,
             'today_by_agent': [dict(r) for r in today_by_agent],
             'thresholds': {
                 'agent_yellow': 200000,

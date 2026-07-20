@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="{{ deploy.LANG }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ _('Subscription Management') }} · {{ brand.site_name_en if brand else '' }}</title>
+<style>
+:root {
+  --bg-deep: #050508;
+  --bg: #0a0a12;
+  --bg-elevated: #0f0f1a;
+  --bg-glass: rgba(15,15,26,0.72);
+  --bg-glass-hover: rgba(20,20,40,0.85);
+  --blue: #00f5ff;
+  --violet: #a020f0;
+  --green: #00ff9f;
+  --indigo: #6366f1;
+  --cyan: #22d3ee;
+  --gold: #f59e0b;
+  --rose: #f43f5e;
+  --text: #e2e4e9;
+  --text-dim: #6b7280;
+  --text-bright: #ffffff;
+  --border: rgba(255,255,255,0.06);
+  --border-glow: rgba(0,245,255,0.15);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-deep);
+  color: var(--text);
+  line-height: 1.6;
+  padding: 24px;
+}
+.page-header { margin-bottom: 24px; }
+.page-header h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-bright); margin-bottom: 4px; }
+.page-header p { font-size: 0.9rem; color: var(--text-dim); }
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+.tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text-bright); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.card-header {
+  padding: 14px 18px;
+  font-weight: 600;
+  color: var(--text-bright);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-body { padding: 18px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th { text-align: left; padding: 8px 4px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+td { padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.text-muted { color: var(--text-dim); }
+.small { font-size: 0.8rem; }
+code { background: var(--bg-glass); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.btn-primary { background: var(--blue); color: var(--bg-deep); }
+.btn-primary:hover { opacity: 0.85; }
+.btn-danger { background: var(--rose); color: var(--text-bright); }
+.btn-danger:hover { opacity: 0.85; }
+.btn-sm { padding: 4px 12px; font-size: 0.8rem; }
+input, select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+}
+input:focus, select:focus { outline: none; border-color: var(--blue); }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 4px; }
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.form-row .form-group { flex: 1; min-width: 150px; }
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.badge-active { background: rgba(0,255,159,0.15); color: var(--green); }
+.badge-expired { background: rgba(244,63,94,0.15); color: var(--rose); }
+.badge-pending { background: rgba(245,158,11,0.15); color: var(--gold); }
+.empty { text-align: center; padding: 40px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div id="sub-admin">
+  <div class="page-header">
+    <h2>{{ _('Subscription Management') }}</h2>
+    <p class="text-muted">{{ _('Manage subscription plans, user subscriptions, and orders') }}</p>
+  </div>
+
+  {# ── Tab Navigation ── #}
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('items')">{{ _('Plans') }}</div>
+    <div class="tab" onclick="switchTab('users')">{{ _('Subscribers') }}</div>
+    <div class="tab" onclick="switchTab('orders')">{{ _('Orders') }}</div>
+  </div>
+
+  {# ── Plans Tab ── #}
+  <div class="panel active" id="panel-items">
+    <div class="card">
+      <div class="card-header">
+        <span>{{ _('Subscription Plans') }}</span>
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="showAddItem()">{{ _('Add Plan') }}</button>
+      </div>
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ _('Key') }}</th>
+              <th>{{ _('Name') }}</th>
+              <th>{{ _('Price') }}</th>
+              <th>{{ _('Duration') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody id="items-tbody">
+            <tr><td colspan="6" class="text-muted">{{ _('Loading...') }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ── Subscribers Tab ── #}
+  <div class="panel" id="panel-users">
+    <div class="card">
+      <div class="card-header">
+        <span>{{ _('User Subscriptions') }}</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>{{ _('Filter by User ID') }}</label>
+            <input type="number" id="user-filter" placeholder="{{ _('Enter user ID') }}" onchange="loadUsers()">
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>{{ _('User ID') }}</th>
+              <th>{{ _('Plan') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th>{{ _('Start') }}</th>
+              <th>{{ _('End') }}</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody">
+            <tr><td colspan="5" class="text-muted">{{ _('Loading...') }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ── Orders Tab ── #}
+  <div class="panel" id="panel-orders">
+    <div class="card">
+      <div class="card-header">
+        <span>{{ _('Orders') }}</span>
+      </div>
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ _('Order No.') }}</th>
+              <th>{{ _('User ID') }}</th>
+              <th>{{ _('Item') }}</th>
+              <th>{{ _('Amount') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th>{{ _('Created') }}</th>
+            </tr>
+          </thead>
+          <tbody id="orders-tbody">
+            <tr><td colspan="6" class="text-muted">{{ _('Loading...') }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelector('.tab[onclick*="'+name+'"]').classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+function loadItems() {
+  fetch('/admin/subscription/items')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      if (!data.items || !data.items.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">{{ _('No plans configured') }}</td></tr>';
+        return;
+      }
+      data.items.forEach(function(item) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><code>' + item.item_key + '</code></td>' +
+          '<td><strong>' + (item.name || item.item_key) + '</strong></td>' +
+          '<td>' + (item.price || '-') + '</td>' +
+          '<td>' + (item.duration_days || '0') + 'd</td>' +
+          '<td><span class="badge badge-' + (item.active ? 'active' : 'expired') + '">' + (item.active ? '{{ _('Active') }}' : '{{ _('Inactive') }}') + '</span></td>' +
+          '<td><button class="btn btn-danger btn-sm" onclick="deleteItem(\'' + item.item_key + '\')">{{ _('Delete') }}</button></td>';
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function(e) { console.error('Load items failed:', e); });
+}
+
+function loadUsers() {
+  var uid = document.getElementById('user-filter').value;
+  var url = '/admin/subscription/users';
+  if (uid) url += '?user_id=' + uid;
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var tbody = document.getElementById('users-tbody');
+      tbody.innerHTML = '';
+      if (!data.subscriptions || !data.subscriptions.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">{{ _('No subscriptions found') }}</td></tr>';
+        return;
+      }
+      data.subscriptions.forEach(function(s) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + s.user_id + '</td>' +
+          '<td>' + (s.item_key || '-') + '</td>' +
+          '<td><span class="badge badge-' + (s.is_active ? 'active' : 'expired') + '">' + (s.is_active ? '{{ _('Active') }}' : '{{ _('Expired') }}') + '</span></td>' +
+          '<td class="small">' + (s.start_time || '-') + '</td>' +
+          '<td class="small">' + (s.end_time || '-') + '</td>';
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function(e) { console.error('Load users failed:', e); });
+}
+
+function loadOrders() {
+  fetch('/admin/subscription/orders')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var tbody = document.getElementById('orders-tbody');
+      tbody.innerHTML = '';
+      if (!data.orders || !data.orders.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">{{ _('No orders found') }}</td></tr>';
+        return;
+      }
+      data.orders.forEach(function(o) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><code>' + (o.order_no || '-') + '</code></td>' +
+          '<td>' + (o.user_id || '-') + '</td>' +
+          '<td>' + (o.item_key || '-') + '</td>' +
+          '<td>' + (o.amount || '-') + '</td>' +
+          '<td><span class="badge badge-' + ((o.status === 'paid' || o.status === 'completed') ? 'active' : 'pending') + '">' + (o.status || '-') + '</span></td>' +
+          '<td class="small">' + (o.created_at || '-') + '</td>';
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function(e) { console.error('Load orders failed:', e); });
+}
+
+function showAddItem() {
+  var name = prompt('{{ _('Enter plan name:') }}');
+  if (!name) return;
+  var price = prompt('{{ _('Enter price:') }}');
+  if (!price) return;
+  var days = prompt('{{ _('Enter duration (days):') }}');
+  if (!days) return;
+  fetch('/admin/subscription/items', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name, price: parseFloat(price), duration_days: parseInt(days)})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.message) { loadItems(); }
+    else { alert(d.error || '{{ _('Failed') }}'); }
+  })
+  .catch(function(e) { alert(e.message); });
+}
+
+function deleteItem(key) {
+  if (!confirm('{{ _('Delete this plan?') }}')) return;
+  fetch('/admin/subscription/items/' + encodeURIComponent(key), { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.message) { loadItems(); }
+      else { alert(d.error || '{{ _('Failed') }}'); }
+    })
+    .catch(function(e) { alert(e.message); });
+}
+
+loadItems();
+loadUsers();
+loadOrders();
+</script>
+</body>
+</html>

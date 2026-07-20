@@ -412,9 +412,22 @@ def api_self_stats():
         oldest_log = conn.execute(
             "SELECT MIN(timestamp) ts FROM analytics_logs"
         ).fetchone()['ts'] or 0
-        db_size = conn.execute(
-            "SELECT pg_database_size(current_database()) as size"
-        ).fetchone()['size']
+
+        # 数据库大小 — 兼容 SQLite 和 PostgreSQL
+        db_size = 0
+        try:
+            row = conn.execute(
+                "SELECT page_count * page_size AS size FROM pragma_page_count, pragma_page_size"
+            ).fetchone()
+            db_size = row['size'] if row else 0
+        except Exception:
+            try:
+                row = conn.execute(
+                    "SELECT pg_database_size(current_database()) AS size"
+                ).fetchone()
+                db_size = row['size'] if row else 0
+            except Exception:
+                db_size = 0
 
         return jsonify({'success': True, 'data': {
             'total_logs': total_logs,
