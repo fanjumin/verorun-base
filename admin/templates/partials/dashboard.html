@@ -54,7 +54,65 @@ function _render_dashboard(ds){
   }
   h+='</table></div>';
   h+='</div>';
+  // --- Charts section ---
+  h+='<div class="cd chart-section" style="margin-top:4px"><div class="st">{{ _('Data Trends') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div></div>';
+  h+='<div class="g2" style="margin-top:4px">';
+  h+='<div class="cd"><div id="trendChart" style="width:100%;height:280px"></div></div>';
+  h+='<div class="cd"><div id="revenueChart" style="width:100%;height:280px"></div></div>';
+  h+='</div>';
   document.getElementById("mc").innerHTML=h;
+  // Initialize charts after DOM is set
+  _initCharts(ds);
+}
+function _initCharts(ds){
+  if(typeof echarts==='undefined'){
+    setTimeout(function(){_initCharts(ds);},300);
+    return;
+  }
+  // 30-day traffic trend (line chart)
+  var trendEl=document.getElementById('trendChart');
+  if(trendEl){
+    var chart=echarts.init(trendEl);
+    var hasTrend=ds.trend_30d&&ds.trend_30d.length;
+    var dates=hasTrend?ds.trend_30d.map(function(d){return d.date.substr(5)}):[];
+    chart.setOption({
+      tooltip:{trigger:'axis'},
+      legend:{data:['PV','UV'],textStyle:{color:'var(--dim)'},top:0},
+      grid:{left:40,right:10,bottom:25,top:35},
+      xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,color:'var(--dim)'}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
+      series:[
+        {name:'PV',type:'line',data:hasTrend?ds.trend_30d.map(function(d){return d.pv}):[],smooth:true,
+         lineStyle:{width:2},itemStyle:{color:'#4a9eff'},
+         areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(74,158,255,0.2)'},{offset:1,color:'rgba(74,158,255,0.02)'}]}}},
+        {name:'UV',type:'line',data:hasTrend?ds.trend_30d.map(function(d){return d.uv}):[],smooth:true,
+         lineStyle:{width:2},itemStyle:{color:'#52c41a'},
+         areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(82,196,26,0.15)'},{offset:1,color:'rgba(82,196,26,0.02)'}]}}}
+      ]
+    });
+    if(!hasTrend) chart.showLoading({text:'{{ _('No Data') }}',textStyle:{fontSize:12,color:'var(--dim)'}});
+    window.addEventListener('resize',function(){chart.resize()});
+  }
+  // Revenue trend (bar chart)
+  var revEl=document.getElementById('revenueChart');
+  if(revEl){
+    var rchart=echarts.init(revEl);
+    var hasRev=ds.revenue_trend_30d&&ds.revenue_trend_30d.length;
+    var rdates=hasRev?ds.revenue_trend_30d.map(function(d){return d.date.substr(5)}):[];
+    rchart.setOption({
+      tooltip:{trigger:'axis',formatter:function(p){return p[0].name+'<br/>\u00a5 '+p[0].value.toFixed(2)}},
+      grid:{left:50,right:10,bottom:25,top:10},
+      xAxis:{type:'category',data:rdates,axisLabel:{fontSize:10,color:'var(--dim)'}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10,formatter:'\u00a5{value}'}},
+      series:[{
+        type:'bar',data:hasRev?ds.revenue_trend_30d.map(function(d){return d.revenue}):[],
+        itemStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f6c243'},{offset:1,color:'rgba(246,194,67,0.3)'}]},borderRadius:[3,3,0,0]},
+        barMaxWidth:28
+      }]
+    });
+    if(!hasRev) rchart.showLoading({text:'{{ _('No Data') }}',textStyle:{fontSize:12,color:'var(--dim)'}});
+    window.addEventListener('resize',function(){rchart.resize()});
+  }
 }
 window.l_dashboard=function(){
   document.getElementById("pt").textContent="{{ _('Overview') }}";

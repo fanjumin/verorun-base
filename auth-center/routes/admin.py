@@ -109,6 +109,8 @@ def _build_dashboard_data(conn):
         'total_orders': 0,
         'pending_reviews': 0,
         'today_failed_tasks': 0,
+        'trend_30d': [],
+        'revenue_trend_30d': [],
     }
     _query_cache_ctx = {}
 
@@ -209,6 +211,21 @@ def _build_dashboard_data(conn):
             "SELECT t.agent_id, t.agent_name, t.total_tokens as total "
             "FROM agent_token_daily t WHERE t.stat_date=CURRENT_DATE ORDER BY t.total_tokens DESC LIMIT 3")]
     data['top_token_agents'] = _qtopagents()
+
+    # --- Trend data for charts ---
+    @_qcached('dash_trend30', ttl=30)
+    def _qtrend():
+        return [dict(r) for r in _safe_all(
+            "SELECT date, pv, uv FROM analytics_daily_stats "
+            "WHERE date >= CURRENT_DATE - INTERVAL '30 days' ORDER BY date ASC")]
+    data['trend_30d'] = _qtrend()
+    @_qcached('dash_revtrend30', ttl=30)
+    def _qrevtrend():
+        return [dict(r) for r in _safe_all(
+            "SELECT DATE(paid_at) as date, COALESCE(SUM(amount),0) as revenue "
+            "FROM billing_orders WHERE status='paid' AND paid_at >= CURRENT_DATE - INTERVAL '30 days' "
+            "GROUP BY DATE(paid_at) ORDER BY date ASC")]
+    data['revenue_trend_30d'] = _qrevtrend()
 
     # --- Service health (outside DB) ---
     import socket
