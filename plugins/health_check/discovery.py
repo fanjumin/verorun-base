@@ -220,9 +220,9 @@ def scan_tables(db_path: Optional[str] = None) -> List[dict]:
             user=os.environ.get('PG_USER', 'verorun'),
             password=os.environ.get('PG_PASSWORD', ''),
         )
-        conn.execute("CREATE SCHEMA IF NOT EXISTS health")
-        conn.execute("SET search_path TO health")
         cursor = conn.cursor()
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS health")
+        cursor.execute("SET search_path TO health")
 
         # Get all user tables
         cursor.execute(
@@ -292,7 +292,7 @@ def scan_plugins() -> List[dict]:
 
         results = []
         for plugin_info in discovered:
-            meta = plugin_info.descriptor or {}
+            meta = getattr(plugin_info, 'metadata', None) or getattr(plugin_info, 'descriptor', None) or {}
             results.append({
                 'name': plugin_info.identifier,
                 'version': meta.get('version', '0.1.0'),

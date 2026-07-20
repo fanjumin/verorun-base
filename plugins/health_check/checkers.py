@@ -618,13 +618,17 @@ class WorkflowHealthCheck(BaseHealthCheck):
 
         try:
             with om.get_db() as conn:
-                cron_total = conn.execute('SELECT COUNT(*) as c FROM cron_jobs').fetchone()['c']
-                cron_active = conn.execute('SELECT COUNT(*) as c FROM cron_jobs WHERE is_active=1').fetchone()['c']
-                wf_total = conn.execute('SELECT COUNT(*) as c FROM workflow_definitions').fetchone()['c']
-                recent_failed = conn.execute(
+                try: cron_total = conn.execute('SELECT COUNT(*) as c FROM cron_jobs').fetchone()['c']
+                except: cron_total = 0
+                try: cron_active = conn.execute('SELECT COUNT(*) as c FROM cron_jobs WHERE is_active=1').fetchone()['c']
+                except: cron_active = 0
+                try: wf_total = conn.execute('SELECT COUNT(*) as c FROM workflow_definitions').fetchone()['c']
+                except: wf_total = 0
+                try: recent_failed = conn.execute(
                     "SELECT COUNT(*) as c FROM workflow_instances "
                     "WHERE status='failed' AND created_at>=NOW() - INTERVAL '1 day'"
                 ).fetchone()['c']
+                except: recent_failed = 0
             elapsed = int((time.time() - start) * 1000)
             detail = {'cron_total': cron_total, 'cron_active': cron_active,
                       'workflows': wf_total, 'recent_failures_24h': recent_failed}
