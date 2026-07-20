@@ -12,6 +12,7 @@ cms_admin 等主系统模块经 plugin_manager 调用。
       将在 Phase 3 下沉到 agent_matrix 内核。
 """
 
+from i18n import _
 import os
 import sys
 

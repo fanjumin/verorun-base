@@ -16,6 +16,7 @@ analytics/workflow_nodes.py — 分析系统 Workflow 节点处理器
   - analytics_event:       记录自定义事件
 """
 
+from i18n import _
 import os
 import sys
 import json

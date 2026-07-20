@@ -5,6 +5,7 @@ Logistics Plugin Models — 独立数据库 logistics.db
 完全独立于主库。
 - logistics_queries: 物流查询日志
 """
+from i18n import _
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os

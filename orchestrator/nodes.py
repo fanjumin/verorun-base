@@ -21,6 +21,7 @@ Node Handlers — 工作流节点类型实现
 @package orchestrator
 """
 
+from i18n import _
 import os, sys, json, time
 import urllib.request
 

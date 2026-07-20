@@ -11,6 +11,7 @@ Then in routes:
 NOTE: Douyin uses per-request dynamic credential lookup (multi-tenant).
       Global oauth.register() is only used for WeChat (single-tenant via env).
 """
+from i18n import _
 import os, json, urllib.request, urllib.parse
 from authlib.integrations.flask_client import OAuth
 

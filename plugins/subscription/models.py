@@ -9,6 +9,7 @@ Subscription Plugin — 数据模型
   - sub_orders          订阅订单
 """
 
+from i18n import _
 import os
 import psycopg2
 import threading

@@ -8,6 +8,7 @@
 2. 环境变量（ALIPAY_APP_ID / NOTIFY_BASE）
 3. deploy.url() 动态生成（基于 DEPLOY_DOMAIN）
 """
+from i18n import _
 import os, sys, json, time, secrets, base64, urllib.parse
 from datetime import datetime
 from flask import request

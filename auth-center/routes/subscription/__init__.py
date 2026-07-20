@@ -245,7 +245,7 @@ def download_invoice(invoice_no):
 
 @sub_bp.route('/my/payment-method', methods=['PUT'])
 def update_payment_method():
-    ""_("Change payment method")""
+    _("Change payment method")
     payload = _require_auth()
     if not payload: return api_err(_('Please log in first'), 401)
     uid = payload['user_id']
@@ -1335,17 +1335,17 @@ def admin_stats():
         dist = conn.execute("""
             SELECT s.plan_key, sp.name, COUNT(*) as c FROM subscriptions s
             JOIN subscription_plans sp ON sp.plan_key=s.plan_key
-            WHERE s.status='active' GROUP BY s.plan_key
+            WHERE s.status='active' GROUP BY s.plan_key, sp.name
         """).fetchall()
 
     return api_res({
-        'mrr': mrr['mrr'],
-        'mrr_yuan': f'¥{mrr["mrr"]/100:.2f}',
+        'mrr': float(mrr['mrr']),
+        'mrr_yuan': f'¥{float(mrr["mrr"])/100:.2f}',
         'active_subscriptions': active['c'],
         'new_this_month': new['c'],
         'canceled_this_month': canceled['c'],
-        'today_revenue_fen': today_revenue['rev'],
-        'month_revenue_fen': month_revenue['rev'],
+        'today_revenue_fen': float(today_revenue['rev']),
+        'month_revenue_fen': float(month_revenue['rev']),
         'distribution': [dict(r) for r in dist],
     })
 

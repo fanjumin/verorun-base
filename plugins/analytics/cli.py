@@ -13,6 +13,7 @@ analytics/cli.py — 分析系统 CLI 维护工具
   python3 -m analytics.cli seed-workflows         # 创建预设工作流
 """
 
+from i18n import _
 import os
 import sys
 import json

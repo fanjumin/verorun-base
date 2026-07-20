@@ -4,6 +4,7 @@
 oauth_providers 表在插件独立数据库 oauth.db 中，通过 models.get_db() 读写。
 """
 
+from i18n import _
 import sys, os
 from datetime import datetime
 

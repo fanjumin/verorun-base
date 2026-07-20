@@ -5,6 +5,7 @@ Payment Plugin — /admin/payment/configs 配置管理路由
 支付凭证存储在插件独立数据库 payment.db（payment_configs 表），
 完全独立于主库 system_config。
 """
+from i18n import _
 import os
 import sys
 

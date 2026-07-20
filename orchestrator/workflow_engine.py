@@ -20,6 +20,7 @@ Workflow Engine — DAG 工作流引擎
 @package orchestrator
 """
 
+from i18n import _
 import os, sys, time, json
 import threading
 from datetime import datetime

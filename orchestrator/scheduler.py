@@ -18,6 +18,7 @@ Scheduler — Cron 任务调度器核心
 import os, sys, time, json
 import threading
 from datetime import datetime, timedelta
+from i18n import _
 from typing import Optional, Callable
 from functools import wraps
 

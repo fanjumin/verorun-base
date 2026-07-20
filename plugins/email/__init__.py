@@ -8,6 +8,7 @@ Email Service Plugin — 邮件服务插件（完全独立）
 - 独立 i18n：插件自带翻译文件
 """
 
+from i18n import _
 import os
 import sys
 

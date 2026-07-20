@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Ad Management Plugin — 广告管理 API 路由 (v0.2.0)"""
+from i18n import _
 import sys, os, json
 from datetime import datetime
 

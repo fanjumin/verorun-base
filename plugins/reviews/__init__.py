@@ -1,4 +1,5 @@
 """商品评价系统插件"""
+from i18n import _
 import json
 import logging
 from typing import Dict, Any, List

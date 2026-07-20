@@ -6,6 +6,7 @@ SMS Service Plugin — 短信服务插件（完全独立）
 - 独立数据库：sms.db（不依赖主库）
 - 独立 i18n：插件自带翻译文件
 """
+from i18n import _
 import os
 import sys
 

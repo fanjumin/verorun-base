@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Shop Public — 前端商城API (platform service)"""
+from i18n import _
 import sys, os, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 from flask import Blueprint, jsonify, request, render_template, make_response, redirect

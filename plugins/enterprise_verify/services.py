@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Enterprise Verification Plugin — OCR 识别 + AI 自动审核"""
+from i18n import _
 import sys, os, json, re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))

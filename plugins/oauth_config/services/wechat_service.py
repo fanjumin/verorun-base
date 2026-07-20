@@ -6,6 +6,7 @@
 1. DB 表 oauth_providers → 按 site_domain + provider='wechat' 查询
 2. 环境变量 WECHAT_APP_ID / WECHAT_APP_SECRET（全局兜底）
 """
+from i18n import _
 import os, json, urllib.request, urllib.parse
 
 WECHAT_APP_ID = os.environ.get('WECHAT_APP_ID', '')

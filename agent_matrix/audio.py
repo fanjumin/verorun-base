@@ -7,6 +7,7 @@ AI Audio Interface — 语音输入/输出抽象层
 - AudioOutputProcessor: 语音合成（TTS），预留阿里云接口
 """
 
+from i18n import _
 import os
 import logging
 

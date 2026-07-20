@@ -62,8 +62,8 @@ function headerNavAdd(site){
   var f=document.getElementById("headerNavForm");
   f.innerHTML='<div class="cd"><div class="st">{{ _('Add Nav Link') }} — '+esc(site)+'</div>'+
     '<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">'+
-    '<input class="in" id="hnTitle" placeholder={{ _('{{ _('Link Title') }} (e.g. {{ _('Plaza') }})') | tojson }}>'+
-    '<input class="in" id="hnUrl" placeholder={{ _('{{ _('Link') }} URL (e.g. /plaza)') | tojson }}>'+
+    '<input class="in" id="hnTitle" placeholder="' + {{ _('Link Title') | tojson }} + ' (e.g. ' + {{ _('Plaza') | tojson }} + ')">'+
+    '<input class="in" id="hnUrl" placeholder="' + {{ _('Link') | tojson }} + ' URL (e.g. /plaza)">'+
     '</div>'+
     '<div style="margin-top:12px;display:flex;gap:8px">'+
     '<button class="btn bp" onclick="headerNavDoAdd(\''+site+'\')">{{ _('Save') }}</button>'+

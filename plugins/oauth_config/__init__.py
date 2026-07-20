@@ -9,6 +9,7 @@ OAuth Login Config Plugin — 完整的第三方登录插件
 
 架构：所有 OAuth 相关代码收敛至本插件，auth-center 通过 try/except 调用。
 """
+from i18n import _
 import os
 import sys
 

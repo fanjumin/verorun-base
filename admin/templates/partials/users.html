@@ -1,5 +1,7 @@
 window.l_users=function(){
   document.getElementById("pt").textContent="{{ _('User Management') }}";
+  var _pause = {{ _('Pause') | tojson }};
+  var _activate = {{ _('Activate') | tojson }};
   var ind=document.getElementById("uIndustry")?document.getElementById("uIndustry").value:'';
   var occ=document.getElementById("uOccupation")?document.getElementById("uOccupation").value:'';
   var reg=document.getElementById("uRegion")?document.getElementById("uRegion").value:'';
@@ -71,8 +73,8 @@ function toggleUserAgents(uid,btn){
       if(!d.success||!d.data){content.innerHTML='<span style="color:var(--dim)">{{ _('Load failed') }}</span>';return}
       var agents=d.data.agents||[];
       if(agents.length===0){content.innerHTML='<span style="color:var(--dim)">{{ _('This User Has No') }} Agent</span> <span class="btn bp" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();adminCreateAgent('+uid+')">+ {{ _('Create') }}</span>';return}
-      var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><b>{{ _('🤖 '+agents.length+' Agents') }}</b> <span class="btn bp" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();adminCreateAgent('+uid+')">+ {{ _('Create') }}</span></div>';
-      h+='<table style="font-size:12px"><tr><th>ID</th><th>{{ _('Name') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status{{ _(') }}</th><th>Key count</th><th>{{ _("') | tojson }}Last Active') }}</th><th>{{ _('Actions') }}</th></tr>';
+      var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><b>🤖 '+agents.length+' {{ _('Agents') }}</b> <span class="btn bp" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();adminCreateAgent('+uid+')">+ {{ _('Create') }}</span></div>';
+      h+='<table style="font-size:12px"><tr><th>ID</th><th>{{ _('Name') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>Key count</th><th>{{ _('Last Active') }}</th><th>{{ _('Actions') }}</th></tr>';
       agents.forEach(function(a){
         var stCls=a.status==='active'?'bdg on':'bdg off';
         var stText=a.status==='active'?'{{ _('Active') }}':(a.status==='suspended'?'{{ _('Pause') }}':'{{ _('Inactive') }}');
@@ -81,9 +83,9 @@ function toggleUserAgents(uid,btn){
         h+='<td>'+(a.active_keys||0)+'</td><td>'+(a.last_active_at||'-')+'</td>';
         h+='<td>';
         if(a.status==='active'){
-          h+='<span class="btn bo bs" style="padding:2px 6px;font-size:10px" onclick="event.stopPropagation();setAgentStatus('+a.id+',&#39;suspended&#39;,\''+escAttr(a.agent_name)+'\')">{{ _('Pause') }}</span>';
+          h+='<span class="btn bo bs" style="padding:2px 6px;font-size:10px" onclick="event.stopPropagation();setAgentStatus('+a.id+',\x27suspended\x27,\x27'+escAttr(a.agent_name)+'\x27)">'+_pause+'</span>';
         }else{
-          h+='<span class="btn bp" style="padding:2px 6px;font-size:10px" onclick="event.stopPropagation();setAgentStatus('+a.id+',&#39;active&#39;,\''+escAttr(a.agent_name)+'\')">{{ _('Activate') }}</span>';
+          h+='<span class="btn bp" style="padding:2px 6px;font-size:10px" onclick="event.stopPropagation();setAgentStatus('+a.id+',\x27active\x27,\x27'+escAttr(a.agent_name)+'\x27)">'+_activate+'</span>';
         }
         h+='</td></tr>';
       });
@@ -448,7 +450,7 @@ function showDefaultAvatars(type, uid) {
         // {{ _('Apply Button') }}
         var applyBtn = document.createElement('button');
         applyBtn.className = 'btn bp';
-        applyBtn.textContent='{{ _({{ _('App') | tojson }}) }}'+dbStyleLabels[style];
+        applyBtn.textContent={{ _('App') | tojson }}+dbStyleLabels[style];
         applyBtn.style.cssText = 'padding:4px 12px;font-size:11px;margin-left:8px';
         applyBtn.onclick = function(){
           // {{ _('Generate') }} SVG → {{ _('Upload') }}

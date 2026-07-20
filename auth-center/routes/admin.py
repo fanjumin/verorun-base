@@ -275,55 +275,55 @@ def revenue_dashboard():
 def _revenue_dashboard_data():
     with get_db() as conn:
         # ── 收入汇总 ──
-        today = conn.execute("""
+        today = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
             WHERE status='paid' AND date(paid_at)=CURRENT_DATE
-        """).fetchone()['rev']
-        today += (conn.execute("""
+        """).fetchone()['rev'] or 0)
+        today += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
             WHERE status='paid' AND date(paid_at)=CURRENT_DATE
         """).fetchone()['rev'] or 0)
-        today += (conn.execute("""
+        today += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND date(paid_at)=CURRENT_DATE
         """).fetchone()['rev'] or 0)
 
-        this_month = conn.execute("""
+        this_month = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
             WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()['rev']
-        this_month += (conn.execute("""
+        """).fetchone()['rev'] or 0)
+        this_month += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
             WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['rev'] or 0)
-        this_month += (conn.execute("""
+        this_month += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
         """).fetchone()['rev'] or 0)
 
-        this_year = conn.execute("""
+        this_year = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
             WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
-        """).fetchone()['rev']
-        this_year += (conn.execute("""
+        """).fetchone()['rev'] or 0)
+        this_year += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
             WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
         """).fetchone()['rev'] or 0)
-        this_year += (conn.execute("""
+        this_year += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
         """).fetchone()['rev'] or 0)
 
         # ── 上月收入（环比） ──
-        last_month = conn.execute("""
+        last_month = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
             WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
-        """).fetchone()['rev']
-        last_month += (conn.execute("""
+        """).fetchone()['rev'] or 0)
+        last_month += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
             WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
         """).fetchone()['rev'] or 0)
-        last_month += (conn.execute("""
+        last_month += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
         """).fetchone()['rev'] or 0)
@@ -334,7 +334,7 @@ def _revenue_dashboard_data():
             WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
-        trend_map = {r['day']: r['rev'] for r in trend}
+        trend_map = {r['day']: float(r['rev']) for r in trend}
         # Add subscription orders
         sub_trend = conn.execute("""
             SELECT date(paid_at) as day, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
@@ -342,7 +342,7 @@ def _revenue_dashboard_data():
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
         for r in sub_trend:
-            trend_map[r['day']] = trend_map.get(r['day'], 0) + r['rev']
+            trend_map[r['day']] = trend_map.get(r['day'], 0.0) + float(r['rev'])
         # Add shop orders
         shop_trend = conn.execute("""
             SELECT date(paid_at) as day, COALESCE(SUM(subtotal),0) as rev FROM order_items
@@ -350,7 +350,7 @@ def _revenue_dashboard_data():
             GROUP BY date(paid_at) ORDER BY day
         """).fetchall()
         for r in shop_trend:
-            trend_map[r['day']] = trend_map.get(r['day'], 0) + r['rev']
+            trend_map[r['day']] = trend_map.get(r['day'], 0.0) + float(r['rev'])
 
         # ── 近12月月度收入 ──
         monthly = conn.execute("""
@@ -358,21 +358,21 @@ def _revenue_dashboard_data():
             WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
             GROUP BY ym ORDER BY ym
         """).fetchall()
-        monthly_map = {r['ym']: r['rev'] for r in monthly}
+        monthly_map = {r['ym']: float(r['rev']) for r in monthly}
         sub_monthly = conn.execute("""
             SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
             WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
             GROUP BY ym ORDER BY ym
         """).fetchall()
         for r in sub_monthly:
-            monthly_map[r['ym']] = monthly_map.get(r['ym'], 0) + r['rev']
+            monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
         shop_monthly = conn.execute("""
             SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
             GROUP BY ym ORDER BY ym
         """).fetchall()
         for r in shop_monthly:
-            monthly_map[r['ym']] = monthly_map.get(r['ym'], 0) + r['rev']
+            monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
 
         # ── 收入按类型分类 ──
         by_type = {}

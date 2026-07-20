@@ -6,6 +6,7 @@ Logistics Plugin — 物流配送查询插件（完全独立）
 - 独立数据库：logistics.db（查询日志）
 - 配置通过主库 system_config 只读
 """
+from i18n import _
 import os
 import sys
 

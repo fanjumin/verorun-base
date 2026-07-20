@@ -19,6 +19,7 @@ VeroRon 维洛智能 — 独立部署订阅管理 API
   - 前端网页：正常访问，不受影响
   - AI 功能：调用时返回 "subscription_expired" 错误
 """
+from i18n import _
 import os, sys, json, secrets, hashlib
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify

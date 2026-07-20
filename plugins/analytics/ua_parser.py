@@ -9,6 +9,7 @@ analytics/ua_parser.py — User-Agent 解析
   pip install ua-parser user-agents
 """
 
+from i18n import _
 import re
 
 # 尝试导入 ua-parser

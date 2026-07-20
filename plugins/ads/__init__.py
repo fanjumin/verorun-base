@@ -6,6 +6,7 @@ Ad Management Plugin — 广告管理插件
 提供 /admin/ads API 和管理界面。
 """
 
+from i18n import _
 import os
 import sys
 

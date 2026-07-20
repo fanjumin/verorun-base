@@ -4,6 +4,7 @@ Verification Plugin Models — 独立数据库 verification.db
 =======================================================
 - verification_requests: 实名认证请求记录（从主库迁移）
 """
+from i18n import _
 import psycopg2
 import os
 from plugins._base.db import PgConnection

@@ -4,6 +4,7 @@ SMS Plugin Routes — SMS 模板管理 + 发送 API
 ============================================
 完全独立，使用插件 sms.db + 主库 system_config 只读。
 """
+from i18n import _
 import sys
 import os
 

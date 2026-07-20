@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — PostgreSQL schema: content_factory"""
+from i18n import _
 import psycopg2
 import psycopg2.extras
 import os

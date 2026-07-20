@@ -494,6 +494,6 @@ def health():
     return jsonify({"status": "ok", "service": "platform", "version": "1.0.0"})
 
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8083
-    app.run(host=')0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)

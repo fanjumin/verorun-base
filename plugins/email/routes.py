@@ -5,6 +5,7 @@ Email Plugin Routes — 邮件管理 API 路由
 完全独立，使用插件 email.db + 主库 contact_messages 的 Python 级合并。
 """
 
+from i18n import _
 import sys
 import os
 import io

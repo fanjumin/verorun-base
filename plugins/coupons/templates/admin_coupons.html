@@ -205,7 +205,7 @@ function showPluginRedemptions(cid){
   fetch("/plugin/coupons/admin/redemptions/"+cid,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var rs=d.data;
-    var h='<div style="margin-bottom:6px;color:var(--dim)">{{ _('Total') }} '+rs.total+' {{ _('records') }}</div><table><tr><th>ID</th><th>{{ _('User') }}</th><th>{{ _('Order No.') }}</th><th>{{ _('{{ _('Discount') }} (points)') }}</th><th>{{ _('Time') }}</th></tr>';
+    var h='<div style="margin-bottom:6px;color:var(--dim)">{{ _('Total') }} '+rs.total+' {{ _('records') }}</div><table><tr><th>ID</th><th>{{ _('User') }}</th><th>{{ _('Order No.') }}</th><th>{{ _('Discount') }} ({{ _('points') }})</th><th>{{ _('Time') }}</th></tr>';
     if(!rs.redemptions||!rs.redemptions.length)h+='<tr><td colspan="5"><div class="em">{{ _('No usage records') }}</div></td></tr>';
     else rs.redemptions.forEach(function(r){
       h+='<tr><td>'+r.id+'</td><td>'+(r.nickname||r.phone||'#'+r.user_id)+'</td><td style="font-size:10px">'+esc(r.order_no)+'</td><td>'+(r.discount_fen/100).toFixed(2)+'</td><td style="font-size:10px;color:var(--dim)">'+(r.created_at||'').slice(0,16)+'</td></tr>';

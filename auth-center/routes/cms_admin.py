@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CMS Admin Routes — CRUD for blocks, posts, categories, settings"""
+from i18n import _
 import sys, os, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify

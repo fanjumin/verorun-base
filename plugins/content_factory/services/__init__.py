@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — 采集管理器主入口"""
+from i18n import _
 import importlib, json, logging
 from typing import Optional
 from plugins.content_factory.models import get_cf_db

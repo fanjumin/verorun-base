@@ -6,6 +6,7 @@ SMS Plugin Models — 独立数据库 sms.db
 - sms_templates: 短信模板（从主库迁移）
 - sms_logs: 短信发送日志
 """
+from i18n import _
 import psycopg2
 import os
 from plugins._base.db import PgConnection

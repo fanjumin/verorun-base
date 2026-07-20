@@ -6,6 +6,7 @@ Content Factory Plugin — 内容工厂插件
 提供多源采集、AI加工、审核发布、Skill推送、静态页面生成
 """
 
+from i18n import _
 import os
 import sys
 

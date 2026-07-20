@@ -6,6 +6,7 @@ Enterprise Verification Plugin — 企业认证插件
 提供 OCR 营业执照识别 + AI 自动审核 + 管理端审批
 """
 
+from i18n import _
 import os
 import sys
 

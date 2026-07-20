@@ -6,6 +6,7 @@ Identity Verification Plugin — 实名认证插件
 认证流程由 auth-center 路由处理，插件提供管理 UI。
 - 独立数据库：verification.db（认证请求记录）
 """
+from i18n import _
 import os
 import sys
 

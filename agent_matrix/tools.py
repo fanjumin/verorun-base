@@ -14,6 +14,7 @@ Agent Matrix — 工具注册中心 (Tool Registry)
   - get_tools_for_agent(allowed_tools) -> list[schema]
   - execute_tool(name, args) -> str
 """
+from i18n import _
 import json, os, sys, logging
 
 logger = logging.getLogger(__name__)

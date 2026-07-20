@@ -12,6 +12,7 @@ analytics/processor.py — 异步批处理聚合引擎
 聚合周期: 每 60 秒运行一次增量聚合
 """
 
+from i18n import _
 import time
 import os
 import sys

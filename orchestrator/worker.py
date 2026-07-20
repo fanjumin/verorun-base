@@ -8,6 +8,7 @@ Worker Pool — 任务执行工作池
 @package orchestrator
 """
 
+from i18n import _
 import os, sys, time, json, threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed

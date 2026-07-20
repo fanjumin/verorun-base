@@ -1,3 +1,4 @@
+from i18n import _
 import json
 import sys
 import os

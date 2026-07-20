@@ -539,8 +539,8 @@ function showDetail(itemId) {
     var ck = esc(item.check_key).replace(/'/g,"\\'");
     var ri = esc(String(item.run_id||'')).replace(/'/g,"\\'");
     h += '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">';
-    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')">{{ _('🤖 {{ _t('AI Analysis') }}') }}</button>';
-    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')">{{ _('🔧 {{ _t('One-click Repair') }}') }}</button>';
+    h += '<button class="btn btn-sm" onclick="aiAnalyze('+item.id+')">🤖 {{ _t('AI Analysis') }}</button>';
+    h += '<button class="btn btn-sm" onclick="aiFix('+item.id+',\''+ck+'\',\''+ri+'\')">🔧 {{ _t('One-click Repair') }}</button>';
     h += '</div>';
     h += '<div id="aiResult_'+item.id+'" style="margin-top:8px;font-size:13px;color:var(--dim)"></div>';
   }
@@ -556,7 +556,7 @@ function aiAnalyze(itemId) {
   if (!item) return;
   var el = document.getElementById('aiResult_'+itemId);
   if (!el) return;
-  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _t({{ _('AI Analysis in Progress...') | tojson }}) }}';
+  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _t('AI Analysis in Progress...') | tojson }}';
 
   fetch('/admin/health/api/ai-analyze', {
     method:'POST',
@@ -570,10 +570,10 @@ function aiAnalyze(itemId) {
       el.innerHTML = '<pre style="background:var(--bg);padding:8px;border-radius:4px;font-size:12px;max-height:200px;overflow:auto">'+esc(itemsJson)+'</pre>';
       // If there are fix items, show execute button
       if (plan.items && plan.items.length > 0) {
-        el.innerHTML += '<div style="margin-top:8px"><button class="btn btn-sm" onclick="aiFix(\''+item.id+'\',\''+item.check_key+'\',\''+(item.run_id||'')+'\{{ _(')">🔧 Apply Fixes</button></div>') | tojson }};
+        el.innerHTML += '<div style="margin-top:8px"><button class="btn btn-sm" onclick="aiFix(\''+item.id+'\',\''+item.check_key+'\',\''+(item.run_id||'')+'\')">🔧 {{ _t('Apply Fixes') }}</button></div>';
       }
     } else {
-      el.innerHTML = {{ _('<span style="color:var(--red)">Analysis Failed: ') | tojson }}+esc(d.error||'')+'</span>';
+      el.innerHTML = {{ _t('<span style="color:var(--red)">Analysis Failed: ') | tojson }} + esc(d.error||'') + '</span>';
     }
   }).catch(function(e){
     el.innerHTML = '<span style="color:var(--red)">请求失败</span>';
@@ -582,7 +582,7 @@ function aiAnalyze(itemId) {
 
 // ── AI Fix (called after aiAnalyze) ──
 function aiFix(itemId, checkKey, runId) {
-  showConfirmModal('{{ _t({{ _('Confirm AI repair? Can be rolled back in the repair log.') | tojson }}) }}', function(){
+  showConfirmModal({{ _t('Confirm AI repair? Can be rolled back in the repair log.') | tojson }}, function(){
   var items = _dataCache.status && _dataCache.status.latest_run ? _dataCache.status.latest_run.items : [];
   var item = items.find(function(i){return i.id==itemId});
   if (!item) return;
@@ -590,7 +590,7 @@ function aiFix(itemId, checkKey, runId) {
   runId = runId || item.run_id || null;
   var el = document.getElementById('aiResult_'+itemId);
   if (!el) return;
-  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _t({{ _('Fetching AI repair plan...') | tojson }}) }}';
+  el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _t('Fetching AI repair plan...') | tojson }}';
 
   // Step 1: analyze
   fetch('/admin/health/api/ai-analyze', {
@@ -600,16 +600,16 @@ function aiFix(itemId, checkKey, runId) {
   }).then(function(r){return r.json()})
   .then(function(ad){
     if (!ad.success || !ad.data) {
-      el.innerHTML = {{ _('<span style="color:var(--red)">Analysis Failed: ') | tojson }}+(ad.error||'')+'</span>';
+      el.innerHTML = {{ _t('<span style="color:var(--red)">Analysis Failed: ') | tojson }} + (ad.error||'') + '</span>';
       return;
     }
     var plan = ad.data.raw_plan || ad.data;
     var fixItems = plan.items || [];
     if (fixItems.length === 0) {
-      el.innerHTML = '<span style="color:var(--green)">{{ _('{{ _t('No Repair Needed') }}') }}</span>';
+      el.innerHTML = '<span style="color:var(--green)">{{ _t('No Repair Needed') }}</span>';
       return;
     }
-    el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _t({{ _('Executing') | tojson }}) }} ' + fixItems.length + ' {{ _t({{ _('Item repair...') | tojson }}) }}';
+    el.innerHTML = '<div class="s" style="width:12px;height:12px"></div>{{ _t('Executing') | tojson }} ' + fixItems.length + ' {{ _t('Item repair...') | tojson }}';
 
     // Step 2: execute fix
     return fetch('/admin/health/api/ai-fix', {
@@ -621,10 +621,10 @@ function aiFix(itemId, checkKey, runId) {
   .then(function(d){
     if (!d) return;
     if (d.success) {
-      el.innerHTML = '<span style="color:var(--green)">{{ _('{{ _t('Repair Completed') }}: '+(d.message||'')+'') }}</span>';
+      el.innerHTML = '<span style="color:var(--green)">{{ _t('Repair Completed') }}: ' + (d.message||'') + '</span>';
       setTimeout(loadStatus, 2000);
     } else {
-      el.innerHTML = '<span style="color:var(--red)">{{ _('{{ _t('Repair Failed') }}: '+esc(d.error||'')+'') }}</span>';
+      el.innerHTML = '<span style="color:var(--red)">{{ _t('Repair Failed') }}: ' + esc(d.error||'') + '</span>';
     }
   }).catch(function(e){
     el.innerHTML = '<span style="color:var(--red)">{{ _t('请求失败') }}</span>';
@@ -996,7 +996,7 @@ function saveConfig(id) {
 
 // ── Delete Check ──
 function deleteCheck(id, name) {
-  showConfirmModal('{{ _t({{ _('Confirm to delete the check item') | tojson }}) }}「'+name+'」？', function(){
+  showConfirmModal({{ _t('Confirm to delete the check item') | tojson }} + '「'+name+'」？', function(){
   fetch(API+'/checks/'+id, {
     method:'DELETE',
     headers:{'Authorization':'Bearer '+_token}
@@ -1123,7 +1123,7 @@ function showFixAudit() {
 }
 
 function rollbackFix(auditId) {
-  showConfirmModal('{{ _t({{ _('Confirm rolling back this repair?') | tojson }}) }}', function(){
+  showConfirmModal({{ _t('Confirm rolling back this repair?') | tojson }}, function(){
   fetch(API+'/fix/rollback/'+auditId, {
     method:'POST',
     headers:{'Authorization':'Bearer '+_token, 'Content-Type':'application/json'}

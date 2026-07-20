@@ -3,6 +3,7 @@
    管理员提交原始内容 → AI清洗 → knowledge_blocks入库 → 全站AI自动发现
    可被 Agent Matrix 直接调用（通过 process_clean_content 函数）
 """
+from i18n import _
 import sys, os, json, re
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from datetime import datetime, timedelta

@@ -13,6 +13,7 @@ LLM 说明（Phase 3）：
   概念上：AI = 创作工具（ai_capabilities），社媒号 = 发布渠道（platforms），二者分离。
 """
 
+from i18n import _
 import sys, os, json, logging
 
 _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')

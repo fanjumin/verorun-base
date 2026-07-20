@@ -5,6 +5,7 @@ CouponEngine — 核心引擎
 处理优惠券的匹配、验证、计算、叠加和领取。
 """
 
+from i18n import _
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any

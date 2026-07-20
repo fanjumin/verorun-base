@@ -69,8 +69,8 @@ function notifSend(){
     headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
     body:JSON.stringify(data)
   }).then(function(r){return r.json()}).then(function(d){
-    if(d.success)resultEl.textContent={{ _('{{ _('Sent ') }}') | tojson }}+d.sent+"/"+d.total+" 条";
-    else resultEl.textContent={{ _('{{ _('Failed to Send: ') }}') | tojson }}+(d.error||"{{ _('Unknown Error') }}");
+    if(d.success)resultEl.textContent={{ _('Sent ') | tojson }}+d.sent+"/"+d.total+" 条";
+    else resultEl.textContent={{ _('Failed to Send: ') | tojson }}+(d.error||"{{ _('Unknown Error') }}");
   }).catch(function(){resultEl.textContent="{{ _('Request Failed') }}"});
 }
 
@@ -124,7 +124,7 @@ function notifToggleTemplate(tid,newState){
 }
 
 function notifNewTemplate(){
-  var eventType=prompt({{ _('{{ _('Event Type') }} (e.g. user.realname_verified):') | tojson }});
+  var eventType=prompt({{ _('Event Type') | tojson }} + ' (e.g. user.realname_verified):');
   if(!eventType)return;
   var titleTmpl=prompt("{{ _('Title Template') }}（{{ _('Support') }} {variable} {{ _('Variables') }}）:");
   if(!titleTmpl)return;

@@ -10,6 +10,7 @@ analytics/tracker.py — 自定义事件追踪 + 告警管理
   track_event('launch_agent', visitor_hash='xxx', category='agent', label='hermes')
 """
 
+from i18n import _
 import os
 import sys
 import json

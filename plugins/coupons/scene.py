@@ -6,6 +6,7 @@
 """
 
 
+from i18n import _
 class SceneName:
     """系统内置场景常量。"""
 

@@ -11,6 +11,7 @@ Cron 任务调度系统 + Workflow 工作流引擎的 SQLite 数据模型。
 @package orchestrator
 """
 
+from i18n import _
 import json, time
 from datetime import datetime
 from contextlib import contextmanager
@@ -369,7 +370,7 @@ def init_orchestrator_tables():
 
             -- 预置默认系统 Agent（仅当没有数据时插入）
             INSERT INTO system_agents (name, description, provider, model, api_key_ref, system_prompt, capabilities)
-            VALUES ('default-system-agent', _('The platform defaults to automatically scheduling Agents to perform automated tasks such as content factory and market monitoring'),
+            VALUES ('default-system-agent', 'The platform defaults to automatically scheduling Agents to perform automated tasks such as content factory and market monitoring',
                     'dashscope', 'qwen-turbo', 'dashscope_text_key',
                     '你是平台的自动化调度助手。你的职责是执行定时任务、处理工作流、生成内容、监控市场数据。请严格按照任务要求输出结果。',
                     '["content_factory","market_monitor","data_analysis","report_generation"]')

@@ -10,6 +10,7 @@ Site Domains Plugin — 子域名管理 + Nginx 配置生成
   - 中间件 site_domain_middleware.py 完全不改，建表/种子留 database.py 不动。
 """
 
+from i18n import _
 import os
 import sys
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — Skill Pusher: 将加工内容导出为 Hermes/OpenClaw SKILL.md"""
+from i18n import _
 import json, re, logging
 from datetime import datetime
 from typing import Optional

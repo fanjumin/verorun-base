@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Douyin Mini-Program Routes — Public endpoints for Douyin mini-program integration"""
+from i18n import _
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, request, jsonify

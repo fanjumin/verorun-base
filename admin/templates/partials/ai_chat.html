@@ -11,7 +11,7 @@ window.l_ai_chat=function(){
   // Stats summary
   h+='<div class="cd" style="margin-bottom:12px;border-color:rgba(0,212,170,.3)">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center">';
-  h+={{ _('<div class="st" style="border:none;margin:0;padding:0">🤖 Main Agent: Athena <span class="bdg on">{{ _(') | tojson }}Running') }}</span></div>';
+  h+='<div class="st" style="border:none;margin:0;padding:0">🤖 Main Agent: Athena <span class="bdg on">' + {{ _('Running') | tojson }} + '</span></div>';
   h+='<button class="btn bo bs" onclick="l_ai_chat()">🔄 {{ _('Refresh') }}</button>';
   h+='</div></div>';
 
@@ -494,7 +494,7 @@ function aiUpload(input){
   }).then(function(r){return r.json()}).then(function(d){
     var el=document.getElementById(uploadMsgId);
     if(!el)return;
-    if(!d.success){el.innerHTML='{{ _({{ _('❌ Upload Failed:') | tojson }}) }}'+esc(d.error||"{{ _('Unknown Error') }}");return}
+    if(!d.success){el.innerHTML={{ _('❌ Upload Failed:') | tojson }}+esc(d.error||"{{ _('Unknown Error') }}");return}
     var u=d.data;
     aiUploadedFiles.push(u);
     var uUrl=u&&u.url;
@@ -521,7 +521,7 @@ function aiSend(){
 
   var body={message:msg,mode:aiMode};
   if(aiUploadedFiles.length){
-    var fileCtx="\n\n{{ _({{ _('[Uploaded File]') | tojson }}) }}:\n";
+    var fileCtx="\n\n" + {{ _('[Uploaded File]') | tojson }} + ":\n";
     aiUploadedFiles.forEach(function(f,i){
       fileCtx+=(i+1)+". "+f.original_name+" → "+f.url+"\n";
     });
@@ -717,7 +717,7 @@ function matUpload(input){
     var el=document.getElementById(uploadMsgId);
     if(!el)return;
     if(!d.success){
-      el.innerHTML='{{ _({{ _('❌ Upload Failed:') | tojson }}) }}'+esc(d.error||"{{ _('Unknown Error') }}");
+      el.innerHTML={{ _('❌ Upload Failed:') | tojson }}+esc(d.error||"{{ _('Unknown Error') }}");
       return;
     }
     var u=d.data;
@@ -749,7 +749,7 @@ function matSend(){
   var body={message:msg,mode:matMode};
   // {{ _('If There Are Uploaded Files') }}，{{ _('Append to Message') }}
   if(matUploadedFiles.length){
-    var fileCtx="\n\n{{ _({{ _('[Uploaded File]') | tojson }}) }}:\n";
+    var fileCtx="\n\n" + {{ _('[Uploaded File]') | tojson }} + ":\n";
     matUploadedFiles.forEach(function(f,i){
       fileCtx+=(i+1)+". "+f.original_name+" → "+f.url+"\n";
     });
@@ -1081,7 +1081,7 @@ function matPromptHelp(){
   var h='<div class="cd" style="margin-bottom:12px">';
   h+='<div class="st">📖 {{ _('Prompt Management Description') }}</div>';
   h+='<div style="font-size:12px;line-height:1.8;color:var(--muted)">';
-  h+='<p><b>{{ _('Prompt') }}（System Prompt）</b>{{ _('Is {{ _('Agent') }} {{ _('Core Instructions') }}, {{ _('Decided') }} Agent {{ _('Action') }}, {{ _('Roles & Abilities') }}.') }}</p>';
+  h+='<p><b>{{ _('Prompt') }}（System Prompt）</b> {{ _('Is') }} {{ _('Agent') }} {{ _('Core Instructions') }}, {{ _('Decided') }} Agent {{ _('Action') }}, {{ _('Roles & Abilities') }}.</p>';
   h+='<br><b>{{ _('Built-in Templates') }}（8 {{ _('Presets') }}）：</b>';
   h+='<br>{{ _('Located on Server') }} <code>agent_matrix/prompts/</code> {{ _('Directory') }}，{{ _('Includes Full Role Definition') }}、{{ _('Managed Modules') }}、API {{ _('Reference') }}、{{ _('Quality Standard') }}。';
   h+='<br>{{ _('Create') }} Sub Agent {{ _('Pass When') }}「System Prompt {{ _('Templates') }}」{{ _('Dropdown Select') }}，{{ _('Auto-fill to Text Field') }}。';
@@ -1375,7 +1375,7 @@ function matEditKnowledge(){
       var content=d.data||"";
       var h='<div style="margin-bottom:10px"><button class="btn bo bs" onclick="matAIServices()">← {{ _('Back') }} AI {{ _('Services') }}</button></div>';
       h+='<div class="cd">';
-      h+='<div class="st">💬 {{ _('Chat Window Management') }} <span style="font-size:10px;color:var(--dim);font-weight:400">{{ _('| Managed by Agent Matrix Ticket Agent {{ _('Management') }}') }}</span></div>';
+      h+='<div class="st">💬 {{ _('Chat Window Management') }} <span style="font-size:10px;color:var(--dim);font-weight:400"> | {{ _('Managed by Agent Matrix Ticket Agent') }} {{ _('Management') }}</span></div>';
       h+='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
       h+='<div class="cd" style="flex:1;min-width:120px;padding:10px"><div class="l" style="font-size:10px">{{ _('Status') }}</div><div class="v g">{{ _('Connected to Matrix') }}</div></div>';
       h+='<div class="cd" style="flex:1;min-width:120px;padding:10px"><div class="l" style="font-size:10px">{{ _('Management') }} Agent</div><div class="v" style="font-size:14px">Ticket Agent</div></div>';

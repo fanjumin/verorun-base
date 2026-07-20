@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — AI 内容加工 (Qwen 提取+分析+改写)"""
+from i18n import _
 import json, logging
 from typing import Optional
 from plugins.content_factory.models import get_cf_db

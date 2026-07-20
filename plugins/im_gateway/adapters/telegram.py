@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """IM Gateway — Telegram 适配器"""
+from i18n import _
 import os
 import json as _json
 import urllib.request as _ur

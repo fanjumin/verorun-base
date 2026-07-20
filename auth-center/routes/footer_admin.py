@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Footer Management Routes — 页脚管理后台接口"""
+from i18n import _
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Blueprint, request, jsonify

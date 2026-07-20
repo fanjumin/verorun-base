@@ -20,6 +20,7 @@ API 端点概览:
 @package orchestrator
 """
 
+from i18n import _
 import os, sys, json
 from flask import Blueprint, request, jsonify, g
 

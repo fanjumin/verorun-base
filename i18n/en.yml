@@ -2623,14 +2623,10 @@ avg_response_time (Average response ms): avg_response_time (Average response ms)
 '✕ Taken': '✕ Taken'
 '⬇ Direct Download': '⬇ Direct Download'
 '⬇ Download': '⬇ Download'
-'。
-      {% if item.checksum_sha256 %}
-      下载后建议使用': '。
-      {% if item.checksum_sha256 %}
-      下载后建议使用'
-'校验文件完整性。
-      {% endif %}': '校验文件完整性。
-      {% endif %}'
+? "。\n      {% if item.checksum_sha256 %}\n      下载后建议使用"
+: "。\n      {% if item.checksum_sha256 %}\n      下载后建议使用"
+? "校验文件完整性。\n      {% endif %}"
+: "校验文件完整性。\n      {% endif %}"
 '🎁 ¥120 Credits (auto top-up, or buy manually)': '🎁 ¥120 Credits (auto top-up, or buy manually)'
 '🎁 ¥50 Credits (auto top-up, or buy manually)': '🎁 ¥50 Credits (auto top-up, or buy manually)'
 '🎁 ¥80 Credits (auto top-up, or buy manually)': '🎁 ¥80 Credits (auto top-up, or buy manually)'

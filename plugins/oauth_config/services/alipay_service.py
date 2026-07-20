@@ -6,6 +6,7 @@
 1. DB 表 oauth_providers → 按 site_domain + provider='alipay' 查询
 2. 环境变量 ALIPAY_APP_ID / ALIPAY_PRIVATE_KEY（全局兜底）
 """
+from i18n import _
 import os, json, urllib.request, urllib.parse, time, base64, traceback
 
 ALIPAY_APP_ID = os.environ.get('ALIPAY_APP_ID', '')

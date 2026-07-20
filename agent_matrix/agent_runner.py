@@ -3,6 +3,7 @@
 
 加载 Agent 配置 → 注入 System Prompt → 执行 LLM 调用 → 自检。
 """
+from i18n import _
 import json, os, sys, logging
 logger = logging.getLogger(__name__)
 

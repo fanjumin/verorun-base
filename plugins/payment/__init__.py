@@ -7,6 +7,7 @@ Payment Gateway Plugin — 支付配置插件（完全独立）
 - 支持：支付宝、微信支付、Stripe、PayPal
 - 市场自动检测：CN 显示支付宝/微信，INTL 显示 Stripe/PayPal
 """
+from i18n import _
 import os
 import sys
 

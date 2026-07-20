@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — 23 API 路由"""
+from i18n import _
 import sys, os, json, logging
 
 _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')

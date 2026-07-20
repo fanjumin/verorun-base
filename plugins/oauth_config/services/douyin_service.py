@@ -5,6 +5,7 @@
 1. DB 表 oauth_providers → 按 site_domain + provider 查询
 2. 环境变量 DOUYIN_CLIENT_KEY / DOUYIN_CLIENT_SECRET（全局兜底）
 """
+from i18n import _
 import os, json, urllib.request, urllib.parse
 
 

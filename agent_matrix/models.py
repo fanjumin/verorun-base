@@ -5,6 +5,7 @@ Agent Matrix — 数据库模型
 4 张新表 + CRUD 操作 + 种子数据（基于 YAML 角色定义）。
 复用 auth-center/models/database.py 的 get_db() 模式。
 """
+from i18n import _
 import json, os, sys, re
 from datetime import datetime
 

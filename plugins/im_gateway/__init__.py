@@ -8,6 +8,7 @@ IM Gateway Plugin — 即时通讯网关插件
 连接测试与消息/媒体推送，通过 adapter 基类抽象，便于扩展 Telegram / LINE。
 """
 
+from i18n import _
 import os
 import sys
 

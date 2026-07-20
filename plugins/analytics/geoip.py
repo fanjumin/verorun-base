@@ -19,6 +19,7 @@ analytics/geoip.py — IP 地理解析（ip2region / MaxMind GeoLite2 / ip-api �
   2. GeoLite2: wget https://git.io/GeoLite2-City.mmdb -O /path/to/GeoLite2-City.mmdb
 """
 
+from i18n import _
 import os
 import sys
 import time

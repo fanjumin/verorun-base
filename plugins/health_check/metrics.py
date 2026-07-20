@@ -21,6 +21,7 @@ Metrics exposed:
   easykai_db_table_count        — Number of tables in database
 """
 
+from i18n import _
 import os, sys, time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

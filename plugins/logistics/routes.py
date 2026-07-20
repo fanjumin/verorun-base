@@ -4,6 +4,7 @@ Logistics Plugin Routes — 物流查询管理 API
 ===========================================
 完全独立，使用插件 logistics.db + 主库 system_config 只读。
 """
+from i18n import _
 import sys
 import os
 

@@ -31,7 +31,7 @@ function cfRenderSources(){
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Name') }}</div><input class="in" id="cfSn" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Type') }}</div><select class="sl" id="cfSt" style="width:100%"><option value="rss">RSS</option><option value="api">API</option><option value="web">{{ _('Web Page') }}</option></select></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">URL</div><input class="in" id="cfSu" style="width:100%"></div>';
-  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('{{ _('Collection Interval') }}(seconds, 0={{ _('Manual') }})') }}</div><input class="in" id="cfSi" value="0" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Collection Interval') }}({{ _('seconds') }}, 0={{ _('Manual') }})</div><input class="in" id="cfSi" value="0" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Max Per Round') }}</div><input class="in" id="cfSm" value="10" style="width:100%"></div>';
   h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Keywords Filter') }}</div><input class="in" id="cfSk" style="width:100%"></div>';
   h+='<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Platform ID') }}({{ _('Optional') }})</div><input class="in" id="cfSp" placeholder="rss/xueqiu/sec" style="width:100%"></div>';

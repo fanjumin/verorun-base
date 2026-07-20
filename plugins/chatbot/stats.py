@@ -1,4 +1,5 @@
 """AI Advisor 对话统计与报表"""
+from i18n import _
 import json
 import logging
 from datetime import datetime

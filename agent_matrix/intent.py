@@ -1,4 +1,5 @@
 """意图分类器 — 独立于 chatbot 插件，供 platform 和 plugin 共用"""
+from i18n import _
 import json
 import logging
 

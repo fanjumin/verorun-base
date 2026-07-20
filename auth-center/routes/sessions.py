@@ -8,6 +8,7 @@
    - user_sessions table: tracks each login session (device, IP, token hash)
    - Allows users to see and manage their active sessions
 """
+from i18n import _
 import sys, os, hashlib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, request, jsonify

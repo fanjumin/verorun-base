@@ -8,6 +8,7 @@
 4. 支持分页拉取
 """
 
+from i18n import _
 import logging
 from typing import Dict, Any, Optional, Tuple
 

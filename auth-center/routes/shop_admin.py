@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Shop Admin — 商城管理 (商品CRUD + 多图上传 + SKU/规格 + 分类 + 订单 + 优惠券)"""
+from i18n import _
 import sys, os, json, time, secrets
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, jsonify, request

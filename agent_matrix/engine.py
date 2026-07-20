@@ -5,6 +5,7 @@ Agent Matrix — AI 引擎
 支持 DashScope Qwen / OpenAI / DeepSeek / OpenRouter。
 复用 system_config 中的 API Key，无需额外配置。
 """
+from i18n import _
 import json, logging, sys, os, threading
 from collections import deque
 import time as _time

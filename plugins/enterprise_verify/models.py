@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Enterprise Verification Plugin — 数据库模型"""
+from i18n import _
 import psycopg2, os
 from plugins._base.db import PgConnection
 

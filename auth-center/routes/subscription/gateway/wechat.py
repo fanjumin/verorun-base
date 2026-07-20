@@ -8,6 +8,7 @@
 2. 环境变量（WECHAT_APPID / WECHAT_MCHID / WECHAT_API_V3_KEY / ...）
 3. deploy.url() 动态生成（基于 DEPLOY_DOMAIN）
 """
+from i18n import _
 import os, sys, json, time, secrets, base64
 from datetime import datetime
 

@@ -16,6 +16,7 @@ analytics/models.py — Analytics 数据库 Schema + 完整 CRUD
   11. analytics_privacy_config — 隐私配置
 """
 
+from i18n import _
 import os
 import psycopg2
 import psycopg2.extras

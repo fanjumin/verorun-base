@@ -3,6 +3,7 @@
 
 迁移自 auth-center/routes/admin.py。修复 channel_name → channel 列名 bug。
 """
+from i18n import _
 import os
 import json as _json
 import base64

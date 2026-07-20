@@ -4,6 +4,7 @@ Agent Matrix — 任务协调核心 (Orchestrator)
 ========================================
 负责任务分解 → Agent 选择 → 任务下发 → 结果收集 → 报告生成。
 """
+from i18n import _
 import json, os, sys, logging, time
 from datetime import datetime
 

@@ -5,6 +5,7 @@
 路由前缀 /admin/channels，复用主系统管理员鉴权与操作日志。
 频道配置读写插件独立库 im_gateway.db，第三方逻辑走 adapters。
 """
+from i18n import _
 import sys
 import os
 import json

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """主题管理 API — 安装 / 列表 / 启用 / 删除"""
+from i18n import _
 import os, sys, json, zipfile, shutil, re
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app

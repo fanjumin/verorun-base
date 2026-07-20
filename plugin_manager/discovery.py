@@ -12,6 +12,7 @@ Plugin Manager — PluginDiscovery 扫描器
   4. 忽略 _ 和 . 开头的目录
 """
 
+from i18n import _
 import os
 import json
 import re

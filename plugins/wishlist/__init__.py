@@ -1,4 +1,5 @@
 """收藏/心愿单插件"""
+from i18n import _
 import json
 import logging
 from typing import List

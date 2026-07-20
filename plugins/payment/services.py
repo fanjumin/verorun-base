@@ -4,6 +4,7 @@ Payment Plugin Services — 支付核心逻辑
 =======================================
 委托给旧 auth-center/services/payment_service.py。
 """
+from i18n import _
 import os
 import sys
 

@@ -53,7 +53,7 @@ function forceCancel(sid){
     if(d.success){showToast("{{ _('✅ Force cancelled') }}","success");loadSubs()}
     else showToast(d.error||"{{ _('Operation Failed') }}","error");
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
-}};
+}
 
 // ============================
 // Phase 3: 模块状态面板

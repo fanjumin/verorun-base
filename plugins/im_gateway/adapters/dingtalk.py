@@ -3,6 +3,7 @@
 
 迁移自 auth-center/routes/admin.py。使用 appkey/appsecret 获取 access_token 测试连接。
 """
+from i18n import _
 from .base import BaseIMAdapter
 
 

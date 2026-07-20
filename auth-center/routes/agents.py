@@ -8,6 +8,7 @@
    - agent_api_keys table: per-agent API keys with scope control
    - agent_logs table: agent action audit trail
 """
+from i18n import _
 import sys, os, secrets, hashlib, json as _json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from flask import Blueprint, request, jsonify

@@ -1,3 +1,4 @@
+from i18n import _
 import json
 import os
 from typing import Any

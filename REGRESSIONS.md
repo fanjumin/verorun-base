@@ -168,6 +168,45 @@ GET /admin/analytics/api/v1/geo/china-cities?days=30
 
 ---
 
+## 8. Admin 页面 "Verifying Identity..." 永久卡死
+
+### 症状
+访问 `https://agent.easykai.cn/admin` 后页面永久显示 "Verifying Identity..."（加载动画），无法进入后台。整个 admin 页面的所有模块（Dashboard、用户管理、CMS 等）全部不可用。
+
+### 根因
+**`f5d03e3`**（"merge remote i18n changes into memory system"）合并时，`admin/templates/partials/subscriptions.html` 第 56 行混入了一个多余的 `};`：
+
+```javascript
+// 第 55 行：forceCancel 函数正常结束
+}).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+};   // ← 多余的垃圾！merge 残留
+```
+
+admin 页面由 60+ 个 partial 模板拼接成一个约 12000 行的 `<script>` 标签串行执行。一个多余的 `};` 导致整个脚本解析失败（`SyntaxError: Unexpected token '}'`），所有后续代码不执行。`tail.html` 中的 `init()` 调用永远不会到达，页面永久停留在 head.html 中的初始 "Verifying Identity..." HTML。
+
+### 修复
+```diff
+ }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+-}
+-};
++}
+```
+
+仅影响 1 个文件、1 行代码。
+
+### 预防
+新增 `tools/check_templates.py` 预检脚本，每次提交前自动扫描：
+- ① 嵌套/断裂 `_()` 模式正则扫描
+- ② Jinja2 `env.parse()` 编译检测
+
+用法：`python tools/check_templates.py`，返回 0=通过，1=阻止。
+
+### 状态
+✅ 已修复。本地 `preview_admin.html` 渲染验证通过，`new Function()` 解析无错误。
+
+---
+
 ## 总结
 
 | # | 问题 | 优先级 | 时间 | 状态 |
@@ -179,9 +218,11 @@ GET /admin/analytics/api/v1/geo/china-cities?days=30
 | 5 | Toast 延时 600ms | P1 | 07-14 | ✅ |
 | 6 | 模板编译 1.16s | P1 | 07-14 | ✅ |
 | 7 | Analytics 中国城市 | P0 | 07-14 | ✅ |
+| 8 | Verifying Identity 卡死 | P0 | 07-19 | ✅ |
 
 ### 关键教训
 
 1. **Gunicorn `--preload` 应始终开启** — 特别是应用有大量导入/初始化时，这是最容易被忽略的性能陷阱
 2. **文件部署后务必重启服务** — 这次 xdb 文件上传了但服务没重启，绕了一大圈才定位到
 3. **在服务器复现问题比代码审查更高效** — #2 的问题静态代码根本看不出来，只有看 `ps` 才能在 5 秒内定位
+4. **Merge 后必须逐文件检查** — `f5d03e3` 合并了 2000+ 文件，一个字节的残留字符就能让整个系统瘫痪。`check_templates.py` 应作为 pre-commit hook 集成，防止此类问题再次发生

@@ -7,6 +7,7 @@
 3. 解析搜索结果
 """
 
+from i18n import _
 import base64
 import logging
 import os

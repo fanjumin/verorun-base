@@ -4,6 +4,7 @@ Logistics Plugin Services — 物流查询核心逻辑
 ==============================================
 封装快递鸟 Kdniao API 客户端，从插件配置读取。
 """
+from i18n import _
 import hashlib
 import json
 import base64

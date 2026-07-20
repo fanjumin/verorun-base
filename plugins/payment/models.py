@@ -5,6 +5,7 @@ Payment Plugin — 独立数据库模型
 - payment_logs: 支付交易日志（已有）
 - payment_configs: 支付提供商凭证（新增，替代主库 system_config）
 """
+from i18n import _
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os

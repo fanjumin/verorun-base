@@ -11,6 +11,7 @@
   4. 签名方式：access_token + 排序参数 + access_token
 """
 
+from i18n import _
 import json, time, hmac, hashlib, base64, urllib.request, urllib.parse, os, sys
 
 API_GATEWAY = "https://gw.open.1688.com/openapi"

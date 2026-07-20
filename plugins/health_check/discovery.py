@@ -15,6 +15,7 @@ All user-facing strings use English as source for i18n _().
 @package health_check
 """
 
+from i18n import _
 import os
 import sys
 import json

@@ -3,6 +3,7 @@
 
 QQ 开放平台无统一短测 token 接口，仅做参数校验。
 """
+from i18n import _
 from .base import BaseIMAdapter
 
 

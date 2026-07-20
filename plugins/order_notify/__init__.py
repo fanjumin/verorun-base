@@ -1,4 +1,5 @@
 """订单通知插件 — 基于事件系统的自动通知"""
+from i18n import _
 import logging
 
 from plugin_manager.base import BasePlugin

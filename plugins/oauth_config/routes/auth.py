@@ -4,6 +4,7 @@
 搬迁自 auth-center/routes/auth.py。
 提供了一组独立的 Blueprint，由 AuthServer 注册。
 """
+from i18n import _
 import sys, os, urllib.parse, hashlib, hmac, time
 
 _plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -5,6 +5,7 @@ Coupon Plugin — Routes
 管理 API + 前台 API。
 """
 
+from i18n import _
 import json
 import secrets
 from datetime import datetime

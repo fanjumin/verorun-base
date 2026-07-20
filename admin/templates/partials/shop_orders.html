@@ -71,7 +71,7 @@ var _shipOid=0;
 function showShipForm(oid,prodTitle){
   _shipOid=oid;
   document.getElementById("shipModalTitle").textContent="{{ _('Ship - Order #') }}"+oid;
-  document.getElementById("shipModalProduct").textContent={{ _('{{ _('Product: ') }}') | tojson }}+prodTitle;
+  document.getElementById("shipModalProduct").textContent={{ _('Product: ') | tojson }}+prodTitle;
   document.getElementById("shipNumber").value="";
   document.getElementById("shipModal").style.display="block";
 }

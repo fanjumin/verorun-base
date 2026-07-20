@@ -5,6 +5,7 @@ Email Plugin Models — PostgreSQL schema: email
 完全独立于主库，使用独立 PG schema。
 """
 
+from i18n import _
 import psycopg2
 import psycopg2.extras
 import os
