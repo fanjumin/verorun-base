@@ -3,7 +3,7 @@
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """Admin Panel — 管理后台 (独立端口 8084)"""
-"""VeroRon v0.32.1 — Multi-agent AI Content & Commerce Hub"""
+"""VeroRon v0.32.2 — Multi-agent AI Content & Commerce Hub"""
 
 import sys, os, secrets
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
@@ -166,7 +166,7 @@ init_cms_tables()
 
 # ===== PluginManager（新插件系统）=====
 try:
-    app.version = '0.32.0'
+    app.version = '0.32.2'
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
     pm = PluginManager(app)
     app.register_blueprint(plugin_bp)
