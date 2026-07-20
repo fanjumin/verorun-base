@@ -13,7 +13,8 @@ if _auth_dir not in sys.path:
 from flask import Blueprint, request, jsonify, render_template
 
 currency_bp = Blueprint('currency', __name__, url_prefix='/admin/currency',
-                        template_folder='templates')
+                        template_folder='templates',
+                        static_folder='static')
 
 
 def _require_admin():

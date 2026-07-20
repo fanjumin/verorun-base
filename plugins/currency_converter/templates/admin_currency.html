@@ -166,7 +166,7 @@ pre { background: var(--bg-glass); padding: 12px; border-radius: 6px; overflow-x
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='plugins/currency_converter/static/currency_widget.js') }}"></script>
+<script src="{{ url_for('currency.static', filename='currency_widget.js') }}"></script>
 <script>
 function ccSyncRates() {
   var btn = document.getElementById('cc-sync-btn');

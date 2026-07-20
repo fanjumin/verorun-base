@@ -284,7 +284,7 @@
 <div class="nm">{{ plan.name }}</div>
 <div class="ds">{{ plan.description }}</div>
 <div class="pr">¥{{ '{:,}'.format(plan.price_year) }}</div>
-<div class="pd">{{ _('{{ _('/ Year') }}{% if plan.price_month > 0 %}') }}<span class="pdd">{{ _('(¥{{ '{:,}'.format(plan.price_month) }}/month)') }}</span>{% endif %}</div>
+<div class="pd">{{ _('/ Year') }}{% if plan.price_month > 0 %}<span class="pdd">(¥{{ '{:,}'.format(plan.price_month) }}/{{ _('month') }})</span>{% endif %}</div>
 <ul class="fl">
           {% for f in plan.features %}
           <li><span class="ck">✓</span> {{ f }}</li>
