@@ -57,39 +57,151 @@ class AudioInputProcessor:
 
 
 class AudioOutputProcessor:
-    """语音输出处理器（TTS）—— 预留接口，暂不实现"""
+    """Speech synthesis processor — delegates to provider-specific TTS clients.
+
+    Currently supports Azure Cognitive Services TTS.
+    API keys are resolved from provider_api_keys table at runtime.
+    """
 
     PROVIDERS = {
-        'aliyun_tts': _('Aliyun Speech Synthesis (1 million characters free per month)'),
+        'azure_tts': 'Microsoft Azure Neural TTS',
     }
 
-    PROVIDER_CONFIGS = {
-        'aliyun_tts': {
-            'base_url': 'https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/tts',
-            'app_key_ref': 'aliyun_tts_app_key',
-            'token_ref': 'aliyun_tts_token',
-        },
+    # Default voices per locale (fallback when not specified by caller)
+    DEFAULT_VOICES = {
+        'zh-CN': 'zh-CN-XiaoxiaoNeural',
+        'en-US': 'en-US-AriaNeural',
+        'en-GB': 'en-GB-SoniaNeural',
+        'fr-FR': 'fr-FR-DeniseNeural',
+        'ja-JP': 'ja-JP-NanamiNeural',
+        'ko-KR': 'ko-KR-SunHiNeural',
+        'de-DE': 'de-DE-KatjaNeural',
+        'es-ES': 'es-ES-ElviraNeural',
+        'pt-BR': 'pt-BR-FranciscaNeural',
     }
 
-    def __init__(self, provider: str = 'aliyun_tts', voice: str = 'zhitian_emo'):
-        """
-        :param provider: TTS 提供商
-        :param voice: 发音人，默认 zhitian_emo（知甜）
+    def __init__(self, provider: str = 'azure_tts',
+                 voice: str = 'zh-CN-XiaoxiaoNeural'):
+        """Initialize TTS processor.
+
+        Args:
+            provider: TTS provider slug (currently only 'azure_tts').
+            voice: Neural voice name, e.g. 'zh-CN-XiaoxiaoNeural'.
         """
         self.provider = provider
         self.voice = voice
-        self._initialized = False
-        logger.info(f'[AudioOutput] 接口已创建（提供商: {provider}, 发音人: {voice}），待实现')
+        self._client = None
+        logger.info(
+            '[AudioOutput] Initialized (provider=%s, voice=%s)',
+            provider, voice
+        )
 
-    def synthesize(self, text: str, output_path: str = '') -> str:
-        """将文本合成为音频文件，返回文件路径"""
-        logger.warning('[AudioOutput] synthesize() 未实现——需要安装阿里云 TTS SDK')
+    def synthesize(self, text: str, output_path: str = '') -> bytes:
+        """Synthesize speech and return raw audio bytes.
+
+        Args:
+            text: Text to convert to speech.
+            output_path: Optional file path to save audio.
+
+        Returns:
+            bytes: Audio data on success, empty bytes on failure.
+        """
+        client = self._get_client()
+        if not client:
+            logger.error('[AudioOutput] No TTS client available')
+            return b''
+        result = client.synthesize(
+            text, voice_name=self.voice, output_path=output_path
+        )
+        if result.get('success'):
+            return result.get('audio_bytes', b'')
+        logger.warning(
+            '[AudioOutput] Synthesis failed: %s', result.get('error', 'unknown')
+        )
+        return b''
+
+    def _get_client(self):
+        """Lazy-init and return the Azure TTS client instance.
+
+        Returns:
+            AzureTTSClient or None if key is not configured.
+        """
+        if self._client is not None:
+            return self._client
+        if self.provider != 'azure_tts':
+            logger.error(
+                '[AudioOutput] Unknown provider: %s', self.provider
+            )
+            return None
+        try:
+            sys.path.insert(
+                0, os.path.join(os.path.dirname(__file__), '..', 'auth-center')
+            )
+            from services.azure_tts_client import AzureTTSClient
+        except ImportError as e:
+            logger.error('[AudioOutput] Failed to import AzureTTSClient: %s', e)
+            return None
+        key = self._resolve_key('azure')
+        if not key:
+            logger.error(
+                '[AudioOutput] Azure subscription key not configured '
+                '(add to provider_api_keys with provider="azure")'
+            )
+            return None
+        region = self._resolve_region()
+        self._client = AzureTTSClient(subscription_key=key, region=region)
+        return self._client
+
+    def _resolve_key(self, provider_slug: str) -> str:
+        """Read API key from provider_api_keys table.
+
+        Args:
+            provider_slug: Provider identifier (e.g. 'azure').
+
+        Returns:
+            Decrypted key string or empty string if not found.
+        """
+        try:
+            sys.path.insert(
+                0, os.path.join(os.path.dirname(__file__), '..', 'auth-center')
+            )
+            from models import get_db
+            with get_db() as conn:
+                row = conn.execute(
+                    "SELECT key_value_enc FROM provider_api_keys "
+                    "WHERE provider=%s AND is_active=1 LIMIT 1",
+                    (provider_slug,)
+                ).fetchone()
+                if row and row['key_value_enc']:
+                    return row['key_value_enc']
+        except Exception as e:
+            logger.error(
+                'Failed to resolve key for provider=%s: %s',
+                provider_slug, e
+            )
         return ''
 
-    def synthesize_stream(self, text: str):
-        """流式合成语音，返回音频生成器"""
-        logger.warning('[AudioOutput] synthesize_stream() 未实现')
-        return iter([])
+    def _resolve_region(self) -> str:
+        """Read Azure region from system_config, default to 'eastasia'.
+
+        Returns:
+            Azure region string.
+        """
+        try:
+            sys.path.insert(
+                0, os.path.join(os.path.dirname(__file__), '..', 'auth-center')
+            )
+            from models import get_db
+            with get_db() as conn:
+                row = conn.execute(
+                    "SELECT value FROM system_config "
+                    "WHERE key='azure_tts_region'"
+                ).fetchone()
+                if row and row['value']:
+                    return row['value']
+        except Exception:
+            pass
+        return 'eastasia'
 
 
 def get_default_asr() -> AudioInputProcessor:
@@ -98,5 +210,5 @@ def get_default_asr() -> AudioInputProcessor:
 
 
 def get_default_tts() -> AudioOutputProcessor:
-    """获取默认 TTS 处理器"""
-    return AudioOutputProcessor(provider='aliyun_tts')
+    """Get default TTS processor (Azure Neural TTS)."""
+    return AudioOutputProcessor(provider='azure_tts')

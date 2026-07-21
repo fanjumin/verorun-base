@@ -1321,6 +1321,7 @@ def init_db():
             ('siliconflow','SiliconFlow', 'SiliconFlow model platform (DeepSeek-OCR etc.)'),
             ('gemini',     'Google Gemini', 'Gemini 2.5 Flash/Pro'),
             ('grok',       'xAI Grok', 'Grok-3 Beta'),
+            ('azure',      'Microsoft Azure', 'Azure Cognitive Services: TTS, Speech Recognition'),
         ]
         for slug, name, desc in provider_seeds:
             m.execute(
@@ -1365,6 +1366,8 @@ def init_db():
             (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
             # xAI Grok
             (pids['grok'],       'Grok-3 Beta',          'grok-3-beta',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     70),
+            # Microsoft Azure
+            (pids['azure'],      'Azure Neural TTS',     'azure-tts-neural',       'https://eastasia.tts.speech.microsoft.com/cognitiveservices/v1', 'azure_tts_key',    'tts',      75),
             # Ollama
             (pids['ollama'],     'Llama 3',              'llama3',                 'http://localhost:11434/v1',                                 '',                     'text',     60),
             (pids['ollama'],     'Qwen 2.5 14B',         'qwen2.5:14b',            'http://localhost:11434/v1',                                 '',                     'text',     61),
@@ -2762,6 +2765,7 @@ with get_db() as m:
         ('SiliconFlow',             '', 'siliconflow','SiliconFlow platform API Key'),
         ('Google Gemini',            '', 'gemini',    'Google Gemini API Key'),
         ('xAI Grok',                 '', 'grok',      'xAI Grok API Key'),
+        ('Azure Speech Service',     '', 'azure',     'Microsoft Azure Cognitive Services subscription key'),
     ]
     for name, key_val, provider, desc in seed_keys:
         m.execute(

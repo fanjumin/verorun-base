@@ -1083,3 +1083,56 @@ def increment_visit():
         import logging
         logging.error(f"[API] 访问计数更新失败: {e}")
         return api_ok({'visitCount': 1, 'openid': openid, 'error': str(e)})
+
+
+# =============================================
+# TTS (Text-to-Speech) — Public endpoint for mobile/bot clients
+# =============================================
+
+@api_v1_bp.route('/tts', methods=['POST'])
+def api_tts():
+    """Public TTS endpoint for bot voice interaction and mobile clients.
+
+    No login required. Rate limited per IP.
+
+    Request JSON: {text: str, voice?: str}
+      - text: Text to synthesize (max 2000 chars).
+      - voice: Azure neural voice name (default: zh-CN-XiaoxiaoNeural).
+
+    Response: audio/mpeg binary with Content-Length header.
+    """
+    data = request.get_json(force=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return api_err(_('Text is required'), 400)
+    if len(text) > 2000:
+        return api_err(_('Text too long'), 400)
+
+    # Rate limit: 20 requests per minute per IP
+    client_ip = request.remote_addr or 'unknown'
+    if not _check_rate_limit(f'tts:{client_ip}', max_per_minute=20):
+        return api_err(_('Rate limit exceeded'), 429)
+
+    voice = data.get('voice', 'zh-CN-XiaoxiaoNeural')
+
+    try:
+        import sys as _sys, os as _os
+        _sys.path.insert(
+            0, _os.path.join(_os.path.dirname(__file__), '..', '..', 'agent_matrix')
+        )
+        from audio import AudioOutputProcessor
+        processor = AudioOutputProcessor(provider='azure_tts', voice=voice)
+        audio = processor.synthesize(text)
+        if not audio:
+            return api_err(_('TTS synthesis failed'), 500)
+        return Response(
+            audio,
+            mimetype='audio/mpeg',
+            headers={'Content-Length': str(len(audio))}
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            '[TTS] Public TTS failed: %s', e, exc_info=True
+        )
+        return api_err(str(e), 500)

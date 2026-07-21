@@ -24,6 +24,7 @@ window.l_ai_chat=function(){
   h+='<span style="flex:1"></span>';
   h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px" onclick="aiNewSession()">🆕 {{ _('New Chat') }}</button>';
   h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px;color:#f85149" onclick="aiResetSession()">🔄 {{ _('Reset') }}</button>';
+  h+='<button class="btn bo bs" id="aiBtnTts" style="font-size:11px;padding:3px 10px" onclick="aiToggleTts()">🔇 TTS</button>';
   h+='</div>';
 
   // Chat messages area
@@ -90,6 +91,16 @@ window.l_ai_chat=function(){
 
   mc.innerHTML=h;
 
+  // Init TTS button state
+  if(aiTtsEnabled){
+    var ttsBtn=document.getElementById('aiBtnTts');
+    if(ttsBtn){
+      ttsBtn.textContent='🔊 TTS';
+      ttsBtn.style.borderColor='var(--accent)';
+      ttsBtn.style.background='rgba(0,245,255,0.1)';
+    }
+  }
+
   // Load session history
   fetch("/admin/agent-matrix/chat/history",{headers:{"Authorization":"Bearer "+T}})
     .then(function(r){return r.json()})
@@ -117,6 +128,7 @@ window.l_ai_chat=function(){
 var aiMode="fast";
 var aiSessionId="";
 var aiUploadedFiles=[];
+var aiTtsEnabled=localStorage.getItem('tts_enabled')==='1';
 
 // ═══════════════════════════════════════════
 // AI Site Builder (site_builder) 前端逻辑
@@ -377,6 +389,17 @@ function aiSetMode(m){
   if(btn){btn.style.borderColor="var(--accent)";btn.style.background="rgba(0,245,255,0.1)"}
 }
 
+function aiToggleTts(){
+  aiTtsEnabled=!aiTtsEnabled;
+  localStorage.setItem('tts_enabled',aiTtsEnabled?'1':'0');
+  var btn=document.getElementById('aiBtnTts');
+  if(btn){
+    btn.textContent=aiTtsEnabled?'🔊 TTS':'🔇 TTS';
+    btn.style.borderColor=aiTtsEnabled?'var(--accent)':'';
+    btn.style.background=aiTtsEnabled?'rgba(0,245,255,0.1)':'';
+  }
+}
+
 function aiNewSession(){
   aiSessionId="";
   aiUploadedFiles=[];
@@ -577,6 +600,22 @@ function aiSend(){
     }
     msgs.innerHTML+=block;
     msgs.scrollTop=msgs.scrollHeight;
+    // TTS auto-play
+    if(aiTtsEnabled&&summary){
+      fetch('/admin/agent-matrix/tts/synthesize',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},
+        body:JSON.stringify({text:summary})
+      }).then(function(r){
+        if(!r.ok)return;
+        return r.blob();
+      }).then(function(blob){
+        if(!blob)return;
+        var url=URL.createObjectURL(blob);
+        var audio=new Audio(url);
+        audio.play();
+      }).catch(function(){});
+    }
     // Auto-preview markdown if detected in summary
     (function(){
       var m=summary.match(/预览链接：([^\s\n]+)/);

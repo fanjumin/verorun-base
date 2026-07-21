@@ -1814,6 +1814,87 @@ def _fmt_size(size_bytes):
 
 
 # ============================================================
+# 5c. TTS (Text-to-Speech) — Azure Neural TTS
+# ============================================================
+
+@agent_matrix_bp.route('/tts/synthesize', methods=['POST'])
+def tts_synthesize():
+    """Admin TTS endpoint: convert text to speech audio.
+
+    Request JSON: {text: str, voice?: str}
+    Response: audio/mpeg binary on success, JSON error on failure.
+    Requires admin authentication.
+    """
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return _error(_('Text is required'))
+    if len(text) > 2000:
+        return _error(_('Text too long (max 2000 characters)'))
+
+    voice = data.get('voice', 'zh-CN-XiaoxiaoNeural')
+
+    try:
+        from agent_matrix.audio import AudioOutputProcessor
+        processor = AudioOutputProcessor(provider='azure_tts', voice=voice)
+        audio = processor.synthesize(text)
+        if not audio:
+            return _error(_('TTS synthesis failed'), 500)
+        from flask import Response
+        return Response(
+            audio,
+            mimetype='audio/mpeg',
+            headers={'Content-Length': str(len(audio))}
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            '[TTS] Admin TTS failed: %s', e, exc_info=True
+        )
+        return _error(str(e), 500)
+
+
+@agent_matrix_bp.route('/tts/voices', methods=['GET'])
+def tts_list_voices():
+    """List available Azure neural voices.
+
+    Query params:
+        locale: Filter by locale code (e.g. 'zh-CN', 'en-US').
+                Empty = all voices.
+    Requires admin authentication.
+    """
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    locale = request.args.get('locale', '').strip()
+
+    try:
+        from agent_matrix.audio import AudioOutputProcessor
+        processor = AudioOutputProcessor(provider='azure_tts')
+        client = processor._get_client()
+        if not client:
+            return _error(_('Azure TTS client not available (key not configured)'), 503)
+
+        voices = client.list_voices(locale=locale)
+        return _success({
+            'locale': locale or 'all',
+            'count': len(voices),
+            'voices': voices,
+        })
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            '[TTS] List voices failed: %s', e, exc_info=True
+        )
+        return _error(str(e), 500)
+
+
+# ============================================================
 # 6. 初始化
 # ============================================================
 
