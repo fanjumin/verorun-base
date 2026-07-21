@@ -596,6 +596,7 @@ class LLMGateway:
         """获取或创建 OpenAI 客户端（带缓存）"""
         cache_key = f'{base_url}::{api_key[:12]}'
         if cache_key not in self._clients:
+            from openai import OpenAI
             self._clients[cache_key] = OpenAI(
                 base_url=base_url,
                 api_key=api_key,
