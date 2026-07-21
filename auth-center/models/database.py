@@ -1876,6 +1876,13 @@ def init_db():
         m.commit()
         print('[Migration] voice_templates + video_tasks tables dropped (volcengine removed)')
 
+    # ── Migration: remove volcengine provider & its models (2026-07-21) ──
+    with get_db() as m:
+        m.execute("DELETE FROM provider_models WHERE provider_id = (SELECT id FROM providers WHERE slug = 'volcengine')")
+        m.execute("DELETE FROM providers WHERE slug = 'volcengine'")
+        m.commit()
+        print('[Migration] volcengine provider + provider_models removed')
+
     # ── Migration: media_files table（本地媒体库 — 2026-05-24）──
     with get_db() as m:
         m.execute('''CREATE TABLE IF NOT EXISTS media_files (
