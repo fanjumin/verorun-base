@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """auth-center: Unified Database Manager - PostgreSQL edition."""
 import os, logging
 import psycopg2
@@ -959,10 +959,10 @@ def init_db():
                 c_adm.execute(
                     "INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes) "
                     "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING",
-                    (7, 'super_admin', '["users","content","finance","system","matrix","admins"]', '***REMOVED***', '初始超级管理员')
+                    (7, 'super_admin', '["users","content","finance","system","matrix","admins"]', '***REMOVED***', 'Initial Super Admin')
                 )
             except Exception:
-                pass  # 用户可能还不存在，跳过
+                pass  # User may not exist yet, skip
             c_adm.commit()
         # ── 主题管理 (2026-05-16) ──
         with get_db() as c_th:
@@ -993,14 +993,14 @@ def init_db():
                     FOREIGN KEY (theme_id) REFERENCES themes(id) ON DELETE SET NULL
                 )
             """)
-            # 种子：默认主题
+            # Seed: default theme
             c_th.execute(
                 "INSERT INTO themes (id, name, slug, version, author, description, industry, tags, config_json, dir_name) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
-                (0, '默认主题', 'default', '1.0.0', '', 
-                 '内置默认主题 — FinTech/AI 暗色科幻风格',
+                (0, 'Default Theme', 'default', '1.0.0', '', 
+                 'Built-in default theme — FinTech/AI dark sci-fi style',
                  'finance', '["dark","fintech","ai"]',
-                 '{"name":"默认主题","slug":"default","version":"1.0.0","builtin":true}',
+                 '{"name":"Default Theme","slug":"default","version":"1.0.0","builtin":true}',
                  'default')
             )
             # 种子：4 个站点默认使用默认主题（theme_id=NULL）
@@ -1313,12 +1313,12 @@ def init_db():
         m.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_provider_model_unique ON provider_models(provider_id, model_name)')
         # Seed providers
         provider_seeds = [
-            ('volcengine', '火山引擎', '语音合成、声音复刻、数字人视频'),
-            ('dashscope',  '阿里云 DashScope', '通义千问、图像生成、CosyVoice'),
-            ('deepseek',   'DeepSeek', '深度求索大语言模型'),
-            ('openai',     'OpenAI', 'GPT-4o、DALL-E、TTS'),
-            ('openrouter', 'OpenRouter', '多模型聚合路由'),
-            ('ollama',     'Ollama', '本地开源模型部署'),
+            ('volcengine', '火山引擎', 'TTS, voice cloning, digital human video'),
+            ('dashscope',  '阿里云 DashScope', 'Qwen LLM, image gen, CosyVoice'),
+            ('deepseek',   'DeepSeek', 'DeepSeek large language models'),
+            ('openai',     'OpenAI', 'GPT-4o, DALL-E, TTS'),
+            ('openrouter', 'OpenRouter', 'Multi-model aggregation router'),
+            ('ollama',     'Ollama', 'Local open-source model deployment'),
             ('siliconflow','SiliconFlow', 'SiliconFlow model platform (DeepSeek-OCR etc.)'),
             ('gemini',     'Google Gemini', 'Gemini 2.5 Flash/Pro'),
             ('grok',       'xAI Grok', 'Grok-3 Beta'),
@@ -1331,21 +1331,21 @@ def init_db():
         # Resolve provider IDs
         pids = {slug: m.execute("SELECT id FROM providers WHERE slug = %s", (slug,)).fetchone()['id']
                 for slug, _, _ in provider_seeds}
-        # Seed provider_models — 每个提供商下多个模型
+        # Seed provider_models
         model_seeds = [
-            # 火山引擎
-            (pids['volcengine'], '声音复刻 v2',       'volc-voice-clone-v2',   'https://openspeech.bytedance.com/api/v1/mega_tts/audio',     'volcengine_credentials', 'voice',    1),
-            (pids['volcengine'], '流式语音合成 TTS',   'volc-tts-stream',        'https://openspeech.bytedance.com/api/v1/tts',               'volcengine_credentials', 'tts',      2),
-            (pids['volcengine'], '照片驱动数字人 v3',  'volc-avatar-v3',         'https://open.byteplus.com/api/v1/avatar',                    'volcengine_credentials', 'video',    3),
-            # 阿里云 DashScope
-            (pids['dashscope'],  '通义千问 Turbo',     'qwen-turbo',             'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     10),
-            (pids['dashscope'],  '通义千问 Max',        'qwen-max',               'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     11),
-            (pids['dashscope'],  '通义千问 Plus',       'qwen-plus',              'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     12),
-            (pids['dashscope'],  '通义千问 2.5 72B',    'qwen2.5-72b-instruct',   'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     13),
+            # Volcengine
+            (pids['volcengine'], 'Voice Cloning v2',   'volc-voice-clone-v2',   'https://openspeech.bytedance.com/api/v1/mega_tts/audio',     'volcengine_credentials', 'voice',    1),
+            (pids['volcengine'], 'Streaming TTS',   'volc-tts-stream',        'https://openspeech.bytedance.com/api/v1/tts',               'volcengine_credentials', 'tts',      2),
+            (pids['volcengine'], 'Photo-Driven Digital Human v3',  'volc-avatar-v3',         'https://open.byteplus.com/api/v1/avatar',                    'volcengine_credentials', 'video',    3),
+            # Alibaba Cloud DashScope
+            (pids['dashscope'],  'Qwen Turbo',     'qwen-turbo',             'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     10),
+            (pids['dashscope'],  'Qwen Max',        'qwen-max',               'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     11),
+            (pids['dashscope'],  'Qwen Plus',       'qwen-plus',              'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     12),
+            (pids['dashscope'],  'Qwen 2.5 72B',    'qwen2.5-72b-instruct',   'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     13),
             (pids['dashscope'],  'DeepSeek R1',          'deepseek-r1',            'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     14),
             (pids['dashscope'],  'DeepSeek V3',          'deepseek-v3',            'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     15),
-            (pids['dashscope'],  '图像生成 Wan2.7',      'wan2.7-image',           'https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', 'dashscope_api_key', 'image', 20),
-            (pids['dashscope'],  'CosyVoice 声音克隆',   'cosyvoice-v1',           'https://dashscope.aliyuncs.com/api/v1/services/audio/tts',  'dashscope_api_key',     'voice',    21),
+            (pids['dashscope'],  'Image Gen Wan2.7',      'wan2.7-image',           'https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', 'dashscope_api_key', 'image', 20),
+            (pids['dashscope'],  'CosyVoice Clone',   'cosyvoice-v1',           'https://dashscope.aliyuncs.com/api/v1/services/audio/tts',  'dashscope_api_key',     'voice',    21),
             # DeepSeek
             (pids['deepseek'],   'DeepSeek Chat',       'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     30),
             (pids['deepseek'],   'DeepSeek Reasoner',   'deepseek-reasoner',      'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     31),
@@ -1361,11 +1361,11 @@ def init_db():
             (pids['openrouter'], 'Claude 3 Opus',        'anthropic/claude-3-opus','https://openrouter.ai/api/v1',                              'openrouter_api_key',    'text',     52),
             (pids['openrouter'], 'Gemini 2.5 Pro',       'google/gemini-2.5-pro',  'https://openrouter.ai/api/v1',                              'openrouter_api_key',    'text',     53),
             (pids['openrouter'], 'Llama 4 Maverick',     'meta-llama/llama-4-maverick','https://openrouter.ai/api/v1',                           'openrouter_api_key',    'text',     54),
-            # 硅基流动
+            # SiliconFlow
             (pids['siliconflow'], 'DeepSeek V3',        'deepseek-ai/DeepSeek-V3', 'https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     55),
             (pids['siliconflow'], 'DeepSeek R1',        'deepseek-ai/DeepSeek-R1', 'https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     56),
             (pids['siliconflow'], 'DeepSeek OCR',       'deepseek-ai/DeepSeek-OCR','https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     57),
-            # Google Gemini（OpenAI 兼容端点）
+            # Google Gemini (OpenAI-compatible endpoint)
             (pids['gemini'],     'Gemini 2.5 Flash',    'gemini-2.5-flash',       'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     65),
             (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
             # xAI Grok
