@@ -123,11 +123,17 @@ def _build_dashboard_data(conn):
 
     def _safe(sql, params=()):
         try: return conn.execute(sql, params).fetchone()
-        except: return None
+        except:
+            try: conn._conn.rollback()
+            except: pass
+            return None
 
     def _safe_all(sql, params=()):
         try: return conn.execute(sql, params).fetchall()
-        except: return []
+        except:
+            try: conn._conn.rollback()
+            except: pass
+            return []
 
     def _qcached(key, ttl=10):
         def deco(fn):
@@ -188,11 +194,15 @@ def _build_dashboard_data(conn):
     try:
         data['recent_users'] = [dict(r) for r in conn.execute(
             "SELECT id, COALESCE(display_name, username, '') as nickname, phone, created_at FROM users ORDER BY created_at DESC LIMIT 5").fetchall()]
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     try:
         data['recent_orders'] = [dict(r) for r in conn.execute(
             "SELECT id, user_id, item_desc, amount, status, paid_at FROM billing_orders ORDER BY created_at DESC LIMIT 5").fetchall()]
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
 
     # --- Service health (outside DB) ---
     import socket
