@@ -4,7 +4,7 @@
 
 VeroRun（易站AI）是一个基于 **7 角色 Agent 协作矩阵 + 工具注册中心** 的全栈平台，集成多供应商 AI 引擎、商城运营、CMS 内容管理、AI 客服、自动化工作流、云服务开通、分析统计、系统健康巡检、插件化扩展等能力，采用 PostgreSQL 多 Schema 架构。
 
-> 版本：**v0.33.1**  
+> 版本：**v0.34.0**  
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
 ---

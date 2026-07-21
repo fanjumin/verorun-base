@@ -81,7 +81,7 @@ class AudioOutputProcessor:
         'pt-BR': 'pt-BR-FranciscaNeural',
     }
 
-    def __init__(self, provider: str = 'edge_tts',
+    def __init__(self, provider: str = 'azure_tts',
                  voice: str = 'zh-CN-XiaoxiaoNeural'):
         """Initialize TTS processor.
 
