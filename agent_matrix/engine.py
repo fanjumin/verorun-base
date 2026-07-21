@@ -490,3 +490,204 @@ def check_ai_budget(scene: str = '') -> tuple:
             return False, f"Today's AI budget is exhausted ({used}/{daily_limit} tokens)"
 
     return True, ''
+
+
+# ============================================================
+# LLMGateway — 统一 LLM 调用入口（阶段 2a：与 AIEngine 共存）
+# ============================================================
+# 所有新增模块应通过 get_gateway() 调用 LLM。
+# Gateway 从 provider_models 读取配置，支持两种寻址方式：
+#   1. provider_model_id（推荐）
+#   2. provider + model（兼容旧代码）
+# 所有调用统一写入 agent_token_logs（含 module 字段）。
+# 注意：AIEngine 类不动，现有多处调用方不受影响。
+
+class LLMGateway:
+    """统一 LLM 网关 — 移除硬编码，从 provider_models 读取配置"""
+
+    def __init__(self):
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+        from models import get_db as _get_db
+        self._db = _get_db
+        self._clients = {}  # 缓存 OpenAI 客户端实例
+        self._rate_limiter = deque(maxlen=1000)
+
+    def _default_base_url(self, provider):
+        """供应商默认 base_url（仅当 provider_models.endpoint_url 为空时使用）"""
+        defaults = {
+            'dashscope': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            'openai': 'https://api.openai.com/v1',
+            'deepseek': 'https://api.deepseek.com/v1',
+            'openrouter': 'https://openrouter.ai/api/v1',
+            'ollama': 'http://localhost:11434/v1',
+            'siliconflow': 'https://api.siliconflow.cn/v1',
+        }
+        return defaults.get(provider, '')
+
+    def _fallback_key(self, provider):
+        """回退到环境变量（兼容过渡期）"""
+        env_map = {
+            'dashscope': 'DASHSCOPE_TEXT_KEY',
+            'openai': 'OPENAI_API_KEY',
+            'deepseek': 'DEEPSEEK_API_KEY',
+            'openrouter': 'OPENROUTER_API_KEY',
+            'siliconflow': 'SILICONFLOW_API_KEY',
+        }
+        key_name = env_map.get(provider, '')
+        if key_name:
+            val = os.environ.get(key_name, '')
+            if val:
+                return val
+        # 最终回退：从 system_config 读取
+        return _get_system_key(env_map.get(provider, ''))
+
+    def _resolve_model(self, provider_model_id=None, provider=None, model=None):
+        """解析模型配置。优先使用 provider_model_id"""
+        if provider_model_id:
+            with self._db() as conn:
+                pm = conn.execute(
+                    """SELECT pm.model_name, pm.endpoint_url,
+                              p.slug as provider_slug
+                       FROM provider_models pm
+                       JOIN providers p ON p.id = pm.provider_id
+                       WHERE pm.id = %s AND pm.is_active = 1 AND p.is_active = 1""",
+                    (provider_model_id,)
+                ).fetchone()
+            if pm is None:
+                raise ValueError(f'Model not found or inactive: id={provider_model_id}')
+            pm = dict(pm)
+            return {
+                'provider': pm['provider_slug'],
+                'model': pm['model_name'],
+                'base_url': pm['endpoint_url'] or self._default_base_url(pm['provider_slug']),
+                'api_key': self._fallback_key(pm['provider_slug']),
+                'model_id': provider_model_id,
+            }
+
+        # 兼容旧方式：provider + model
+        if provider and model:
+            with self._db() as conn:
+                pm = conn.execute(
+                    """SELECT pm.id, pm.model_name, pm.endpoint_url,
+                              p.slug as provider_slug
+                       FROM provider_models pm
+                       JOIN providers p ON p.id = pm.provider_id AND p.slug = %s
+                       WHERE pm.model_name = %s AND pm.is_active = 1 AND p.is_active = 1
+                       LIMIT 1""",
+                    (provider, model)
+                ).fetchone()
+            if pm:
+                pm = dict(pm)
+                return {
+                    'provider': pm['provider_slug'],
+                    'model': pm['model_name'],
+                    'base_url': pm['endpoint_url'] or self._default_base_url(provider),
+                    'api_key': self._fallback_key(provider),
+                    'model_id': pm['id'],
+                }
+
+        raise ValueError('Cannot resolve model: provide provider_model_id or (provider + model)')
+
+    def _get_client(self, base_url, api_key):
+        """获取或创建 OpenAI 客户端（带缓存）"""
+        cache_key = f'{base_url}::{api_key[:12]}'
+        if cache_key not in self._clients:
+            self._clients[cache_key] = OpenAI(
+                base_url=base_url,
+                api_key=api_key,
+                timeout=120,
+            )
+        return self._clients[cache_key]
+
+    def chat(self, messages, provider_model_id=None, provider=None, model=None,
+             temperature=0.7, max_tokens=4096, module='unknown', **kwargs):
+        """统一 chat 接口
+
+        Args:
+            messages: OpenAI 格式消息列表
+            provider_model_id: 模型 ID（推荐）
+            provider: 供应商 slug（兼容旧代码）
+            model: 模型名（兼容旧代码）
+            module: 调用来源模块名（用于日志和配额）
+        Returns:
+            OpenAI chat completion response 对象
+        """
+        cfg = self._resolve_model(provider_model_id, provider, model)
+
+        # 配额检查（复用现有闸门）
+        allowed, reason = check_ai_budget(module)
+        if not allowed:
+            raise RuntimeError(reason)
+
+        client = self._get_client(cfg['base_url'], cfg['api_key'])
+
+        start_time = _time.time()
+        resp = client.chat.completions.create(
+            model=cfg['model'],
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs
+        )
+        elapsed = _time.time() - start_time
+
+        # 统一记录 Token 消耗
+        usage = resp.usage
+        if usage:
+            threading.Thread(target=_log_gateway_usage, args=(
+                cfg['model_id'], cfg['model'], cfg['provider'],
+                usage.prompt_tokens or 0,
+                usage.completion_tokens or 0,
+                usage.total_tokens or 0,
+                'chat', module, int(elapsed * 1000),
+            ), daemon=True).start()
+
+        return resp
+
+    def chat_stream(self, messages, provider_model_id=None, provider=None,
+                    model=None, module='unknown', **kwargs):
+        """流式 chat 接口，返回生成器"""
+        cfg = self._resolve_model(provider_model_id, provider, model)
+        client = self._get_client(cfg['base_url'], cfg['api_key'])
+        return client.chat.completions.create(
+            model=cfg['model'],
+            messages=messages,
+            stream=True,
+            stream_options={'include_usage': True},
+            **kwargs
+        )
+
+
+def _log_gateway_usage(model_id, model_name, provider,
+                       prompt_tokens, completion_tokens, total_tokens,
+                       call_type='chat', module='unknown', elapsed_ms=0):
+    """Gateway 专用异步日志记录 — 写入 agent_token_logs。静默失败。"""
+    try:
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+        from models import get_db as _get_db
+        with _get_db() as conn:
+            conn.execute("""
+                INSERT INTO agent_token_logs
+                (agent_id, agent_name, model_name, provider,
+                 prompt_tokens, completion_tokens, total_tokens,
+                 call_type, module, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+            """, (model_id, f'gateway:{module}', model_name, provider,
+                  prompt_tokens, completion_tokens, total_tokens,
+                  call_type, module))
+            conn.commit()
+    except Exception:
+        pass
+
+
+# 全局单例
+_gateway = None
+
+
+def get_gateway():
+    global _gateway
+    if _gateway is None:
+        _gateway = LLMGateway()
+    return _gateway

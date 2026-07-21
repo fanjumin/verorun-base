@@ -338,6 +338,15 @@ def init_agent_matrix_tables():
             conn.commit()
             print('[Migration] Added agent_token_logs.dimension')
 
+    # ── Migration: add module to agent_token_logs ──
+    with get_db() as conn:
+        cols = get_table_columns(conn, 'agent_token_logs')
+        if 'module' not in cols:
+            conn.execute("ALTER TABLE agent_token_logs ADD COLUMN module TEXT DEFAULT 'legacy'")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tkl_module ON agent_token_logs(module)")
+            conn.commit()
+            print('[Migration] Added agent_token_logs.module')
+
     # ── Migration: add slug & is_system to agent_matrix ──
     with get_db() as conn:
         cols = get_table_columns(conn, 'agent_matrix')
