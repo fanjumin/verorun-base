@@ -4009,3 +4009,77 @@ def provider_api_key_delete(kid):
         conn.commit()
     _log(admin['user_id'], 'delete_provider_key', 'provider_api_key', str(kid), row['name'])
     return jsonify({'success': True})
+
+
+# ═══════════════════════════════════════════════════════
+# LLM Quota 管理（按用户/模型/模块的精细化配额）
+# ═══════════════════════════════════════════════════════
+
+@admin_bp.route('/llm-quotas', methods=['GET'])
+def llm_quota_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        rows = conn.execute(
+            'SELECT * FROM llm_quotas ORDER BY target_type, target_id'
+        ).fetchall()
+        return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/llm-quotas', methods=['POST'])
+def llm_quota_create():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    target_type = data.get('target_type', 'module')
+    if target_type not in ('user', 'model', 'module', 'global'):
+        return jsonify({'success': False, 'error': 'Invalid target_type'}), 400
+    with get_db() as conn:
+        row = conn.execute(
+            'INSERT INTO llm_quotas (target_type, target_id, daily_limit, rate_limit, rate_window_sec) '
+            'VALUES (%s,%s,%s,%s,%s) RETURNING id',
+            (target_type, data.get('target_id'), data.get('daily_limit', 0),
+             data.get('rate_limit', 0), data.get('rate_window_sec', 60))
+        ).fetchone()
+        conn.commit()
+    _log(admin['user_id'], 'create_llm_quota', 'llm_quota', str(row['id']))
+    return jsonify({'success': True, 'data': {'id': row['id']}})
+
+
+@admin_bp.route('/llm-quotas/<int:qid>', methods=['PUT'])
+def llm_quota_update(qid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM llm_quotas WHERE id=%s', (qid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': '不存在'}), 404
+        updates = []
+        params = []
+        for field in ['target_type', 'daily_limit', 'rate_limit', 'rate_window_sec', 'target_id', 'is_active']:
+            if field in data:
+                updates.append(f'{field}=%s')
+                params.append(data[field])
+        if not updates:
+            return jsonify({'success': True, 'message': '无变更'})
+        updates.append('updated_at=NOW()')
+        params.append(qid)
+        conn.execute(f"UPDATE llm_quotas SET {','.join(updates)} WHERE id=%s", params)
+        conn.commit()
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/llm-quotas/<int:qid>', methods=['DELETE'])
+def llm_quota_delete(qid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        conn.execute('DELETE FROM llm_quotas WHERE id=%s', (qid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_llm_quota', 'llm_quota', str(qid))
+    return jsonify({'success': True})

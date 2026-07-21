@@ -2778,8 +2778,6 @@ with get_db() as m:
         )
     ''')
 
-    # 种子数据：从现有 system_config 的 key 引用生成初始化记录
-    # key_value_enc 由管理员在后台填写，种子留空
     seed_keys = [
         ('阿里云 DashScope', '', 'dashscope', '通义千问系列模型 API Key'),
         ('OpenAI',            '', 'openai',    'GPT-4o 系列模型 API Key'),
@@ -2797,13 +2795,36 @@ with get_db() as m:
     m.commit()
     print('[Migration] provider_api_keys table + seed data created')
 
-# provider_models 新增 api_key_id 外键（可选，与 api_key_ref 共存）
 with get_db() as m:
     pm_cols = get_table_columns(m, 'provider_models')
     if 'api_key_id' not in pm_cols:
         m.execute('ALTER TABLE provider_models ADD COLUMN api_key_id BIGINT DEFAULT NULL REFERENCES provider_api_keys(id)')
         print('[Migration] provider_models.api_key_id added')
     m.commit()
+
+# ── Migration: llm_quotas 精细化配额管理 ──
+with get_db() as m:
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS llm_quotas (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            target_type     TEXT NOT NULL CHECK(target_type IN ('user','model','module','global')),
+            target_id       BIGINT DEFAULT NULL,
+            daily_limit     BIGINT DEFAULT 0,
+            rate_limit      BIGINT DEFAULT 0,
+            rate_window_sec BIGINT DEFAULT 60,
+            is_active       BIGINT DEFAULT 1,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    # 种子数据：全站默认配额
+    m.execute(
+        "INSERT INTO llm_quotas (target_type, daily_limit, rate_limit) "
+        "VALUES ('global', 2000000, 30) ON CONFLICT DO NOTHING"
+    )
+    m.commit()
+    print('[Migration] llm_quotas table + default seed created')
 
 
 if __name__ == "__main__":

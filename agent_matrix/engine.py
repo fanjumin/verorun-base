@@ -600,6 +600,53 @@ class LLMGateway:
             )
         return self._clients[cache_key]
 
+    def _check_quota(self, model_id, module, user_id=None):
+        """检查 llm_quotas 精细化配额（user > model > module > global）。
+        返回 (allowed: bool, reason: str)"""
+        try:
+            with self._db() as conn:
+                quotas = conn.execute(
+                    """SELECT * FROM llm_quotas WHERE is_active = 1 AND (
+                        (target_type = 'user' AND target_id = %s) OR
+                        (target_type = 'model' AND target_id = %s) OR
+                        (target_type = 'module' AND target_id IS NULL) OR
+                        (target_type = 'global')
+                    ) ORDER BY CASE target_type
+                        WHEN 'user' THEN 1 WHEN 'model' THEN 2
+                        WHEN 'module' THEN 3 WHEN 'global' THEN 4
+                    END""",
+                    (user_id, model_id)
+                ).fetchall()
+
+            if not quotas:
+                return True, ''
+
+            for q in quotas:
+                q = dict(q)
+                if q.get('daily_limit', 0) > 0:
+                    today_used = conn.execute(
+                        "SELECT COALESCE(SUM(total_tokens), 0) FROM agent_token_logs "
+                        "WHERE created_at >= CURRENT_DATE AND module = %s",
+                        (module,)
+                    ).fetchone()
+                    used = today_used[0] if isinstance(today_used, tuple) else (today_used.get('coalesce', 0) or 0)
+                    if used >= q['daily_limit']:
+                        return False, f"Daily quota exceeded for {module}: {used}/{q['daily_limit']} tokens"
+
+                if q.get('rate_limit', 0) > 0:
+                    now = _time.time()
+                    window = q.get('rate_window_sec', 60)
+                    self._rate_limiter.append(now)
+                    recent = sum(1 for t in self._rate_limiter if now - t < window)
+                    if recent > q['rate_limit']:
+                        return False, f"Rate limit exceeded: {recent}/{q['rate_limit']} per {window}s"
+
+            return True, ''
+
+        except Exception as e:
+            logger.warning(f'[LLMGateway] Quota check failed (fail-open): {e}')
+            return True, ''  # fail-open
+
     def chat(self, messages, provider_model_id=None, provider=None, model=None,
              temperature=0.7, max_tokens=4096, module='unknown', **kwargs):
         """统一 chat 接口
@@ -615,10 +662,14 @@ class LLMGateway:
         """
         cfg = self._resolve_model(provider_model_id, provider, model)
 
-        # 配额检查（复用现有闸门）
+        # 配额检查（复用现有闸门 + llm_quotas 精细化配额）
         allowed, reason = check_ai_budget(module)
         if not allowed:
             raise RuntimeError(reason)
+
+        quota_ok, quota_reason = self._check_quota(cfg['model_id'], module)
+        if not quota_ok:
+            raise RuntimeError(quota_reason)
 
         client = self._get_client(cfg['base_url'], cfg['api_key'])
 
