@@ -7,6 +7,9 @@
 #  本地媒体库 API — 上传 / 列表 / 下载 / 删除 / 推送
 # ═══════════════════════════════════════════════════════════
 import os
+from flask import Blueprint, request, jsonify
+
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 MEDIA_LIB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                '..', '..', 'admin', 'static', 'media')
