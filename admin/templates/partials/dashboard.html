@@ -1,6 +1,13 @@
 // ── Dashboard CSS injection ──
 (function(){var s=document.createElement('style');s.textContent='.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.chart-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px}.chart-box .chart-title{font-size:13px;color:var(--dim);margin-bottom:8px}.chart-empty{display:flex;align-items:center;justify-content:center;height:240px;color:var(--dim);font-size:13px}.svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}.svc-dot.on{background:#52c41a;box-shadow:0 0 6px #52c41a}.svc-dot.off{background:#ef4444}.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}.metric-card .metric-label{font-size:12px;color:var(--dim)}.metric-card .metric-value{font-size:22px;font-weight:600}.metric-card .metric-value.b{color:var(--accent)}.metric-card .metric-value.g{color:var(--green)}@media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.g3,.g2{grid-template-columns:1fr}}';document.head.appendChild(s)})();
 
+function tf(n){
+  if(!n) return '0';
+  if(n>=1e6) return (n/1e6).toFixed(1)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return n.toString();
+}
+
 function _render_dashboard(ds){
   document.getElementById("pt").textContent="{{ _('Overview') }}";
   var h="";
@@ -20,9 +27,9 @@ function _render_dashboard(ds){
 
   // ── Row 3: 2-column status ──
   h+='<div class="g2" style="margin-bottom:12px">';
-  h+=svcCard(ds.services);
-  // Today traffic (conditional)
-  if(ds.today_pv!==undefined&&ds.today_uv!==undefined){
+  h+=_svcCard(ds.services);
+  // Today Traffic (conditional)
+  if(ds.today_pv !== undefined && ds.today_uv !== undefined){
     h+='<div class="chart-box"><div class="chart-title">{{ _('Today Traffic') }}</div><div class="gr">';
     h+='<div class="metric-card"><div class="metric-label">PV</div><div class="metric-value b">'+(ds.today_pv||0)+'</div></div>';
     h+='<div class="metric-card"><div class="metric-label">UV</div><div class="metric-value g">'+(ds.today_uv||0)+'</div></div>';
@@ -31,14 +38,13 @@ function _render_dashboard(ds){
   }else{
     h+='<div class="chart-box"><div class="chart-title">{{ _('Today Traffic') }}</div><div class="chart-empty">{{ _('Analytics plugin not enabled') }}</div></div>';
   }
-
   h+='</div>';
 
   // ── Row 4: 2-column content ──
   h+='<div class="g2" style="margin-bottom:12px">';
   h+='<div class="chart-box"><div class="chart-title">{{ _('Pending Items') }}</div><div id="chartPending" style="width:100%;height:240px"></div></div>';
   // Popular pages (conditional)
-  if(ds.top_pages&&ds.top_pages.length){
+  if(ds.top_pages && ds.top_pages.length){
     h+='<div class="chart-box"><div class="chart-title">{{ _('Popular Pages') }}</div><div id="chartPages" style="width:100%;height:240px"></div></div>';
   }else{
     h+='<div class="chart-box"><div class="chart-title">{{ _('Popular Pages') }}</div><div class="chart-empty">No Data</div></div>';
@@ -50,7 +56,7 @@ function _render_dashboard(ds){
   // Recent registrations
   h+='<div class="chart-box"><div class="chart-title">{{ _('Recent Registrations') }}</div><table style="font-size:12px;margin-top:8px;width:100%">';
   h+='<tr><th>ID</th><th>{{ _('Nickname') }}</th><th>{{ _('Phone') }}</th><th>{{ _('Time') }}</th></tr>';
-  if(ds.recent_users&&ds.recent_users.length){
+  if(ds.recent_users && ds.recent_users.length){
     ds.recent_users.forEach(function(u){h+='<tr><td>'+u.id+'</td><td>'+esc(u.nickname||'-')+'</td><td>'+(u.phone||'-')+'</td><td>'+u.created_at+'</td></tr>'});
   }else{
     h+='<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:24px">No data</td></tr>';
@@ -59,7 +65,7 @@ function _render_dashboard(ds){
   // Recent orders
   h+='<div class="chart-box"><div class="chart-title">{{ _('Recent Orders') }}</div><table style="font-size:12px;margin-top:8px;width:100%">';
   h+='<tr><th>ID</th><th>{{ _('Plan') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th></tr>';
-  if(ds.recent_orders&&ds.recent_orders.length){
+  if(ds.recent_orders && ds.recent_orders.length){
     ds.recent_orders.forEach(function(o){
       var st=o.status==='paid'?'<span class="bdg on">{{ _('Paid') }}</span>':(o.status==='pending'?'<span class="bdg off">{{ _('Unpaid') }}</span>':esc(o.status));
       h+='<tr><td>'+o.id+'</td><td>'+esc(o.item_desc||'-')+'</td><td>\u00a5'+(o.amount||0)+'</td><td>'+st+'</td></tr>';
@@ -70,8 +76,27 @@ function _render_dashboard(ds){
   h+='</table></div>';
   h+='</div>';
 
+  // ── Row 6: Data Trends (conditional, from Section V) ──
+  if(ds.trend_30d !== undefined){
+    h+='<div class="g2" style="margin-bottom:12px">';
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Data Trends') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div><div id="trendChart" style="width:100%;height:280px"></div></div>';
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Revenue Trend') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div><div id="revenueChart" style="width:100%;height:280px"></div></div>';
+    h+='</div>';
+  }
+
   document.getElementById("mc").innerHTML=h;
   _initCharts(ds);
+}
+
+function _svcCard(svcs){
+  var h='<div class="chart-box"><div class="chart-title">{{ _('Service Status') }}</div><div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0">';
+  svcs.forEach(function(s){
+    h+='<span style="display:flex;align-items:center;gap:4px;font-size:12px">'+
+      '<span class="svc-dot '+(s.alive?'on':'off')+'"></span>'+
+      s.name+'</span>';
+  });
+  h+='</div></div>';
+  return h;
 }
 
 function _initCharts(ds){
@@ -86,7 +111,7 @@ function _initCharts(ds){
     var c1=echarts.init(el1);
     var tu=ds.total_users||0, au=ds.active_users||0, tn=ds.today_new_users||0;
     if(tu===0){
-      c1.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
+      c1.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       c1.setOption({
         tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
@@ -137,7 +162,7 @@ function _initCharts(ds){
     var c3=echarts.init(el3);
     var as=ds.active_subscriptions||0, to=ds.total_orders||0;
     if(to===0){
-      c3.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
+      c3.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       c3.setOption({
         tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
@@ -166,7 +191,7 @@ function _initCharts(ds){
     var c4=echarts.init(el4);
     var tc=ds.today_calls||0, ttc=ds.total_calls||0, ag=ds.active_agents||0, tag=ds.total_agents||0;
     if(tc+ttc+ag+tag===0){
-      c4.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
+      c4.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       c4.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
@@ -189,7 +214,7 @@ function _initCharts(ds){
     var c5=echarts.init(el5);
     var ta=ds.top_token_agents||[];
     if(ta.length===0){
-      c5.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+      c5.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       var names=[],vals=[];
       ta.slice().reverse().forEach(function(a){names.push(a.agent_name||'Agent#'+a.agent_id);vals.push(a.total||0)});
@@ -210,7 +235,7 @@ function _initCharts(ds){
     var c6=echarts.init(el6);
     var pp=ds.pending_posts||0, pr=ds.pending_reviews||0, pc=ds.pending_contacts||0, ft=ds.today_failed_tasks||0;
     if(pp+pr+pc+ft===0){
-      c6.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'All Clear',fontSize:13,fill:'#52c41a',textAlign:'center'}}]});
+      c6.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'All Clear',fontSize:14,fill:'#52c41a'}}]});
     }else{
       c6.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
@@ -229,13 +254,13 @@ function _initCharts(ds){
     window.addEventListener('resize',function(){c6.resize()});
   }
 
-  // ── Chart 7: Popular pages horizontal bar (conditional) ──
+  // ── Chart 7: Popular pages horizontal bar ──
   var el7=document.getElementById('chartPages');
   if(el7){
     var c7=echarts.init(el7);
     var tp=ds.top_pages||[];
     if(tp.length===0){
-      c7.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
+      c7.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       var pnames=[],pvals=[];
       tp.slice().reverse().forEach(function(p){pnames.push(p.path);pvals.push(p.pv||0)});
@@ -243,11 +268,63 @@ function _initCharts(ds){
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+'<br/>PV: '+p[0].value}},
         grid:{left:100,right:20,bottom:20,top:10},
         xAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
-        yAxis:{type:'category',data:pnames,axisLabel:{fontSize:10,color:'var(--dim)',width:90,overflow:'truncate'},axisLine:{show:false},axisTick:{show:false}},
+        yAxis:{type:'category',data:pnames,axisLabel:{fontSize:10,color:'var(--dim)'},axisLine:{show:false},axisTick:{show:false}},
         series:[{type:'bar',data:pvals,itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:0,colorStops:[{offset:0,color:'#4a9eff'},{offset:1,color:'#00f5ff'}]},borderRadius:[0,4,4,0]},barMaxWidth:20}]
       });
     }
     window.addEventListener('resize',function(){c7.resize()});
+  }
+
+  // ── Data Trends (conditional charts) ──
+  // trendChart: 30-day PV/UV line
+  var trendEl=document.getElementById('trendChart');
+  if(trendEl){
+    var chart=echarts.init(trendEl);
+    var hasTrend=ds.trend_30d&&ds.trend_30d.length;
+    if(!hasTrend){
+      chart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+    }else{
+      var dates=ds.trend_30d.map(function(d){return d.date.substr(5)});
+      chart.setOption({
+        tooltip:{trigger:'axis'},
+        legend:{data:['PV','UV'],textStyle:{color:'var(--dim)'},top:0},
+        grid:{left:40,right:10,bottom:25,top:35},
+        xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,color:'var(--dim)'}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
+        series:[
+          {name:'PV',type:'line',data:ds.trend_30d.map(function(d){return d.pv}),smooth:true,
+           lineStyle:{width:2},itemStyle:{color:'#4a9eff'},
+           areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(74,158,255,0.2)'},{offset:1,color:'rgba(74,158,255,0.02)'}]}}},
+          {name:'UV',type:'line',data:ds.trend_30d.map(function(d){return d.uv}),smooth:true,
+           lineStyle:{width:2},itemStyle:{color:'#52c41a'},
+           areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(82,196,26,0.15)'},{offset:1,color:'rgba(82,196,26,0.02)'}]}}}
+        ]
+      });
+    }
+    window.addEventListener('resize',function(){chart.resize()});
+  }
+  // revenueChart: 30-day revenue trend
+  var revEl=document.getElementById('revenueChart');
+  if(revEl){
+    var rchart=echarts.init(revEl);
+    var hasRev=ds.revenue_trend_30d&&ds.revenue_trend_30d.length;
+    if(!hasRev){
+      rchart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+    }else{
+      var rdates=ds.revenue_trend_30d.map(function(d){return d.date.substr(5)});
+      rchart.setOption({
+        tooltip:{trigger:'axis',formatter:function(p){return p[0].name+'<br/>\u00a5 '+p[0].value.toFixed(2)}},
+        grid:{left:50,right:10,bottom:25,top:10},
+        xAxis:{type:'category',data:rdates,axisLabel:{fontSize:10,color:'var(--dim)'}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10,formatter:'\u00a5{value}'}},
+        series:[{
+          type:'bar',data:ds.revenue_trend_30d.map(function(d){return d.revenue}),
+          itemStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f6c243'},{offset:1,color:'rgba(246,194,67,0.3)'}]},borderRadius:[3,3,0,0]},
+          barMaxWidth:28
+        }]
+      });
+    }
+    window.addEventListener('resize',function(){rchart.resize()});
   }
 }
 
@@ -260,18 +337,4 @@ window.l_dashboard=function(){
     }
     _render_dashboard(d.data);
   }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
-};
-
-function svcCard(svcs){
-  var h='<div class="chart-box"><div class="chart-title">{{ _('Service Status') }}</div><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding-top:16px">';
-  svcs.forEach(function(s){
-    var cls=s.alive?'on':'off';
-    h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span class="svc-dot '+cls+'"></span><span>'+esc(s.name)+'</span><span style="color:var(--dim);font-size:10px">:'+s.port+'</span></div>';
-  });
-  h+='</div></div>';
-  return h;
 }
-
-function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div></div>'}
-function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
-function tf(n){if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return n.toString()}
