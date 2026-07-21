@@ -86,7 +86,7 @@ function _initCharts(ds){
     var c1=echarts.init(el1);
     var tu=ds.total_users||0, au=ds.active_users||0, tn=ds.today_new_users||0;
     if(tu===0){
-      c1.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+      c1.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
     }else{
       c1.setOption({
         tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
@@ -137,7 +137,7 @@ function _initCharts(ds){
     var c3=echarts.init(el3);
     var as=ds.active_subscriptions||0, to=ds.total_orders||0;
     if(to===0){
-      c3.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+      c3.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
     }else{
       c3.setOption({
         tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
@@ -166,7 +166,7 @@ function _initCharts(ds){
     var c4=echarts.init(el4);
     var tc=ds.today_calls||0, ttc=ds.total_calls||0, ag=ds.active_agents||0, tag=ds.total_agents||0;
     if(tc+ttc+ag+tag===0){
-      c4.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+      c4.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
     }else{
       c4.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
@@ -210,7 +210,7 @@ function _initCharts(ds){
     var c6=echarts.init(el6);
     var pp=ds.pending_posts||0, pr=ds.pending_reviews||0, pc=ds.pending_contacts||0, ft=ds.today_failed_tasks||0;
     if(pp+pr+pc+ft===0){
-      c6.showLoading({text:'All Clear',textStyle:{fontSize:12,color:'#52c41a'}});
+      c6.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'All Clear',fontSize:13,fill:'#52c41a',textAlign:'center'}}]});
     }else{
       c6.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
@@ -235,7 +235,7 @@ function _initCharts(ds){
     var c7=echarts.init(el7);
     var tp=ds.top_pages||[];
     if(tp.length===0){
-      c7.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+      c7.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:13,fill:'var(--dim)',textAlign:'center'}}]});
     }else{
       var pnames=[],pvals=[];
       tp.slice().reverse().forEach(function(p){pnames.push(p.path);pvals.push(p.pv||0)});
