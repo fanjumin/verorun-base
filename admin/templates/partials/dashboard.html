@@ -1,123 +1,256 @@
+// ── Dashboard CSS injection ──
+(function(){var s=document.createElement('style');s.textContent='.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.chart-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px}.chart-box .chart-title{font-size:13px;color:var(--dim);margin-bottom:8px}.chart-empty{display:flex;align-items:center;justify-content:center;height:240px;color:var(--dim);font-size:13px}.svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}.svc-dot.on{background:#52c41a;box-shadow:0 0 6px #52c41a}.svc-dot.off{background:#ef4444}.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}.metric-card .metric-label{font-size:12px;color:var(--dim)}.metric-card .metric-value{font-size:22px;font-weight:600}.metric-card .metric-value.b{color:var(--accent)}.metric-card .metric-value.g{color:var(--green)}@media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.g3,.g2{grid-template-columns:1fr}}';document.head.appendChild(s)})();
+
 function _render_dashboard(ds){
   document.getElementById("pt").textContent="{{ _('Overview') }}";
   var h="";
-  h+='<div class="cd"><div class="st">{{ _('Core Metrics') }}</div></div>';
-  h+='<div class="gr">';
-  h+=hk("{{ _("Total Users") }}",ds.total_users+' <span style="font-size:11px;color:var(--dim)">+'+ds.today_new_users+' {{ _('Today') }}</span>',"b");
-  h+=hk("{{ _("Active Subscriptions") }}",ds.active_subscriptions,"g");
-  h+=hk("{{ _("Today") }} API {{ _("Call") }}",ds.today_calls,"b");
-  h+=hk("{{ _("Active") }} Agent",ds.active_agents+"/"+ds.total_agents,"g");
-  h+=hk("{{ _("Monthly Revenue") }}","\u00a5"+(ds.monthly_revenue||0).toFixed(2),"g");
+
+  // ── Row 1: 3-column core metrics ──
+  h+='<div class="g3" style="margin-bottom:12px">';
+  h+='<div class="chart-box"><div class="chart-title">{{ _('Users') }}</div><div id="chartUsers" style="width:100%;height:240px"></div></div>';
+  h+='<div class="chart-box"><div class="chart-title">{{ _('Monthly Revenue') }}</div><div id="chartRevenue" style="width:100%;height:240px"></div></div>';
+  h+='<div class="chart-box"><div class="chart-title">{{ _('Subscriptions') }}</div><div id="chartSubs" style="width:100%;height:240px"></div></div>';
   h+='</div>';
-  var tt=ds.today_tokens||0, ta=ds.top_token_agents||[];
-  var tf=function(n){if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return n.toString()};
-  var th='<div class="cd" onclick="go(\'token_monitoring\')" style="cursor:pointer" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'"><div class="st">{{ _('Today') }} Token {{ _('Spend') }} <span style="font-size:10px;color:var(--dim)">→ {{ _('Details') }}</span></div>';
-  th+='<div class="v b" style="font-size:22px">'+tf(tt)+'</div>';
-  if(ta.length){th+='<div style="font-size:11px;color:var(--dim);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap">';ta.forEach(function(a,i){th+='<span>'+(i+1)+'. '+esc(a.agent_name||'Agent#'+a.agent_id)+' <span style="color:var(--accent)">'+tf(a.total)+'</span></span>'});th+='</div>'}
-  th+='</div>';
-  h+=th;
+
+  // ── Row 2: 2-column usage ──
+  h+='<div class="g2" style="margin-bottom:12px">';
+  h+='<div class="chart-box"><div class="chart-title">{{ _('API & Agent Usage') }}</div><div id="chartUsage" style="width:100%;height:240px"></div></div>';
+  h+='<div class="chart-box"><div class="chart-title">Token {{ _('Spend') }} <span style="font-size:10px;color:var(--dim)">'+tf(ds.today_tokens||0)+'</span></div><div id="chartTokens" style="width:100%;height:240px"></div></div>';
+  h+='</div>';
+
+  // ── Row 3: 2-column status ──
+  h+='<div class="g2" style="margin-bottom:12px">';
   h+=svcCard(ds.services);
-  var pn=ds.pending_posts+ds.pending_reviews+ds.pending_contacts+ds.today_failed_tasks;
-  h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Pending') }}'+(pn>0?' <span style="color:var(--rose)">('+pn+')</span>':'')+'</div></div>';
-  h+='<div class="gr">';
-  h+=hk("{{ _("Pending Review Post") }}",ds.pending_posts,ds.pending_posts>0?"r":"");
-  h+=hk("{{ _("Pending Review Content") }}",ds.pending_reviews,ds.pending_reviews>0?"r":"");
-  h+=hk("{{ _("Pending Ticket") }}",ds.pending_contacts,ds.pending_contacts>0?"r":"");
-  h+=hk("{{ _("Today Failed Tasks") }}",ds.today_failed_tasks,ds.today_failed_tasks>0?"r":"");
-  h+='</div>';
+  // Today traffic (conditional)
   if(ds.today_pv!==undefined&&ds.today_uv!==undefined){
-    h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Today Traffic') }}</div></div>';
-    h+='<div class="gr">';
-    h+=hk("PV",ds.today_pv,"b");
-    h+=hk("UV",ds.today_uv,"g");
-    h+=hk("{{ _("Online Now") }}",ds.online_now,"g");
-    h+='</div>';
-    if(ds.top_pages&&ds.top_pages.length){
-      h+='<div class="cd" style="margin-top:4px"><div class="st">{{ _('Popular Pages') }}</div><table style="font-size:12px;margin-top:8px">';
-      h+='<tr><th>{{ _('Page') }}</th><th style="text-align:right">PV</th></tr>';
-      ds.top_pages.forEach(function(p){h+='<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.path+'</td><td style="text-align:right">'+p.pv+'</td></tr>'});
-      h+='</table></div>';
-    }
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Today Traffic') }}</div><div class="gr">';
+    h+='<div class="metric-card"><div class="metric-label">PV</div><div class="metric-value b">'+(ds.today_pv||0)+'</div></div>';
+    h+='<div class="metric-card"><div class="metric-label">UV</div><div class="metric-value g">'+(ds.today_uv||0)+'</div></div>';
+    h+='<div class="metric-card"><div class="metric-label">{{ _('Online Now') }}</div><div class="metric-value g">'+(ds.online_now||0)+'</div></div>';
+    h+='</div></div>';
+  }else{
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Today Traffic') }}</div><div class="chart-empty">{{ _('Analytics plugin not enabled') }}</div></div>';
   }
-  h+='<div class="g2" style="margin-top:4px">';
-  h+='<div class="cd"><div class="st">{{ _('Recent Registrations') }}</div><table style="font-size:12px;margin-top:8px">';
+
+  h+='</div>';
+
+  // ── Row 4: 2-column content ──
+  h+='<div class="g2" style="margin-bottom:12px">';
+  h+='<div class="chart-box"><div class="chart-title">{{ _('Pending Items') }}</div><div id="chartPending" style="width:100%;height:240px"></div></div>';
+  // Popular pages (conditional)
+  if(ds.top_pages&&ds.top_pages.length){
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Popular Pages') }}</div><div id="chartPages" style="width:100%;height:240px"></div></div>';
+  }else{
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Popular Pages') }}</div><div class="chart-empty">No Data</div></div>';
+  }
+  h+='</div>';
+
+  // ── Row 5: 2-column tables ──
+  h+='<div class="g2" style="margin-bottom:12px">';
+  // Recent registrations
+  h+='<div class="chart-box"><div class="chart-title">{{ _('Recent Registrations') }}</div><table style="font-size:12px;margin-top:8px;width:100%">';
   h+='<tr><th>ID</th><th>{{ _('Nickname') }}</th><th>{{ _('Phone') }}</th><th>{{ _('Time') }}</th></tr>';
   if(ds.recent_users&&ds.recent_users.length){
-    ds.recent_users.forEach(function(u){h+='<tr><td>'+u.id+'</td><td>'+(u.nickname||'-')+'</td><td>'+(u.phone||'-')+'</td><td>'+u.created_at+'</td></tr>'});
+    ds.recent_users.forEach(function(u){h+='<tr><td>'+u.id+'</td><td>'+esc(u.nickname||'-')+'</td><td>'+(u.phone||'-')+'</td><td>'+u.created_at+'</td></tr>'});
+  }else{
+    h+='<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:24px">No data</td></tr>';
   }
   h+='</table></div>';
-  h+='<div class="cd"><div class="st">{{ _('Recent Orders') }}</div><table style="font-size:12px;margin-top:8px">';
+  // Recent orders
+  h+='<div class="chart-box"><div class="chart-title">{{ _('Recent Orders') }}</div><table style="font-size:12px;margin-top:8px;width:100%">';
   h+='<tr><th>ID</th><th>{{ _('Plan') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th></tr>';
   if(ds.recent_orders&&ds.recent_orders.length){
     ds.recent_orders.forEach(function(o){
-      var st=o.status==='paid'?'<span class="bdg on">{{ _('Paid') }}</span>':(o.status==='pending'?'<span class="bdg off">{{ _('Unpaid') }}</span>':o.status);
-      h+='<tr><td>'+o.id+'</td><td>'+(o.item_desc||'-')+'</td><td>\u00a5'+(o.amount||0)+'</td><td>'+st+'</td></tr>';
+      var st=o.status==='paid'?'<span class="bdg on">{{ _('Paid') }}</span>':(o.status==='pending'?'<span class="bdg off">{{ _('Unpaid') }}</span>':esc(o.status));
+      h+='<tr><td>'+o.id+'</td><td>'+esc(o.item_desc||'-')+'</td><td>\u00a5'+(o.amount||0)+'</td><td>'+st+'</td></tr>';
     });
+  }else{
+    h+='<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:24px">No data</td></tr>';
   }
   h+='</table></div>';
   h+='</div>';
-  // --- Charts section ---
-  if(ds.trend_30d!==undefined){
-    h+='<div class="cd chart-section" style="margin-top:4px"><div class="st">{{ _('Data Trends') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div></div>';
-    h+='<div class="g2" style="margin-top:4px">';
-    h+='<div class="cd"><div id="trendChart" style="width:100%;height:280px"></div></div>';
-    h+='<div class="cd"><div id="revenueChart" style="width:100%;height:280px"></div></div>';
-    h+='</div>';
-  }
+
   document.getElementById("mc").innerHTML=h;
-  // Initialize charts after DOM is set
   _initCharts(ds);
 }
+
 function _initCharts(ds){
   if(typeof echarts==='undefined'){
     setTimeout(function(){_initCharts(ds);},300);
     return;
   }
-  // 30-day traffic trend (line chart)
-  var trendEl=document.getElementById('trendChart');
-  if(trendEl){
-    var chart=echarts.init(trendEl);
-    var hasTrend=ds.trend_30d&&ds.trend_30d.length;
-    var dates=hasTrend?ds.trend_30d.map(function(d){return d.date.substr(5)}):[];
-    chart.setOption({
-      tooltip:{trigger:'axis'},
-      legend:{data:['PV','UV'],textStyle:{color:'var(--dim)'},top:0},
-      grid:{left:40,right:10,bottom:25,top:35},
-      xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,color:'var(--dim)'}},
-      yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
-      series:[
-        {name:'PV',type:'line',data:hasTrend?ds.trend_30d.map(function(d){return d.pv}):[],smooth:true,
-         lineStyle:{width:2},itemStyle:{color:'#4a9eff'},
-         areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(74,158,255,0.2)'},{offset:1,color:'rgba(74,158,255,0.02)'}]}}},
-        {name:'UV',type:'line',data:hasTrend?ds.trend_30d.map(function(d){return d.uv}):[],smooth:true,
-         lineStyle:{width:2},itemStyle:{color:'#52c41a'},
-         areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(82,196,26,0.15)'},{offset:1,color:'rgba(82,196,26,0.02)'}]}}}
-      ]
-    });
-    if(!hasTrend) chart.showLoading({text:'{{ _('No Data') }}',textStyle:{fontSize:12,color:'var(--dim)'}});
-    window.addEventListener('resize',function(){chart.resize()});
+
+  // ── Chart 1: User donut ──
+  var el1=document.getElementById('chartUsers');
+  if(el1){
+    var c1=echarts.init(el1);
+    var tu=ds.total_users||0, au=ds.active_users||0, tn=ds.today_new_users||0;
+    if(tu===0){
+      c1.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+    }else{
+      c1.setOption({
+        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+        legend:{bottom:0,textStyle:{color:'var(--dim)',fontSize:10},itemWidth:8,itemHeight:8},
+        series:[{
+          type:'pie',radius:['55%','75%'],center:['50%','45%'],avoidLabelOverlap:false,
+          label:{show:false},emphasis:{scale:false},
+          itemStyle:{borderColor:'var(--bg-card)',borderWidth:2},
+          data:[
+            {value:au,name:'{{ _('Active') }}',itemStyle:{color:'#52c41a'}},
+            {value:tu-au,name:'{{ _('Inactive') }}',itemStyle:{color:'rgba(255,255,255,0.12)'}}
+          ]
+        }],
+        graphic:[
+          {type:'text',left:'center',top:'38%',style:{text:tu.toString(),fontSize:22,fontWeight:'bold',fill:'var(--text)',textAlign:'center'}},
+          {type:'text',left:'center',top:'52%',style:{text:(tn>0?'+'+tn:'0')+' Today',fontSize:10,fill:tn>0?'#52c41a':'var(--dim)',textAlign:'center'}}
+        ]
+      });
+    }
+    window.addEventListener('resize',function(){c1.resize()});
   }
-  // Revenue trend (bar chart)
-  var revEl=document.getElementById('revenueChart');
-  if(revEl){
-    var rchart=echarts.init(revEl);
-    var hasRev=ds.revenue_trend_30d&&ds.revenue_trend_30d.length;
-    var rdates=hasRev?ds.revenue_trend_30d.map(function(d){return d.date.substr(5)}):[];
-    rchart.setOption({
-      tooltip:{trigger:'axis',formatter:function(p){return p[0].name+'<br/>\u00a5 '+p[0].value.toFixed(2)}},
-      grid:{left:50,right:10,bottom:25,top:10},
-      xAxis:{type:'category',data:rdates,axisLabel:{fontSize:10,color:'var(--dim)'}},
-      yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10,formatter:'\u00a5{value}'}},
+
+  // ── Chart 2: Revenue gauge ──
+  var el2=document.getElementById('chartRevenue');
+  if(el2){
+    var c2=echarts.init(el2);
+    var mr=ds.monthly_revenue||0;
+    var gaugeMax=Math.max(30000,Math.ceil(mr/10000)*10000);
+    c2.setOption({
       series:[{
-        type:'bar',data:hasRev?ds.revenue_trend_30d.map(function(d){return d.revenue}):[],
-        itemStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f6c243'},{offset:1,color:'rgba(246,194,67,0.3)'}]},borderRadius:[3,3,0,0]},
-        barMaxWidth:28
+        type:'gauge',startAngle:210,endAngle:-30,center:['50%','58%'],radius:'90%',
+        min:0,max:gaugeMax,splitNumber:10,
+        axisLine:{lineStyle:{width:20,color:[[0.4,'#52c41a'],[0.7,'#f6c243'],[1,'#ef4444']]}},
+        pointer:{length:'70%',width:6,itemStyle:{color:'var(--text)'}},
+        axisTick:{distance:-20,length:6,lineStyle:{width:1,color:'var(--dim)'}},
+        splitLine:{distance:-26,length:14,lineStyle:{width:2,color:'var(--dim)'}},
+        axisLabel:{distance:-8,fontSize:10,color:'var(--dim)',formatter:function(v){return (v>=1000?'\u00a5'+(v/1000).toFixed(0)+'k':'\u00a5'+v)}},
+        detail:{valueAnimation:true,formatter:'\u00a5{value}',fontSize:16,fontWeight:'bold',color:'var(--text)',offsetCenter:[0,'60%']},
+        data:[{value:mr,name:'{{ _('Revenue') }}'}]
       }]
     });
-    if(!hasRev) rchart.showLoading({text:'{{ _('No Data') }}',textStyle:{fontSize:12,color:'var(--dim)'}});
-    window.addEventListener('resize',function(){rchart.resize()});
+    window.addEventListener('resize',function(){c2.resize()});
+  }
+
+  // ── Chart 3: Subscription donut ──
+  var el3=document.getElementById('chartSubs');
+  if(el3){
+    var c3=echarts.init(el3);
+    var as=ds.active_subscriptions||0, to=ds.total_orders||0;
+    if(to===0){
+      c3.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+    }else{
+      c3.setOption({
+        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+        legend:{bottom:0,textStyle:{color:'var(--dim)',fontSize:10},itemWidth:8,itemHeight:8},
+        series:[{
+          type:'pie',radius:['55%','75%'],center:['50%','45%'],avoidLabelOverlap:false,
+          label:{show:false},emphasis:{scale:false},
+          itemStyle:{borderColor:'var(--bg-card)',borderWidth:2},
+          data:[
+            {value:as,name:'{{ _('Active') }}',itemStyle:{color:'#00f5ff'}},
+            {value:to-as,name:'{{ _('Other') }}',itemStyle:{color:'rgba(255,255,255,0.12)'}}
+          ]
+        }],
+        graphic:[
+          {type:'text',left:'center',top:'38%',style:{text:as.toString(),fontSize:22,fontWeight:'bold',fill:'var(--text)',textAlign:'center'}},
+          {type:'text',left:'center',top:'52%',style:{text:'Active',fontSize:10,fill:'var(--dim)',textAlign:'center'}}
+        ]
+      });
+    }
+    window.addEventListener('resize',function(){c3.resize()});
+  }
+
+  // ── Chart 4: API + Agent grouped bar ──
+  var el4=document.getElementById('chartUsage');
+  if(el4){
+    var c4=echarts.init(el4);
+    var tc=ds.today_calls||0, ttc=ds.total_calls||0, ag=ds.active_agents||0, tag=ds.total_agents||0;
+    if(tc+ttc+ag+tag===0){
+      c4.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+    }else{
+      c4.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+        legend:{data:['{{ _('Today') }} / {{ _('Active') }}','{{ _('Total') }}'],textStyle:{color:'var(--dim)',fontSize:10},top:0},
+        grid:{left:50,right:10,bottom:25,top:35},
+        xAxis:{type:'category',data:['API Calls','Agents'],axisLabel:{fontSize:11,color:'var(--dim)'}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
+        series:[
+          {name:'{{ _('Today') }} / {{ _('Active') }}',type:'bar',data:[tc,ag],itemStyle:{color:'#4a9eff',borderRadius:[3,3,0,0]},barMaxWidth:40},
+          {name:'{{ _('Total') }}',type:'bar',data:[ttc,tag],itemStyle:{color:'#a020f0',borderRadius:[3,3,0,0]},barMaxWidth:40}
+        ]
+      });
+    }
+    window.addEventListener('resize',function(){c4.resize()});
+  }
+
+  // ── Chart 5: Token ranking horizontal bar ──
+  var el5=document.getElementById('chartTokens');
+  if(el5){
+    var c5=echarts.init(el5);
+    var ta=ds.top_token_agents||[];
+    if(ta.length===0){
+      c5.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+    }else{
+      var names=[],vals=[];
+      ta.slice().reverse().forEach(function(a){names.push(a.agent_name||'Agent#'+a.agent_id);vals.push(a.total||0)});
+      c5.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+'<br/>'+tf(p[0].value)+' tokens'}},
+        grid:{left:90,right:20,bottom:20,top:10},
+        xAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10,formatter:function(v){return tf(v)}}},
+        yAxis:{type:'category',data:names,axisLabel:{fontSize:10,color:'var(--dim)'},axisLine:{show:false},axisTick:{show:false}},
+        series:[{type:'bar',data:vals,itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:0,colorStops:[{offset:0,color:'#008080'},{offset:1,color:'#00f5ff'}]},borderRadius:[0,4,4,0]},barMaxWidth:20}]
+      });
+    }
+    window.addEventListener('resize',function(){c5.resize()});
+  }
+
+  // ── Chart 6: Pending stacked bar ──
+  var el6=document.getElementById('chartPending');
+  if(el6){
+    var c6=echarts.init(el6);
+    var pp=ds.pending_posts||0, pr=ds.pending_reviews||0, pc=ds.pending_contacts||0, ft=ds.today_failed_tasks||0;
+    if(pp+pr+pc+ft===0){
+      c6.showLoading({text:'All Clear',textStyle:{fontSize:12,color:'#52c41a'}});
+    }else{
+      c6.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+        legend:{data:['{{ _('Posts') }}','{{ _('Reviews') }}','{{ _('Tickets') }}','{{ _('Failed') }}'],textStyle:{color:'var(--dim)',fontSize:10},bottom:0},
+        grid:{left:40,right:10,bottom:35,top:10},
+        xAxis:{type:'category',data:['{{ _('Pending') }}'],axisLabel:{fontSize:11,color:'var(--dim)'}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
+        series:[
+          {name:'{{ _('Posts') }}',type:'bar',stack:'total',data:[pp],itemStyle:{color:'#4a9eff'},barMaxWidth:60},
+          {name:'{{ _('Reviews') }}',type:'bar',stack:'total',data:[pr],itemStyle:{color:'#a020f0'},barMaxWidth:60},
+          {name:'{{ _('Tickets') }}',type:'bar',stack:'total',data:[pc],itemStyle:{color:'#f6c243'},barMaxWidth:60},
+          {name:'{{ _('Failed') }}',type:'bar',stack:'total',data:[ft],itemStyle:{color:'#ef4444'},barMaxWidth:60}
+        ]
+      });
+    }
+    window.addEventListener('resize',function(){c6.resize()});
+  }
+
+  // ── Chart 7: Popular pages horizontal bar (conditional) ──
+  var el7=document.getElementById('chartPages');
+  if(el7){
+    var c7=echarts.init(el7);
+    var tp=ds.top_pages||[];
+    if(tp.length===0){
+      c7.showLoading({text:'No Data',textStyle:{fontSize:12,color:'var(--dim)'}});
+    }else{
+      var pnames=[],pvals=[];
+      tp.slice().reverse().forEach(function(p){pnames.push(p.path);pvals.push(p.pv||0)});
+      c7.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+'<br/>PV: '+p[0].value}},
+        grid:{left:100,right:20,bottom:20,top:10},
+        xAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
+        yAxis:{type:'category',data:pnames,axisLabel:{fontSize:10,color:'var(--dim)',width:90,overflow:'truncate'},axisLine:{show:false},axisTick:{show:false}},
+        series:[{type:'bar',data:pvals,itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:0,colorStops:[{offset:0,color:'#4a9eff'},{offset:1,color:'#00f5ff'}]},borderRadius:[0,4,4,0]},barMaxWidth:20}]
+      });
+    }
+    window.addEventListener('resize',function(){c7.resize()});
   }
 }
+
 window.l_dashboard=function(){
   document.getElementById("pt").textContent="{{ _('Overview') }}";
   fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
@@ -127,15 +260,18 @@ window.l_dashboard=function(){
     }
     _render_dashboard(d.data);
   }).catch(function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('Load failed') }}</div>'})
-}
+};
+
 function svcCard(svcs){
-  var h='<div class="gr"><div class="cd"><div class="l">{{ _('Service Status') }}</div><div class="v" style="display:flex;gap:6px;flex-wrap:wrap">';
+  var h='<div class="chart-box"><div class="chart-title">{{ _('Service Status') }}</div><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding-top:16px">';
   svcs.forEach(function(s){
-    var c=s.alive?'var(--green)':'var(--rose)';
-    h+='<span style="display:flex;align-items:center;gap:3px;font-size:11px"><span style="width:6px;height:6px;border-radius:50%;background:'+c+'"></span>'+s.name+'</span>';
+    var cls=s.alive?'on':'off';
+    h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span class="svc-dot '+cls+'"></span><span>'+esc(s.name)+'</span><span style="color:var(--dim);font-size:10px">:'+s.port+'</span></div>';
   });
-  h+='</div></div></div>';
+  h+='</div></div>';
   return h;
 }
-function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div></div>'}
 
+function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div></div>'}
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function tf(n){if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return n.toString()}
