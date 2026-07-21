@@ -2674,3 +2674,8 @@ avg_response_time (Average response ms): avg_response_time (Average response ms)
 'e.g. Alibaba Cloud DashScope': 'e.g. Alibaba Cloud DashScope'
 'e.g. user_id, model_id, or leave blank for global': 'e.g. user_id, model_id, or leave blank for global'
 'leave blank to keep current': 'leave blank to keep current'
+'Invalid target_type': 'Invalid target_type'
+'Key is referenced by %(count)s model(s), please unlink first': 'Key is referenced by %(count)s model(s), please unlink first'
+'Name and Key cannot be empty': 'Name and Key cannot be empty'
+'No changes': 'No changes'
+'Not found': 'Not found'

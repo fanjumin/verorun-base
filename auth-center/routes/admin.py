@@ -3929,7 +3929,7 @@ def provider_api_key_create():
     key_value = (data.get('key_value') or '').strip()
     provider = (data.get('provider') or '').strip()
     if not name or not key_value:
-        return jsonify({'success': False, 'error': '名称和 Key 不能为空'}), 400
+        return jsonify({'success': False, 'error': _('Name and Key cannot be empty')}), 400
 
     from services.crypto import encrypt
     encrypted = encrypt(key_value)
@@ -3956,7 +3956,7 @@ def provider_api_key_update(kid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM provider_api_keys WHERE id=%s', (kid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '不存在'}), 404
+            return jsonify({'success': False, 'error': _('Not found')}), 404
 
         updates = []
         params = []
@@ -3972,7 +3972,7 @@ def provider_api_key_update(kid):
             updates.append('key_value_enc=%s')
             params.append(encrypt(data['key_value'].strip()))
         if not updates:
-            return jsonify({'success': True, 'message': '无变更'})
+            return jsonify({'success': True, 'message': _('No changes')})
 
         updates.append('updated_at=NOW()')
         params.append(kid)
@@ -3999,12 +3999,12 @@ def provider_api_key_delete(kid):
         if refs['cnt'] > 0:
             return jsonify({
                 'success': False,
-                'error': f'该 Key 被 {refs["cnt"]} 个模型引用，请先解除关联'
+                'error': _('Key is referenced by %(count)s model(s), please unlink first', count=refs['cnt'])
             }), 400
 
         row = conn.execute('SELECT name FROM provider_api_keys WHERE id=%s', (kid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '不存在'}), 404
+            return jsonify({'success': False, 'error': _('Not found')}), 404
         conn.execute('DELETE FROM provider_api_keys WHERE id=%s', (kid,))
         conn.commit()
     _log(admin['user_id'], 'delete_provider_key', 'provider_api_key', str(kid), row['name'])
@@ -4035,7 +4035,7 @@ def llm_quota_create():
     data = request.get_json(force=True) or {}
     target_type = data.get('target_type', 'module')
     if target_type not in ('user', 'model', 'module', 'global'):
-        return jsonify({'success': False, 'error': 'Invalid target_type'}), 400
+        return jsonify({'success': False, 'error': _('Invalid target_type')}), 400
     with get_db() as conn:
         row = conn.execute(
             'INSERT INTO llm_quotas (target_type, target_id, daily_limit, rate_limit, rate_window_sec) '
@@ -4057,7 +4057,7 @@ def llm_quota_update(qid):
     with get_db() as conn:
         row = conn.execute('SELECT * FROM llm_quotas WHERE id=%s', (qid,)).fetchone()
         if not row:
-            return jsonify({'success': False, 'error': '不存在'}), 404
+            return jsonify({'success': False, 'error': _('Not found')}), 404
         updates = []
         params = []
         for field in ['target_type', 'daily_limit', 'rate_limit', 'rate_window_sec', 'target_id', 'is_active']:
@@ -4065,7 +4065,7 @@ def llm_quota_update(qid):
                 updates.append(f'{field}=%s')
                 params.append(data[field])
         if not updates:
-            return jsonify({'success': True, 'message': '无变更'})
+            return jsonify({'success': True, 'message': _('No changes')})
         updates.append('updated_at=NOW()')
         params.append(qid)
         conn.execute(f"UPDATE llm_quotas SET {','.join(updates)} WHERE id=%s", params)

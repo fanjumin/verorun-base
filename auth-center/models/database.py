@@ -1319,7 +1319,7 @@ def init_db():
             ('openai',     'OpenAI', 'GPT-4o、DALL-E、TTS'),
             ('openrouter', 'OpenRouter', '多模型聚合路由'),
             ('ollama',     'Ollama', '本地开源模型部署'),
-            ('siliconflow','硅基流动', 'SiliconFlow 模型平台（DeepSeek-OCR 等）'),
+            ('siliconflow','SiliconFlow', 'SiliconFlow model platform (DeepSeek-OCR etc.)'),
             ('gemini',     'Google Gemini', 'Gemini 2.5 Flash/Pro'),
             ('grok',       'xAI Grok', 'Grok-3 Beta'),
         ]
@@ -2787,14 +2787,14 @@ with get_db() as m:
     ''')
 
     seed_keys = [
-        ('阿里云 DashScope', '', 'dashscope', '通义千问系列模型 API Key'),
-        ('OpenAI',            '', 'openai',    'GPT-4o 系列模型 API Key'),
-        ('DeepSeek',          '', 'deepseek',  '深度求索模型 API Key'),
-        ('OpenRouter',        '', 'openrouter','多模型聚合路由 API Key'),
-        ('Ollama 本地',       '', 'ollama',    '本地开源模型 Key（可选）'),
-        ('硅基流动',          '', 'siliconflow','SiliconFlow 平台 API Key'),
-        ('Google Gemini',      '', 'gemini',    'Google Gemini API Key'),
-        ('xAI Grok',           '', 'grok',      'xAI Grok API Key'),
+        ('Alibaba Cloud DashScope', '', 'dashscope', 'Qwen series models API Key'),
+        ('OpenAI',                  '', 'openai',    'GPT-4o series models API Key'),
+        ('DeepSeek',                '', 'deepseek',  'DeepSeek models API Key'),
+        ('OpenRouter',              '', 'openrouter','Multi-model aggregation API Key'),
+        ('Ollama Local',             '', 'ollama',    'Local open-source models (optional)'),
+        ('SiliconFlow',             '', 'siliconflow','SiliconFlow platform API Key'),
+        ('Google Gemini',            '', 'gemini',    'Google Gemini API Key'),
+        ('xAI Grok',                 '', 'grok',      'xAI Grok API Key'),
     ]
     for name, key_val, provider, desc in seed_keys:
         m.execute(
