@@ -18,18 +18,18 @@ def _get_ai_key() -> Optional[str]:
 
 
 def _call_qwen(prompt: str, max_tokens: int = 4096) -> Optional[str]:
-    import requests, json
-    api_key = _get_ai_key()
-    if not api_key:
-        raise RuntimeError(_("DashScope Text Key is not configured"))
-    url = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
-    headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
-    body = {'model': 'qwen-turbo', 'messages': [{'role': 'user', 'content': prompt}],
-            'max_tokens': max_tokens, 'temperature': 0.7}
-    resp = requests.post(url, headers=headers, json=body, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-    return data['choices'][0]['message']['content']
+    """Call Qwen via LLMGateway (unified entry with token logging)."""
+    from agent_matrix.engine import get_gateway
+    gw = get_gateway()
+    resp = gw.chat(
+        provider='dashscope',
+        model='qwen-turbo',
+        messages=[{'role': 'user', 'content': prompt}],
+        temperature=0.7,
+        max_tokens=max_tokens,
+        module='content_factory',
+    )
+    return resp.choices[0].message.content
 
 
 PROCESS_PROMPT = """请处理以下原始内容，输出JSON：

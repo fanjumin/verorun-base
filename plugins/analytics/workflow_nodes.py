@@ -232,22 +232,9 @@ def handle_analytics_cleanup(node_def: dict, input_data: dict) -> dict:
 
 def _ai_interpret(report: dict, text: str) -> str:
     """
-    使用 智能体 对统计数据进行专业解读
-    复用平台已有的 DashScope API 配置
+    使用 LLMGateway 对统计数据进行专业解读
+    复用平台已有的 provider_models 配置
     """
-    try:
-        from models import get_db
-        conn = get_db()
-        row = conn.execute(
-            "SELECT value FROM system_config WHERE key='dashscope_text_key'"
-        ).fetchone()
-        conn.close()
-        api_key = row['value'] if row else ''
-        if not api_key:
-            return ''
-    except:
-        return ''
-
     import urllib.request
     prompt = f"""你是一个专业的数据分析师。请根据以下网站统计数据，输出一段简洁的运营洞察（150字内），指出关键趋势和建议：
 
@@ -257,27 +244,21 @@ def _ai_interpret(report: dict, text: str) -> str:
 📊 运营洞察
 关键发现：
 建议："""
-    body = json.dumps({
-        "model": "qwen-turbo",
-        "messages": [
-            {"role": "system", "content": "你是一个资深数据运营分析师，擅长从数据中提取 actionable insights。"},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.5,
-        "max_tokens": 1024
-    }).encode('utf-8')
-
-    req = urllib.request.Request(
-        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-        data=body, method='POST'
-    )
-    req.add_header('Authorization', f'Bearer {api_key}')
-    req.add_header('Content-Type', 'application/json')
-
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            return data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        from agent_matrix.engine import get_gateway
+        gw = get_gateway()
+        resp = gw.chat(
+            provider='dashscope',
+            model='qwen-turbo',
+            messages=[
+                {'role': 'system', 'content': '你是一个资深数据运营分析师，擅长从数据中提取 actionable insights。'},
+                {'role': 'user', 'content': prompt}
+            ],
+            temperature=0.5,
+            max_tokens=1024,
+            module='analytics',
+        )
+        return resp.choices[0].message.content.strip()
     except:
         return ''
 
