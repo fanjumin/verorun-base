@@ -49,10 +49,10 @@ def ocr_business_license(image_base64: str) -> dict:
     if ',' in image_base64:
         image_base64 = image_base64.split(',', 1)[1]
 
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key, base_url=SILICONFLOW_BASE_URL)
-
-    resp = client.chat.completions.create(
+    from agent_matrix.engine import get_gateway
+    gw = get_gateway()
+    resp = gw.chat(
+        provider='siliconflow',
         model=DEFAULT_OCR_MODEL,
         messages=[{
             'role': 'user',
@@ -85,6 +85,7 @@ def ocr_business_license(image_base64: str) -> dict:
         }],
         temperature=0.1,
         max_tokens=2048,
+        module='enterprise_verify',
     )
 
     text = resp.choices[0].message.content.strip()
@@ -123,9 +124,10 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
     api_key = _get_siliconflow_api_key()
     if api_key:
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key, base_url=SILICONFLOW_BASE_URL)
-            resp = client.chat.completions.create(
+            from agent_matrix.engine import get_gateway
+            gw = get_gateway()
+            resp = gw.chat(
+                provider='siliconflow',
                 model=DEFAULT_AUDIT_MODEL,
                 messages=[
                     {'role': 'system', 'content': '你是一个企业认证审核助手。判断企业名称和统一社会信用代码是否基本匹配。返回JSON: {"decision": "approve"|"pending", "confidence": 0-1, "reason": "简要说明"}'},
@@ -134,6 +136,7 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
                 temperature=0.1,
                 max_tokens=512,
                 response_format={'type': 'json_object'},
+                module='enterprise_verify',
             )
             text = resp.choices[0].message.content.strip()
             result = json.loads(text)
