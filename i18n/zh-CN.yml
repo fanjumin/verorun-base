@@ -960,6 +960,8 @@ Politeness Level 1-5: 礼貌程度 1-5
 Popular Articles: 热门文章
 Post Comment: 发布评论
 Poster: 海报
+Preview: 预览
+'Preview mode — admin only': 预览模式 — 仅管理员可见
 Price: 价格
 Price Calculator - Yizhan AI · AI Website Builder Platform: 价格计算器 — 易站AI · AI智能建站平台
 Privacy Policy: 隐私政策
@@ -1298,6 +1300,7 @@ The system is running normally. This is a test message to confirm the system is 
 Theme does not exist: 主题不存在
 Theme has been uninstalled: 主题已卸载
 Third-party Binding: 第三方绑定
+'This category has {count} articles, please migrate or delete them first': 该分类下有 {count} 篇文章，请先迁移或删除后再操作
 This coupon is not applicable to the current package: 该优惠券不适用于当前套餐
 This coupon is not applicable to the current scenario: 该优惠券不适用于当前场景
 This is a test notification: 这是测试通知

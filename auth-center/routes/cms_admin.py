@@ -201,7 +201,7 @@ def publish_post(post_id):
         )
         results['social'].append(result)
 
-    # ── 钩子: 内容发布 ──
+    # ── Hook: content published ──
     try:
         from plugin_manager.injectors import fire_hook
         fire_hook('cms/published', post_id=post_id,
@@ -261,7 +261,7 @@ def remove_category(cat_id):
         refs = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE category IN "
                            "(SELECT name FROM cms_categories WHERE id=%s)", (cat_id,)).fetchone()
         if refs and refs['c'] > 0:
-            return _err(f'该分类下有 {refs["c"]} 篇文章，请先迁移或删除后再操作')
+            return _err(_('This category has {count} articles, please migrate or delete them first').format(count=refs["c"]))
     delete_category(cat_id)
     return _ok({"deleted": cat_id})
 
@@ -298,16 +298,20 @@ def preview_post(slug):
         return _err(_('Article does not exist')), 404
     return f'''<!DOCTYPE html><html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>预览: {post.get("title","")}</title>
+<title>{title}: {post_title}</title>
 <style>body{{font-family:sans-serif;max-width:800px;margin:0 auto;padding:40px 20px;background:#fff;color:#222;line-height:1.8}}
 .preview-banner{{background:#f0f8ff;border:1px solid #cce;padding:8px 16px;border-radius:6px;font-size:13px;color:#558;margin-bottom:24px;text-align:center}}
 h1{{font-size:28px;margin-bottom:8px}}.meta{{color:#888;font-size:13px;margin-bottom:24px}}
 img{{max-width:100%;border-radius:6px}}</style></head><body>
-<div class="preview-banner">🔍 预览模式 — 仅管理员可见</div>
+<div class="preview-banner">{banner}</div>
 <h1>{post.get("title","")}</h1>
 <div class="meta">{post.get("author","")} · {post.get("created_at","")[:10]}</div>
 {post.get("content",_("<p>No content</p>"))}
-</body></html>'''
+</body></html>'''.format(
+        title=_('Preview'),
+        post_title=post.get("title",""),
+        banner=_('Preview mode — admin only')
+    )
 
 
 @cms_admin_bp.route('/settings', methods=['PUT'])

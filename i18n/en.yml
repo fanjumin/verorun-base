@@ -960,6 +960,8 @@ Politeness Level 1-5: Politeness Level 1-5
 Popular Articles: Popular Articles
 Post Comment: Post Comment
 Poster: Poster
+Preview: Preview
+'Preview mode — admin only': 'Preview mode — admin only'
 Price: Price
 Price Calculator - Yizhan AI · AI Website Builder Platform: Price Calculator - Yizhan AI · AI Website Builder Platform
 Privacy Policy: Privacy Policy
@@ -1298,6 +1300,7 @@ The system is running normally. This is a test message to confirm the system is 
 Theme does not exist: Theme does not exist
 Theme has been uninstalled: Theme has been uninstalled
 Third-party Binding: Third-party Binding
+'This category has {count} articles, please migrate or delete them first': 'This category has {count} articles, please migrate or delete them first'
 This coupon is not applicable to the current package: This coupon is not applicable to the current package
 This coupon is not applicable to the current scenario: This coupon is not applicable to the current scenario
 This is a test notification: This is a test notification

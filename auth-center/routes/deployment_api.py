@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-VeroRon 维洛智能 — 独立部署订阅管理 API
+VeroRun — Independent deployment subscription management API
 
-功能：
-1. 管理端：生成/列出/作废部署码
-2. 客户端：心跳验证（部署的实例定期联系主服务器）
+Features:
+1. Admin: generate/list/revoke deployment codes
+2. Client: heartbeat verification (deployed instances periodically contact main server)
 
-两种模式：
-  A) 主服务器模式（本代码运行在主站）
-     - 管理 deployment_codes 表
-     - 响应心跳请求
-  B) 客户端模式（运行在客户服务器上的部署实例）
-     - 调用心跳 API 验证订阅
-     - 本地缓存结果在 system_config 中
+Two modes:
+  A) Main server mode (this code runs on the main site)
+     - Manage deployment_codes table
+     - Respond to heartbeat requests
+  B) Client mode (runs on customer's server deployment instance)
+     - Call heartbeat API to verify subscription
+     - Cache results locally in system_config
 
-过期封锁逻辑：
-  - 管理后台：心跳失败 → 仅允许访问续费页面
-  - 前端网页：正常访问，不受影响
-  - AI 功能：调用时返回 "subscription_expired" 错误
+Expiration lockout logic:
+  - Admin backend: heartbeat failure → only allow access to renewal page
+  - Frontend website: normal access, unaffected
+  - AI features: return "subscription_expired" error on call
 """
 from i18n import _
 import os, sys, json, secrets, hashlib
