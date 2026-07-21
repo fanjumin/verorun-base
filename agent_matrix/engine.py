@@ -506,12 +506,15 @@ class LLMGateway:
     """统一 LLM 网关 — 移除硬编码，从 provider_models 读取配置"""
 
     def __init__(self):
-        import sys as _sys, os as _os
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
-        from models import get_db as _get_db
-        self._db = _get_db
         self._clients = {}  # 缓存 OpenAI 客户端实例
         self._rate_limiter = deque(maxlen=1000)
+
+    def _get_conn(self):
+        """惰性获取 DB 连接（避免 init 时触发 PostgreSQL 连接）"""
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+        from models import get_db
+        return get_db()
 
     def _default_base_url(self, provider):
         """供应商默认 base_url（仅当 provider_models.endpoint_url 为空时使用）"""
@@ -545,7 +548,7 @@ class LLMGateway:
     def _resolve_model(self, provider_model_id=None, provider=None, model=None):
         """解析模型配置。优先使用 provider_model_id"""
         if provider_model_id:
-            with self._db() as conn:
+            with self._get_conn() as conn:
                 pm = conn.execute(
                     """SELECT pm.model_name, pm.endpoint_url,
                               p.slug as provider_slug
@@ -567,7 +570,7 @@ class LLMGateway:
 
         # 兼容旧方式：provider + model
         if provider and model:
-            with self._db() as conn:
+            with self._get_conn() as conn:
                 pm = conn.execute(
                     """SELECT pm.id, pm.model_name, pm.endpoint_url,
                               p.slug as provider_slug
@@ -604,7 +607,7 @@ class LLMGateway:
         """检查 llm_quotas 精细化配额（user > model > module > global）。
         返回 (allowed: bool, reason: str)"""
         try:
-            with self._db() as conn:
+            with self._get_conn() as conn:
                 quotas = conn.execute(
                     """SELECT * FROM llm_quotas WHERE is_active = 1 AND (
                         (target_type = 'user' AND target_id = %s) OR
