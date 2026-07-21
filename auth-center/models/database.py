@@ -1319,6 +1319,9 @@ def init_db():
             ('openai',     'OpenAI', 'GPT-4o、DALL-E、TTS'),
             ('openrouter', 'OpenRouter', '多模型聚合路由'),
             ('ollama',     'Ollama', '本地开源模型部署'),
+            ('siliconflow','硅基流动', 'SiliconFlow 模型平台（DeepSeek-OCR 等）'),
+            ('gemini',     'Google Gemini', 'Gemini 2.5 Flash/Pro'),
+            ('grok',       'xAI Grok', 'Grok-3 Beta'),
         ]
         for slug, name, desc in provider_seeds:
             m.execute(
@@ -1362,6 +1365,11 @@ def init_db():
             (pids['siliconflow'], 'DeepSeek V3',        'deepseek-ai/DeepSeek-V3', 'https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     55),
             (pids['siliconflow'], 'DeepSeek R1',        'deepseek-ai/DeepSeek-R1', 'https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     56),
             (pids['siliconflow'], 'DeepSeek OCR',       'deepseek-ai/DeepSeek-OCR','https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     57),
+            # Google Gemini（OpenAI 兼容端点）
+            (pids['gemini'],     'Gemini 2.5 Flash',    'gemini-2.5-flash',       'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     65),
+            (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
+            # xAI Grok
+            (pids['grok'],       'Grok-3 Beta',          'grok-3-beta',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     70),
             # Ollama
             (pids['ollama'],     'Llama 3',              'llama3',                 'http://localhost:11434/v1',                                 '',                     'text',     60),
             (pids['ollama'],     'Qwen 2.5 14B',         'qwen2.5:14b',            'http://localhost:11434/v1',                                 '',                     'text',     61),
@@ -2785,6 +2793,8 @@ with get_db() as m:
         ('OpenRouter',        '', 'openrouter','多模型聚合路由 API Key'),
         ('Ollama 本地',       '', 'ollama',    '本地开源模型 Key（可选）'),
         ('硅基流动',          '', 'siliconflow','SiliconFlow 平台 API Key'),
+        ('Google Gemini',      '', 'gemini',    'Google Gemini API Key'),
+        ('xAI Grok',           '', 'grok',      'xAI Grok API Key'),
     ]
     for name, key_val, provider, desc in seed_keys:
         m.execute(

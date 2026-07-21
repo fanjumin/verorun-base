@@ -525,6 +525,8 @@ class LLMGateway:
             'openrouter': 'https://openrouter.ai/api/v1',
             'ollama': 'http://localhost:11434/v1',
             'siliconflow': 'https://api.siliconflow.cn/v1',
+            'gemini': 'https://generativelanguage.googleapis.com/v1beta/openai/',
+            'grok': 'https://api.x.ai/v1',
         }
         return defaults.get(provider, '')
 
@@ -536,6 +538,8 @@ class LLMGateway:
             'deepseek': 'DEEPSEEK_API_KEY',
             'openrouter': 'OPENROUTER_API_KEY',
             'siliconflow': 'SILICONFLOW_API_KEY',
+            'gemini': 'GEMINI_API_KEY',
+            'grok': 'XAI_API_KEY',
         }
         key_name = env_map.get(provider, '')
         if key_name:
