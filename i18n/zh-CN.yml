@@ -295,6 +295,7 @@ Circuit Breaker Threshold: 熔断阈值
 Clean and structure article content for knowledge base retrieval: 清洗并结构化文章内容，供知识库检索
 Cleaning completed: 清洗完成
 Cleaning completed and written to knowledge base: 清洗完成，已写入知识库
+Cleaning in progress, please wait: 正在清洗中，请勿重复执行
 Cleanup Type: 清理类型
 Clear Cache: 清理缓存
 Client: 客户
@@ -734,6 +735,7 @@ Master Agent does not exist: Master Agent 不存在
 Matrix Dialogue Engine (Master Agent): 矩阵对话引擎 (Master Agent)
 Memory Cache Size: 内存缓存大小
 Menu: 菜单
+Merged and updated existing entry (version history saved): 已合并更新已有条目（版本历史已保存）
 Message cannot be empty: 消息不能为空
 Message is required: message 必填
 Method: 方式
@@ -952,6 +954,7 @@ Picture uploaded successfully: 图片上传成功
 Plan: 方案
 Plan Generated: 方案已生成
 Plugin: 插件
+Please login first: 请先登录
 Politeness Level 1-5: 礼貌程度 1-5
 Popular Articles: 热门文章
 Post Comment: 发布评论

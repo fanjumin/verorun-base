@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Cleaner Agent — 数据清洗智能体
-   管理员提交原始内容 → AI清洗 → knowledge_blocks入库 → 全站AI自动发现
-   可被 Agent Matrix 直接调用（通过 process_clean_content 函数）
+"""Cleaner Agent — data cleaning agent
+   Admin submits raw content → AI cleaning → knowledge_blocks insertion → site-wide AI auto-discovery
+   Can be called directly by Agent Matrix via process_clean_content()
 """
 from i18n import _
 import sys, os, json, re
@@ -20,7 +20,7 @@ def _require_admin():
     auth = request.headers.get('Authorization', '')
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
     if not token:
-        return None, (jsonify({'success': False, 'error': '请先登录'}), 401)
+        return None, (jsonify({'success': False, 'error': _('Please login first')}), 401)
     from services.jwt_service import validate_token
     payload = validate_token(token)
     if not payload:
@@ -31,7 +31,7 @@ def _require_admin():
 
 
 def _get_existing_for_dedup():
-    """获取已有知识库标题+关键词（用于去重和冲突检测）"""
+    """Get existing KB titles + keywords for dedup and conflict detection"""
     try:
         with get_db() as conn:
             rows = conn.execute(
@@ -43,7 +43,7 @@ def _get_existing_for_dedup():
 
 
 def _jaccard_similarity(a: str, b: str) -> float:
-    """计算两个关键词列表的 Jaccard 相似度"""
+    """Compute Jaccard similarity between two keyword lists"""
     set_a = set((a or '').split(','))
     set_b = set((b or '').split(','))
     if not set_a or not set_b:
@@ -52,7 +52,7 @@ def _jaccard_similarity(a: str, b: str) -> float:
 
 
 def _title_similarity(title1: str, title2: str) -> float:
-    """简单的标题相似度（字符级 Jaccard）"""
+    """Simple title similarity (character-level Jaccard)"""
     t1 = (title1 or '').strip().lower()
     t2 = (title2 or '').strip().lower()
     if not t1 or not t2:
@@ -64,18 +64,18 @@ def _title_similarity(title1: str, title2: str) -> float:
 
 def _dedup_check(new_title: str, new_keywords: str, existing: list) -> tuple:
     """
-    两级去重检测。
-    返回 (is_duplicate: bool, existing_entry: dict or None, reason: str)
+    Two-level dedup check.
+    Returns (is_duplicate: bool, existing_entry: dict or None, reason: str)
     """
     new_title_lower = (new_title or '').strip().lower()
     new_kw = new_keywords or ''
 
-    # 第一级 a：标题精确匹配
+    # Level 1a: exact title match
     for entry in existing:
         if (entry['title'] or '').strip().lower() == new_title_lower:
             return True, entry, 'title_exact_match'
 
-    # 第一级 b：关键词 Jaccard 相似度 > 0.75
+    # Level 1b: keyword Jaccard > 0.75
     if new_kw:
         for entry in existing:
             jac = _jaccard_similarity(new_kw, entry.get('keywords', ''))
@@ -92,7 +92,7 @@ CATEGORY_LIMITS = {
 
 
 def _evict_if_over_limit(category: str):
-    """超出上限时淘汰自动条目（保护人工条目）"""
+    """Evict auto entries when category exceeds limit (protect manual entries)"""
     try:
         limit = CATEGORY_LIMITS.get(category, 50)
         with get_db() as conn:
@@ -104,7 +104,7 @@ def _evict_if_over_limit(category: str):
             if count <= limit:
                 return
 
-            # 找优先级最低的 auto 条目
+            # Find lowest priority auto entry
             row = conn.execute(
                 """SELECT id, title FROM knowledge_blocks
                    WHERE category=%s AND source='auto' AND deleted_at IS NULL
@@ -120,14 +120,14 @@ def _evict_if_over_limit(category: str):
                 conn.commit()
                 import logging
                 logging.getLogger(__name__).info(
-                    f"分类限流淘汰: {row['title']} (category={category}, {count}/{limit})"
+                    f"Category eviction: {row['title']} (category={category}, {count}/{limit})"
                 )
     except Exception:
-        pass  # 限流失败不影响写入
+        pass  # eviction failure should not block writes
 
 
 def _update_quality(kb_id: str, factor: float, weight: float = 0.05):
-    """EMA 平滑更新知识质量评分"""
+    """EMA smoothed update of knowledge quality score"""
     try:
         with get_db() as conn:
             row = conn.execute(
@@ -148,14 +148,14 @@ def _update_quality(kb_id: str, factor: float, weight: float = 0.05):
 
 
 # =============================================
-# 核心函数：可供 Agent Matrix 直接调用
+# Core function: directly callable by Agent Matrix
 # =============================================
 
 def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
-    """清洗一条原始内容，写入 knowledge_blocks
+    """Clean a raw content entry, write to knowledge_blocks
 
-    返回：{'success': bool, 'kb_id': '...' or 'duplicate' or 'merged',
-           'title': '...', 'category': '...', 'error': '...'}
+    Returns: {'success': bool, 'kb_id': '...' or 'duplicate' or 'merged',
+              'title': '...', 'category': '...', 'error': '...'}
     """
     if not raw_content or not raw_content.strip():
         return {'success': False, 'error': _('Content cannot be empty')}
@@ -164,30 +164,30 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
     existing = _get_existing_for_dedup()
     existing_titles = {e['title'].strip().lower() for e in existing}
 
-    system_prompt = """你是VeroRon 维洛智能的数据清洗智能体。
-将用户提供的原始内容清洗为标准知识库条目。
+    system_prompt = """You are the data cleaning agent for VeroRun.
+Clean user-provided raw content into standardized knowledge base entries.
 
-清洗规则：
-1. 提取标题（简洁准确，不超过50字）
-2. 正文去噪：去除广告、无关链接、重复信息、格式化排版
-3. 分类：从以下类别中选择最合适的（company/product/price/tech/service/faq/industry）
-4. 提取关键词：5-10个关键词，逗号分隔
-5. 去重检测：如果内容与现有知识库相似度 > 85%，标记为重复
+Rules:
+1. Extract title (concise, accurate, max 50 characters)
+2. Denoise body: remove ads, irrelevant links, duplicates, format layout
+3. Category: choose the best fit from (company/product/price/tech/service/faq/industry)
+4. Extract keywords: 5-10 keywords, comma separated
+5. Dedup check: if content similarity with existing KB > 85%, mark as duplicate
 
-输出格式为纯JSON，不要包含其他文字：
+Output pure JSON only, no other text:
 {"title":"...","content":"...","category":"...","keywords":"...","is_duplicate":false,"duplicate_of":""}"""
 
-    user_prompt = f"""原始内容：
+    user_prompt = f"""Raw content:
 ---
 {raw_content[:8000]}
 ---
 
-现有知识库标题（供去重参考）：
+Existing KB titles (for dedup reference):
 {', '.join(list(existing_titles)[:50])}
 
-请按规则清洗输出JSON。"""
+Clean and output JSON per rules above."""
 
-    # 写入队列
+    # Write to queue
     with get_db() as conn:
         qid = conn.execute(
             'INSERT INTO knowledge_queue (source, raw_content, admin_id) VALUES (%s,%s,%s) RETURNING id',
@@ -195,7 +195,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         ).fetchone()['id']
         conn.commit()
 
-    # 调用 LLM
+    # Call LLM
     result = _call_llm(system_prompt, user_prompt)
     if 'error' in result:
         with get_db() as conn:
@@ -209,24 +209,24 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
     new_keywords = result.get('keywords', '')[:500]
     new_category = result.get('category', 'general')
 
-    # === 阶段二增强：二级去重检测 ===
+    # === Phase 2 enhanced: two-level dedup ===
     is_dup, dup_entry, dup_reason = _dedup_check(new_title, new_keywords, existing)
     if is_dup and dup_entry:
-        # 检查是否为同一分类的冲突合并
+        # Check for same-category conflict merge
         if dup_entry.get('category') == new_category and dup_entry.get('source') != 'manual':
             if _title_similarity(new_title, dup_entry['title']) > 0.80:
-                # 冲突合并：写版本历史 → 更新旧条目
+                # Conflict merge: write version history → update old entry
                 return _merge_entry(dup_entry, new_title, new_content, new_keywords, qid)
 
-        # 非合并场景：标记为重复
+        # Non-merge scenario: mark as duplicate
         with get_db() as conn:
             conn.execute(
                 "UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
             conn.commit()
         return {'success': True, 'kb_id': 'duplicate', 'title': new_title,
-                'category': new_category, 'message': f'检测到重复({dup_reason})，已跳过'}
+                'category': new_category, 'message': f'Duplicate detected ({dup_reason}), skipped'}
 
-    # LLM 返回 is_duplicate 时二次确认
+    # Double confirm when LLM returns is_duplicate
     if result.get('is_duplicate'):
         is_dup2, dup_entry2, _ = _dedup_check(new_title, new_keywords, existing)
         if is_dup2 and dup_entry2 and dup_entry2.get('source') != 'manual':
@@ -238,9 +238,9 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
                 "UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
             conn.commit()
         return {'success': True, 'kb_id': 'duplicate', 'title': new_title,
-                'category': new_category, 'message': 'LLM检测重复，已跳过'}
+                'category': new_category, 'message': 'LLM detected duplicate, skipped'}
 
-    # === 新增条目：写入 source + quality_score ===
+    # === New entry: write source + quality_score ===
     kb_id = 'kb_cleaner_' + str(qid) + '_(' + ')'.join(re.findall(r'\w', new_title)[:10])
     with get_db() as conn:
         conn.execute(
@@ -253,29 +253,29 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (kb_id, qid))
         conn.commit()
 
-    # === 分类限流检查 ===
+    # === Category eviction check ===
     _evict_if_over_limit(new_category)
 
     return {
         'success': True, 'kb_id': kb_id, 'title': new_title,
         'category': new_category, 'keywords': new_keywords,
-        'message': _('清洗完成，已写入知识库')
+        'message': _('Cleaning completed, written to knowledge base')
     }
 
 
 def _merge_entry(old_entry: dict, new_title: str, new_content: str, new_keywords: str, qid) -> dict:
-    """冲突合并：写版本历史 → 更新旧条目"""
+    """Conflict merge: write version history → update old entry"""
     import uuid
     history_id = 'kh_' + uuid.uuid4().hex[:12]
 
     with get_db() as conn:
-        # 写版本历史
+        # Write version history
         conn.execute(
             """INSERT INTO knowledge_history (id, kb_id, previous_title, previous_content, changed_at)
                VALUES (%s,%s,%s,%s,NOW())""",
             (history_id, old_entry['id'], old_entry['title'], old_entry['content'])
         )
-        # 更新旧条目
+        # Update old entry
         conn.execute(
             """UPDATE knowledge_blocks
                SET content=%s, keywords=%s, updated_at=NOW(), quality_score=GREATEST(quality_score, 0.5)
@@ -290,24 +290,24 @@ def _merge_entry(old_entry: dict, new_title: str, new_content: str, new_keywords
 
     import logging
     logging.getLogger(__name__).info(
-        f"冲突合并: '{old_entry['title']}' ← '{new_title}' (category={old_entry.get('category', '')})"
+        f"Conflict merge: '{old_entry['title']}' ← '{new_title}' (category={old_entry.get('category', '')})"
     )
 
     return {
         'success': True, 'kb_id': old_entry['id'], 'title': old_entry['title'],
         'category': old_entry.get('category', 'general'),
         'keywords': new_keywords,
-        'message': '已合并更新已有条目（版本历史已保存）'
+        'message': _('Merged and updated existing entry (version history saved)')
     }
 
 
 def auto_register_sub_agent():
-    """自动将 Cleaner Agent 注册为矩阵子 Agent（幂等）"""
+    """Auto-register Cleaner Agent as a matrix sub-agent (idempotent)"""
     try:
         from agent_matrix import models as am_models
         existing = am_models.list_agents(domain=CLEANER_AGENT_DOMAIN, active_only=False)
         if existing:
-            return  # 已注册
+            return  # Already registered
         am_models.create_agent({
             'name': CLEANER_AGENT_NAME,
             'role_type': 'sub',
@@ -325,7 +325,7 @@ def auto_register_sub_agent():
 
 
 # =============================================
-# 阶段三：定期维护任务（APScheduler）
+# Phase 3: scheduled maintenance (APScheduler)
 # =============================================
 
 import logging
@@ -335,10 +335,10 @@ _kb_scheduler = None
 
 def _run_time_decay():
     """
-    时间衰减：每周执行。
-    - 180 天未命中 + quality_score < 0.3 → 软删除
-    - 365 天未命中 → 软删除
-    - 180 天未命中 + quality_score >= 0.3 → 降低 quality_score
+    Time decay: runs weekly.
+    - 180 days no hit + quality_score < 0.3 → soft delete
+    - 365 days no hit → soft delete
+    - 180 days no hit + quality_score >= 0.3 → reduce quality_score
     """
     try:
         with get_db() as conn:
@@ -346,7 +346,7 @@ def _run_time_decay():
             threshold_365 = (now - timedelta(days=365)).isoformat()
             threshold_180 = (now - timedelta(days=180)).isoformat()
 
-            # 365 天 → 软删除
+            # 365 days → soft delete
             result = conn.execute(
                 """UPDATE knowledge_blocks SET deleted_at=NOW()
                    WHERE deleted_at IS NULL AND created_at < %s AND hit_count = 0""",
@@ -354,7 +354,7 @@ def _run_time_decay():
             )
             deleted_365 = result.rowcount
 
-            # 180 天 + quality < 0.3 → 软删除
+            # 180 days + quality < 0.3 → soft delete
             result = conn.execute(
                 """UPDATE knowledge_blocks SET deleted_at=NOW()
                    WHERE deleted_at IS NULL AND created_at < %s
@@ -363,7 +363,7 @@ def _run_time_decay():
             )
             deleted_180 = result.rowcount
 
-            # 180 天 + quality >= 0.3 → 降分但不删除
+            # 180 days + quality >= 0.3 → downgrade (no delete)
             result = conn.execute(
                 """UPDATE knowledge_blocks
                    SET quality_score = GREATEST(quality_score - 0.2, 0.0)
@@ -385,8 +385,8 @@ def _run_time_decay():
 
 def _run_redundancy_check():
     """
-    冗余检测：每月执行。
-    全量 Jaccard 关键词去重，相似度 > 90% 的条目对记录日志。
+    Redundancy check: runs monthly.
+    Full Jaccard keyword dedup, log entry pairs with similarity > 90%.
     """
     try:
         with get_db() as conn:
@@ -428,8 +428,8 @@ def _run_redundancy_check():
 
 def init_kb_scheduler():
     """
-    初始化知识库定期维护调度器。
-    在 admin/app.py 启动时调用一次。
+    Initialize knowledge base maintenance scheduler.
+    Called once when admin/app.py starts.
     """
     global _kb_scheduler
     try:
@@ -437,14 +437,14 @@ def init_kb_scheduler():
         from apscheduler.triggers.cron import CronTrigger
 
         if _kb_scheduler is not None:
-            return  # 已初始化
+            return  # Already initialized
 
         _kb_scheduler = BackgroundScheduler(
             daemon=True,
             job_defaults={'misfire_grace_time': 3600},
         )
 
-        # 时间衰减：每周日凌晨 3:00
+        # Time decay: every Sunday 3:00 AM
         _kb_scheduler.add_job(
             _run_time_decay,
             CronTrigger(day_of_week='sun', hour=3, minute=0),
@@ -453,7 +453,7 @@ def init_kb_scheduler():
             replace_existing=True,
         )
 
-        # 冗余检测：每月1日凌晨 4:00
+        # Redundancy check: 1st of every month 4:00 AM
         _kb_scheduler.add_job(
             _run_redundancy_check,
             CronTrigger(day=1, hour=4, minute=0),
@@ -477,7 +477,7 @@ def init_kb_scheduler():
 
 
 # =============================================
-# Flask API 端点（薄封装）
+# Flask API endpoints (thin wrappers)
 # =============================================
 
 @cleaner_bp.route('/submit', methods=['POST'])
@@ -523,7 +523,7 @@ def run_clean(qid):
         if not row:
             return jsonify({'success': False, 'error': _('Queue item does not exist')}), 404
         if row['status'] == 'cleaning':
-            return jsonify({'success': False, 'error': '正在清洗中，请勿重复执行'}), 400
+            return jsonify({'success': False, 'error': _('Cleaning in progress, please wait')}), 400
 
     result = process_clean_content(row['raw_content'], admin_id=payload['user_id'])
     if not result['success']:
