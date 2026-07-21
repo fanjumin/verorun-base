@@ -4,7 +4,7 @@
 
 VeroRun（易站AI）是一个基于 **7 角色 Agent 协作矩阵 + 工具注册中心** 的全栈平台，集成多供应商 AI 引擎、商城运营、CMS 内容管理、AI 客服、自动化工作流、云服务开通、分析统计、系统健康巡检、插件化扩展等能力，采用 PostgreSQL 多 Schema 架构。
 
-> 版本：**v0.32.2**  
+> 版本：**v0.33.1**  
 > 仓库：`https://github.com/fanjumin/VeroRunSystem`
 
 ---
@@ -270,7 +270,7 @@ Master Agent（AIEngine）解析 → 结构化建站方案
 
 ### 2.9 国际化（i18n）
 
-位置：`i18n/` — DB `i18n_strings` 表 + YAML 文件双存储，三阶降级（DB → YAML → 原文），LRU 内存缓存，插件隔离（`self.t()`）。
+位置：`i18n/` — DB `i18n_strings` 表 + YAML 文件双存储，三阶降级（DB → YAML → 原文），LRU 内存缓存，插件隔离（`self.t()`）。默认语言为英文，内置中文（zh-CN）翻译，避免操作系统编码差异导致的乱码问题。
 
 ---
 
@@ -413,7 +413,6 @@ PluginManager
 | Stripe / PayPal | 国际订阅支付 |
 | 快递鸟 / Shippo | 物流查询 |
 | 微博/微信/头条/抖音/LinkedIn/Twitter | 社交内容分发 |
-| 火山引擎 | 语音合成 / 数字人视频 |
 | 飞书/企业微信/钉钉/QQ | IM 消息网关 |
 
 ### 前端
