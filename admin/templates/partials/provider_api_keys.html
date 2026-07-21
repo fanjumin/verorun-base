@@ -1,0 +1,126 @@
+window.l_provider_keys=function(){
+  document.getElementById("pt").textContent="{{ _('Provider Keys') }}";
+  var mc=document.getElementById("mc");
+  render();
+
+  function render(){
+    mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+    fetch("/admin/provider-api-keys",{headers:{"Authorization":"Bearer "+T}})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+        renderList(d.data||[]);
+      }).catch(function(){mc.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:l_provider_keys()">{{ _('Retry') }}</a></div>'});
+  }
+
+  function renderList(keys){
+    var h='<div class="cd">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">';
+    h+='<h3 style="margin:0;font-size:16px;color:var(--accent)">{{ _('Provider Keys') }}</h3>';
+    h+='<span style="flex:1"></span>';
+    h+='<button class="bp" onclick="showForm()" style="padding:6px 16px;font-size:13px;cursor:pointer">+ {{ _('Add') }}</button>';
+    h+='</div>';
+
+    if(keys.length===0){
+      h+='<div class="em">{{ _('No provider API keys configured. Click "Add" to create one.') }}</div>';
+    }else{
+      h+='<table class="dt"><thead><tr>';
+      h+='<th>{{ _('Name') }}</th><th>{{ _('Provider') }}</th><th>{{ _('Status') }}</th><th>{{ _('Has Key') }}</th><th>{{ _('Description') }}</th><th>{{ _('Actions') }}</th>';
+      h+='</tr></thead><tbody>';
+      keys.forEach(function(k){
+        h+='<tr>';
+        h+='<td style="font-weight:600">'+esc(k.name)+'</td>';
+        h+='<td><span class="tag" style="background:rgba(0,245,255,0.1);color:var(--accent)">'+esc(k.provider)+'</span></td>';
+        h+='<td>'+(k.is_active?'<span style="color:var(--accent3)">{{ _('Active') }}</span>':'<span style="color:var(--dim)">{{ _('Inactive') }}</span>')+'</td>';
+        h+='<td>'+(k.has_value?'<span style="color:var(--accent3)">{{ _('Configured') }}</span>':'<span style="color:var(--rose)">{{ _('Not Set') }}</span>')+'</td>';
+        h+='<td style="color:var(--dim)">'+esc(k.description||'')+'</td>';
+        h+='<td><button class="bo" style="padding:2px 10px;font-size:11px;cursor:pointer" onclick="showForm('+k.id+')">{{ _('Edit') }}</button> ';
+        h+='<button class="bo" style="padding:2px 10px;font-size:11px;color:var(--rose);cursor:pointer" onclick="delKey('+k.id+',\''+escAttr(k.name)+'\')">{{ _('Delete') }}</button></td>';
+        h+='</tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='</div>';
+    mc.innerHTML=h;
+  }
+
+  window.showForm=function(id){
+    if(id){
+      // Edit: fetch existing data
+      fetch("/admin/provider-api-keys",{headers:{"Authorization":"Bearer "+T}})
+        .then(function(r){return r.json()})
+        .then(function(d){
+          var k=(d.data||[]).find(function(x){return x.id===id});
+          if(k)showFormModal(k);else render();
+        });
+    }else{
+      showFormModal(null);
+    }
+  };
+
+  function showFormModal(key){
+    var isEdit=key!==null;
+    var h='<div class="modal-overlay" onclick="closeModal()"><div class="modal-box" onclick="event.stopPropagation()" style="max-width:500px;width:90%">';
+    h+='<h3 style="margin:0 0 16px;color:var(--accent)">'+(isEdit?'{{ _('Edit Provider Key') }}':'{{ _('New Provider Key') }}')+'</h3>';
+    h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Name') }}</label>';
+    h+='<input id="pk-name" class="in" style="width:100%" value="'+escAttr(isEdit?key.name:'')+'" placeholder="{{ _('e.g. Alibaba Cloud DashScope') }}"></div>';
+    h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Provider') }}</label>';
+    h+='<select id="pk-provider" class="in" style="width:100%">';
+    var providers=['dashscope','openai','deepseek','openrouter','ollama','siliconflow'];
+    providers.forEach(function(p){
+      h+='<option value="'+p+'"'+(isEdit&&key.provider===p?' selected':'')+'>'+p+'</option>';
+    });
+    h+='</select></div>';
+    h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('API Key Value') }}';
+    if(isEdit&&key.has_value)h+=' <span style="color:var(--dim);font-weight:400">({{ _('leave blank to keep current') }})</span>';
+    h+='</label><input id="pk-value" class="in" type="password" style="width:100%" placeholder="sk-..." autocomplete="off"></div>';
+    h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Description') }}</label>';
+    h+='<input id="pk-desc" class="in" style="width:100%" value="'+escAttr(isEdit?(key.description||''):'')+'" placeholder="{{ _('Optional note') }}"></div>';
+    h+='<div style="margin-bottom:16px"><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">';
+    h+='<input type="checkbox" id="pk-active"'+(isEdit&&key.is_active?' checked':'')+(isEdit?'':' checked')+'> {{ _('Active') }}</label></div>';
+    h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
+    h+='<button class="bo" onclick="closeModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
+    h+='<button class="bp" onclick="saveKey('+(isEdit?key.id:'null')+')" style="padding:6px 16px">{{ _('Save') }}</button>';
+    h+='</div></div></div>';
+    var overlay=document.createElement('div');
+    overlay.id='modal-root';
+    overlay.innerHTML=h;
+    document.body.appendChild(overlay);
+  }
+
+  window.closeModal=function(){
+    var m=document.getElementById('modal-root');
+    if(m)m.remove();
+  };
+
+  window.saveKey=function(id){
+    var isEdit=id!==null;
+    var data={
+      name:document.getElementById('pk-name').value.trim(),
+      provider:document.getElementById('pk-provider').value,
+      description:document.getElementById('pk-desc').value.trim(),
+      is_active:document.getElementById('pk-active').checked?1:0
+    };
+    var keyVal=document.getElementById('pk-value').value.trim();
+    if(keyVal)data.key_value=keyVal;
+    if(!isEdit&&!keyVal){alert('{{ _('API Key value is required') }}');return}
+
+    var url="/admin/provider-api-keys"+(isEdit?'/'+id:'');
+    var method=isEdit?'PUT':'POST';
+    fetch(url,{
+      method:method,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+T},
+      body:JSON.stringify(data)
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.success){closeModal();render()}else{alert(d.error||'{{ _('Operation failed') }}')}
+    }).catch(function(){alert('{{ _('Network error') }}')});
+  };
+
+  window.delKey=function(id,name){
+    if(!confirm("{{ _('Delete') }} \""+name+"\"?\n{{ _('This action cannot be undone.') }}"))return;
+    fetch("/admin/provider-api-keys/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
+      .then(function(r){return r.json()}).then(function(d){
+        if(d.success){render()}else{alert(d.error||'{{ _('Delete failed') }}')}
+      }).catch(function(){alert('{{ _('Network error') }}')});
+  };
+};

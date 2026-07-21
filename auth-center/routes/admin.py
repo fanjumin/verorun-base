@@ -3895,3 +3895,117 @@ def admin_i18n_seed():
     from i18n import seed_from_yaml
     count = seed_from_yaml(locale)
     return jsonify({'success': True, 'message': f'Synchronized {count} records to DB'})
+
+
+# ═══════════════════════════════════════════════════════
+# Provider API Key 管理（LLM 供应商 Key 统一管理）
+# 与 /admin/api-keys（用户 API Key）不同，此路由组管理 LLM 供应商的 API Key
+# ═══════════════════════════════════════════════════════
+
+@admin_bp.route('/provider-api-keys', methods=['GET'])
+def provider_api_key_list():
+    """列出所有 Provider API Key（key_value_enc 脱敏）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, provider, description, is_active, "
+            "CASE WHEN key_value_enc != '' THEN 1 ELSE 0 END AS has_value, "
+            "created_at, updated_at "
+            "FROM provider_api_keys ORDER BY id"
+        ).fetchall()
+        return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/provider-api-keys', methods=['POST'])
+def provider_api_key_create():
+    """新增 Provider API Key（value 加密存储）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    name = (data.get('name') or '').strip()
+    key_value = (data.get('key_value') or '').strip()
+    provider = (data.get('provider') or '').strip()
+    if not name or not key_value:
+        return jsonify({'success': False, 'error': '名称和 Key 不能为空'}), 400
+
+    from services.crypto import encrypt
+    encrypted = encrypt(key_value)
+
+    with get_db() as conn:
+        row = conn.execute(
+            'INSERT INTO provider_api_keys (name, key_value_enc, provider, description) '
+            'VALUES (%s,%s,%s,%s) RETURNING id',
+            (name, encrypted, provider, data.get('description', ''))
+        ).fetchone()
+        conn.commit()
+        kid = row['id']
+    _log(admin['user_id'], 'create_provider_key', 'provider_api_key', str(kid), name)
+    return jsonify({'success': True, 'data': {'id': kid}})
+
+
+@admin_bp.route('/provider-api-keys/<int:kid>', methods=['PUT'])
+def provider_api_key_update(kid):
+    """更新 Provider API Key（value 可选更新）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM provider_api_keys WHERE id=%s', (kid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': '不存在'}), 404
+
+        updates = []
+        params = []
+        for field in ['name', 'provider', 'description']:
+            if field in data and data[field] is not None:
+                updates.append(f'{field}=%s')
+                params.append(data[field].strip() if isinstance(data[field], str) else data[field])
+        if 'is_active' in data:
+            updates.append('is_active=%s')
+            params.append(1 if data['is_active'] else 0)
+        if data.get('key_value', '').strip():
+            from services.crypto import encrypt
+            updates.append('key_value_enc=%s')
+            params.append(encrypt(data['key_value'].strip()))
+        if not updates:
+            return jsonify({'success': True, 'message': '无变更'})
+
+        updates.append('updated_at=NOW()')
+        params.append(kid)
+        conn.execute(
+            f"UPDATE provider_api_keys SET {','.join(updates)} WHERE id=%s",
+            params
+        )
+        conn.commit()
+    _log(admin['user_id'], 'update_provider_key', 'provider_api_key', str(kid))
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/provider-api-keys/<int:kid>', methods=['DELETE'])
+def provider_api_key_delete(kid):
+    """删除 Provider API Key（检查引用）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        # 检查是否被 provider_models 引用
+        refs = conn.execute(
+            'SELECT COUNT(*) as cnt FROM provider_models WHERE api_key_id=%s', (kid,)
+        ).fetchone()
+        if refs['cnt'] > 0:
+            return jsonify({
+                'success': False,
+                'error': f'该 Key 被 {refs["cnt"]} 个模型引用，请先解除关联'
+            }), 400
+
+        row = conn.execute('SELECT name FROM provider_api_keys WHERE id=%s', (kid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': '不存在'}), 404
+        conn.execute('DELETE FROM provider_api_keys WHERE id=%s', (kid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_provider_key', 'provider_api_key', str(kid), row['name'])
+    return jsonify({'success': True})

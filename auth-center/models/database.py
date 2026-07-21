@@ -2757,6 +2757,51 @@ TIERS = {
     'pro':      {'name': 'Pro',      'daily_limit': 1000, 'price_month': 188, 'price_year': 1888,  'features': ['all'],         'desc': '每日1000次调用', 'max_agents': 10},
 }
 
-if __name__ == "__main__(":
+# ── Migration: provider_api_keys 统一 LLM 供应商 Key 管理 ──
+# 注意：此表与用户 API Key 表 (api_keys) 不同，专用于管理 LLM 供应商的 API Key
+with get_db() as m:
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS provider_api_keys (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            name            TEXT NOT NULL DEFAULT '',
+            key_value_enc   TEXT NOT NULL DEFAULT '',
+            provider        TEXT NOT NULL DEFAULT '',
+            description     TEXT DEFAULT '',
+            is_active       BIGINT DEFAULT 1,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW(),
+            UNIQUE(name, provider)
+        )
+    ''')
+
+    # 种子数据：从现有 system_config 的 key 引用生成初始化记录
+    # key_value_enc 由管理员在后台填写，种子留空
+    seed_keys = [
+        ('阿里云 DashScope', '', 'dashscope', '通义千问系列模型 API Key'),
+        ('OpenAI',            '', 'openai',    'GPT-4o 系列模型 API Key'),
+        ('DeepSeek',          '', 'deepseek',  '深度求索模型 API Key'),
+        ('OpenRouter',        '', 'openrouter','多模型聚合路由 API Key'),
+        ('Ollama 本地',       '', 'ollama',    '本地开源模型 Key（可选）'),
+        ('硅基流动',          '', 'siliconflow','SiliconFlow 平台 API Key'),
+    ]
+    for name, key_val, provider, desc in seed_keys:
+        m.execute(
+            "INSERT INTO provider_api_keys (name, key_value_enc, provider, description) "
+            "VALUES (%s,%s,%s,%s) ON CONFLICT (name, provider) DO NOTHING",
+            (name, key_val, provider, desc)
+        )
+    m.commit()
+    print('[Migration] provider_api_keys table + seed data created')
+
+# provider_models 新增 api_key_id 外键（可选，与 api_key_ref 共存）
+with get_db() as m:
+    pm_cols = get_table_columns(m, 'provider_models')
+    if 'api_key_id' not in pm_cols:
+        m.execute('ALTER TABLE provider_models ADD COLUMN api_key_id BIGINT DEFAULT NULL REFERENCES provider_api_keys(id)')
+        print('[Migration] provider_models.api_key_id added')
+    m.commit()
+
+
+if __name__ == "__main__":
     init_db()
-    print(f")OK: {DB_PATH}")
+    print(f"OK: {DB_PATH}")
