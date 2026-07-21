@@ -95,15 +95,15 @@ class AnalyticsPlugin(BasePlugin):
 
         print(f'[Analytics] Middleware registered [{service_name}] sample_rate={sample_rate}')
         print(f'[Analytics] Background processor started (60s interval)')
-        return True
 
-    def activate(self):
-        """注册 dashboard.data filter，向仪表盘注入 analytics 数据"""
+        # 注册 dashboard.data filter，向仪表盘注入 analytics 数据
         from plugin_manager.hooks import get_hook_registry
         hooks = get_hook_registry()
         hooks.add_filter('dashboard.data', self._enrich_dashboard,
                          priority=10, identifier='analytics')
         print('[Analytics] Dashboard filter registered')
+
+        return True
 
     def _enrich_dashboard(self, data, conn=None):
         """从 analytics 独立 PG 查询仪表盘数据，注入到 data dict
