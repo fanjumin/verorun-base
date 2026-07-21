@@ -430,6 +430,7 @@ Edit Template: Edit Template
 Edit — : Edit — 
 Email: Email
 Email (optional): Email (optional)
+Email Verification: Email Verification
 Email management: Email management
 Email_to is empty: Email_to is empty
 Enable: Enable
@@ -1407,6 +1408,7 @@ User initiated cancellation: User initiated cancellation
 VIP plan: VIP plan
 Valid: Valid
 Valid Period (days): Valid Period (days)
+'Valid for 10 minutes. If this was not you, please ignore.': 'Valid for 10 minutes. If this was not you, please ignore.'
 Verification code: Verification code
 Verification code sent: Verification code sent
 Verifying identity...: Verifying identity...
@@ -1521,6 +1523,7 @@ You have already used this coupon: You have already used this coupon
 Your Email: Your Email
 Your Name: Your Name
 Your Phone: Your Phone
+'Your verification code is: {code}, valid for 10 minutes. If this was not you, please ignore.': 'Your verification code is: {code}, valid for 10 minutes. If this was not you, please ignore.'
 Yueyang: Yueyang
 Yueyang City: Yueyang City
 Yunnan Province: Yunnan Province

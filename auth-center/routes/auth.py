@@ -34,7 +34,7 @@ def api_err(msg, code=400):
 
 
 def _get_token_from_request():
-    """从请求中提取 token — 优先 Authorization header，其次 cookie"""
+    """Extract token from request — Authorization header first, then cookie"""
     auth = request.headers.get('Authorization', '')
     if auth and auth.startswith('Bearer '):
         return auth[7:]
@@ -161,7 +161,7 @@ def sms_register():
         return api_err('Username must be 3-20 characters long')
     if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]+$', username):
         return api_err('Username must start with a letter, only letters, digits, underscores and hyphens allowed')
-    # Check against prohibited words (国家相关规定)
+    # Check against prohibited words
     un = check_username(username)
     if not un['valid']:
         return api_err(un['error'])
@@ -211,7 +211,7 @@ def sms_register():
             (user_id, token_hash, device_name, device_type, ip_address, user_agent))
         conn.commit()
 
-    # ── 钩子: 用户注册完成 ──
+    # ── Hook: user registered ──
     try:
         from plugin_manager.injectors import fire_hook
         fire_hook('user/registered', user_id=user_id, username=username, phone=phone)
@@ -296,11 +296,11 @@ def sms_login():
     return resp
 
 # ---------------------------------------------------------------------------
-# 以下 OAuth 路由（wechat/qr, wechat/callback, wechat/login, douyin/qr,
-# douyin/callback, oauth/providers, oauth/*/login, oauth/*/callback,
-# _get_site_domain, _get_cookie_domain）已搬迁至插件 plugins/oauth_config/
-# 由 Auth_server.py 通过 try/except 加载。
-# 用于微信小程序的 /auth/wechat/login 现由插件 oauth_bp 提供。
+# The following OAuth routes (wechat/qr, wechat/callback, wechat/login,
+# douyin/qr, douyin/callback, oauth/providers, oauth/*/login, oauth/*/callback,
+# _get_site_domain, _get_cookie_domain) have been moved to plugins/oauth_config/
+# and are loaded by Auth_server.py via try/except.
+# /auth/wechat/login for WeChat Mini Program is now provided by plugin oauth_bp.
 # ---------------------------------------------------------------------------
 
 
@@ -344,8 +344,12 @@ def email_send_code():
         conn.commit()
     from plugins.email.services import send_email
     subject = _('VeroRun Email Verification Code')
-    body_text = f'您的验证码是：{code}，10分钟内有效。如非本人操作，请忽略。'
-    body_html = f'<h3>邮箱验证码</h3><p>您的验证码是：<b style="font-size:20px;color:#6366f1">{code}</b></p><p>10分钟内有效。如非本人操作，请忽略。</p>'
+    body_text = _('Your verification code is: {code}, valid for 10 minutes. If this was not you, please ignore.').format(code=code)
+    body_html = '<h3>{title}</h3><p>Your verification code is: <b style="font-size:20px;color:#6366f1">{code}</b></p><p>{footer}</p>'.format(
+        title=_('Email Verification'),
+        code=code,
+        footer=_('Valid for 10 minutes. If this was not you, please ignore.')
+    )
     success, msg = send_email(email, subject, body_text, body_html)
     if not success:
         return api_err('Email send failed: ' + msg)
@@ -385,19 +389,19 @@ def email_verify():
 
 
 # =============================================
-# Logout — 清除 HttpOnly cookie + 下线当前 session
+# Logout — clear HttpOnly cookie + deactivate current session
 # =============================================
 @auth_bp.route('/logout', methods=['POST'])
 def auth_logout():
-    """退出登录：标记当前 session 下线 + 清除 cookie"""
+    """Logout: mark current session inactive + clear cookie"""
     token = _get_token_from_request()
-    # 标记当前 session 为不活跃
+    # Mark current session as inactive
     if token:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         with get_db() as conn:
             conn.execute("UPDATE user_sessions SET is_current=0 WHERE token_hash=%s", (token_hash,))
             conn.commit()
-    # 清除所有相关 cookie
+    # Clear all related cookies
     cd_val = _get_cookie_domain()
     resp = jsonify({'success': True})
     for cookie_name in ('sso_token', 'tm_token', 'token'):
