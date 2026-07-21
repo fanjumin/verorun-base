@@ -1,4 +1,4 @@
-﻿
+
 
 
 
@@ -671,6 +671,141 @@ def provider_api_key_delete(kid):
         conn.execute('DELETE FROM provider_api_keys WHERE id=%s', (kid,))
         conn.commit()
     _log(admin['user_id'], 'delete_provider_key', 'provider_api_key', str(kid), row['name'])
+    return jsonify({'success': True})
+
+
+# ═══════════════════════════════════════════════════════
+# Provider + Model 管理（模型注册与管理）
+# ═══════════════════════════════════════════════════════
+
+@admin_bp.route('/providers', methods=['GET'])
+def provider_list():
+    """返回所有活跃供应商及其模型（前端 mpRefresh 调用）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        providers = conn.execute(
+            "SELECT id, slug, name, description "
+            "FROM providers WHERE is_active=1 ORDER BY id"
+        ).fetchall()
+        result = []
+        for p in providers:
+            p = dict(p)
+            models = conn.execute(
+                "SELECT pm.id, pm.name, pm.model_name, pm.endpoint_url, pm.api_key_ref, "
+                "pm.api_key_id, pm.capabilities, pm.sort_order, pm.is_active, pm.provider_id, "
+                "COALESCE(pak.name, '') as api_key_name "
+                "FROM provider_models pm "
+                "LEFT JOIN provider_api_keys pak ON pak.id = pm.api_key_id "
+                "WHERE pm.provider_id=%s ORDER BY pm.sort_order, pm.id",
+                (p['id'],)
+            ).fetchall()
+            p['models'] = [dict(m) for m in models]
+            result.append(p)
+        return jsonify({'success': True, 'data': result})
+
+
+@admin_bp.route('/provider-models', methods=['GET'])
+def provider_model_list():
+    """返回所有模型（扁平列表，前端 mpShowEditModel 调用）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT pm.*, p.slug as provider_slug, p.name as provider_name, "
+            "COALESCE(pak.name, '') as api_key_name "
+            "FROM provider_models pm "
+            "JOIN providers p ON p.id = pm.provider_id "
+            "LEFT JOIN provider_api_keys pak ON pak.id = pm.api_key_id "
+            "ORDER BY pm.provider_id, pm.sort_order, pm.id"
+        ).fetchall()
+        return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/provider-models', methods=['POST'])
+def provider_model_create():
+    """新增模型（前端 mpCreateModel 调用）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': _('Name cannot be empty')}), 400
+
+    provider_id = data.get('provider_id')
+    if not provider_id:
+        return jsonify({'success': False, 'error': _('Provider is required')}), 400
+
+    with get_db() as conn:
+        row = conn.execute(
+            """INSERT INTO provider_models
+               (provider_id, name, model_name, endpoint_url, api_key_ref, api_key_id, capabilities, sort_order, is_active)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            (provider_id, name,
+             data.get('model_name', ''), data.get('endpoint_url', ''),
+             data.get('api_key_ref', ''), data.get('api_key_id'),
+             data.get('capabilities', 'text'),
+             data.get('sort_order', 0), data.get('is_active', 1))
+        ).fetchone()
+        conn.commit()
+    _log(admin['user_id'], 'create_provider_model', 'provider_model', str(row['id']), name)
+    return jsonify({'success': True, 'data': {'id': row['id']}})
+
+
+@admin_bp.route('/provider-models/<int:pmid>', methods=['PUT'])
+def provider_model_update(pmid):
+    """更新模型（前端 mpUpdateModel 调用）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM provider_models WHERE id=%s', (pmid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Not found')}), 404
+
+        updates = []
+        params = []
+        for field in ['name', 'model_name', 'endpoint_url', 'api_key_ref', 'api_key_id',
+                       'capabilities', 'sort_order', 'is_active', 'provider_id']:
+            if field in data:
+                updates.append(f'{field}=%s')
+                params.append(data[field])
+        if not updates:
+            return jsonify({'success': True, 'message': _('No changes')})
+        updates.append('updated_at=NOW()')
+        params.append(pmid)
+        conn.execute(f"UPDATE provider_models SET {','.join(updates)} WHERE id=%s", params)
+        conn.commit()
+    _log(admin['user_id'], 'update_provider_model', 'provider_model', str(pmid))
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/provider-models/<int:pmid>', methods=['DELETE'])
+def provider_model_delete(pmid):
+    """删除模型（前端 mpDeleteModel 调用）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute('SELECT name FROM provider_models WHERE id=%s', (pmid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Not found')}), 404
+        # 检查是否有 agent 引用此模型
+        refs = conn.execute(
+            'SELECT COUNT(*) as cnt FROM agents WHERE provider_model_id=%s', (pmid,)
+        ).fetchone()
+        if refs['cnt'] > 0:
+            return jsonify({
+                'success': False,
+                'error': _('Model is referenced by %(count)s agent(s), please unlink first', count=refs['cnt'])
+            }), 400
+        conn.execute('DELETE FROM provider_models WHERE id=%s', (pmid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_provider_model', 'provider_model', str(pmid), row['name'])
     return jsonify({'success': True})
 
 

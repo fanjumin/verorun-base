@@ -57,6 +57,27 @@ def _get_system_key(key_name):
     return val
 
 
+def _resolve_key_from_provider_api_keys(provider_slug):
+    """从 provider_api_keys 表读取并解密 API Key"""
+    try:
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', 'auth-center'))
+        from models import get_db as _get_db
+        from services.crypto import decrypt as _decrypt
+        with _get_db() as conn:
+            row = conn.execute(
+                "SELECT key_value_enc FROM provider_api_keys "
+                "WHERE provider=%s AND is_active=1 AND key_value_enc != '' "
+                "ORDER BY id LIMIT 1",
+                (provider_slug,)
+            ).fetchone()
+        if row and row['key_value_enc']:
+            return _decrypt(row['key_value_enc'])
+    except Exception as e:
+        logger.warning(f"[KeyResolver] provider_api_keys lookup failed for {provider_slug}: {e}")
+    return ''
+
+
 def _resolve_agent_model_config(config: dict) -> dict:
     """
     统一解析 Agent 的模型配置。
@@ -80,6 +101,7 @@ def _resolve_agent_model_config(config: dict) -> dict:
             config['model_name'] = pm['model_name']
             config['base_url'] = pm['endpoint_url']
             config['api_key_ref'] = pm['api_key_ref']
+            config['api_key_id'] = pm.get('api_key_id')
             if 'capabilities' not in config or not config.get('capabilities'):
                 config['capabilities'] = pm['capabilities']
             return config
@@ -142,6 +164,9 @@ class AIEngine:
         # 最后回退到 DB 可配置的模型 API Key（最高优先级最低，仅当其他途径都未找到时使用）
         if not self.api_key:
             self.api_key = _get_system_key(f'model_{self.provider}_api_key')
+        # 最终回退: 从 provider_api_keys 表读取（统一 Key 管理）
+        if not self.api_key:
+            self.api_key = _resolve_key_from_provider_api_keys(self.provider)
 
         # 初始化 OpenAI 客户端
         self.client = None
@@ -481,12 +506,28 @@ class LLMGateway:
         # 最终回退：从 system_config 读取
         return _get_system_key(env_map.get(provider, ''))
 
+    def _resolve_api_key(self, provider_slug, api_key_id=None):
+        """优先通过 api_key_id 查 provider_api_keys，回退到 _fallback_key"""
+        if api_key_id:
+            try:
+                with self._get_conn() as conn:
+                    row = conn.execute(
+                        "SELECT key_value_enc FROM provider_api_keys WHERE id=%s AND is_active=1",
+                        (api_key_id,)
+                    ).fetchone()
+                if row and row['key_value_enc']:
+                    from services.crypto import decrypt as _decrypt
+                    return _decrypt(row['key_value_enc'])
+            except Exception as e:
+                logger.warning(f"[LLMGateway] api_key_id={api_key_id} lookup failed: {e}")
+        return self._fallback_key(provider_slug)
+
     def _resolve_model(self, provider_model_id=None, provider=None, model=None):
         """解析模型配置。优先使用 provider_model_id"""
         if provider_model_id:
             with self._get_conn() as conn:
                 pm = conn.execute(
-                    """SELECT pm.model_name, pm.endpoint_url,
+                    """SELECT pm.model_name, pm.endpoint_url, pm.api_key_id,
                               p.slug as provider_slug
                        FROM provider_models pm
                        JOIN providers p ON p.id = pm.provider_id
@@ -500,7 +541,7 @@ class LLMGateway:
                 'provider': pm['provider_slug'],
                 'model': pm['model_name'],
                 'base_url': pm['endpoint_url'] or self._default_base_url(pm['provider_slug']),
-                'api_key': self._fallback_key(pm['provider_slug']),
+                'api_key': self._resolve_api_key(pm['provider_slug'], pm.get('api_key_id')),
                 'model_id': provider_model_id,
             }
 
@@ -508,7 +549,7 @@ class LLMGateway:
         if provider and model:
             with self._get_conn() as conn:
                 pm = conn.execute(
-                    """SELECT pm.id, pm.model_name, pm.endpoint_url,
+                    """SELECT pm.id, pm.model_name, pm.endpoint_url, pm.api_key_id,
                               p.slug as provider_slug
                        FROM provider_models pm
                        JOIN providers p ON p.id = pm.provider_id AND p.slug = %s
@@ -522,7 +563,7 @@ class LLMGateway:
                     'provider': pm['provider_slug'],
                     'model': pm['model_name'],
                     'base_url': pm['endpoint_url'] or self._default_base_url(provider),
-                    'api_key': self._fallback_key(provider),
+                    'api_key': self._resolve_api_key(provider, pm.get('api_key_id')),
                     'model_id': pm['id'],
                 }
 

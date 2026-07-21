@@ -49,6 +49,25 @@ function mpRefresh(){
   });
 }
 
+function mpRenderKeySelect(selectedId, providerSlug) {
+    return fetch("/admin/provider-api-keys", {headers: {"Authorization": "Bearer "+T}})
+        .then(function(r) { return r.json() })
+        .then(function(d) {
+            var keys = (d.data || []).filter(function(k) {
+                return !providerSlug || k.provider === providerSlug;
+            });
+            var h = '<div style="font-size:11px;color:var(--dim)">API Key {{ _('Select') }}</div>';
+            h += '<select class="sl" id="mpApiKeyId" style="width:100%">';
+            h += '<option value="">-- None --</option>';
+            keys.forEach(function(k) {
+                var sel = (selectedId && k.id == selectedId) ? ' selected' : '';
+                h += '<option value="'+k.id+'"'+sel+'>'+esc(k.name)+' ('+esc(k.provider)+')'+(k.has_value ? '' : ' - No Key')+'</option>';
+            });
+            h += '</select>';
+            return h;
+        });
+}
+
 function mpShowAddModel(providerId, providerName){
   var f=document.getElementById("mpAddForm");
   f.style.display="block";
@@ -63,8 +82,14 @@ function mpShowAddModel(providerId, providerName){
     '<div><div style="font-size:11px;color:var(--dim)">API Key {{ _('Reference') }}</div><input class="in" id="mpKeyRef" placeholder="如：volcengine_credentials" style="width:100%"></div>'+
     '</div>'+
     '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" placeholder="https://openspeech.bytedance.com/api/v1/tts" style="width:100%"></div>'+
+    '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
     '<div style="margin-top:10px"><button class="btn bp" onclick="mpCreateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
     '</div>';
+  // 异步加载 api_key_id 下拉框
+  mpRenderKeySelect(null, providerId).then(function(html) {
+    var wrap = document.getElementById("mpKeySelectWrap");
+    if (wrap) wrap.innerHTML = html;
+  });
 }
 
 function mpShowEditModel(id){
@@ -93,9 +118,15 @@ function mpShowEditModel(id){
       '<div><div style="font-size:11px;color:var(--dim)">API Key {{ _('Reference') }}</div><input class="in" id="mpKeyRef" value="'+escAttr(m.api_key_ref||'')+'" style="width:100%"></div>'+
       '</div>'+
       '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" value="'+escAttr(m.endpoint_url||'')+'" style="width:100%"></div>'+
+      '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
       '<div style="margin-top:8px"><label style="font-size:11px"><input type="checkbox" id="mpActive"'+(m.is_active?' checked':'')+'> {{ _('Enabled') }}</label></div>'+
       '<div style="margin-top:10px"><button class="btn bp" onclick="mpUpdateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
       '</div>';
+      // 异步加载 api_key_id 下拉框
+      mpRenderKeySelect(m.api_key_id, m.provider_slug).then(function(html) {
+        var wrap = document.getElementById("mpKeySelectWrap");
+        if (wrap) wrap.innerHTML = html;
+      });
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
 }
 
@@ -108,6 +139,7 @@ function mpCreateModel(){
     model_name:document.getElementById("mpModelName").value.trim(),
     endpoint_url:document.getElementById("mpUrl").value.trim(),
     api_key_ref:document.getElementById("mpKeyRef").value.trim(),
+    api_key_id:document.getElementById("mpApiKeyId")?document.getElementById("mpApiKeyId").value:'',
     capabilities:document.getElementById("mpCaps").value
   };
   fetch("/admin/provider-models",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
@@ -128,6 +160,7 @@ function mpUpdateModel(){
     model_name:document.getElementById("mpModelName").value.trim(),
     endpoint_url:document.getElementById("mpUrl").value.trim(),
     api_key_ref:document.getElementById("mpKeyRef").value.trim(),
+    api_key_id:document.getElementById("mpApiKeyId")?document.getElementById("mpApiKeyId").value:'',
     capabilities:document.getElementById("mpCaps").value,
     is_active:document.getElementById("mpActive")?document.getElementById("mpActive").checked?1:0:1
   };

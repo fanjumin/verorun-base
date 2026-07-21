@@ -211,6 +211,21 @@ def create_agent():
                     )
                 else:
                     conn.execute("DELETE FROM system_config WHERE key=%s", (key_name,))
+            # 同步写入 provider_api_keys 表
+            if api_key_val and provider:
+                try:
+                    from services.crypto import encrypt as _enc
+                    encrypted = _enc(api_key_val)
+                    with get_db() as conn:
+                        conn.execute(
+                            "INSERT INTO provider_api_keys (name, key_value_enc, provider, description) "
+                            "VALUES (%s, %s, %s, %s) "
+                            "ON CONFLICT (name, provider) DO UPDATE SET key_value_enc=EXCLUDED.key_value_enc, updated_at=NOW()",
+                            (f'agent:{data["name"]}', encrypted, provider, f'Agent: {data["name"]}')
+                        )
+                        conn.commit()
+                except Exception:
+                    pass  # 写入 provider_api_keys 失败不影响 Agent 创建
             data['api_key_ref'] = key_name if api_key_val else ''
             del data['api_key']
         agent_id = _m().create_agent(data)
@@ -258,6 +273,23 @@ def update_agent(aid):
                 )
             else:
                 conn.execute("DELETE FROM system_config WHERE key=%s", (key_name,))
+        # 同步写入 provider_api_keys 表
+        if api_key_val and provider:
+            try:
+                from services.crypto import encrypt as _enc
+                encrypted = _enc(api_key_val)
+                agent_name = data.get('name') or (agent.get('name', '') if agent else '')
+                name = f'agent:{agent_name}' if agent_name else f'{provider}_auto_key'
+                with get_db() as conn:
+                    conn.execute(
+                        "INSERT INTO provider_api_keys (name, key_value_enc, provider, description) "
+                        "VALUES (%s, %s, %s, %s) "
+                        "ON CONFLICT (name, provider) DO UPDATE SET key_value_enc=EXCLUDED.key_value_enc, updated_at=NOW()",
+                        (name, encrypted, provider, f'Agent: {agent_name}')
+                    )
+                    conn.commit()
+            except Exception:
+                pass  # 写入 provider_api_keys 失败不影响 Agent 更新
         data['api_key_ref'] = key_name if api_key_val else ''
         del data['api_key']
     ok = _m().update_agent(aid, data)
@@ -1089,27 +1121,18 @@ def dispatch_task():
 # 5. 提示词模板管理
 # ============================================================
 
-PROVIDER_LIST = [
-    {"id": "dashscope", "name": _("DashScope (Tongyi Qianwen)"), "default_model": "qwen-turbo",
-     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "key_ref": "dashscope_text_key"},
-    {"id": "openai", "name": "OpenAI", "default_model": "gpt-4o",
-     "base_url": "https://api.openai.com/v1", "key_ref": ""},
-    {"id": "deepseek", "name": "DeepSeek", "default_model": "deepseek-chat",
-     "base_url": "https://api.deepseek.com", "key_ref": ""},
-    {"id": "openrouter", "name": "OpenRouter", "default_model": "openai/gpt-4o-mini",
-     "base_url": "https://openrouter.ai/api/v1", "key_ref": ""},
-    {"id": "ollama", "name": _("Ollama (Local)"), "default_model": "llama3",
-     "base_url": "http://localhost:11434/v1", "key_ref": ""},
-    {"id": "siliconflow", "name": _("SiliconFlow (Silicon Flow)"), "default_model": "deepseek-ai/DeepSeek-V3",
-     "base_url": "https://api.siliconflow.cn/v1", "key_ref": "siliconflow_api_key"},
-]
-
 @agent_matrix_bp.route('/providers', methods=['GET'])
 def list_providers():
-    """返回可用提供商列表"""
+    """返回可用提供商列表（从数据库 providers 表读取）"""
     admin, err = _require_admin()
-    if err: return err
-    return _success(PROVIDER_LIST)
+    if err:
+        return err
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, slug, name, description, is_active FROM providers "
+            "WHERE is_active=1 ORDER BY id"
+        ).fetchall()
+        return _success([dict(r) for r in rows])
 
 
 @agent_matrix_bp.route('/prompts', methods=['GET'])
