@@ -285,75 +285,7 @@ class AIEngine:
     def is_ready(self):
         return self.client is not None
 
-    # ========================================
-    # 媒体生成能力（声音克隆 / TTS / 数字人视频）
-    # ========================================
 
-    def voice_clone(self, audio_url: str, voice_name: str) -> dict:
-        """声音复刻：上传样本 → 训练声音模型"""
-        try:
-            from services.volcengine_client import voice_clone as vc_clone
-            result = vc_clone(audio_url, voice_name)
-            return result
-        except Exception as e:
-            logger.error(f"[AIEngine] voice_clone 失败: {e}")
-            return {'success': False, 'error': str(e)}
-
-    def tts(self, text: str, voice_id: str, output_path: str | None = None) -> dict:
-        """Text to speech"""
-        try:
-            from services.volcengine_client import tts as vc_tts
-            result = vc_tts(text, voice_id, output_path)
-            return result
-        except Exception as e:
-            logger.error(f"[AIEngine] tts 失败: {e}")
-            return {'success': False, 'error': str(e)}
-
-    def avatar_video(self, text: str, voice_id: str, image_url: str) -> dict:
-        """数字人口播视频"""
-        try:
-            from services.volcengine_client import avatar_video as vc_avatar
-            result = vc_avatar(text, voice_id, image_url)
-            return result
-        except Exception as e:
-            logger.error(f"[AIEngine] avatar_video 失败: {e}")
-            return {'success': False, 'error': str(e)}
-
-    def query_media_task(self, task_id: str) -> dict:
-        """查询媒体任务状态"""
-        try:
-            from services.volcengine_client import query_avatar_task
-            result = query_avatar_task(task_id)
-            return result
-        except Exception as e:
-            logger.error(f"[AIEngine] query_media_task 失败: {e}")
-            return {'success': False, 'status': 'failed', 'error': str(e)}
-
-    def execute_media_action(self, action: str, params: dict) -> dict:
-        """统一媒体能力路由：根据 action 分发到具体方法"""
-        if action == 'voice_clone':
-            return self.voice_clone(
-                audio_url=params.get('audio_url', ''),
-                voice_name=params.get('voice_name', _('Default Sound'))
-            )
-        elif action == 'tts':
-            return self.tts(
-                text=params.get('text', ''),
-                voice_id=params.get('voice_id', ''),
-                output_path=params.get('output_path')
-            )
-        elif action == 'avatar_video':
-            return self.avatar_video(
-                text=params.get('text', ''),
-                voice_id=params.get('voice_id', ''),
-                image_url=params.get('image_url', '')
-            )
-        elif action == 'query':
-            return self.query_media_task(
-                task_id=params.get('task_id', '')
-            )
-        else:
-            return {'success': False, 'error': f'Unsupported media action: {action}'}
 
 
 # ============================================================

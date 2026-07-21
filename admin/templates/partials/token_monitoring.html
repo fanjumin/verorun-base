@@ -27,8 +27,6 @@ window.l_token_monitoring=function(){
     // {{ _('Dimension Stats') }}
     var dimStats={};
     byDim.forEach(function(d){dimStats[d.dimension]=d;});
-    var voiceCalls=(dimStats.voice||{}).calls||0;
-    var videoCalls=(dimStats.video||{}).calls||0;
     var imageCalls=(dimStats.image||{}).calls||0;
 
     var h='';
@@ -50,7 +48,7 @@ window.l_token_monitoring=function(){
     h+='</div>';
 
     // {{ _('Dimension Filter Tags') }}
-    var dims=[["","{{ _('All') }}"],["text","LLM {{ _('Text') }}"],["voice","{{ _('Voice') }}"],["video","{{ _('Video') }}"],["image","{{ _('Image') }}"]];
+    var dims=[["","{{ _('All') }}"],["text","LLM {{ _('Text') }}"],["image","{{ _('Image') }}"]];
     h+='<div style="display:flex;gap:4px;margin-bottom:12px">';
     dims.forEach(function(d){
       var sel=d[0]===dimension;
@@ -65,8 +63,6 @@ window.l_token_monitoring=function(){
     h+=hk("{{ _('Estimated Fee') }}","\u00A5"+cost.toFixed(2),"");
     h+=hk("{{ _('Input') }} Token",tf(tot.prompt||0),"");
     h+=hk("{{ _('Output') }} Token",tf(tot.completion||0),"g");
-    h+=hk("Voice {{ _('Call') }}",voiceCalls,"");
-    h+=hk("Video {{ _('Generate') }}",videoCalls,"");
     h+=hk("{{ _('Image Gen') }}",imageCalls,"");
     h+='</div></div>';
 
@@ -89,16 +85,14 @@ window.l_token_monitoring=function(){
     // {{ _('Render Chart') }}（{{ _('Each') }} render {{ _('After Call') }}）
     setTimeout(function(){
       var byDim=ds.by_dimension||[],pricing=ds.pricing||{};
-      var dimColors={text:'#2F6BFF',voice:'#00D68F',video:'#FF3D71',image:'#FFAA00'};
-      var dimLabels={text:'LLM{{ _('Text') }}',voice:'{{ _('Voice') }}',video:'{{ _('Video') }}',image:'{{ _('Image') }}'};
+      var dimColors={text:'#2F6BFF',image:'#FFAA00'};
+      var dimLabels={text:'LLM{{ _('Text') }}',image:'{{ _('Image') }}'};
 
       // {{ _('Pie Chart') }}: {{ _('Dimension Distribution') }}（{{ _('By Fee') }}）
       var dimData=[],dimBg=[];
       byDim.forEach(function(d){
         var cost=0;
-        if(d.dimension==='voice')cost=d.calls*(pricing.voice_per_call||0.02);
-        else if(d.dimension==='video')cost=d.calls*(pricing.video_per_call||0.10);
-        else if(d.dimension==='image')cost=d.calls*(pricing.image_per_call||0.05);
+        if(d.dimension==='image')cost=d.calls*(pricing.image_per_call||0.05);
         else cost=d.total/1000*(pricing.text_per_1k||0.003);
         if(cost>0){dimData.push(cost);dimBg.push(dimColors[d.dimension]||'#888');}
       });
@@ -164,7 +158,7 @@ window.l_token_monitoring=function(){
       var g=groups[aid]; idx++;
       var rowClr=g.total>=thr.agent_red?'rgba(255,59,48,0.08)':g.total>=thr.agent_yellow?'rgba(255,204,0,0.08)':'';
       // Agent summary row
-      var estCost=dimension==='voice'||dimension==='video'?g.calls*(pricing.voice_per_call||0.02):g.total/1000*(pricing.text_per_1k||0.003);
+      var estCost=dimension==='image'?g.calls*(pricing.image_per_call||0.05):g.total/1000*(pricing.text_per_1k||0.003);
       h+='<tr style="background:'+rowClr+';cursor:pointer" onclick="var t=this.nextElementSibling;while(t&&t.dataset.agent==\''+aid+'\'){t.style.display=t.style.display==\'none\'?\'\':\'none\';t=t.nextElementSibling}">';
       h+='<td>'+idx+'</td><td style="font-weight:600">\u25B6 '+esc(g.name)+'</td><td></td><td></td><td>'+g.calls+'</td>';
       h+='<td style="font-weight:600;color:'+(g.total>=thr.agent_red?'var(--rose)':g.total>=thr.agent_yellow?'var(--amber)':'var(--text)')+'">'+tf(g.total)+(dimension?'':'')+'</td>';
@@ -172,7 +166,7 @@ window.l_token_monitoring=function(){
 
       // Model sub-rows
       g.models.sort(function(a,b){return (b.total||0)-(a.total||0)}).forEach(function(m){
-        var mc=m.dimension==='voice'?m.calls*(pricing.voice_per_call||0.02):(m.dimension==='video'?m.calls*(pricing.video_per_call||0.10):(m.dimension==='image'?m.calls*(pricing.image_per_call||0.05):m.total/1000*(pricing.text_per_1k||0.003)));
+        var mc=m.dimension==='image'?m.calls*(pricing.image_per_call||0.05):m.total/1000*(pricing.text_per_1k||0.003);
         h+='<tr data-agent="'+aid+'" style="display:none;font-size:11px;color:var(--dim)">';
         h+='<td></td><td style="padding-left:20px">\u2514 '+esc(m.model_name||'-')+'</td>';
         h+='<td>'+esc(m.dimension||'text')+'</td><td>'+esc(m.provider||'-')+'</td><td>'+m.calls+'</td>';
@@ -208,14 +202,12 @@ window.l_token_monitoring=function(){
     var grandTotal=vals.reduce(function(s,v){return s+v.total},0);
     vals.forEach(function(v,i){
       var ec=0;
-      if(v.dimension==='voice')ec=v.calls*(pricing.voice_per_call||0.02);
-      else if(v.dimension==='video')ec=v.calls*(pricing.video_per_call||0.10);
-      else if(v.dimension==='image')ec=v.calls*(pricing.image_per_call||0.05);
+      if(v.dimension==='image')ec=v.calls*(pricing.image_per_call||0.05);
       else ec=v.total/1000*(pricing.text_per_1k||0.003);
       var pct=grandTotal>0?(v.total/grandTotal*100).toFixed(1):'0';
       h+='<tr><td>'+(i+1)+'</td><td style="font-weight:600">'+esc(v.model_name||'-')+'</td>';
       h+='<td>'+esc(v.dimension||'text')+'</td><td>'+esc(v.provider||'-')+'</td><td>'+v.calls+'</td>';
-      h+='<td>'+tf(v.total)+(v.dimension==='voice'||v.dimension==='video'?' \u6B21':'')+'</td>';
+      h+='<td>'+tf(v.total)+(v.dimension==='image'?' {{ _('Times') }}':'')+'</td>';
       h+='<td>\u00A5'+ec.toFixed(2)+'</td><td>'+pct+'%</td></tr>';
     });
     h+='</table>';
@@ -231,14 +223,12 @@ window.l_token_monitoring=function(){
     h+='<table style="font-size:12px;margin-top:8px"><tr><th>#</th><th>{{ _('User') }}</th><th>Agent</th><th>{{ _('Models') }}</th><th>{{ _('Dimension') }}</th><th>{{ _('Count') }}</th><th>{{ _('Spend') }}</th></tr>';
     users.forEach(function(u,i){
       var ec=0;
-      if(u.dimension==='voice')ec=u.calls*(pricing.voice_per_call||0.02);
-      else if(u.dimension==='video')ec=u.calls*(pricing.video_per_call||0.10);
-      else if(u.dimension==='image')ec=u.calls*(pricing.image_per_call||0.05);
+      if(u.dimension==='image')ec=u.calls*(pricing.image_per_call||0.05);
       else ec=u.total/1000*(pricing.text_per_1k||0.003);
       h+='<tr><td>'+(i+1)+'</td><td>'+esc(u.username||'{{ _('User') }}#'+u.user_id)+'</td>';
       h+='<td>'+esc(u.agent_name||'-')+'</td><td>'+esc(u.model_name||'-')+'</td>';
       h+='<td>'+esc(u.dimension||'text')+'</td><td>'+u.calls+'</td>';
-      h+='<td>'+tf(u.total)+(u.dimension==='voice'||u.dimension==='video'?' \u6B21':'')+'</td></tr>';
+      h+='<td>'+tf(u.total)+(u.dimension==='image'?' {{ _('Times') }}':'')+'</td></tr>';
     });
     h+='</table>';
     return h;

@@ -168,8 +168,7 @@ orchestrator/
 | Analytics Agent | sub | analytics | DashScope | qwen-turbo | 数据分析、趋势、看板 |
 | Ticket Agent | sub | support | DashScope | qwen-turbo | 工单、客服、故障排查 |
 | Kai Assistant | sub | chatbot | DeepSeek | deepseek-chat | 对话式 AI 助手 |
-| Voice Agent | sub | voice | VolcEngine | volc-voice-clone-v2 | 语音克隆、TTS |
-| Video Agent | sub | video | VolcEngine | volc-avatar-v3 | 数字人视频生成 |
+
 | Image Agent | sub | image | DashScope | wan2.7-image | 图像生成、编辑 |
 | Shop Agent | sub | shop | DashScope | qwen-turbo | 商品、订单、供应链 |
 | Health Check Agent | sub | health_check | DashScope | qwen-turbo | 系统健康监控、告警、诊断 |
@@ -331,11 +330,6 @@ pending ──→ running ──→ completed
 | `chat_stream(messages, ...) -> Generator` | SSE 流式输出 |
 | `ask_stream(user_query) -> Generator` | 流式一问一答 |
 | `is_ready() -> bool` | 检查客户端是否就绪 |
-| `voice_clone(audio_url, voice_name) -> dict` | 语音克隆 |
-| `tts(text, voice_id, output_path) -> dict` | 文本转语音 |
-| `avatar_video(text, voice_id, image_url) -> dict` | 数字人视频 |
-| `query_media_task(task_id) -> dict` | 查询媒体任务状态 |
-| `execute_media_action(action, params) -> dict` | 统一媒体路由 |
 
 ---
 
@@ -669,8 +663,8 @@ pending ──→ running ──→ completed
 |------|-----------|---------|
 | `ppt` | 演示文稿/PPT/幻灯片 | AI 生成大纲 → python-pptx 生成 Dark 科技风 PPT |
 | `image` | 图片/生成/画/图 | 调用通义万相 / PIL 本地处理 |
-| `voice` | 声音/语音/克隆 | 调用 VolcEngine 语音服务 |
-| `video` | 数字人/视频 | 跳转到多媒体 Tab 手动操作 |
+
+
 | `cms` | 文章/内容/写 | 跳转到文章编辑器 |
 | `clean` | 清洗/去重/整理 | 调用 Cleaner Agent |
 | `supply_chain` | 供应链/商品/订单 | Orchestrator 分配 |
@@ -821,8 +815,7 @@ A: 定期查看 `/admin/agent-matrix/token-stats`，可按 Agent 维度分析消
 **Q: Worker 进程需要单独部署吗？**
 A: 不需要。Agent Matrix 运行在 Admin 服务（8084）中，使用线程池执行任务。如需分布式部署，可通过 `scheduler_state` 表扩展。
 
-**Q: 媒体 Agent（语音/视频）为什么需要 VolcEngine？**
-A: 语音克隆、数字人视频等能力需要专用的媒体处理引擎，目前通过火山引擎 SDK 集成。纯文本 Agent 不依赖此服务。
+
 
 ---
 

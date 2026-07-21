@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """auth-center: Unified Database Manager - PostgreSQL edition."""
 import os, logging
 import psycopg2
@@ -1313,7 +1313,6 @@ def init_db():
         m.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_provider_model_unique ON provider_models(provider_id, model_name)')
         # Seed providers
         provider_seeds = [
-            ('volcengine', '火山引擎', 'TTS, voice cloning, digital human video'),
             ('dashscope',  '阿里云 DashScope', 'Qwen LLM, image gen, CosyVoice'),
             ('deepseek',   'DeepSeek', 'DeepSeek large language models'),
             ('openai',     'OpenAI', 'GPT-4o, DALL-E, TTS'),
@@ -1333,10 +1332,6 @@ def init_db():
                 for slug, _, _ in provider_seeds}
         # Seed provider_models
         model_seeds = [
-            # Volcengine
-            (pids['volcengine'], 'Voice Cloning v2',   'volc-voice-clone-v2',   'https://openspeech.bytedance.com/api/v1/mega_tts/audio',     'volcengine_credentials', 'voice',    1),
-            (pids['volcengine'], 'Streaming TTS',   'volc-tts-stream',        'https://openspeech.bytedance.com/api/v1/tts',               'volcengine_credentials', 'tts',      2),
-            (pids['volcengine'], 'Photo-Driven Digital Human v3',  'volc-avatar-v3',         'https://open.byteplus.com/api/v1/avatar',                    'volcengine_credentials', 'video',    3),
             # Alibaba Cloud DashScope
             (pids['dashscope'],  'Qwen Turbo',     'qwen-turbo',             'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     10),
             (pids['dashscope'],  'Qwen Max',        'qwen-max',               'https://dashscope.aliyuncs.com/compatible-mode/v1',          'dashscope_text_key',    'text',     11),
@@ -1874,47 +1869,12 @@ def init_db():
 
         
 
-    # ── Migration: voice_templates + video_tasks (口播视频 — 2026-05-22) ──
+    # ── Migration: drop volcengine voice/video tables (volcengine removed 2026-07-21) ──
     with get_db() as m:
-        m.execute('''CREATE TABLE IF NOT EXISTS voice_templates (
-            id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            user_id             BIGINT NOT NULL DEFAULT 1,
-            name                TEXT NOT NULL,
-            sample_url          TEXT DEFAULT '',
-            external_voice_id   TEXT DEFAULT '',
-            provider            TEXT DEFAULT 'volcengine',
-            provider_model_id   BIGINT DEFAULT NULL,
-            status              TEXT DEFAULT 'pending',
-            duration_seconds    DOUBLE PRECISION DEFAULT 0,
-            error_msg           TEXT DEFAULT '',
-            created_at          TIMESTAMP DEFAULT NOW(),
-            updated_at          TIMESTAMP DEFAULT NOW()
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_vt_status ON voice_templates(status)')
-        m.execute('''CREATE TABLE IF NOT EXISTS video_tasks (
-            id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            user_id             BIGINT NOT NULL DEFAULT 1,
-            title               TEXT NOT NULL,
-            voice_template_id   BIGINT DEFAULT NULL,
-            text_content        TEXT NOT NULL,
-            avatar_image_url    TEXT DEFAULT '',
-            output_url          TEXT DEFAULT '',
-            provider            TEXT DEFAULT 'volcengine',
-            provider_model_id   BIGINT DEFAULT NULL,
-            external_task_id    TEXT DEFAULT '',
-            status              TEXT DEFAULT 'pending',
-            error_msg           TEXT DEFAULT '',
-            published_douyin    BIGINT DEFAULT 0,
-            douyin_video_id     TEXT DEFAULT '',
-            is_homepage         BIGINT DEFAULT 0,
-            media_type          TEXT DEFAULT 'avatar_video',
-            created_at          TIMESTAMP DEFAULT NOW(),
-            updated_at          TIMESTAMP DEFAULT NOW()
-        )''')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_vdt_status ON video_tasks(status)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_vdt_homepage ON video_tasks(is_homepage)')
+        m.execute('DROP TABLE IF EXISTS voice_templates CASCADE')
+        m.execute('DROP TABLE IF EXISTS video_tasks CASCADE')
         m.commit()
-        print('[Migration] voice_templates + video_tasks tables created')
+        print('[Migration] voice_templates + video_tasks tables dropped (volcengine removed)')
 
     # ── Migration: media_files table（本地媒体库 — 2026-05-24）──
     with get_db() as m:

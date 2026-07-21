@@ -895,16 +895,6 @@ def _generate_ppt_file(topic, pages=10, style=_('Dark Tech Style, 16:9')):
         return None
 
 
-@agent_matrix_bp.route('/media/download/<filename>')
-def agent_media_download(filename):
-    """下载生成的媒体文件（PPT 等）"""
-    from flask import send_from_directory
-    media_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'media', 'temp')
-    if not os.path.exists(os.path.join(media_dir, filename)):
-        return jsonify({'success': False, 'error': _('File does not exist or has expired')}), 404
-    return send_from_directory(media_dir, filename, as_attachment=True, download_name=filename)
-
-
 @agent_matrix_bp.route('/md-preview/<filename>')
 def agent_md_preview(filename):
     """渲染 Markdown 文件为 HTML 预览"""
@@ -1014,45 +1004,29 @@ def dispatch_task():
     if not agent_config['is_active']:
         return _error(_('Target Agent is disabled'))
 
-    # ── 媒体类 Agent（Voice/Video/Image）特殊路径：直接调 API ──
-    if agent_config.get('domain') in ('voice', 'video', 'image', 'media'):
-        action = data.get('action', '')
+    # ── Image Agent special path: direct API call ──
+    if agent_config.get('domain') == 'image':
+        action = data.get('action', 'generate_image')
         params = data.get('params', {})
-        domain = agent_config.get('domain', 'media')
 
-        # 自动推断 action
-        if not action:
-            if domain == 'voice':    action = 'tts'
-            elif domain == 'video':  action = 'avatar_video'
-            elif domain == 'image':  action = 'generate_image'
-            else:                    return _error(_('action must be (voice_clone/tts/avatar_video/generate_image)'))
-
-        from agent_matrix.engine import AIEngine, _log_token_usage
-        engine = AIEngine(agent_config)
-
-        # 图像生成走独立路径
-        if domain == 'image' or action == 'generate_image':
-            prompt_text = params.get('prompt', params.get('text', ''))
-            title = params.get('title', '')
-            from services.ai_content_generator import generate_image as gen_img
-            from services.ai_content_generator import generate_cover_image
-            if title:
-                img_url = generate_cover_image(title, prompt_text or title)
-            else:
-                img_url = gen_img(prompt_text or _('Illustration'))
-            result = {'image_url': img_url, 'status': 'completed' if img_url else 'failed'}
+        prompt_text = params.get('prompt', params.get('text', ''))
+        title = params.get('title', '')
+        from services.ai_content_generator import generate_image as gen_img
+        from services.ai_content_generator import generate_cover_image
+        if title:
+            img_url = generate_cover_image(title, prompt_text or title)
         else:
-            result = engine.execute_media_action(action, params)
+            img_url = gen_img(prompt_text or _('Illustration'))
+        result = {'image_url': img_url, 'status': 'completed' if img_url else 'failed'}
 
         # 记录 token（按次计费）
         import threading
-        dim_map = {'voice_clone': 'voice', 'tts': 'voice', 'avatar_video': 'video', 'generate_image': 'image'}
-        media_dim = dim_map.get(action, domain)
+        from agent_matrix.engine import _log_token_usage
         media_user = data.get('user_id') if isinstance(data.get('user_id'), int) else None
         threading.Thread(target=_log_token_usage, args=(
-            target_id, agent_config.get('name', domain),
+            target_id, agent_config.get('name', 'image'),
             agent_config.get('model_name', ''), agent_config.get('provider', ''),
-            0, 0, 1, action, media_dim, media_user
+            0, 0, 1, action, 'image', media_user
         ), daemon=True).start()
 
         return _success(result)
@@ -1520,8 +1494,6 @@ def token_stats():
     # 费用单价（后续可从 system_config 读取）
     pricing = {
         'text_per_1k': 0.003,    # ¥ / 1000 tokens
-        'voice_per_call': 0.02,   # ¥ / 次
-        'video_per_call': 0.10,   # ¥ / 次
         'image_per_call': 0.05,   # ¥ / 次
     }
 
@@ -1582,13 +1554,9 @@ def token_stats():
 
             # ── 费用估算 ──
             text_tokens  = float(sum(int(r['total']) if r.get('dimension') == 'text' else 0 for r in by_dim_rows))
-            voice_calls  = int(sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'voice'))
-            video_calls  = int(sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'video'))
             image_calls  = int(sum(r['calls'] for r in by_dim_rows if r['dimension'] == 'image'))
             cost_est = (
                 text_tokens / 1000 * pricing['text_per_1k'] +
-                voice_calls * pricing['voice_per_call'] +
-                video_calls * pricing['video_per_call'] +
                 image_calls * pricing['image_per_call']
             )
 
