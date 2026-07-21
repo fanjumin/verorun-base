@@ -197,7 +197,7 @@ def _build_dashboard_data(conn):
     # --- Service health (outside DB) ---
     import socket
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    services = [('Platform',8081),('Platform',8083),('Admin',8084)]
+    services = [('Main',8081),('Platform',8083),('Admin',8084)]
     data['services'] = []
     def _check_service(name, port):
         try:

@@ -1,5 +1,5 @@
 // ── Dashboard CSS injection ──
-(function(){var s=document.createElement('style');s.textContent='.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.chart-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px}.chart-box .chart-title{font-size:13px;color:var(--dim);margin-bottom:8px}.chart-empty{display:flex;align-items:center;justify-content:center;height:240px;color:var(--dim);font-size:13px}.svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}.svc-dot.on{background:#52c41a;box-shadow:0 0 6px #52c41a}.svc-dot.off{background:#ef4444}.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}.metric-card .metric-label{font-size:12px;color:var(--dim)}.metric-card .metric-value{font-size:22px;font-weight:600}.metric-card .metric-value.b{color:var(--accent)}.metric-card .metric-value.g{color:var(--green)}@media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.g3,.g2{grid-template-columns:1fr}}';document.head.appendChild(s)})();
+(function(){var s=document.createElement('style');s.textContent='.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.chart-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px}.chart-box .chart-title{font-size:13px;color:var(--dim);margin-bottom:8px}.chart-empty{display:flex;align-items:center;justify-content:center;height:240px;color:var(--dim);font-size:13px}.svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}.svc-dot.on{background:#52c41a;box-shadow:0 0 6px #52c41a}.svc-dot.off{background:#ef4444}.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}.metric-card .metric-label{font-size:12px;color:var(--dim)}.metric-card .metric-value{font-size:22px;font-weight:600}.metric-card .metric-value.b{color:var(--accent)}.metric-card .metric-value.g{color:var(--green)}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.g3,.g2{grid-template-columns:1fr}}';document.head.appendChild(s)})();
 
 function tf(n){
   if(!n) return '0';
@@ -89,11 +89,16 @@ function _render_dashboard(ds){
 }
 
 function _svcCard(svcs){
-  var h='<div class="chart-box"><div class="chart-title">{{ _('Service Status') }}</div><div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0">';
+  var h='<div class="chart-box"><div class="chart-title">{{ _('Service Status') }}</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 0">';
   svcs.forEach(function(s){
-    h+='<span style="display:flex;align-items:center;gap:4px;font-size:12px">'+
-      '<span class="svc-dot '+(s.alive?'on':'off')+'"></span>'+
-      s.name+'</span>';
+    var alive=s.alive;
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:8px;border:1px solid '+(alive?'rgba(82,196,26,0.3)':'rgba(239,68,68,0.3)')+';background:var(--bg-card)">'+
+      '<span class="svc-dot '+(alive?'on':'off')+'" style="width:10px;height:10px;animation:'+(alive?'pulse 2s infinite':'none')+'"></span>'+
+      '<div style="display:flex;flex-direction:column">'+
+      '<span style="font-size:13px;font-weight:500">'+s.name+'</span>'+
+      '<span style="font-size:10px;color:var(--dim)">:'+s.port+'</span>'+
+      '</div></div>';
   });
   h+='</div></div>';
   return h;
