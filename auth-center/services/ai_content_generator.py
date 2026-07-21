@@ -29,29 +29,18 @@ def _get_key(key_name):
 # =============================================
 
 def _qwen_chat(messages, model='qwen-turbo', temperature=0.7):
-    """Call Qwen via DashScope OpenAI-compatible API. Free tier: qwen-turbo."""
-    api_key = _get_key('dashscope_text_key')
-    if not api_key:
-        raise ValueError('DashScope Text Key 未配置，请在系统设置中配置')
-
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-    }
-    body = {
-        'model': model,
-        'messages': messages,
-        'temperature': temperature,
-        'max_tokens': 4096,
-    }
-
-    resp = requests.post(f'{DASHSCOPE_BASE}/chat/completions', headers=headers, json=body, timeout=60)
-    result = resp.json()
-
-    if 'choices' not in result:
-        raise ValueError(f'Qwen API 调用失败: {result.get("message", str(result))}')
-
-    return result['choices'][0]['message']['content']
+    """Call Qwen via LLMGateway (unified entry with token logging)."""
+    from agent_matrix.engine import get_gateway
+    gw = get_gateway()
+    resp = gw.chat(
+        provider='dashscope',
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=4096,
+        module='content_generator',
+    )
+    return resp.choices[0].message.content
 
 
 CONTENT_PROMPTS = {
