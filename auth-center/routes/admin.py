@@ -1,45 +1,2955 @@
+#!/usr/bin/env python3
+"""Admin Routes -- site management panel"""
+import sys, os, json, socket, time
+from datetime import datetime, timedelta
+
+# ═══ Cache stdlib platform BEFORE inserting project root into sys.path ═══
+# Prevents project's platform/ directory from shadowing stdlib platform module
+import platform as _stdlib_platform
+_ = _stdlib_platform.system
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from flask import Blueprint, request, jsonify
+from i18n import _
+from models import get_db
+from plugin_manager.hooks import get_hook_registry
+
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
+_dash_cache = {'data': None, 'ts': 0, 'ttl': 30}
+# 各查询组独立缓存（按 key 单独刷新，不互相影响）
+_query_cache = {}
+# 通用 GET 请求内存缓存（5 秒 TTL），消除重复点击同一模块的等待感
+_get_cache = {}
+
+def _cached_get(ttl=5):
+    """装饰器：对 GET 请求做内存缓存"""
+    from functools import wraps
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*a, **kw):
+            if request.method != 'GET':
+                return fn(*a, **kw)
+            key = request.path + '?' + request.query_string.decode()
+            now = time.time()
+            entry = _get_cache.get(key)
+            if entry and (now - entry['ts']) < ttl:
+                from flask import make_response
+                return make_response((entry['body'], entry['status']))
+            resp = fn(*a, **kw)
+            # 提取状态码和 body，重建 Response 缓存
+            if hasattr(resp, 'status_code') and resp.status_code == 200:
+                _get_cache[key] = {'body': resp.get_data(as_text=True), 'status': 200, 'ts': now}
+            elif isinstance(resp, tuple) and len(resp) == 2 and getattr(resp[0], 'status_code', None) == 200:
+                _get_cache[key] = {'body': resp[0].get_data(as_text=True), 'status': 200, 'ts': now}
+            return resp
+        return wrapper
+    return deco
+
+def _require_admin():
+    """鉴权守卫 — 与 agent_matrix/site_builder 版本对齐：
+    1. 优先从 Authorization header 提取 token
+    2. 无 header 时回退到 sso_token / tm_token cookie
+    3. 使用 JWT is_admin 声明，不再冗余查询数据库
+    """
+    from services.jwt_service import validate_token
+    auth = request.headers.get('Authorization', '')
+    token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
+    if not token:
+        token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return None, (jsonify({'success': False, 'error': _('Requires management permissions')}), 401)
+    return {'user_id': payload['user_id'], 'nickname': ''}, None
 
 
+def _log(admin_id, action, target_type="", target_id="", detail=""):
+    ip = request.remote_addr or ''
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO admin_logs (admin_id, action, target_type, target_id, detail, ip_address) VALUES (%s,%s,%s,%s,%s,%s)',
+            (admin_id, action, target_type, target_id, detail, ip)
+        )
+        conn.commit()
+
+
+@admin_bp.route('/logout', methods=['POST'])
+def admin_logout():
+    """管理员退出登录"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    _log(admin['user_id'], 'logout', 'admin', '', chr(39)+chr(39))
+    return jsonify({'success': True})
+
+
+def _qcached(key, ttl=10):
+    """查询级缓存装饰器（防重复计算，只缓存非 None/非 [] 的结果）"""
+    def deco(fn):
+        def wrapper(*a, **kw):
+            now = time.time()
+            entry = _query_cache.get(key)
+            if entry and (now - entry['ts']) < ttl:
+                return entry['val']
+            val = fn(*a, **kw)
+            if val is not None and val != []:
+                _query_cache[key] = {'val': val, 'ts': now}
+            return val
+        return wrapper
+    return deco
+
+def _build_dashboard_data(conn):
+    """执行所有 Dashboard SQL 查询，返回 data dict（可以被 API 和模板预渲染共用）"""
+    data = {
+        'monthly_revenue': 0,
+        'pending_posts': 0,
+        'pending_contacts': 0,
+        'total_users': 0,
+        'active_users': 0,
+        'today_new_users': 0,
+        'total_agents': 0,
+        'active_agents': 0,
+        'today_calls': 0,
+        'total_calls': 0,
+        'active_subscriptions': 0,
+        'total_orders': 0,
+        'pending_reviews': 0,
+        'today_failed_tasks': 0,
+        'trend_30d': [],
+        'revenue_trend_30d': [],
+    }
+    _query_cache_ctx = {}
+
+    def _safe(sql, params=()):
+        try: return conn.execute(sql, params).fetchone()
+        except:
+            try: conn._conn.rollback()
+            except: pass
+            return None
+
+    def _safe_all(sql, params=()):
+        try: return conn.execute(sql, params).fetchall()
+        except:
+            try: conn._conn.rollback()
+            except: pass
+            return []
+
+    def _qcached(key, ttl=10):
+        def deco(fn):
+            def wrapper(*a, **kw):
+                now = time.time()
+                entry = _query_cache_ctx.get(key)
+                if entry and (now - entry['ts']) < ttl:
+                    return entry['val']
+                val = fn(*a, **kw)
+                if val is not None and val != []:
+                    _query_cache_ctx[key] = {'val': val, 'ts': now}
+                return val
+            return wrapper
+        return deco
+
+    # --- Core metrics ---
+    try:
+        u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=CURRENT_DATE THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
+        data['total_users'] = u['c']; data['active_users'] = u['a']; data['today_new_users'] = u['n']
+    except: pass
+    try:
+        ta = conn.execute('SELECT COUNT(*) as c FROM user_agents').fetchone()
+        data['total_agents'] = ta['c'] if ta else 0
+        aa = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE status='active'").fetchone()
+        data['active_agents'] = aa['c'] if aa else 0
+    except: pass
+    try:
+        tdc_old = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=CURRENT_DATE")
+        tdc_new = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE last_reset=CURRENT_DATE")
+        data['today_calls'] = (tdc_old['c'] if tdc_old else 0) + (tdc_new['c'] if tdc_new else 0)
+        tc_old = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM api_keys')
+        tc_new = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys')
+        data['total_calls'] = (tc_old['c'] if tc_old else 0) + (tc_new['c'] if tc_new else 0)
+    except: pass
+    try:
+        sub = _safe("SELECT COUNT(*) as c FROM subscriptions WHERE status='active'")
+        data['active_subscriptions'] = sub['c'] if sub else 0
+    except: pass
+    try:
+        data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
+        mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'").fetchone()
+        data['monthly_revenue'] = round(mr['c'], 2) if mr else 0
+    except: pass
+    # --- Action items ---
+    try:
+        data['pending_posts'] = conn.execute("SELECT COUNT(*) as c FROM agent_experiences WHERE status='pending' OR is_published=0").fetchone()['c']
+    except: pass
+    try:
+        data['pending_reviews'] = (_safe("SELECT COUNT(*) as c FROM processed_contents WHERE status='review'") or {'c':0})['c']
+    except: pass
+    try:
+        data['pending_contacts'] = conn.execute("SELECT COUNT(*) as c FROM contact_messages WHERE status='unread'").fetchone()['c']
+    except: pass
+    try:
+        data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=CURRENT_DATE") or {'c':0})['c']
+    except: pass
+    # --- Recent data ---
+    try:
+        data['recent_users'] = [dict(r) for r in conn.execute(
+            "SELECT id, COALESCE(display_name, username, '') as nickname, phone, created_at FROM users ORDER BY created_at DESC LIMIT 5").fetchall()]
+    except:
+        try: conn._conn.rollback()
+        except: pass
+    try:
+        data['recent_orders'] = [dict(r) for r in conn.execute(
+            "SELECT id, user_id, item_desc, amount, status, paid_at FROM billing_orders ORDER BY created_at DESC LIMIT 5").fetchall()]
+    except:
+        try: conn._conn.rollback()
+        except: pass
+
+    # --- Service health (outside DB) ---
+    import socket
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    services = [('Main',8081),('Platform',8083),('Admin',8084)]
+    data['services'] = []
+    def _check_service(name, port):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.15)
+            result = s.connect_ex(('127.0.0.1', port))
+            s.close()
+            return {'name': name, 'port': port, 'alive': result == 0}
+        except: return {'name': name, 'port': port, 'alive': False}
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {ex.submit(_check_service, n, p): (n, p) for n, p in services}
+        for f in as_completed(futures):
+            data['services'].append(f.result())
+
+    # --- 收集所有已激活插件注入的仪表盘数据 ---
+    data = get_hook_registry().apply_filters('dashboard.data', data, conn=conn)
+
+    return data
+
+@admin_bp.route('/dashboard', methods=['GET'])
+def dashboard():
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    now = time.time()
+    if _dash_cache['data'] is not None and (now - _dash_cache['ts']) < _dash_cache['ttl']:
+        return jsonify({"success": True, "data": _dash_cache['data']})
+
+    try:
+        with get_db() as conn:
+            data = _build_dashboard_data(conn)
+        if not any(k in data for k in ('total_users','total_agents','active_subscriptions')):
+            raise Exception('Core metrics all failed')
+        _dash_cache['data'] = data
+        _dash_cache['ts'] = time.time()
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════════════
+# 收入看板
+# ════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/revenue/dashboard', methods=['GET'])
+def revenue_dashboard():
+    """收入看板 — 综合收入统计"""
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    try:
+        return _revenue_dashboard_data()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"Revenue dashboard unavailable: {e}"}), 500
+
+
+def _revenue_dashboard_data():
+    with get_db() as conn:
+        # ── 收入汇总 ──
+        today = float(conn.execute("""
+            SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
+            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
+        """).fetchone()['rev'] or 0)
+        today += float(conn.execute("""
+            SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
+        """).fetchone()['rev'] or 0)
+        today += float(conn.execute("""
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
+        """).fetchone()['rev'] or 0)
+
+        this_month = float(conn.execute("""
+            SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
+        """).fetchone()['rev'] or 0)
+        this_month += float(conn.execute("""
+            SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
+        """).fetchone()['rev'] or 0)
+        this_month += float(conn.execute("""
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
+        """).fetchone()['rev'] or 0)
+
+        this_year = float(conn.execute("""
+            SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
+            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
+        """).fetchone()['rev'] or 0)
+        this_year += float(conn.execute("""
+            SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
+        """).fetchone()['rev'] or 0)
+        this_year += float(conn.execute("""
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
+        """).fetchone()['rev'] or 0)
+
+        # ── 上月收入（环比） ──
+        last_month = float(conn.execute("""
+            SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
+        """).fetchone()['rev'] or 0)
+        last_month += float(conn.execute("""
+            SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
+        """).fetchone()['rev'] or 0)
+        last_month += float(conn.execute("""
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
+        """).fetchone()['rev'] or 0)
+
+        # ── 近30天每日收入趋势 ──
+        trend = conn.execute("""
+            SELECT date(paid_at) as day, SUM(amount) as rev FROM billing_orders
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
+            GROUP BY date(paid_at) ORDER BY day
+        """).fetchall()
+        trend_map = {r['day']: float(r['rev']) for r in trend}
+        # Add subscription orders
+        sub_trend = conn.execute("""
+            SELECT date(paid_at) as day, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
+            GROUP BY date(paid_at) ORDER BY day
+        """).fetchall()
+        for r in sub_trend:
+            trend_map[r['day']] = trend_map.get(r['day'], 0.0) + float(r['rev'])
+        # Add shop orders
+        shop_trend = conn.execute("""
+            SELECT date(paid_at) as day, COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
+            GROUP BY date(paid_at) ORDER BY day
+        """).fetchall()
+        for r in shop_trend:
+            trend_map[r['day']] = trend_map.get(r['day'], 0.0) + float(r['rev'])
+
+        # ── 近12月月度收入 ──
+        monthly = conn.execute("""
+            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, SUM(amount) as rev FROM billing_orders
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
+            GROUP BY ym ORDER BY ym
+        """).fetchall()
+        monthly_map = {r['ym']: float(r['rev']) for r in monthly}
+        sub_monthly = conn.execute("""
+            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
+            GROUP BY ym ORDER BY ym
+        """).fetchall()
+        for r in sub_monthly:
+            monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
+        shop_monthly = conn.execute("""
+            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
+            GROUP BY ym ORDER BY ym
+        """).fetchall()
+        for r in shop_monthly:
+            monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
+
+        # ── 收入按类型分类 ──
+        by_type = {}
+        raw = conn.execute("""
+            SELECT item_type, COALESCE(SUM(amount),0) as rev FROM billing_orders
+            WHERE status='paid' GROUP BY item_type
+        """).fetchall()
+        for r in raw:
+            by_type[r['item_type']] = by_type.get(r['item_type'], 0) + r['rev']
+        sub_raw = conn.execute("""
+            SELECT item_type, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' GROUP BY item_type
+        """).fetchall()
+        for r in sub_raw:
+            by_type[r['item_type']] = by_type.get(r['item_type'], 0) + r['rev']
+        shop_raw = conn.execute("""
+            SELECT 'shop' as item_type, COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid'
+        """).fetchall()
+        for r in shop_raw:
+            if r['rev'] > 0:
+                by_type['shop'] = by_type.get('shop', 0) + r['rev']
+
+        # ── 支付方式分布 ──
+        pay_methods = {}
+        pm = conn.execute("""
+            SELECT payment_method, COALESCE(SUM(amount),0) as rev FROM billing_orders
+            WHERE status='paid' AND payment_method!='' GROUP BY payment_method
+        """).fetchall()
+        for r in pm:
+            pay_methods[r['payment_method']] = pay_methods.get(r['payment_method'], 0) + r['rev']
+
+        # ── 订阅数据 (MRR) ──
+        mrr = conn.execute("""
+            SELECT COALESCE(SUM(
+                CASE WHEN s.period='year' THEN sp.price_year/12 ELSE sp.price_month END
+            ),0) as mrr FROM subscriptions s
+            JOIN subscription_plans sp ON sp.plan_key=s.plan_key
+            WHERE s.status IN ('active','trialing')
+        """).fetchone()['mrr']
+        active_subs = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions WHERE status='active'
+        """).fetchone()['c']
+
+        # ── 总付费用户数 ──
+        total_paid_users = conn.execute("""
+            SELECT COUNT(DISTINCT user_id) as c FROM subscriptions WHERE status='active'
+        """).fetchone()['c']
+
+        # ── 总交易额 ──
+        total_revenue = conn.execute("""
+            SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders WHERE status='paid'
+        """).fetchone()['rev']
+        total_revenue += (conn.execute("""
+            SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders WHERE status='paid'
+        """).fetchone()['rev'] or 0)
+        total_revenue += (conn.execute("""
+            SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items WHERE status='paid'
+        """).fetchone()['rev'] or 0)
+
+        # ── 待处理退款 ──
+        pending_refunds = conn.execute("""
+            SELECT COUNT(*) as c FROM billing_orders
+            WHERE status='refund_pending'
+        """).fetchone()['c']
+
+        # ── 流失率计算 ──
+        # 本月流失率 = 本月取消数 / 月初活跃数
+        # 本月取消数
+        canceled = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE status='canceled'
+              AND TO_CHAR(canceled_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
+        """).fetchone()
+        active_start_month = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE status IN ('active','trialing')
+              AND (canceled_at IS NULL OR canceled_at >= DATE_TRUNC('month', CURRENT_DATE)::DATE)
+              AND created_at < DATE_TRUNC('month', CURRENT_DATE)::DATE
+        """).fetchone()['c'] or 1
+        churn_rate = round((canceled['c'] / active_start_month) * 100, 2) if active_start_month > 0 else 0
+
+        # 上月流失率
+        last_month_canceled = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE status='canceled'
+              AND TO_CHAR(canceled_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
+        """).fetchone()['c']
+        last_month_active_start = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE status IN ('active','trialing')
+              AND canceled_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')::DATE
+              AND created_at < DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')::DATE
+        """).fetchone()['c'] or 1
+        last_churn_rate = round((last_month_canceled / last_month_active_start) * 100, 2) if last_month_active_start > 0 else 0
+
+        # ── 近12月月度流失率趋势 ──
+        churn_trend = []
+        for i in range(11, -1, -1):
+            ym_start = f"DATE_TRUNC('month', CURRENT_DATE - INTERVAL '{i} months')::DATE"
+            ym_end = f"DATE_TRUNC('month', CURRENT_DATE - INTERVAL '{i-1} months')::DATE"
+            m_canceled = conn.execute(f"""
+                SELECT COUNT(*) as c FROM subscriptions
+                WHERE status='canceled'
+                  AND canceled_at >= {ym_start} AND canceled_at < {ym_end}
+            """).fetchone()['c']
+            m_active_start = conn.execute(f"""
+                SELECT COUNT(*) as c FROM subscriptions
+                WHERE status IN ('active','trialing')
+                  AND (canceled_at IS NULL OR canceled_at >= {ym_start})
+                  AND created_at < {ym_start}
+            """).fetchone()['c'] or 1
+            m_churn = round((m_canceled / m_active_start) * 100, 2)
+            ym_label = (datetime.now().replace(day=1) - timedelta(days=30*i)).strftime('%Y-%m')
+            churn_trend.append({'ym': ym_label, 'churn_rate': m_churn, 'canceled': m_canceled, 'active_start': m_active_start})
+
+        # ── 近30天活跃订阅趋势 ──
+        sub_trend_30d = []
+        for i in range(29, -1, -1):
+            day = (datetime.now() - timedelta(days=i)).date().isoformat()
+            active_count = conn.execute(f"""
+                SELECT COUNT(*) as c FROM subscriptions
+                WHERE status IN ('active','trialing')
+                  AND date(created_at) <= %s
+                  AND (canceled_at IS NULL OR date(canceled_at) > %s)
+            """, (day, day)).fetchone()['c']
+            sub_trend_30d.append({'day': day, 'active_count': active_count})
+
+        # 本月新增订阅（含 trialing 和 past_due 中本月创建的）
+        new_this_month = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE TO_CHAR(created_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
+        """).fetchone()['c'] + conn.execute("""
+            SELECT COUNT(*) as c FROM subscription_orders
+            WHERE TO_CHAR(created_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM') AND item_type='new' AND status='paid'
+        """).fetchone()['c']
+
+        # 本月已过期
+        expired_this_month = conn.execute("""
+            SELECT COUNT(*) as c FROM subscriptions
+            WHERE status='expired'
+              AND TO_CHAR(updated_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
+        """).fetchone()['c']
+
+    return jsonify({"success": True, "data": {
+        'summary': {
+            'today_revenue': round(today, 2),
+            'this_month': round(this_month, 2),
+            'last_month': round(last_month, 2),
+            'this_year': round(this_year, 2),
+            'total_revenue': round(total_revenue, 2),
+            'month_change': round(this_month - last_month, 2),
+            'month_change_pct': round(((this_month - last_month) / last_month * 100) if last_month > 0 else 0, 1),
+        },
+        'subscriptions': {
+            'mrr': round(float(mrr) / 100, 2),
+            'active': active_subs,
+            'total_paid_users': total_paid_users,
+            'new_this_month': new_this_month,
+            'canceled_this_month': canceled['c'],
+            'expired_this_month': expired_this_month,
+            'churn_rate': churn_rate,
+            'last_churn_rate': last_churn_rate,
+            'churn_trend_12m': churn_trend,
+            'active_trend_30d': sub_trend_30d,
+        },
+        'pending_refunds': pending_refunds,
+        'trend_30d': [{'day': k, 'revenue': round(v, 2)} for k, v in sorted(trend_map.items())],
+        'monthly_12m': [{'ym': k, 'revenue': round(v, 2)} for k, v in sorted(monthly_map.items())],
+        'by_type': [{'type': k, 'revenue': round(v, 2)} for k, v in sorted(by_type.items(), key=lambda x: -x[1])],
+        'pay_methods': [{'method': k, 'revenue': round(v, 2)} for k, v in sorted(pay_methods.items(), key=lambda x: -x[1])],
+    }})
+
+
+@admin_bp.route('/users', methods=['GET'])
+@_cached_get(ttl=3)
+def user_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    page = request.args.get("page", 1, type=int)
+    limit = request.args.get("limit", 20, type=int)
+    search = request.args.get("search", "").strip()
+    tier_filter = request.args.get("tier", "").strip()
+    industry = request.args.get("industry", "").strip()
+    occupation = request.args.get("occupation", "").strip()
+    region = request.args.get("region", "").strip()
+    offset = (page - 1) * limit
+    where = []
+    params = []
+    if search:
+        where.append("(u.phone LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s OR u.email LIKE %s)")
+        s = '%' + search + '%'
+        params.extend([s, s, s])
+    if tier_filter:
+        where.append('a.tier=%s')
+        params.append(tier_filter)
+    if industry:
+        where.append("p.industry LIKE %s")
+        params.append('%' + industry + '%')
+    if occupation:
+        where.append("p.occupation LIKE %s")
+        params.append('%' + occupation + '%')
+    if region:
+        where.append("(p.province LIKE %s OR p.city LIKE %s OR p.district LIKE %s)")
+        r = '%' + region + '%'
+        params.extend([r, r, r])
+    wsql = 'WHERE ' + ' AND '.join(where) if where else ''
+    from_sql = ("FROM users u "
+                "LEFT JOIN user_profiles p ON u.id=p.user_id "
+                "LEFT JOIN user_addresses pa ON u.id=pa.user_id AND pa.is_default=1 AND pa.status=1")
+    if industry or occupation or region:
+        # If filtering, only join profiles (address join for region)
+        pass
+    sql = ("SELECT u.id, u.phone, COALESCE(u.display_name, u.username) as nickname, u.email, u.wechat_nickname, "
+           "COALESCE((SELECT COUNT(*) FROM user_agents WHERE user_id=u.id),0) as agent_count, "
+           "'' as agent_nickname, u.is_admin, u.active, u.created_at, u.last_login, "
+           "'' as tier, '' as tier_expire_at, "
+           "u.verified_by, u.verified_at, "
+           "COALESCE(p.industry,'') as industry, COALESCE(p.occupation,'') as occupation "
+           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
+    csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
+    with get_db() as conn:
+        total = conn.execute(csql, params).fetchone()
+        rows = conn.execute(sql, params + [limit, offset]).fetchall()
+    return jsonify({"success": True, "data": {
+        'total': total['c'], 'page': page, 'limit': limit,
+        'users': [dict(r) for r in rows],
+    }})
+
+
+@admin_bp.route('/users/<int:uid>', methods=['GET'])
+def user_detail(uid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        user = conn.execute("SELECT id, username, phone, phone_verified, email, COALESCE(display_name, username, '') as nickname, "
+                            "wechat_nickname, avatar_url, "
+                            "verified_by, verified_at, display_name, "
+                            "'' as agent_id, '' as agent_nickname, '' as agent_avatar_url, "
+                            "is_admin, active, created_at, last_login "
+                            "FROM users WHERE id=%s", (uid,)).fetchone()
+        if not user:
+            return jsonify({'success': False, 'error': chr(29992)+chr(25143)+chr(19981)+chr(23384)+chr(22312)}), 404
+        auths = conn.execute('SELECT app_name, tier, tier_expire_at, calls_today, calls_total FROM app_authorizations WHERE user_id=%s', (uid,)).fetchall()
+        orders = conn.execute('SELECT id, order_no, amount, item_type, item_desc, status, created_at FROM billing_orders WHERE user_id=%s ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
+    return jsonify({'success': True, 'data': {'user': dict(user), 'authorizations': [dict(a) for a in auths], 'orders': [dict(o) for o in orders]}})
+
+@admin_bp.route('/users/<int:uid>/status', methods=['PUT'])
+def user_status(uid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    active = data.get('active', 1)
+    with get_db() as conn:
+        conn.execute('UPDATE users SET active=%s WHERE id=%s', (1 if active else 0, uid))
+        conn.commit()
+    _log(admin['user_id'], 'ban_user' if not active else 'activate_user', 'user', str(uid))
+    return jsonify({'success': True, 'message': chr(29366)+chr(24577)+chr(24050)+chr(26356)+chr(26032)})
+
+# PUT /admin/users/<int:uid>/verify — 管理员手动标记用户为已实名（合规v2：不存储身份证号）
+@admin_bp.route('/users/<int:uid>/verify', methods=['PUT'])
+def admin_verify_user(uid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    real_name = (data.get('real_name') or '').strip()
+    if not real_name:
+        return jsonify({'success': False, 'error': _('Name cannot be empty"')}), 400
+    with get_db() as conn:
+        user = conn.execute('SELECT id, is_real_name_verified FROM users WHERE id=%s', (uid,)).fetchone()
+        if not user:
+            return jsonify({'success': False, 'error': _('User does not exist')}), 404
+        if user['is_real_name_verified']:
+            return jsonify({'success': False, 'error': _('User has completed real-name authentication')}), 400
+        # 合规v2：只写 display_name + 认证标记，不存储身份证号
+        conn.execute(
+            'UPDATE users SET display_name=%s, verified_by=%s, verified_at=%s, is_real_name_verified=1, real_name_verified_at=%s WHERE id=%s',
+            (real_name, 'manual', now_iso(), now_iso(), uid)
+        )
+        conn.commit()
+    _log(admin['user_id'], 'verify_user', 'user', str(uid))
+    return jsonify({'success': True, 'message': _('Real-name Authentication Completed (Manually Marked, No ID Information Stored)')})
+
+
+# GET /admin/users/<int:uid>/profile — admin查看用户扩展资料+收货地址
+@admin_bp.route('/users/<int:uid>/profile', methods=['GET'])
+def user_profile_admin(uid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    import json as _json
+    with get_db() as conn:
+        prof = conn.execute('''
+            SELECT up.*, ind.name AS industry_name, co.name AS career_name
+            FROM user_profiles up
+            LEFT JOIN industries ind ON up.industry_id = ind.id
+            LEFT JOIN career_options co ON up.career_id = co.id
+            WHERE up.user_id=%s
+        ''', (uid,)).fetchone()
+        addrs = conn.execute('''
+            SELECT ua.*,
+                p.name as province_name,
+                c.name as city_name,
+                d.name as district_name,
+                s.name as street_name
+            FROM user_addresses ua
+            LEFT JOIN regions p ON ua.province_code = p.code
+            LEFT JOIN regions c ON ua.city_code = c.code
+            LEFT JOIN regions d ON ua.district_code = d.code
+            LEFT JOIN regions s ON ua.street_code = s.code
+            WHERE ua.user_id=%s AND ua.status=1
+            ORDER BY ua.is_default DESC, ua.created_at DESC
+        ''', (uid,)).fetchall()
+
+    if prof:
+        p = dict(prof)
+        try:
+            p['interests'] = _json.loads(p.get('interests', '[]'))
+        except Exception:
+            p['interests'] = []
+        # 兼容admin.html前端字段名
+        p.setdefault('industry_id', None)
+        p.setdefault('career_id', None)
+        p.setdefault('industry_name', '')
+        p.setdefault('career_name', '')
+    else:
+        p = {
+            'user_id': uid, 'gender': '', 'birth_date': None,
+            'age_group': '', 'occupation': '', 'industry': '',
+            'industry_id': None, 'career_id': None,
+            'industry_name': '', 'career_name': '',
+            'interests': [], 'bio': '', 'created_at': '', 'updated_at': ''
+        }
+
+    # 转换地址列表为前端需要的字段名（province/city/district -> province_name等）
+    addr_list = []
+    for a in addrs:
+        ad = dict(a)
+        ad['province'] = ad.pop('province_name', '') or ''
+        ad['city'] = ad.pop('city_name', '') or ''
+        ad['district'] = ad.pop('district_name', '') or ''
+        addr_list.append(ad)
+
+    return jsonify({'success': True, 'data': {
+        'profile': p, 'addresses': addr_list
+    }})
+
+
+# GET /admin/users/export — 脱敏导出用户列表
+@admin_bp.route('/agents', methods=['GET'])
+@_cached_get(ttl=3)
+def agent_list():
+    """Legacy endpoint — delegates to new user_agents query (2026-05-10)"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    search = request.args.get('search', chr(39)+chr(39)).strip()
+    offset = (page - 1) * limit
+    w = ''
+    params = []
+    if search:
+        w = "WHERE (ua.agent_name LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s)"
+        s = '%' + search + '%'
+        params.extend([s, s])
+    with get_db() as conn:
+        total = conn.execute(
+            'SELECT COUNT(*) as c FROM user_agents ua LEFT JOIN users u ON ua.user_id=u.id ' + w,
+            params
+        ).fetchone()
+        rows = conn.execute(
+            'SELECT ua.id, ua.agent_name, ua.agent_type, ua.status, ua.created_at, '
+            "u.id as user_id, COALESCE(u.display_name, u.username) as user_name, u.phone "
+            'FROM user_agents ua LEFT JOIN users u ON ua.user_id=u.id ' +
+            w + ' ORDER BY ua.created_at DESC LIMIT %s OFFSET %s',
+            params + [limit, offset]
+        ).fetchall()
+    return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'agents': [dict(r) for r in rows]}})
+
+
+@admin_bp.route('/posts', methods=['GET'])
+@_cached_get(ttl=3)
+def post_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    sf = request.args.get('status', chr(39)+chr(39)).strip()
+    offset = (page - 1) * limit
+    w = []
+    p = []
+    if sf:
+        w.append('e.status=%s')
+        p.append(sf)
+    wsql = ('WHERE ' + ' AND '.join(w)) if w else ''
+    sql = 'SELECT e.id, e.title, e.category, e.status, e.is_published, e.like_count, e.view_count, e.created_at, e.agent_id, COALESCE(u.display_name, u.username) as user_name FROM agent_experiences e LEFT JOIN users u ON e.user_id=u.id ' + wsql + ' ORDER BY e.created_at DESC LIMIT %s OFFSET %s'
+    with get_db() as conn:
+        total = conn.execute('SELECT COUNT(*) as c FROM agent_experiences e ' + wsql, p).fetchone()
+        rows = conn.execute(sql, p + [limit, offset]).fetchall()
+    return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'posts': [dict(r) for r in rows]}})
+
+
+@admin_bp.route('/posts/<int:pid>/review', methods=['PUT'])
+def review_post(pid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    status = data.get('status', 'approved')
+    pub = 1 if status == 'approved' else 0
+    with get_db() as conn:
+        conn.execute("UPDATE agent_experiences SET status=%s, is_published=%s, updated_at=NOW() WHERE id=%s", (status, pub, pid))
+        conn.commit()
+    _log(admin['user_id'], 'review_post', 'post', str(pid), 'Status: ' + status)
+    return jsonify({'success': True, 'message': _('Audit Completed')})
+
+
+@admin_bp.route('/contacts', methods=['GET'])
+@_cached_get(ttl=3)
+def contact_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    offset = (page - 1) * limit
+    with get_db() as conn:
+        total = conn.execute('SELECT COUNT(*) as c FROM contact_messages').fetchone()
+        rows = conn.execute("SELECT id, name, email, subject, message, status, created_at FROM contact_messages ORDER BY CASE status WHEN 'unread' THEN 0 ELSE 1 END, created_at DESC LIMIT %s OFFSET %s", (limit, offset)).fetchall()
+    return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'contacts': [dict(r) for r in rows]}})
+
+
+@admin_bp.route('/api-keys', methods=['GET'])
+@_cached_get(ttl=3)
+def api_key_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    offset = (page - 1) * limit
+    with get_db() as conn:
+        total = conn.execute('SELECT COUNT(*) as c FROM api_keys').fetchone()
+        rows = conn.execute("SELECT k.id, k.name, k.key_prefix, k.calls_today, k.calls_total, k.active, k.created_at, COALESCE(u.display_name, u.username, '') as user_name, u.id as user_id FROM api_keys k LEFT JOIN users u ON k.user_id=u.id ORDER BY k.created_at DESC LIMIT %s OFFSET %s", (limit, offset)).fetchall()
+    return jsonify({'success': True, 'data': {'total': total['c'], 'page': page, 'limit': limit, 'keys': [dict(r) for r in rows]}})
+
+
+@admin_bp.route('/api-keys/<int:kid>', methods=['DELETE'])
+def revoke_key(kid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        conn.execute('UPDATE api_keys SET active=0 WHERE id=%s', (kid,))
+        conn.commit()
+    _log(admin['user_id'], 'revoke_api_key', 'api_key', str(kid))
+    return jsonify({'success': True, 'message': _('Key has been revoked')})
+
+
+@admin_bp.route('/logs', methods=['GET'])
+@_cached_get(ttl=3)
+def admin_logs():
+    admin, err = _require_admin()
+    if err:
+        return err
+    limit = request.args.get('limit', 50, type=int)
+    with get_db() as conn:
+        rows = conn.execute('SELECT l.id, l.action, l.target_type, l.target_id, l.detail, l.ip_address, l.created_at, COALESCE(u.display_name, u.username) as admin_name FROM admin_logs l LEFT JOIN users u ON l.admin_id=u.id ORDER BY l.created_at DESC LIMIT %s', (limit,)).fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+
+# =============================================
+# Agent Matrix management
+# =============================================
+@admin_bp.route('/agent-matrix', methods=['GET'])
+def agent_matrix_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    type_filter = request.args.get('type', chr(39)+chr(39))
+    with get_db() as conn:
+        if type_filter:
+            rows = conn.execute('SELECT * FROM agents WHERE type=%s ORDER BY type, id', (type_filter,)).fetchall()
+        else:
+            rows = conn.execute('SELECT * FROM agents ORDER BY type, id').fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/agent-matrix', methods=['POST'])
+def agent_matrix_create():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    alias = (data.get('alias', chr(39)+chr(39)) or '')[:12]
+    mission = (data.get('mission', chr(39)+chr(39)) or '')[:64]
+    prompt = (data.get('system_prompt', chr(39)+chr(39)) or '')[:3000]
+    model_provider_id = data.get('provider_model_id')  # new field name
+    if model_provider_id is None:
+        model_provider_id = data.get('model_provider_id')  # backward compat
+    with get_db() as conn:
+        row = conn.execute(
+            "INSERT INTO agents (type, alias, mission, system_prompt, provider_model_id) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+            (data.get('type', 'child'), alias, mission, prompt, model_provider_id)
+        ).fetchone()
+        conn.commit()
+        aid = row['id']
+    _log(admin['user_id'], 'create_agent', 'agent', str(aid), alias)
+    return jsonify({'success': True, 'message': _('Agent has been created'), 'id': aid})
+
+
+@admin_bp.route('/agent-matrix/<int:aid>', methods=['PUT'])
+def agent_matrix_update(aid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    fields = []
+    values = []
+    for key in ['type', 'alias', 'mission', 'system_prompt', 'provider_model_id', 'is_active']:
+        if key in data:
+            fields.append(key + '=%s')
+            values.append(data[key])
+    if not fields:
+        return jsonify({'success': False, 'error': _('No fields to update')}), 400
+    fields.append("updated_at=NOW()")
+    values.append(aid)
+    with get_db() as conn:
+        conn.execute('UPDATE agents SET ' + ','.join(fields) + ' WHERE id=%s', values)
+        conn.commit()
+    _log(admin['user_id'], 'update_agent', 'agent', str(aid))
+    return jsonify({'success': True, 'message': _('Agent has been updated')})
+
+
+@admin_bp.route('/agent-matrix/<int:aid>', methods=['DELETE'])
+def agent_matrix_delete(aid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        conn.execute('DELETE FROM agents WHERE id=%s', (aid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_agent', 'agent', str(aid))
+    return jsonify({'success': True, 'message': _('Agent has been deleted')})
+
+
+@admin_bp.route('/agent-matrix/<int:aid>/test', methods=['POST'])
+def agent_matrix_test(aid):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    query = data.get('query', chr(39)+chr(39))
+    if not query:
+        return jsonify({'success': False, 'error': '请先输入测试消息（不能为空）'}), 400
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM agents WHERE id=%s', (aid,)).fetchone()
+    if not row:
+        return jsonify({'success': False, 'error': _('Agent does not exist')}), 404
+    from services.agent_engine import UniversalAgentEngine
+    engine = UniversalAgentEngine(dict(row))
+    result = engine.ask(query)
+    return jsonify({'success': True, 'data': {'response': result}})
+
+
+# =============================================
+# Email management — 已迁移至 plugins/email/routes.py
+# 路由前缀 /admin/email/* 由 EmailPlugin 插件注册
+# =============================================
+
+
+# =============================================
+# SMS Template Management — 已迁移至 SmsPlugin（插件）
+# 插件路由注册于 /admin/sms/templates
+# =============================================
+
+
+
+
+# =============================================
+# 管理员配置 — Admin Profiles (2026-05-10)
+# =============================================
+
+def _require_super_admin():
+    """验证当前用户是 super_admin"""
+    admin, err = _require_admin()
+    if err:
+        return None, err
+    with get_db() as conn:
+        row = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (admin['user_id'],)).fetchone()
+    if not row or row['role'] != 'super_admin':
+        return None, (jsonify({'success': False, 'error': _('Only super administrators can perform this action')}), 403)
+    return admin, None
+
+
+@admin_bp.route('/admins', methods=['GET'])
+def admin_list():
+    """列出所有管理员（带完整 profile），仅 super_admin 可见"""
+    admin, err = _require_super_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        rows = conn.execute('''
+            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url, u.active, 
+                   u.last_login, u.created_at as registered_at,
+                   p.role, p.permissions, p.real_name, p.internal_phone, 
+                   p.internal_email, p.notes, p.last_login_ip
+            FROM users u 
+            JOIN admin_profiles p ON u.id = p.user_id
+            WHERE u.is_admin = 1
+            ORDER BY p.role, u.id
+        ''').fetchall()
+    admins = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
+        except Exception:
+            d['permissions'] = []
+        admins.append(d)
+    return jsonify({'success': True, 'data': admins})
+
+
+@admin_bp.route('/admins/me', methods=['GET'])
+def admin_me():
+    """当前管理员的个人信息"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute('''
+            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url,
+                   p.role, p.permissions, p.real_name, p.internal_phone,
+                   p.internal_email, p.notes, p.last_login_ip, p.last_login_at,
+                   p.created_at as admin_since
+            FROM users u 
+            JOIN admin_profiles p ON u.id = p.user_id
+            WHERE u.id = %s
+        ''', (admin['user_id'],)).fetchone()
+    if not row:
+        return jsonify({'success': False, 'error': _('Administrator configuration does not exist')}), 404
+    d = dict(row)
+    try:
+        d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
+    except Exception:
+        d['permissions'] = []
+    return jsonify({'success': True, 'data': d})
+
+
+@admin_bp.route('/admins/me', methods=['PUT'])
+def admin_me_update():
+    """当前管理员更新自己的个人信息（真实姓名、内部联系方式、备注）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    fields = []
+    params = []
+    for key in ('real_name', 'internal_phone', 'internal_email', 'notes'):
+        if key in data:
+            fields.append(f'{key}=%s')
+            params.append(data.get(key, chr(39)+chr(39)).strip())
+    if not fields:
+        return jsonify({'success': False, 'error': _('No fields to update')}), 400
+    params.append(admin['user_id'])
+    with get_db() as conn:
+        conn.execute(f'UPDATE admin_profiles SET {", ".join(fields)}, updated_at=NOW() WHERE user_id=%s', params)
+        conn.commit()
+        _log(admin['user_id'], 'update_self', 'admin_profile', str(admin['user_id']))
+    return jsonify({'success': True, 'message': _('Updated')})
+
+
+@admin_bp.route('/admins/me/phone', methods=['PUT'])
+def admin_me_phone():
+    """当前管理员修改登录手机号 — 需新手机验证码"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    new_phone = data.get('phone', chr(39)+chr(39)).strip()
+    code = data.get('code', chr(39)+chr(39)).strip()
+    if not new_phone or not code:
+        return jsonify({'success': False, 'error': _('Phone number and verification code cannot be empty')}), 400
+    from models import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>NOW() ORDER BY id DESC LIMIT 1',
+            (new_phone, code, 'change_phone')
+        ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Invalid or expired verification code')}), 400
+        # 检查新手机号是否已占用
+        existing = conn.execute('SELECT id FROM users WHERE phone=%s AND id!=%s', (new_phone, admin['user_id'])).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': _('This phone number is already bound to another user')}), 400
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
+        conn.execute('UPDATE users SET phone=%s, phone_verified=1 WHERE id=%s', (new_phone, admin['user_id']))
+        conn.commit()
+        _log(admin['user_id'], 'change_phone', 'admin_profile', str(admin['user_id']), f'New Phone: {new_phone}')
+    return jsonify({'success': True, 'message': _('Phone number has been updated')})
+
+
+@admin_bp.route('/admins/<int:uid>', methods=['GET'])
+def admin_detail(uid):
+    """查看指定管理员详情（super_admin only）"""
+    admin, err = _require_super_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute('''
+            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url, u.active, u.last_login,
+                   p.role, p.permissions, p.real_name, p.internal_phone,
+                   p.internal_email, p.notes, p.last_login_ip, p.last_login_at,
+                   p.created_at as admin_since, p.updated_at
+            FROM users u 
+            JOIN admin_profiles p ON u.id = p.user_id
+            WHERE u.id=%s AND u.is_admin=1
+        ''', (uid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Administrator does not exist')}), 404
+        d = dict(row)
+        try:
+            d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
+        except Exception:
+            d['permissions'] = []
+        # 审计日志
+        logs = conn.execute(
+            'SELECT id, action, target_type, target_id, detail, ip_address, created_at FROM admin_logs WHERE admin_id=%s ORDER BY created_at DESC LIMIT 30',
+            (uid,)
+        ).fetchall()
+        d['recent_logs'] = [dict(l) for l in logs]
+    return jsonify({'success': True, 'data': d})
+
+
+@admin_bp.route('/admins', methods=['POST'])
+def admin_create():
+    """将用户提升为管理员（super_admin only）"
+    """
+    admin, err = _require_super_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    phone = data.get('phone', chr(39)+chr(39)).strip()
+    uid = data.get('user_id', 0)
+    role = data.get('role', 'admin').strip()
+    permissions = data.get('permissions', [])
+    real_name = data.get('real_name', chr(39)+chr(39)).strip()[:32]
+    notes = data.get('notes', chr(39)+chr(39)).strip()[:256]
+    
+    if not phone and not uid:
+        return jsonify({'success': False, 'error': '请提供手机号或用户ID'}), 400
+    
+    with get_db() as conn:
+        if uid:
+            user = conn.execute('SELECT id, phone, display_name FROM users WHERE id=%s', (uid,)).fetchone()
+        else:
+            user = conn.execute('SELECT id, phone, display_name FROM users WHERE phone=%s', (phone,)).fetchone()
+        
+        if not user:
+            return jsonify({'success': False, 'error': _('User does not exist')}), 404
+        
+        if user['id'] == admin['user_id']:
+            return jsonify({'success': False, 'error': _('Cannot promote yourself, you are already an admin')}), 400
+        
+        existing = conn.execute('SELECT id FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': f'{user["display_name"] or user["phone"]} is already an administrator'}), 400
+        
+        import json as _json
+        permissions_str = _json.dumps(permissions if permissions else [])
+        
+        conn.execute('UPDATE users SET is_admin=1 WHERE id=%s', (user['id'],))
+        conn.execute('''
+            INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes, created_by) 
+            VALUES (%s,%s,%s,%s,%s,%s)
+        ''', (user['id'], role, permissions_str, real_name, notes, admin['user_id']))
+        conn.commit()
+        _log(admin['user_id'], 'create_admin', 'admin', str(user['id']), f'{user["display_name"] or user["phone"]} ({role})')
+    
+    return jsonify({'success': True, 'message': f'Promoted {user["display_name"] or user["phone"]} to administrator'})
+
+
+@admin_bp.route('/admins/<int:uid>', methods=['PUT'])
+def admin_update(uid):
+    """更新管理员信息（super_admin only）"""
+    admin, err = _require_super_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    
+    # 更新 admin_profiles 表
+    pf_fields = []
+    pf_params = []
+    for key in ('role', 'real_name', 'internal_phone', 'internal_email', 'notes'):
+        if key in data:
+            pf_fields.append(f'{key}=%s')
+            pf_params.append(data.get(key, chr(39)+chr(39)).strip())
+    
+    # 处理 permissions（JSON数组）
+    if 'permissions' in data:
+        import json as _json
+        pf_fields.append('permissions=%s')
+        pf_params.append(_json.dumps(data['permissions']))
+    
+    # 处理密码（单独字段，不走 profile）—— 仅短信验证码验证
+    password = data.get('password', '').strip()
+    code = data.get('code', '').strip()
+    
+    with get_db() as conn:
+        # 验证目标确实是管理员
+        target = conn.execute('SELECT id, phone, COALESCE(display_name, username) as nickname FROM users WHERE id=%s AND is_admin=1', (uid,)).fetchone()
+        if not target:
+            return jsonify({'success': False, 'error': _('Administrator does not exist')}), 404
+        
+        if uid == admin['user_id'] and 'role' in data and data['role'] != 'super_admin':
+            return jsonify({'success': False, 'error': _('Cannot downgrade yourself to non-super admin')}), 400
+        
+        if pf_fields:
+            pf_fields.append("updated_at=NOW()")
+            pf_params.append(uid)
+            conn.execute(f'UPDATE admin_profiles SET {", ".join(pf_fields)} WHERE user_id=%s', pf_params)
+        
+        # 修改密码：仅短信验证码验证
+        if password:
+            if not code:
+                return jsonify({'success': False, 'error': '请输入短信验证码'}), 400
+            # 验证 SMS 验证码
+            row = conn.execute(
+                'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>NOW() ORDER BY id DESC LIMIT 1',
+                (target['phone'], code, 'modify_password')
+            ).fetchone()
+            if not row:
+                return jsonify({'success': False, 'error': _('Invalid or expired verification code')}), 400
+            conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
+            
+            import hashlib, secrets
+            salt = secrets.token_hex(8)
+            pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+            stored = f'pbkdf2:sha256:100000:{salt}:{pw_hash}'
+            conn.execute('UPDATE users SET password_hash=%s WHERE id=%s', (stored, uid))
+        
+        conn.commit()
+        _log(admin['user_id'], 'update_admin', 'admin', str(uid), f'role={data.get("role","")}')
+    
+    return jsonify({'success': True, 'message': _('Administrator information has been updated')})
+
+
+@admin_bp.route('/admins/<int:uid>', methods=['DELETE'])
+def admin_delete(uid):
+    """将管理员降级为普通用户（super_admin only）"""
+    admin, err = _require_super_admin()
+    if err:
+        return err
+    if uid == admin['user_id']:
+        return jsonify({'success': False, 'error': '不能移除自己，请先转移超管权限'}), 400
+    with get_db() as conn:
+        target = conn.execute('SELECT id, display_name, phone FROM users WHERE id=%s AND is_admin=1', (uid,)).fetchone()
+        if not target:
+            return jsonify({'success': False, 'error': _('Administrator does not exist')}), 404
+        conn.execute('DELETE FROM admin_profiles WHERE user_id=%s', (uid,))
+        conn.execute('UPDATE users SET is_admin=0 WHERE id=%s', (uid,))
+        conn.commit()
+        _log(admin['user_id'], 'remove_admin', 'admin', str(uid), f'{target["display_name"] or target["phone"]}')
+    return jsonify({'success': True, 'message': f'Downgraded {target["display_name"] or target["phone"]} to a regular user'})
+
+
+@admin_bp.route('/admins/me/avatar', methods=['POST'])
+def admin_me_avatar():
+    """上传管理员头像 — 800x800 max, 1MB max"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'error': _('No file selected')}), 400
+    file = request.files['avatar']
+    if not file.filename:
+        return jsonify({'success': False, 'error': _('File name is empty')}), 400
+    
+    import os
+    # 验证文件大小
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > 1024 * 1024:
+        return jsonify({'success': False, 'error': _('Picture size cannot exceed 1MB')}), 400
+    
+    # 验证图片尺寸
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(file.read()))
+        w, h = img.size
+        if w > 800 or h > 800:
+            return jsonify({'success': False, 'error': f'Picture size cannot exceed 800×800 (current {w}×{h})'}), 400
+        file.seek(0)
+    except Exception:
+        return jsonify({'success': False, 'error': '无法解析图片文件，请上传 JPG/PNG 格式'}), 400
+    
+    # 保存文件
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
+        ext = '.jpg'
+    filename = f'avatar_{admin["user_id"]}_{uuid.uuid4().hex[:8]}{ext}'
+    save_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'admin', 'static', 'avatars')
+    os.makedirs(save_dir, exist_ok=True)
+    file.save(os.path.join(save_dir, filename))
+    
+    avatar_url = f'/static/avatars/{filename}'
+    from models import get_db
+    with get_db() as conn:
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, admin['user_id']))
+        conn.commit()
+    _log(admin['user_id'], 'update_avatar', 'admin_profile', str(admin['user_id']))
+    return jsonify({'success': True, 'data': {'avatar_url': avatar_url}})
+
+
+# =============================================
+# 用户头像管理 (普通用户 + Agent)
+# =============================================
+
+@admin_bp.route('/users/<int:uid>/avatar', methods=['POST'])
+def user_avatar_upload(uid):
+    """上传用户头像 — 512x512 max, 512KB max"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'error': _('No file selected')}), 400
+    file = request.files['avatar']
+    if not file.filename:
+        return jsonify({'success': False, 'error': _('File name is empty')}), 400
+
+    # 验证用户存在
+    with get_db() as conn:
+        user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname FROM users WHERE id=%s', (uid,)).fetchone()
+    if not user:
+        return jsonify({'success': False, 'error': _('User does not exist')}), 404
+
+    import os
+    # 文件大小验证 (512KB)
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > 512 * 1024:
+        return jsonify({'success': False, 'error': _('Picture size cannot exceed 512KB')}), 400
+
+    # 图片尺寸验证 (512x512)
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(file.read()))
+        w, h = img.size
+        if w > 512 or h > 512:
+            return jsonify({'success': False, 'error': f'Picture size cannot exceed 512×512 (current {w}×{h})'}), 400
+        file.seek(0)
+    except Exception:
+        return jsonify({'success': False, 'error': '无法解析图片文件，请上传 JPG/PNG/SVG 格式'}), 400
+
+    # 保存文件
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'):
+        ext = '.jpg'
+    filename = f'user_{uid}_avatar_{uuid.uuid4().hex[:8]}{ext}'
+    save_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'admin', 'static', 'avatars')
+    os.makedirs(save_dir, exist_ok=True)
+    file.save(os.path.join(save_dir, filename))
+
+    avatar_url = f'/static/avatars/{filename}'
+    with get_db() as conn:
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, uid))
+        conn.commit()
+    _log(admin['user_id'], 'set_user_avatar', 'user', str(uid))
+    return jsonify({'success': True, 'data': {'avatar_url': avatar_url}})
+
+
+@admin_bp.route('/users/<int:uid>/avatar/default', methods=['PUT'])
+def user_avatar_default(uid):
+    """为用户设置默认头像 (from library)"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    default_name = data.get('default', chr(39)+chr(39))
+    if not default_name:
+        return jsonify({'success': False, 'error': '请指定默认头像文件名'}), 400
+    avatar_url = f'/static/avatars/default/users/{default_name}'
+    with get_db() as conn:
+        conn.execute('UPDATE users SET avatar_url=%s WHERE id=%s', (avatar_url, uid))
+        conn.commit()
+    _log(admin['user_id'], 'set_user_default_avatar', 'user', str(uid), default_name)
+    return jsonify({'success': True, 'data': {'avatar_url': avatar_url}})
+
+
+@admin_bp.route('/users/<int:uid>/agent-avatar', methods=['POST'])
+def user_agent_avatar_upload(uid):
+    """上传Agent头像 — 512x512 max, 512KB max"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'error': _('No file selected')}), 400
+    file = request.files['avatar']
+    if not file.filename:
+        return jsonify({'success': False, 'error': _('File name is empty')}), 400
+
+    with get_db() as conn:
+        user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname FROM users WHERE id=%s', (uid,)).fetchone()
+    if not user:
+        return jsonify({'success': False, 'error': _('User does not exist')}), 404
+
+    import os
+    # 文件大小验证 (512KB)
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > 512 * 1024:
+        return jsonify({'success': False, 'error': _('Picture size cannot exceed 512KB')}), 400
+
+    # 图片尺寸验证 (512x512)
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(file.read()))
+        w, h = img.size
+        if w > 512 or h > 512:
+            return jsonify({'success': False, 'error': f'Picture size cannot exceed 512×512 (current {w}×{h})'}), 400
+        file.seek(0)
+    except Exception:
+        return jsonify({'success': False, 'error': '无法解析图片文件，请上传 JPG/PNG/SVG 格式'}), 400
+
+    # 保存文件
+    import uuid
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'):
+        ext = '.jpg'
+    filename = f'agent_{uid}_avatar_{uuid.uuid4().hex[:8]}{ext}'
+    save_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'admin', 'static', 'avatars')
+    os.makedirs(save_dir, exist_ok=True)
+    file.save(os.path.join(save_dir, filename))
+
+    agent_avatar_url = f'/static/avatars/{filename}'
+    with get_db() as conn:
+        conn.execute('UPDATE users SET agent_avatar_url=%s WHERE id=%s', (agent_avatar_url, uid))
+        conn.commit()
+    _log(admin['user_id'], 'set_agent_avatar', 'user', str(uid))
+    return jsonify({'success': True, 'data': {'agent_avatar_url': agent_avatar_url}})
+
+
+@admin_bp.route('/users/<int:uid>/agent-avatar/default', methods=['PUT'])
+def user_agent_avatar_default(uid):
+    """为Agent设置默认头像 (from library)"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    default_name = data.get('default', chr(39)+chr(39))
+    if not default_name:
+        return jsonify({'success': False, 'error': '请指定默认头像文件名'}), 400
+    agent_avatar_url = f'/static/avatars/default/agents/{default_name}'
+    with get_db() as conn:
+        conn.execute('UPDATE users SET agent_avatar_url=%s WHERE id=%s', (agent_avatar_url, uid))
+        conn.commit()
+    _log(admin['user_id'], 'set_agent_default_avatar', 'user', str(uid), default_name)
+    return jsonify({'success': True, 'data': {'agent_avatar_url': agent_avatar_url}})
+
+
+@admin_bp.route('/users/<int:uid>/avatar/clear', methods=['POST'])
+def user_avatar_clear(uid):
+    """清除用户头像"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        conn.execute('UPDATE users SET avatar_url=\'\' WHERE id=%s', (uid,))
+        conn.commit()
+    _log(admin['user_id'], 'clear_user_avatar', 'user', str(uid))
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/users/<int:uid>/agent-avatar/clear', methods=['POST'])
+def user_agent_avatar_clear(uid):
+    """清除Agent头像"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        conn.execute('UPDATE users SET agent_avatar_url=\'\' WHERE id=%s', (uid,))
+        conn.commit()
+    _log(admin['user_id'], 'clear_agent_avatar', 'user', str(uid))
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/avatars/defaults', methods=['GET'])
+def default_avatars_list():
+    """列出所有可用的默认头像"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    import os as _os
+    base = _os.path.join(_os.path.dirname(__file__), '..', '..', 'admin', 'static', 'avatars', 'default')
+    result = {'users': [], 'agents': []}
+    users_dir = _os.path.join(base, 'users')
+    agents_dir = _os.path.join(base, 'agents')
+    if _os.path.isdir(users_dir):
+        for f in sorted(_os.listdir(users_dir)):
+            if f.lower().endswith(('.svg', '.png', '.jpg', '.jpeg')):
+                result['users'].append({
+                    'filename': f,
+                    'url': f'/static/avatars/default/users/{f}',
+                })
+    if _os.path.isdir(agents_dir):
+        for f in sorted(_os.listdir(agents_dir)):
+            if f.lower().endswith(('.svg', '.png', '.jpg', '.jpeg')):
+                result['agents'].append({
+                    'filename': f,
+                    'url': f'/static/avatars/default/agents/{f}',
+                })
+    return jsonify({'success': True, 'data': result})
+
+
+# 可用的权限列表
+ALL_PERMISSIONS = [
+    {'key': 'users', 'label': _('User Management'), 'desc': _('View/Manage Regular Users')},
+    {'key': 'content', 'label': _('Content Management'), 'desc': _('CMS/Community Content/Comment Review')},
+    {'key': 'finance', 'label': _('Financial Management'), 'desc': _('Plan/Subscriptions/Orders/Revenue"')},
+    {'key': 'system', 'label': _('System Settings'), 'desc': _('Community Section/System Configuration/Operation Log')},
+    {'key': 'matrix', 'label': _('Agent Matrix'), 'desc': _('Manage Agent Matrix/Automatic Scheduling')},
+    {'key': 'admins', 'label': _('Administrator Management'), 'desc': _('Manage Other Administrators (Only super_admin)')},
+]
+
+@admin_bp.route('/admins/permissions-list', methods=['GET'])
+def admin_permissions_list():
+    """返回所有可用的权限定义（给前端勾选用）"""
+    return jsonify({'success': True, 'data': ALL_PERMISSIONS})
+
+
+
+
+# =============================================
+# RBAC: Permission-based middleware
+# =============================================
+
+def _require_permission(perm):
+    """Verify the admin has a specific permission.
+       Usage: wrap around route logic after _require_admin().
+    """
+    def decorator(f):
+        import functools
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            admin, err = _require_admin()
+            if err:
+                return err
+            with get_db() as conn:
+                prof = conn.execute(
+                    'SELECT permissions, role FROM admin_profiles WHERE user_id=%s',
+                    (admin['user_id'],)
+                ).fetchone()
+            if not prof:
+                return jsonify({'success': False, 'error': _('Administrator configuration does not exist')}), 403
+            if prof['role'] == 'super_admin':
+                # super_admin has all permissions
+                return f(*args, **kwargs)
+            try:
+                perms = __import__('json').loads(prof['permissions'] or '[]')
+            except Exception:
+                perms = []
+            if perm not in perms:
+                return jsonify({'success': False, 'error': f'No "{perm}" permission'}), 403
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# =============================================
+# User Agent Management (admin)
+# =============================================
+
+@admin_bp.route('/user-agents', methods=['GET'])
+def admin_user_agents_list():
+    """列出所有用户 Agent（含所属用户信息）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    search = request.args.get('search', chr(39)+chr(39)).strip()
+    status_filter = request.args.get('status', chr(39)+chr(39)).strip()
+    offset = (page - 1) * limit
+    
+    where = []
+    params = []
+    if search:
+        where.append('(ua.agent_name LIKE %s OR COALESCE(u.display_name, u.username) LIKE %s OR u.phone LIKE %s)')
+        s = '%' + search + '%'
+        params.extend([s, s, s])
+    if status_filter:
+        where.append('ua.status=%s')
+        params.append(status_filter)
+    wsql = 'WHERE ' + ' AND '.join(where) if where else ''
+    
+    with get_db() as conn:
+        total = conn.execute(
+            'SELECT COUNT(*) as c FROM user_agents ua LEFT JOIN users u ON ua.user_id=u.id ' + wsql,
+            params
+        ).fetchone()
+        rows = conn.execute(
+            "SELECT ua.id, ua.agent_name, ua.agent_type, ua.status, ua.last_active_at, "
+            "       ua.created_at, ua.user_id, COALESCE(u.display_name, u.username) as user_name, u.phone as user_phone "
+            "FROM user_agents ua LEFT JOIN users u ON ua.user_id=u.id " +
+            wsql + " ORDER BY ua.created_at DESC LIMIT %s OFFSET %s",
+            params + [limit, offset]
+        ).fetchall()
+    
+    return jsonify({'success': True, 'data': {
+        'total': total['c'],
+        'page': page,
+        'limit': limit,
+        'agents': [dict(r) for r in rows],
+    }})
+
+
+@admin_bp.route('/users/<int:uid>/user-agents', methods=['GET'])
+def admin_user_agent_list(uid):
+    """查看指定用户的所有 Agent"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        user = conn.execute('SELECT id, COALESCE(display_name, username) as nickname, phone FROM users WHERE id=%s', (uid,)).fetchone()
+        if not user:
+            return jsonify({'success': False, 'error': _('User does not exist')}), 404
+        rows = conn.execute(
+            "SELECT ua.id, ua.agent_name, ua.agent_type, ua.avatar_url, ua.status, "
+            "       ua.default_scopes, ua.last_active_ip, ua.last_active_at, ua.created_at, ua.updated_at "
+            "FROM user_agents ua WHERE ua.user_id=%s ORDER BY ua.created_at DESC",
+            (uid,)
+        ).fetchall()
+        
+        agents = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d['default_scopes'] = __import__('json').loads(d['default_scopes'] or '[]')
+            except Exception:
+                d['default_scopes'] = []
+            # Count active keys
+            kc = conn.execute(
+                "SELECT COUNT(*) as c FROM agent_api_keys WHERE agent_id=%s AND status='active'",
+                (r['id'],)
+            ).fetchone()
+            d['active_keys'] = kc['c'] if kc else 0
+            agents.append(d)
+    
+    return jsonify({'success': True, 'data': {
+        'user': dict(user),
+        'agents': agents,
+    }})
+
+
+@admin_bp.route('/user-agents/<int:aid>/status', methods=['PUT'])
+def admin_user_agent_status(aid):
+    """管理Agent状态（suspend/activate）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    status = data.get('status', chr(39)+chr(39)).strip()
+    if status not in ('active', 'inactive', 'suspended'):
+        return jsonify({'success': False, 'error': _('Invalid status value')}), 400
+    
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT ua.id, ua.agent_name, u.id as uid FROM user_agents ua JOIN users u ON ua.user_id=u.id WHERE ua.id=%s',
+            (aid,)
+        ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Agent does not exist')}), 404
+        conn.execute('UPDATE user_agents SET status=%s, updated_at=NOW() WHERE id=%s', (status, aid))
+        conn.commit()
+        _log(admin['user_id'], 'set_agent_status', 'user_agent', str(aid),
+             f'Agent "{row["agent_name"]}" → {status}')
+    
+    return jsonify({'success': True, 'message': f'Agent status has been updated to {status}'})
+
+
+@admin_bp.route('/users/<int:uid>/user-agents', methods=['POST'])
+def admin_user_agent_create(uid):
+    """管理员为用户创建 Agent"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    agent_name = data.get('agent_name', chr(39)+chr(39)).strip()
+    if not agent_name:
+        return jsonify({'success': False, 'error': _('Agent name cannot be empty')}), 400
+    
+    with get_db() as conn:
+        user = conn.execute('SELECT id, display_name FROM users WHERE id=%s', (uid,)).fetchone()
+        if not user:
+            return jsonify({'success': False, 'error': _('User does not exist')}), 404
+        existing = conn.execute(
+            'SELECT id FROM user_agents WHERE user_id=%s AND agent_name=%s',
+            (uid, agent_name)
+        ).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': _('A user with the same name Agent already exists')}), 400
+        aid = conn.execute(
+            'INSERT INTO user_agents (user_id, agent_name) VALUES (%s,%s) RETURNING id',
+            (uid, agent_name)
+        ).fetchone()['id']
+        conn.commit()
+        _log(admin['user_id'], 'create_user_agent', 'user_agent', str(aid),
+             f'Create Agent "{agent_name}" for {user["display_name"] or uid}')
+    
+    return jsonify({'success': True, 'data': {'id': aid, 'agent_name': agent_name}})
+
+
+# =============================================
+# social_links CRUD — 后台社媒图标管理
+# =============================================
+@admin_bp.route('/admin/social-links', methods=['GET'])
+def get_social_links():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        rows = conn.execute('SELECT * FROM social_links ORDER BY sort_order ASC, id ASC').fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+@admin_bp.route('/admin/social-links', methods=['POST'])
+def create_social_link():
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    name = (data.get('name') or '').strip()
+    url = (data.get('url') or '#').strip()
+    icon_url = (data.get('icon_url') or '').strip()
+    platform = (data.get('platform') or '').strip()
+    is_active = 1 if data.get('is_active', 1) else 0
+    if not name:
+        return jsonify({'success': False, 'error': _('Name cannot be empty')}), 400
+    with get_db() as conn:
+        max_sort = conn.execute('SELECT COALESCE(MAX(sort_order), -1) + 1 AS max_sort FROM social_links').fetchone()['max_sort']
+        lid = conn.execute(
+            'INSERT INTO social_links (name, url, icon_url, platform, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
+            (name, url, icon_url, platform, max_sort, is_active)
+        ).fetchone()['id']
+        conn.commit()
+        _log(admin['user_id'], 'create', 'social_link', str(lid), f'Add Social Media Icon: {name}')
+    return jsonify({'success': True, 'data': {'id': lid}})
+
+@admin_bp.route('/admin/social-links/<int:lid>', methods=['PUT'])
+def update_social_link(lid):
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    name = (data.get('name') or '').strip()
+    url = (data.get('url') or '').strip()
+    icon_url = (data.get('icon_url') or '').strip()
+    platform = (data.get('platform') or '').strip()
+    is_active = data.get('is_active')
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM social_links WHERE id=%s', (lid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Does not exist')}), 404
+        name = name or row['name']
+        if not url: url = '#'
+        platform = platform or row.get('platform', '')
+        if is_active is not None:
+            conn.execute('UPDATE social_links SET name=%s, url=%s, icon_url=%s, platform=%s, is_active=%s, updated_at=NOW() WHERE id=%s',
+                         (name, url, icon_url, platform, 1 if is_active else 0, lid))
+        else:
+            conn.execute('UPDATE social_links SET name=%s, url=%s, icon_url=%s, platform=%s, updated_at=NOW() WHERE id=%s',
+                         (name, url, icon_url, platform, lid))
+        conn.commit()
+        _log(admin['user_id'], 'update', 'social_link', str(lid), f'Update social media icon: {name}')
+    return jsonify({'success': True})
+
+@admin_bp.route('/admin/social-links/<int:lid>', methods=['DELETE'])
+def delete_social_link(lid):
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        row = conn.execute('SELECT name FROM social_links WHERE id=%s', (lid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Does not exist')}), 404
+        conn.execute('DELETE FROM social_links WHERE id=%s', (lid,))
+        conn.commit()
+        _log(admin['user_id'], 'delete', 'social_link', str(lid), f'Delete Social Media Icon: {row["name"]}')
+    return jsonify({'success': True})
+
+@admin_bp.route('/admin/social-links/reorder', methods=['PUT'])
+def reorder_social_links():
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    ids = data.get('ids', [])
+    with get_db() as conn:
+        for idx, lid in enumerate(ids):
+            conn.execute('UPDATE social_links SET sort_order=%s WHERE id=%s', (idx, lid))
+        conn.commit()
+    return jsonify({'success': True})
+
+# ════════════════════════════════════════════════════════════════
+# 频道管理（IM Gateway）已迁移至 plugins/im_gateway/
+#   - REST 路由：plugins/im_gateway/routes.py（/admin/channels/*）
+#   - 第三方逻辑：plugins/im_gateway/adapters/*
+#   - 独立数据库：plugins/im_gateway/im_gateway.db
+# ════════════════════════════════════════════════════════════════
+
+# =============================================
+# GET /admin/users/export — 脱敏导出用户列表
+# =============================================
+@admin_bp.route('/users/export', methods=['GET'])
+def user_export():
+    admin, err = _require_admin()
+    if err:
+        return err
+    industry = request.args.get('industry', '').strip()
+    occupation = request.args.get('occupation', '').strip()
+    region = request.args.get('region', '').strip()
+
+    where = []
+    params = []
+    if industry:
+        where.append('p.industry LIKE %s')
+        params.append('%' + industry + '%')
+    if occupation:
+        where.append('p.occupation LIKE %s')
+        params.append('%' + occupation + '%')
+    if region:
+        where.append('(pa.province LIKE %s OR pa.city LIKE %s OR pa.district LIKE %s)')
+        r = '%' + region + '%'
+        params.extend([r, r, r])
+    wsql = 'WHERE ' + ' AND '.join(where) if where else ''
+
+    sql = (
+        "SELECT u.id, u.phone, COALESCE(u.display_name, u.username) as nickname, "
+        "COALESCE(p.industry,'') as industry, COALESCE(p.occupation,'') as occupation, "
+        "COALESCE(pa.province_code,'') as province, COALESCE(pa.city_code,'') as city, "
+        "COALESCE(pa.district_code,'') as district, "
+        "'' as tier, u.created_at "
+        "FROM users u "
+        "LEFT JOIN user_profiles p ON u.id=p.user_id "
+        "LEFT JOIN user_addresses pa ON u.id=pa.user_id AND pa.is_default=1 AND pa.status=1 "
+        + wsql + ' ORDER BY u.id'
+    )
+
+    def _mask_phone(phone):
+        s = str(phone or '')
+        if len(s) >= 7:
+            return s[:3] + '****' + s[-4:]
+        return s
+
+    def _mask_address(prov, city, dist):
+        parts = [p for p in [prov, city, dist] if p]
+        if parts:
+            return ''.join(parts) + '***'
+        return ''
+
+    with get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    lines = []
+    lines.append(_('ID, Phone (masked), Nickname, Industry, Occupation, Region (masked), Plan, Registration Time'))
+    for r in rows:
+        phone_m = _mask_phone(r['phone'])
+        addr_m = _mask_address(r['province'], r['city'], r['district'])
+        nickname = (r['nickname'] or '').replace(',', ' ')
+        industry_v = (r['industry'] or '').replace(',', ' ')
+        occupation_v = (r['occupation'] or '').replace(',', ' ')
+        tier = r['tier'] or 'free'
+        created = r['created_at'] or ''
+        lines.append(f"{r['id']},{phone_m},{nickname},{industry_v},{occupation_v},{addr_m},{tier},{created}")
+
+    csv_content = '\n'.join(lines)
+    from flask import Response
+    return Response(
+        csv_content,
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename=users_export.csv'}
+    )
+
+
+# =============================================
+# Brand Settings — global site branding
+# =============================================
+@admin_bp.route('/brand-settings', methods=['GET'])
+def get_brand_settings():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM brand_settings WHERE id=1').fetchone()
+    if row:
+        return jsonify({'success': True, 'data': dict(row)})
+    return jsonify({'success': True, 'data': None})
+
+
+@admin_bp.route('/brand-settings', methods=['PUT'])
+def update_brand_settings():
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(silent=True) or {}
+    allowed = ['company_name', 'site_name_cn', 'site_name_en', 'slogan', 'tagline',
+               'description', 'copyright', 'seo_title', 'seo_desc', 'logo_full_url',
+               'logo_icon_url', 'icp_number', 'security_number', 'contact_email']
+    updates = {k: data[k] for k in allowed if k in data}
+    if not updates:
+        return jsonify({'success': False, 'error': _('No Valid Update Fields')}), 400
+    sets = ', '.join(f'{k}=%s' for k in updates)
+    vals = list(updates.values()) + [1]
+    with get_db() as conn:
+        conn.execute(f'UPDATE brand_settings SET {sets}, updated_at=NOW() WHERE id=%s', vals)
+        conn.commit()
+    _log(admin['user_id'], 'update_brand', detail=str(list(updates.keys())))
+    return jsonify({'success': True})
+
+
+def _save_brand_image(subdir, file_key):
+    """Save uploaded image to admin/static/brand/<subdir>/ AND sync to all services' static dirs."""
+    import time
+    file = request.files.get(file_key)
+    if not file or not file.filename:
+        return None, _('No file selected')
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
+    if ext not in ('png', 'jpg', 'jpeg', 'svg', 'ico'):
+        return None, _('Only supports PNG/JPG/SVG/ICO formats')
+    # Read + size check
+    data = file.read()
+    max_size = 500 * 1024  # 500KB
+    if len(data) > max_size:
+        return None, f'文件过大 ({len(data)//1024}KB)，限制 {max_size//1024}KB'
+    # Safe filename
+    ts = int(time.time() * 1000)
+    fname = f'{subdir}_{ts}.{ext}'
+    # Save to admin/static/brand/
+    base = os.path.join(os.path.dirname(__file__), '..', '..')
+    admin_dir = os.path.join(base, 'admin', 'static', 'brand')
+    os.makedirs(admin_dir, exist_ok=True)
+    with open(os.path.join(admin_dir, fname), 'wb') as f:
+        f.write(data)
+    # Sync to all other services that might serve brand images
+    for svc in ('platform',):
+        svc_dir = os.path.join(base, svc, 'static', 'brand')
+        os.makedirs(svc_dir, exist_ok=True)
+        with open(os.path.join(svc_dir, fname), 'wb') as f:
+            f.write(data)
+    return f'/static/brand/{fname}', None
+
+
+@admin_bp.route('/brand-settings/logo', methods=['POST'])
+def upload_brand_logo():
+    admin, err = _require_admin()
+    if err: return err
+    url, error = _save_brand_image('logo', 'logo')
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE brand_settings SET logo_url=%s, logo_full_url=%s, updated_at=NOW() WHERE id=1", (url, url))
+        conn.commit()
+    _log(admin['user_id'], 'upload_brand_logo', detail=url)
+    return jsonify({'success': True, 'logo_url': url})
+
+
+@admin_bp.route('/brand-settings/logo', methods=['DELETE'])
+def delete_brand_logo():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        conn.execute("UPDATE brand_settings SET logo_url='', logo_full_url='', updated_at=NOW() WHERE id=1")
+        conn.commit()
+    _log(admin['user_id'], 'delete_brand_logo')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/brand-settings/favicon', methods=['POST'])
+def upload_brand_favicon():
+    admin, err = _require_admin()
+    if err: return err
+    url, error = _save_brand_image('favicon', 'favicon')
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE brand_settings SET favicon_url=%s, updated_at=NOW() WHERE id=1", (url,))
+        conn.commit()
+    _log(admin['user_id'], 'upload_brand_favicon', detail=url)
+    return jsonify({'success': True, 'favicon_url': url})
+
+
+@admin_bp.route('/brand-settings/favicon', methods=['DELETE'])
+def delete_brand_favicon():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        conn.execute("UPDATE brand_settings SET favicon_url='', updated_at=NOW() WHERE id=1")
+        conn.commit()
+    _log(admin['user_id'], 'delete_brand_favicon')
+    return jsonify({'success': True})
+
+
+
+@admin_bp.route('/brand-settings/logo-icon', methods=['POST'])
+def upload_brand_logo_icon():
+    """上传纯图标 Logo（用于 Favicon、Admin 侧栏等小尺寸场景）"""
+    admin, err = _require_admin()
+    if err: return err
+    url, error = _save_brand_image('logo', 'logo_icon')
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE brand_settings SET logo_icon_url=%s, updated_at=NOW() WHERE id=1", (url,))
+        conn.commit()
+    _log(admin['user_id'], 'upload_brand_logo_icon', detail=url)
+    return jsonify({'success': True, 'logo_icon_url': url})
+
+
+@admin_bp.route('/brand-settings/logo-icon', methods=['DELETE'])
+def delete_brand_logo_icon():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        conn.execute("UPDATE brand_settings SET logo_icon_url='', updated_at=NOW() WHERE id=1")
+        conn.commit()
+    _log(admin['user_id'], 'delete_brand_logo_icon')
+    return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════════
+# 子域名管理 API
+# ══════════════════════════════════════════════
+
+_PLAN_DOMAIN_LIMITS = {
+    'deploy_basic': 20,
+    'deploy_pro': 20,
+    'deploy_enterprise': 20,
+}
+
+_NGINX_CONF_DIR = os.environ.get(
+    'NGINX_SNIPPETS_DIR'
+) or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    'nginx-domains', 'sites-enabled'
+)
+_SSL_CERT_DIR = '/etc/letsencrypt/live/easykai.cn-0001'
+
+
+def _generate_domain_nginx_config(subdomain, full_domain, port):
+    """生成本地 Nginx server block 配置文件"""
+    if not port:
+        return None
+    os.makedirs(_NGINX_CONF_DIR, exist_ok=True)
+    conf = f"""# Auto-generated by easykai site_domains — {datetime.now().strftime('%Y-%m-%d %H:%M')}
+# subdomain={subdomain}  port={port}
+
+server {{
+    listen 443 ssl http2;
+    server_name {full_domain};
+
+    ssl_certificate     {_SSL_CERT_DIR}/fullchain.pem;
+    ssl_certificate_key {_SSL_CERT_DIR}/privkey.pem;
+
+    location / {{
+        proxy_pass http://127.0.0.1:{port};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }}
+}}
+"""
+    filepath = os.path.join(_NGINX_CONF_DIR, f'{full_domain}.conf')
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(conf)
+    return filepath
+
+
+def _remove_domain_nginx_config(full_domain):
+    """删除本地 Nginx 配置文件"""
+    filepath = os.path.join(_NGINX_CONF_DIR, f'{full_domain}.conf')
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return True
+    return False
+
+
+def _reload_nginx():
+    """生产环境：reload Nginx 使配置生效"""
+    if 'NGINX_SNIPPETS_DIR' not in os.environ:
+        return  # 本地开发不执行
+    import subprocess
+    try:
+        subprocess.run(['sudo', '/usr/sbin/nginx', '-s', 'reload'], check=True,
+                       capture_output=True, timeout=10)
+    except Exception as e:
+        print(f'[Nginx Reload Warning] {e}', flush=True)
+
+
+def _check_domain_quota(user_id):
+    """检查用户是否还能添加子域名"""
+    with get_db() as conn:
+        sub = conn.execute(
+            "SELECT plan_key FROM subscriptions WHERE user_id=%s AND status='active'",
+            (user_id,)
+        ).fetchone()
+        if not sub:
+            limit = 20  # 无订阅时给默认限额
+        else:
+            limit = _PLAN_DOMAIN_LIMITS.get(sub['plan_key'], 20)
+        used = conn.execute(
+            "SELECT COUNT(*) as c FROM site_domains"
+        ).fetchone()['c']
+        allowed = max(limit - used, 0)
+        return {
+            'allowed': allowed,
+            'used': used,
+            'limit': limit,
+            'can_add': allowed > 0,
+        }
+
+
+@admin_bp.route('/domains', methods=['GET'])
+def admin_domains_page():
+    admin, err = _require_admin()
+    if err:
+        return err
+    return jsonify({'success': True, 'page': 'domains'})
+
+
+@admin_bp.route('/api/domains', methods=['GET'])
+def admin_list_domains():
+    admin, err = _require_admin()
+    if err:
+        return err
+    quota = _check_domain_quota(admin['user_id'])
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT sd.*, sc.name as site_name, sc.theme_color, sc.accent_color "
+            "FROM site_domains sd "
+            "JOIN site_configs sc ON sc.id = sd.site_config_id "
+            "ORDER BY sd.sort_order, sd.id"
+        ).fetchall()
+    return jsonify({
+        'success': True,
+        'data': [dict(r) for r in rows],
+        'quota': quota,
+    })
+
+
+@admin_bp.route('/api/domains', methods=['POST'])
+def admin_create_domain():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    subdomain = data.get('subdomain', '').strip().lower()
+    display_name = data.get('display_name', '').strip()
+    template = data.get('template', 'default')
+    service_port = data.get('service_port')
+
+    if not subdomain or not display_name:
+        return jsonify({'success': False, 'error': _('Subdomain and Display Name Cannot Be Empty')}), 400
+
+    # 校验子域名格式（只允许字母数字连字符）
+    import re
+    if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', subdomain):
+        return jsonify({'success': False, 'error': _('Subdomain Format Invalid: Only Letters, Numbers, and Hyphens Allowed')}), 400
+
+    # 校验配额
+    quota = _check_domain_quota(admin['user_id'])
+    if not quota['can_add']:
+        return jsonify({'success': False, 'error': f'Quota used up ({quota["used"]}/{quota["limit"]})'}), 400
+
+    deploy_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
+    full_domain = f'{subdomain}.{deploy_domain}'
+
+    with get_db() as conn:
+        # 检查是否已存在
+        exists = conn.execute(
+            "SELECT id FROM site_domains WHERE full_domain=%s", (full_domain,)
+        ).fetchone()
+        if exists:
+            return jsonify({'success': False, 'error': f'Subdomain {full_domain} Already Exists'}), 400
+
+        conn.execute(
+            "INSERT INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, service_port) "
+            "VALUES (1, %s, %s, %s, %s, %s)",
+            (subdomain, full_domain, display_name, template, service_port)
+        )
+        conn.commit()
+
+    # 独立服务 → 生成 Nginx 配置
+    nginx_path = _generate_domain_nginx_config(subdomain, full_domain, service_port)
+    _reload_nginx()
+
+    _log(admin['user_id'], 'create_domain', detail=f'{full_domain} ({display_name}) port={service_port or "content"}')
+    msg = f'Subdomain {full_domain} Created'
+    if nginx_path:
+        msg += f', Nginx configuration has been generated'
+    return jsonify({'success': True, 'message': msg, 'nginx_config_path': nginx_path})
+
+
+@admin_bp.route('/api/domains/<int:did>', methods=['PUT'])
+def admin_update_domain(did):
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    allowed = ['display_name', 'template', 'is_published', 'page_keys_json', 'sort_order', 'service_port']
+    updates = {k: data[k] for k in allowed if k in data}
+    if not updates:
+        return jsonify({'success': False, 'error': _('No Valid Update Fields')}), 400
+
+    # 先读取旧 full_domain
+    with get_db() as conn:
+        old_row = conn.execute("SELECT full_domain, subdomain FROM site_domains WHERE id=%s", (did,)).fetchone()
+
+    sets = ', '.join(f'{k}=%s' for k in updates)
+    vals = list(updates.values()) + [did]
+    with get_db() as conn:
+        conn.execute(
+            f'UPDATE site_domains SET {sets}, updated_at=NOW() WHERE id=%s',
+            vals
+        )
+        conn.commit()
+
+    # 更新 Nginx 配置
+    if old_row:
+        old_domain = old_row['full_domain']
+        subdomain = old_row['subdomain']
+        new_port = data.get('service_port')
+        if new_port is not None:
+            _generate_domain_nginx_config(subdomain, old_domain, new_port)
+        else:
+            _remove_domain_nginx_config(old_domain)
+        _reload_nginx()
+
+    _log(admin['user_id'], 'update_domain', detail=f'domain_id={did}')
+    return jsonify({'success': True, 'message': _('Updated')})
+
+
+@admin_bp.route('/api/domains/<int:did>', methods=['DELETE'])
+def admin_delete_domain(did):
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT full_domain, service_port FROM site_domains WHERE id=%s", (did,)
+        ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Subdomain Does Not Exist')}), 404
+        full_domain = row['full_domain']
+        conn.execute("DELETE FROM site_domains WHERE id=%s", (did,))
+        conn.commit()
+    # 删除 Nginx 配置文件
+    _remove_domain_nginx_config(full_domain)
+    _reload_nginx()
+    _log(admin['user_id'], 'delete_domain', detail=full_domain)
+    return jsonify({'success': True, 'message': f'{full_domain} has been deleted'})
+
+
+@admin_bp.route('/api/domains/quota', methods=['GET'])
+def admin_domain_quota():
+    admin, err = _require_admin()
+    if err:
+        return err
+    return jsonify({'success': True, 'data': _check_domain_quota(admin['user_id'])})
+
+
+@admin_bp.route('/api/domains/<int:did>/nginx-config', methods=['GET'])
+def admin_domain_nginx_config(did):
+    """返回子域名对应的 Nginx 配置文本"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT full_domain, subdomain, service_port FROM site_domains WHERE id=%s", (did,)
+        ).fetchone()
+    if not row:
+        return jsonify({'success': False, 'error': _('Subdomain Does Not Exist')}), 404
+    if not row['service_port']:
+        return jsonify({'success': False, 'error': _('Content site does not require Nginx configuration')}), 400
+    config_path = os.path.join(_NGINX_CONF_DIR, f'{row["full_domain"]}.conf')
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_text = f.read()
+    else:
+        # 动态生成（文件不存在时）
+        config_text = _generate_domain_nginx_config(
+            row['subdomain'], row['full_domain'], row['service_port']
+        )
+        if config_text:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_text = f.read()
+    return jsonify({
+        'success': True,
+        'data': {
+            'full_domain': row['full_domain'],
+            'service_port': row['service_port'],
+            'config_text': config_text,
+            'server_path': f'/etc/nginx/snippets/easykai-domains/{row["full_domain"]}.conf',
+        }
+    })
+
+
+# ══════════════════════════════════════════════
+# 通知系统 — 管理端 API
+# ══════════════════════════════════════════════
+
+@admin_bp.route('/notifications/templates', methods=['GET'])
+def admin_notif_templates_list():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        rows = conn.execute(
+            'SELECT * FROM notification_templates ORDER BY sort_order, id'
+        ).fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/notifications/templates', methods=['POST'])
+def admin_notif_templates_create():
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    event_type = (data.get('event_type') or '').strip()
+    title_tmpl = (data.get('title_template') or '').strip()
+    content_tmpl = (data.get('content_template') or '').strip()
+    link_url_tmpl = (data.get('link_url_template') or '').strip()
+    ntype = data.get('type', 'system')
+    if not event_type or not title_tmpl or not content_tmpl:
+        return jsonify({'success': False, 'error': _('Event_type, title_template, content_template are required')}), 400
+    with get_db() as conn:
+        try:
+            tid = conn.execute(
+                'INSERT INTO notification_templates (event_type, title_template, content_template, link_url_template, type) VALUES (%s,%s,%s,%s,%s) RETURNING id',
+                (event_type, title_tmpl, content_tmpl, link_url_tmpl, ntype)
+            ).fetchone()['id']
+            conn.commit()
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+    _log(admin['user_id'], 'create_notif_template', detail=f'{event_type}')
+    return jsonify({'success': True, 'id': tid})
+
+
+@admin_bp.route('/notifications/templates/<int:tid>', methods=['PUT'])
+def admin_notif_templates_update(tid):
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    fields = []
+    vals = []
+    for key in ('event_type', 'title_template', 'content_template', 'link_url_template', 'type', 'is_active'):
+        if key in data:
+            fields.append(f'{key}=%s')
+            vals.append(data[key])
+    if not fields:
+        return jsonify({'success': False, 'error': _('No Update Fields')}), 400
+    vals.append(tid)
+    with get_db() as conn:
+        conn.execute(f'UPDATE notification_templates SET {", ".join(fields)}, updated_at=NOW() WHERE id=%s', vals)
+        conn.commit()
+    _log(admin['user_id'], 'update_notif_template', detail=f'{tid}')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/notifications/templates/<int:tid>', methods=['DELETE'])
+def admin_notif_templates_delete(tid):
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        conn.execute('DELETE FROM notification_templates WHERE id=%s', (tid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_notif_template', detail=f'{tid}')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/notifications/send', methods=['POST'])
+def admin_notif_send():
+    """手动推送通知。支持：全体用户 / 指定用户ID列表 / 用户类型筛选"""
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    target_type = data.get('target_type', 'all')  # all / user_ids
+    user_ids = data.get('user_ids', [])
+    title = (data.get('title') or '').strip()
+    content = (data.get('content') or '').strip()
+    link_url = (data.get('link_url') or '').strip()
+    ntype = data.get('type', 'system')
+    schedule_at = data.get('schedule_at', '')  # ISO timestamp or empty = immediate
+
+    if not title:
+        return jsonify({'success': False, 'error': _('Title cannot be empty')}), 400
+    if not content:
+        return jsonify({'success': False, 'error': _('Content cannot be empty')}), 400
+
+    target_users = []
+    with get_db() as conn:
+        if target_type == 'all':
+            rows = conn.execute('SELECT id FROM users WHERE active=1 ORDER BY id').fetchall()
+            target_users = [r['id'] for r in rows]
+        elif target_type == 'user_ids' and user_ids:
+            target_users = [int(uid) for uid in user_ids]
+        else:
+            return jsonify({'success': False, 'error': _('Invalid target type')}), 400
+
+    from services.notification_service import create_notification
+    sent = 0
+    errors = []
+    for uid in target_users:
+        try:
+            nid = create_notification(uid, ntype, title, content, link_url)
+            if nid:
+                sent += 1
+        except Exception as e:
+            errors.append(str(e))
+
+    _log(admin['user_id'], 'notif_send', detail=f'target={target_type} count={sent}')
+    return jsonify({'success': True, 'sent': sent, 'total': len(target_users), 'errors': errors[:5]})
+
+
+@admin_bp.route('/notifications/test', methods=['POST'])
+def admin_notif_test():
+    """发送测试通知给当前管理员"""
+    admin, err = _require_admin()
+    if err: return err
+    from services.notification_service import create_notification
+    nid = create_notification(
+        admin['user_id'], 'system',
+        _('This is a test notification'),
+        _('The system is running normally. This is a test message to confirm the system is ready.'),
+        link_url=''
+    )
+    if nid:
+        return jsonify({'success': True, 'notification_id': nid})
+    return jsonify({'success': False, 'error': _('Send Failed')}), 500
+
+
+# ══════════════════════════════════════════════
+# 用户工单管理 — 管理端 API
+# ══════════════════════════════════════════════
+
+@admin_bp.route('/tickets', methods=['GET'])
+def admin_tickets_list():
+    """管理员查看工单列表，支持 %sstatus=open&type=complaint 多维筛选"""
+    admin, err = _require_admin()
+    if err: return err
+    status = request.args.get('status', '').strip()
+    ttype = request.args.get('type', '').strip()
+    with get_db() as conn:
+        # 构建查询条件
+        where = []
+        params = []
+        if status:
+            where.append("t.status=%s")
+            params.append(status)
+        if ttype and ttype in ("presale","aftersale","complaint","suggestion"):
+            where.append("t.type=%s")
+            params.append(ttype)
+        where_clause = ("WHERE " + " AND ".join(where)) if where else ""
+        rows = conn.execute(
+            f'SELECT t.*, u.username, u.phone FROM user_tickets t LEFT JOIN users u ON t.user_id=u.id {where_clause} ORDER BY CASE t.status WHEN \'open\' THEN 0 WHEN \'replied\' THEN 1 ELSE 2 END, t.updated_at DESC',
+            tuple(params)
+        ).fetchall() if params else conn.execute(
+            f'SELECT t.*, u.username, u.phone FROM user_tickets t LEFT JOIN users u ON t.user_id=u.id {where_clause} ORDER BY CASE t.status WHEN \'open\' THEN 0 WHEN \'replied\' THEN 1 ELSE 2 END, t.updated_at DESC'
+        ).fetchall()
+        total = conn.execute('SELECT COUNT(*) as c FROM user_tickets').fetchone()['c']
+        open_count = conn.execute('SELECT COUNT(*) as c FROM user_tickets WHERE status=\'open\'').fetchone()['c']
+        replied_count = conn.execute('SELECT COUNT(*) as c FROM user_tickets WHERE status=\'replied\'').fetchone()['c']
+        # 各类型计数
+        cnt_presale = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE type='presale'").fetchone()['c']
+        cnt_aftersale = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE type='aftersale'").fetchone()['c']
+        cnt_complaint = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE type='complaint'").fetchone()['c']
+        cnt_suggestion = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE type='suggestion'").fetchone()['c']
+    return jsonify({
+        'success': True, 'data': [dict(r) for r in rows],
+        'total': total, 'open': open_count, 'replied': replied_count,
+        'cnt_presale': cnt_presale, 'cnt_aftersale': cnt_aftersale,
+        'cnt_complaint': cnt_complaint, 'cnt_suggestion': cnt_suggestion
+    })
+
+
+@admin_bp.route('/tickets/<int:tid>', methods=['PUT'])
+def admin_tickets_update(tid):
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    action = data.get('action', 'reply')  # reply / close / reopen
+    with get_db() as conn:
+        if action == 'reply':
+            reply = (data.get('admin_reply') or '').strip()
+            if not reply:
+                return jsonify({'success': False, 'error': _('Reply content cannot be empty')}), 400
+            conn.execute(
+                "UPDATE user_tickets SET admin_reply=%s, status='replied', replied_at=NOW(), updated_at=NOW() WHERE id=%s",
+                (reply, tid)
+            )
+        elif action == 'close':
+            conn.execute(
+                "UPDATE user_tickets SET status='closed', updated_at=NOW() WHERE id=%s",
+                (tid,)
+            )
+        elif action == 'reopen':
+            conn.execute(
+                "UPDATE user_tickets SET status='open', updated_at=NOW() WHERE id=%s",
+                (tid,)
+            )
+        conn.commit()
+    _log(admin['user_id'], 'ticket_update', detail=f'ticket={tid} action={action}')
+    return jsonify({'success': True})
+
+
+# 投诉/建议路由已合并到工单路由
+
+
+# ══════════════════════════════════════════════
+# 完成度奖励规则 CRUD
+# ══════════════════════════════════════════════
+
+@admin_bp.route('/reward-rules', methods=['GET'])
+def admin_reward_rules_list():
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        rows = conn.execute('SELECT * FROM reward_rules ORDER BY sort_order, id').fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/reward-rules', methods=['POST'])
+def admin_reward_rules_create():
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': _('Rule name cannot be empty')}), 400
+    with get_db() as conn:
+        rid = conn.execute(
+            'INSERT INTO reward_rules (name, condition_key, condition_value, reward_type, reward_id, reward_name, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
+            (name, data.get('condition_key', ''), data.get('condition_value', ''),
+             data.get('reward_type', 'coupon'), data.get('reward_id'), data.get('reward_name', ''),
+             data.get('sort_order', 0), 1 if data.get('is_active', True) else 0)
+        ).fetchone()['id']
+    _log(admin['user_id'], 'create_reward_rule', detail=name)
+    return jsonify({'success': True, 'data': {'id': rid}})
+
+
+@admin_bp.route('/reward-rules/<int:rid>', methods=['PUT'])
+def admin_reward_rules_update(rid):
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    allowed = ['name', 'condition_key', 'condition_value', 'reward_type', 'reward_id', 'reward_name', 'sort_order', 'is_active']
+    updates = {}
+    for k in allowed:
+        if k in data:
+            updates[k] = data[k]
+    if not updates:
+        return jsonify({'success': False, 'error': _('No fields to update')}), 400
+    sets = ', '.join(f'{k}=%s' for k in updates.keys())
+    vals = list(updates.values()) + [rid]
+    with get_db() as conn:
+        conn.execute(f'UPDATE reward_rules SET {sets} WHERE id=%s', vals)
+        conn.commit()
+    _log(admin['user_id'], 'update_reward_rule', detail=f'id={rid}')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/reward-rules/<int:rid>', methods=['DELETE'])
+def admin_reward_rules_delete(rid):
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        conn.execute('DELETE FROM reward_rules WHERE id=%s', (rid,))
+        conn.execute('DELETE FROM reward_claims WHERE rule_id=%s', (rid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_reward_rule', detail=f'id={rid}')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/reward-claims', methods=['GET'])
+def admin_reward_claims_list():
+    admin, err = _require_admin()
+    if err: return err
+    page = request.args.get('page', 1, type=int)
+    page_size = request.args.get('pageSize', 50, type=int)
+    offset = (page - 1) * page_size
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT rc.*, r.name AS rule_name, u.display_name AS user_name
+            FROM reward_claims rc
+            LEFT JOIN reward_rules r ON rc.rule_id = r.id
+            LEFT JOIN users u ON rc.user_id = u.id
+            ORDER BY rc.id DESC LIMIT %s OFFSET %s
+        """, (page_size, offset)).fetchall()
+        total = conn.execute('SELECT COUNT(*) as c FROM reward_claims').fetchone()['c']
+    return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total})
+
+
+# ── Interests management ──
+
+@admin_bp.route('/interests', methods=['GET'])
+def admin_interests_list():
+    admin, err = _require_admin()
+    if err: return err
+    category = request.args.get('category', '').strip()
+    with get_db() as conn:
+        if category:
+            rows = conn.execute(
+                'SELECT * FROM interests WHERE category=%s ORDER BY sort_order, id', (category,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                'SELECT * FROM interests ORDER BY category, sort_order, id'
+            ).fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/interests', methods=['POST'])
+def admin_interests_create():
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    category = (data.get('category') or '').strip()
+    if not name or not category:
+        return jsonify({'success': False, 'error': _('Name and Category cannot be empty')}), 400
+    with get_db() as conn:
+        existing = conn.execute('SELECT id FROM interests WHERE name=%s', (name,)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': f'Tag "{name}" Already Exists'}), 409
+        new_id = conn.execute(
+            'INSERT INTO interests (name, category, sort_order, is_hot, is_active) VALUES (%s,%s,%s,%s,%s) RETURNING id',
+            (name, category, data.get('sort_order', 0), data.get('is_hot', 0), data.get('is_active', 1))
+        ).fetchone()['id']
+        conn.commit()
+    _log(admin['user_id'], 'create_interest', detail=f'{name} ({category})')
+    return jsonify({'success': True, 'data': {'id': new_id}})
+
+
+@admin_bp.route('/interests/<int:iid>', methods=['PUT'])
+def admin_interests_update(iid):
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    for k in ['name', 'category', 'sort_order', 'is_hot', 'is_active']:
+        if k in data:
+            updates[k] = data[k]
+    if not updates:
+        return jsonify({'success': False, 'error': _('No fields to update')}), 400
+    sets = ', '.join(f'{k}=%s' for k in updates)
+    vals = list(updates.values()) + [iid]
+    with get_db() as conn:
+        conn.execute(f'UPDATE interests SET {sets} WHERE id=%s', vals)
+        conn.commit()
+    _log(admin['user_id'], 'update_interest', detail=f'id={iid}')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/interests/<int:iid>', methods=['DELETE'])
+def admin_interests_delete(iid):
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        conn.execute('DELETE FROM interests WHERE id=%s', (iid,))
+        conn.execute('DELETE FROM user_interests WHERE interest_id=%s', (iid,))
+        conn.commit()
+    _log(admin['user_id'], 'delete_interest', detail=f'id={iid}')
+    return jsonify({'success': True})
+
+
+# ── Public interests API (grouped by category) ──
+
+@admin_bp.route('/interests/public', methods=['GET'])
+def public_interests():
+    with get_db() as conn:
+        rows = conn.execute(
+            'SELECT * FROM interests WHERE is_active=1 AND is_hot=1 ORDER BY category, sort_order, id'
+        ).fetchall()
+    grouped = {}
+    for r in rows:
+        d = dict(r)
+        cat = d['category']
+        if cat not in grouped:
+            grouped[cat] = []
+        grouped[cat].append(d)
+    return jsonify({'success': True, 'data': grouped})
+
+# =============================================
+# 下载管理 — Downloads CRUD (2026-05-21)
+# =============================================
+
+@admin_bp.route('/downloads', methods=['GET'])
+@_cached_get(ttl=3)
+def admin_downloads_list():
+    admin, err = _require_admin()
+    if err:
+        return err
+    from models.cms import get_all_downloads
+    items = get_all_downloads()
+    return jsonify({'success': True, 'data': items})
+
+
+@admin_bp.route('/downloads', methods=['POST'])
+def admin_downloads_create():
+    admin, err = _require_admin()
+    if err:
+        return err
+    # Support both JSON and multipart form
+    if request.is_json:
+        data = request.get_json(force=True) or {}
+    else:
+        data = {}
+        for k in ('name','slug','tagline','category','version','download_url','repo_url',
+                  'file_size','license','requirements','docs_url','changelog_url','icon'):
+            data[k] = request.form.get(k, '').strip()
+        try:
+            data['tags'] = json.loads(request.form.get('tags', '[]'))
+        except Exception:
+            data['tags'] = []
+        try:
+            data['sort_order'] = int(request.form.get('sort_order', 0))
+        except Exception:
+            data['sort_order'] = 0
+        data['is_published'] = int(request.form.get('is_published', 1))
+    slug = data.get('slug', '').strip()
+    name = data.get('name', '').strip()
+    if not slug or not name:
+        return jsonify({'success': False, 'error': _('Slug and name cannot be empty')}), 400
+    # Handle file upload
+    uploaded_file = request.files.get('file') if not request.is_json else None
+    if uploaded_file and uploaded_file.filename:
+        import os
+        dl_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'downloads')
+        os.makedirs(dl_dir, exist_ok=True)
+        ext = os.path.splitext(uploaded_file.filename)[1]
+        safe_name = slug + ext
+        filepath = os.path.join(dl_dir, safe_name)
+        uploaded_file.save(filepath)
+        data['download_url'] = '/static/downloads/' + safe_name
+        if not data.get('file_size'):
+            fsize = os.path.getsize(filepath)
+            if fsize < 1048576:
+                data['file_size'] = f'{fsize/1024:.1f} KB'
+            else:
+                data['file_size'] = f'{fsize/1048576:.1f} MB'
+    from models.cms import upsert_download
+    item = upsert_download(data)
+    _log(admin['user_id'], 'create_download', 'download', str(item.get('id')), f'{name} ({slug})')
+    return jsonify({'success': True, 'data': item})
+
+
+@admin_bp.route('/downloads/<int:dl_id>', methods=['POST','PUT'])
+def admin_downloads_update(dl_id):
+    admin, err = _require_admin()
+    if err:
+        return err
+    if request.is_json:
+        data = request.get_json(force=True) or {}
+    else:
+        data = {}
+        for k in ('name','slug','tagline','category','version','download_url','repo_url',
+                  'file_size','license','requirements','docs_url','changelog_url','icon'):
+            data[k] = request.form.get(k, '').strip()
+        try:
+            data['tags'] = json.loads(request.form.get('tags', '[]'))
+        except Exception:
+            data['tags'] = []
+        try:
+            data['sort_order'] = int(request.form.get('sort_order', 0))
+        except Exception:
+            data['sort_order'] = 0
+        data['is_published'] = int(request.form.get('is_published', 1))
+    data['id'] = dl_id
+    # Handle file upload
+    uploaded_file = request.files.get('file') if not request.is_json else None
+    if uploaded_file and uploaded_file.filename:
+        import os
+        dl_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'downloads')
+        os.makedirs(dl_dir, exist_ok=True)
+        slug = data.get('slug', '') or str(dl_id)
+        ext = os.path.splitext(uploaded_file.filename)[1]
+        safe_name = slug + ext
+        filepath = os.path.join(dl_dir, safe_name)
+        uploaded_file.save(filepath)
+        data['download_url'] = '/static/downloads/' + safe_name
+        if not data.get('file_size'):
+            fsize = os.path.getsize(filepath)
+            if fsize < 1048576:
+                data['file_size'] = f'{fsize/1024:.1f} KB'
+            else:
+                data['file_size'] = f'{fsize/1048576:.1f} MB'
+    from models.cms import upsert_download
+    item = upsert_download(data)
+    _log(admin['user_id'], 'update_download', 'download', str(dl_id))
+    return jsonify({'success': True, 'data': item})
+
+
+@admin_bp.route('/downloads/<int:dl_id>', methods=['DELETE'])
+def admin_downloads_delete(dl_id):
+    admin, err = _require_admin()
+    if err:
+        return err
+    from models.cms import delete_download
+    delete_download(dl_id)
+    _log(admin['user_id'], 'delete_download', 'download', str(dl_id))
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/downloads/<int:dl_id>', methods=['GET'])
+def admin_downloads_get(dl_id):
+    """获取单个下载项（替代全量加载）"""
+    admin, err = _require_admin()
+    if err:
+        return err
+    from models.cms import get_download
+    item = get_download(dl_id)
+    if not item:
+        return jsonify({'success': False, 'error': _('Does not exist')}), 404
+    return jsonify({'success': True, 'data': item})
+
+
+@admin_bp.route('/downloads/reorder', methods=['POST'])
+def admin_downloads_reorder():
+    admin, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({'success': False, 'error': _('Ids cannot be empty')}), 400
+    from models.cms import reorder_downloads
+    reorder_downloads(ids)
+    return jsonify({'success': True})
+
+# ════════════════════════════════════════════════════════════════
+# 模型维护 — Providers + Provider Models CRUD
+# ════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/providers', methods=['GET'])
+def list_providers():
+    """列出所有提供商（含模型列表）"""
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        providers = [dict(r) for r in conn.execute(
+            'SELECT * FROM providers ORDER BY id'
+        ).fetchall()]
+        for p in providers:
+            p['models'] = [dict(r) for r in conn.execute(
+                'SELECT * FROM provider_models WHERE provider_id=%s ORDER BY sort_order, id',
+                (p['id'],)
+            ).fetchall()]
+    return jsonify({'success': True, 'data': providers})
+
+
+@admin_bp.route('/providers/<int:pid>', methods=['PUT'])
+def update_provider(pid):
+    """更新提供商"""
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM providers WHERE id=%s', (pid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Does not exist')}), 404
+        name = (data.get('name') or row['name']).strip()
+        desc = data.get('description', row['description'])
+        is_active = data.get('is_active', row['is_active'])
+        conn.execute(
+            "UPDATE providers SET name=%s, description=%s, is_active=%s, updated_at=NOW() WHERE id=%s",
+            (name, desc, int(is_active) if is_active is not None else 1, pid))
+        conn.commit()
+        _log(admin['user_id'], 'update', 'provider', str(pid), f'Update provider: {name}')
+    return jsonify({'success': True})
+
+
+# ── Provider Models CRUD ──
+
+@admin_bp.route('/provider-models', methods=['GET'])
+def list_provider_models():
+    """列出所有模型（可按 provider_id 筛选）"""
+    admin, err = _require_admin()
+    if err: return err
+    pid = request.args.get('provider_id')
+    with get_db() as conn:
+        if pid:
+            rows = conn.execute(
+                'SELECT pm.*, p.name as provider_name, p.slug as provider_slug FROM provider_models pm JOIN providers p ON p.id=pm.provider_id WHERE pm.provider_id=%s ORDER BY pm.sort_order, pm.id',
+                (pid,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                'SELECT pm.*, p.name as provider_name, p.slug as provider_slug FROM provider_models pm JOIN providers p ON p.id=pm.provider_id ORDER BY p.id, pm.sort_order, pm.id'
+            ).fetchall()
+    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+
+
+@admin_bp.route('/provider-models', methods=['POST'])
+def create_provider_model():
+    """新增模型"""
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    name = (data.get('name') or '').strip()
+    provider_id = data.get('provider_id')
+    model_name = (data.get('model_name') or '').strip()
+    endpoint_url = (data.get('endpoint_url') or '').strip()
+    api_key_ref = (data.get('api_key_ref') or '').strip()
+    capabilities = (data.get('capabilities') or 'text').strip()
+    if not name or not provider_id:
+        return jsonify({'success': False, 'error': _('Name and Provider cannot be empty')}), 400
+    with get_db() as conn:
+        mid = conn.execute(
+            'INSERT INTO provider_models (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id',
+            (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities)).fetchone()['id']
+        conn.commit()
+        _log(admin['user_id'], 'create', 'provider_model', str(mid), f'Add Model: {name}')
+    return jsonify({'success': True, 'data': {'id': mid}})
+
+
+@admin_bp.route('/provider-models/<int:mid>', methods=['PUT'])
+def update_provider_model(mid):
+    """更新模型"""
+    admin, err = _require_admin()
+    if err: return err
+    data = request.get_json(force=True) or {}
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM provider_models WHERE id=%s', (mid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Does not exist')}), 404
+        name = (data.get('name') or row['name']).strip()
+        provider_id = data.get('provider_id', row['provider_id'])
+        model_name = data.get('model_name', row['model_name'])
+        endpoint_url = data.get('endpoint_url', row['endpoint_url'])
+        api_key_ref = data.get('api_key_ref', row['api_key_ref'])
+        capabilities = data.get('capabilities', row['capabilities'])
+        is_active = data.get('is_active', row['is_active'])
+        sort_order = data.get('sort_order', row['sort_order'])
+        conn.execute(
+            '''UPDATE provider_models SET provider_id=%s, name=%s, model_name=%s, endpoint_url=%s,
+               api_key_ref=%s, capabilities=%s, is_active=%s, sort_order=%s,
+               updated_at=NOW() WHERE id=%s''',
+            (provider_id, name, model_name, endpoint_url, api_key_ref, capabilities,
+             int(is_active) if is_active is not None else 1, sort_order, mid))
+        conn.commit()
+        _log(admin['user_id'], 'update', 'provider_model', str(mid), f'Update model: {name}')
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/provider-models/<int:mid>', methods=['DELETE'])
+def delete_provider_model(mid):
+    """删除模型"""
+    admin, err = _require_admin()
+    if err: return err
+    with get_db() as conn:
+        row = conn.execute('SELECT name FROM provider_models WHERE id=%s', (mid,)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Does not exist')}), 404
+        conn.execute('DELETE FROM provider_models WHERE id=%s', (mid,))
+        conn.commit()
+        _log(admin['user_id'], 'delete', 'provider_model', str(mid), f'Delete Model: {row["name"]}')
+        return jsonify({'success': True})
 
 
 
 # ═══════════════════════════════════════════════════════════
 #  本地媒体库 API — 上传 / 列表 / 下载 / 删除 / 推送
 # ═══════════════════════════════════════════════════════════
-import os
-from flask import Blueprint, request, jsonify
-from i18n import _
-from models import get_db
-from services.deployment_config import deploy
-
-admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
-
-
-def _require_admin():
-    """Verify admin JWT — use is_admin in JWT payload, avoid additional DB query"""
-    from services.jwt_service import validate_token
-    auth = request.headers.get('Authorization', '')
-    token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else ''
-    if not token:
-        token = request.cookies.get('sso_token', '') or request.cookies.get('tm_token', '')
-    payload = validate_token(token) if token else None
-    if not payload:
-        return None, (jsonify({'success': False, 'error': 'Please log in first'}), 401)
-    if not payload.get('is_admin'):
-        return None, (jsonify({'success': False, 'error': _('Requires admin permissions')}), 403)
-    return payload, None
-
-
-def _log(user_id, action, target_type='', target_id='', detail=''):
-    """Admin action logging"""
-    ip = request.remote_addr or ''
-    with get_db() as conn:
-        conn.execute(
-            'INSERT INTO agent_logs (agent_id, user_id, action, detail, ip_address) VALUES (%s,%s,%s,%s,%s)',
-            (target_id, user_id, action, f'{target_type}:{detail}', ip)
-        )
-        conn.commit()
-
 
 MEDIA_LIB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                '..', '..', 'admin', 'static', 'media')
@@ -228,22 +3138,6 @@ def _send_file_or_stream(fp, filename, mime):
 #   - oauth_providers 表仍留主库，供登录回调链路（auth.py / *_service）共享读取
 #   - 登录回调链路（auth.py oauth_login/callback、oauth_service）保持不变
 # ════════════════════════════════════════════════════════════════
-
-
-def _get_media_agent_id():
-    """获取 Media Agent 的 ID（带缓存）"""
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT id FROM agent_matrix WHERE name='Media Agent' AND role_type='sub' AND is_active=1"
-        ).fetchone()
-    if row:
-        return row['id']
-    # fallback: 找 domain='media' 的活跃 agent
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT id FROM agent_matrix WHERE domain='media' AND is_active=1 LIMIT 1"
-        ).fetchone()
-    return row['id'] if row else 0
 
 
 # =============================================
@@ -705,141 +3599,6 @@ def provider_api_key_delete(kid):
         conn.execute('DELETE FROM provider_api_keys WHERE id=%s', (kid,))
         conn.commit()
     _log(admin['user_id'], 'delete_provider_key', 'provider_api_key', str(kid), row['name'])
-    return jsonify({'success': True})
-
-
-# ═══════════════════════════════════════════════════════
-# Provider + Model 管理（模型注册与管理）
-# ═══════════════════════════════════════════════════════
-
-@admin_bp.route('/providers', methods=['GET'])
-def provider_list():
-    """返回所有活跃供应商及其模型（前端 mpRefresh 调用）"""
-    admin, err = _require_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        providers = conn.execute(
-            "SELECT id, slug, name, description "
-            "FROM providers WHERE is_active=1 ORDER BY id"
-        ).fetchall()
-        result = []
-        for p in providers:
-            p = dict(p)
-            models = conn.execute(
-                "SELECT pm.id, pm.name, pm.model_name, pm.endpoint_url, pm.api_key_ref, "
-                "pm.api_key_id, pm.capabilities, pm.sort_order, pm.is_active, pm.provider_id, "
-                "COALESCE(pak.name, '') as api_key_name "
-                "FROM provider_models pm "
-                "LEFT JOIN provider_api_keys pak ON pak.id = pm.api_key_id "
-                "WHERE pm.provider_id=%s ORDER BY pm.sort_order, pm.id",
-                (p['id'],)
-            ).fetchall()
-            p['models'] = [dict(m) for m in models]
-            result.append(p)
-        return jsonify({'success': True, 'data': result})
-
-
-@admin_bp.route('/provider-models', methods=['GET'])
-def provider_model_list():
-    """返回所有模型（扁平列表，前端 mpShowEditModel 调用）"""
-    admin, err = _require_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT pm.*, p.slug as provider_slug, p.name as provider_name, "
-            "COALESCE(pak.name, '') as api_key_name "
-            "FROM provider_models pm "
-            "JOIN providers p ON p.id = pm.provider_id "
-            "LEFT JOIN provider_api_keys pak ON pak.id = pm.api_key_id "
-            "ORDER BY pm.provider_id, pm.sort_order, pm.id"
-        ).fetchall()
-        return jsonify({'success': True, 'data': [dict(r) for r in rows]})
-
-
-@admin_bp.route('/provider-models', methods=['POST'])
-def provider_model_create():
-    """新增模型（前端 mpCreateModel 调用）"""
-    admin, err = _require_admin()
-    if err:
-        return err
-    data = request.get_json(force=True) or {}
-    name = (data.get('name') or '').strip()
-    if not name:
-        return jsonify({'success': False, 'error': _('Name cannot be empty')}), 400
-
-    provider_id = data.get('provider_id')
-    if not provider_id:
-        return jsonify({'success': False, 'error': _('Provider is required')}), 400
-
-    with get_db() as conn:
-        row = conn.execute(
-            """INSERT INTO provider_models
-               (provider_id, name, model_name, endpoint_url, api_key_ref, api_key_id, capabilities, sort_order, is_active)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (provider_id, name,
-             data.get('model_name', ''), data.get('endpoint_url', ''),
-             data.get('api_key_ref', ''), data.get('api_key_id'),
-             data.get('capabilities', 'text'),
-             data.get('sort_order', 0), data.get('is_active', 1))
-        ).fetchone()
-        conn.commit()
-    _log(admin['user_id'], 'create_provider_model', 'provider_model', str(row['id']), name)
-    return jsonify({'success': True, 'data': {'id': row['id']}})
-
-
-@admin_bp.route('/provider-models/<int:pmid>', methods=['PUT'])
-def provider_model_update(pmid):
-    """更新模型（前端 mpUpdateModel 调用）"""
-    admin, err = _require_admin()
-    if err:
-        return err
-    data = request.get_json(force=True) or {}
-    with get_db() as conn:
-        row = conn.execute('SELECT * FROM provider_models WHERE id=%s', (pmid,)).fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': _('Not found')}), 404
-
-        updates = []
-        params = []
-        for field in ['name', 'model_name', 'endpoint_url', 'api_key_ref', 'api_key_id',
-                       'capabilities', 'sort_order', 'is_active', 'provider_id']:
-            if field in data:
-                updates.append(f'{field}=%s')
-                params.append(data[field])
-        if not updates:
-            return jsonify({'success': True, 'message': _('No changes')})
-        updates.append('updated_at=NOW()')
-        params.append(pmid)
-        conn.execute(f"UPDATE provider_models SET {','.join(updates)} WHERE id=%s", params)
-        conn.commit()
-    _log(admin['user_id'], 'update_provider_model', 'provider_model', str(pmid))
-    return jsonify({'success': True})
-
-
-@admin_bp.route('/provider-models/<int:pmid>', methods=['DELETE'])
-def provider_model_delete(pmid):
-    """删除模型（前端 mpDeleteModel 调用）"""
-    admin, err = _require_admin()
-    if err:
-        return err
-    with get_db() as conn:
-        row = conn.execute('SELECT name FROM provider_models WHERE id=%s', (pmid,)).fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': _('Not found')}), 404
-        # 检查是否有 agent 引用此模型
-        refs = conn.execute(
-            'SELECT COUNT(*) as cnt FROM agents WHERE provider_model_id=%s', (pmid,)
-        ).fetchone()
-        if refs['cnt'] > 0:
-            return jsonify({
-                'success': False,
-                'error': _('Model is referenced by %(count)s agent(s), please unlink first', count=refs['cnt'])
-            }), 400
-        conn.execute('DELETE FROM provider_models WHERE id=%s', (pmid,))
-        conn.commit()
-    _log(admin['user_id'], 'delete_provider_model', 'provider_model', str(pmid), row['name'])
     return jsonify({'success': True})
 
 
