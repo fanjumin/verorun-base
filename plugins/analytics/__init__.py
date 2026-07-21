@@ -105,7 +105,7 @@ class AnalyticsPlugin(BasePlugin):
 
         return True
 
-    def _enrich_dashboard(self, data, conn=None):
+    def _enrich_dashboard(self, value, conn=None):
         """从 analytics 独立 PG 查询仪表盘数据，注入到 data dict
 
         双库策略:
@@ -114,6 +114,7 @@ class AnalyticsPlugin(BasePlugin):
           - 主库表（agent_token_daily / billing_orders）
             → 复用上层传入的 conn（SQLite / PG 均可）
         """
+        data = value
         # ── Part A: Analytics PG 连接 ──
         try:
             from .models import get_db as get_analytics_db
@@ -173,6 +174,12 @@ class AnalyticsPlugin(BasePlugin):
 
         # ── Part B: 主库连接（conn 由上层 dashboard() 传入） ──
         if conn is not None:
+            # 最小化补丁(v0.32.3): 每个查询独立 rollback,防止前一个失败导致事务中止影响后续查询
+            def _rb_conn():
+                try:
+                    conn._conn.rollback()
+                except Exception:
+                    pass
             try:
                 r = conn.execute(
                     "SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=CURRENT_DATE"
@@ -180,6 +187,8 @@ class AnalyticsPlugin(BasePlugin):
                 data['today_tokens'] = r['c'] if r else 0
             except Exception:
                 pass
+            finally:
+                _rb_conn()
             try:
                 agents = conn.execute(
                     "SELECT t.agent_id, t.agent_name, t.total_tokens as total "
@@ -189,6 +198,8 @@ class AnalyticsPlugin(BasePlugin):
                 data['top_token_agents'] = [dict(r) for r in agents]
             except Exception:
                 pass
+            finally:
+                _rb_conn()
             try:
                 rev = conn.execute(
                     "SELECT DATE(paid_at) as date, COALESCE(SUM(amount),0) as revenue "
@@ -198,6 +209,8 @@ class AnalyticsPlugin(BasePlugin):
                 data['revenue_trend_30d'] = [dict(r) for r in rev]
             except Exception:
                 pass
+            finally:
+                _rb_conn()
         return data
 
     def register_routes(self):

@@ -169,7 +169,7 @@ def _build_dashboard_data(conn):
     try:
         data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
         mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'").fetchone()
-        data['monthly_revenue'] = mr['c'] if mr else 0
+        data['monthly_revenue'] = round(mr['c'], 2) if mr else 0
     except: pass
     # --- Action items ---
     try:
