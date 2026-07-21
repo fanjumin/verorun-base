@@ -8,8 +8,38 @@
 # ═══════════════════════════════════════════════════════════
 import os
 from flask import Blueprint, request, jsonify
+from i18n import _
+from models import get_db
+from services.deployment_config import deploy
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+
+def _require_admin():
+    """Verify admin JWT — use is_admin in JWT payload, avoid additional DB query"""
+    from services.jwt_service import validate_token
+    auth = request.headers.get('Authorization', '')
+    token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else ''
+    if not token:
+        token = request.cookies.get('sso_token', '') or request.cookies.get('tm_token', '')
+    payload = validate_token(token) if token else None
+    if not payload:
+        return None, (jsonify({'success': False, 'error': 'Please log in first'}), 401)
+    if not payload.get('is_admin'):
+        return None, (jsonify({'success': False, 'error': _('Requires admin permissions')}), 403)
+    return payload, None
+
+
+def _log(user_id, action, target_type='', target_id='', detail=''):
+    """Admin action logging"""
+    ip = request.remote_addr or ''
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO agent_logs (agent_id, user_id, action, detail, ip_address) VALUES (%s,%s,%s,%s,%s)',
+            (target_id, user_id, action, f'{target_type}:{detail}', ip)
+        )
+        conn.commit()
+
 
 MEDIA_LIB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                '..', '..', 'admin', 'static', 'media')
