@@ -64,18 +64,21 @@ def _get_llm_config():
 
 
 def _call_llm(system_prompt: str, user_prompt: str) -> dict:
-    """调用 LLM 并返回 JSON 结果"""
+    """调用 LLM 并返回 JSON 结果 — 通过 LLMGateway 统一入口"""
     cfg = _get_llm_config()
     if not cfg['api_key']:
         return {'error': 'AI API Key 未配置，请在系统配置中设置'}
 
-    from openai import OpenAI
-    client = OpenAI(api_key=cfg['api_key'], base_url=cfg['base_url'])
-    resp = client.chat.completions.create(
+    from agent_matrix.engine import get_gateway
+    gw = get_gateway()
+    resp = gw.chat(
+        provider=cfg['provider'],
         model=cfg['model'],
         messages=[{'role': 'system', 'content': system_prompt},
                   {'role': 'user', 'content': user_prompt}],
-        temperature=0.3, max_tokens=4096,
+        temperature=0.3,
+        max_tokens=4096,
+        module='cleaner',
         response_format={'type': 'json_object'}
     )
     text = resp.choices[0].message.content.strip()
