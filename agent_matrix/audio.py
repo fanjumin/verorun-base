@@ -64,6 +64,7 @@ class AudioOutputProcessor:
     """
 
     PROVIDERS = {
+        'edge_tts': 'Microsoft Edge TTS (Free, no key required)',
         'azure_tts': 'Microsoft Azure Neural TTS',
     }
 
@@ -80,12 +81,12 @@ class AudioOutputProcessor:
         'pt-BR': 'pt-BR-FranciscaNeural',
     }
 
-    def __init__(self, provider: str = 'azure_tts',
+    def __init__(self, provider: str = 'edge_tts',
                  voice: str = 'zh-CN-XiaoxiaoNeural'):
         """Initialize TTS processor.
 
         Args:
-            provider: TTS provider slug (currently only 'azure_tts').
+            provider: TTS provider slug ('edge_tts' or 'azure_tts').
             voice: Neural voice name, e.g. 'zh-CN-XiaoxiaoNeural'.
         """
         self.provider = provider
@@ -121,25 +122,53 @@ class AudioOutputProcessor:
         return b''
 
     def _get_client(self):
-        """Lazy-init and return the Azure TTS client instance.
+        """Lazy-init TTS client based on provider.
 
         Returns:
-            AzureTTSClient or None if key is not configured.
+            EdgeTTSClient or AzureTTSClient, or None if unavailable.
         """
         if self._client is not None:
             return self._client
-        if self.provider != 'azure_tts':
+
+        if self.provider == 'edge_tts':
+            return self._get_edge_client()
+        elif self.provider == 'azure_tts':
+            return self._get_azure_client()
+        else:
             logger.error(
                 '[AudioOutput] Unknown provider: %s', self.provider
             )
             return None
+
+    def _get_edge_client(self):
+        """Lazy-init Edge TTS client (no key required)."""
         try:
-            sys.path.insert(
+            import sys as _sys
+            _sys.path.insert(
+                0, os.path.join(os.path.dirname(__file__), '..', 'auth-center')
+            )
+            from services.edge_tts_client import EdgeTTSClient
+        except ImportError as e:
+            logger.error(
+                '[AudioOutput] Failed to import EdgeTTSClient: %s', e
+            )
+            return None
+        self._client = EdgeTTSClient()
+        logger.info('[AudioOutput] Edge TTS client ready (free, no key)')
+        return self._client
+
+    def _get_azure_client(self):
+        """Lazy-init Azure TTS client with subscription key."""
+        try:
+            import sys as _sys
+            _sys.path.insert(
                 0, os.path.join(os.path.dirname(__file__), '..', 'auth-center')
             )
             from services.azure_tts_client import AzureTTSClient
         except ImportError as e:
-            logger.error('[AudioOutput] Failed to import AzureTTSClient: %s', e)
+            logger.error(
+                '[AudioOutput] Failed to import AzureTTSClient: %s', e
+            )
             return None
         key = self._resolve_key('azure')
         if not key:
@@ -150,6 +179,7 @@ class AudioOutputProcessor:
             return None
         region = self._resolve_region()
         self._client = AzureTTSClient(subscription_key=key, region=region)
+        logger.info('[AudioOutput] Azure TTS client ready (region=%s)', region)
         return self._client
 
     def _resolve_key(self, provider_slug: str) -> str:
@@ -210,5 +240,5 @@ def get_default_asr() -> AudioInputProcessor:
 
 
 def get_default_tts() -> AudioOutputProcessor:
-    """Get default TTS processor (Azure Neural TTS)."""
-    return AudioOutputProcessor(provider='azure_tts')
+    """Get default TTS processor (Edge TTS — free, no key)."""
+    return AudioOutputProcessor(provider='edge_tts')

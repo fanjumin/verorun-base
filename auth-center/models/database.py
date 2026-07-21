@@ -1322,6 +1322,7 @@ def init_db():
             ('gemini',     'Google Gemini', 'Gemini 2.5 Flash/Pro'),
             ('grok',       'xAI Grok', 'Grok-3 Beta'),
             ('azure',      'Microsoft Azure', 'Azure Cognitive Services: TTS, Speech Recognition'),
+            ('edge_tts',   'Microsoft Edge TTS', 'Free Edge browser TTS — no key required, same neural voices'),
         ]
         for slug, name, desc in provider_seeds:
             m.execute(
@@ -1368,6 +1369,8 @@ def init_db():
             (pids['grok'],       'Grok-3 Beta',          'grok-3-beta',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     70),
             # Microsoft Azure
             (pids['azure'],      'Azure Neural TTS',     'azure-tts-neural',       'https://eastasia.tts.speech.microsoft.com/cognitiveservices/v1', 'azure_tts_key',    'tts',      75),
+            # Microsoft Edge (free)
+            (pids['edge_tts'],   'Edge TTS Neural',      'edge-tts-neural',        '',                                                              '',                     'tts',      80),
             # Ollama
             (pids['ollama'],     'Llama 3',              'llama3',                 'http://localhost:11434/v1',                                 '',                     'text',     60),
             (pids['ollama'],     'Qwen 2.5 14B',         'qwen2.5:14b',            'http://localhost:11434/v1',                                 '',                     'text',     61),
