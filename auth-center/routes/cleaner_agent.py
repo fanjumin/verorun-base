@@ -30,65 +30,6 @@ def _require_admin():
     return payload, None
 
 
-def _read_system_config(key: str, default=''):
-    """从 system_config 表读取配置"""
-    try:
-        with get_db() as conn:
-            row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key,)).fetchone()
-            return row['value'] if row else default
-    except Exception:
-        return default
-
-
-def _get_llm_config():
-    """获取清洗用的 LLM 配置"""
-    provider = _read_system_config('cleaner_ai_provider') or 'deepseek'
-    model = _read_system_config('cleaner_ai_model') or 'deepseek-chat'
-    base_url = _read_system_config('cleaner_ai_base_url') or 'https://api.deepseek.com'
-    api_key = _read_system_config('cleaner_ai_api_key', '')
-
-    if not api_key:
-        key_map = {
-            'deepseek': 'deepseek_api_key', 'dashscope': 'dashscope_api_key',
-            'openai': 'openai_api_key', 'openrouter': 'openrouter_api_key',
-        }
-        env_key = key_map.get(provider, 'deepseek_api_key')
-        api_key = _read_system_config(env_key, '')
-        if not api_key:
-            api_key = os.environ.get(f'{provider.upper()}_API_KEY', '')
-
-    return {
-        'provider': provider, 'model': model,
-        'base_url': base_url, 'api_key': api_key,
-    }
-
-
-def _call_llm(system_prompt: str, user_prompt: str) -> dict:
-    """调用 LLM 并返回 JSON 结果 — 通过 LLMGateway 统一入口"""
-    cfg = _get_llm_config()
-    if not cfg['api_key']:
-        return {'error': 'AI API Key 未配置，请在系统配置中设置'}
-
-    from agent_matrix.engine import get_gateway
-    gw = get_gateway()
-    resp = gw.chat(
-        provider=cfg['provider'],
-        model=cfg['model'],
-        messages=[{'role': 'system', 'content': system_prompt},
-                  {'role': 'user', 'content': user_prompt}],
-        temperature=0.3,
-        max_tokens=4096,
-        module='cleaner',
-        response_format={'type': 'json_object'}
-    )
-    text = resp.choices[0].message.content.strip()
-    json_match = re.search(r'\{.*\}', text, re.DOTALL)
-    result = json.loads(json_match.group()) if json_match else json.loads(text)
-    if not result.get('title') or not result.get('content'):
-        return {'error': _('AI response is missing required fields'), 'raw': text}
-    return result
-
-
 def _get_existing_for_dedup():
     """获取已有知识库标题+关键词（用于去重和冲突检测）"""
     try:
@@ -624,8 +565,7 @@ def get_config():
     payload, err = _require_admin()
     if err:
         return err
-    cfg = _get_llm_config()
     return jsonify({
         'success': True,
-        'data': {'provider': cfg['provider'], 'model': cfg['model'], 'base_url': cfg['base_url']}
+        'data': {'provider': 'deepseek', 'model': 'deepseek-chat', 'base_url': 'https://api.deepseek.com/v1'}
     })

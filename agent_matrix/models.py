@@ -347,6 +347,14 @@ def init_agent_matrix_tables():
             conn.commit()
             print('[Migration] Added agent_token_logs.module')
 
+    # ── Migration: make legacy agent_matrix fields nullable ──
+    with get_db() as conn:
+        # provider/model_name no longer required — provider_model_id is the canonical reference
+        conn.execute("ALTER TABLE agent_matrix ALTER COLUMN provider DROP NOT NULL")
+        conn.execute("ALTER TABLE agent_matrix ALTER COLUMN model_name DROP NOT NULL")
+        conn.commit()
+        print('[Migration] agent_matrix.provider/model_name made nullable')
+
     # ── Migration: add slug & is_system to agent_matrix ──
     with get_db() as conn:
         cols = get_table_columns(conn, 'agent_matrix')

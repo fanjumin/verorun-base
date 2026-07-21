@@ -5,7 +5,6 @@ import sys, os, json, re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 
-SILICONFLOW_BASE_URL = 'https://api.siliconflow.cn/v1'
 DEFAULT_OCR_MODEL = 'deepseek-ai/DeepSeek-OCR'
 DEFAULT_AUDIT_MODEL = 'deepseek-ai/DeepSeek-V3'
 
