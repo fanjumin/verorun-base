@@ -56,7 +56,7 @@ def get_raw_connection():
     inlining psycopg2.connect() calls with repeated env var lookups.
     """
     return psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
+        host=os.environ.get('PG_HOST', ''),
         port=int(os.environ.get('PG_PORT', 5432)),
         dbname=os.environ.get('PG_DB', 'verorun'),
         user=os.environ.get('PG_USER', 'verorun'),
