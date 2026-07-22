@@ -634,6 +634,3 @@ def get_gateway():
         if _gateway is None:
             _gateway = UnifiedLLM()
         return _gateway
-
-
-LLMGateway = UnifiedLLM  # 向后兼容别名
