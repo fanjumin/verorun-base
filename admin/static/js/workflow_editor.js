@@ -7,6 +7,10 @@ window.editor = (function() {
   'use strict';
 
   var T = window.__SSO_TOKEN || '';
+  if (!T) {
+    var m = document.cookie.match(/(?:^|;\s*)sso_token=([^;]*)/);
+    T = m ? decodeURIComponent(m[1]) : '';
+  }
   var API_BASE = '/admin/automation/workflows';
   var CURRENT_WORKFLOW_ID = null;  // 编辑模式时非 null
   var EDITOR_INSTANCE = null;      // 保存时获取画布状态

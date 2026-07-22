@@ -93,7 +93,7 @@ window.__t = {
 </script>
 
 {# SSO Token #}
-<script>window.__SSO_TOKEN = '{{ sso_token }}';</script>
+<script>window.__SSO_TOKEN = {{ sso_token|tojson }};</script>
 
 </head>
 <body>
