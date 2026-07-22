@@ -154,6 +154,7 @@ window.editor = (function() {
 
   // ── 拖拽开始 ──
   function onNodeDragStart(event) {
+    if (!event.dataTransfer) return;
     var type = event.target.closest('[data-node-type]').getAttribute('data-node-type');
     event.dataTransfer.setData('application/reactflow', type);
     event.dataTransfer.effectAllowed = 'move';
@@ -477,10 +478,14 @@ window.editor = (function() {
       if (!r.ok && r.status === 409) {
         throw new Error('version_conflict');
       }
-      return r.json();
+      return r.text().then(function(t) {
+        try { return JSON.parse(t); } catch (e) {
+          throw new Error('parse_error: ' + t.substring(0, 100));
+        }
+      });
     }).catch(function(err) {
-      if (retries > 0 && err.message === 'version_conflict') {
-        // 版本冲突，不重试
+      if (retries > 0 && (err.message === 'version_conflict' || err.message.indexOf('parse_error') === 0)) {
+        // 版本冲突或解析错误，不重试
         throw err;
       }
       if (retries > 0) {
