@@ -1505,8 +1505,10 @@ def token_stats():
         'all':    "1=1"
     }.get(period, "created_at::date = CURRENT_DATE")
     date_where = date_where_base
+    params = []
     if dim and dim in ALLOWED_DIMENSIONS:
-        date_where += f" AND dimension = '{dim}'"
+        date_where += " AND dimension = %s"
+        params.append(dim)
 
     date_where_t = {
         'today':  "t.created_at::date = CURRENT_DATE",
@@ -1515,7 +1517,7 @@ def token_stats():
         'all':    "1=1"
     }.get(period, "t.created_at::date = CURRENT_DATE")
     if dim and dim in ALLOWED_DIMENSIONS:
-        date_where_t += f" AND t.dimension = '{dim}'"
+        date_where_t += " AND t.dimension = %s"
 
     # 费用单价（后续可从 system_config 读取）
     pricing = {
@@ -1532,7 +1534,7 @@ def token_stats():
                        COALESCE(SUM(completion_tokens),0) AS completion,
                        COUNT(*) AS calls
                 FROM agent_token_logs WHERE {date_where}
-            """).fetchone()
+            """, params).fetchone()
 
             # ── 按维度汇总 ──
             by_dim_rows = conn.execute(f"""
@@ -1558,7 +1560,7 @@ def token_stats():
                 WHERE {date_where_t}
                 GROUP BY t.agent_id, t.agent_name, t.model_name, t.provider, t.dimension
                 ORDER BY total DESC
-            """).fetchall()
+            """, params).fetchall()
 
             # ── 按用户汇总 ──
             unknown_label = _('Unknown user')
@@ -1576,7 +1578,7 @@ def token_stats():
                 GROUP BY t.user_id, t.agent_id, t.agent_name, t.model_name, t.dimension, COALESCE(u.username, u.phone, '{unknown_label}')
                 ORDER BY total DESC
                 LIMIT 50
-            """).fetchall()
+            """, params).fetchall()
 
             # ── 费用估算 ──
             text_tokens  = float(sum(int(r['total']) if r.get('dimension') == 'text' else 0 for r in by_dim_rows))

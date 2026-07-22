@@ -90,6 +90,7 @@ def _load_all_role_yamls():
 # Task ID 生成器
 # ============================================================
 _task_counter = 0  # Will be overridden by _init_task_counter()
+_task_counter_lock = threading.Lock()
 
 def _init_task_counter():
     """Initialize task counter from DB to avoid UNIQUE constraint violations on restart."""
@@ -108,9 +109,10 @@ _init_task_counter()
 
 def _next_task_id():
     global _task_counter
-    _task_counter += 1
-    date = datetime.now().strftime('%Y%m%d')
-    return f'AT-{date}-{_task_counter:04d}'
+    with _task_counter_lock:
+        _task_counter += 1
+        date = datetime.now().strftime('%Y%m%d')
+        return f'AT-{date}-{_task_counter:04d}'
 
 
 def _next_session_id():
@@ -118,6 +120,20 @@ def _next_session_id():
     import random
     suffix = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
     return f'SESSION-{date}-{suffix}'
+
+
+def get_master_agent_config():
+    """从 agent_matrix 表中读取 Master Agent 的 provider/model 配置"""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT provider, model_name FROM agent_matrix WHERE is_master=TRUE LIMIT 1"
+            ).fetchone()
+            if row:
+                return {'provider': row['provider'], 'model_name': row['model_name']}
+    except Exception:
+        pass
+    return {'provider': 'dashscope', 'model_name': 'qwen-turbo'}
 
 
 # ============================================================

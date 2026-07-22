@@ -248,9 +248,15 @@ class AIEngine:
     def ask_with_history(self, history, user_query, temperature=0.7):
         """带历史的多轮对话"""
         messages = [{"role": "system", "content": self.system_prompt}]
+        ALLOWED_ROLES = ('user', 'assistant', 'system', 'tool')
         for h in history:
-            role = 'user' if h['role'] in ('user',) else 'assistant'
-            messages.append({"role": role, "content": h['content']})
+            role = h['role'] if h['role'] in ALLOWED_ROLES else 'assistant'
+            msg = {"role": role, "content": h.get('content', '')}
+            if h.get('tool_calls'):
+                msg['tool_calls'] = h['tool_calls']
+            if h.get('tool_call_id'):
+                msg['tool_call_id'] = h['tool_call_id']
+            messages.append(msg)
         messages.append({"role": "user", "content": user_query})
         return self.chat(messages, temperature)
 
@@ -301,9 +307,15 @@ class AIEngine:
     def ask_with_history_stream(self, history, user_query, temperature=0.7):
         """流式多轮对话"""
         messages = [{"role": "system", "content": self.system_prompt}]
+        ALLOWED_ROLES = ('user', 'assistant', 'system', 'tool')
         for h in history:
-            role = 'user' if h['role'] in ('user',) else 'assistant'
-            messages.append({"role": role, "content": h['content']})
+            role = h['role'] if h['role'] in ALLOWED_ROLES else 'assistant'
+            msg = {"role": role, "content": h.get('content', '')}
+            if h.get('tool_calls'):
+                msg['tool_calls'] = h['tool_calls']
+            if h.get('tool_call_id'):
+                msg['tool_call_id'] = h['tool_call_id']
+            messages.append(msg)
         messages.append({"role": "user", "content": user_query})
         yield from self.chat_stream(messages, temperature)
 
@@ -716,10 +728,14 @@ def _log_gateway_usage(model_id, model_name, provider,
 
 # 全局单例
 _gateway = None
+_gateway_lock = threading.Lock()
 
 
 def get_gateway():
     global _gateway
-    if _gateway is None:
-        _gateway = LLMGateway()
-    return _gateway
+    if _gateway is not None:
+        return _gateway
+    with _gateway_lock:
+        if _gateway is None:
+            _gateway = LLMGateway()
+        return _gateway

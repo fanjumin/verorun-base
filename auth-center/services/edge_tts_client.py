@@ -9,10 +9,23 @@ Library:    https://github.com/rany2/edge-tts
 """
 
 import asyncio
+import concurrent.futures
 import logging
 from i18n import _
 
 logger = logging.getLogger(__name__)
+
+
+def _run_async(coro):
+    """安全地运行异步协程，兼容已有事件循环的环境"""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    else:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result(timeout=60)
 
 
 class EdgeTTSClient:
@@ -56,7 +69,7 @@ class EdgeTTSClient:
                 error (str): Error message on failure.
         """
         try:
-            audio_bytes = asyncio.run(
+            audio_bytes = _run_async(
                 self._synthesize_async(text, voice_name)
             )
             if not audio_bytes:
@@ -123,7 +136,7 @@ class EdgeTTSClient:
             List of voice dicts with Name, Gender, Locale, etc.
         """
         try:
-            voices = asyncio.run(self._list_voices_async())
+            voices = _run_async(self._list_voices_async())
             if locale:
                 voices = [
                     v for v in voices

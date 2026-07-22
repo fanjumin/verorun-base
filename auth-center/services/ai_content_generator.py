@@ -185,7 +185,20 @@ TASK_URL = 'https://dashscope.aliyuncs.com/api/v1/tasks'
 
 
 def _get_image_key():
-    """Get image generation API key from system_config."""
+    """Get DashScope API Key from encrypted provider_api_keys table, with plaintext fallback."""
+    try:
+        from services.crypto import decrypt
+        with get_db() as conn:
+            conn.cursor_factory = psycopg2.extras.RealDictCursor
+            row = conn.execute(
+                "SELECT key_value_enc FROM provider_api_keys WHERE provider_slug=%s AND is_active=TRUE LIMIT 1",
+                ('dashscope',)
+            ).fetchone()
+            if row and row['key_value_enc']:
+                return decrypt(row['key_value_enc'])
+    except Exception:
+        pass
+    # Fallback: old system_config plaintext
     key = _get_key('dashscope_api_key')
     if not key:
         raise ValueError('通义万相 Key 未配置，请在系统设置中配置')
