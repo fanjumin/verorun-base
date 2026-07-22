@@ -320,8 +320,8 @@ class UnifiedLLM:
             val = os.environ.get(key_name, '')
             if val:
                 return val
-        # 最终回退：从 system_config 读取
-        return _get_system_key(env_map.get(provider, ''))
+        # 最终回退：从 system_config 读取（使用正确 key 格式）
+        return _get_system_key(f'model_{provider}_api_key')
 
     def _resolve_api_key(self, provider_slug, api_key_id=None):
         """优先通过 api_key_id 查 provider_api_keys，回退到 _fallback_key"""
@@ -407,13 +407,13 @@ class UnifiedLLM:
                     """SELECT * FROM llm_quotas WHERE is_active = 1 AND (
                         (target_type = 'user' AND target_id = %s) OR
                         (target_type = 'model' AND target_id = %s) OR
-                        (target_type = 'module' AND target_id IS NULL) OR
+                        (target_type = 'module' AND target_key = %s) OR
                         (target_type = 'global')
                     ) ORDER BY CASE target_type
                         WHEN 'user' THEN 1 WHEN 'model' THEN 2
                         WHEN 'module' THEN 3 WHEN 'global' THEN 4
                     END""",
-                    (user_id, model_id)
+                    (user_id or -1, model_id, module)
                 ).fetchall()
 
             if not quotas:
@@ -496,7 +496,7 @@ class UnifiedLLM:
 
     def chat_stream(self, messages, provider_model_id=None, provider=None,
                     model=None, module='unknown', **kwargs):
-        """流式 chat 接口，返回生成器"""
+        """流式 chat 接口，返回生成器（自动记录 token 用量）"""
         cfg = self._resolve_model(provider_model_id, provider, model)
 
         allowed, reason = check_ai_budget(module)
@@ -507,13 +507,33 @@ class UnifiedLLM:
             raise RuntimeError(quota_reason)
 
         client = self._get_client(cfg['base_url'], cfg['api_key'])
-        return client.chat.completions.create(
+        start_time = _time.time()
+        stream = client.chat.completions.create(
             model=cfg['model'],
             messages=messages,
             stream=True,
             stream_options={'include_usage': True},
             **kwargs
         )
+
+        def _tracked_stream():
+            final_usage = None
+            try:
+                for chunk in stream:
+                    if chunk.usage:
+                        final_usage = chunk.usage
+                    yield chunk
+            finally:
+                if final_usage:
+                    self._log_usage(
+                        cfg['model_id'], cfg['model'], cfg['provider'],
+                        final_usage.prompt_tokens,
+                        final_usage.completion_tokens,
+                        final_usage.total_tokens,
+                        call_type='chat_stream', module=module,
+                        elapsed_ms=int((_time.time() - start_time) * 1000)
+                    )
+        return _tracked_stream()
 
     # ── 便利方法（AIEngine 兼容） ──
 

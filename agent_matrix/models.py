@@ -567,7 +567,7 @@ def create_agent(data):
         row = conn.execute("""
             INSERT INTO agent_matrix
             (name, role_type, description, domain, managed_modules,
-             provider, model_name, api_key_ref, base_url, model_provider_id,
+             provider, model_name, api_key_ref, base_url, provider_model_id,
              system_prompt, role_prompt, task_template,
              capabilities, allowed_tools,
              max_concurrency, priority, auto_approve, is_active)
@@ -583,7 +583,7 @@ def create_agent(data):
             data.get('model_name', 'qwen-turbo'),
             data.get('api_key_ref', 'dashscope_text_key'),
             data.get('base_url', ''),
-            data.get('provider_model_id') or data.get('model_provider_id'),
+            data.get('provider_model_id'),
             data.get('system_prompt', ''),
             data.get('role_prompt', ''),
             data.get('task_template', ''),
@@ -604,7 +604,7 @@ def update_agent(agent_id, data):
         fields = []
         values = []
         for key in ['name', 'role_type', 'description', 'domain',
-                     'provider', 'model_name', 'api_key_ref', 'base_url', 'model_provider_id', 'provider_model_id',
+                     'provider', 'model_name', 'api_key_ref', 'base_url', 'provider_model_id',
                      'system_prompt', 'role_prompt', 'task_template',
                      'max_concurrency', 'priority', 'auto_approve', 'is_active']:
             if key in data:
@@ -858,7 +858,7 @@ def batch_delete_sessions(session_ids):
     if not session_ids:
         return 0
     with get_db() as conn:
-        placeholders = ','.join('%s' * len(session_ids))
+        placeholders = ','.join(['%s'] * len(session_ids))
         count = conn.execute(
             f"DELETE FROM agent_conversations WHERE session_id IN ({placeholders})",
             session_ids

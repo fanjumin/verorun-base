@@ -2801,11 +2801,21 @@ with get_db() as m:
             updated_at      TIMESTAMP DEFAULT NOW()
         )
     ''')
+    m.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_llm_quotas_type
+        ON llm_quotas (target_type, COALESCE(target_id, -1))
+    ''')
+    # 添加 target_key 列用于模块名匹配（非破坏性 migration）
+    try:
+        m.execute("ALTER TABLE llm_quotas ADD COLUMN target_key VARCHAR(100) DEFAULT NULL")
+    except Exception:
+        pass  # 列已存在
 
     # 种子数据：全站默认配额
     m.execute(
         "INSERT INTO llm_quotas (target_type, daily_limit, rate_limit) "
-        "VALUES ('global', 2000000, 30) ON CONFLICT DO NOTHING"
+        "VALUES ('global', 2000000, 30) "
+        "ON CONFLICT (target_type, COALESCE(target_id, -1)) DO NOTHING"
     )
     m.commit()
     print('[Migration] llm_quotas table + default seed created')

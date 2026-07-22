@@ -1178,7 +1178,7 @@ def provider_api_key_delete(kid):
     if err:
         return err
     with get_db() as conn:
-        # 检查是否被 provider_models 引用
+        # 检查是否被 provider_models 引用（api_key_id）
         refs = conn.execute(
             'SELECT COUNT(*) as cnt FROM provider_models WHERE api_key_id=%s', (kid,)
         ).fetchone()
@@ -1187,6 +1187,31 @@ def provider_api_key_delete(kid):
                 'success': False,
                 'error': _('Key is referenced by %(count)s model(s), please unlink first', count=refs['cnt'])
             }), 400
+
+        # 检查 provider_models 旧字段引用
+        key_row = conn.execute('SELECT name FROM provider_api_keys WHERE id=%s', (kid,)).fetchone()
+        if key_row:
+            refs2 = conn.execute(
+                "SELECT COUNT(*) as cnt FROM provider_models "
+                "WHERE api_key_ref = %s",
+                (key_row['name'],)
+            ).fetchone()
+            if refs2 and refs2['cnt'] > 0:
+                return jsonify({
+                    'success': False,
+                    'error': f'Key is referenced by {refs2["cnt"]} model(s) via api_key_ref'
+                }), 409
+
+            # 检查 agent_matrix 引用
+            refs3 = conn.execute(
+                "SELECT COUNT(*) as cnt FROM agent_matrix WHERE api_key_ref = %s",
+                (str(kid),)
+            ).fetchone()
+            if refs3 and refs3['cnt'] > 0:
+                return jsonify({
+                    'success': False,
+                    'error': f'Key is referenced by {refs3["cnt"]} agent(s)'
+                }), 409
 
         row = conn.execute('SELECT name FROM provider_api_keys WHERE id=%s', (kid,)).fetchone()
         if not row:

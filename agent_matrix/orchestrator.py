@@ -919,11 +919,12 @@ class AgentOrchestrator:
                 exec_result['image_url'] = local_url
                 exec_result['response'] = msg
             elif ref_image_url:
-                from services.ai_content_generator import generate_image
+                from services.ai_content_generator import generate_image, _validate_image_url
                 import urllib.request as _urlreq
                 gen_prompt = f'{prompt}\n\n参考图分析: {vision_analysis[:500]}' if vision_analysis else prompt
                 oss_url = generate_image(gen_prompt, size='1280x720', reference_image_url=ref_image_url)
                 if oss_url:
+                    _validate_image_url(oss_url)
                     img_data = _urlreq.urlopen(oss_url, timeout=30).read()
                     ext = '.jpg' if ('jpg' in oss_url or 'jpeg' in oss_url) else '.webp' if 'webp' in oss_url else '.png'
                     fn = f'{uuid.uuid4().hex}{ext}'
@@ -931,10 +932,11 @@ class AgentOrchestrator:
                     exec_result['image_url'] = f'/static/uploads/temp/{fn}'
                     exec_result['response'] = _('Picture generated')
             elif prompt:
-                from services.ai_content_generator import generate_image
+                from services.ai_content_generator import generate_image, _validate_image_url
                 import urllib.request as _urlreq
                 oss_url = generate_image(prompt, size='1280x720')
                 if oss_url:
+                    _validate_image_url(oss_url)
                     img_data = _urlreq.urlopen(oss_url, timeout=30).read()
                     ext = '.jpg' if ('jpg' in oss_url or 'jpeg' in oss_url) else '.webp' if 'webp' in oss_url else '.png'
                     fn = f'{uuid.uuid4().hex}{ext}'

@@ -199,34 +199,28 @@ def create_agent():
 
     try:
         provider = data.get('provider', 'dashscope')
-        # 处理 API Key 值——存入 system_config
+        # 处理 API Key 值——仅加密存入 provider_api_keys
         if 'api_key' in data:
-            key_name = f'model_{provider}_api_key'
             api_key_val = data.get('api_key', '')
-            with get_db() as conn:
-                if api_key_val:
-                    conn.execute(
-                        "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (%s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
-                        (key_name, api_key_val, admin.get('user_id', ''))
-                    )
-                else:
-                    conn.execute("DELETE FROM system_config WHERE key=%s", (key_name,))
             # 同步写入 provider_api_keys 表
             if api_key_val and provider:
                 try:
                     from services.crypto import encrypt as _enc
                     encrypted = _enc(api_key_val)
                     with get_db() as conn:
-                        conn.execute(
+                        row = conn.execute(
                             "INSERT INTO provider_api_keys (name, key_value_enc, provider, description) "
                             "VALUES (%s, %s, %s, %s) "
-                            "ON CONFLICT (name, provider) DO UPDATE SET key_value_enc=EXCLUDED.key_value_enc, updated_at=NOW()",
+                            "ON CONFLICT (name, provider) DO UPDATE SET key_value_enc=EXCLUDED.key_value_enc, updated_at=NOW() "
+                            "RETURNING id",
                             (f'agent:{data["name"]}', encrypted, provider, f'Agent: {data["name"]}')
-                        )
+                        ).fetchone()
+                        if row:
+                            data['api_key_id'] = row['id']
                         conn.commit()
                 except Exception:
                     pass  # 写入 provider_api_keys 失败不影响 Agent 创建
-            data['api_key_ref'] = key_name if api_key_val else ''
+            data['api_key_ref'] = ''
             del data['api_key']
         agent_id = _m().create_agent(data)
         return _success({'id': agent_id}, _('Agent has been created'))
@@ -259,20 +253,11 @@ def update_agent(aid):
     if err: return err
 
     data = request.get_json(force=True) or {}
-    # 处理 API Key 值——存入 system_config
+    # 处理 API Key 值——仅加密存入 provider_api_keys
     if 'api_key' in data:
         agent = _m().get_agent(aid)
         provider = data.get('provider') or (agent.get('provider', 'dashscope') if agent else 'dashscope')
-        key_name = f'model_{provider}_api_key'
         api_key_val = data.get('api_key', '')
-        with get_db() as conn:
-            if api_key_val:
-                conn.execute(
-                    "INSERT INTO system_config (key, value, updated_at, updated_by) VALUES (%s, %s, NOW(), %s) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
-                    (key_name, api_key_val, admin.get('user_id', ''))
-                )
-            else:
-                conn.execute("DELETE FROM system_config WHERE key=%s", (key_name,))
         # 同步写入 provider_api_keys 表
         if api_key_val and provider:
             try:
@@ -281,16 +266,19 @@ def update_agent(aid):
                 agent_name = data.get('name') or (agent.get('name', '') if agent else '')
                 name = f'agent:{agent_name}' if agent_name else f'{provider}_auto_key'
                 with get_db() as conn:
-                    conn.execute(
+                    row = conn.execute(
                         "INSERT INTO provider_api_keys (name, key_value_enc, provider, description) "
                         "VALUES (%s, %s, %s, %s) "
-                        "ON CONFLICT (name, provider) DO UPDATE SET key_value_enc=EXCLUDED.key_value_enc, updated_at=NOW()",
+                        "ON CONFLICT (name, provider) DO UPDATE SET key_value_enc=EXCLUDED.key_value_enc, updated_at=NOW() "
+                        "RETURNING id",
                         (name, encrypted, provider, f'Agent: {agent_name}')
-                    )
+                    ).fetchone()
+                    if row:
+                        data['api_key_id'] = row['id']
                     conn.commit()
             except Exception:
                 pass  # 写入 provider_api_keys 失败不影响 Agent 更新
-        data['api_key_ref'] = key_name if api_key_val else ''
+        data['api_key_ref'] = ''
         del data['api_key']
     ok = _m().update_agent(aid, data)
     if not ok:
@@ -1810,6 +1798,8 @@ def upload_file():
 @agent_matrix_bp.route('/download/<filename>', methods=['GET'])
 def download_temp_file(filename):
     """下载临时文件（含过期检查）"""
+    admin, err = _require_admin()
+    if err: return err
     import datetime, time
 
     safe_name = os.path.basename(filename)
