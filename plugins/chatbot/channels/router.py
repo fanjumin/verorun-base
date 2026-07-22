@@ -33,7 +33,7 @@ def _get_channel_config(channel):
 def _call_ai(user_query, session_id=''):
     """调用 AIEngine，返回 (reply_text, session_id, intent, sentiment)"""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-    from agent_matrix.engine import AIEngine
+    from agent_matrix.engine import UnifiedLLM
     from agent_matrix.intent import classify_intent
 
     intent, sentiment = classify_intent(user_query)
@@ -58,7 +58,7 @@ def _call_ai(user_query, session_id=''):
         provider = cfg.get('provider', 'dashscope')
         model_name = cfg.get('model_name', 'qwen-turbo')
 
-    engine = AIEngine({'provider': provider, 'model_name': model_name, 'system_prompt': system_prompt})
+    engine = UnifiedLLM({'provider': provider, 'model_name': model_name, 'system_prompt': system_prompt})
     full_reply = ''
     for token in engine.chat_stream([
         {'role': 'system', 'content': system_prompt},

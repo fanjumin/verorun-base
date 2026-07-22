@@ -794,14 +794,14 @@ class ShopAIProcessor:
             self.provider = self._read_config('shop_ai_provider', 'deepseek')
             self.model = self._read_config('shop_ai_model', 'deepseek-chat')
 
-            from agent_matrix.engine import AIEngine
+            from agent_matrix.engine import UnifiedLLM
             agent_config = {
                 'provider': self.provider,
                 'model_name': self.model,
                 'api_key_ref': f'{self.provider}_api_key',
                 'system_prompt': self.SYSTEM_PROMPT,
             }
-            self.engine = AIEngine(agent_config)
+            self.engine = UnifiedLLM(agent_config)
             if not self.engine or not self.engine.client:
                 self.engine = None
         except Exception as e:

@@ -566,8 +566,8 @@ def chat_tool():
     # 用轻量模型快速识别意图
     import json, re
     try:
-        from agent_matrix.engine import AIEngine
-        engine = AIEngine(master)
+        from agent_matrix.engine import UnifiedLLM
+        engine = UnifiedLLM(master)
         intent_raw = engine.chat([
             {"role": "system", "content": intent_prompt},
             {"role": "user", "content": message}
@@ -623,7 +623,7 @@ def chat_tool():
             audio_url = args.get('audio_url', '')
             if audio_url:
                 try:
-                    engine2 = AIEngine(master)
+                    engine2 = UnifiedLLM(master)
                     result = engine2.voice_clone(audio_url, name)
                     summary = f'🎙️ 声音克隆已提交：{name}\n任务ID: {result.get("task_id", "")}'
                     actions.append({'type': 'info', 'text': f'声音"{name}"克隆中，到「🎙️ 多媒体」查看进度'})
@@ -848,11 +848,11 @@ def _generate_ppt_file(topic, pages=10, style=_('Dark Tech Style, 16:9')):
     """生成PPT文件，返回下载文件名"""
     import os, json, time, uuid
     try:
-        from agent_matrix.engine import AIEngine
+        from agent_matrix.engine import UnifiedLLM
         agents = _m().list_agents(role_type='master', active_only=True)
         if not agents:
             return None
-        engine = AIEngine(agents[0])
+        engine = UnifiedLLM(agents[0])
 
         # AI 生成大纲
         outline_prompt = f"""你是一个PPT大纲生成器。主题：{topic}，需要{pages}页，风格：{style}。
@@ -1354,8 +1354,8 @@ def chat_stream_sse():
     agent_config['system_prompt'] = full_system
 
     # 创建 AI 引擎
-    from agent_matrix.engine import AIEngine
-    engine = AIEngine(agent_config)
+    from agent_matrix.engine import UnifiedLLM
+    engine = UnifiedLLM(agent_config)
 
     if not engine.is_ready():
         def err_gen():
@@ -1465,8 +1465,8 @@ def health_check():
     agents = _m().list_agents(active_only=True)
     results = []
     for a in agents:
-        from agent_matrix.engine import AIEngine
-        engine = AIEngine(a)
+        from agent_matrix.engine import UnifiedLLM
+        engine = UnifiedLLM(a)
         results.append({
             'id': a['id'],
             'name': a['name'],

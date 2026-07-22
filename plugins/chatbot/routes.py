@@ -240,7 +240,7 @@ def copilot_suggest():
     try:
         import sys as _sys, os as _os, json as _json
         _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..'))
-        from agent_matrix.engine import AIEngine
+        from agent_matrix.engine import UnifiedLLM
 
         context = f"对话历史：\n{history[:500]}\n\n用户最新消息：{user_query[:300]}" if history else f"User Message: {user_query[:300]}"
         prompt = f"""你是一个 AI 坐席助手（Agent Copilot）。根据以下对话，生成 2-3 条回复建议供坐席选择。
@@ -255,7 +255,7 @@ def copilot_suggest():
 
 输出格式：{{"suggestions": [_("Suggestion 1"), _("Suggestion 2"), _("Suggestion 3")]}}"""
 
-        engine = AIEngine({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
+        engine = UnifiedLLM({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
         reply = ''
         for token in engine.chat_stream([
             {'role': 'system', 'content': _('You are an agent assistant. Output only JSON.')},

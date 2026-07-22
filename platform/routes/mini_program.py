@@ -473,8 +473,8 @@ def mp_chat_stream():
     def generate():
         full_reply = ''
         try:
-            from agent_matrix.engine import AIEngine
-            engine = AIEngine({
+            from agent_matrix.engine import UnifiedLLM
+            engine = UnifiedLLM({
                 'provider': agent.get('provider', cfg.get('provider', 'dashscope')) if agent else cfg.get('provider', 'dashscope'),
                 'model_name': agent.get('model_name', cfg.get('model_name', 'qwen-turbo')) if agent else cfg.get('model_name', 'qwen-turbo'),
                 'system_prompt': system_prompt,
@@ -573,8 +573,8 @@ def mp_chat_send():
             msgs.extend(valid_history[-int(cfg.get('max_history', 20)):])
         msgs.append({'role': 'user', 'content': message[:1000]})
 
-        from agent_matrix.engine import AIEngine
-        engine = AIEngine({
+        from agent_matrix.engine import UnifiedLLM
+        engine = UnifiedLLM({
             'provider': agent.get('provider', 'dashscope') if agent else 'dashscope',
             'model_name': agent.get('model_name', 'qwen-turbo') if agent else 'qwen-turbo',
             'system_prompt': system_prompt,

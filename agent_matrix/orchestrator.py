@@ -335,9 +335,9 @@ class AgentOrchestrator:
         )
 
         sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-        from agent_matrix.engine import AIEngine
+        from agent_matrix.engine import UnifiedLLM
 
-        engine = AIEngine(master_config)
+        engine = UnifiedLLM(master_config)
 
         if not engine.is_ready():
             logger.warning("Master Agent AI 引擎未就绪，使用模板分解")
@@ -726,8 +726,8 @@ class AgentOrchestrator:
         """用 LLM 把较早的历史消息压缩成摘要，失败返回 None"""
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-            from agent_matrix.engine import AIEngine
-            engine = AIEngine(agent_config)
+            from agent_matrix.engine import UnifiedLLM
+            engine = UnifiedLLM(agent_config)
             if not engine.is_ready():
                 return None
             convo_text = '\n'.join(

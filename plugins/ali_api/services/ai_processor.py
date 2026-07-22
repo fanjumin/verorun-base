@@ -33,7 +33,7 @@ class AIProcessor:
     def _init_engine(self) -> None:
         """初始化AI引擎"""
         try:
-            from agent_matrix.engine import AIEngine
+            from agent_matrix.engine import UnifiedLLM
             
             # 构建agent配置
             agent_config = {
@@ -43,7 +43,7 @@ class AIProcessor:
                 'system_prompt': '你是一个专业的电商文案优化专家，擅长优化商品标题和描述，使其更具吸引力和营销力。',
             }
             
-            self.engine = AIEngine(agent_config)
+            self.engine = UnifiedLLM(agent_config)
             
             if not self.engine.client:
                 logger.warning(f"AI引擎初始化失败，provider={self.provider}, model={self.model}")

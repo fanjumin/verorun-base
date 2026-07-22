@@ -19,7 +19,7 @@ def classify_intent(user_query):
     if not user_query or not user_query.strip():
         return 'other', 'neutral'
     try:
-        from .engine import AIEngine
+        from .engine import UnifiedLLM
 
         prompt = f"""分析以下用户消息，输出 JSON，不要多余文字：
 {{
@@ -32,7 +32,7 @@ def classify_intent(user_query):
         from .models import get_master_agent_config
 
         config = get_master_agent_config()
-        engine = AIEngine({
+        engine = UnifiedLLM({
             'provider': config.get('provider', 'dashscope'),
             'model_name': config.get('model_name', 'qwen-turbo'),
         })

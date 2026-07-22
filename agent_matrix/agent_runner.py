@@ -30,8 +30,8 @@ class AgentRunner:
     def _get_engine(self):
         if not self._engine:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-            from agent_matrix.engine import AIEngine
-            self._engine = AIEngine(self.config)
+            from agent_matrix.engine import UnifiedLLM
+            self._engine = UnifiedLLM(self.config)
             self._engine_ready = self._engine.is_ready()
         return self._engine
 

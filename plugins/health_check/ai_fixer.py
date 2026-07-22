@@ -99,17 +99,17 @@ def _call_llm(system_prompt: str, user_prompt: str,
     engine_config = _build_aiengine_config()
 
     try:
-        from agent_matrix.engine import AIEngine
-        engine = AIEngine(engine_config)
+        from agent_matrix.engine import UnifiedLLM
+        engine = UnifiedLLM(engine_config)
     except ImportError:
-        logger.error("agent_matrix.engine.AIEngine not available")
+        logger.error("agent_matrix.engine.UnifiedLLM not available")
         return None
     except Exception as e:
-        logger.error("Failed to initialize AIEngine: %s", e)
+        logger.error("Failed to initialize UnifiedLLM: %s", e)
         return None
 
     if not engine.client:
-        logger.error("AIEngine has no client (missing API key)")
+        logger.error("UnifiedLLM has no client (missing API key)")
         return None
 
     try:
@@ -125,7 +125,7 @@ def _call_llm(system_prompt: str, user_prompt: str,
         )
         return resp.choices[0].message.content
     except Exception as e:
-        logger.error("LLM call via AIEngine failed: %s", e)
+        logger.error("LLM call via UnifiedLLM failed: %s", e)
         return None
 
 

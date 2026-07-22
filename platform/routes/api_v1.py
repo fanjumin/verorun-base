@@ -557,7 +557,7 @@ def chat_stream():
                 chat_messages.append({"role": msg.get('role', 'user'), "content": msg.get('content', '')})
 
             # 调用AI引擎
-            from agent_matrix.engine import AIEngine
+            from agent_matrix.engine import UnifiedLLM
 
             config = {
                 'provider': provider,
@@ -565,7 +565,7 @@ def chat_stream():
                 'system_prompt': system_prompt
             }
 
-            engine = AIEngine(config)
+            engine = UnifiedLLM(config)
             full_reply = ''
 
             def _sse_event(event_type, **kwargs):

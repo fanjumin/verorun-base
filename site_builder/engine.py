@@ -31,9 +31,9 @@ class SiteBuilderEngine:
 
     def _get_ai_engine(self):
         """Get AIEngine instance"""
-        from agent_matrix.engine import AIEngine
+        from agent_matrix.engine import UnifiedLLM
         master = self._get_master_agent()
-        return AIEngine(master)
+        return UnifiedLLM(master)
 
     def _call_llm(self, system_prompt: str, user_message: str, temperature: float = 0.3, max_tokens: int = 2000) -> str:
         """Call LLM, return raw text"""

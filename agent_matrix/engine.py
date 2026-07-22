@@ -109,28 +109,6 @@ def _resolve_agent_model_config(config: dict) -> dict:
     return config
 
 
-class AIEngine(LLMGateway):
-    """向后兼容包装器。@deprecated 请使用 LLMGateway 或 get_gateway()。"""
-
-    def __init__(self, config: dict):
-        super().__init__(config)
-        self.provider = self._provider
-        self.model = self._model
-        self.api_key = None
-        self.api_key_ref = config.get("api_key_ref", "")
-        self.base_url = self._base_url
-        self.system_prompt = self._system_prompt
-        self.agent_id = self._agent_id
-        self.agent_name = self._agent_name
-        self.client = None
-
-
-    def is_ready(self):
-        return self.client is not None
-
-
-
-
 # ============================================================
 # Token 异步记录（供 AIEngine 内部调用）
 # ============================================================
@@ -268,18 +246,17 @@ def check_ai_budget(scene: str = '') -> tuple:
 
 
 # ============================================================
-# LLMGateway — 统一 LLM 调用入口（阶段 2a：与 AIEngine 共存）
+# UnifiedLLM — 统一 LLM 调用入口
 # ============================================================
-# 所有新增模块应通过 get_gateway() 调用 LLM。
-# Gateway 从 provider_models 读取配置，支持两种寻址方式：
+# 所有模块通过 get_gateway() 或直接实例化调用 LLM。
+# 从 provider_models 读取配置，支持两种寻址方式：
 #   1. provider_model_id（推荐）
 #   2. provider + model（兼容旧代码）
-# 所有调用统一写入 agent_token_logs（含 module 字段）。
-# 注意：AIEngine 类不动，现有多处调用方不受影响。
+# 所有调用统一写入 agent_token_logs + agent_token_daily。
 
-class LLMGateway:
-    """统一 LLM 网关 — 移除硬编码，从 provider_models 读取配置。
-    支持实例模式：LLMGateway(config) 兼容 AIEngine 调用方式。
+class UnifiedLLM:
+    """统一 LLM 入口 — 合并 AIEngine + 旧 LLMGateway。
+    支持实例模式：UnifiedLLM(config) 兼容 AIEngine 调用方式。
     """
 
     def __init__(self, config=None):
@@ -359,7 +336,7 @@ class LLMGateway:
                     from services.crypto import decrypt as _decrypt
                     return _decrypt(row['key_value_enc'])
             except Exception as e:
-                logger.warning(f"[LLMGateway] api_key_id={api_key_id} lookup failed: {e}")
+                logger.warning(f"[UnifiedLLM] api_key_id={api_key_id} lookup failed: {e}")
         return self._fallback_key(provider_slug)
 
     def _resolve_model(self, provider_model_id=None, provider=None, model=None):
@@ -465,7 +442,7 @@ class LLMGateway:
             return True, ''
 
         except Exception as e:
-            logger.warning(f'[LLMGateway] Quota check failed (fail-open): {e}')
+            logger.warning(f'[UnifiedLLM] Quota check failed (fail-open): {e}')
             return True, ''  # fail-open
 
     def chat(self, messages, provider_model_id=None, provider=None, model=None,
@@ -644,41 +621,6 @@ def _write_usage_logs(agent_id, agent_name, model_name, provider,
         pass
 
 
-def _log_gateway_usage(model_id, model_name, provider,
-                       prompt_tokens, completion_tokens, total_tokens,
-                       call_type='chat', module='unknown', elapsed_ms=0):
-    """Gateway 专用异步日志记录 — 写入 agent_token_logs。静默失败。"""
-    try:
-        import sys as _sys, os as _os
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
-        from models import get_db as _get_db
-        with _get_db() as conn:
-            conn.execute("""
-                INSERT INTO agent_token_logs
-                (agent_id, agent_name, model_name, provider,
-                 prompt_tokens, completion_tokens, total_tokens,
-                 call_type, module, created_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
-            """, (model_id, f'gateway:{module}', model_name, provider,
-                  prompt_tokens, completion_tokens, total_tokens,
-                  call_type, module))
-            conn.execute("""
-                INSERT INTO agent_token_daily
-                (agent_id, agent_name, stat_date,
-                 prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
-                VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, 1, NOW())
-                ON CONFLICT(agent_id, stat_date) DO UPDATE SET
-                    prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
-                    completion_tokens  = completion_tokens + excluded.completion_tokens,
-                    total_tokens       = total_tokens + excluded.total_tokens,
-                    call_count         = call_count + 1,
-                    updated_at         = NOW()
-            """, (model_id, f'gateway:{module}', prompt_tokens, completion_tokens, total_tokens))
-            conn.commit()
-    except Exception:
-        pass
-
-
 # 全局单例
 _gateway = None
 _gateway_lock = threading.Lock()
@@ -690,5 +632,8 @@ def get_gateway():
         return _gateway
     with _gateway_lock:
         if _gateway is None:
-            _gateway = LLMGateway()
+            _gateway = UnifiedLLM()
         return _gateway
+
+
+LLMGateway = UnifiedLLM  # 向后兼容别名

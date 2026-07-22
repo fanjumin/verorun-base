@@ -224,7 +224,7 @@ def qa_check_conversation(session_id, user_query, ai_reply):
     try:
         import sys as _sys, os as _os, json as _json
         _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..'))
-        from agent_matrix.engine import AIEngine
+        from agent_matrix.engine import UnifiedLLM
 
         prompt = f"""分析以下 AI 客服对话，从以下维度打分（1-5），输出 JSON：
 
@@ -239,7 +239,7 @@ def qa_check_conversation(session_id, user_query, ai_reply):
 用户：{user_query[:300]}
 AI：{ai_reply[:500]}"""
 
-        engine = AIEngine({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
+        engine = UnifiedLLM({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
         reply = ''
         for token in engine.chat_stream([
             {'role': 'system', 'content': '你是一个对话质量评审员。只输出 JSON。'},
