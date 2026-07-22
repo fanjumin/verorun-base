@@ -6,10 +6,11 @@
 window.editor = (function() {
   'use strict';
 
-  var T = window.__SSO_TOKEN || '';
-  if (!T) {
+  function getToken() {
+    var t = window.__SSO_TOKEN;
+    if (t) return t;
     var m = document.cookie.match(/(?:^|;\s*)sso_token=([^;]*)/);
-    T = m ? decodeURIComponent(m[1]) : '';
+    return m ? decodeURIComponent(m[1]) : '';
   }
   var API_BASE = '/admin/automation/workflows';
   var CURRENT_WORKFLOW_ID = null;  // 编辑模式时非 null
@@ -476,7 +477,7 @@ window.editor = (function() {
     retries = retries || 2;
     return fetch(url, {
       method: method,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + T },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
       body: body ? JSON.stringify(body) : undefined
     }).then(function(r) {
       if (!r.ok && r.status === 409) {
