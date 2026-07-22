@@ -527,7 +527,7 @@ def create_workflow(data):
             data.get('name'), data.get('description', ''),
             data.get('version', 1), data.get('is_active', 1),
             data.get('agent_type', 'system'), data.get('agent_id'),
-            data.get('definition', '{"nodes":[],"edges":[]}'),
+            to_json(data.get('definition', {"nodes":[],"edges":[]})),
             data.get('change_log', ''),
             to_json(data.get('triggers', [])),
             data.get('max_concurrency', 1),
