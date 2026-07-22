@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="{{ url_for('static_files', filename='css/design-system.css') }}"/>
 
 {# 编辑器专用样式 #}
-<link rel="stylesheet" href="{{ url_for('static_files', filename='css/workflow_editor.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static_files', filename='css/workflow_editor.css') }}?v=2"/>
 
 {# React Flow 样式 #}
 <link rel="stylesheet" href="{{ url_for('static_files', filename='lib/workflow/react-flow.css') }}"/>
@@ -34,7 +34,7 @@
 <script>window.__SSO_TOKEN = {{ sso_token|tojson }};</script>
 
 {# 编辑器工具函数 #}
-<script src="{{ url_for('static_files', filename='js/workflow_editor.js') }}"></script>
+<script src="{{ url_for('static_files', filename='js/workflow_editor.js') }}?v=2"></script>
 
 {# 翻译字典 #}
 <script>
@@ -150,6 +150,6 @@ window.__t = {
 </footer>
 
 {# React 入口 — 预编译 JSX #}
-<script src="{{ url_for('static_files', filename='js/workflow_editor_app.js') }}"></script>
+<script src="{{ url_for('static_files', filename='js/workflow_editor_app.js') }}?v=2"></script>
 </body>
 </html>
