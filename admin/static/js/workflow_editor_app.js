@@ -428,7 +428,7 @@ function FlowEditor() {
     className: 'rf-minimap',
     nodeColor: 'rgba(99,102,241,0.6)',
     maskColor: 'rgba(0,0,0,0.6)'
-  }))));
+  })));
 }
 
 // ── 挂载 React 应用 ──
