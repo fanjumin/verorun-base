@@ -108,22 +108,21 @@ def _call_llm(system_prompt: str, user_prompt: str,
         logger.error("Failed to initialize UnifiedLLM: %s", e)
         return None
 
-    if not engine.client:
-        logger.error("UnifiedLLM has no client (missing API key)")
+    if not engine.is_ready():
+        logger.error("UnifiedLLM not ready (missing API key)")
         return None
 
     try:
-        resp = engine.client.chat.completions.create(
-            model=engine.model,
+        resp = engine.chat(
             messages=[
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},
             ],
             temperature=temperature,
             max_tokens=4096,
-            response_format={'type': 'json_object'},
+            module='health_check',
         )
-        return resp.choices[0].message.content
+        return resp
     except Exception as e:
         logger.error("LLM call via UnifiedLLM failed: %s", e)
         return None

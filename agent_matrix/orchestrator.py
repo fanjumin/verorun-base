@@ -1029,15 +1029,24 @@ def update_agent_stats(agent_id, success=True):
     try:
         from agent_matrix import models as m
         with m.get_db() as conn:
-            field = 'tasks_success' if success else 'tasks_failed'
-            conn.execute(f"""
-                UPDATE agent_matrix
-                SET tasks_total = tasks_total + 1,
-                    {field} = {field} + 1,
-                    last_run_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (agent_id,))
+            if success:
+                conn.execute("""
+                    UPDATE agent_matrix
+                    SET tasks_total = tasks_total + 1,
+                        tasks_success = tasks_success + 1,
+                        last_run_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (agent_id,))
+            else:
+                conn.execute("""
+                    UPDATE agent_matrix
+                    SET tasks_total = tasks_total + 1,
+                        tasks_failed = tasks_failed + 1,
+                        last_run_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (agent_id,))
             conn.commit()
     except Exception:
         pass
