@@ -20,6 +20,14 @@ def insights_latest():
     posts = get_posts(limit=3, audience='public')
     return jsonify({"posts": posts, "count": len(posts)})
 
+
+@cms_bp.route('/api/v1/categories')
+def public_categories():
+    """Return public active categories as JSON for widget rendering."""
+    cats = get_categories(active_only=True, audience='public')
+    return jsonify({"categories": cats, "count": len(cats)})
+
+
 _PAGES = {
     'home': 'home',
     'brand': 'brand',

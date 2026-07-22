@@ -1,16 +1,16 @@
-window.l_llm_quotas=function(){
-  document.getElementById("pt").textContent="{{ _('LLM Quotas') }}";
-  var mc=document.getElementById("mc");
+window.l_llm_quotas=function(targetId){
+  if(!targetId) document.getElementById("pt").textContent="{{ _('LLM Quotas') }}";
+  var target=document.getElementById(targetId||"mc");
   render();
 
   function render(){
-    mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+    target.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
     fetch("/admin/llm-quotas",{headers:{"Authorization":"Bearer "+T}})
       .then(function(r){return r.json()})
       .then(function(d){
-        if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+        if(!d.success){target.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
         renderList(d.data||[]);
-      }).catch(function(){mc.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:l_llm_quotas()">{{ _('Retry') }}</a></div>'});
+      }).catch(function(){target.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:l_llm_quotas()">{{ _('Retry') }}</a></div>'});
   }
 
   var TYPES={"global":"{{ _('Global') }}","module":"{{ _('Module') }}","model":"{{ _('Model') }}","user":"{{ _('User') }}"};
@@ -44,7 +44,7 @@ window.l_llm_quotas=function(){
       h+='</tbody></table>';
     }
     h+='</div>';
-    mc.innerHTML=h;
+    target.innerHTML=h;
   }
 
   function formatNum(n){if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(1)+'K';return n.toString()}

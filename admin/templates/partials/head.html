@@ -126,6 +126,13 @@ a:hover{text-decoration:underline}
 .modal .modal-c{background:var(--bg-card);border-radius:12px;padding:20px;border:1px solid var(--border);max-height:80vh;overflow-y:auto;width:90%;max-width:500px}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media(max-width:768px){.sidebar{width:52px;min-width:52px}.sidebar .logo{padding:12px 10px;justify-content:center}.sidebar .logo .logo-text,.sidebar .logo .logo-sub,.ni span,.ns .ns-label{display:none}.ns{justify-content:center;padding:10px 0 4px}.ns .ns-arrow{display:none}.ni{justify-content:center;padding:8px 0;border-left:none}.ni svg{width:18px;height:18px}.ni.sel::after{display:none}.ni.sel{background:var(--glow-accent);border-left:none}}
+/* ===== AI Hub Tab Bar ===== */
+.ai-tab-bar{display:flex;gap:4px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;overflow-x:auto;flex-wrap:nowrap}
+.ai-tab{padding:8px 16px;font-size:12px;font-weight:600;color:var(--dim);background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;white-space:nowrap;transition:all .2s}
+.ai-tab:hover{color:var(--text);background:rgba(0,245,255,0.06)}
+.ai-tab.active{color:var(--accent);background:rgba(0,245,255,0.12);border-color:var(--accent)}
+.ai-tab-content{border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;min-height:400px;padding:16px}
+.ai-hub-subtitle{font-size:11px;color:var(--dim);padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border)}
 </style>
 <script src="/admin/static/lib/chart.min.js" defer></script>
 <script src="/admin/static/lib/echarts.min.js" defer></script>

@@ -1,11 +1,11 @@
-window.l_matrix=function(){
-  document.getElementById("pt").textContent="{{ _('Agent Matrix') }}";
-  var mc=document.getElementById("mc");
-  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Load Matrix Data') }}...</div>';
+window.l_matrix=function(targetId){
+  if(!targetId) document.getElementById("pt").textContent="{{ _('Agent Matrix') }}";
+  var target=document.getElementById(targetId||"mc");
+  target.innerHTML='<div class="lo"><div class="s"></div>{{ _('Load Matrix Data') }}...</div>';
   fetch("/admin/agent-matrix/dashboard",{headers:{"Authorization":"Bearer "+T}})
     .then(function(r){return r.json()})
     .then(function(d){
-      if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+      if(!d.success){target.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
       var dat=d.data;
       var stats=dat.stats;
       var agents=dat.active_agents;
@@ -77,9 +77,10 @@ window.l_matrix=function(){
         h+='</table></div>';
       }
 
-      mc.innerHTML=h;
+      if(targetId) h = '<div class="ai-hub-subtitle">AI Hub <span style="color:var(--dim)">&rsaquo;</span> Agent Matrix</div>' + h;
+      target.innerHTML=h;
     }).catch(function(){
-      mc.innerHTML='<div class="em">{{ _('Connection Failed') }}，{{ _('Please Confirm Service is Running') }}</div>';
+      target.innerHTML='<div class="em">{{ _('Connection Failed') }}，{{ _('Please Confirm Service is Running') }}</div>';
     });
 };
 

@@ -1,16 +1,16 @@
-window.l_provider_keys=function(){
-  document.getElementById("pt").textContent="{{ _('Provider Keys') }}";
-  var mc=document.getElementById("mc");
+window.l_provider_keys=function(targetId){
+  if(!targetId) document.getElementById("pt").textContent="{{ _('Provider Keys') }}";
+  var target=document.getElementById(targetId||"mc");
   render();
 
   function render(){
-    mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+    target.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
     fetch("/admin/provider-api-keys",{headers:{"Authorization":"Bearer "+T}})
       .then(function(r){return r.json()})
       .then(function(d){
-        if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+        if(!d.success){target.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
         renderList(d.data||[]);
-      }).catch(function(){mc.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:l_provider_keys()">{{ _('Retry') }}</a></div>'});
+      }).catch(function(){target.innerHTML='<div class="em">{{ _('Load failed') }} — <a href="javascript:l_provider_keys()">{{ _('Retry') }}</a></div>'});
   }
 
   function renderList(keys){
@@ -41,7 +41,7 @@ window.l_provider_keys=function(){
       h+='</tbody></table>';
     }
     h+='</div>';
-    mc.innerHTML=h;
+    target.innerHTML=h;
   }
 
   window.showForm=function(id){

@@ -24,7 +24,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Agent Matrix",
+        "group": "System",
         "key": "channels",
         "icon": "channels",
         "label": "IM Gateway"

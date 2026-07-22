@@ -1,6 +1,9 @@
-window.l_token_monitoring=function(){
-  document.getElementById("pt").textContent="{{ _('Token Usage') }}";
-  var mc=document.getElementById("mc");
+var _tokenTargetId=null;
+window._tokenDispatch=function(ev,d){document.getElementById(_tokenTargetId).dispatchEvent(new CustomEvent(ev,{detail:d}))};
+window.l_token_monitoring=function(targetId){
+  if(!targetId) document.getElementById("pt").textContent="{{ _('Token Usage') }}";
+  _tokenTargetId=targetId||"mc";
+  var mc=document.getElementById(_tokenTargetId);
   mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
 
   var period="today", dimension="", tab="agents";  // tab: agents|models|users
@@ -41,7 +44,7 @@ window.l_token_monitoring=function(){
     h+='<div class="cd"><div class="st" style="display:flex;align-items:center;gap:4px;margin-bottom:8px">';
     tabs.forEach(function(t){
       var sel=t[0]===period;
-      h+='<span class="btn '+(sel?'bp':'bo')+'" style="padding:3px 10px;font-size:11px;cursor:pointer" onclick="document.getElementById(\'mc\').dispatchEvent(new CustomEvent(\'token-period\',{detail:\''+t[0]+'\'}))">'+t[1]+'</span>';
+      h+='<span class="btn '+(sel?'bp':'bo')+'" style="padding:3px 10px;font-size:11px;cursor:pointer" onclick="_tokenDispatch(\'token-period\',\''+t[0]+'\')">'+t[1]+'</span>';
     });
     h+='<span style="flex:1"></span>';
     h+='<span style="font-size:11px;color:var(--dim)">\u9EC4:&gt;'+tf(thr.agent_yellow)+' \u7EA2:&gt;'+tf(thr.agent_red)+'</span>';
@@ -52,7 +55,7 @@ window.l_token_monitoring=function(){
     h+='<div style="display:flex;gap:4px;margin-bottom:12px">';
     dims.forEach(function(d){
       var sel=d[0]===dimension;
-      h+='<span class="btn '+(sel?'bp':'bo')+'" style="padding:2px 8px;font-size:10px;cursor:pointer" onclick="document.getElementById(\'mc\').dispatchEvent(new CustomEvent(\'token-dim\',{detail:\''+d[0]+'\'}))">'+d[1]+'</span>';
+      h+='<span class="btn '+(sel?'bp':'bo')+'" style="padding:2px 8px;font-size:10px;cursor:pointer" onclick="_tokenDispatch(\'token-dim\',\''+d[0]+'\')">'+d[1]+'</span>';
     });
     h+='</div>';
 
@@ -78,7 +81,7 @@ window.l_token_monitoring=function(){
     h+='<div class="cd" style="margin-top:4px"><div style="display:flex;gap:2px;margin-bottom:12px">';
     tabs2.forEach(function(t){
       var sel=t[0]===tab;
-      h+='<span class="btn '+(sel?'bp':'bo')+'" style="padding:3px 10px;font-size:11px;cursor:pointer" onclick="document.getElementById(\'mc\').dispatchEvent(new CustomEvent(\'token-tab\',{detail:\''+t[0]+'\'}))">'+t[1]+'</span>';
+      h+='<span class="btn '+(sel?'bp':'bo')+'" style="padding:3px 10px;font-size:11px;cursor:pointer" onclick="_tokenDispatch(\'token-tab\',\''+t[0]+'\')">'+t[1]+'</span>';
     });
     h+='</div>';
 
@@ -132,6 +135,7 @@ window.l_token_monitoring=function(){
     // {{ _('Recent Call Log Card') }}
     h+='<div class="cd" style="margin-top:4px" id="token-log-card"><div class="st">{{ _('Recent Call Logs') }}</div><div id="token-log-body" style="font-size:11px;color:var(--dim);padding:8px 0">{{ _('Click') }} Agent {{ _('View Logs by Name') }}</div></div>';
 
+    if(_tokenTargetId!=='mc') h = '<div class="ai-hub-subtitle">AI Hub <span style="color:var(--dim)">&rsaquo;</span> Token Usage</div>' + h;
     mc.innerHTML=h;
   }
 
