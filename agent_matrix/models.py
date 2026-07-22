@@ -6,7 +6,7 @@ Agent Matrix — 数据库模型
 复用 auth-center/models/database.py 的 get_db() 模式。
 """
 from i18n import _
-import json, os, sys, re
+import json, os, sys, re, threading
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
