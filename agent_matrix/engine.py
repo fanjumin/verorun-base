@@ -8,9 +8,20 @@ Agent Matrix — AI 引擎
 from i18n import _
 import json, logging, sys, os, threading
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import time as _time
 
 logger = logging.getLogger(__name__)
+
+# 模块级 sys.path 设置（只执行一次，避免函数内重复插入）
+_PARENT_DIR = os.path.join(os.path.dirname(__file__), '..')
+_AUTH_CENTER_DIR = os.path.join(os.path.dirname(__file__), '..', 'auth-center')
+for _d in (_AUTH_CENTER_DIR, _PARENT_DIR):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
+
+# 统一日志线程池（避免每次调用创建新线程）
+_LOG_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='token-log')
 
 # 供应商默认配置
 PROVIDER_CONFIGS = {
@@ -49,7 +60,6 @@ PROVIDER_CONFIGS = {
 
 def _get_system_key(key_name):
     """从 system_config 读取 API Key"""
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
     from models import get_db
     with get_db() as conn:
         row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key_name,)).fetchone()
@@ -60,8 +70,6 @@ def _get_system_key(key_name):
 def _resolve_key_from_provider_api_keys(provider_slug):
     """从 provider_api_keys 表读取并解密 API Key"""
     try:
-        import sys as _sys, os as _os
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', 'auth-center'))
         from models import get_db as _get_db
         from services.crypto import decrypt as _decrypt
         with _get_db() as conn:
@@ -86,7 +94,6 @@ def _resolve_agent_model_config(config: dict) -> dict:
     # 优先用新字段 provider_model_id，回退到旧 model_provider_id
     pm_id = config.get('provider_model_id') or config.get('model_provider_id')
     if pm_id:
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
         from models import get_db
         with get_db() as conn:
             pm = conn.execute(
@@ -142,8 +149,8 @@ def _log_token_usage(agent_id, agent_name, model_name, provider,
                     updated_at         = NOW()
             """, (agent_id, agent_name, prompt_tokens, completion_tokens, total_tokens))
             conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"[TokenLog] Failed to write token usage: {e}")
 
 
 # ============================================================
@@ -261,6 +268,8 @@ class UnifiedLLM:
 
     def __init__(self, config=None):
         self._clients = {}  # 缓存 OpenAI 客户端实例
+        self._clients_ts = {}  # 缓存时间戳（用于 TTL 过期）
+        self._clients_lock = threading.Lock()  # 线程安全
         self._rate_limiter = deque(maxlen=1000)
         self._provider = ''
         self._model = ''
@@ -285,8 +294,6 @@ class UnifiedLLM:
 
     def _get_conn(self):
         """惰性获取 DB 连接（避免 init 时触发 PostgreSQL 连接）"""
-        import sys as _sys, os as _os
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
         from models import get_db
         return get_db()
 
@@ -387,16 +394,22 @@ class UnifiedLLM:
         raise ValueError('Cannot resolve model: provide provider_model_id or (provider + model)')
 
     def _get_client(self, base_url, api_key):
-        """获取或创建 OpenAI 客户端（带缓存）"""
-        cache_key = f'{base_url}::{api_key[:12]}'
-        if cache_key not in self._clients:
+        """获取或创建 OpenAI 客户端（线程安全 + 5 分钟缓存 TTL）"""
+        import hashlib
+        cache_key = hashlib.sha256(f'{base_url}::{api_key}'.encode()).hexdigest()[:16]
+        now = _time.time()
+        with self._clients_lock:
+            if cache_key in self._clients and now - self._clients_ts.get(cache_key, 0) < 300:
+                return self._clients[cache_key]
             from openai import OpenAI
-            self._clients[cache_key] = OpenAI(
+            client = OpenAI(
                 base_url=base_url,
                 api_key=api_key,
                 timeout=120,
             )
-        return self._clients[cache_key]
+            self._clients[cache_key] = client
+            self._clients_ts[cache_key] = now
+            return client
 
     def _check_quota(self, model_id, module, user_id=None):
         """检查 llm_quotas 精细化配额（user > model > module > global）。
@@ -419,26 +432,31 @@ class UnifiedLLM:
             if not quotas:
                 return True, ''
 
+            # 第一轮：检查日预算
             for q in quotas:
                 q = dict(q)
                 if q.get('daily_limit', 0) > 0:
                     today_used = conn.execute(
-                        "SELECT COALESCE(SUM(total_tokens), 0) FROM agent_token_logs "
+                        "SELECT COALESCE(SUM(total_tokens), 0) AS c FROM agent_token_logs "
                         "WHERE created_at >= CURRENT_DATE AND module = %s",
                         (module,)
                     ).fetchone()
-                    used = today_used[0] if isinstance(today_used, tuple) else (today_used.get('coalesce', 0) or 0)
+                    used = today_used['c'] if isinstance(today_used, dict) else (today_used[0] or 0)
                     if used >= q['daily_limit']:
                         return False, f"Daily quota exceeded for {module}: {used}/{q['daily_limit']} tokens"
 
+            # 第二轮：检查速率限制（先检查，全部通过后再记录）
+            for q in quotas:
+                q = dict(q)
                 if q.get('rate_limit', 0) > 0:
                     now = _time.time()
                     window = q.get('rate_window_sec', 60)
-                    self._rate_limiter.append(now)
                     recent = sum(1 for t in self._rate_limiter if now - t < window)
-                    if recent > q['rate_limit']:
+                    if recent >= q['rate_limit']:
                         return False, f"Rate limit exceeded: {recent}/{q['rate_limit']} per {window}s"
 
+            # 所有检查通过，记录一次速率时间戳
+            self._rate_limiter.append(_time.time())
             return True, ''
 
         except Exception as e:
@@ -596,13 +614,12 @@ class UnifiedLLM:
         try:
             agent_id = self._agent_id or model_id
             agent_name = self._agent_name or f'gateway:{module}'
-            threading.Thread(target=_write_usage_logs, args=(
+            _LOG_EXECUTOR.submit(_write_usage_logs,
                 agent_id, agent_name, model_name, provider,
                 prompt_tokens, completion_tokens, total_tokens,
-                call_type, dimension, module, elapsed_ms,
-            ), daemon=True).start()
-        except Exception:
-            pass
+                call_type, dimension, module, elapsed_ms)
+        except Exception as e:
+            logger.error(f"[UnifiedLLM] Failed to submit log task: {e}")
 
 
 def _write_usage_logs(agent_id, agent_name, model_name, provider,
@@ -611,8 +628,6 @@ def _write_usage_logs(agent_id, agent_name, model_name, provider,
                       elapsed_ms=0):
     """写入 agent_token_logs + agent_token_daily。"""
     try:
-        import sys as _sys, os as _os
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
         from models import get_db as _get_db
         with _get_db() as conn:
             conn.execute("""
@@ -637,8 +652,8 @@ def _write_usage_logs(agent_id, agent_name, model_name, provider,
                     updated_at         = NOW()
             """, (agent_id, agent_name, prompt_tokens, completion_tokens, total_tokens))
             conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"[TokenLog] Failed to write token usage: {e}")
 
 
 # 全局单例

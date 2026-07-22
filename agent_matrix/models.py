@@ -112,7 +112,7 @@ def _next_task_id():
     with _task_counter_lock:
         _task_counter += 1
         date = datetime.now().strftime('%Y%m%d')
-        return f'AT-{date}-{_task_counter:04d}'
+        return f'AT-{date}-{_task_counter:06d}'
 
 
 def _next_session_id():
@@ -362,6 +362,12 @@ def init_agent_matrix_tables():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tkl_module ON agent_token_logs(module)")
             conn.commit()
             print('[Migration] Added agent_token_logs.module')
+
+    # ── Migration: add index on agent_token_logs.user_id (for token_stats JOINs) ──
+    with get_db() as conn:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tkl_user_id ON agent_token_logs(user_id)")
+        conn.commit()
+        print('[Migration] Added agent_token_logs.user_id index')
 
     # ── Migration: make legacy agent_matrix fields nullable ──
     with get_db() as conn:
