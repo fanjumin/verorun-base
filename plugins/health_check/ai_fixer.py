@@ -205,7 +205,7 @@ class AIFixer:
             plan = json.loads(response_text)
         except json.JSONDecodeError:
             import re
-            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            match = re.search(r'\{(?:[^{}]|(?:\{[^{}]*\}))*\}', response_text, re.DOTALL)
             if match:
                 try:
                     plan = json.loads(match.group())
@@ -303,8 +303,18 @@ class AIFixer:
         This captures the current state before the fix is applied,
         so it can be reversed later.
         """
+        import re
         params = sug.params
         undo = {}
+
+        # 安全校验：LLM 输出的 table/field 必须只含合法标识符字符，防止 SQL 注入
+        _SAFE_IDENTIFIER = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+        table = params.get('table', '')
+        field = params.get('field', '')
+        if table and not _SAFE_IDENTIFIER.match(table):
+            return {'note': f'Invalid table name rejected: {table}'}
+        if field and not _SAFE_IDENTIFIER.match(field):
+            return {'note': f'Invalid field name rejected: {field}'}
 
         if sug.action == 'set_log_level' and conn:
             old = conn.execute(

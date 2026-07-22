@@ -536,7 +536,7 @@ if __name__ == '__main__(':
     scheduler = SchedulerEngine()
     scheduler.start()
 
-    print(f')🟢 Scheduler started: {scheduler.scheduler_id}')
+    print(f'🟢 Scheduler started: {scheduler.scheduler_id}')
     print('Press Ctrl+C to stop.')
 
     try:

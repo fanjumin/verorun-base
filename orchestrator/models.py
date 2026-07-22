@@ -86,8 +86,8 @@ def init_orchestrator_tables():
                 -- 调度方式
                 job_type        TEXT NOT NULL DEFAULT 'cron'
                                 CHECK(job_type IN ('cron','interval','once')),
-                cron_expr       TEXT DEFAULT '_(',          -- Standard Cron: ')0 30 9 * * 1-5'
-                natural_expr    TEXT DEFAULT '_(',          -- Natural Language: ')每个交易日 9:30'
+                cron_expr       TEXT DEFAULT '',          -- Standard Cron: '0 30 9 * * 1-5'
+                natural_expr    TEXT DEFAULT '',          -- Natural Language: '每个交易日 9:30'
                 interval_seconds BIGINT DEFAULT 0,       -- 固定间隔（秒）
                 timezone        TEXT DEFAULT 'Asia/Shanghai',
                 calendar        TEXT DEFAULT '{}',        -- JSON: {workdays_only, exclude_holidays, trade_days_only}

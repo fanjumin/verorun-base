@@ -45,7 +45,7 @@ def dispatch_event(event: str, context: dict = None) -> list:
             rows = conn.execute(
                 "SELECT id, name, workflow_id, match_condition "
                 "FROM workflow_triggers "
-                "WHERE trigger_event=? AND is_active=1",
+                "WHERE trigger_event=%s AND is_active=1",
                 (event,)
             ).fetchall()
 

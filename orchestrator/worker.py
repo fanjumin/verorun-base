@@ -219,9 +219,16 @@ class WorkerPool:
 
         if script_path:
             import subprocess
+            # 安全校验：script_path 必须在 SCRIPTS_DIR 内
+            SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'scripts')
+            real_script = os.path.realpath(os.path.join(SCRIPTS_DIR, os.path.basename(script_path)))
+            if not real_script.startswith(os.path.realpath(SCRIPTS_DIR)):
+                return {'success': False, 'error': f'Script path rejected: {script_path}'}
+            if not os.path.isfile(real_script):
+                return {'success': False, 'error': f'Script not found: {script_path}'}
             try:
                 result = subprocess.run(
-                    [sys.executable, script_path] + script_args,
+                    [sys.executable, real_script] + script_args,
                     capture_output=True, text=True, timeout=timeout
                 )
                 return {

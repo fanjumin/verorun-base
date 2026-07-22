@@ -191,7 +191,7 @@ def get_agent_performance():
                     SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) as resolved,
                     ROUND(AVG(
                         CASE WHEN replied_at IS NOT NULL AND replied_at!=''
-                        THEN (julianday(replied_at) - julianday(created_at)) * 86400
+                        THEN EXTRACT(EPOCH FROM (replied_at::timestamp - created_at::timestamp))
                         ELSE NULL END
                     ), 0) as avg_response_sec
                   FROM user_tickets

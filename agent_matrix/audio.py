@@ -203,7 +203,8 @@ class AudioOutputProcessor:
                     (provider_slug,)
                 ).fetchone()
                 if row and row['key_value_enc']:
-                    return row['key_value_enc']
+                    from services.crypto import decrypt
+                    return decrypt(row['key_value_enc'])
         except Exception as e:
             logger.error(
                 'Failed to resolve key for provider=%s: %s',

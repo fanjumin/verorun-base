@@ -4,7 +4,8 @@
    Free tier: qwen-turbo (100万 tokens/月), wanx2.1-t2i-turbo.
 """
 
-import logging, json, os, requests, time
+import logging, json, os, requests, time, ipaddress, socket
+from urllib.parse import urlparse
 from models import get_db
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ CONTENT_PROMPTS = {
 def generate_article(topic, content_type='article', temperature=0.7):
     """Generate content using DashScope Qwen. Returns {title, summary, body, body_html}."""
     prompt_template = CONTENT_PROMPTS.get(content_type, CONTENT_PROMPTS['article'])
-    prompt = prompt_template.format(topic=topic)
+    prompt = prompt_template.replace('{topic}', topic)
 
     messages = [
         {'role': 'system', 'content': '你是一个专业的中文内容创作者。'},
@@ -296,8 +297,27 @@ def generate_cover_image(title, topic=''):
     return generate_image(prompt, size='1280x720')
 
 
+def _validate_image_url(image_url):
+    """校验图片 URL，防止 SSRF 攻击。只允许 http/https 公网地址。"""
+    parsed = urlparse(image_url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f'不支持的 URL 协议: {parsed.scheme}')
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError('无效的 URL 主机名')
+    # 禁止内网地址
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+    except Exception:
+        raise ValueError(f'无法解析主机名: {hostname}')
+    if ip.is_private or ip.is_loopback or ip.is_link_local:
+        raise ValueError(f'禁止访问内网地址: {hostname}')
+    if ip.is_multicast or ip.is_reserved:
+        raise ValueError(f'禁止访问保留地址: {hostname}')
+
 def download_image_to_file(image_url, filepath):
     """Download image URL to local file."""
+    _validate_image_url(image_url)
     resp = requests.get(image_url, timeout=60)
     resp.raise_for_status()
     os.makedirs(os.path.dirname(filepath) or '.', exist_ok=True)
@@ -308,6 +328,7 @@ def download_image_to_file(image_url, filepath):
 
 def analyze_image(image_url, question='请详细描述这张图片的内容、布局、颜色和文字信息'):
     """Use Qwen3-V to analyze an image. Returns analysis text."""
+    _validate_image_url(image_url)
     api_key = _get_key('dashscope_text_key')
     if not api_key:
         raise ValueError('dashscope_text_key 未配置')

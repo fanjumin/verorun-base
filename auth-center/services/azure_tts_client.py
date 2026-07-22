@@ -81,7 +81,7 @@ class AzureTTSClient:
             f'<speak version="1.0" '
             f'xmlns="http://www.w3.org/2001/10/synthesis" '
             f'xml:lang="{voice_name[:5]}">'
-            f'<voice name="{voice_name}">{escaped_text}</voice>'
+            f'<voice name="{self._escape_xml(voice_name)}">{escaped_text}</voice>'
             f'</speak>'
         )
 

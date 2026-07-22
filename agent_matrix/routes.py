@@ -932,6 +932,7 @@ def agent_md_preview(filename):
     """渲染 Markdown 文件为 HTML 预览"""
     import markdown as _md
     media_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'media', 'temp')
+    filename = os.path.basename(filename)
     fp = os.path.join(media_dir, filename)
     if not os.path.exists(fp):
         return jsonify({'success': False, 'error': _('File does not exist')}), 404
@@ -1494,6 +1495,8 @@ def token_stats():
 
     period   = request.args.get('period', 'today')
     dim      = request.args.get('dimension', '').strip()  # text/voice/video/image, 空=全部
+    # 白名单校验，防止 SQL 注入
+    ALLOWED_DIMENSIONS = {'text', 'voice', 'video', 'image'}
 
     date_where_base = {
         'today':  "created_at::date = CURRENT_DATE",
@@ -1502,7 +1505,7 @@ def token_stats():
         'all':    "1=1"
     }.get(period, "created_at::date = CURRENT_DATE")
     date_where = date_where_base
-    if dim:
+    if dim and dim in ALLOWED_DIMENSIONS:
         date_where += f" AND dimension = '{dim}'"
 
     date_where_t = {
@@ -1511,7 +1514,7 @@ def token_stats():
         'month':  "t.created_at::date >= DATE_TRUNC('month', CURRENT_DATE)::DATE",
         'all':    "1=1"
     }.get(period, "t.created_at::date = CURRENT_DATE")
-    if dim:
+    if dim and dim in ALLOWED_DIMENSIONS:
         date_where_t += f" AND t.dimension = '{dim}'"
 
     # 费用单价（后续可从 system_config 读取）

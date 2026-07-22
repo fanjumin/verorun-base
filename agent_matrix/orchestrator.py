@@ -998,8 +998,13 @@ class AgentOrchestrator:
         if prompt_source.startswith('prompts/'):
             base_dir = os.path.dirname(__file__)
             file_path = os.path.join(base_dir, prompt_source)
-            if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
+            # 防止路径遍历：确保最终路径在 base_dir 内
+            real_path = os.path.realpath(file_path)
+            if not real_path.startswith(os.path.realpath(base_dir)):
+                logger.warning(f"Prompt 路径遍历尝试被拦截: {file_path}")
+                return ''
+            if os.path.exists(real_path):
+                with open(real_path, 'r', encoding='utf-8') as f:
                     return f.read()
             logger.warning(f"Prompt 文件不存在: {file_path}")
             return ''

@@ -84,7 +84,7 @@ def _get_api_key(key_ref: str) -> str:
     """从 system_config 表获取 API Key"""
     with m.get_db() as conn:
         row = conn.execute(
-            "SELECT value FROM system_config WHERE key=?", (key_ref,)
+            "SELECT value FROM system_config WHERE key=%s", (key_ref,)
         ).fetchone()
         return row['value'] if row else ''
 

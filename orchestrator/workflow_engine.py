@@ -615,14 +615,14 @@ import traceback
 # 快速测试
 # ============================================================
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     m.init_orchestrator_tables()
 
     engine = WorkflowEngine()
 
     # 创建一个简单的测试工作流
     wf_id = m.create_workflow({
-        ')name': _('Test Workflow'),
+        'name': _('Test Workflow'),
         'description': '自动化测试',
         'definition': m.to_json({
             "nodes": [

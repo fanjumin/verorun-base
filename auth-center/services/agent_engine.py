@@ -34,4 +34,4 @@ class UniversalAgentEngine:
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Agent {self.alias} failed: {e}")
-            return f"Error: {e}"
+            return f"Error: Agent service temporarily unavailable"

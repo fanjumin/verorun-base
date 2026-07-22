@@ -9,7 +9,7 @@ VeroRon 维洛智能 — 本地授权验证服务（运行在客户部署的实�
     status = svc.get_status()  # 返回 {valid, days_remaining, status}
     svc.refresh()              # 主动刷新（调用心跳API）
 """
-import os, json, time, requests
+import os, json, time, requests, platform
 from datetime import datetime, timedelta
 import psycopg2
 import psycopg2.extras
@@ -172,14 +172,17 @@ class LicenseService:
         try:
             resp = requests.post(
                 heartbeat_url,
-                json={'code': deployment_code, 'hostname': os.uname().nodename, 'version': '1.0.0'},
+                json={'code': deployment_code, 'hostname': platform.node(), 'version': '1.0.0'},
                 timeout=10
             )
             data = resp.json().get('data', {}) if resp.ok else {}
             valid = data.get('valid', False)
         except Exception:
-            # 网络不通时，保留上次缓存状态
+            # 网络不通时，保留上次有效缓存，不因网络抖动锁定用户
             status = self.get_status()
+            if status.get('valid'):
+                # 延长有效缓存时间，避免因短暂网络问题导致 needs_refresh 超时
+                status['needs_refresh'] = False
             return status
 
         cache_entry = {
