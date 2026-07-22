@@ -50,6 +50,20 @@ body{font-family:var(--body-font);background:var(--color-background);color:var(-
   .hero-block h1{font-size:28px}
   .section-block{padding:30px 16px}
 }
+
+/* ── Mini App tabBar ── */
+.mini-app-tabbar{position:absolute;bottom:0;left:0;right:0;height:50px;display:flex;background:#fff;border-top:1px solid #e5e7eb;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.mini-app-tabbar .tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:#999;cursor:pointer;transition:color 0.2s}
+.mini-app-tabbar .tab-item.active{color:var(--color-primary,#4F46E5)}
+.mini-app-tabbar .tab-icon{font-size:20px;margin-bottom:2px}
+.mini-app-tabbar .tab-label{font-size:10px}
+
+/* ── Widget Placeholders ── */
+.widget-loading{padding:20px;text-align:center;color:#999;font-size:13px}
+.widget-title{font-size:16px;font-weight:600;margin-bottom:12px;padding:0 16px}
+
+/* ── Preview content with tabBar ── */
+.preview-content.has-tabbar{padding-bottom:50px}
 </style>
 </head>
 <body>
@@ -138,6 +152,11 @@ body{font-family:var(--body-font);background:var(--color-background);color:var(-
   </div>
   {% endif %}
 
+  {% if mini_app_widgets %}
+  <!-- ── Mini App Widget Placeholders ── -->
+  {{ mini_app_widgets|safe }}
+  {% endif %}
+
   <div class="hero-block" data-editable="section" data-page="hero">
     <h1 data-editable="text" data-block-id="hero_title" data-field="content">{{ draft_tokens.brand.slogan or draft_tokens.brand.site_name or 'Welcome' }}</h1>
     <p data-editable="text" data-block-id="hero_subtitle" data-field="content">{{ draft_tokens.brand.brand_story[:200] if draft_tokens.brand.brand_story else 'AI-generated website preview.' }}</p>
@@ -177,6 +196,13 @@ body{font-family:var(--body-font);background:var(--color-background);color:var(-
   </div>
 
     </div><!-- /.preview-content -->
+
+    {% if mini_app_tabbar %}
+    <!-- ── Mini App Bottom TabBar ── -->
+    {{ mini_app_tabbar|safe }}
+    <script>document.querySelector('.preview-content').classList.add('has-tabbar');</script>
+    {% endif %}
+
     </div><!-- /.device-screen -->
     <div class="home-bar"></div>
   </div><!-- /.device-frame -->

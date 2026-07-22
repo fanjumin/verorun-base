@@ -11,6 +11,25 @@ TABLE_MINIAPP_PROJECTS = 'mini_app_projects'
 TABLE_MINIAPP_VERSIONS = 'mini_app_versions'
 
 
+def _migrate_mini_app_versions_ai_columns(conn):
+    """Add AI-generation columns to existing mini_app_versions tables (safe re-run)."""
+    migrations = [
+        ("prompt",          "TEXT DEFAULT ''"),
+        ("prompt_template", "TEXT DEFAULT ''"),
+        ("ai_plan_json",    "TEXT DEFAULT '{}'"),
+        ("widgets_json",    "TEXT DEFAULT '[]'"),
+    ]
+    for col_name, col_def in migrations:
+        try:
+            conn.execute(f"ALTER TABLE {TABLE_MINIAPP_VERSIONS} ADD COLUMN IF NOT EXISTS {col_name} {col_def}")
+        except Exception:
+            # SQLite fallback (no IF NOT EXISTS support)
+            try:
+                conn.execute(f"ALTER TABLE {TABLE_MINIAPP_VERSIONS} ADD COLUMN {col_name} {col_def}")
+            except Exception:
+                pass  # column already exists
+
+
 def init_tables():
     """Create site_builder DB tables (idempotent)"""
     with get_db() as conn:
@@ -77,11 +96,18 @@ def init_tables():
                 result_json     TEXT DEFAULT '{}',
                 output_path     TEXT DEFAULT '',
                 status          TEXT DEFAULT 'completed',
+                prompt          TEXT DEFAULT '',
+                prompt_template TEXT DEFAULT '',
+                ai_plan_json    TEXT DEFAULT '{}',
+                widgets_json    TEXT DEFAULT '[]',
                 created_at      TEXT DEFAULT (NOW())
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_map_slug ON mini_app_projects(slug)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_mav_project ON mini_app_versions(project_id)")
+
+        # Migration: add new AI-prompt columns to existing mini_app_versions tables
+        _migrate_mini_app_versions_ai_columns(conn)
         conn.commit()
     print('[SiteBuilder] ✅ Tables initialized')
 
@@ -490,7 +516,7 @@ def get_version(version_id: int) -> dict:
     if not row:
         return None
     d = dict(row)
-    for key in ('platforms_json', 'options_json', 'result_json'):
+    for key in ('platforms_json', 'options_json', 'result_json', 'ai_plan_json', 'widgets_json'):
         if d.get(key):
             try:
                 d[key.replace('_json', '')] = json.loads(d[key])

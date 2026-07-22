@@ -13,6 +13,9 @@ class LINEGenerator(BaseMiniAppGenerator):
     platform = 'line'
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates', 'line')
 
+    def generate_from_plan(self, ai_plan: dict, platform: str, options: dict) -> dict:
+        return super().generate_from_plan(ai_plan, platform, options)
+
     def generate(self, site_config: dict, brand: dict, options: dict) -> dict:
         output_dir = os.path.join(self.output_base, 'line')
         self._copy_template(output_dir)

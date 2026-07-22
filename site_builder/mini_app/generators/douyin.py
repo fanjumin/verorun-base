@@ -14,6 +14,17 @@ class DouyinGenerator(BaseMiniAppGenerator):
     platform = 'douyin'
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates', 'douyin')
 
+    def _get_page_ext(self, platform: str) -> str:
+        return 'ttml'
+
+    def _get_style_ext(self, platform: str) -> str:
+        return 'ttss'
+
+    def generate_from_plan(self, ai_plan: dict, platform: str, options: dict) -> dict:
+        result = super().generate_from_plan(ai_plan, platform, options)
+        result['compatible_with'] = ['toutiao']
+        return result
+
     def generate(self, site_config: dict, brand: dict, options: dict) -> dict:
         output_dir = os.path.join(self.output_base, 'douyin')
         self._copy_template(output_dir)

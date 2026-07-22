@@ -1,0 +1,180 @@
+# ── 商城小程序 提示词模板 ──
+
+identifier: "mini_shop"
+name: "商城小程序"
+description: "适用于电商、零售、品牌店铺"
+icon: "🛒"
+industry: "电商"
+tags:
+  - "商城"
+  - "电商"
+  - "小程序"
+  - "零售"
+
+# 小程序专属配置
+mini_app:
+  tabBar:
+    default:
+      - { label: "首页", icon: "home", page: "home" }
+      - { label: "商品", icon: "shop", page: "products" }
+      - { label: "购物车", icon: "cart", page: "cart" }
+      - { label: "我的", icon: "user", page: "profile" }
+
+  supported_features:
+    - chat
+    - cart
+    - coupons
+    - wishlist
+    - reviews
+    - search
+    - ads
+
+defaults:
+  site_name: "{品牌名称}"
+  industry: "电商"
+  style: "现代简约"
+  primary_color: "#FF4757"
+  accent_color: "#FF6B81"
+  font_preference: "sans-serif"
+  tone: "亲切、活力、年轻"
+
+pages:
+  - id: "home"
+    name: "首页"
+    required: true
+  - id: "products"
+    name: "商品"
+    required: true
+  - id: "cart"
+    name: "购物车"
+    required: true
+  - id: "profile"
+    name: "我的"
+    required: true
+
+prompts:
+  parse: |
+    你是一个小程序策划师。用户想创建一个{行业}小程序。
+
+    用户描述：{用户输入}
+
+    请提取以下信息并以 JSON 格式返回：
+    {{
+      "brand_name": "品牌名称",
+      "tagline": "品牌口号（10字以内）",
+      "core_products": ["核心产品/服务1", "核心产品/服务2"],
+      "target_audience": "目标客户群体",
+      "style_preference": "现代/经典/极简/活泼",
+      "features": ["需要的功能列表"],
+      "special_requirements": "特殊需求"
+    }}
+    只返回 JSON，不要其他内容。
+
+  brand: |
+    你是一个品牌设计师。为【{品牌名称}】设计小程序品牌配置，行业为【{行业}】。
+
+    要求：
+    - 品牌口号：简洁有力，体现产品特色
+    - 品牌故事：150字左右，讲述品牌理念
+    - 主色调：适合{行业}的配色方案
+    - 风格：{风格偏好}
+
+    返回 JSON 格式：
+    {{
+      "app_name": "品牌名称",
+      "tagline": "品牌口号",
+      "brand_story": "品牌故事",
+      "primary_color": "#HEX",
+      "secondary_color": "#HEX",
+      "accent_color": "#HEX"
+    }}
+
+  tabBar: |
+    你是一个小程序设计师。为【{品牌名称}】设计底部 tabBar。
+
+    可用的功能模块：{功能列表}
+
+    返回 JSON 格式：
+    {{
+      "tabBar": [
+        {{ "label": "首页", "icon": "home", "page": "home" }},
+        {{ "label": "商品", "icon": "shop", "page": "products" }},
+        {{ "label": "购物车", "icon": "cart", "page": "cart" }},
+        {{ "label": "我的", "icon": "user", "page": "profile" }}
+      ]
+    }}
+
+  page_home: |
+    你是一个小程序设计师。为【{品牌名称}】生成首页内容。
+
+    行业：{行业}，风格：{风格偏好}
+
+    首页区块设计：
+    1. Hero 区：品牌价值主张 + 特色商品推荐
+    2. 【可选】如果用户提到"热卖"或"推荐"，插入 W05(热卖商品，count=4, layout=grid, columns=2)
+    3. 【可选】如果用户提到"广告"，插入 W08(广告位，position=home_banner, width=320)
+    4. 分类导航：商品分类图标入口
+    5. 【可选】如果用户提到"最新"或"动态"，插入 W01(最新文章，count=3)
+
+    返回 JSON 格式，包含 sections 和 widgets：
+    {{
+      "sections": [
+        {{
+          "block_type": "hero",
+          "title": "主标题",
+          "subtitle": "副标题",
+          "cta_text": "立即浏览",
+          "cta_url": "/products"
+        }},
+        {{
+          "block_type": "grid",
+          "title": "商品分类",
+          "items": [
+            {{ "title": "分类1", "icon": "📱", "description": "描述" }}
+          ]
+        }}
+      ],
+      "widgets": [
+        {{
+          "widget_id": "W05",
+          "widget_type": "hot_products",
+          "count": 4,
+          "layout": "grid",
+          "columns": 2,
+          "position": "after_hero"
+        }}
+      ]
+    }}
+
+  page_products: |
+    你是一个小程序设计师。为【{品牌名称}】生成商品列表页。
+
+    要求：
+    - 商品分类筛选栏
+    - 商品卡片列表（图片、名称、价格、销量）
+    - 【可选】搜索框：W12(搜索框，scope=products，placeholder="搜索商品...")
+    - 【可选】评价展示：W07(商品评价，count=5)
+
+    返回 JSON 格式。
+
+  page_cart: |
+    你是一个小程序设计师。为【{品牌名称}】生成购物车页面。
+
+    要求：
+    - 购物车商品列表
+    - 价格汇总
+    - 【可选】优惠券入口：W10(优惠券入口，scene=shop)
+    - 结算按钮
+
+    返回 JSON 格式。
+
+  page_profile: |
+    你是一个小程序设计师。为【{品牌名称}】生成个人中心页面。
+
+    要求：
+    - 用户头像/昵称
+    - 订单入口（全部/待付款/待发货/待收货/待评价）
+    - 【可选】心愿单：W11(心愿单按钮)
+    - 设置入口
+
+    返回 JSON 格式。

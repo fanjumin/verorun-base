@@ -30,7 +30,8 @@ class MiniAppEngine:
         self.site_config = site_config or {}
         self.brand = brand_settings or {}
 
-    def generate(self, platforms: list, options: dict = None, output_base: str = None) -> dict:
+    def generate(self, platforms: list, options: dict = None, output_base: str = None,
+                 ai_plan: dict = None) -> dict:
         """Generate mini-programs for the specified platforms.
 
         Args:
@@ -41,6 +42,9 @@ class MiniAppEngine:
             output_base: Base output directory for generated files. When set
                        (e.g. a project/version workspace path), generators write
                        under it instead of the default 'dist/'.
+            ai_plan: Optional AI-generated plan dict. When provided, uses
+                     generate_from_plan() on each generator instead of the
+                     legacy generate() flow.
 
         Returns:
             {
@@ -66,7 +70,10 @@ class MiniAppEngine:
         for platform in platforms:
             try:
                 generator = self._get_generator(platform, output_base)
-                result = generator.generate(self.site_config, self.brand, options)
+                if ai_plan:
+                    result = generator.generate_from_plan(ai_plan, platform, options)
+                else:
+                    result = generator.generate(self.site_config, self.brand, options)
                 results[platform] = {'status': 'completed', **result}
                 logger.info(f'[MiniAppEngine] {platform} generation completed: {len(result.get("files", []))} files')
             except Exception as e:

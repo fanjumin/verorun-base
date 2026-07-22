@@ -5,7 +5,7 @@ Endpoints: ~13
 Prefix: /admin/site-builder/
 """
 
-import os, sys, json
+import os, sys, json, yaml
 
 from flask import Blueprint, request, jsonify
 
@@ -959,6 +959,121 @@ def mini_app_update_platform(platform):
         return _error(str(e), 500)
 
 
+# ── Mini App AI Helpers ──────────────────────────────
+
+def _mini_app_generate_with_ai(project, platforms, prompt, template, options,
+                                create_version, next_version_no, admin):
+    """AI-prompt branch: build plan from template, create version, return preview URL."""
+    # 1. Load template
+    tmpl = _load_prompt_template(template or 'mini_shop')
+
+    # 2. Build basic plan from template defaults
+    plan = _build_basic_plan_from_template(tmpl, prompt)
+
+    # 3. Create version with AI plan saved
+    version_no = next_version_no(project['id'])
+    output_base = _project_version_dir(project['slug'], version_no)
+
+    version_id = create_version(
+        project_id=project['id'],
+        version_no=version_no,
+        platforms=platforms,
+        options=options,
+        result={'ai_generated': True, 'plan': plan},
+        output_path=output_base,
+        status='draft',
+    )
+
+    # 4. Save AI fields to the version record
+    _save_ai_fields(version_id, prompt, template, plan)
+
+    return _success({
+        'task_id': None,
+        'status': 'draft',
+        'version_id': version_id,
+        'project_id': project['id'],
+        'project_slug': project['slug'],
+        'version_no': version_no,
+        'preview_url': '/admin/site-builder/mini-app/preview/%d' % version_id,
+        'plan_summary': {
+            'app_name': plan['brand']['app_name'],
+            'pages': len(plan['pages']),
+            'widgets': len(plan.get('widgets', [])),
+            'tabBar': len(plan.get('tabBar', [])),
+        },
+    })
+
+
+def _save_ai_fields(version_id, prompt, template, plan):
+    """Update a mini_app_versions row with AI-generation fields."""
+    try:
+        from models import get_db
+        from site_builder.models import TABLE_MINIAPP_VERSIONS
+        with get_db() as conn:
+            conn.execute(
+                'UPDATE %s SET prompt=%%s, prompt_template=%%s, ai_plan_json=%%s, widgets_json=%%s WHERE id=%%s'
+                % TABLE_MINIAPP_VERSIONS,
+                (prompt, template,
+                 json.dumps(plan, ensure_ascii=False),
+                 json.dumps(plan.get('widgets', []), ensure_ascii=False),
+                 version_id)
+            )
+            conn.commit()
+    except Exception as e:
+        print('[MiniApp] _save_ai_fields failed: %s' % e)
+
+
+def _load_prompt_template(identifier):
+    """Load a prompt template YAML by its identifier. Falls back to mini_shop."""
+    prompts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prompts')
+    for fname in sorted(os.listdir(prompts_dir)):
+        if not fname.endswith('.yml'):
+            continue
+        fpath = os.path.join(prompts_dir, fname)
+        with open(fpath, 'r', encoding='utf-8') as fh:
+            data = yaml.safe_load(fh) or {}
+        if data.get('identifier') == identifier:
+            return data
+    # fallback: try mini_shop
+    fallback = os.path.join(prompts_dir, 'mini_shop.yml')
+    if os.path.isfile(fallback):
+        with open(fallback, 'r', encoding='utf-8') as fh:
+            return yaml.safe_load(fh) or {}
+    return {}
+
+
+def _build_basic_plan_from_template(tmpl, prompt):
+    """Build a basic AI plan dict from template defaults (no LLM)."""
+    pages = []
+    for p in tmpl.get('pages', []):
+        pages.append({
+            'slug': p.get('id', ''),
+            'title': p.get('name', p.get('id', '')),
+            'sections': [],
+        })
+
+    tab = tmpl.get('mini_app', {}).get('tabBar', {}).get('default', [])
+
+    d = tmpl.get('defaults', {})
+    brand_name = d.get('site_name', '').replace('{品牌名称}', 'Mini App')
+
+    return {
+        'brand': {
+            'app_name': brand_name,
+            'tagline': d.get('tone', ''),
+            'brand_story': '',
+        },
+        'theme': {
+            'primary_color': d.get('primary_color', '#4F46E5'),
+            'secondary_color': d.get('accent_color', '#10B981'),
+            'accent_color': d.get('accent_color', '#F59E0B'),
+        },
+        'tabBar': tab,
+        'pages': pages,
+        'widgets': [],
+    }
+
+
 @site_builder_bp.route('/mini-app/generate', methods=['POST'])
 def mini_app_generate():
     """Trigger mini-app generation for specified platforms.
@@ -981,6 +1096,8 @@ def mini_app_generate():
     options = data.get('options', {})
     project_id = data.get('project_id')
     project_name = (data.get('project_name') or '').strip()
+    prompt = (data.get('prompt') or '').strip()
+    template = (data.get('template') or '').strip()
 
     if not isinstance(platforms, list) or not platforms:
         return _error('platforms must be a non-empty list')
@@ -995,6 +1112,13 @@ def mini_app_generate():
             return _error('Project not found', 404)
     elif project_name:
         project = create_project(name=project_name, created_by=admin.get('user_id', 0))
+
+    # ── AI Prompt Branch ──
+    if prompt and project:
+        return _mini_app_generate_with_ai(
+            project, platforms, prompt, template, options,
+            create_version, next_version_no, admin
+        )
 
     version_no = None
     output_base = None
@@ -1187,3 +1311,83 @@ def mini_app_deploy(platform):
         return _success(res)
     except Exception as e:
         return _error(str(e), 500)
+
+
+# ── Mini App Preview Routes ──────────────────────────
+
+@site_builder_bp.route('/mini-app/preview/<int:version_id>')
+def mini_app_preview(version_id):
+    """Render mini-app preview page from AI-generated plan."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import get_version
+    version = get_version(version_id)
+    if not version:
+        return 'Version not found', 404
+
+    plan = version.get('ai_plan')
+    if not plan:
+        return 'No AI plan found for this version', 404
+
+    from site_builder.mini_app.preview_renderer import MiniAppPreviewRenderer
+    renderer = MiniAppPreviewRenderer()
+    html = renderer.render(plan)
+    return html
+
+
+@site_builder_bp.route('/mini-app/preview/<int:version_id>/data')
+def mini_app_preview_data(version_id):
+    """Return draft data for the preview editor (compatible with existing editor API)."""
+    admin, err = _require_admin()
+    if err: return err
+
+    from site_builder.models import get_version
+    version = get_version(version_id)
+    if not version:
+        return jsonify({'error': 'Version not found'}), 404
+
+    plan = version.get('ai_plan', {})
+
+    # Build draft_blocks compatible with editor JS API
+    draft_blocks = {}
+    for page in plan.get('pages', []):
+        slug = page.get('slug', '')
+        page_blocks = []
+        for i, section in enumerate(page.get('sections', [])):
+            page_blocks.append({
+                'id': i + 1,
+                'title': section.get('title', ''),
+                'content': section.get('description', section.get('subtitle', '')),
+                'icon': section.get('icon', ''),
+                'block_type': section.get('block_type', 'text'),
+                'is_published': 0,
+            })
+        draft_blocks[slug] = page_blocks
+
+    # Build draft_tokens from plan
+    brand = plan.get('brand', {})
+    theme = plan.get('theme', {})
+    draft_tokens = {
+        'brand': {
+            'site_name': brand.get('app_name', ''),
+            'tagline': brand.get('tagline', ''),
+            'brand_story': brand.get('brand_story', ''),
+            'slogan': brand.get('tagline', ''),
+        },
+        'colors': {
+            'primary': theme.get('primary_color', '#4F46E5'),
+            'secondary': theme.get('secondary_color', '#10B981'),
+            'accent': theme.get('accent_color', '#F59E0B'),
+        },
+        'meta': {
+            'mini_app': True,
+        },
+    }
+
+    return jsonify({
+        'draft_tokens': draft_tokens,
+        'draft_blocks': draft_blocks,
+        'mini_app': True,
+        'version_id': version_id,
+    })
