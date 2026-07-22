@@ -276,8 +276,15 @@ def copilot_suggest():
 
 @webhook_bp.route('/telegram/webhook', methods=['POST'])
 def telegram_webhook():
-    """Telegram Bot Webhook"""
+    """Telegram Bot Webhook（带 secret token 认证）"""
     try:
+        # 验证 Secret Token
+        secret = request.headers.get('X-Telegram-Bot-Api-Secret-Token', '')
+        expected = os.environ.get('TELEGRAM_SECRET_TOKEN', '')
+        if expected and secret != expected:
+            logger.warning("[Telegram webhook] Invalid secret token")
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
         sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
         from channels.router import telegram_handle_webhook
         body = request.get_json(silent=True) or {}
@@ -292,8 +299,19 @@ def telegram_webhook():
 
 @webhook_bp.route('/line/webhook', methods=['POST'])
 def line_webhook():
-    """LINE Messaging Webhook"""
+    """LINE Messaging Webhook（带签名认证）"""
     try:
+        # 验证 LINE 签名
+        channel_secret = os.environ.get('LINE_CHANNEL_SECRET', '')
+        if channel_secret:
+            import hashlib, hmac, base64
+            signature = request.headers.get('x-line-signature', '')
+            body_raw = request.get_data()
+            hash_val = hmac.new(channel_secret.encode(), body_raw, hashlib.sha256).digest()
+            expected = base64.b64encode(hash_val).decode()
+            if not hmac.compare_digest(signature, expected):
+                logger.warning("[LINE webhook] Invalid signature")
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 403
         sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
         from channels.router import line_handle_webhook
         body = request.get_json(silent=True) or {}

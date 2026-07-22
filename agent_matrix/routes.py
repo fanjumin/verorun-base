@@ -236,14 +236,6 @@ def get_agent(aid):
     agent = _m().get_agent(aid)
     if not agent:
         return _error(_('Agent does not exist'), 404)
-    # 检查 system_config 中是否有对应 API Key
-    key_ref = agent.get('api_key_ref', '')
-    agent['key_configured'] = False
-    if key_ref:
-        with get_db() as conn:
-            row = conn.execute("SELECT value FROM system_config WHERE key=%s", (key_ref,)).fetchone()
-            if row and row['value']:
-                agent['key_configured'] = True
     return _success(agent)
 
 

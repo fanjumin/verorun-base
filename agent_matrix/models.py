@@ -117,8 +117,8 @@ def _next_task_id():
 
 def _next_session_id():
     date = datetime.now().strftime('%Y%m%d')
-    import random
-    suffix = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
+    import secrets
+    suffix = secrets.token_hex(4)
     return f'SESSION-{date}-{suffix}'
 
 

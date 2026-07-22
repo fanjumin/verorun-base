@@ -288,7 +288,7 @@ class UnifiedLLM:
         self._model = config.get('model_name', 'deepseek-chat')
         self._base_url = config.get('base_url', '')
         self._system_prompt = config.get('system_prompt', '')
-        self._agent_id = config.get('id') or config.get('agent_id')
+        self._agent_id = config.get('id') if config.get('id') is not None else config.get('agent_id')
         self._agent_name = config.get('name') or config.get('agent_name', 'Unknown')
         self._api_key_id = config.get('api_key_id')
 
