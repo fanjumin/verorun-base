@@ -30,6 +30,9 @@
 <script src="{{ url_for('static_files', filename='lib/workflow/react-dom.production.min.js') }}"></script>
 <script src="{{ url_for('static_files', filename='lib/workflow/react-flow-renderer.umd.js') }}"></script>
 
+{# SSO Token — 必须在 workflow_editor.js 之前设置 #}
+<script>window.__SSO_TOKEN = {{ sso_token|tojson }};</script>
+
 {# 编辑器工具函数 #}
 <script src="{{ url_for('static_files', filename='js/workflow_editor.js') }}"></script>
 
@@ -91,9 +94,6 @@ window.__t = {
   '_': function(key) { return this[key] || key; }
 };
 </script>
-
-{# SSO Token #}
-<script>window.__SSO_TOKEN = {{ sso_token|tojson }};</script>
 
 </head>
 <body>
