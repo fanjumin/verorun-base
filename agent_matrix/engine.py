@@ -25,7 +25,7 @@ PROVIDER_CONFIGS = {
         'key_ref': '',
     },
     'deepseek': {
-        'base_url': 'https://api.deepseek.com',
+        'base_url': 'https://api.deepseek.com/v1',
         'default_model': 'deepseek-chat',
         'key_ref': '',
     },
@@ -693,6 +693,14 @@ class LLMGateway:
                     model=None, module='unknown', **kwargs):
         """流式 chat 接口，返回生成器"""
         cfg = self._resolve_model(provider_model_id, provider, model)
+
+        allowed, reason = check_ai_budget(module)
+        if not allowed:
+            raise RuntimeError(reason)
+        quota_ok, quota_reason = self._check_quota(cfg['model_id'], module)
+        if not quota_ok:
+            raise RuntimeError(quota_reason)
+
         client = self._get_client(cfg['base_url'], cfg['api_key'])
         return client.chat.completions.create(
             model=cfg['model'],
@@ -721,6 +729,18 @@ def _log_gateway_usage(model_id, model_name, provider,
             """, (model_id, f'gateway:{module}', model_name, provider,
                   prompt_tokens, completion_tokens, total_tokens,
                   call_type, module))
+            conn.execute("""
+                INSERT INTO agent_token_daily
+                (agent_id, agent_name, stat_date,
+                 prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
+                VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, 1, NOW())
+                ON CONFLICT(agent_id, stat_date) DO UPDATE SET
+                    prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
+                    completion_tokens  = completion_tokens + excluded.completion_tokens,
+                    total_tokens       = total_tokens + excluded.total_tokens,
+                    call_count         = call_count + 1,
+                    updated_at         = NOW()
+            """, (model_id, f'gateway:{module}', prompt_tokens, completion_tokens, total_tokens))
             conn.commit()
     except Exception:
         pass
