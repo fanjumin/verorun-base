@@ -31,6 +31,8 @@ except ImportError:
     init_deployment_tables = None
     print('[Platform] ⚠️ deployment_api 未找到，跳过独立部署功能')
 
+from models import get_db, init_shop_db
+
 # 移除 auth-center sys.path
 _auth_center_norm = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path = [p for p in sys.path if os.path.normpath(p) != _auth_center_norm]
@@ -45,7 +47,6 @@ from routes.mini_program import mini_program_bp
 
 from flask import (Flask, request, jsonify, render_template,
                    send_from_directory, redirect, Blueprint, Response, make_response)
-from models import get_db, init_shop_db
 import json
 import secrets
 

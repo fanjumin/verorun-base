@@ -9,6 +9,7 @@ from i18n import _
 import psycopg2
 import psycopg2.extras
 import os
+from plugins._base.db import get_raw_connection
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'email.db')  # 保留用于迁移
 
@@ -36,13 +37,7 @@ def get_email_db():
     """获取邮件插件数据库连接（单例，PG schema: email）"""
     global _email_conn
     if _email_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS email")
         raw.commit()

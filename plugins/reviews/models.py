@@ -34,14 +34,8 @@ DB_PATH = os.path.join(PLUGIN_DIR, 'reviews.db')
 @contextmanager
 def get_db():
     """连接插件自己的数据库。"""
-    conn = psycopg2.connect(
-        host=os.environ.get('PG_HOST','localhost'),
-        port=int(os.environ.get('PG_PORT',5432)),
-        dbname=os.environ.get('PG_DB','verorun'),
-        user=os.environ.get('PG_USER','verorun'),
-        password=os.environ.get('PG_PASSWORD',''),
-        cursor_factory=psycopg2.extras.RealDictCursor
-    )
+    from plugins._base.db import get_raw_connection
+    conn = get_raw_connection()
     conn.execute("CREATE SCHEMA IF NOT EXISTS reviews")
     conn.execute("SET search_path TO reviews")
     try:

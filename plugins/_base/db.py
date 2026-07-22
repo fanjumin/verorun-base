@@ -47,3 +47,18 @@ class PgConnection:
         else:
             self._conn.commit()
         self.close()
+
+
+def get_raw_connection():
+    """Return a raw psycopg2 connection using env-configured PG credentials.
+
+    All plugins and modules should use this single factory instead of
+    inlining psycopg2.connect() calls with repeated env var lookups.
+    """
+    return psycopg2.connect(
+        host=os.environ.get('PG_HOST', 'localhost'),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )

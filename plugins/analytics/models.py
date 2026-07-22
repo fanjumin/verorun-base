@@ -28,6 +28,7 @@ import re
 from datetime import datetime, timedelta
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from services.deployment_config import deploy
+from plugins._base.db import get_raw_connection
 
 # ─── 数据库路径（PG schema）─────────────────────────────────────────────────────
 
@@ -313,13 +314,7 @@ def get_db():
     """获取数据库连接（PG schema: analytics）"""
     if _get_db:
         return _get_db()
-    raw = psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    )
+    raw = get_raw_connection()
     raw.autocommit = False
     raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS analytics")
     raw.commit()

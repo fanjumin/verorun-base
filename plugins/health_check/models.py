@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager
 from collections import defaultdict
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 
 # ── 独立数据库路径（插件目录内）──
@@ -32,13 +33,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 @contextmanager
 def get_db():
-    conn = psycopg2.connect(
-        host=os.environ.get('PG_HOST','localhost'),
-        port=int(os.environ.get('PG_PORT',5432)),
-        dbname=os.environ.get('PG_DB','verorun'),
-        user=os.environ.get('PG_USER','verorun'),
-        password=os.environ.get('PG_PASSWORD',''),
-    )
+    conn = get_raw_connection()
     conn.autocommit = False
     try:
         wrapped = PgConnection(conn)

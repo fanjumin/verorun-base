@@ -10,6 +10,7 @@ from i18n import _
 import psycopg2
 import os
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 
 _sms_conn = None
@@ -19,13 +20,7 @@ def get_sms_db():
     """获取短信插件独立数据库连接（单例）"""
     global _sms_conn
     if _sms_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         _sms_conn = PgConnection(raw)
         _sms_conn.execute("CREATE SCHEMA IF NOT EXISTS sms")

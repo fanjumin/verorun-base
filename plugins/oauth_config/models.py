@@ -8,6 +8,7 @@ import sys
 import psycopg2
 from contextlib import contextmanager
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 
 _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,13 +20,7 @@ os.makedirs(_DATA_DIR, exist_ok=True)
 @contextmanager
 def get_db():
     """获取插件独立数据库连接"""
-    conn = psycopg2.connect(
-        host=os.environ.get('PG_HOST','localhost'),
-        port=int(os.environ.get('PG_PORT',5432)),
-        dbname=os.environ.get('PG_DB','verorun'),
-        user=os.environ.get('PG_USER','verorun'),
-        password=os.environ.get('PG_PASSWORD',''),
-    )
+    conn = get_raw_connection()
     conn.autocommit = False
     try:
         wrapped = PgConnection(conn)

@@ -11,6 +11,7 @@ from psycopg2.extras import RealDictCursor
 import os
 import json
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
@@ -29,13 +30,7 @@ def _rebuild_db():
         os.remove(_DB_PATH)
     except OSError:
         pass
-    conn = PgConnection(psycopg2.connect(
-        host=os.environ.get('PG_HOST','localhost'),
-        port=int(os.environ.get('PG_PORT',5432)),
-        dbname=os.environ.get('PG_DB','verorun'),
-        user=os.environ.get('PG_USER','verorun'),
-        password=os.environ.get('PG_PASSWORD',''),
-    ))
+    conn = PgConnection(get_raw_connection())
     conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
     conn.execute("SET search_path TO payment")
     # 重建表
@@ -68,13 +63,7 @@ def _rebuild_db():
 def _connect_db():
     """连接数据库，失败时自动重建"""
     try:
-        conn = PgConnection(psycopg2.connect(
-            host=os.environ.get('PG_HOST','localhost'),
-            port=int(os.environ.get('PG_PORT',5432)),
-            dbname=os.environ.get('PG_DB','verorun'),
-            user=os.environ.get('PG_USER','verorun'),
-            password=os.environ.get('PG_PASSWORD',''),
-        ))
+        conn = PgConnection(get_raw_connection())
         conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
         conn.execute("SET search_path TO payment")
         conn.execute("SELECT 1").fetchone()
@@ -82,13 +71,7 @@ def _connect_db():
     except psycopg2.DatabaseError as e:
         print(f'[PaymentPlugin] ⚠️ Database damaged, auto-recreated: {e}')
         _rebuild_db()
-        conn = PgConnection(psycopg2.connect(
-            host=os.environ.get('PG_HOST','localhost'),
-            port=int(os.environ.get('PG_PORT',5432)),
-            dbname=os.environ.get('PG_DB','verorun'),
-            user=os.environ.get('PG_USER','verorun'),
-            password=os.environ.get('PG_PASSWORD',''),
-        ))
+        conn = PgConnection(get_raw_connection())
         conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
         conn.execute("SET search_path TO payment")
         return conn

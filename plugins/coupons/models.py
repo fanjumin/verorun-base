@@ -8,6 +8,7 @@ import os
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
+from plugins._base.db import get_raw_connection
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PLUGIN_DIR, 'coupons.db')  # 保留用于迁移
@@ -33,13 +34,7 @@ class _PgConnection:
 @contextmanager
 def get_db():
     """连接插件自己的数据库（PG schema: coupons）。"""
-    raw = psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    )
+    raw = get_raw_connection()
     raw.autocommit = False
     raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS coupons")
     raw.commit()

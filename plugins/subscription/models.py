@@ -18,6 +18,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 
 # ── 数据库路径 ──────────────────────────────────────────────────────────
@@ -30,13 +31,7 @@ def get_db():
     """获取独立数据库连接"""
     db_path = get_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    )
+    conn = get_raw_connection()
     conn.autocommit = False
     wrapped = PgConnection(conn)
     wrapped.execute("CREATE SCHEMA IF NOT EXISTS subscription")
@@ -139,13 +134,7 @@ def init_tables():
     """初始化所有表"""
     db_path = get_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = PgConnection(psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    ))
+    conn = PgConnection(get_raw_connection())
     conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
     conn.execute("SET search_path TO subscription")
     conn.execute(SUBSCRIPTION_DDL)
@@ -341,13 +330,7 @@ DEFAULT_ITEMS = [
 
 def seed_default_items():
     """种子 SKU 目录（INSERT ... ON CONFLICT，不覆盖已有数据）"""
-    conn = PgConnection(psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    ))
+    conn = PgConnection(get_raw_connection())
     conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
     conn.execute("SET search_path TO subscription")
     for item in DEFAULT_ITEMS:

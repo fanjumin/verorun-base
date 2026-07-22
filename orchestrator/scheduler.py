@@ -17,6 +17,9 @@ Scheduler — Cron 任务调度器核心
 
 import os, sys, time, json
 import threading
+from shared.logging import get_logger
+
+logger = get_logger(__name__)
 from datetime import datetime, timedelta
 from i18n import _
 from typing import Optional, Callable
@@ -530,18 +533,18 @@ class SchedulerEngine:
 # 命令行测试
 # ============================================================
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     m.init_orchestrator_tables()
 
     scheduler = SchedulerEngine()
     scheduler.start()
 
-    print(f'🟢 Scheduler started: {scheduler.scheduler_id}')
-    print('Press Ctrl+C to stop.')
+    logger.info('Scheduler started: %s', scheduler.scheduler_id)
+    logger.info('Press Ctrl+C to stop.')
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         scheduler.shutdown()
-        print('🔴 Scheduler stopped.')
+        logger.info('Scheduler stopped.')

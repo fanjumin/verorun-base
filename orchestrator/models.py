@@ -18,6 +18,7 @@ from contextlib import contextmanager
 import psycopg2
 import psycopg2.extras
 import os
+from plugins._base.db import get_raw_connection
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,7 +39,7 @@ def get_db():
     正常退出时自动 commit，发生异常时 rollback，最后关闭连接。
     返回 RealDictCursor — fetchone/fetchall 得到的行为类似 dict，同时支持下标访问。
     """
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = get_raw_connection()
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:

@@ -20,14 +20,8 @@ def get_logistics_db():
     """获取物流插件独立数据库连接（单例）"""
     global _logistics_conn
     if _logistics_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST','localhost'),
-            port=int(os.environ.get('PG_PORT',5432)),
-            dbname=os.environ.get('PG_DB','verorun'),
-            user=os.environ.get('PG_USER','verorun'),
-            password=os.environ.get('PG_PASSWORD',''),
-            cursor_factory=RealDictCursor
-        )
+        from plugins._base.db import get_raw_connection
+        raw = get_raw_connection()
         raw.autocommit = False
         _logistics_conn = PgConnection(raw)
         _logistics_conn.execute("CREATE SCHEMA IF NOT EXISTS logistics")

@@ -11,6 +11,7 @@ import json
 import time
 from datetime import datetime
 from typing import Dict, Any, Tuple
+from plugins._base.db import get_raw_connection
 
 
 def _get_alipay_config() -> dict:
@@ -27,13 +28,7 @@ def _get_alipay_config() -> dict:
         try:
             import psycopg2
             import psycopg2.extras
-            conn = psycopg2.connect(
-                host=os.environ.get('PG_HOST', 'localhost'),
-                port=int(os.environ.get('PG_PORT', 5432)),
-                dbname=os.environ.get('PG_DB', 'verorun'),
-                user=os.environ.get('PG_USER', 'verorun'),
-                password=os.environ.get('PG_PASSWORD', ''),
-            )
+            conn = get_raw_connection()
             conn.autocommit = False
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cur.execute(

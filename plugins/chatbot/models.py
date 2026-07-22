@@ -9,6 +9,7 @@ AI Advisor (Chatbot) Plugin — PostgreSQL schema: chatbot
 import psycopg2
 import psycopg2.extras
 import os
+from plugins._base.db import get_raw_connection
 
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
@@ -39,13 +40,7 @@ def get_chatbot_db():
     """获取插件数据库连接（单例，PG schema: chatbot）"""
     global _chatbot_conn
     if _chatbot_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS chatbot")
         raw.commit()

@@ -7,6 +7,7 @@
 import psycopg2
 import os
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'im_gateway.db')
@@ -26,13 +27,7 @@ def get_im_db():
     """获取 IM Gateway 插件独立数据库连接"""
     global _im_conn
     if _im_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST','localhost'),
-            port=int(os.environ.get('PG_PORT',5432)),
-            dbname=os.environ.get('PG_DB','verorun'),
-            user=os.environ.get('PG_USER','verorun'),
-            password=os.environ.get('PG_PASSWORD',''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         _im_conn = PgConnection(raw)
         _im_conn.execute("CREATE SCHEMA IF NOT EXISTS im_gateway")

@@ -213,13 +213,7 @@ def scan_tables(db_path: Optional[str] = None) -> List[dict]:
 
     tables = []
     try:
-        conn = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        conn = get_raw_connection()
         cursor = conn.cursor()
         cursor.execute("CREATE SCHEMA IF NOT EXISTS health")
         cursor.execute("SET search_path TO health")
@@ -381,6 +375,7 @@ class DiscoveryReporter:
 # changes from previous runs (newly added or removed resources).
 
 from .checkers import BaseHealthCheck, CheckResult, register
+from plugins._base.db import get_raw_connection
 
 
 @register('discovery_modules')

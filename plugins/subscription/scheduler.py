@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 from .services import get_subscription_service, has_subscription
 from .models import SubStatus
+from plugins._base.db import get_raw_connection
 
 
 SUBSCRIPTION_JOBS = []
@@ -140,13 +141,7 @@ def seed_subscription_schedules():
             print(f'[Subscription/Scheduler] Orchestrator DB not found: {orch_db}, skipping')
             return
 
-        conn = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        conn = get_raw_connection()
         conn.autocommit = False
         conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
         conn.execute("SET search_path TO subscription")

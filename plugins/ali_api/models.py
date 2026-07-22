@@ -17,6 +17,7 @@ from contextlib import contextmanager
 
 import sys
 import os
+from plugins._base.db import get_raw_connection
 
 # 插件独立数据库路径（保留用于迁移）
 ALI_DB_PATH = os.environ.get(
@@ -44,13 +45,7 @@ class _PgConnection:
 @contextmanager
 def get_db():
     """连接插件自有数据库（PG schema: ali_api）。"""
-    raw = psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    )
+    raw = get_raw_connection()
     raw.autocommit = False
     raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS ali_api")
     raw.commit()

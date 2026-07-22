@@ -5,6 +5,7 @@ import psycopg2
 import psycopg2.extras
 import os
 import json
+from plugins._base.db import get_raw_connection
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'ads.db')  # 保留用于迁移
 
@@ -32,13 +33,7 @@ def get_ads_db():
     """获取广告插件数据库连接（PG schema: ads）"""
     global _ads_conn
     if _ads_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS ads")
         raw.commit()

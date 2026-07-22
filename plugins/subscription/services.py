@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 from .models import (
+from plugins._base.db import get_raw_connection
     get_db, get_db_path,
     SubItem, UserSubscription, SubOrder,
     SubStatus, OrderStatus, IntervalType,
@@ -62,13 +63,7 @@ class SubscriptionService:
         self._db_path = get_db_path()
 
     def _get_conn(self):
-        conn = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        conn = get_raw_connection()
         conn.autocommit = False
         conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
         conn.execute("SET search_path TO subscription")

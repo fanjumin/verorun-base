@@ -8,6 +8,7 @@ from i18n import _
 import psycopg2
 import os
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 _verification_conn = None
 
@@ -15,13 +16,7 @@ _verification_conn = None
 def get_verification_db():
     global _verification_conn
     if _verification_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         _verification_conn = PgConnection(raw)
         _verification_conn.execute("CREATE SCHEMA IF NOT EXISTS verification")

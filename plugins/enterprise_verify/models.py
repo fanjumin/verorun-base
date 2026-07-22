@@ -3,6 +3,7 @@
 from i18n import _
 import psycopg2, os
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'enterprise_verify.db')
 
@@ -13,13 +14,7 @@ def get_ev_db():
     """获取企业认证插件独立数据库连接"""
     global _ev_conn
     if _ev_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST','localhost'),
-            port=int(os.environ.get('PG_PORT',5432)),
-            dbname=os.environ.get('PG_DB','verorun'),
-            user=os.environ.get('PG_USER','verorun'),
-            password=os.environ.get('PG_PASSWORD','')
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         _ev_conn = PgConnection(raw)
         _ev_conn.execute("CREATE SCHEMA IF NOT EXISTS enterprise_verify")

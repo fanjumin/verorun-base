@@ -7,6 +7,7 @@
 import psycopg2
 import os
 from plugins._base.db import PgConnection
+from plugins._base.db import get_raw_connection
 
 _sp_conn = None
 
@@ -15,13 +16,7 @@ def get_sp_db():
     """获取 Social Push 插件独立数据库连接"""
     global _sp_conn
     if _sp_conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         _sp_conn = PgConnection(raw)
         _sp_conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")

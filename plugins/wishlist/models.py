@@ -8,6 +8,7 @@ import os
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
+from plugins._base.db import get_raw_connection
 
 
 class _PgConnection:
@@ -33,13 +34,7 @@ PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 @contextmanager
 def get_db():
     """连接插件自己的数据库。"""
-    conn = psycopg2.connect(
-        host=os.environ.get('PG_HOST', 'localhost'),
-        port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
-        password=os.environ.get('PG_PASSWORD', ''),
-    )
+    conn = get_raw_connection()
     conn.autocommit = False
     conn.execute("CREATE SCHEMA IF NOT EXISTS wishlist")
     conn.execute("SET search_path TO wishlist")

@@ -37,14 +37,8 @@ def get_db():
     """获取本插件的独立数据库连接"""
     _ensure_dir()
     if 'order_notify_db' not in g:
-        g.order_notify_db = psycopg2.connect(
-            host=os.environ.get('PG_HOST','localhost'),
-            port=int(os.environ.get('PG_PORT',5432)),
-            dbname=os.environ.get('PG_DB','verorun'),
-            user=os.environ.get('PG_USER','verorun'),
-            password=os.environ.get('PG_PASSWORD',''),
-            cursor_factory=RealDictCursor
-        )
+        from plugins._base.db import get_raw_connection
+        g.order_notify_db = get_raw_connection()
         g.order_notify_db.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
         g.order_notify_db.execute("SET search_path TO order_notify")
     return _PgConnection(g.order_notify_db)
@@ -59,14 +53,8 @@ def get_main_db():
 def init_db():
     """初始化插件自有表"""
     _ensure_dir()
-    conn = psycopg2.connect(
-        host=os.environ.get('PG_HOST','localhost'),
-        port=int(os.environ.get('PG_PORT',5432)),
-        dbname=os.environ.get('PG_DB','verorun'),
-        user=os.environ.get('PG_USER','verorun'),
-        password=os.environ.get('PG_PASSWORD',''),
-        cursor_factory=RealDictCursor
-    )
+    from plugins._base.db import get_raw_connection
+    conn = get_raw_connection()
     conn.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
     conn.execute("SET search_path TO order_notify")
     conn.execute("""

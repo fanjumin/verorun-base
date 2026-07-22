@@ -7,6 +7,7 @@ Currency Converter Plugin Models — PostgreSQL schema: currency_converter
 import os
 import psycopg2
 import psycopg2.extras
+from plugins._base.db import get_raw_connection
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PLUGIN_DIR, 'currency_converter.db')  # 保留用于迁移
@@ -35,13 +36,7 @@ def get_db():
     """获取插件数据库连接（单例，PG schema: currency_converter）"""
     global _conn
     if _conn is None:
-        raw = psycopg2.connect(
-            host=os.environ.get('PG_HOST', 'localhost'),
-            port=int(os.environ.get('PG_PORT', 5432)),
-            dbname=os.environ.get('PG_DB', 'verorun'),
-            user=os.environ.get('PG_USER', 'verorun'),
-            password=os.environ.get('PG_PASSWORD', ''),
-        )
+        raw = get_raw_connection()
         raw.autocommit = False
         raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS currency_converter")
         raw.commit()
