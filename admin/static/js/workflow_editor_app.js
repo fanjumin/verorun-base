@@ -161,7 +161,6 @@ function FlowEditor() {
     edges = _lib$useEdgesState2[0],
     setEdges = _lib$useEdgesState2[1],
     _onEdgesChange = _lib$useEdgesState2[2];
-  var reactFlowWrapper = useRef(null);
   var _useState = useState(null),
     _useState2 = _slicedToArray(_useState, 2),
     rfInstance = _useState2[0],
@@ -309,7 +308,7 @@ function FlowEditor() {
     event.preventDefault();
     var type = event.dataTransfer.getData('application/reactflow');
     if (!type || !rfInstance) return;
-    var reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+    var reactFlowBounds = document.getElementById('react-flow-root').getBoundingClientRect();
     var viewport = rfInstance.toObject ? rfInstance.toObject() : { x: 0, y: 0, zoom: 1 };
     var position = {
       x: (event.clientX - reactFlowBounds.left - viewport.x) / viewport.zoom,
@@ -394,16 +393,7 @@ function FlowEditor() {
       window.removeEventListener('keydown', handler);
     };
   }, [undo, redo]);
-  return E('div', {
-    style: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0
-    },
-    ref: reactFlowWrapper
-  }, E(Provider, null, E(RF, {
+  return E(Provider, null, E(RF, {
     nodes: nodes,
     edges: edges,
     onNodesChange: function onNodesChange(changes) {
