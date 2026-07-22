@@ -109,215 +109,21 @@ def _resolve_agent_model_config(config: dict) -> dict:
     return config
 
 
-class AIEngine:
-    """统一 AI 引擎，支持多个供应商"""
+class AIEngine(LLMGateway):
+    """向后兼容包装器。@deprecated 请使用 LLMGateway 或 get_gateway()。"""
 
     def __init__(self, config: dict):
-        """
-        config: agent_matrix 行字典
-          provider, model_name, api_key_ref, base_url, system_prompt
-        """
-        # 统一解析模型配置（model_provider_id 优先）
-        config = _resolve_agent_model_config(config)
-
-        self.provider = config.get('provider', 'deepseek')
-        self.model = config.get('model_name', 'deepseek-chat')
-        self.api_key_ref = config.get('api_key_ref', 'deepseek_api_key')
-        self.base_url = config.get('base_url', '')
-        self.system_prompt = config.get('system_prompt', '')
-        self.agent_id = config.get('id') or config.get('agent_id')
-        self.agent_name = config.get('name') or config.get('agent_name', 'Unknown')
-
-        # 解析基础 URL
-        if not self.base_url:
-            # 先从 system_config 读取用户可配置的调用链接
-            db_base_url = _get_system_key(f'model_{self.provider}_base_url')
-            if db_base_url:
-                self.base_url = db_base_url
-            else:
-                pcfg = PROVIDER_CONFIGS.get(self.provider, {})
-                self.base_url = pcfg.get('base_url', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
-                if not self.api_key_ref:
-                    self.api_key_ref = pcfg.get('key_ref', '')
-                if self.model == 'qwen-turbo':
-                    self.model = pcfg.get('default_model', 'qwen-turbo')
-
-        # 获取 API Key
-        if self.provider == 'dashscope':
-            self.api_key = _get_system_key(self.api_key_ref)
-            if not self.api_key:
-                # dashscope 可能用 env 变量
-                self.api_key = os.environ.get('DASHSCOPE_API_KEY', '')
-        else:
-            # 其他供应商：尝试从 api_key_ref 读取，否则走加密存储
-            self.api_key = _get_system_key(self.api_key_ref) if self.api_key_ref else ''
-            if not self.api_key:
-                # 尝试从 agents 表的 api_key_enc 解密
-                enc_key = config.get('api_key_enc', '')
-                if enc_key:
-                    from services.crypto import decrypt
-                    self.api_key = decrypt(enc_key)
-            # 最后回退到环境变量
-            if not self.api_key:
-                provider_upper = self.provider.upper()
-                self.api_key = os.environ.get(f'{provider_upper}_API_KEY', '')
-        # 最后回退到 DB 可配置的模型 API Key（最高优先级最低，仅当其他途径都未找到时使用）
-        if not self.api_key:
-            self.api_key = _get_system_key(f'model_{self.provider}_api_key')
-        # 最终回退: 从 provider_api_keys 表读取（统一 Key 管理）
-        if not self.api_key:
-            self.api_key = _resolve_key_from_provider_api_keys(self.provider)
-
-        # 初始化 OpenAI 客户端
+        super().__init__(config)
+        self.provider = self._provider
+        self.model = self._model
+        self.api_key = None
+        self.api_key_ref = config.get("api_key_ref", "")
+        self.base_url = self._base_url
+        self.system_prompt = self._system_prompt
+        self.agent_id = self._agent_id
+        self.agent_name = self._agent_name
         self.client = None
-        if self.api_key:
-            try:
-                from openai import OpenAI
-                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-            except ImportError:
-                logger.error("openai package not installed")
-        else:
-            logger.warning(f"[AIEngine] {self.provider}/{self.model}: 没有 API Key")
 
-    def chat(self, messages, temperature=0.7, max_tokens=4096):
-        """调用 LLM，返回 text"""
-        if not self.client:
-            return _("Error: AI engine not initialized (missing API Key)")
-
-        try:
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            # 异步记录 token 消耗
-            if hasattr(resp, 'usage') and resp.usage:
-                threading.Thread(target=_log_token_usage, args=(
-                    self.agent_id, self.agent_name, self.model, self.provider,
-                    resp.usage.prompt_tokens or 0,
-                    resp.usage.completion_tokens or 0,
-                    resp.usage.total_tokens or 0,
-                    'chat'
-                ), daemon=True).start()
-            return resp.choices[0].message.content
-        except Exception as e:
-            logger.error(f"[AIEngine] {self.provider}/{self.model} 调用失败: {e}")
-            return f"Error: {e}"
-
-    def chat_with_tools(self, messages, tools, temperature=0.7, max_tokens=4096):
-        """支持原生 function calling 的调用。
-
-        返回完整的 message 对象（含 .content 与 .tool_calls），
-        由调用方（AgentRunner 的 ReAct 循环）决定是否执行工具。
-        出错时返回 None。
-        """
-        if not self.client:
-            return None
-        try:
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            # 异步记录 token 消耗（与 chat() 保持一致）
-            if hasattr(resp, 'usage') and resp.usage:
-                threading.Thread(target=_log_token_usage, args=(
-                    self.agent_id, self.agent_name, self.model, self.provider,
-                    resp.usage.prompt_tokens or 0,
-                    resp.usage.completion_tokens or 0,
-                    resp.usage.total_tokens or 0,
-                    'tool_call'
-                ), daemon=True).start()
-            return resp.choices[0].message
-        except Exception as e:
-            logger.error(f"[AIEngine] {self.provider}/{self.model} 工具调用失败: {e}")
-            return None
-
-    def ask(self, user_query, temperature=0.7):
-        """简单一问一答"""
-        messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": user_query}
-        ]
-        return self.chat(messages, temperature)
-
-    def ask_with_history(self, history, user_query, temperature=0.7):
-        """带历史的多轮对话"""
-        messages = [{"role": "system", "content": self.system_prompt}]
-        ALLOWED_ROLES = ('user', 'assistant', 'system', 'tool')
-        for h in history:
-            role = h['role'] if h['role'] in ALLOWED_ROLES else 'assistant'
-            msg = {"role": role, "content": h.get('content', '')}
-            if h.get('tool_calls'):
-                msg['tool_calls'] = h['tool_calls']
-            if h.get('tool_call_id'):
-                msg['tool_call_id'] = h['tool_call_id']
-            messages.append(msg)
-        messages.append({"role": "user", "content": user_query})
-        return self.chat(messages, temperature)
-
-    # ========================================
-    # 流式输出 (SSE)
-    # ========================================
-
-    def chat_stream(self, messages, temperature=0.7, max_tokens=4096):
-        """流式调用 LLM，逐段 yield 文本内容"""
-        if not self.client:
-            yield _("Error: AI engine not initialized (missing API Key)")
-            return
-
-        try:
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=True
-            )
-            accumulated = ''
-            for chunk in resp:
-                delta = chunk.choices[0].delta if chunk.choices else None
-                if delta and delta.content:
-                    accumulated += delta.content
-                    yield delta.content
-            # Stream 结束后异步记录 token（基于字符估算）
-            est_prompt = sum(len(m.get('content','')) for m in messages) / 4
-            est_completion = len(accumulated) / 4
-            threading.Thread(target=_log_token_usage, args=(
-                self.agent_id, self.agent_name, self.model, self.provider,
-                int(est_prompt), int(est_completion), int(est_prompt + est_completion),
-                'chat', 'text'
-            ), daemon=True).start()
-        except Exception as e:
-            logger.error(f"[AIEngine] {self.provider}/{self.model} 流式调用失败: {e}")
-            yield f"Error: {e}"
-
-    def ask_stream(self, user_query, temperature=0.7):
-        """流式一问一答"""
-        messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": user_query}
-        ]
-        yield from self.chat_stream(messages, temperature)
-
-    def ask_with_history_stream(self, history, user_query, temperature=0.7):
-        """流式多轮对话"""
-        messages = [{"role": "system", "content": self.system_prompt}]
-        ALLOWED_ROLES = ('user', 'assistant', 'system', 'tool')
-        for h in history:
-            role = h['role'] if h['role'] in ALLOWED_ROLES else 'assistant'
-            msg = {"role": role, "content": h.get('content', '')}
-            if h.get('tool_calls'):
-                msg['tool_calls'] = h['tool_calls']
-            if h.get('tool_call_id'):
-                msg['tool_call_id'] = h['tool_call_id']
-            messages.append(msg)
-        messages.append({"role": "user", "content": user_query})
-        yield from self.chat_stream(messages, temperature)
 
     def is_ready(self):
         return self.client is not None
@@ -472,11 +278,33 @@ def check_ai_budget(scene: str = '') -> tuple:
 # 注意：AIEngine 类不动，现有多处调用方不受影响。
 
 class LLMGateway:
-    """统一 LLM 网关 — 移除硬编码，从 provider_models 读取配置"""
+    """统一 LLM 网关 — 移除硬编码，从 provider_models 读取配置。
+    支持实例模式：LLMGateway(config) 兼容 AIEngine 调用方式。
+    """
 
-    def __init__(self):
+    def __init__(self, config=None):
         self._clients = {}  # 缓存 OpenAI 客户端实例
         self._rate_limiter = deque(maxlen=1000)
+        self._provider = ''
+        self._model = ''
+        self._base_url = ''
+        self._system_prompt = ''
+        self._agent_id = None
+        self._agent_name = 'Unknown'
+        self._api_key_id = None
+        if config:
+            self._apply_config(config)
+
+    def _apply_config(self, config):
+        """应用 agent 配置（兼容 AIEngine 构造方式）"""
+        config = _resolve_agent_model_config(config)
+        self._provider = config.get('provider', 'deepseek')
+        self._model = config.get('model_name', 'deepseek-chat')
+        self._base_url = config.get('base_url', '')
+        self._system_prompt = config.get('system_prompt', '')
+        self._agent_id = config.get('id') or config.get('agent_id')
+        self._agent_name = config.get('name') or config.get('agent_name', 'Unknown')
+        self._api_key_id = config.get('api_key_id')
 
     def _get_conn(self):
         """惰性获取 DB 连接（避免 init 时触发 PostgreSQL 连接）"""
@@ -641,18 +469,17 @@ class LLMGateway:
             return True, ''  # fail-open
 
     def chat(self, messages, provider_model_id=None, provider=None, model=None,
-             temperature=0.7, max_tokens=4096, module='unknown', **kwargs):
+             temperature=0.7, max_tokens=4096, module='unknown',
+             raw_response=False, **kwargs):
         """统一 chat 接口
-
-        Args:
-            messages: OpenAI 格式消息列表
-            provider_model_id: 模型 ID（推荐）
-            provider: 供应商 slug（兼容旧代码）
-            model: 模型名（兼容旧代码）
-            module: 调用来源模块名（用于日志和配额）
-        Returns:
-            OpenAI chat completion response 对象
+        实例模式：自动使用 self 配置
+        单例模式：必须传入 provider_model_id 或 provider+model
+        raw_response=False 返回 text，raw_response=True 返回 response 对象
         """
+        if self._provider and not provider_model_id and not provider:
+            provider = self._provider
+            model = self._model
+
         cfg = self._resolve_model(provider_model_id, provider, model)
 
         # 配额检查（复用现有闸门 + llm_quotas 精细化配额）
@@ -676,18 +503,19 @@ class LLMGateway:
         )
         elapsed = _time.time() - start_time
 
-        # 统一记录 Token 消耗
         usage = resp.usage
         if usage:
-            threading.Thread(target=_log_gateway_usage, args=(
+            self._log_usage(
                 cfg['model_id'], cfg['model'], cfg['provider'],
                 usage.prompt_tokens or 0,
                 usage.completion_tokens or 0,
                 usage.total_tokens or 0,
-                'chat', module, int(elapsed * 1000),
-            ), daemon=True).start()
+                'chat', module, elapsed_ms=int(elapsed * 1000),
+            )
 
-        return resp
+        if raw_response:
+            return resp
+        return resp.choices[0].message.content
 
     def chat_stream(self, messages, provider_model_id=None, provider=None,
                     model=None, module='unknown', **kwargs):
@@ -709,6 +537,111 @@ class LLMGateway:
             stream_options={'include_usage': True},
             **kwargs
         )
+
+    # ── 便利方法（AIEngine 兼容） ──
+
+    def ask(self, user_query, temperature=0.7):
+        messages = [
+            {"role": "system", "content": self._system_prompt},
+            {"role": "user", "content": user_query}
+        ]
+        return self.chat(messages, temperature=temperature, module='ask')
+
+    def ask_with_history(self, history, user_query, temperature=0.7):
+        messages = [{"role": "system", "content": self._system_prompt}]
+        ALLOWED_ROLES = ('user', 'assistant', 'system', 'tool')
+        for h in history:
+            role = h['role'] if h['role'] in ALLOWED_ROLES else 'assistant'
+            msg = {"role": role, "content": h.get('content', '')}
+            if h.get('tool_calls'):
+                msg['tool_calls'] = h['tool_calls']
+            if h.get('tool_call_id'):
+                msg['tool_call_id'] = h['tool_call_id']
+            messages.append(msg)
+        messages.append({"role": "user", "content": user_query})
+        return self.chat(messages, temperature=temperature, module='ask_history')
+
+    def chat_with_tools(self, messages, tools, temperature=0.7, max_tokens=4096):
+        return self.chat(messages, temperature=temperature, max_tokens=max_tokens,
+                         module='tool_call', raw_response=True, tools=tools,
+                         tool_choice="auto")
+
+    def ask_stream(self, user_query, temperature=0.7):
+        messages = [
+            {"role": "system", "content": self._system_prompt},
+            {"role": "user", "content": user_query}
+        ]
+        yield from self.chat_stream(messages, temperature=temperature, module='ask')
+
+    def ask_with_history_stream(self, history, user_query, temperature=0.7):
+        messages = [{"role": "system", "content": self._system_prompt}]
+        ALLOWED_ROLES = ('user', 'assistant', 'system', 'tool')
+        for h in history:
+            role = h['role'] if h['role'] in ALLOWED_ROLES else 'assistant'
+            msg = {"role": role, "content": h.get('content', '')}
+            if h.get('tool_calls'):
+                msg['tool_calls'] = h['tool_calls']
+            if h.get('tool_call_id'):
+                msg['tool_call_id'] = h['tool_call_id']
+            messages.append(msg)
+        messages.append({"role": "user", "content": user_query})
+        yield from self.chat_stream(messages, temperature=temperature, module='ask_history')
+
+    def is_ready(self):
+        return bool(self._provider or self._clients)
+
+    # ── 统一日志 ──
+
+    def _log_usage(self, model_id, model_name, provider,
+                   prompt_tokens, completion_tokens, total_tokens,
+                   call_type='chat', module='unknown', dimension='text',
+                   elapsed_ms=0):
+        try:
+            agent_id = self._agent_id or model_id
+            agent_name = self._agent_name or f'gateway:{module}'
+            threading.Thread(target=_write_usage_logs, args=(
+                agent_id, agent_name, model_name, provider,
+                prompt_tokens, completion_tokens, total_tokens,
+                call_type, dimension, module, elapsed_ms,
+            ), daemon=True).start()
+        except Exception:
+            pass
+
+
+def _write_usage_logs(agent_id, agent_name, model_name, provider,
+                      prompt_tokens, completion_tokens, total_tokens,
+                      call_type='chat', dimension='text', module='unknown',
+                      elapsed_ms=0):
+    """写入 agent_token_logs + agent_token_daily。"""
+    try:
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+        from models import get_db as _get_db
+        with _get_db() as conn:
+            conn.execute("""
+                INSERT INTO agent_token_logs
+                (agent_id, agent_name, model_name, provider,
+                 prompt_tokens, completion_tokens, total_tokens,
+                 call_type, dimension, module, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+            """, (agent_id, agent_name, model_name, provider,
+                  prompt_tokens, completion_tokens, total_tokens,
+                  call_type, dimension, module))
+            conn.execute("""
+                INSERT INTO agent_token_daily
+                (agent_id, agent_name, stat_date,
+                 prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
+                VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, 1, NOW())
+                ON CONFLICT(agent_id, stat_date) DO UPDATE SET
+                    prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
+                    completion_tokens  = completion_tokens + excluded.completion_tokens,
+                    total_tokens       = total_tokens + excluded.total_tokens,
+                    call_count         = call_count + 1,
+                    updated_at         = NOW()
+            """, (agent_id, agent_name, prompt_tokens, completion_tokens, total_tokens))
+            conn.commit()
+    except Exception:
+        pass
 
 
 def _log_gateway_usage(model_id, model_name, provider,
