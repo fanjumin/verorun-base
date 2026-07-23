@@ -15,10 +15,22 @@ function loadSmsMain(){
     '<div id="sms-config-form"></div>'+
     '</div>'+
     '<div class="cd"><div class="st">{{ _('sms_templates') }}</div>'+
-    '<div id="sms-templates-content"></div></div>';
+    '<div id="sms-templates-content"></div></div>'+
+    '<div class="cd" style="margin-top:12px"><div class="st">{{ _('test_send') }}</div>'+
+    '<div class="g2" style="margin-top:8px">'+
+      '<div><div style="font-size:11px;color:var(--dim)">{{ _('country_region') }}</div>'+
+        '<select class="sl" id="smsCountry" style="width:100%"></select></div>'+
+      '<div><div style="font-size:11px;color:var(--dim)">{{ _('phone') }}</div>'+
+        '<input class="in" id="smsTestPhone" style="width:100%"></div>'+
+      '<div><div style="font-size:11px;color:var(--dim)">{{ _('test_code') }}</div>'+
+        '<input class="in" id="smsTestCode" value="123456" style="width:100%"></div>'+
+    '</div>'+
+    '<div style="margin-top:8px"><button class="btn bp" onclick="smsTestSend()">{{ _('send') }}</button> <span id="smsTestResult" style="margin-left:8px;font-size:12px"></span></div>'+
+    '</div>';
 
   loadSmsConfigForm();
   loadSmsTemplates();
+  loadSmsCountries();
 }
 
 function loadSmsConfigForm(){
@@ -123,4 +135,32 @@ function deleteSmsTemplate(id){
     if(d.success){showToast("{{ _('delete_success') }}");loadSmsTemplates()}
     else{showToast(d.error||"{{ _('delete_failed') }}","error")}
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+function loadSmsCountries(){
+  fetch("/admin/sms/countries", {headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success) return;
+    var sel = document.getElementById("smsCountry");
+    if(!sel) return;
+    var h = '';
+    d.data.forEach(function(c){
+      var selected = c.dial=="+86" ? " selected" : "";
+      h += '<option value="'+c.dial+'"'+selected+'>'+c.flag+' '+c.dial+' '+c.name_en+'</option>';
+    });
+    sel.innerHTML = h;
+  }).catch(function(){});
+}
+
+function smsTestSend(){
+  var dial = document.getElementById("smsCountry").value;
+  var phone = document.getElementById("smsTestPhone").value.trim();
+  var code = document.getElementById("smsTestCode").value.trim();
+  var resultEl = document.getElementById("smsTestResult");
+  if(!phone){ resultEl.textContent="{{ _('phone_required') }}"; return; }
+  resultEl.textContent="{{ _('sending') }}...";
+  fetch("/admin/sms/test-send", {method:"POST", headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"}, body:JSON.stringify({phone:phone, code:code, country_code:dial})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.success){ resultEl.innerHTML='<span style="color:var(--success)">{{ _('send_success') }}</span>'; }
+    else{ resultEl.innerHTML='<span style="color:var(--danger)">'+(d.error||"{{ _('Send Failed') }}")+'</span>'; }
+  }).catch(function(){ resultEl.innerHTML='<span style="color:var(--danger)">{{ _('Request Failed') }}</span>'; });
 }

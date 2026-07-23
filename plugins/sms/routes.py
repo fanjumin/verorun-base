@@ -153,17 +153,24 @@ def sms_logs_list():
 # ── POST /admin/sms/test-send ──
 @sms_bp.route('/test-send', methods=['POST'])
 def sms_test_send():
-    """测试短信发送"""
+    """测试短信发送（支持按手机号选择提供商）"""
     admin, err = _require_admin()
     if err:
         return err
     data = request.get_json(force=True) or {}
     phone = data.get('phone', '').strip()
     code = data.get('code', '123456')
+    country_code = data.get('country_code', '')
+    purpose = data.get('purpose', 'test')
     if not phone:
         return jsonify({'success': False, 'error': _('Phone number cannot be empty')}), 400
+
+    # 如果传了 country_code 且手机号无 + 前缀，自动拼接
+    if country_code and not phone.startswith('+'):
+        phone = country_code + phone.lstrip('+')
+
     from plugins.sms.services import send_sms
-    result = send_sms(phone, code, purpose='test')
+    result = send_sms(phone, code, purpose=purpose)
     if result.get('success'):
         return jsonify({'success': True, 'data': result})
     return jsonify({'success': False, 'error': result.get('error', _('Send Failed'))}), 400
@@ -226,3 +233,11 @@ def sms_settings_save():
     if result.get('errors'):
         return jsonify({'success': True, 'warning': str(result['errors'])})
     return jsonify({'success': True})
+
+
+# ── GET /admin/sms/countries ──
+@sms_bp.route('/countries', methods=['GET'])
+def sms_countries_list():
+    """获取支持的国家列表（含国旗 emoji、区号、中文名、英文名）"""
+    from .countries import COUNTRIES
+    return jsonify({'success': True, 'data': COUNTRIES})

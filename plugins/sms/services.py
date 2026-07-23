@@ -23,23 +23,39 @@ DEFAULT_TEMPLATE = 'SMS_506135003'
 
 
 def get_market():
-    """Return current market: 'cn' or 'intl'."""
+    """Return current market: 'cn' or 'intl' (legacy, kept for backward compat)."""
     return os.environ.get('DEPLOY_MARKET', 'cn')
 
 
-def get_sms_provider():
-    """Return the appropriate SMS provider instance based on market + config.
+def _select_provider_by_phone(phone):
+    """从手机号号段判断使用哪个提供商
 
-    Reads Aliyun config from system_config table via main db read-only.
+    - +86（中国）→ Aliyun（即使部署在国际市场也用阿里云）
+    - 其他区号    → Twilio
+    - 无区号      → 按 DEPLOY_MARKET 环境变量
+    """
+    if phone and phone.startswith('+86'):
+        return 'aliyun'
+    if phone and phone.startswith('+'):
+        return 'twilio'
+    # 无区号时回退到 DEPLOY_MARKET
+    return 'twilio' if get_market() == 'intl' else 'aliyun'
+
+
+def get_sms_provider(phone=None):
+    """Return the appropriate SMS provider instance.
+
+    When phone is provided, uses smart routing based on phone number's country code.
+    Falls back to DEPLOY_MARKET env var for backward compatibility.
     """
     import sys
     _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
     if _auth_dir not in sys.path:
         sys.path.insert(0, _auth_dir)
 
-    market = get_market()
+    provider_type = _select_provider_by_phone(phone)
 
-    if market == 'intl':
+    if provider_type == 'twilio':
         try:
             from providers.sms.twilio import TwilioSMSProvider
             twilio = TwilioSMSProvider()
@@ -48,14 +64,14 @@ def get_sms_provider():
         except ImportError:
             pass
 
-    # CN market or fallback: try Aliyun
-    try:
-        from providers.sms.aliyun import AliyunSMSProvider
-        aliyun = AliyunSMSProvider()
-        if aliyun.is_configured():
-            return aliyun
-    except ImportError:
-        pass
+    if provider_type == 'aliyun':
+        try:
+            from providers.sms.aliyun import AliyunSMSProvider
+            aliyun = AliyunSMSProvider()
+            if aliyun.is_configured():
+                return aliyun
+        except ImportError:
+            pass
 
     return None
 
@@ -67,17 +83,17 @@ def generate_code(length=6):
 def send_sms(phone, code, purpose='login'):
     """Send verification code for a specific purpose.
 
-    Uses market-based provider selection:
-      - intl + Twilio -> sends plain-text message
-      - CN + Aliyun   -> sends purpose-specific template
-      - fallback      -> stub (console log + save to sms_logs)
+    Uses phone-number-based provider selection:
+      - +86        -> Aliyun (purpose-specific template)
+      - other +XX  -> Twilio (plain-text message)
+      - fallback   -> stub (console log + save to sms_logs)
     """
-    provider = get_sms_provider()
-    market = get_market()
+    provider = get_sms_provider(phone)
+    provider_type = _select_provider_by_phone(phone)
     template = None
 
     if provider:
-        if market == 'intl' and provider.PROVIDER == 'twilio':
+        if provider_type == 'twilio':
             message = f'Your EasyKai verification code is: {code}. Valid for 10 minutes.'
             result = provider.send(phone, message)
             result['template'] = 'plain_text'
@@ -143,24 +159,39 @@ def check_rate_limit(phone, max_per_hour=5):
 
 
 def validate_phone(phone, country_code=''):
-    """Validate phone number format based on market."""
-    import re
-    market = get_market()
+    """Validate phone number format based on country code.
 
-    if market == 'intl':
-        cleaned = re.sub(r'[\s\-\(\)]+', '', phone)
-        digits_only = cleaned.lstrip('+')
-        if not digits_only.isdigit() or len(digits_only) < 7 or len(digits_only) > 15:
-            return False, phone, 'Invalid phone number'
-        if not cleaned.startswith('+'):
-            if country_code and country_code.startswith('+'):
-                cleaned = country_code + digits_only
-            elif country_code:
-                cleaned = '+' + country_code.lstrip('+') + digits_only
-            else:
-                cleaned = '+' + digits_only
-        return True, cleaned, ''
-    else:
-        if not phone or len(phone) != 11 or not phone.isdigit() or not phone.startswith('1'):
-            return False, phone, 'Please enter a valid phone number'
+    - With country_code: use per-country validation rules
+    - Phone starts with +: auto-detect country from number
+    - No country info: generic E.164 validation
+    """
+    import re
+
+    # 先用区号规则验证
+    from .countries import find_country, detect_country_from_phone, validate_phone_by_country
+
+    # 尝试从手机号自动解析国家
+    country = detect_country_from_phone(phone)
+
+    # 如果手机号没有 + 前缀但有 country_code 参数
+    if not country and country_code:
+        country = find_country(dial=country_code)
+
+    if country:
+        error = validate_phone_by_country(phone, country)
+        if error:
+            return False, phone, error
         return True, phone, ''
+
+    # 无匹配国家时使用通用 E.164 验证
+    cleaned = re.sub(r'[\s\-\(\)]+', '', phone)
+    digits_only = cleaned.lstrip('+')
+    if not digits_only.isdigit() or len(digits_only) < 7 or len(digits_only) > 15:
+        return False, phone, 'Invalid phone number'
+
+    if not cleaned.startswith('+'):
+        if country_code:
+            cleaned = '+' + country_code.lstrip('+') + digits_only
+        else:
+            cleaned = '+' + digits_only
+    return True, cleaned, ''

@@ -26,7 +26,7 @@ def init_i18n(t_fn):
 
 class SmsPlugin(BasePlugin):
     name = 'sms'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'SMS Service — phone verification code sending with Aliyun/Twilio providers'
     author = 'VeroRun'
 
@@ -83,6 +83,11 @@ class SmsPlugin(BasePlugin):
         """验证手机号格式"""
         from .services import validate_phone as _val
         return _val(phone, country_code)
+
+    def get_countries(self):
+        """获取支持的国家列表"""
+        from .countries import COUNTRIES
+        return COUNTRIES
 
     def check_rate_limit(self, phone, max_per_hour=5):
         """检查手机号是否超出频率限制"""
