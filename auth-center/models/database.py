@@ -1386,6 +1386,16 @@ def init_db():
                 (pid, name, model, url, key_ref, caps, sort)
             )
         m.commit()
+        # Backfill api_key_id: link provider_models → provider_api_keys via providers
+        m.execute("""
+            UPDATE provider_models pm
+            SET api_key_id = pak.id
+            FROM providers p, provider_api_keys pak
+            WHERE pm.provider_id = p.id
+              AND pak.provider = p.slug
+              AND pm.api_key_id IS NULL
+        """)
+        m.commit()
         print('[Migration] Providers + provider_models seed data added')
 
     # ── Migration: add provider_model_id to agents table ──

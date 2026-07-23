@@ -15,8 +15,8 @@ managed_modules:
   - reward_rules
   - deploy
   - payment
-provider: openai
-model_name: gpt-4o
+provider: deepseek
+model_name: deepseek-chat
 system_prompt: prompts/sub_finance_prompt.md
 is_system: true
 is_active: 1

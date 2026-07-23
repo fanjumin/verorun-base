@@ -11,8 +11,8 @@ managed_modules:
   - site_blocks
   - site_configs
   - site_plans
-provider: openai
-model_name: gpt-4o
+provider: deepseek
+model_name: deepseek-chat
 system_prompt: prompts/sub_builder_prompt.md
 is_system: true
 is_active: 1

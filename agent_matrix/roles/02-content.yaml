@@ -19,8 +19,8 @@ managed_modules:
   - ads
   - content_factory
   - social_push
-provider: openai
-model_name: gpt-4o
+provider: deepseek
+model_name: deepseek-chat
 system_prompt: prompts/sub_content_prompt.md
 is_system: true
 is_active: 1
