@@ -2820,11 +2820,12 @@ with get_db() as m:
         CREATE UNIQUE INDEX IF NOT EXISTS uq_llm_quotas_type
         ON llm_quotas (target_type, COALESCE(target_id, -1))
     ''')
-    # 添加 target_key 列用于模块名匹配（非破坏性 migration）
+    # Add target_key column (non-destructive migration)
     try:
         m.execute("ALTER TABLE llm_quotas ADD COLUMN target_key VARCHAR(100) DEFAULT NULL")
     except Exception:
-        pass  # 列已存在
+        m._conn.rollback()  # rollback aborted transaction
+        pass  # column already exists
 
     # 种子数据：全站默认配额
     m.execute(
