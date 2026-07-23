@@ -778,7 +778,7 @@ class AgentOrchestrator:
             history = self._compress_history(conv, agent_config)
         if session_id:
             self.models.add_message(
-                session_id, 'sub_', f"Start Execution: {task_def.get('title', '')}",
+                session_id, 'sub_agent', f"Start Execution: {task_def.get('title', '')}",
                 agent_id=target_id, agent_name=agent_config.get('name', ''),
                 master_task_id=master_task_id
             )
