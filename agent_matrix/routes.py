@@ -501,6 +501,7 @@ def chat_with_master():
         'sub_task_results': result.get('sub_task_results', []),
         'status': result.get('status', 'failed'),
         'duration_s': result.get('duration_s', 0),
+        'error': result.get('error', ''),  # BUG-001 诊断：暴露异常信息
     })
 
 
