@@ -2808,6 +2808,14 @@ with get_db() as m:
             updated_at      TIMESTAMP DEFAULT NOW()
         )
     ''')
+    # Clean up duplicate rows before creating unique index
+    m.execute('''
+        DELETE FROM llm_quotas a USING llm_quotas b
+        WHERE a.id > b.id
+        AND a.target_type = b.target_type
+        AND COALESCE(a.target_id, -1) = COALESCE(b.target_id, -1)
+    ''')
+    m.commit()
     m.execute('''
         CREATE UNIQUE INDEX IF NOT EXISTS uq_llm_quotas_type
         ON llm_quotas (target_type, COALESCE(target_id, -1))
