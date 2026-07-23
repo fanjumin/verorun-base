@@ -151,6 +151,23 @@ def _update_quality(kb_id: str, factor: float, weight: float = 0.05):
 # LLM 调用（通过 UnifiedLLM，复用 Agent Matrix 引擎）
 # =============================================
 
+def _get_cleaner_provider_model_id():
+    """从 agent_matrix 表读取 Data Cleaner Agent 的 provider_model_id。
+    走 ID 解析路径，避免 model_name 字符串精确匹配导致的失败。
+    """
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT provider_model_id FROM agent_matrix "
+                "WHERE domain='cleaner' AND is_active=1 LIMIT 1"
+            ).fetchone()
+        if row and row['provider_model_id']:
+            return row['provider_model_id']
+    except Exception:
+        pass
+    return None
+
+
 def _call_llm(system_prompt: str, user_prompt: str):
     """
     调用 LLM 清洗数据，返回解析后的 JSON 结果 dict。
@@ -161,9 +178,11 @@ def _call_llm(system_prompt: str, user_prompt: str):
     import logging
     _logger = logging.getLogger(__name__)
 
-    # 构建 engine 配置（优先从 system_config 读取 cleaner_ai_* 覆盖默认值）
+    # 构建 engine 配置（优先通过 provider_model_id 走 ID 解析路径）
+    pm_id = _get_cleaner_provider_model_id()
     engine_config = {
-        'provider': 'deepseek',
+        'provider_model_id': pm_id,   # 优先：ID 解析（与 Athena 等 Agent 一致）
+        'provider': 'deepseek',       # 回退：当 pm_id 为 None 时使用
         'model_name': 'deepseek-chat',
         'base_url': '',
         'system_prompt': '',
@@ -214,6 +233,9 @@ def _call_llm(system_prompt: str, user_prompt: str):
             max_tokens=4096,
             module='cleaner_agent',
         )
+    except ValueError as e:
+        _logger.error(f'Model resolution failed: {e}')
+        return {'error': f'Model configuration error: {e}'}
     except Exception as e:
         _logger.error(f'LLM call failed: {e}')
         return {'error': f'LLM call failed: {e}'}
