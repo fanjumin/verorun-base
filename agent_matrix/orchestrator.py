@@ -404,21 +404,20 @@ class AgentOrchestrator:
                 direct_reply = ''
 
         if not tasks:
-            if direct_reply:
-                logger.info("Master Agent 直接回复（无需子任务），跳过分解")
-                return [{
-                    'title': _('Direct Reply'),
-                    'description': direct_reply,
-                    'target_agent_id': master_config.get('id'),
-                    'target_agent_name': master_config.get('name', 'Athena'),
-                    'target_module': 'general',
-                    'task_type': 'execute',
-                    'priority': 5,
-                    'input_data': {'raw_instruction': instruction, 'direct_reply': direct_reply},
-                    'expected_output': {'fields': ['response']},
-                }]
-            logger.info("Master Agent 未分解出子任务，使用模板分解作为 fallback")
-            return self._template_decompose(instruction, sub_agents)
+            # LLM 已就绪但返回空任务 → 创建直接回复，不回退到模板分解
+            # （模板分解仅用于 AI 引擎未就绪的情况，已在 _engine.is_ready() 处理）
+            logger.info("Master Agent 返回空子任务，创建直接回复")
+            return [{
+                'title': _('Direct Reply'),
+                'description': instruction,
+                'target_agent_id': master_config.get('id'),
+                'target_agent_name': master_config.get('name', 'Athena'),
+                'target_module': 'general',
+                'task_type': 'execute',
+                'priority': 5,
+                'input_data': {'raw_instruction': instruction},
+                'expected_output': {'fields': ['response']},
+            }]
 
         # 图像关键词集合（与 _template_decompose 同步）
         _ai_image_kw = {_('Picture'), _('Image'), _('Illustration'), _('Cover'), _('Poster'), _('Generate Image'), _('Text to Image'),
