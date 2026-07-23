@@ -97,7 +97,18 @@ class AgentRunner:
         logs.append(f'[LLM] Response length: {len(response)} characters')
         self._log(task_id, 'info', 'execution', f'LLM Response Completed ({len(response)} characters)')
 
-        # 4. 自检 (Self-Critique)
+        # 4. 自检 (Self-Critique) — Direct Reply 任务跳过
+        if task.get('skip_critique'):
+            self._log(task_id, 'info', 'execution', f'✅ Direct reply, confidence=1.0')
+            return {
+                'status': 'completed',
+                'response': response,
+                'confidence': 1.0,
+                'self_review': 'Direct reply (auto-passed)',
+                'logs': logs,
+                'retries': 0
+            }
+
         self_review = self._self_critique(response, task)
         logs.append(f'[Self-Critique] {self_review.get("review", "None")}')
 

@@ -416,7 +416,8 @@ class AgentOrchestrator:
                 'task_type': 'execute',
                 'priority': 5,
                 'input_data': {'raw_instruction': instruction},
-                'expected_output': {'fields': ['response']},
+                'expected_output': {},
+                'skip_critique': True,
             }]
 
         # 图像关键词集合（与 _template_decompose 同步）
@@ -789,6 +790,7 @@ class AgentOrchestrator:
             'input_data': task_def.get('input_data', {}),
             'expected_output': task_def.get('expected_output', {}),
             'max_retries': 2,
+            'skip_critique': task_def.get('skip_critique', False),
         }, history=history)
 
     def _execute_image_agent(self, task_def, agent_config, sub_task_id, target_id,
