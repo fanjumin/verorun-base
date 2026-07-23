@@ -33,6 +33,10 @@ PLATFORM_INFO = {
     'wechat': {'name': _('WeChat Official Account'), 'icon': '💬'},
     'weibo':  {'name': _('Weibo'),       'icon': '📢'},
     'toutiao':{'name': _('Toutiao'),    'icon': '📰'},
+    'twitter': {'name': _('X (Twitter)'),   'icon': '𝕏'},
+    'linkedin':{'name': _('LinkedIn'),      'icon': 'in'},
+    'reddit':  {'name': _('Reddit'),        'icon': 'rd'},
+    'telegram':{'name': _('Telegram Channel'), 'icon': '✈'},
 }
 
 
@@ -57,6 +61,37 @@ def _get_main_db():
 # 配置检测
 # =============================================
 
+def _get_market() -> str:
+    """Return current market: 'cn' or 'intl'."""
+    try:
+        from providers import get_market
+        return get_market()
+    except Exception:
+        return 'cn'
+
+
+def _get_international_providers(market: str) -> list:
+    """Return international platform list filtered by market.
+
+    CN users only see domestic platforms; intl users see all international ones.
+    """
+    try:
+        from .providers import get_provider_info
+        return get_provider_info(market)
+    except Exception:
+        return {}
+
+
+# ── Config fields needed from system_config for each international provider ──
+_INTERNATIONAL_CONFIG_KEYS = [
+    'twitter_api_key', 'twitter_api_secret', 'twitter_access_token',
+    'twitter_access_secret', 'twitter_bearer_token',
+    'linkedin_client_id', 'linkedin_client_secret', 'linkedin_access_token',
+    'reddit_client_id', 'reddit_client_secret', 'reddit_username', 'reddit_password',
+    'telegram_bot_token', 'telegram_channel',
+]
+
+
 @social_bp.route('/check-config', methods=['GET'])
 def check_config():
     """Check platform + AI capability config.
@@ -69,38 +104,59 @@ def check_config():
     admin, err = _require_admin()
     if err:
         return err
+    config_keys = (
+        'wechat_app_id','wechat_app_secret','weibo_app_key','weibo_access_token',
+        'toutiao_app_id','toutiao_access_token','dashscope_api_key','dashscope_text_key',
+    ) + tuple(_INTERNATIONAL_CONFIG_KEYS)
     with _get_main_db() as conn:
         rows = conn.execute(
-            "SELECT key, value FROM system_config WHERE key IN "
-            "('wechat_app_id','wechat_app_secret','weibo_app_key','weibo_access_token','toutiao_app_id','toutiao_access_token','dashscope_api_key','dashscope_text_key')"
+            f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in config_keys)})",
+            config_keys
         ).fetchall()
     cfg = {r['key']: r['value'] for r in rows}
+
+    # Base domestic platforms
+    platforms = [
+        {
+            'id': 'wechat',
+            'name': _('WeChat Official Account'),
+            'icon': '💬',
+            'configured': bool(cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')),
+            'fields_needed': [] if (cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')) else ['AppID', 'AppSecret'],
+        },
+        {
+            'id': 'weibo',
+            'name': _('Weibo'),
+            'icon': '📢',
+            'configured': bool(cfg.get('weibo_app_key') and cfg.get('weibo_access_token')),
+            'fields_needed': [] if (cfg.get('weibo_app_key') and cfg.get('weibo_access_token')) else ['App Key', 'Access Token'],
+        },
+        {
+            'id': 'toutiao',
+            'name': _('Toutiao'),
+            'icon': '📰',
+            'configured': bool(cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')),
+            'fields_needed': [] if (cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')) else ['App ID', 'Access Token'],
+        },
+    ]
+
+    # Add international platforms if market is 'intl'
+    market = _get_market()
+    if market == 'intl':
+        intl_providers = _get_international_providers('intl')
+        for pid, info in intl_providers.items():
+            platforms.append({
+                'id': pid,
+                'name': info.get('name', pid),
+                'icon': info.get('icon', ''),
+                'configured': info.get('configured', False),
+                'fields_needed': [] if info.get('configured') else [],
+            })
+
     return jsonify({
         'success': True,
         'data': {
-            'platforms': [
-                {
-                    'id': 'wechat',
-                    'name': _('WeChat Official Account'),
-                    'icon': '💬',
-                    'configured': bool(cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')),
-                    'fields_needed': [] if (cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')) else ['AppID', 'AppSecret'],
-                },
-                {
-                    'id': 'weibo',
-                    'name': _('Weibo'),
-                    'icon': '📢',
-                    'configured': bool(cfg.get('weibo_app_key') and cfg.get('weibo_access_token')),
-                    'fields_needed': [] if (cfg.get('weibo_app_key') and cfg.get('weibo_access_token')) else ['App Key', 'Access Token'],
-                },
-                {
-                    'id': 'toutiao',
-                    'name': _('Toutiao'),
-                    'icon': '📰',
-                    'configured': bool(cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')),
-                    'fields_needed': [] if (cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')) else ['App ID', 'Access Token'],
-                },
-            ],
+            'platforms': platforms,
             'ai_capabilities': [
                 {
                     'id': 'image_gen',
@@ -133,6 +189,22 @@ CONTENT_TYPES = {
     'weibo': {
         'label': _('Weibo'),
         'types': [{'id': 'weibo', 'name': _('Weibo')}],
+    },
+    'twitter': {
+        'label': _('X (Twitter)'),
+        'types': [{'id': 'tweet', 'name': _('Tweet')}],
+    },
+    'linkedin': {
+        'label': _('LinkedIn'),
+        'types': [{'id': 'article', 'name': _('Article')}, {'id': 'post', 'name': _('Post')}],
+    },
+    'reddit': {
+        'label': _('Reddit'),
+        'types': [{'id': 'link', 'name': _('Link Post')}, {'id': 'text', 'name': _('Text Post')}],
+    },
+    'telegram': {
+        'label': _('Telegram Channel'),
+        'types': [{'id': 'message', 'name': _('Channel Message')}],
     },
 }
 
@@ -264,6 +336,69 @@ def publish_content():
     return jsonify({'success': True, 'data': {'results': results}})
 
 
+def _load_config_for_provider(provider_name: str) -> dict:
+    """Load provider credentials from system_config."""
+    try:
+        from .providers import get_provider
+        provider = get_provider(provider_name)
+        if not provider:
+            return {}
+        keys = [f['key'] for f in provider.get_config_fields()]
+        with _get_main_db() as conn:
+            rows = conn.execute(
+                f'SELECT key, value FROM system_config WHERE key IN ({",".join("?" for _ in keys)})',
+                keys
+            ).fetchall()
+        return {r['key']: r['value'] for r in rows}
+    except Exception:
+        return {}
+
+
+def _publish_via_provider(platform, title, body, summary, cover_image_url, link_url, admin_id):
+    """Publish via an international provider adapter. Returns standard result dict."""
+    try:
+        from .providers import get_provider
+        provider = get_provider(platform)
+        if not provider:
+            return {'platform': platform, 'status': 'failed', 'error': f'Unknown provider: {platform}'}
+
+        config = _load_config_for_provider(platform)
+        result = provider.publish(
+            title=title, body=body, summary=summary,
+            image_url=cover_image_url, link_url=link_url,
+            config=config,
+        )
+
+        # Log the result to social_push_logs
+        with get_sp_db() as conn:
+            conn.execute(
+                """INSERT INTO social_push_logs
+                   (platform, content_type, title, summary, article_json, media_id, status, admin_id, error_msg)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (platform, 'post', title, summary[:100],
+                 json.dumps({'body': body[:500], 'cover_url': cover_image_url}, ensure_ascii=False),
+                 result.get('post_id', ''), 'published' if result['success'] else 'failed', admin_id,
+                 result.get('error', ''))
+            )
+            conn.commit()
+
+        log_action = 'social_publish_international'
+        _log(admin_id, log_action, 'social', result.get('post_id', ''), f'{platform}: {title}')
+
+        if result['success']:
+            return {
+                'platform': platform,
+                'status': 'published',
+                'media_id': result.get('post_id', ''),
+                'url': result.get('url', ''),
+                'message': _('Published'),
+            }
+        return {'platform': platform, 'status': 'failed', 'error': result.get('error', _('Publish Failed'))}
+    except Exception as e:
+        logger.exception(f'{platform} publish failed')
+        return {'platform': platform, 'status': 'failed', 'error': str(e)}
+
+
 def _publish_to_platform(platform, title, body, body_html, summary, author,
                          cover_image_url, auto_publish, admin_id):
     """Publish to a single platform. Returns {platform, status, media_id, message, error}."""
@@ -273,6 +408,8 @@ def _publish_to_platform(platform, title, body, body_html, summary, author,
         return _publish_weibo(title, body, cover_image_url, admin_id)
     elif platform == 'toutiao':
         return _publish_toutiao(title, body_html, summary, cover_image_url, admin_id)
+    elif platform in ('twitter', 'linkedin', 'reddit', 'telegram'):
+        return _publish_via_provider(platform, title, body, summary, cover_image_url, '', admin_id)
     else:
         return {'platform': platform, 'status': 'failed', 'error': f'Unsupported platform: {platform}'}
 

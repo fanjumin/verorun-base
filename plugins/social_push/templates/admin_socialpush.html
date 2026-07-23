@@ -43,7 +43,7 @@ function socialTab(n){
 function socialEditor(){
   var h='<div class="cd"><div class="st">{{ _('Edit Content') }}</div>';
   h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Platform') }}</div>';
-  h+='<select class="sl" id="socPlatform" style="flex:1" onchange="socialUpdateContentTypes()"><option value="wechat">{{ _('WeChat OA Articles') }}</option><option value="weibo">{{ _('Weibo') }}</option></select></div>';
+  h+='<select class="sl" id="socPlatform" style="flex:1" onchange="socialUpdateContentTypes()"><option value="wechat">{{ _('WeChat OA Articles') }}</option><option value="weibo">{{ _('Weibo') }}</option><option value="twitter">{{ _('X (Twitter)') }}</option><option value="linkedin">{{ _('LinkedIn') }}</option><option value="reddit">{{ _('Reddit') }}</option><option value="telegram">{{ _('Telegram Channel') }}</option></select></div>';
   h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Type') }}</div>';
   h+='<select class="sl" id="socType" style="flex:1"><option value="article">{{ _('Article') }}</option><option value="announcement">{{ _('Notification') }}</option><option value="promotion">{{ _('Promote') }}</option></select></div>';
   h+='<div class="fl"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Theme') }}</div><input class="in" id="socTopic" placeholder={{ _('Enter Topic, e.g. AI Transform Finance') | tojson }} style="flex:1"></div>';
@@ -134,9 +134,15 @@ function socialUpdateContentTypes(){
   var platform=document.getElementById("socPlatform").value;
   var typeSel=document.getElementById("socType");
   var summaryRow=document.getElementById("socSummaryRow");
-  if(platform==="weibo"){
-    typeSel.innerHTML='<option value="weibo">{{ _('Weibo') }}</option>';
+  if(platform==="weibo"||platform==="twitter"||platform==="reddit"||platform==="telegram"){
+    if(platform==="twitter") typeSel.innerHTML='<option value="tweet">{{ _('Tweet') }}</option>';
+    else if(platform==="reddit") typeSel.innerHTML='<option value="link">{{ _('Link Post') }}</option><option value="text">{{ _('Text Post') }}</option>';
+    else if(platform==="telegram") typeSel.innerHTML='<option value="message">{{ _('Channel Message') }}</option>';
+    else typeSel.innerHTML='<option value="post">{{ _('Post') }}</option>';
     if(summaryRow)summaryRow.style.display="none";
+  }else if(platform==="linkedin"){
+    typeSel.innerHTML='<option value="article">{{ _('Article') }}</option><option value="post">{{ _('Post') }}</option>';
+    if(summaryRow)summaryRow.style.display="flex";
   }else{
     typeSel.innerHTML='<option value="article">{{ _('Article') }}</option><option value="announcement">{{ _('Notification') }}</option><option value="promotion">{{ _('Promote') }}</option>';
     if(summaryRow)summaryRow.style.display="flex";
@@ -313,7 +319,7 @@ function loadSocialHistory(){
     if(!items||!items.length){el.innerHTML='<div class="em">{{ _('No Push Records') }}</div>';return}
     var h='{{ _('<table><tr><th>Platform</th><th>Title</th><th>Status</th><th>ID</th><th>Time</th><th>Action</th></tr>') }}';
     var statusMap={draft:"{{ _('Draft') }}",publishing:"{{ _('Publishing') }}",published:"{{ _('Published') }}",failed:"{{ _('Failed') }}"};
-    var platformIcon={wechat:"💬",weibo:"📢",toutiao:"📰"};
+    var platformIcon={wechat:"💬",weibo:"📢",toutiao:"📰",twitter:"𝕏",linkedin:"in",reddit:"rd",telegram:"✈"};
     items.forEach(function(r){
       var st=statusMap[r.status]||r.status;
       var stCls=r.status==="published"?"on":(r.status==="failed"?"off":"pd");
@@ -358,7 +364,7 @@ function loadPublishHistory(){
     if(!items||!items.length){el.innerHTML='<div class="em">{{ _('No Push Records') }}</div>';return}
     var h='{{ _('<table><tr><th>Platform</th><th>Title</th><th>Status</th><th>ID</th><th>Time</th><th>Action</th></tr>') }}';
     var statusMap={draft:"{{ _('Draft') }}",publishing:"{{ _('Publishing') }}",published:"{{ _('Published') }}",failed:"{{ _('Failed') }}"};
-    var platformIcon={wechat:"💬",weibo:"📢",toutiao:"📰"};
+    var platformIcon={wechat:"💬",weibo:"📢",toutiao:"📰",twitter:"𝕏",linkedin:"in",reddit:"rd",telegram:"✈"};
     items.forEach(function(r){
       var st=statusMap[r.status]||r.status;
       var stCls=r.status==="published"?"on":(r.status==="failed"?"off":"pd");

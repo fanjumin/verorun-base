@@ -3,7 +3,7 @@
     "identifier": "social_push",
     "version": "0.1.0",
     "category": "Content",
-    "tags": ["social", "publish", "wechat", "weibo", "toutiao", "content"],
+    "tags": ["social", "publish", "wechat", "weibo", "toutiao", "twitter", "linkedin", "reddit", "telegram", "content"],
     "icon": "social_media",
     "description": "Social Push — Multi-platform social content publishing (WeChat OA / Weibo / Toutiao) with publish history",
     "author": "VeroRun",
