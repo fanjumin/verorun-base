@@ -19,7 +19,7 @@ assert hasattr(_stdlib_platform, 'system'), 'FATAL: stdlib platform module not l
 
 # Restore project root to sys.path (after stdlib entries, lower priority)
 for p in reversed(_saved):
-    if p not in sys.path and p != '':
+    if p not in sys.path:
         sys.path.append(p)
 
 # CWD remains removed to prevent shadowing in workers
