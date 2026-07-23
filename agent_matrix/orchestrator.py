@@ -386,6 +386,7 @@ class AgentOrchestrator:
             # 尝试直接解析
             data = json.loads(response)
             tasks = data.get('tasks', [])
+            direct_reply = data.get('direct_reply', '')
         except (json.JSONDecodeError, TypeError):
             # 尝试提取 JSON 块
             import re
@@ -394,12 +395,28 @@ class AgentOrchestrator:
                 try:
                     data = json.loads(match.group())
                     tasks = data.get('tasks', [])
+                    direct_reply = data.get('direct_reply', '')
                 except (json.JSONDecodeError, TypeError):
                     tasks = []
+                    direct_reply = ''
             else:
                 tasks = []
+                direct_reply = ''
 
         if not tasks:
+            if direct_reply:
+                logger.info("Master Agent 直接回复（无需子任务），跳过分解")
+                return [{
+                    'title': _('Direct Reply'),
+                    'description': direct_reply,
+                    'target_agent_id': master_config.get('id'),
+                    'target_agent_name': master_config.get('name', 'Athena'),
+                    'target_module': 'general',
+                    'task_type': 'execute',
+                    'priority': 5,
+                    'input_data': {'raw_instruction': instruction, 'direct_reply': direct_reply},
+                    'expected_output': {'fields': ['response']},
+                }]
             logger.info("Master Agent 未分解出子任务，使用模板分解作为 fallback")
             return self._template_decompose(instruction, sub_agents)
 
@@ -517,6 +534,9 @@ class AgentOrchestrator:
             'logs': [...]
         }, ...]
         """
+        if not tasks:
+            return []
+            
         from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
         import threading
 
