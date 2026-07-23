@@ -286,6 +286,8 @@ class UnifiedLLM:
         config = _resolve_agent_model_config(config)
         self._provider = config.get('provider', 'deepseek')
         self._model = config.get('model_name', 'deepseek-chat')
+        import sys
+        print(f"[DIAG] _apply_config: provider={self._provider}, model={self._model}, api_key_id={self._api_key_id}, pm_id={config.get('provider_model_id')}", file=sys.stderr, flush=True)
         self._base_url = config.get('base_url', '')
         self._system_prompt = config.get('system_prompt', '')
         self._agent_id = config.get('id') if config.get('id') is not None else config.get('agent_id')
@@ -328,7 +330,17 @@ class UnifiedLLM:
             if val:
                 return val
         # 最终回退：从 system_config 读取（使用正确 key 格式）
-        return _get_system_key(f'model_{provider}_api_key')
+        key_map = {
+            'dashscope': 'dashscope_text_key',
+            'siliconflow': 'siliconflow_api_key',
+            'deepseek': 'deepseek_api_key',
+            'openai': 'openai_api_key',
+            'openrouter': 'openrouter_api_key',
+            'gemini': 'gemini_api_key',
+            'grok': 'grok_api_key',
+        }
+        config_key = key_map.get(provider, f'{provider}_api_key')
+        return _get_system_key(config_key)
 
     def _resolve_api_key(self, provider_slug, api_key_id=None):
         """优先通过 api_key_id 查 provider_api_keys，回退到 _fallback_key"""
