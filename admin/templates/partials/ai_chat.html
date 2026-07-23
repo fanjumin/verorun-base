@@ -1110,7 +1110,7 @@ function matCreate(){
     headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
     body:JSON.stringify(body)
   }).then(function(r){return r.json()}).then(function(d){
-    if(d.success){l_matrix()}else{alert(d.error||"{{ _('Creation Failed') }}")}
+    if(d.success){l_matrix()}else{showToast(d.error||"{{ _('Creation Failed') }}","error")}
   });
 }
 
@@ -1365,7 +1365,7 @@ function matServiceTest(svcId){
     trademind_chat:{name:"{{ _('Chat Window') }}",q:"{{ _('Hello') }}"}
   };
   var t=tests[svcId];
-  if(!t){alert("{{ _('Unknown Service') }}");return}
+  if(!t){showToast("{{ _('Unknown Service') }}","error");return}
   var msg="⏳ {{ _('Test') }} "+t.name+"... {{ _('Please wait...') }}";
   showToast(msg,"info");
   if(svcId=="qwen_text"){
@@ -1374,8 +1374,8 @@ function matServiceTest(svcId){
       headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
       body:JSON.stringify({content:t.q})
     }).then(function(r){return r.json()}).then(function(d){
-      if(d.success)alert("✅ {{ _('Test Passed') }}!\n\n{{ _('Response') }}:\n"+d.data.slice(0,500));
-      else alert("❌ {{ _('Test Failed') }}: "+(d.error||"{{ _('Unknown') }}"));
+      if(d.success)showToast("{{ _('Test Passed') }}", "success");
+      else showToast("{{ _('Test Failed') }}: "+(d.error||"{{ _('Unknown') }}"), "error");
     });
   }else if(svcId=="wanx_image"){
     fetch("/admin/social/generate-image",{
@@ -1383,13 +1383,13 @@ function matServiceTest(svcId){
       headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
       body:JSON.stringify({prompt:t.q})
     }).then(function(r){return r.json()}).then(function(d){
-      if(d.success)alert("✅ {{ _('Test Passed') }}!\n{{ _('Image') }}URL: "+(d.data.url||d.data||""));
-      else alert("❌ {{ _('Test Failed') }}: "+(d.error||"{{ _('Unknown') }}"));
+      if(d.success)showToast("{{ _('Test Passed') }}", "success");
+      else showToast("{{ _('Test Failed') }}: "+(d.error||"{{ _('Unknown') }}"), "error");
     });
   }else if(svcId=="trademind_chat"){
     matEditKnowledge();
   }else{
-    alert("{{ _('Please Use Matrix Chat to Test') }}");
+    showToast("{{ _('Please Use Matrix Chat to Test') }}","info");
   }
 }
 
