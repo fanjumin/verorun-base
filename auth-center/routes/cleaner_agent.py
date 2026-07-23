@@ -148,6 +148,100 @@ def _update_quality(kb_id: str, factor: float, weight: float = 0.05):
 
 
 # =============================================
+# LLM 调用（通过 UnifiedLLM，复用 Agent Matrix 引擎）
+# =============================================
+
+def _call_llm(system_prompt: str, user_prompt: str):
+    """
+    调用 LLM 清洗数据，返回解析后的 JSON 结果 dict。
+
+    成功返回: {'title':'...', 'content':'...', 'category':'...', 'keywords':'...', 'is_duplicate':False, 'duplicate_of':''}
+    失败返回: {'error': '...'}
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # 构建 engine 配置（优先从 system_config 读取 cleaner_ai_* 覆盖默认值）
+    engine_config = {
+        'provider': 'deepseek',
+        'model_name': 'deepseek-chat',
+        'base_url': '',
+        'system_prompt': '',
+    }
+    try:
+        from models import get_db as _get_db
+        with _get_db() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM system_config WHERE key IN "
+                "('cleaner_ai_provider', 'cleaner_ai_model', "
+                "'cleaner_ai_base_url', 'cleaner_ai_api_key')"
+            ).fetchall()
+            for r in rows:
+                key = r['key']
+                val = r['value']
+                if key == 'cleaner_ai_provider' and val:
+                    engine_config['provider'] = val
+                elif key == 'cleaner_ai_model' and val:
+                    engine_config['model_name'] = val
+                elif key == 'cleaner_ai_base_url' and val:
+                    engine_config['base_url'] = val
+    except Exception as e:
+        _logger.warning(f'Failed to read cleaner_ai config from DB: {e}')
+
+    # 初始化 UnifiedLLM
+    try:
+        from agent_matrix.engine import UnifiedLLM
+        engine = UnifiedLLM(engine_config)
+    except ImportError:
+        _logger.error('agent_matrix.engine.UnifiedLLM not available')
+        return {'error': 'AI engine not available'}
+    except Exception as e:
+        _logger.error(f'Failed to initialize UnifiedLLM: {e}')
+        return {'error': f'AI engine init failed: {e}'}
+
+    if not engine.is_ready():
+        _logger.error('UnifiedLLM not ready (missing API key for provider=%s)', engine_config['provider'])
+        return {'error': _('AI engine not ready, please check API Key configuration')}
+
+    # 调用 LLM
+    try:
+        raw_response = engine.chat(
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ],
+            temperature=0.3,
+            max_tokens=4096,
+            module='cleaner_agent',
+        )
+    except Exception as e:
+        _logger.error(f'LLM call failed: {e}')
+        return {'error': f'LLM call failed: {e}'}
+
+    if not raw_response:
+        return {'error': _('LLM returned empty response')}
+
+    # 解析 JSON
+    try:
+        import re
+        # 尝试提取 JSON 块（处理 LLM 可能包裹的 markdown 代码块）
+        json_match = re.search(r'\{[\s\S]*\}', raw_response)
+        if json_match:
+            result = json.loads(json_match.group())
+        else:
+            result = json.loads(raw_response)
+
+        # 验证必要字段
+        if not result.get('title'):
+            return {'error': _('LLM response missing title field')}
+        return result
+
+    except (json.JSONDecodeError, ValueError) as e:
+        _logger.error(f'Failed to parse LLM JSON response: {e}\nResponse: {raw_response[:500]}')
+        return {'error': _('Failed to parse LLM response as JSON')}
+
+
+# =============================================
 # Core function: directly callable by Agent Matrix
 # =============================================
 
