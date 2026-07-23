@@ -20,8 +20,8 @@ def _get_pool():
     if _pool is None:
         with _pool_lock:
             if _pool is None:
-                minconn = int(os.environ.get('PG_POOL_MIN', '1'))
-                maxconn = int(os.environ.get('PG_POOL_MAX', '5'))
+                minconn = int(os.environ.get('PG_POOL_MIN', '2'))
+                maxconn = int(os.environ.get('PG_POOL_MAX', '20'))
                 _pool = psycopg2.pool.ThreadedConnectionPool(
                     minconn=minconn,
                     maxconn=maxconn,
