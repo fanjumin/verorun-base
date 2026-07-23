@@ -20,7 +20,7 @@ def _get_or_create_salt() -> bytes:
     return salt
 
 def _get_key():
-    raw = os.environ.get('ENCRYPTION_KEY')
+    raw = os.environ.get('ENCRYPTION_KEY') or os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY')
     if not raw:
         raise RuntimeError("ENCRYPTION_KEY environment variable is not set")
     salt = _get_or_create_salt()
