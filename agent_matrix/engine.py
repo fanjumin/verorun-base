@@ -344,6 +344,10 @@ class UnifiedLLM:
                     return _decrypt(row['key_value_enc'])
             except Exception as e:
                 logger.warning(f"[UnifiedLLM] api_key_id={api_key_id} lookup failed: {e}")
+        # 降级路径：按 provider slug 从 provider_api_keys 查找（BUG-001 修复）
+        key = _resolve_key_from_provider_api_keys(provider_slug)
+        if key:
+            return key
         return self._fallback_key(provider_slug)
 
     def _resolve_model(self, provider_model_id=None, provider=None, model=None):
