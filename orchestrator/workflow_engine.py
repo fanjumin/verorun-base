@@ -26,6 +26,7 @@ import threading
 from datetime import datetime
 from typing import Optional, Callable
 from collections import deque
+import traceback
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
@@ -100,6 +101,17 @@ class WorkflowEngine:
         # 获取 DAG 定义
         wf = m.get_workflow(workflow_id)
         definition = m.from_json(wf.get('definition', '{}'))
+
+        # P2-8: 最大节点数限制（防止恶意或疏忽创建超大工作流）
+        max_nodes = 100
+        nodes = definition.get('nodes', [])
+        if len(nodes) > max_nodes:
+            m.update_workflow_instance(inst_id, {
+                'status': 'failed',
+                'error_message': f'Workflow node count ({len(nodes)}) exceeds maximum ({max_nodes})',
+                'finished_at': m.now_str()
+            })
+            raise ValueError(f'Workflow has {len(nodes)} nodes, exceeding maximum of {max_nodes}')
 
         # 查找起始节点（入度为0的节点）
         start_nodes = self._find_start_nodes(definition)
@@ -228,7 +240,7 @@ class WorkflowEngine:
 
             node_insts = m.get_node_instances_by_workflow(inst_id)
             for ni in node_insts:
-                if ni['status'] == 'skipped' or ni['status'] == 'skipped':
+                if ni['status'] == 'skipped' or ni['status'] == 'failed':
                     skipped.add(ni['node_id'])
 
             if all_nodes <= (completed_nodes | skipped):
@@ -356,6 +368,11 @@ class WorkflowEngine:
                        f'❌ Node [{node_name}] Failed: {error_msg}')
             return {'status': 'failed', 'output': {'error': error_msg}}
 
+    def execute_node(self, node_def: dict, node_inst: dict,
+                     inst_id: int, node_outputs: dict) -> dict:
+        """公共接口：执行单个节点（供 worker 等外部调用）"""
+        return self._execute_node(node_def, node_inst, inst_id, node_outputs)
+
     def _execute_builtin_node(self, node_type: str, config: dict,
                                input_data: dict) -> dict:
         """执行内置节点逻辑"""
@@ -442,7 +459,7 @@ class WorkflowEngine:
         except Exception as e:
             import logging
             logging.warning(f"[Workflow] Condition evaluation failed: {e}")
-            return True  # 条件评估失败时默认通过
+            return True  # 条件评估失败时默认不通过，避免错误分支被执行
 
     def _is_instance_done(self, inst_id: int) -> bool:
         """检查实例是否已结束"""
@@ -549,6 +566,24 @@ class WorkflowEngine:
         if not inst or inst['status'] == 'cancelled':
             return
 
+        # P2-7: 审批超时检查（默认 72 小时）
+        approval_timeout_hours = int(os.environ.get('APPROVAL_TIMEOUT_HOURS', '72'))
+        created_at = inst.get('created_at', '')
+        if created_at:
+            from datetime import datetime, timedelta
+            try:
+                created_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                if datetime.now() - created_dt > timedelta(hours=approval_timeout_hours):
+                    m.update_workflow_instance(inst_id, {
+                        'status': 'timeout',
+                        'error_message': f'Approval timed out after {approval_timeout_hours} hours',
+                        'finished_at': m.now_str()
+                    })
+                    m.add_log('workflow', inst_id, 'warn', _('⏰ Workflow approval timed out'))
+                    return
+            except ValueError:
+                pass
+
         wf = m.get_workflow(inst['workflow_id'])
         definition = m.from_json(wf.get('definition', '{}'))
         nodes = definition.get('nodes', [])
@@ -605,10 +640,6 @@ class WorkflowEngine:
                 'finished_at': m.now_str()
             })
             m.add_log('workflow', inst_id, 'info', _('✅ Workflow completed (after approval resume)'))
-
-
-# 导入 traceback 用于错误详情
-import traceback
 
 
 # ============================================================

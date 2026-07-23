@@ -6,9 +6,13 @@
 window.editor = (function() {
   'use strict';
 
+  // P2-1: 捕获 SSO Token 到闭包，避免暴露在全局作用域
+  var __capturedToken = window.__SSO_TOKEN || '';
+  // 立即清理全局变量，防止第三方脚本读取
+  try { delete window.__SSO_TOKEN; } catch(e) { window.__SSO_TOKEN = undefined; }
+
   function getToken() {
-    var t = window.__SSO_TOKEN;
-    if (t) return t;
+    if (__capturedToken) return __capturedToken;
     var m = document.cookie.match(/(?:^|;\s*)sso_token=([^;]*)/);
     return m ? decodeURIComponent(m[1]) : '';
   }
@@ -259,22 +263,32 @@ window.editor = (function() {
     return data;
   }
 
-  // 保存节点配置
-  function saveNodeConfig(nodeId, nodeType) {
-    var config = readFormData(nodeType);
-    // 检查必填项
-    var fields = CONFIG_FIELDS[nodeType] || [];
+  // 统一的节点配置完整性校验（P1-5: 统一 saveNodeConfig 和 deserialize 的检测逻辑）
+  function validateNode(type, config) {
+    var fields = CONFIG_FIELDS[type] || [];
     var incomplete = false;
     fields.forEach(function(f) {
       var val = config[f.key];
       if (f.type === 'text' || f.type === 'textarea') {
         if (f.key === 'prompt' || f.key === 'instruction' || f.key === 'expression' || f.key === 'url') {
-          if (!val || val.trim() === '') incomplete = true;
+          if (!val || val.toString().trim() === '') incomplete = true;
         }
       }
     });
+    return incomplete;
+  }
 
+  // 保存节点配置
+  function saveNodeConfig(nodeId, nodeType) {
+    // P1-4: 保存前推送撤销栈
     var flowState = window.editor.__flowState;
+    if (flowState && flowState.pushUndo) {
+      flowState.pushUndo();
+    }
+
+    var config = readFormData(nodeType);
+    var incomplete = validateNode(nodeType, config);
+
     if (flowState) {
       flowState.updateNodeConfig(nodeId, config, incomplete);
     }
@@ -298,9 +312,14 @@ window.editor = (function() {
     });
     var defEdges = (edges || []).map(function(e) {
       return {
+        id: e.id,
         from: e.source,
         to: e.target,
-        sourceHandle: e.sourceHandle || undefined,
+        sourceHandle: e.sourceHandle || null,
+        targetHandle: e.targetHandle || null,
+        animated: e.animated !== undefined ? e.animated : true,
+        style: e.style || { stroke: '#6366f1', strokeWidth: 2 },
+        label: e.label || '',
         condition: e.sourceHandle || 'success'
       };
     });
@@ -316,16 +335,9 @@ window.editor = (function() {
     var nodes = defNodes.map(function(n) {
       var cfg = NODE_CONFIGS[n.type];
       var defaults = getNodeDefaults(n.type);
-      var config = n.config || {};
-      var incomplete = false;
-      // 检查配置是否完整
-      var fields = CONFIG_FIELDS[n.type] || [];
-      fields.forEach(function(f) {
-        var val = config[f.key];
-        if ((f.type === 'text' || f.type === 'textarea') && f.placeholder) {
-          if (!val || val.toString().trim() === '') incomplete = true;
-        }
-      });
+      // 合并默认配置与已保存配置，确保反序列化后节点不缺少必要字段
+      var config = Object.assign({}, defaults.config, n.config || {});
+      var incomplete = validateNode(n.type, config);
 
       return {
         id: n.id,
@@ -347,16 +359,17 @@ window.editor = (function() {
 
     var edges = defEdges.map(function(e) {
       return {
-        id: 'edge_' + e.from + '_' + e.to,
+        id: e.id || ('edge_' + e.from + '_' + (e.sourceHandle || 'default') + '_' + e.to),
         source: e.from,
         target: e.to,
         sourceHandle: e.sourceHandle || null,
-        animated: true,
-        style: { stroke: '#6366f1', strokeWidth: 2 }
+        targetHandle: e.targetHandle || null,
+        animated: e.animated !== undefined ? e.animated : true,
+        style: e.style || { stroke: '#6366f1', strokeWidth: 2 },
+        label: e.label || ''
       };
     });
 
-    // 修复被截断的边 label
     return { nodes: nodes, edges: edges };
   }
 
@@ -410,6 +423,7 @@ window.editor = (function() {
   // ═══════════════════════════════════════════════════════════
 
   // 保存工作流
+  var __stateVersion = 0;  // P1-2: 竞态条件防护
   function save() {
     var flowState = window.editor.__flowState;
     if (!flowState) { alert('Editor not ready'); return; }
@@ -419,6 +433,9 @@ window.editor = (function() {
       alert(_t('toast.empty_workflow'));
       return;
     }
+
+    // P1-2: 递增版本号，防止异步操作覆盖最新状态
+    var version = ++__stateVersion;
 
     // 检查未配置的节点
     var incompleteNodes = nodes.filter(function(n) { return n.data && n.data.incomplete; });
@@ -446,6 +463,8 @@ window.editor = (function() {
 
     doFetch(url, method, payload)
       .then(function(d) {
+        // P1-2: 版本号不匹配则放弃处理（后续操作已覆盖此状态）
+        if (version !== __stateVersion) return;
         document.getElementById('btn-save').disabled = false;
         document.getElementById('btn-save').textContent = _t('editor.save') || 'Save';
         if (d.success) {
@@ -515,7 +534,11 @@ window.editor = (function() {
 
       var definition = wf.definition;
       if (typeof definition === 'string') {
-        try { definition = JSON.parse(definition); } catch(e) { definition = null; }
+        try { definition = JSON.parse(definition); } catch(e) {
+          toast(_t('toast.load.failed') + ': ' + (e.message || 'Invalid JSON'), 'error');
+          console.error('[WorkflowEditor] JSON parse error:', e, 'raw:', definition.substring(0, 200));
+          definition = null;
+        }
       }
       var state = definition ? deserializeFromDefinition(definition) : { nodes: [], edges: [] };
       var flowState = window.editor.__flowState;
@@ -552,7 +575,24 @@ window.editor = (function() {
   // ── Toast ──
   function toast(message, type) {
     type = type || 'info';
-    console.log('[' + type + '] ' + message);
+    var container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;';
+      document.body.appendChild(container);
+    }
+    var colors = { info: '#2563eb', success: '#16a34a', error: '#dc2626', warn: '#f59e0b' };
+    var bg = colors[type] || colors.info;
+    var el = document.createElement('div');
+    el.style.cssText = 'background:' + bg + ';color:#fff;padding:10px 18px;border-radius:6px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-width:360px;word-break:break-word;animation:toast-in .3s ease;';
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(function() {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity .3s';
+      setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+    }, 3000);
   }
 
   // ── 初始化 ──

@@ -62,13 +62,22 @@ def handle_ai_agent(node_def: dict, input_data: dict) -> dict:
         model = config.get('model', agent.get('model', 'qwen-turbo'))
         provider = agent.get('provider', 'dashscope')
     else:
-        # 用户 Agent - 从 agents 表读取
+        # 用户 Agent - 从 agents 表查询实际配置
         if not agent_id:
             return {'error': _('User Agent did not specify agent_id'), 'success': False}
-        # 从 system_config 读取 API Key（用户 agent 使用平台 Key）
-        api_key_ref = 'dashscope_text_key'
-        model = config.get('model', 'qwen-turbo')
-        provider = 'dashscope'
+        # 查询 agents 表获取实际 Agent 配置
+        agent = _get_agent_from_db(agent_id)
+        if agent:
+            api_key_ref = agent.get('api_key_ref', 'dashscope_text_key')
+            model = config.get('model', agent.get('model', 'qwen-turbo'))
+            provider = agent.get('provider', 'dashscope')
+        else:
+            # Agent 不存在时使用默认配置并记录日志
+            import logging
+            logging.getLogger('orchestrator.nodes').warning(f"Agent {agent_id} not found in database, using defaults")
+            api_key_ref = 'dashscope_text_key'
+            model = config.get('model', 'qwen-turbo')
+            provider = 'dashscope'
 
     # 从 system_config 获取 API Key
     api_key = _get_api_key(api_key_ref)
@@ -76,7 +85,8 @@ def handle_ai_agent(node_def: dict, input_data: dict) -> dict:
         return {'error': f'API Key [{api_key_ref}] not configured', 'success': False}
 
     # 调用 DashScope API
-    result = _call_dashscope(api_key, model, prompt)
+    timeout = config.get('timeout', 120)
+    result = _call_dashscope(api_key, model, prompt, timeout=timeout)
     return result
 
 
@@ -87,6 +97,21 @@ def _get_api_key(key_ref: str) -> str:
             "SELECT value FROM system_config WHERE key=%s", (key_ref,)
         ).fetchone()
         return row['value'] if row else ''
+
+
+def _get_agent_from_db(agent_id: int) -> dict:
+    """从 agents 表查询 Agent 配置"""
+    try:
+        with m.get_db() as conn:
+            row = conn.execute(
+                "SELECT api_key_ref, model, provider FROM agents WHERE id=%s",
+                (agent_id,)
+            ).fetchone()
+            if row:
+                return {'api_key_ref': row['api_key_ref'], 'model': row['model'], 'provider': row['provider']}
+    except Exception:
+        pass
+    return {}
 
 
 def _call_dashscope(api_key: str, model: str, prompt: str) -> dict:
@@ -107,7 +132,7 @@ def _call_dashscope(api_key: str, model: str, prompt: str) -> dict:
     req.add_header('Content-Type', 'application/json')
 
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
             token_usage = data.get('usage', {})
@@ -383,14 +408,62 @@ def _publish_to_skill(config: dict, content: str) -> dict:
 
 
 def _publish_to_social(config: dict, content: str) -> dict:
-    """发布到社交媒体"""
-    # 调用已有的社交推送逻辑
+    """发布到社交媒体 — 对接各平台发布 API"""
+    import logging
+    logger = logging.getLogger('orchestrator.nodes')
+    platforms = config.get('platforms', [])
+    results = {}
+    all_success = True
+
+    for platform in platforms:
+        try:
+            platform_key = f'{platform.upper()}_API_KEY'
+            api_key = os.environ.get(platform_key, '')
+            if not api_key:
+                results[platform] = {'success': False, 'error': f'API key not configured for {platform}'}
+                all_success = False
+                continue
+            results[platform] = _publish_to_platform(platform, api_key, content)
+        except Exception as e:
+            logger.warning(f"Publish to {platform} failed: {e}")
+            results[platform] = {'success': False, 'error': str(e)}
+            all_success = False
+
     return {
-        'success': True,
-        'platforms': config.get('platforms', ['weixin']),
-        'message': _('Simulated social media post successful'),
-        '_mock': True
+        'success': all_success,
+        'platforms': platforms,
+        'results': results
     }
+
+
+def _publish_to_platform(platform: str, api_key: str, content: str) -> dict:
+    """单平台发布"""
+    import urllib.request as ur
+    import logging
+    logger = logging.getLogger('orchestrator.nodes')
+
+    platform_endpoints = {
+        'weixin': 'https://api.weixin.qq.com/cgi-bin/message/custom/send',
+        'weibo': 'https://api.weibo.com/2/statuses/update.json',
+        'toutiao': 'https://developer.toutiao.com/api/v2/article/post',
+    }
+
+    endpoint = platform_endpoints.get(platform)
+    if not endpoint:
+        return {'success': False, 'error': f'Unknown platform: {platform}'}
+
+    payload = json.dumps({'content': content[:2000]}).encode('utf-8')
+    req = ur.Request(endpoint, data=payload, method='POST')
+    req.add_header('Authorization', f'Bearer {api_key}')
+    req.add_header('Content-Type', 'application/json')
+
+    try:
+        with ur.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return {'success': True, 'platform': platform, 'response': data}
+    except Exception as e:
+        logger.warning(f"Publish to {platform} API failed: {e}")
+        return {'success': False, 'error': str(e), 'platform': platform}
 
 
 # ============================================================
@@ -440,8 +513,24 @@ def handle_notify(node_def: dict, input_data: dict) -> dict:
 
 
 def _send_notification(title: str, message: str) -> dict:
-    """发送站内通知"""
-    return {'success': True, 'title': title, 'message': message[:100], '_mock': True}
+    """发送站内通知 — 写入 notifications 表并尝试发送 Webhook"""
+    try:
+        import logging
+        logger = logging.getLogger('orchestrator.nodes')
+        # 写入站内通知
+        with m.get_db() as conn:
+            conn.execute(
+                "INSERT INTO notifications (title, content, type, created_at) VALUES (%s, %s, %s, %s)",
+                (title, message[:500], 'workflow', m.now_str())
+            )
+        # 尝试发送 Webhook
+        webhook_url = os.environ.get('WORKFLOW_WEBHOOK_URL', '')
+        if webhook_url:
+            _send_webhook(webhook_url, title, message)
+        return {'success': True, 'title': title, 'message': message[:100]}
+    except Exception as e:
+        logger.warning(f"Notification send failed: {e}")
+        return {'success': False, 'error': str(e), 'title': title}
 
 
 def _send_webhook(url: str, title: str, message: str) -> dict:
@@ -543,14 +632,8 @@ def _get_market_data(symbol: str) -> dict:
                 }
     except Exception:
         pass
-    # 模拟数据
-    import random
-    return {
-        'name': symbol,
-        'price': round(random.uniform(10, 100), 2),
-        'change_pct': round(random.uniform(-3, 3), 2),
-        'volume': random.randint(100000, 10000000)
-    }
+    # API 失败时抛出异常，由工作流引擎按 on_error 策略处理
+    raise RuntimeError(f"Market data API unavailable for symbol: {symbol}")
 
 
 # ============================================================

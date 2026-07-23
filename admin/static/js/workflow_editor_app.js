@@ -349,7 +349,8 @@ function FlowEditor() {
       getEdges: function getEdges() {
         return edges;
       },
-      updateNodeConfig: updateNodeConfig
+      updateNodeConfig: updateNodeConfig,
+      pushUndo: pushUndo
     };
     // 注册 accessor
     window.editor.setEdgeAccessor(function () {

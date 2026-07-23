@@ -81,7 +81,7 @@ WORKFLOW_TEMPLATES = [
         "triggers": [{"type": "event", "event": "cms.published"}],
         "max_concurrency": 2,
         "timeout_minutes": 20,
-        "on_error": "continue",
+        "on_error": "skip",
         "definition": {
             "nodes": [
                 {"id": "n1", "type": "condition", "name": "是否发布社媒",

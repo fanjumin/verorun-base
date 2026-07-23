@@ -259,7 +259,7 @@ def _ai_interpret(report: dict, text: str) -> str:
             module='analytics',
         )
         return resp.choices[0].message.content.strip()
-    except:
+    except Exception:
         return ''
 
 
@@ -322,7 +322,6 @@ def create_daily_report_workflow(conn) -> int:
 
     from orchestrator import models as om
     wf_id = om.create_workflow(
-        conn=conn,
         name=_("📊 Daily Analysis Report"),
         description="每天自动生成分析报告并 AI 解读",
         definition=definition,

@@ -16,6 +16,7 @@ Scheduler — Cron 任务调度器核心
 """
 
 import os, sys, time, json
+import platform
 import threading
 from shared.logging import get_logger
 
@@ -133,7 +134,7 @@ class SchedulerEngine:
     """Cron 任务调度器引擎"""
 
     def __init__(self, scheduler_id: str = None, db_url: str = None):
-        hostname = os.uname().nodename if hasattr(os, 'uname') else os.environ.get('COMPUTERNAME', 'localhost')
+        hostname = platform.node() or os.environ.get('COMPUTERNAME', 'localhost')
         self.scheduler_id = scheduler_id or f'scheduler-{hostname}-{os.getpid()}'
         self._lock = threading.Lock()
         self._running_jobs: dict = {}  # job_id -> APScheduler job

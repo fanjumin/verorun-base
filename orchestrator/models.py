@@ -627,11 +627,12 @@ def create_workflow_instance(workflow_id, trigger_type='manual', trigger_config=
             INSERT INTO workflow_instances
                 (workflow_id, version, trigger_type, trigger_config,
                  status, context_data, started_at)
-            VALUES (%s,%s,%s,%s, 'running', '{}', NOW())
+            VALUES (%s,%s,%s,%s, 'running', '{}', %s)
             RETURNING id
         """, (
             workflow_id, wf.get('version', 1),
-            trigger_type, to_json(trigger_config or {})
+            trigger_type, to_json(trigger_config or {}),
+            now_str()
         ))
         inst_id = conn.fetchone()['id']
 
@@ -681,6 +682,16 @@ def get_workflow_instance(inst_id):
         )
         row = conn.fetchone()
         return dict(row) if row else None
+
+
+def get_running_instances(workflow_id: int) -> list:
+    """获取指定工作流正在运行的实例"""
+    with get_db() as conn:
+        conn.execute(
+            "SELECT id FROM workflow_instances WHERE workflow_id=%s AND status='running'",
+            (workflow_id,)
+        )
+        return [dict(row) for row in conn.fetchall()]
 
 
 def list_workflow_instances(workflow_id=None, status=None, page=1, limit=50):
@@ -823,15 +834,15 @@ def get_automation_stats():
         )
         running_instances = conn.fetchone()['count']
         conn.execute(
-            "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
+            "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND SUBSTR(finished_at, 1, 10)=CURRENT_DATE"
         )
         completed_today = conn.fetchone()['count']
         conn.execute(
-            "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND date(finished_at)=CURRENT_DATE"
+            "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND SUBSTR(finished_at, 1, 10)=CURRENT_DATE"
         )
         failed_today = conn.fetchone()['count']
         conn.execute(
-            "SELECT COALESCE(AVG(duration_ms),0) AS avg_duration FROM workflow_instances WHERE status='completed' AND date(finished_at)=CURRENT_DATE"
+            "SELECT COALESCE(AVG(duration_ms),0) AS avg_duration FROM workflow_instances WHERE status='completed' AND SUBSTR(finished_at, 1, 10)=CURRENT_DATE"
         )
         avg_duration = conn.fetchone()['avg_duration']
 

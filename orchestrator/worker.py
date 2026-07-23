@@ -257,7 +257,7 @@ class WorkerPool:
         """执行单个工作流节点（给外部直接调用用）"""
         node_def = task_data.get('node_def', {})
         input_data = task_data.get('input_data', {})
-        return self._workflow_engine._execute_node(
+        return self._workflow_engine.execute_node(
             node_def, task_data.get('node_inst', {}),
             task_data.get('inst_id', 0), input_data.get('node_outputs', {})
         )

@@ -384,6 +384,14 @@ def run_workflow(wf_id):
     if not wf['is_active']:
         return _error(_('Workflow has been disabled'), 400)
 
+    # P1-13: 并发执行检查 — 同一工作流只能有一个运行中的实例
+    max_concurrency = wf.get('max_concurrency', 1)
+    if max_concurrency == 1:
+        from orchestrator import models as om
+        running = om.get_running_instances(wf_id)
+        if running:
+            return _error(_('Workflow is already running'), 409)
+
     data = request.get_json() or {}
     initial_context = data.get('context', {})
 
