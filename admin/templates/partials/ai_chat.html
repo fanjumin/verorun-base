@@ -1244,7 +1244,7 @@ function matSaveEdit(id){
     headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
     body:JSON.stringify(body)
   }).then(function(r){return r.json()}).then(function(d){
-    if(d.success){l_matrix()}else{alert(d.error||"{{ _('Save failed') }}")}
+    if(d.success){l_matrix()}else{showToast(d.error||"{{ _('Save failed') }}","error")}
   });
 }
 
@@ -1272,16 +1272,9 @@ function matTest(id){
     body:JSON.stringify({query:q})
   }).then(function(r){return r.json()}).then(function(d){
     if(d.success&&d.data){
-      var msg="{{ _('🧠 Test Results') }}" + "\n━━━━━━━━━━━━━━━━\n";
-      msg+="{{ _('Status') }}: "+d.data.status+"\n";
-      msg+="{{ _('Confidence') }}: "+d.data.confidence+"\n";
-      if(d.data.logs&&d.data.logs.length){
-        msg+="\n📋 {{ _('Execution Log') }}:\n";
-        d.data.logs.slice(-5).forEach(function(l){msg+="  "+l+"\n"});
-      }
-      msg+="\n💬 {{ _('Response') }}:\n"+d.data.response.slice(0,1500);
-      alert(msg);
-    }else{alert(d.error||"{{ _('Test Failed') }}")}
+      var summary="{{ _('Test Results') }}: "+d.data.status+" ({{ _('Confidence') }}: "+d.data.confidence+") | {{ _('Response') }}: "+d.data.response.slice(0,200);
+      showToast(summary, d.data.status==='success'?'success':'info');
+    }else{showToast(d.error||"{{ _('Test Failed') }}","error")}
   });
 }
 
