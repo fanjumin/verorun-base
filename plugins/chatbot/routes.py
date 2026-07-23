@@ -112,6 +112,34 @@ def _get_plugin_manager():
     return pm
 
 
+@chatbot_bp.route('/chat', methods=['POST'])
+def chatbot_chat():
+    """Handle chatbot conversation requests using the Master Agent LLM."""
+    err = _require_admin()
+    if err:
+        return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    message = (data.get('message') or '').strip()
+    if not message:
+        return jsonify({'success': False, 'error': _('Message cannot be empty')}), 400
+
+    try:
+        from agent_matrix.engine import UnifiedLLM
+        from agent_matrix import models as agent_models
+
+        agents = agent_models.list_agents(role_type='master', active_only=True)
+        if not agents:
+            return jsonify({'success': False, 'error': 'No active Master Agent'}), 500
+
+        engine = UnifiedLLM(agents[0])
+        reply = engine.ask(message)
+        return jsonify({'success': True, 'data': {'reply': reply}})
+    except Exception as e:
+        logger.error(f'[chatbot/chat] LLM call failed: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @chatbot_bp.route('/settings', methods=['GET'])
 def get_settings():
     err = _require_admin()

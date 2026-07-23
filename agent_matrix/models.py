@@ -424,20 +424,18 @@ def seed_default_agents():
                 ))
                 print(f'[Seed] Insert system role: {slug}')
             else:
-                # UPDATE existing system role — sync all fields from YAML
+                # UPDATE existing system role — sync metadata only, preserve AI config
+                # NEVER overwrite provider/model_name/api_key_ref on existing agents
                 conn.execute("""
                     UPDATE agent_matrix SET
                         name=%s, description=%s, domain=%s,
-                        managed_modules=%s, provider=%s, model_name=%s,
-                        auto_approve=%s, is_system=1,
-                        updated_at=NOW()
+                        managed_modules=%s, auto_approve=%s,
+                        is_system=1, updated_at=NOW()
                     WHERE slug=%s
                 """, (
                     a.get('name', ''), a.get('description', ''),
                     a.get('domain', 'general'),
                     a.get('managed_modules', '[]'),
-                    a.get('provider', 'dashscope'),
-                    a.get('model_name', 'qwen-turbo'),
                     a.get('auto_approve', 0),
                     slug
                 ))
