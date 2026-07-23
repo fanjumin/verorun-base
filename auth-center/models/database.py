@@ -2,7 +2,6 @@
 """auth-center: Unified Database Manager - PostgreSQL edition."""
 import os, logging
 import psycopg2
-from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from contextlib import contextmanager
@@ -33,15 +32,11 @@ PG_CONFIG = {
     'application_name': 'verorun',
 }
 
-# ── 全局连接池 ──
-_pool: ThreadedConnectionPool | None = None
+# ── 数据库连接 ──
 
-
-def _ensure_pool() -> ThreadedConnectionPool:
-    global _pool
-    if _pool is None or _pool.closed:
-        _pool = ThreadedConnectionPool(minconn=3, maxconn=20, **PG_CONFIG)
-    return _pool
+def _connect():
+    """Create a fresh psycopg2 connection (no pooling, safe for gunicorn pre-fork)."""
+    return psycopg2.connect(**PG_CONFIG)
 
 
 class _DbWrapper:
@@ -95,9 +90,8 @@ class _DbWrapper:
 
 @contextmanager
 def get_db():
-    """Get PostgreSQL connection from pool, with schema search_path set."""
-    pool = _ensure_pool()
-    conn = pool.getconn()
+    """Get PostgreSQL connection, with schema search_path set."""
+    conn = _connect()
     conn.autocommit = False
     try:
         conn.rollback()  # defensive: clear any aborted transaction from prev usage
@@ -115,7 +109,7 @@ def get_db():
         raise
     finally:
         db.close()
-        pool.putconn(conn)
+        conn.close()
 
 
 # ── 列信息兼容层：替代 PRAGMA table_info() ──
