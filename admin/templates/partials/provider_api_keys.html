@@ -103,7 +103,7 @@ window.l_provider_keys=function(targetId){
     };
     var keyVal=document.getElementById('pk-value').value.trim();
     if(keyVal)data.key_value=keyVal;
-    if(!isEdit&&!keyVal){alert('{{ _('API Key value is required') }}');return}
+    if(!isEdit&&!keyVal){showToast('{{ _('API Key value is required') }}','error');return}
 
     var saveBtn=document.querySelector('#modal-root .pk-save-btn');
     if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving...';}
@@ -116,11 +116,12 @@ window.l_provider_keys=function(targetId){
       body:JSON.stringify(data)
     }).then(function(r){
       if(!r.ok)throw new Error('HTTP '+r.status);
-      return r.json();
+      return r.json().catch(function(){throw new Error('Invalid response');});
     }).then(function(d){
-      if(d.success){closeModal();render()}else{alert(d.error||'{{ _('Operation failed') }}')}
+      if(d.success){closeModal();render();showToast('{{ _('Saved') }}','success')}
+      else{showToast(d.error||'{{ _('Operation failed') }}','error');throw null}
     }).catch(function(e){
-      alert('{{ _('Network error') }}: '+e.message);
+      if(e)showToast('{{ _('Save failed') }}: '+e.message,'error');
     }).finally(function(){
       if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Save';}
     });
@@ -130,7 +131,8 @@ window.l_provider_keys=function(targetId){
     if(!confirm("{{ _('Delete') }} \""+name+"\"?\n{{ _('This action cannot be undone.') }}"))return;
     fetch("/admin/provider-api-keys/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
       .then(function(r){return r.json()}).then(function(d){
-        if(d.success){render()}else{alert(d.error||'{{ _('Delete failed') }}')}
-      }).catch(function(){alert('{{ _('Network error') }}')});
+        if(d.success){render();showToast('{{ _('Deleted') }}','success')}
+        else{showToast(d.error||'{{ _('Delete failed') }}','error')}
+      }).catch(function(){showToast('{{ _('Network error') }}','error')});
   };
 };
