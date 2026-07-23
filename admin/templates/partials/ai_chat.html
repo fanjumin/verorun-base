@@ -1262,19 +1262,40 @@ function matTg(id,v){
   });
 }
 
-// Test agent — {{ _('Pro Version') }}，{{ _('Show Full Results') }}
+// Test agent — styled modal instead of prompt()
 function matTest(id){
-  var q=prompt("📩 {{ _('Send Test Message to Agent') }}：\n（{{ _('e.g.') }}：\"{{ _('Analyze Recent Stock Market Trends') }}\"）");
-  if(!q)return;
-  fetch("/admin/agent-matrix/agents/"+id+"/test",{
-    method:"POST",
-    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
-    body:JSON.stringify({query:q})
-  }).then(function(r){return r.json()}).then(function(d){
-    if(d.success&&d.data){
-      var summary="{{ _('Test Results') }}: "+d.data.status+" ({{ _('Confidence') }}: "+d.data.confidence+") | {{ _('Response') }}: "+d.data.response.slice(0,200);
-      showToast(summary, d.data.status==='success'?'success':'info');
-    }else{showToast(d.error||"{{ _('Test Failed') }}","error")}
+  var modal=document.getElementById("matTestModal");
+  if(!modal){
+    modal=document.createElement("div");
+    modal.id="matTestModal";
+    modal.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center";
+    modal.innerHTML='<div class="cd" style="max-width:480px;width:90%;padding:20px">'+
+      '<div style="font-size:14px;margin-bottom:12px;color:var(--text)">{{ _('Send Test Message to Agent') }}</div>'+
+      '<input type="text" id="matTestInput" class="in" style="width:100%" placeholder="{{ _('e.g.') }}: {{ _('Analyze Recent Stock Market Trends') }}">'+
+      '<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">'+
+        '<button class="btn bo" onclick="var m=document.getElementById(\'matTestModal\');m._resolve=null;m.style.display=\'none\'">{{ _('Cancel') }}</button>'+
+        '<button class="btn bp" onclick="var m=document.getElementById(\'matTestModal\');var v=document.getElementById(\'matTestInput\').value.trim();if(v&&m._resolve){m.style.display=\'none\';m._resolve(v)}">{{ _('Send') }}</button>'+
+      '</div>'+
+    '</div>';
+    document.body.appendChild(modal);
+  }
+  modal.style.display="flex";
+  document.getElementById("matTestInput").value="";
+  document.getElementById("matTestInput").focus();
+  return new Promise(function(resolve){
+    modal._resolve=resolve;
+  }).then(function(q){
+    if(!q)return;
+    fetch("/admin/agent-matrix/agents/"+id+"/test",{
+      method:"POST",
+      headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
+      body:JSON.stringify({query:q})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.success&&d.data){
+        var summary="{{ _('Test Results') }}: "+d.data.status+" ({{ _('Confidence') }}: "+d.data.confidence+") | {{ _('Response') }}: "+d.data.response.slice(0,200);
+        showToast(summary, d.data.status==='success'?'success':'info');
+      }else{showToast(d.error||"{{ _('Test Failed') }}","error")}
+    });
   });
 }
 
