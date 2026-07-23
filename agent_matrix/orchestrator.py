@@ -989,7 +989,8 @@ class AgentOrchestrator:
             if result.get('self_review'):
                 parts.append(f"   └ Self-check: {result['self_review']}")
             if result.get('status') == 'failed':
-                parts.append(f"   └ Error: {result.get('response', '')[:200]}")
+                err_msg = result.get('error', '') or result.get('response', '')
+                parts.append(f"   └ Error: {err_msg[:200]}")
             # 添加子任务的实际产出内容
             resp = result.get('response', '')
             if resp and result.get('status') == 'completed' and len(resp) > 5:
