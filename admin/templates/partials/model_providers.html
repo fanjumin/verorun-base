@@ -81,13 +81,12 @@ function mpShowAddModel(providerId, providerName){
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Display Name') }} *</div><input class="in" id="mpName" placeholder="如：{{ _('Voice Cloning') }} v2" style="width:100%"></div>'+
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Name') }}</div><input class="in" id="mpModelName" placeholder="如：volc-voice-clone-v2" style="width:100%"></div>'+
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Ability Type') }}</div><select class="sl" id="mpCaps" style="width:100%"><option value="text">{{ _('Text') }}</option><option value="image">{{ _('Image') }}</option><option value="voice">{{ _('Voice') }}</option><option value="tts">{{ _('TTS') }}</option><option value="video">{{ _('Video') }}</option></select></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">API Key {{ _('Reference') }}</div><input class="in" id="mpKeyRef" placeholder="如：volcengine_credentials" style="width:100%"></div>'+
     '</div>'+
-    '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" placeholder="https://openspeech.bytedance.com/api/v1/tts" style="width:100%"></div>'+
+    '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" placeholder="https://api.siliconflow.cn/v1" style="width:100%"></div>'+
     '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
     '<div style="margin-top:10px"><button class="btn bp" onclick="mpCreateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
     '</div>';
-  // 异步加载 api_key_id 下拉框
+  // Async load api_key_id dropdown
   mpRenderKeySelect(null, providerId).then(function(html) {
     var wrap = document.getElementById("mpKeySelectWrap");
     if (wrap) wrap.innerHTML = html;
@@ -111,21 +110,20 @@ function mpShowEditModel(id){
       '<div><div style="font-size:11px;color:var(--dim)">{{ _('Display Name') }} *</div><input class="in" id="mpName" value="'+escAttr(m.name)+'" style="width:100%"></div>'+
       '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Name') }}</div><input class="in" id="mpModelName" value="'+escAttr(m.model_name)+'" style="width:100%"></div>'+
       '<div><div style="font-size:11px;color:var(--dim)">{{ _('Ability Type') }}</div><select class="sl" id="mpCaps" style="width:100%">'+
-        '<option value="text"'+(m.capabilities=='text'?' selected':'')+'>{{ _('Text') }}</option>'+
-        '<option value="image"'+(m.capabilities=='image'?' selected':'')+'>{{ _('Image') }}</option>'+
-        '<option value="voice"'+(m.capabilities=='voice'?' selected':'')+'>{{ _('Voice') }}</option>'+
-        '<option value="tts"'+(m.capabilities=='tts'?' selected':'')+'>{{ _('TTS') }}</option>'+
-        '<option value="video"'+(m.capabilities=='video'?' selected':'')+'>{{ _('Video') }}</option>'+
-      '</select></div>'+
-      '<div><div style="font-size:11px;color:var(--dim)">API Key {{ _('Reference') }}</div><input class="in" id="mpKeyRef" value="'+escAttr(m.api_key_ref||'')+'" style="width:100%"></div>'+
-      '</div>'+
-      '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" value="'+escAttr(m.endpoint_url||'')+'" style="width:100%"></div>'+
-      '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
-      '<div style="margin-top:8px"><label style="font-size:11px"><input type="checkbox" id="mpActive"'+(m.is_active?' checked':'')+'> {{ _('Enabled') }}</label></div>'+
-      '<div style="margin-top:10px"><button class="btn bp" onclick="mpUpdateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
-      '</div>';
-      // 异步加载 api_key_id 下拉框
-      mpRenderKeySelect(m.api_key_id, m.provider_slug).then(function(html) {
+      '<option value="text"'+(m.capabilities=='text'?' selected':'')+'>{{ _('Text') }}</option>'+
+      '<option value="image"'+(m.capabilities=='image'?' selected':'')+'>{{ _('Image') }}</option>'+
+      '<option value="voice"'+(m.capabilities=='voice'?' selected':'')+'>{{ _('Voice') }}</option>'+
+      '<option value="tts"'+(m.capabilities=='tts'?' selected':'')+'>{{ _('TTS') }}</option>'+
+      '<option value="video"'+(m.capabilities=='video'?' selected':'')+'>{{ _('Video') }}</option>'+
+    '</select></div>'+
+    '</div>'+
+    '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" value="'+escAttr(m.endpoint_url||'')+'" style="width:100%"></div>'+
+    '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
+    '<div style="margin-top:8px"><label style="font-size:11px"><input type="checkbox" id="mpActive"'+(m.is_active?' checked':'')+'> {{ _('Enabled') }}</label></div>'+
+    '<div style="margin-top:10px"><button class="btn bp" onclick="mpUpdateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
+    '</div>';
+    // Async load api_key_id dropdown
+    mpRenderKeySelect(m.api_key_id, m.provider_slug).then(function(html) {
         var wrap = document.getElementById("mpKeySelectWrap");
         if (wrap) wrap.innerHTML = html;
       });

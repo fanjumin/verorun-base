@@ -1346,6 +1346,8 @@ def init_db():
             # DeepSeek
             (pids['deepseek'],   'DeepSeek Chat',       'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     30),
             (pids['deepseek'],   'DeepSeek Reasoner',   'deepseek-reasoner',      'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     31),
+            (pids['deepseek'],   'DeepSeek V4 Flash',   'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     32),
+            (pids['deepseek'],   'DeepSeek V4 Pro',     'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     33),
             # OpenAI
             (pids['openai'],     'GPT-4o',               'gpt-4o',                 'https://api.openai.com/v1',                                 'openai_api_key',        'text',     40),
             (pids['openai'],     'GPT-4o Mini',          'gpt-4o-mini',            'https://api.openai.com/v1',                                 'openai_api_key',        'text',     41),
@@ -1362,6 +1364,11 @@ def init_db():
             (pids['siliconflow'], 'DeepSeek V3',        'deepseek-ai/DeepSeek-V3', 'https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     55),
             (pids['siliconflow'], 'DeepSeek R1',        'deepseek-ai/DeepSeek-R1', 'https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     56),
             (pids['siliconflow'], 'DeepSeek OCR',       'deepseek-ai/DeepSeek-OCR','https://api.siliconflow.cn/v1',                           'siliconflow_api_key',   'text',     57),
+            (pids['siliconflow'], 'FLUX.1 Schnell',      'black-forest-labs/FLUX.1-schnell',       'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'image',    58),
+            (pids['siliconflow'], 'FLUX.1 Pro',          'black-forest-labs/FLUX.1-pro',           'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'image',    59),
+            (pids['siliconflow'], 'FLUX.1 Dev',          'black-forest-labs/FLUX.1-dev',           'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'image',    60),
+            (pids['siliconflow'], 'Stable Diffusion 3.5','stabilityai/stable-diffusion-3.5-large', 'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'image',    61),
+            (pids['siliconflow'], 'SDXL Base 1.0',       'stabilityai/stable-diffusion-xl-base-1.0','https://api.siliconflow.cn/v1',           'siliconflow_api_key',   'image',    62),
             # Google Gemini (OpenAI-compatible endpoint)
             (pids['gemini'],     'Gemini 2.5 Flash',    'gemini-2.5-flash',       'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     65),
             (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
