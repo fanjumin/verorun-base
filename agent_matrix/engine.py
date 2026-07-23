@@ -262,7 +262,7 @@ def check_ai_budget(scene: str = '') -> tuple:
 # 所有调用统一写入 agent_token_logs + agent_token_daily。
 
 class UnifiedLLM:
-    """统一 LLM 入口 — 合并 AIEngine + 旧 LLMGateway。
+    """统一 LLM 入口。
     支持实例模式：UnifiedLLM(config) 兼容 AIEngine 调用方式。
     """
 

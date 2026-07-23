@@ -232,7 +232,7 @@ def handle_analytics_cleanup(node_def: dict, input_data: dict) -> dict:
 
 def _ai_interpret(report: dict, text: str) -> str:
     """
-    使用 LLMGateway 对统计数据进行专业解读
+    使用 UnifiedLLM 对统计数据进行专业解读
     复用平台已有的 provider_models 配置
     """
     import urllib.request

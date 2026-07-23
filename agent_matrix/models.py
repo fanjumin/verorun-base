@@ -6,7 +6,7 @@ Agent Matrix — 数据库模型
 复用 auth-center/models/database.py 的 get_db() 模式。
 """
 from i18n import _
-import json, os, sys, re, threading
+import json, os, sys, re
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,32 +87,14 @@ def _load_all_role_yamls():
 
 
 # ============================================================
-# Task ID 生成器
+# Task ID 生成器（UUID 后缀，杜绝并发冲突）
 # ============================================================
-_task_counter = 0  # Will be overridden by _init_task_counter()
-_task_counter_lock = threading.Lock()
-
-def _init_task_counter():
-    """Initialize task counter from DB to avoid UNIQUE constraint violations on restart."""
-    global _task_counter
-    try:
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT MAX(CAST(SUBSTR(task_id, -4) AS INTEGER)) AS max_id FROM agent_tasks "
-                "WHERE task_id LIKE 'AT-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-%'"
-            ).fetchone()
-            _task_counter = row['max_id'] if row and row['max_id'] else 0
-    except Exception:
-        _task_counter = 0
-
-_init_task_counter()
 
 def _next_task_id():
-    global _task_counter
-    with _task_counter_lock:
-        _task_counter += 1
-        date = datetime.now().strftime('%Y%m%d')
-        return f'AT-{date}-{_task_counter:06d}'
+    """生成唯一任务 ID，使用随机十六进制后缀避免跨进程冲突"""
+    import secrets
+    date = datetime.now().strftime('%Y%m%d')
+    return f'AT-{date}-{secrets.token_hex(4).upper()}'
 
 
 def _next_session_id():

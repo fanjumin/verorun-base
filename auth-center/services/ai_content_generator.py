@@ -30,7 +30,7 @@ def _get_key(key_name):
 # =============================================
 
 def _qwen_chat(messages, model='qwen-turbo', temperature=0.7):
-    """Call Qwen via LLMGateway (unified entry with token logging)."""
+    """Call Qwen via UnifiedLLM (unified entry with token logging)."""
     from agent_matrix.engine import get_gateway
     gw = get_gateway()
     resp = gw.chat(

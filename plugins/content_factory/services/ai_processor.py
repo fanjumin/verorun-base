@@ -18,7 +18,7 @@ def _get_ai_key() -> Optional[str]:
 
 
 def _call_qwen(prompt: str, max_tokens: int = 4096) -> Optional[str]:
-    """Call Qwen via LLMGateway (unified entry with token logging)."""
+    """Call Qwen via UnifiedLLM (unified entry with token logging)."""
     from agent_matrix.engine import get_gateway
     gw = get_gateway()
     resp = gw.chat(
