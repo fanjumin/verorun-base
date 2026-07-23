@@ -1344,10 +1344,8 @@ def init_db():
             (pids['dashscope'],  'Image Gen Wan2.7',      'wan2.7-image',           'https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation', 'dashscope_api_key', 'image', 20),
             (pids['dashscope'],  'CosyVoice Clone',   'cosyvoice-v1',           'https://dashscope.aliyuncs.com/api/v1/services/audio/tts',  'dashscope_api_key',     'voice',    21),
             # DeepSeek
-            (pids['deepseek'],   'DeepSeek Chat',       'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     30),
-            (pids['deepseek'],   'DeepSeek Reasoner',   'deepseek-reasoner',      'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     31),
-            (pids['deepseek'],   'DeepSeek V4 Flash',   'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     32),
-            (pids['deepseek'],   'DeepSeek V4 Pro',     'deepseek-chat',          'https://api.deepseek.com/v1',                               'deepseek_api_key',      'text',     33),
+            (pids['deepseek'],   'DeepSeek V4 Flash',   'deepseek-v4-flash',      'https://api.deepseek.com',                                  'deepseek_api_key',      'text',     30),
+            (pids['deepseek'],   'DeepSeek V4 Pro',     'deepseek-v4-pro',        'https://api.deepseek.com',                                  'deepseek_api_key',      'text',     31),
             # OpenAI
             (pids['openai'],     'GPT-4o',               'gpt-4o',                 'https://api.openai.com/v1',                                 'openai_api_key',        'text',     40),
             (pids['openai'],     'GPT-4o Mini',          'gpt-4o-mini',            'https://api.openai.com/v1',                                 'openai_api_key',        'text',     41),
