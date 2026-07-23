@@ -963,12 +963,13 @@ def mini_app_update_platform(platform):
 
 def _mini_app_generate_with_ai(project, platforms, prompt, template, options,
                                 create_version, next_version_no, admin):
-    """AI-prompt branch: build plan from template, create version, return preview URL."""
+    """AI-prompt branch: call LLM to build plan, create version, return preview URL."""
+
     # 1. Load template
     tmpl = _load_prompt_template(template or 'mini_shop')
 
-    # 2. Build basic plan from template defaults
-    plan = _build_basic_plan_from_template(tmpl, prompt)
+    # 2. Build AI plan via Master Agent LLM (falls back to template defaults)
+    plan = _build_ai_plan_from_template(tmpl, prompt)
 
     # 3. Create version with AI plan saved
     version_no = next_version_no(project['id'])
@@ -1005,7 +1006,7 @@ def _mini_app_generate_with_ai(project, platforms, prompt, template, options,
 
 
 def _save_ai_fields(version_id, prompt, template, plan):
-    """Update a mini_app_versions row with AI-generation fields."""
+    """Persist AI-generation metadata to the mini_app_versions row."""
     try:
         from models import get_db
         from site_builder.models import TABLE_MINIAPP_VERSIONS
@@ -1043,7 +1044,10 @@ def _load_prompt_template(identifier):
 
 
 def _build_basic_plan_from_template(tmpl, prompt):
-    """Build a basic AI plan dict from template defaults (no LLM)."""
+    """Fallback: build a basic plan from template defaults without LLM.
+    
+    Used when Master Agent is unavailable. Returns empty sections and widgets.
+    """
     pages = []
     for p in tmpl.get('pages', []):
         pages.append({
@@ -1071,6 +1075,138 @@ def _build_basic_plan_from_template(tmpl, prompt):
         'tabBar': tab,
         'pages': pages,
         'widgets': [],
+    }
+
+
+def _build_ai_plan_from_template(tmpl, prompt_text):
+    """Build a complete Mini App plan via Master Agent LLM from template + user input.
+
+    Calls the Master Agent in up to (2 + N_pages) rounds:
+      1. Parse user requirement (brand name, features, style)
+      2. Brand configuration (name, tagline, story, colors)
+      3. Per-page content (sections with block_type + widgets)
+
+    Falls back to template defaults when LLM is unavailable (graceful degradation).
+
+    Args:
+        tmpl: Loaded YAML prompt template dict with 'prompts' and 'defaults' keys
+        prompt_text: Raw user prompt from the frontend AI input
+
+    Returns:
+        Plan dict with keys: brand, theme, tabBar, pages, widgets
+    """
+    import re
+    from agent_matrix.engine import UnifiedLLM
+    from agent_matrix import models as agent_models
+
+    defaults = tmpl.get('defaults', {})
+    prompts = tmpl.get('prompts', {})
+    tabbar_default = tmpl.get('mini_app', {}).get('tabBar', {}).get('default', [])
+
+    industry = defaults.get('industry', 'General')
+    style = defaults.get('style', 'Modern')
+
+    # ── Resolve Master Agent ──
+    engine = None
+    try:
+        agents = agent_models.list_agents(role_type='master', active_only=True)
+        if agents:
+            engine = UnifiedLLM(agents[0])
+    except Exception:
+        pass
+
+    def _call_llm_json(system_msg, user_msg, temperature=0.3, max_tokens=2000):
+        """Call LLM and parse JSON from response. Returns {} on any failure."""
+        if not engine:
+            return {}
+        try:
+            messages = [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ]
+            raw = engine.chat(messages, temperature=temperature, max_tokens=max_tokens)
+            # Attempt direct JSON extraction
+            match = re.search(r'\{[\s\S]*\}', raw)
+            if match:
+                return json.loads(match.group(0))
+            # Attempt markdown code block
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw)
+            if match:
+                return json.loads(match.group(1))
+            logger.warning('[MiniApp] LLM JSON parse failed, raw: %s', raw[:200])
+        except Exception as exc:
+            logger.warning('[MiniApp] LLM call failed: %s', exc)
+        return {}
+
+    # ── Round 1: Parse user requirement ──
+    parse_tpl = prompts.get('parse', '')
+    if parse_tpl and engine:
+        parse_tpl = parse_tpl.replace('{行业}', industry).replace('{用户输入}', prompt_text)
+        parsed = _call_llm_json(parse_tpl, prompt_text)
+    else:
+        parsed = {}
+
+    brand_name = parsed.get('brand_name',
+        defaults.get('site_name', 'Mini App').replace('{品牌名称}', 'Mini App'))
+    style_pref = parsed.get('style_preference', style)
+
+    # ── Round 2: Brand & theme configuration ──
+    brand_tpl = prompts.get('brand', '')
+    if brand_tpl and engine:
+        brand_tpl = (brand_tpl
+            .replace('{品牌名称}', brand_name)
+            .replace('{行业}', industry)
+            .replace('{风格偏好}', style_pref))
+        brand = _call_llm_json(brand_tpl, 'Generate brand config for: ' + brand_name)
+    else:
+        brand = {}
+
+    brand.setdefault('app_name', brand_name)
+    brand.setdefault('tagline', defaults.get('tone', ''))
+    brand.setdefault('brand_story', '')
+    brand.setdefault('primary_color', defaults.get('primary_color', '#4F46E5'))
+    brand.setdefault('secondary_color', defaults.get('accent_color', '#10B981'))
+    brand.setdefault('accent_color', defaults.get('accent_color', '#F59E0B'))
+
+    # ── Round 3: Per-page content (one LLM call per page) ──
+    pages = []
+    all_widgets = []
+
+    for p in tmpl.get('pages', []):
+        slug = p.get('id', '')
+        title = p.get('name', slug)
+        page_key = 'page_' + slug
+        page_tpl = prompts.get(page_key, '')
+
+        if page_tpl and engine:
+            page_tpl = (page_tpl
+                .replace('{品牌名称}', brand_name)
+                .replace('{行业}', industry)
+                .replace('{风格偏好}', style_pref))
+            content = _call_llm_json(page_tpl, 'Generate page: ' + title)
+            sections = content.get('sections', [])
+            for w in content.get('widgets', []):
+                w.setdefault('page', slug)
+                all_widgets.append(w)
+        else:
+            sections = []
+
+        pages.append({
+            'slug': slug,
+            'title': title,
+            'sections': sections,
+        })
+
+    return {
+        'brand': brand,
+        'theme': {
+            'primary_color': brand.get('primary_color', '#4F46E5'),
+            'secondary_color': brand.get('secondary_color', '#10B981'),
+            'accent_color': brand.get('accent_color', '#F59E0B'),
+        },
+        'tabBar': tabbar_default,
+        'pages': pages,
+        'widgets': all_widgets,
     }
 
 
