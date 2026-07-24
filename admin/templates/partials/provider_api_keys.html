@@ -82,6 +82,7 @@ window.l_provider_keys=function(targetId){
     h+='<button class="bo" onclick="closeModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
     h+='<button class="bp pk-save-btn" onclick="saveKey('+(isEdit?key.id:'null')+')" style="padding:6px 16px">{{ _('Save') }}</button>';
     h+='</div></div></div>';
+    var old=document.getElementById('modal-root');if(old)old.remove();
     var overlay=document.createElement('div');
     overlay.id='modal-root';
     overlay.innerHTML=h;
@@ -136,6 +137,7 @@ window.l_provider_keys=function(targetId){
     h+='<button class="bo" onclick="closeModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
     h+='<button class="bp" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="confirmDelKey('+id+')">{{ _('Delete') }}</button>';
     h+='</div></div></div>';
+    var old=document.getElementById('modal-root');if(old)old.remove();
     var overlay=document.createElement('div');
     overlay.id='modal-root';
     overlay.innerHTML=h;

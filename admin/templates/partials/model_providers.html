@@ -164,6 +164,7 @@ function mpDeleteModel(id,name){
   h+='<button class="bo" onclick="mpCloseModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
   h+='<button class="bp" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="mpConfirmDelete('+id+')">{{ _('Delete') }}</button>';
   h+='</div></div></div>';
+  var old=document.getElementById('modal-root');if(old)old.remove();
   var overlay=document.createElement('div');
   overlay.id='modal-root';
   overlay.innerHTML=h;
