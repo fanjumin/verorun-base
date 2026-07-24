@@ -457,8 +457,17 @@ def admin_login_action():
             return jsonify({'success': False, 'error': '账号不存在或非管理员账号'}), 400
 
         user = dict(user)
+        # Query admin role
+        admin_role = 'user'
+        try:
+            with get_db() as conn:
+                prof = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
+                if prof:
+                    admin_role = prof['role']
+        except Exception:
+            pass
         _admin_login_attempts.pop(attempt_key, None)
-        token = create_token(user['id'], phone=user.get('phone'), app_name='trademind', is_admin=True)
+        token = create_token(user['id'], phone=user.get('phone'), app_name='trademind', is_admin=True, role=admin_role)
         _log_admin_action(user['id'], 'login_success_code', ip, f'user={username} client={client_type}')
 
         return _make_login_response(token, client_type)
@@ -511,7 +520,16 @@ def admin_login_action():
         return jsonify({'success': False, 'error': '密码错误'}), 400
 
     _admin_login_attempts.pop(attempt_key, None)
-    token = create_token(user['id'], phone=user['phone'], app_name='admin', is_admin=True)
+    # Query admin role
+    admin_role = 'user'
+    try:
+        with get_db() as conn:
+            prof = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
+            if prof:
+                admin_role = prof['role']
+    except Exception:
+        pass
+    token = create_token(user['id'], phone=user['phone'], app_name='admin', is_admin=True, role=admin_role)
     _log_admin_action(user['id'], 'login_success', ip, f'user={username} client={client_type}')
 
     return _make_login_response(token, client_type)
@@ -688,7 +706,7 @@ def debug_jwt():
             result['validate_via_header_ok'] = payload2 is not None
     else:
         from services.jwt_service import create_token
-        tok = create_token(7, phone='13910604299', is_admin=True)
+        tok = create_token(7, phone='13910604299', is_admin=True, role='super_admin')
         payload = validate_token(tok)
         result['create_validate_ok'] = payload is not None
     return jsonify(result)

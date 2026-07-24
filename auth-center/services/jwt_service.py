@@ -44,8 +44,9 @@ def _is_jti_revoked(jti):
 
 
 def create_token(user_id, phone=None, app_name='trademind', is_admin=False,
-                 token_type='access'):
-    """Create a JWT with jti for revocation support."""
+                 token_type='access', role=None):
+    """Create a JWT with jti for revocation support.
+    role: 'super_admin' | 'admin' | 'operator' | 'user' (defaults to 'user')"""
     import secrets
     jti = secrets.token_urlsafe(16)
     now = int(time.time())
@@ -56,6 +57,7 @@ def create_token(user_id, phone=None, app_name='trademind', is_admin=False,
         'phone': phone,
         'app_name': app_name,
         'is_admin': is_admin,
+        'role': role or 'user',
         'token_type': token_type,
         'iat': now,
         'exp': now + exp_hours * 3600,

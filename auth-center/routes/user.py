@@ -500,7 +500,16 @@ def password_login():
         conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (%s,%s,1)',
                      (login_field, request.remote_addr or 'unknown'))
         conn.commit()
-    token = create_token(user['id'], phone=user['phone'], app_name='platform', is_admin=user['is_admin'])
+        # Inject role for admin users
+        role = 'user'
+        if user['is_admin']:
+            try:
+                prof = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
+                if prof:
+                    role = prof['role']
+            except Exception:
+                pass
+    token = create_token(user['id'], phone=user['phone'], app_name='platform', is_admin=user['is_admin'], role=role)
     # IAM v2: record session on successful login
     with get_db() as conn:
         token_hash = hashlib.sha256(token.encode()).hexdigest()

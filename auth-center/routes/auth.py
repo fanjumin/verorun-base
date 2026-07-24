@@ -270,7 +270,17 @@ def sms_login():
     # user may be sqlite3.Row or dict
     is_admin_val = user['is_admin'] if isinstance(user, dict) else (user['is_admin'] if 'is_admin' in user.keys() else 0)
     nickname_val = user.get('display_name', '') if isinstance(user, dict) else (user['display_name'] if user['display_name'] else '')
-    token = create_token(user['id'], phone=phone, app_name='trademind', is_admin=is_admin_val)
+    # Inject role for admin users
+    role = 'user'
+    if is_admin_val:
+        try:
+            with get_db() as conn:
+                prof = conn.execute('SELECT role FROM admin_profiles WHERE user_id=%s', (user['id'],)).fetchone()
+                if prof:
+                    role = prof['role']
+        except Exception:
+            pass
+    token = create_token(user['id'], phone=phone, app_name='trademind', is_admin=is_admin_val, role=role)
     # Record user session
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     ua = request.headers.get('User-Agent', '')
@@ -314,7 +324,8 @@ def refresh_token():
         return api_err('Invalid or expired token', 401)
     new_token = create_token(payload['user_id'], phone=payload.get('phone'),
                              app_name=payload.get('app_name', 'trademind'),
-                             is_admin=payload.get('is_admin', False))
+                             is_admin=payload.get('is_admin', False),
+                             role=payload.get('role', 'user'))
     return api_ok({'token': new_token})
 
 

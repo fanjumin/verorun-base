@@ -27,15 +27,15 @@ def get_current_user_id(token):
     return payload.get('user_id')
 
 def require_auth():
-    """认证装饰器辅助函数"""
+    """认证装饰器辅助函数 — 返回完整 JWT payload（含 role）"""
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None, api_err('未提供有效的Token', 401)
     token = auth.replace('Bearer ', '')
-    user_id = get_current_user_id(token)
-    if not user_id:
+    payload = validate_token(token)
+    if not payload:
         return None, api_err('无效或过期的Token', 401)
-    return user_id, None
+    return payload, None
 
 # =============================================
 # RAG 知识库检索（统一函数）
@@ -188,9 +188,10 @@ def get_chat_history():
 @api_v1_bp.route('/chat/request', methods=['POST'])
 def chat_request():
     """非流式AI对话请求（带RAG知识增强）"""
-    user_id, error = require_auth()
+    payload, error = require_auth()
     if error:
         return error
+    user_id = payload['user_id']
 
     data = request.get_json() or {}
     messages = data.get('messages', [])
@@ -721,7 +722,7 @@ def save_summary():
 @api_v1_bp.route('/knowledge/list', methods=['POST'])
 def list_knowledge():
     """获取知识库列表"""
-    user_id, error = require_auth()
+    payload, error = require_auth()
     if error:
         return error
     
@@ -794,7 +795,7 @@ def list_knowledge():
 @api_v1_bp.route('/knowledge/save', methods=['POST'])
 def save_knowledge():
     """新增/更新知识块"""
-    user_id, error = require_auth()
+    payload, error = require_auth()
     if error:
         return error
     
@@ -845,7 +846,7 @@ def save_knowledge():
 @api_v1_bp.route('/knowledge/delete', methods=['POST'])
 def delete_knowledge():
     """删除知识块"""
-    user_id, error = require_auth()
+    payload, error = require_auth()
     if error:
         return error
     
@@ -962,7 +963,7 @@ def rag_search():
 @api_v1_bp.route('/notify/feishu', methods=['POST'])
 def send_feishu_notify():
     """飞书卡片通知代理发送"""
-    user_id, error = require_auth()
+    payload, error = require_auth()
     if error:
         return error
     
