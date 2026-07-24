@@ -157,8 +157,13 @@ Analyze each issue and return a JSON object with the following structure:
 Action parameter formats:
 - update_url:  {"table": "table_name", "record_id": 123, "field": "url_column", "new_value": "https://new-url.com"}
 - mark_disabled: {"table": "table_name", "record_id": 123}
-- run_sql: {"sql": "UPDATE table SET field='value' WHERE id=?", "params": [123]}
+- run_sql: {"sql": "UPDATE table SET field='value' WHERE id=%s", "params": [123]}
+Note: The database is PostgreSQL — always use %s placeholder (NOT ?) for parameters.
 - notify_admin: {"message": "Alert message", "level": "warning/critical"}
+
+IMPORTANT: The input JSON includes a "status" field ("passed"/"warning"/"error").
+If status is "warning" or "error", there ARE real issues that need fixes.
+Do NOT ignore warning/error status — analyze the detail data and suggest appropriate actions.
 
 Rules:
 1. Only suggest fixes for clearly identified problems
@@ -194,7 +199,30 @@ class AIFixer:
         check_results should be a dict with at minimum:
             {'check_key': str, 'status': str, 'message': str, 'detail': dict}
         """
-        user_prompt = json.dumps(check_results, ensure_ascii=False, indent=2)
+
+        # Truncate detail if too large to avoid LLM timeout/context overflow
+        full_json = json.dumps(check_results, ensure_ascii=False, indent=2)
+        if len(full_json) > 6000:
+            detail = check_results.get('detail', {})
+            if isinstance(detail, dict):
+                # Keep detail structure but replace large values with truncated text
+                truncated_detail = {}
+                for k, v in detail.items():
+                    v_str = json.dumps(v, ensure_ascii=False)
+                    if isinstance(v, list):
+                        truncated_detail[k] = f"[{len(v)} items, showing first 3]"
+                        truncated_detail[k + '_sample'] = v[:3]
+                    elif isinstance(v, dict):
+                        truncated_detail[k] = v  # keep small dicts
+                    elif len(v_str) > 500:
+                        truncated_detail[k] = v_str[:500] + '... [truncated]'
+                    else:
+                        truncated_detail[k] = v
+                check_results['detail'] = truncated_detail
+                check_results['_detail_truncated'] = True
+            user_prompt = json.dumps(check_results, ensure_ascii=False, indent=2)
+        else:
+            user_prompt = full_json
 
         response_text = _call_llm(FIXER_SYSTEM_PROMPT, user_prompt)
         if not response_text:
@@ -212,6 +240,11 @@ class AIFixer:
                     plan = {'summary': 'Failed to parse LLM response', 'items': []}
             else:
                 plan = {'summary': 'Failed to parse LLM response', 'items': []}
+
+        # Normalize: if LLM returned a flat action object (no 'items' array),
+        # wrap it into items
+        if 'items' not in plan and 'action' in plan:
+            plan = {'items': [plan], 'summary': plan.get('reason', '')}
 
         return plan
 

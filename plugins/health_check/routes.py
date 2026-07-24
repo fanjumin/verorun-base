@@ -934,20 +934,32 @@ def api_ai_analyze():
         return jsonify({'success': False, 'error': 'check_key or detail is required'}), 400
 
     # Fetch detail from DB if not provided
-    if not detail_override and run_id:
+    check_status = 'unknown'
+    check_message = ''
+    if not detail_override:
         with m.get_db() as conn:
-            row = conn.execute(
-                'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
-                (run_id, check_key)
-            ).fetchone()
+            if run_id:
+                row = conn.execute(
+                    'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
+                    (run_id, check_key)
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    'SELECT * FROM check_history WHERE check_key=? ORDER BY id DESC LIMIT 1',
+                    (check_key,)
+                ).fetchone()
         if not row:
             return jsonify({'success': False, 'error': _t('Check result not found')}), 404
         detail_raw = row['detail'] or '{}'
         detail_override = json.loads(detail_raw) if isinstance(detail_raw, str) else (detail_raw or {})
+        check_status = row.get('status', 'unknown')
+        check_message = row.get('message', '')
 
     # Build input for LLM
     check_results = {
         'check_key': check_key or 'manual',
+        'status': check_status or 'unknown',
+        'message': check_message or '',
         'detail': detail_override or {},
     }
 

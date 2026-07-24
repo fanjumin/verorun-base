@@ -140,12 +140,12 @@ def _log_token_usage(agent_id, agent_name, model_name, provider,
                 INSERT INTO agent_token_daily
                 (agent_id, agent_name, stat_date,
                  prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
-                VALUES (%s,%s,CURRENT_DATE,%s,%s,%s,1,NOW())
+                VALUES (%s,%s,CURRENT_DATE::text,%s,%s,%s,1,NOW())
                 ON CONFLICT(agent_id, stat_date) DO UPDATE SET
-                    prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
-                    completion_tokens  = completion_tokens + excluded.completion_tokens,
-                    total_tokens       = total_tokens + excluded.total_tokens,
-                    call_count         = call_count + 1,
+                    prompt_tokens      = agent_token_daily.prompt_tokens + excluded.prompt_tokens,
+                    completion_tokens  = agent_token_daily.completion_tokens + excluded.completion_tokens,
+                    total_tokens       = agent_token_daily.total_tokens + excluded.total_tokens,
+                    call_count         = agent_token_daily.call_count + 1,
                     updated_at         = NOW()
             """, (agent_id, agent_name, prompt_tokens, completion_tokens, total_tokens))
             conn.commit()
@@ -203,7 +203,7 @@ def _today_token_usage() -> int:
         with get_db() as conn:
             row = conn.execute(
                 "SELECT COALESCE(SUM(total_tokens),0) AS c "
-                "FROM agent_token_daily WHERE stat_date = CURRENT_DATE"
+                "FROM agent_token_daily WHERE stat_date = CURRENT_DATE::text"
             ).fetchone()
         if row is None:
             return 0
@@ -454,7 +454,7 @@ class UnifiedLLM:
                     if q.get('daily_limit', 0) > 0:
                         today_used = conn.execute(
                             "SELECT COALESCE(SUM(total_tokens), 0) AS c FROM agent_token_logs "
-                            "WHERE created_at >= CURRENT_DATE AND module = %s",
+                            "WHERE created_at >= CURRENT_DATE::text AND module = %s",
                             (module,)
                         ).fetchone()
                         used = today_used['c'] if isinstance(today_used, dict) else (today_used[0] or 0)
