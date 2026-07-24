@@ -45,8 +45,7 @@ function _render_dashboard(ds){
     h+='<div class="g2" style="margin-bottom:12px">';
     h+='<div class="chart-box"><div class="chart-title">{{ _('Health Score') }}</div>'+
       '<div style="display:flex;align-items:center;gap:16px;padding:12px 0">'+
-      '<div style="position:relative;width:100px;height:100px"><canvas id="healthGauge" width="100" height="100"></canvas>'+
-      '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;font-weight:700;color:'+(ds.health_score>=90?'#52c41a':(ds.health_score>=70?'#f6c243':'#ef4444'))+'">'+ds.health_score+'</div></div>'+
+      '<div id="healthScoreChart" style="width:110px;height:110px;flex-shrink:0"></div>'+
       '<div style="display:flex;flex-direction:column;gap:6px;font-size:13px">'+
       '<span>✅ {{ _('Passed') }}: <b>'+ds.health_passed+'</b></span>'+
       '<span>⚠️ {{ _('Warnings') }}: <b>'+(ds.health_warnings||0)+'</b></span>'+
@@ -354,18 +353,33 @@ function _initCharts(ds){
     window.addEventListener('resize',function(){rchart.resize()});
   }
 
-  // ── Health Gauge (conditional, health_check plugin) ──
-  var gEl=document.getElementById('healthGauge');
-  if(gEl){
-    var ctx=gEl.getContext('2d');
-    var hs=ds.health_score||0;
-    var gClr=hs>=90?'#52c41a':(hs>=70?'#f6c243':'#ef4444');
-    var cx=50,cy=50,r=45,sAngle=0.75*Math.PI,eAngle=0.25*Math.PI;
-    // Background arc
-    ctx.beginPath();ctx.arc(cx,cy,r,sAngle,eAngle);ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=10;ctx.lineCap='round';ctx.stroke();
-    // Foreground arc
-    var fillAngle=sAngle+(2*Math.PI-2*sAngle)*(hs/100);
-    ctx.beginPath();ctx.arc(cx,cy,r,sAngle,fillAngle);ctx.strokeStyle=gClr;ctx.lineWidth=10;ctx.lineCap='round';ctx.stroke();
+  // ── Health Score Ring (conditional, health_check plugin) ──
+  var hsEl=document.getElementById('healthScoreChart');
+  if(hsEl){
+    var hschart=echarts.init(hsEl);
+    var hsv=ds.health_score||0;
+    hschart.setOption({
+      series:[{
+        type:'gauge',center:['50%','50%'],radius:'90%',
+        startAngle:225,endAngle:-45,
+        min:0,max:100,
+        splitNumber:0,
+        axisLine:{
+          lineStyle:{width:12,color:[[hsv/100,hsv>=90?'#52c41a':(hsv>=70?'#f6c243':'#ef4444')],[1,'rgba(255,255,255,0.08)']]}
+        },
+        axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},
+        pointer:{show:false},
+        anchor:{show:false},
+        detail:{
+          offsetCenter:[0,'40%'],fontSize:18,fontWeight:700,
+          color:hsv>=90?'#52c41a':(hsv>=70?'#f6c243':'#ef4444'),
+          formatter:'{value}'
+        },
+        title:{offsetCenter:[0,'65%'],fontSize:10,color:'var(--dim)',show:true},
+        data:[{value:hsv,name:'Score'}]
+      }]
+    });
+    window.addEventListener('resize',function(){hschart.resize()});
   }
 
   // ── Health Trend (conditional, health_check plugin) ──
