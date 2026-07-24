@@ -365,47 +365,59 @@ class AIFixer:
             undo['note'] = 'CDN cache already flushed; no undo'
 
         elif sug.action == 'update_url' and conn and 'table' in params and 'record_id' in params and 'field' in params:
-            old_val = conn.execute(
-                f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
-                (params['record_id'],)
-            ).fetchone()
-            if old_val:
-                undo['old_value'] = old_val[0]
-                undo['table'] = params['table']
-                undo['record_id'] = params['record_id']
-                undo['field'] = params['field']
+            try:
+                old_val = conn.execute(
+                    f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
+                    (params['record_id'],)
+                ).fetchone()
+                if old_val:
+                    undo['old_value'] = old_val[0]
+                    undo['table'] = params['table']
+                    undo['record_id'] = params['record_id']
+                    undo['field'] = params['field']
+            except Exception:
+                undo['note'] = f"Table {params['table']} not accessible in current schema"
 
         elif sug.action == 'mark_disabled' and conn and 'table' in params and 'record_id' in params:
-            old_val = conn.execute(
-                f"SELECT is_enabled, is_active FROM {params['table']} WHERE id=?",
-                (params['record_id'],)
-            ).fetchone()
-            if old_val:
-                undo['old_is_enabled'] = old_val[0]
-                undo['old_is_active'] = old_val[1]
-                undo['table'] = params['table']
-                undo['record_id'] = params['record_id']
+            try:
+                old_val = conn.execute(
+                    f"SELECT is_enabled, is_active FROM {params['table']} WHERE id=?",
+                    (params['record_id'],)
+                ).fetchone()
+                if old_val:
+                    undo['old_is_enabled'] = old_val[0]
+                    undo['old_is_active'] = old_val[1]
+                    undo['table'] = params['table']
+                    undo['record_id'] = params['record_id']
+            except Exception:
+                undo['note'] = f"Table {params['table']} not accessible in current schema"
 
         elif sug.action == 'mark_deleted' and conn and 'table' in params and 'record_id' in params:
-            old_val = conn.execute(
-                f"SELECT status FROM {params['table']} WHERE id=?",
-                (params['record_id'],)
-            ).fetchone()
-            if old_val:
-                undo['old_status'] = old_val[0]
-                undo['table'] = params['table']
-                undo['record_id'] = params['record_id']
+            try:
+                old_val = conn.execute(
+                    f"SELECT status FROM {params['table']} WHERE id=?",
+                    (params['record_id'],)
+                ).fetchone()
+                if old_val:
+                    undo['old_status'] = old_val[0]
+                    undo['table'] = params['table']
+                    undo['record_id'] = params['record_id']
+            except Exception:
+                undo['note'] = f"Table {params['table']} not accessible in current schema"
 
         elif sug.action == 'clear_field' and conn and 'table' in params and 'record_id' in params and 'field' in params:
-            old_val = conn.execute(
-                f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
-                (params['record_id'],)
-            ).fetchone()
-            if old_val:
-                undo['old_value'] = old_val[0]
-                undo['table'] = params['table']
-                undo['record_id'] = params['record_id']
-                undo['field'] = params['field']
+            try:
+                old_val = conn.execute(
+                    f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
+                    (params['record_id'],)
+                ).fetchone()
+                if old_val:
+                    undo['old_value'] = old_val[0]
+                    undo['table'] = params['table']
+                    undo['record_id'] = params['record_id']
+                    undo['field'] = params['field']
+            except Exception:
+                undo['note'] = f"Table {params['table']} not accessible in current schema"
 
         return undo
 

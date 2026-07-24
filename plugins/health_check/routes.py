@@ -1027,9 +1027,17 @@ def api_ai_fix():
     if not suggestions:
         return jsonify({'success': False, 'error': 'No valid fix actions found'}), 400
 
-    with m.get_db() as conn:
+    # Use broad search_path so fix SQL can access tables in both health and public schemas
+    from plugins._base.db import get_raw_connection, PgConnection
+    raw = get_raw_connection()
+    raw.autocommit = False
+    try:
+        conn = PgConnection(raw)
+        conn.execute("SET search_path TO health, public")
         result = fixer.execute_fix(conn, suggestions)
         conn.commit()
+    finally:
+        raw.close()
 
     return jsonify({
         'success': True,
