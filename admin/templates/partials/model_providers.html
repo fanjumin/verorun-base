@@ -155,30 +155,33 @@ function mpUpdateModel(){
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
 }
 
+var _mpModalOpen=false;
 function mpDeleteModel(id,name){
+  if(_mpModalOpen)return;
+  _mpModalOpen=true;
   var h='<div class="modal-overlay" onclick="mpCloseModal()"><div class="modal-box" onclick="event.stopPropagation()" style="max-width:400px;width:90%">';
   h+='<h3 style="margin:0 0 12px;color:var(--rose)">{{ _('Confirm Deletion of Model') }}</h3>';
   h+='<p style="margin:0 0 6px;font-size:14px;color:var(--ink)">{{ _('Are you sure you want to delete') }} <strong>'+esc(name)+'</strong>?</p>';
   h+='<p style="margin:0 0 20px;font-size:12px;color:var(--dim)">{{ _('This action cannot be undone.') }}</p>';
   h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
   h+='<button class="bo" onclick="mpCloseModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
-  h+='<button class="bp" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="mpConfirmDelete('+id+')">{{ _('Delete') }}</button>';
+  h+='<button class="bp mp-del-btn" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="mpConfirmDelete('+id+')">{{ _('Delete') }}</button>';
   h+='</div></div></div>';
-  var old=document.getElementById('modal-root');if(old)old.remove();
   var overlay=document.createElement('div');
   overlay.id='modal-root';
   overlay.innerHTML=h;
   document.body.appendChild(overlay);
 }
-function mpCloseModal(){var m=document.getElementById('modal-root');if(m)m.remove();}
+function mpCloseModal(){var m=document.getElementById('modal-root');if(m){m.remove();_mpModalOpen=false;}}
 function mpConfirmDelete(id){
-  mpCloseModal();
+  var btn=document.querySelector('#modal-root .mp-del-btn');
+  if(btn){btn.disabled=true;btn.textContent='Deleting...';}
   fetch("/admin/provider-models/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
   .then(function(r){return r.json()})
   .then(function(d){
-    if(d.success){showToast("{{ _('Deleted') }}");mpRefresh()}
-    else showToast("{{ _('Delete failed') }}","error");
-  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+    if(d.success){mpCloseModal();showToast("{{ _('Deleted') }}");mpRefresh()}
+    else{mpCloseModal();showToast("{{ _('Delete failed') }}: "+(d.error||""),"error")}
+  }).catch(function(e){mpCloseModal();showToast("{{ _('Request Failed') }}","error")});
 }
 
 // ═══════════════════════════════════════════════════════════

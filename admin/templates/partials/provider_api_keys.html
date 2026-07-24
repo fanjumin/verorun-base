@@ -91,7 +91,7 @@ window.l_provider_keys=function(targetId){
 
   window.closeModal=function(){
     var m=document.getElementById('modal-root');
-    if(m)m.remove();
+    if(m){m.remove();_pkModalOpen=false;}
   };
 
   window.saveKey=function(id){
@@ -128,16 +128,18 @@ window.l_provider_keys=function(targetId){
     });
   };
 
+  var _pkModalOpen=false;
   window.delKey=function(id,name){
+    if(_pkModalOpen)return;
+    _pkModalOpen=true;
     var h='<div class="modal-overlay" onclick="closeModal()"><div class="modal-box" onclick="event.stopPropagation()" style="max-width:400px;width:90%">';
     h+='<h3 style="margin:0 0 12px;color:var(--rose)">{{ _('Confirm Delete') }}</h3>';
     h+='<p style="margin:0 0 6px;font-size:14px;color:var(--ink)">{{ _('Are you sure you want to delete') }} <strong>'+esc(name)+'</strong>?</p>';
     h+='<p style="margin:0 0 20px;font-size:12px;color:var(--dim)">{{ _('This action cannot be undone.') }}</p>';
     h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
     h+='<button class="bo" onclick="closeModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
-    h+='<button class="bp" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="confirmDelKey('+id+')">{{ _('Delete') }}</button>';
+    h+='<button class="bp pk-del-confirm-btn" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="confirmDelKey('+id+')">{{ _('Delete') }}</button>';
     h+='</div></div></div>';
-    var old=document.getElementById('modal-root');if(old)old.remove();
     var overlay=document.createElement('div');
     overlay.id='modal-root';
     overlay.innerHTML=h;
@@ -145,11 +147,12 @@ window.l_provider_keys=function(targetId){
   };
 
   window.confirmDelKey=function(id){
-    closeModal();
+    var btn=document.querySelector('#modal-root .pk-del-confirm-btn');
+    if(btn){btn.disabled=true;btn.textContent='Deleting...';}
     fetch("/admin/provider-api-keys/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
       .then(function(r){return r.json()}).then(function(d){
-        if(d.success){render();showToast('{{ _('Deleted') }}','success')}
-        else{showToast(d.error||'{{ _('Delete failed') }}','error')}
-      }).catch(function(){showToast('{{ _('Network error') }}','error')});
+        if(d.success){closeModal();render();showToast('{{ _('Deleted') }}','success')}
+        else{closeModal();showToast(d.error||'{{ _('Delete failed') }}','error')}
+      }).catch(function(){closeModal();showToast('{{ _('Network error') }}','error')});
   };
 };
