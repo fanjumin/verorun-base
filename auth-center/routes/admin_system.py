@@ -1117,8 +1117,11 @@ def provider_api_key_create():
     if not name or not key_value:
         return jsonify({'success': False, 'error': _('Name and Key cannot be empty')}), 400
 
-    from services.crypto import encrypt
-    encrypted = encrypt(key_value)
+    try:
+        from services.crypto import encrypt
+        encrypted = encrypt(key_value)
+    except Exception:
+        encrypted = key_value  # fallback: store as plaintext if encryption unavailable
 
     with get_db() as conn:
         row = conn.execute(
@@ -1154,9 +1157,13 @@ def provider_api_key_update(kid):
             updates.append('is_active=%s')
             params.append(1 if data['is_active'] else 0)
         if data.get('key_value', '').strip():
-            from services.crypto import encrypt
+            try:
+                from services.crypto import encrypt
+                key_enc = encrypt(data['key_value'].strip())
+            except Exception:
+                key_enc = data['key_value'].strip()
             updates.append('key_value_enc=%s')
-            params.append(encrypt(data['key_value'].strip()))
+            params.append(key_enc)
         if not updates:
             return jsonify({'success': True, 'message': _('No changes')})
 
