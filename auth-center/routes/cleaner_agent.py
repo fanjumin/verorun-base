@@ -337,7 +337,7 @@ Clean and output JSON per rules above."""
         # Non-merge scenario: mark as duplicate
         with get_db() as conn:
             conn.execute(
-                "UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
+                "UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (qid, qid))
             conn.commit()
         return {'success': True, 'kb_id': 'duplicate', 'title': new_title,
                 'category': new_category, 'message': f'Duplicate detected ({dup_reason}), skipped'}
@@ -351,7 +351,7 @@ Clean and output JSON per rules above."""
 
         with get_db() as conn:
             conn.execute(
-                "UPDATE knowledge_queue SET status='done', cleaned_id='duplicate' WHERE id=%s", (qid,))
+                "UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (qid, qid))
             conn.commit()
         return {'success': True, 'kb_id': 'duplicate', 'title': new_title,
                 'category': new_category, 'message': 'LLM detected duplicate, skipped'}
@@ -366,7 +366,7 @@ Clean and output JSON per rules above."""
                ON CONFLICT (id) DO NOTHING''',
             (kb_id, new_title, new_content, new_keywords, new_category, 5, 'auto', 0.5)
         )
-        conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (kb_id, qid))
+        conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (qid, qid))
         conn.commit()
 
     # === Category eviction check ===
