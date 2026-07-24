@@ -2,7 +2,7 @@
 """
 Health Check — Database Models
 ============================
-All health check related database tables. Uses independent database data/health.db.
+All health check related database tables. Uses PostgreSQL health schema.
 
 Table structure:
   health_checks     — Check item definitions (registered checks, configuration, enable/disable)
@@ -15,20 +15,13 @@ Table structure:
 @package health_monitor
 """
 
-import os, json, time, psycopg2
+import json, time, psycopg2
 import psycopg2.extras
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from collections import defaultdict
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
-
-
-# ── 独立数据库路径（插件目录内）──
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
-DB_PATH = os.path.join(DATA_DIR, 'health.db')
-os.makedirs(DATA_DIR, exist_ok=True)
 
 
 @contextmanager

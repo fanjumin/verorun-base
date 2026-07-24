@@ -32,7 +32,7 @@ window.l_provider_keys=function(targetId){
         h+='<td style="font-weight:600">'+esc(k.name)+'</td>';
         h+='<td><span class="tag" style="background:rgba(0,245,255,0.1);color:var(--accent)">'+esc(k.provider)+'</span></td>';
         h+='<td>'+(k.is_active?'<span style="color:var(--accent3)">{{ _('Active') }}</span>':'<span style="color:var(--dim)">{{ _('Inactive') }}</span>')+'</td>';
-        h+='<td>'+(k.has_value?'<span style="color:var(--accent3)">{{ _('Configured') }}</span>':'<span style="color:var(--rose)">{{ _('Not Set') }}</span>')+'</td>';
+        h+='<td>'+(k.has_value?'<span style="color:var(--accent3)">'+esc(k.key_preview||'{{ _('Configured') }}')+'</span>':'<span style="color:var(--rose)">{{ _('Not Set') }}</span>')+'</td>';
         h+='<td style="color:var(--dim)">'+esc(k.description||'')+'</td>';
         h+='<td><button class="bo" style="padding:2px 10px;font-size:11px;cursor:pointer" onclick="showForm('+k.id+')">{{ _('Edit') }}</button> ';
         h+='<button class="bo" style="padding:2px 10px;font-size:11px;color:var(--rose);cursor:pointer" onclick="delKey('+k.id+',\''+escAttr(k.name)+'\')">{{ _('Delete') }}</button></td>';
@@ -74,7 +74,8 @@ window.l_provider_keys=function(targetId){
     h+='</select></div>';
     h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('API Key Value') }}';
     if(isEdit&&key.has_value)h+=' <span style="color:var(--dim);font-weight:400">({{ _('leave blank to keep current') }})</span>';
-    h+='</label><input id="pk-value" class="in" type="password" style="width:100%" placeholder="***" autocomplete="off"></div>';
+    var pkPlaceholder=isEdit&&key.has_value?(key.key_preview||'***'):'';
+    h+='</label><input id="pk-value" class="in" type="password" style="width:100%" placeholder="'+pkPlaceholder+'" autocomplete="off"></div>';
     h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Description') }}</label>';
     h+='<input id="pk-desc" class="in" style="width:100%" value="'+escAttr(isEdit?(key.description||''):'')+'" placeholder="{{ _('Optional note') }}"></div>';
     h+='<div style="margin-bottom:16px"><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">';

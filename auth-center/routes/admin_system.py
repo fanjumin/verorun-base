@@ -1090,18 +1090,35 @@ def admin_i18n_seed():
     return jsonify({'success': True, 'message': f'Synchronized {count} records to DB'})
 @admin_bp.route('/provider-api-keys', methods=['GET'])
 def provider_api_key_list():
-    """列出所有 Provider API Key（key_value_enc 脱敏）"""
+    """列出所有 Provider API Key（key_value_enc 脱敏，返回 key_preview）"""
     admin, err = _require_admin()
     if err:
         return err
+    from services.crypto import decrypt as _decrypt
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, name, provider, description, is_active, "
+            "SELECT id, name, provider, description, is_active, key_value_enc, "
             "CASE WHEN key_value_enc != '' THEN 1 ELSE 0 END AS has_value, "
             "created_at, updated_at "
             "FROM provider_api_keys ORDER BY id"
         ).fetchall()
-        return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+        data = []
+        for r in rows:
+            item = dict(r)
+            preview = ''
+            if item.get('key_value_enc'):
+                try:
+                    raw = _decrypt(item['key_value_enc'])
+                    if len(raw) > 10:
+                        preview = raw[:6] + '***' + raw[-3:]
+                    elif raw:
+                        preview = raw[:3] + '***'
+                except Exception:
+                    preview = '***'
+            item['key_preview'] = preview
+            item.pop('key_value_enc', None)
+            data.append(item)
+        return jsonify({'success': True, 'data': data})
 
 
 @admin_bp.route('/provider-api-keys', methods=['POST'])

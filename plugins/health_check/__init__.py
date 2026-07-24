@@ -4,7 +4,7 @@ Health Check — 系统健康巡检中心 + 插件
 ============================================
 全站自动化健康巡检：可扩展检查框架、定时自动巡检、仪表盘、
 异常告警（邮件/站内信/Webhook）、与 Workflow 引擎集成（自动恢复）。
-独立数据库 data/health.db，8 张表完全自包含。
+使用 PostgreSQL health schema，8 张表完全自包含。
 
 使用方式:
     from plugins.health_check import health_bp
@@ -14,7 +14,7 @@ Health Check — 系统健康巡检中心 + 插件
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from .routes import health_bp
 from .models import init_health_tables, get_db
@@ -35,7 +35,7 @@ class HealthCheckPlugin(BasePlugin):
         from .models import init_health_tables
         try:
             init_health_tables()
-            print('[HealthCheck] Independent DB initialized (data/health.db)')
+            print('[HealthCheck] Database tables initialized (PG health schema)')
         except Exception as e:
             print(f'[HealthCheck] DB init warning: {e}')
         return True

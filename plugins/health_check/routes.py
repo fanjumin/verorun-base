@@ -31,8 +31,8 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, render_template
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
-sys.path.insert(0, os.path.join(BASE_DIR, '..'))
+sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center'))
+sys.path.append(os.path.join(BASE_DIR, '..'))
 _t = lambda s: s
 def init_i18n(t_func):
     global _t

@@ -17,17 +17,17 @@ Metrics exposed:
   easykai_system_cpu_usage      — CPU usage %
   easykai_system_memory_usage   — Memory usage %
   easykai_system_disk_usage     — Disk usage %
-  easykai_db_size_bytes         — SQLite database file size
-  easykai_db_table_count        — Number of tables in database
+  easykai_db_size_bytes         — Database estimated size (bytes)
+  easykai_db_table_count        — Number of tables in health schema
 """
 
 from i18n import _
 import os, sys, time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, BASE_DIR)
+sys.path.append(BASE_DIR)
 
-from .models import get_db, DB_PATH
+from .models import get_db
 
 
 def _get_system_metrics():
@@ -76,20 +76,22 @@ def _get_system_metrics():
 
 
 def _get_db_metrics():
-    """Collect database-level metrics."""
+    """Collect database-level metrics (PostgreSQL health schema)."""
     metrics = {}
-    try:
-        metrics['db_size_bytes'] = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
-    except Exception:
-        metrics['db_size_bytes'] = 0
-
     try:
         with get_db() as conn:
             r = conn.execute(
-                "SELECT COUNT(*) as c FROM pg_catalog.pg_tables WHERE schemaname='public'"
+                "SELECT COUNT(*) as c FROM pg_catalog.pg_tables WHERE schemaname='health'"
             ).fetchone()
             metrics['db_table_count'] = r['c'] if r else 0
+            # Estimate DB size via relation sizes
+            r2 = conn.execute(
+                "SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(tablename))),0) as sz "
+                "FROM pg_catalog.pg_tables WHERE schemaname='health'"
+            ).fetchone()
+            metrics['db_size_bytes'] = r2['sz'] if r2 else 0
     except Exception:
+        metrics['db_size_bytes'] = 0
         metrics['db_table_count'] = 0
 
     return metrics
@@ -152,7 +154,7 @@ def generate_metrics():
 
     # ── Database metrics ──
     db_m = _get_db_metrics()
-    lines.append(f'# HELP easykai_db_size_bytes SQLite database file size in bytes')
+    lines.append(f'# HELP easykai_db_size_bytes PostgreSQL health schema size in bytes')
     lines.append(f'# TYPE easykai_db_size_bytes gauge')
     lines.append(f'easykai_db_size_bytes {db_m.get("db_size_bytes", 0)}')
 

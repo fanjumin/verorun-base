@@ -13,7 +13,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROLES_DIR = os.path.join(BASE_DIR, 'roles')
 
 # ── 复用主应用 PostgreSQL 连接 ──
-sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center', 'models'))
+sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center', 'models'))
 from database import get_db, get_table_columns
 
 

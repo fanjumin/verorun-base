@@ -18,7 +18,7 @@ _PARENT_DIR = os.path.join(os.path.dirname(__file__), '..')
 _AUTH_CENTER_DIR = os.path.join(os.path.dirname(__file__), '..', 'auth-center')
 for _d in (_AUTH_CENTER_DIR, _PARENT_DIR):
     if _d not in sys.path:
-        sys.path.insert(0, _d)
+        sys.path.append(_d)
 
 # 统一日志线程池（避免每次调用创建新线程）
 _LOG_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='token-log')
@@ -445,35 +445,35 @@ class UnifiedLLM:
                     (user_id or -1, model_id, module)
                 ).fetchall()
 
-            if not quotas:
+                if not quotas:
+                    return True, ''
+
+                # 第一轮：检查日预算
+                for q in quotas:
+                    q = dict(q)
+                    if q.get('daily_limit', 0) > 0:
+                        today_used = conn.execute(
+                            "SELECT COALESCE(SUM(total_tokens), 0) AS c FROM agent_token_logs "
+                            "WHERE created_at >= CURRENT_DATE AND module = %s",
+                            (module,)
+                        ).fetchone()
+                        used = today_used['c'] if isinstance(today_used, dict) else (today_used[0] or 0)
+                        if used >= q['daily_limit']:
+                            return False, f"Daily quota exceeded for {module}: {used}/{q['daily_limit']} tokens"
+
+                # 第二轮：检查速率限制（先检查，全部通过后再记录）
+                for q in quotas:
+                    q = dict(q)
+                    if q.get('rate_limit', 0) > 0:
+                        now = _time.time()
+                        window = q.get('rate_window_sec', 60)
+                        recent = sum(1 for t in self._rate_limiter if now - t < window)
+                        if recent >= q['rate_limit']:
+                            return False, f"Rate limit exceeded: {recent}/{q['rate_limit']} per {window}s"
+
+                # 所有检查通过，记录一次速率时间戳
+                self._rate_limiter.append(_time.time())
                 return True, ''
-
-            # 第一轮：检查日预算
-            for q in quotas:
-                q = dict(q)
-                if q.get('daily_limit', 0) > 0:
-                    today_used = conn.execute(
-                        "SELECT COALESCE(SUM(total_tokens), 0) AS c FROM agent_token_logs "
-                        "WHERE created_at >= CURRENT_DATE AND module = %s",
-                        (module,)
-                    ).fetchone()
-                    used = today_used['c'] if isinstance(today_used, dict) else (today_used[0] or 0)
-                    if used >= q['daily_limit']:
-                        return False, f"Daily quota exceeded for {module}: {used}/{q['daily_limit']} tokens"
-
-            # 第二轮：检查速率限制（先检查，全部通过后再记录）
-            for q in quotas:
-                q = dict(q)
-                if q.get('rate_limit', 0) > 0:
-                    now = _time.time()
-                    window = q.get('rate_window_sec', 60)
-                    recent = sum(1 for t in self._rate_limiter if now - t < window)
-                    if recent >= q['rate_limit']:
-                        return False, f"Rate limit exceeded: {recent}/{q['rate_limit']} per {window}s"
-
-            # 所有检查通过，记录一次速率时间戳
-            self._rate_limiter.append(_time.time())
-            return True, ''
 
         except Exception as e:
             logger.warning(f'[UnifiedLLM] Quota check failed (fail-open): {e}')

@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 # Ensure project path is accessible
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
-sys.path.insert(0, os.path.join(BASE_DIR, '..'))
+sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center'))
+sys.path.append(os.path.join(BASE_DIR, '..'))
 
 from .checkers import (
     FixSuggestion,

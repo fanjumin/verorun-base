@@ -25,8 +25,8 @@ from typing import Dict, List, Optional, Tuple
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(BASE_DIR, '..'))
-sys.path.insert(0, os.path.join(BASE_DIR, '..', 'auth-center'))
-sys.path.insert(0, os.path.join(BASE_DIR, '..'))
+sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center'))
+sys.path.append(os.path.join(BASE_DIR, '..'))
 
 _t = lambda s: s
 def init_i18n(t_func):
