@@ -16,6 +16,15 @@ class _PgConnection:
     """psycopg2 connection adapter with sqlite3-compatible interface."""
     def __init__(self, conn):
         self._conn = conn
+    def _is_alive(self):
+        """检测连接是否存活（gunicorn pre-fork 后连接可能已失效）"""
+        try:
+            cur = self._conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            return True
+        except Exception:
+            return False
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
@@ -30,8 +39,18 @@ class _PgConnection:
 
 
 def get_ads_db():
-    """获取广告插件数据库连接（PG schema: ads）"""
+    """获取广告插件数据库连接（PG schema: ads）
+    
+    gunicorn pre-fork 模式下，连接在 master 进程中创建后 fork 到 worker 可能已失效，
+    每次获取时检测存活状态，失效则自动重建。
+    """
     global _ads_conn
+    if _ads_conn is not None and not _ads_conn._is_alive():
+        try:
+            _ads_conn.close()
+        except Exception:
+            pass
+        _ads_conn = None
     if _ads_conn is None:
         raw = get_raw_connection()
         raw.autocommit = False
