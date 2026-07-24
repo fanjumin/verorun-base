@@ -344,7 +344,7 @@ Clean and output JSON per rules above."""
 
     # Double confirm when LLM returns is_duplicate
     if result.get('is_duplicate'):
-        is_dup2, dup_entry2, _ = _dedup_check(new_title, new_keywords, existing)
+        is_dup2, dup_entry2, _reason2 = _dedup_check(new_title, new_keywords, existing)
         if is_dup2 and dup_entry2 and dup_entry2.get('source') != 'manual':
             if _title_similarity(new_title, dup_entry2['title']) > 0.75:
                 return _merge_entry(dup_entry2, new_title, new_content, new_keywords, qid)
