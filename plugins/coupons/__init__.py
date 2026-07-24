@@ -30,7 +30,7 @@ def get_recommender() -> AICouponRecommender:
 
 class CouponPlugin(BasePlugin):
     name = 'coupons'
-    version = '0.1.0'
+    version = '1.0.0'
     description = '智能优惠券引擎 — 场景券/AI推荐/订阅联动'
     author = 'VeroRun'
 

@@ -1,7 +1,7 @@
 {
     "name": "IM Gateway",
     "identifier": "im_gateway",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "category": "System",
     "tags": ["im", "gateway", "feishu", "wecom", "notification", "channel"],
     "icon": "channels",

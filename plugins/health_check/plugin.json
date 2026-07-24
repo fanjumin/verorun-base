@@ -1,7 +1,7 @@
 {
     "name": "Health Check",
     "identifier": "health_check",
-    "version": "0.1.0",
+    "version": "1.2.0",
     "description": "System Health Check — Automated health monitoring + alerting + trend analysis",
     "author": "VeroRun",
     "min_app_version": "0.10.0",

@@ -17,7 +17,7 @@ from plugin_manager.base import BasePlugin
 
 class VerificationPlugin(BasePlugin):
     name = 'verification'
-    version = '0.1.0'
+    version = '1.0.0'
     description = 'Identity Verification — real-name verification via Alipay identity service'
     author = 'VeroRun'
 
