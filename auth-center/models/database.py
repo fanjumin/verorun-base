@@ -1930,6 +1930,22 @@ def init_db():
             created_at      TEXT DEFAULT NOW()
         )""")
         m.execute('CREATE INDEX IF NOT EXISTS idx_kb_category ON knowledge_blocks(category)')
+        # ── Migration: knowledge_blocks scope/owner_id 双域隔离 (2026-07-24) ──
+        kb_cols = get_table_columns(m, 'knowledge_blocks')
+        if 'scope' not in kb_cols:
+            m.execute("ALTER TABLE knowledge_blocks ADD COLUMN scope VARCHAR(20) DEFAULT 'system'")
+            print('[Migration] knowledge_blocks.scope added')
+        if 'owner_id' not in kb_cols:
+            m.execute("ALTER TABLE knowledge_blocks ADD COLUMN owner_id BIGINT DEFAULT NULL")
+            print('[Migration] knowledge_blocks.owner_id added')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_kb_scope ON knowledge_blocks(scope)')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_kb_owner ON knowledge_blocks(owner_id)')
+        # 存量数据回填：根据 id 前缀区分系统KB 和 用户KB
+        m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE id LIKE 'kb_company_%' OR id LIKE 'kb_product_%' OR id LIKE 'kb_faq_faq_%' OR id LIKE 'kb_faq_whitepaper%' OR (id LIKE 'kb_faq_%' AND id NOT LIKE 'kb_faq_faq_%')")
+        m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE id LIKE 'kb_cleaner_%'")
+        m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE scope IS NULL AND source='manual'")
+        m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE scope IS NULL AND source IN ('auto','matrix')")
+        print('[Migration] knowledge_blocks scope/owner_id migration completed')
         # Seed knowledge blocks from mini-program
         row = m.execute("SELECT COUNT(*) as c FROM knowledge_blocks").fetchone()
         if row['c'] == 0:
@@ -1957,7 +1973,7 @@ def init_db():
                 ('kb_faq_004','域名和服务器说明','平台可协助客户完成域名注册和服务器配置。客户可使用自有域名，也可通过平台代购。服务器采用云部署方案，自动扩容，保障稳定运行。域名和服务器费用不包含在套餐内。','域名,服务器,云部署,扩容,注册,代购,备案','faq',7),
             ]
             for s in kb_seeds:
-                m.execute('INSERT INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING', s)
+                m.execute("INSERT INTO knowledge_blocks (id,title,content,keywords,category,priority,scope,owner_id) VALUES (%s,%s,%s,%s,%s,%s,'system',NULL) ON CONFLICT (id) DO NOTHING", s)
             m.commit()
             print(f'[Migration] knowledge_blocks seeded: {len(kb_seeds)} blocks')
 
@@ -1981,7 +1997,7 @@ def init_db():
                 ('kb_faq_whitepaper_tech', '技术架构说明', '系统采用Python 3.12 + Flask多服务微架构，SQLite (WAL模式)数据库，Vanilla JS SPA前端。支持SSO统一登录、多种支付网关、SSE流式对话、RAG知识库检索、Agent矩阵智能体编排等核心技术。', '技术,架构,Flask,Python,SSO,支付', 'tech', 8),
             ]
             for s in faq_seeds_data:
-                ms.execute('INSERT INTO knowledge_blocks (id,title,content,keywords,category,priority) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING', s)
+                ms.execute("INSERT INTO knowledge_blocks (id,title,content,keywords,category,priority,scope,owner_id) VALUES (%s,%s,%s,%s,%s,%s,'system',NULL) ON CONFLICT (id) DO NOTHING", s)
             ms.commit()
             print(f'[Migration] FAQ & whitepaper seeded: {len(faq_seeds_data)} blocks')
 
@@ -2364,6 +2380,24 @@ def init_db():
         m.execute('CREATE INDEX IF NOT EXISTS idx_kh_kb_id ON knowledge_history(kb_id)')
         m.commit()
         print('[Migration] knowledge_history table created')
+
+    # ── Migration: system_kb_version 系统知识库版本追踪 (2026-07-24) ──
+    with get_db() as m:
+        m.execute('''CREATE TABLE IF NOT EXISTS system_kb_version (
+            id              SERIAL PRIMARY KEY,
+            version         VARCHAR(20) NOT NULL,
+            release_date    TIMESTAMP DEFAULT NOW(),
+            checksum        VARCHAR(64) NOT NULL,
+            release_notes   TEXT DEFAULT '',
+            update_url      TEXT DEFAULT '',
+            applied         BOOLEAN DEFAULT FALSE,
+            applied_at      TIMESTAMP DEFAULT NULL,
+            applied_by      BIGINT DEFAULT NULL,
+            created_at      TIMESTAMP DEFAULT NOW()
+        )''')
+        m.execute('CREATE INDEX IF NOT EXISTS idx_skv_version ON system_kb_version(version)')
+        m.commit()
+        print('[Migration] system_kb_version table created')
 
     # ── Migration: knowledge_queue 幂等 hash (2026-07-18) ──
     with get_db() as m:
