@@ -41,8 +41,9 @@ def require_auth():
 # RAG 知识库检索（统一函数）
 # =============================================
 
-def _rag_search(query: str, top_k: int = 5, category: str = None) -> list:
-    """检索 knowledge_blocks，返回排序后的知识片段列表"""
+def _rag_search(query: str, top_k: int = 5, category: str = None, scope: str = None) -> list:
+    """检索 knowledge_blocks，返回排序后的知识片段列表
+    scope: 可选 'system' | 'user'，默认 None（检索全部）"""
     try:
         from models import get_db
         with get_db() as conn:
@@ -50,12 +51,15 @@ def _rag_search(query: str, top_k: int = 5, category: str = None) -> list:
             bigrams = [query[i:i+2] for i in range(len(query)-1)]
             search_terms = set(chars + bigrams)
 
-            sql = "SELECT * FROM knowledge_blocks"
+            sql = "SELECT * FROM knowledge_blocks WHERE deleted_at IS NULL"
             params = []
+            if scope:
+                sql += " AND scope=%s"
+                params.append(scope)
             if category:
-                sql += " WHERE category=%s"
+                sql += " AND category=%s"
                 params.append(category)
-            sql += " ORDER BY priority DESC"
+            sql += " ORDER BY priority DESC, quality_score DESC"
             all_blocks = [dict(r) for r in conn.execute(sql, params).fetchall()]
 
         results = []

@@ -37,20 +37,24 @@ def _m():
 # RAG 知识检索（Read 层）
 # ============================================================
 
-def _inject_knowledge(user_message: str, top_k: int = 5) -> str:
+def _inject_knowledge(user_message: str, top_k: int = 5, scope: str = None) -> str:
     """
     基于用户输入实时检索 knowledge_blocks，拼入 system prompt。
     复用 platform/api_v1.py 的中文双字组合评分算法。
     返回格式化的知识文本，无结果返回空字符串。
+    scope: 可选 'system' | 'user'，默认 None（检索全部）
     """
     try:
         conn = _m().get_db()
-        blocks = conn.execute(
-            """SELECT id, title, content, keywords, category
+        sql = """SELECT id, title, content, keywords, category
                FROM knowledge_blocks
-               WHERE deleted_at IS NULL
-               ORDER BY priority DESC, quality_score DESC"""
-        ).fetchall()
+               WHERE deleted_at IS NULL"""
+        params = []
+        if scope:
+            sql += " AND scope=%s"
+            params.append(scope)
+        sql += " ORDER BY priority DESC, quality_score DESC"
+        blocks = conn.execute(sql, params).fetchall()
 
         if not blocks:
             return ''
