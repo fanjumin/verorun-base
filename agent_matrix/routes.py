@@ -224,7 +224,8 @@ def create_agent():
                         conn.commit()
                 except Exception:
                     pass  # 写入 provider_api_keys 失败不影响 Agent 创建
-            data['api_key_ref'] = ''
+            if 'api_key_ref' not in data:
+                data['api_key_ref'] = ''
             del data['api_key']
         agent_id = _m().create_agent(data)
         return _success({'id': agent_id}, _('Agent has been created'))
@@ -274,7 +275,8 @@ def update_agent(aid):
                     conn.commit()
             except Exception:
                 pass  # 写入 provider_api_keys 失败不影响 Agent 更新
-        data['api_key_ref'] = ''
+        if 'api_key_ref' not in data:
+            data['api_key_ref'] = ''
         del data['api_key']
     ok = _m().update_agent(aid, data)
     if not ok:
