@@ -725,7 +725,7 @@ def save_summary():
 
 @api_v1_bp.route('/knowledge/list', methods=['POST'])
 def list_knowledge():
-    """获取知识库列表"""
+    """获取知识库列表，支持 scope 过滤"""
     payload, error = require_auth()
     if error:
         return error
@@ -733,6 +733,7 @@ def list_knowledge():
     data = request.get_json() or {}
     keyword = data.get('keyword')
     category = data.get('category')
+    scope = data.get('scope')  # 可选 'system' | 'user'
     page = data.get('page', 1)
     page_size = data.get('pageSize', 10)
     
@@ -742,8 +743,12 @@ def list_knowledge():
         from models import get_db
         
         with get_db() as db:
-            query = "SELECT * FROM knowledge_blocks WHERE 1=1"
+            query = "SELECT * FROM knowledge_blocks WHERE deleted_at IS NULL"
             params = []
+            
+            if scope:
+                query += " AND scope=%s"
+                params.append(scope)
             
             if keyword:
                 query += " AND (title LIKE %s OR content LIKE %s OR keywords LIKE %s)"
@@ -763,8 +768,11 @@ def list_knowledge():
             rows = db.execute(query, params).fetchall()
             
             # 获取总数
-            count_query = "SELECT COUNT(*) as total FROM knowledge_blocks WHERE 1=1"
+            count_query = "SELECT COUNT(*) as total FROM knowledge_blocks WHERE deleted_at IS NULL"
             count_params = []
+            if scope:
+                count_query += " AND scope=%s"
+                count_params.append(scope)
             if keyword:
                 count_query += " AND (title LIKE %s OR content LIKE %s OR keywords LIKE %s)"
                 count_params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
@@ -781,6 +789,9 @@ def list_knowledge():
                 'keywords': row['keywords'].split(',') if row['keywords'] else [],
                 'category': row['category'],
                 'priority': row['priority'],
+                'scope': row.get('scope', 'system'),
+                'owner_id': row.get('owner_id'),
+                'updatedAt': str(row['updated_at']) if row.get('updated_at') else None,
                 'createdAt': row['created_at']
             } for row in rows]
             
@@ -798,7 +809,7 @@ def list_knowledge():
 
 @api_v1_bp.route('/knowledge/save', methods=['POST'])
 def save_knowledge():
-    """新增/更新知识块"""
+    """新增/更新知识块（含 scope 权限校验）"""
     payload, error = require_auth()
     if error:
         return error
@@ -810,9 +821,17 @@ def save_knowledge():
     keywords = data.get('keywords', [])
     category = data.get('category')
     priority = data.get('priority', 0)
+    scope = data.get('scope', 'user')  # 默认用户KB
+    owner_id = data.get('owner_id') or payload['user_id']
     
     if not kb_id or not title or not content:
         return api_err('id, title和content是必需的', 400)
+    
+    # 权限检查
+    from auth_center.services.kb_permission import check_kb_permission
+    allowed, err = check_kb_permission(scope, owner_id, 'write', payload)
+    if not allowed:
+        return err
     
     # 知识块保存逻辑
     try:
@@ -823,23 +842,30 @@ def save_knowledge():
         
         with get_db() as db:
             # 检查是否已存在
-            existing = db.execute("SELECT id FROM knowledge_blocks WHERE id=%s", (kb_id,)).fetchone()
+            existing = db.execute("SELECT id, scope, owner_id FROM knowledge_blocks WHERE id=%s", (kb_id,)).fetchone()
             
             if existing:
+                # 更新前检查原条目的操作权限
+                ex = dict(existing)
+                allowed, err = check_kb_permission(ex['scope'], ex['owner_id'], 'write', payload)
+                if not allowed:
+                    return err
                 # 更新
                 db.execute("""
                     UPDATE knowledge_blocks 
-                    SET title=%s, content=%s, keywords=%s, category=%s, priority=%s
+                    SET title=%s, content=%s, keywords=%s, category=%s, priority=%s,
+                        scope=%s, owner_id=%s, updated_at=NOW()
                     WHERE id=%s
-                """, (title, content, keywords_str, category, priority, kb_id))
+                """, (title, content, keywords_str, category, priority,
+                      scope, owner_id, kb_id))
                 db.commit()
                 return api_ok({'id': kb_id, 'message': '知识块已更新'})
             else:
                 # 新增
                 db.execute("""
-                    INSERT INTO knowledge_blocks (id, title, content, keywords, category, priority)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (kb_id, title, content, keywords_str, category, priority))
+                    INSERT INTO knowledge_blocks (id, title, content, keywords, category, priority, scope, owner_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (kb_id, title, content, keywords_str, category, priority, scope, owner_id))
                 db.commit()
                 return api_ok({'id': kb_id, 'message': '知识块已创建'})
     except Exception as e:
@@ -849,7 +875,7 @@ def save_knowledge():
 
 @api_v1_bp.route('/knowledge/delete', methods=['POST'])
 def delete_knowledge():
-    """删除知识块"""
+    """删除知识块（系统KB禁止删除，用户KB需权限校验）"""
     payload, error = require_auth()
     if error:
         return error
@@ -864,8 +890,18 @@ def delete_knowledge():
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
         from models import get_db
+        from auth_center.services.kb_permission import check_kb_permission
         
         with get_db() as db:
+            row = db.execute("SELECT id, scope, owner_id FROM knowledge_blocks WHERE id=%s", (kb_id,)).fetchone()
+            if not row:
+                return api_err('知识块不存在', 404)
+            
+            row = dict(row)
+            allowed, err = check_kb_permission(row['scope'], row['owner_id'], 'delete', payload)
+            if not allowed:
+                return err
+            
             result = db.execute("DELETE FROM knowledge_blocks WHERE id=%s", (kb_id,)).rowcount
             db.commit()
             
