@@ -111,8 +111,9 @@ def enrich_dashboard(value, conn=None):
             warnings = status.get('warnings', 0) or 0
             errors = status.get('errors', 0) or 0
             total = passed + warnings + errors
+            # 与 health_check 插件 Overview 页保持一致: passed/total*100
             if total > 0:
-                score = round(((passed * 100) + (warnings * 60)) / total, 1)
+                score = round(passed * 100 / total, 1)
             else:
                 score = 100.0
             data['health_score'] = score
