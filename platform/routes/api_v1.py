@@ -740,7 +740,7 @@ def list_knowledge():
     # 显式权限校验
     if scope:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
-        from auth_center.services.kb_permission import check_kb_permission
+        from services.kb_permission import check_kb_permission
         allowed, err = check_kb_permission(scope, None, 'read', payload)
         if not allowed:
             return err
@@ -836,7 +836,7 @@ def save_knowledge():
         return api_err('id, title和content是必需的', 400)
     
     # 权限检查
-    from auth_center.services.kb_permission import check_kb_permission
+    from services.kb_permission import check_kb_permission
     allowed, err = check_kb_permission(scope, owner_id, 'write', payload)
     if not allowed:
         return err
@@ -898,7 +898,7 @@ def delete_knowledge():
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
         from models import get_db
-        from auth_center.services.kb_permission import check_kb_permission
+        from services.kb_permission import check_kb_permission
         
         with get_db() as db:
             row = db.execute("SELECT id, scope, owner_id FROM knowledge_blocks WHERE id=%s", (kb_id,)).fetchone()
