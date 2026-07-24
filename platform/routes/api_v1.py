@@ -915,6 +915,113 @@ def delete_knowledge():
         return api_err(f'删除知识块失败: {str(e)}', 500)
 
 
+# =============================================
+# 系统知识库在线更新（仅超级管理员）
+# =============================================
+
+@api_v1_bp.route('/kb/system-version', methods=['GET'])
+def system_kb_version():
+    """获取当前系统知识库版本信息"""
+    payload, error = require_auth()
+    if error:
+        return error
+
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+        from models import get_db
+        
+        with get_db() as db:
+            current = db.execute(
+                "SELECT * FROM system_kb_version WHERE applied=TRUE ORDER BY applied_at DESC LIMIT 1"
+            ).fetchone()
+            block_count = db.execute(
+                "SELECT COUNT(*) as c FROM knowledge_blocks WHERE scope='system' AND deleted_at IS NULL"
+            ).fetchone()['c']
+
+        return api_ok({
+            'current_version': dict(current) if current else None,
+            'system_blocks_count': block_count
+        })
+    except Exception as e:
+        return api_err(f'获取版本失败: {str(e)}', 500)
+
+
+@api_v1_bp.route('/kb/system-update', methods=['POST'])
+def system_kb_update():
+    """系统知识库在线更新（仅超级管理员）
+    接收 JSON: {version, checksum, blocks, release_notes, update_url}
+    blocks: [{id, title, content, keywords, category, priority}, ...]
+    采用事务覆盖导入：软删除旧系统条目 → 批量 UPSERT 新条目 → 记录版本
+    """
+    payload, error = require_auth()
+    if error:
+        return error
+
+    from auth_center.services.kb_permission import check_kb_permission
+    allowed, err = check_kb_permission('system', None, 'update_system', payload)
+    if not allowed:
+        return err
+
+    data = request.get_json() or {}
+    version = data.get('version')
+    checksum = data.get('checksum')
+    blocks = data.get('blocks', [])
+    release_notes = data.get('release_notes', '')
+    update_url = data.get('update_url', '')
+
+    if not version or not blocks:
+        return api_err('version和blocks是必需的', 400)
+
+    # 校验 checksum
+    import json, hashlib
+    content = json.dumps(blocks, sort_keys=True, ensure_ascii=False)
+    computed = hashlib.sha256(content.encode()).hexdigest()
+    if checksum and computed != checksum:
+        return api_err('更新包校验失败，checksum不匹配', 400)
+
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+        from models import get_db
+        
+        with get_db() as db:
+            # 1. 软删除旧系统条目
+            db.execute("UPDATE knowledge_blocks SET deleted_at=NOW() WHERE scope='system'")
+
+            # 2. 批量插入新系统条目
+            for block in blocks:
+                db.execute(
+                    """INSERT INTO knowledge_blocks 
+                       (id, title, content, keywords, category, priority, 
+                        scope, owner_id, source, quality_score, created_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,'system',NULL,'system_update',1.0,NOW())
+                       ON CONFLICT (id) DO UPDATE SET
+                       title=EXCLUDED.title, content=EXCLUDED.content,
+                       keywords=EXCLUDED.keywords, category=EXCLUDED.category,
+                       priority=EXCLUDED.priority, updated_at=NOW()""",
+                    (block['id'], block['title'], block['content'],
+                     block.get('keywords', ''), block.get('category', ''),
+                     block.get('priority', 0))
+                )
+
+            # 3. 记录版本
+            db.execute(
+                """INSERT INTO system_kb_version 
+                   (version, checksum, release_notes, update_url, 
+                    applied, applied_at, applied_by)
+                   VALUES (%s,%s,%s,%s,TRUE,NOW(),%s)""",
+                (version, computed, release_notes, update_url, payload['user_id'])
+            )
+
+            db.commit()
+            return api_ok({
+                'version': version,
+                'blocks_count': len(blocks),
+                'message': '系统知识库更新成功'
+            })
+    except Exception as e:
+        return api_err(f'更新失败: {str(e)}', 500)
+
+
 @api_v1_bp.route('/rag/search', methods=['POST'])
 def rag_search():
     """混合语义检索（无需登录，供抖音小程序调用）"""
