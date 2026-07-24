@@ -30,13 +30,16 @@ def _require_admin():
     return payload, None
 
 
-def _get_existing_for_dedup():
-    """Get existing KB titles + keywords for dedup and conflict detection"""
+def _get_existing_for_dedup(scope: str = None):
+    """Get existing KB titles + keywords for dedup and conflict detection, filtered by scope"""
     try:
         with get_db() as conn:
-            rows = conn.execute(
-                "SELECT id, title, content, keywords, category, source FROM knowledge_blocks WHERE deleted_at IS NULL"
-            ).fetchall()
+            sql = "SELECT id, title, content, keywords, category, source FROM knowledge_blocks WHERE deleted_at IS NULL"
+            params = []
+            if scope:
+                sql += " AND scope=%s"
+                params.append(scope)
+            rows = conn.execute(sql, params).fetchall()
             return [dict(r) for r in rows]
     except Exception:
         return []
@@ -267,8 +270,14 @@ def _call_llm(system_prompt: str, user_prompt: str):
 # Core function: directly callable by Agent Matrix
 # =============================================
 
-def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
+def process_clean_content(raw_content: str, admin_id: int = 0, scope: str = 'user') -> dict:
     """Clean a raw content entry, write to knowledge_blocks
+
+    Args:
+        raw_content: 原始内容
+        admin_id: 操作管理员 ID
+        scope: 'system' | 'user' — 目标知识库作用域（默认 user）
+               system 仅超级管理员可写入
 
     Returns: {'success': bool, 'kb_id': '...' or 'duplicate' or 'merged',
               'title': '...', 'category': '...', 'error': '...'}
@@ -277,7 +286,7 @@ def process_clean_content(raw_content: str, admin_id: int = 0) -> dict:
         return {'success': False, 'error': _('Content cannot be empty')}
 
     raw_content = raw_content.strip()[:50000]
-    existing = _get_existing_for_dedup()
+    existing = _get_existing_for_dedup(scope=scope)
     existing_titles = {e['title'].strip().lower() for e in existing}
 
     system_prompt = """You are the data cleaning agent for VeroRun.
@@ -356,15 +365,15 @@ Clean and output JSON per rules above."""
         return {'success': True, 'kb_id': 'duplicate', 'title': new_title,
                 'category': new_category, 'message': 'LLM detected duplicate, skipped'}
 
-    # === New entry: write source + quality_score ===
+    # === New entry: write with scope + owner_id ===
     kb_id = 'kb_cleaner_' + str(qid) + '_(' + ')'.join(re.findall(r'\w', new_title)[:10])
     with get_db() as conn:
         conn.execute(
             '''INSERT INTO knowledge_blocks
-               (id, title, content, keywords, category, priority, source, quality_score, created_at)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+               (id, title, content, keywords, category, priority, source, quality_score, scope, owner_id, created_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                ON CONFLICT (id) DO NOTHING''',
-            (kb_id, new_title, new_content, new_keywords, new_category, 5, 'auto', 0.5)
+            (kb_id, new_title, new_content, new_keywords, new_category, 5, 'auto', 0.5, scope, admin_id)
         )
         conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (qid, qid))
         conn.commit()
@@ -603,10 +612,19 @@ def submit_content():
         return err
     data = request.get_json() or {}
     raw = (data.get('content', '') or '').strip()
+    scope = data.get('scope', 'user')  # 默认用户KB
+    
     if not raw:
         return jsonify({'success': False, 'error': _('Content cannot be empty')}), 400
 
-    result = process_clean_content(raw, admin_id=payload['user_id'])
+    # 如果目标为系统KB，需要超级管理员权限
+    if scope == 'system':
+        from services.kb_permission import check_kb_permission
+        allowed, err2 = check_kb_permission('system', None, 'write', payload)
+        if not allowed:
+            return err2
+
+    result = process_clean_content(raw, admin_id=payload['user_id'], scope=scope)
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 500
     return jsonify({'success': True, 'data': result, 'message': result.get('message', _('Cleaning completed'))})
