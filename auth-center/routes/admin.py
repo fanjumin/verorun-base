@@ -116,6 +116,13 @@ def _build_dashboard_data(conn):
         'total_orders': 0,
         'pending_reviews': 0,
         'today_failed_tasks': 0,
+        'total_products': 0,
+        'pending_shipments': 0,
+        'published_posts': 0,
+        'draft_posts': 0,
+        'open_tickets': 0,
+        'urgent_tickets': 0,
+        'pending_feedback': 0,
         'trend_30d': [],
         'revenue_trend_30d': [],
     }
@@ -189,6 +196,28 @@ def _build_dashboard_data(conn):
     except: pass
     try:
         data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=CURRENT_DATE") or {'c':0})['c']
+    except: pass
+    # --- P0 missing data ---
+    try:
+        data['total_products'] = conn.execute("SELECT COUNT(*) as c FROM shop.products").fetchone()['c']
+    except: pass
+    try:
+        data['pending_shipments'] = conn.execute("SELECT COUNT(*) as c FROM shop.order_items WHERE shipping_status='pending'").fetchone()['c']
+    except: pass
+    try:
+        r = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE is_published=true").fetchone()
+        data['published_posts'] = r['c'] if r else 0
+        r = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE is_published=false").fetchone()
+        data['draft_posts'] = r['c'] if r else 0
+    except: pass
+    try:
+        data['open_tickets'] = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE status='open'").fetchone()['c']
+    except: pass
+    try:
+        data['urgent_tickets'] = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE status='open' AND priority='high'").fetchone()['c']
+    except: pass
+    try:
+        data['pending_feedback'] = conn.execute("SELECT COUNT(*) as c FROM user_feedback WHERE status='pending'").fetchone()['c']
     except: pass
     # --- Recent data ---
     try:

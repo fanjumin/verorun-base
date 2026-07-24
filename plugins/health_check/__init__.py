@@ -67,6 +67,22 @@ class HealthCheckPlugin(BasePlugin):
         except Exception as e:
             print(f'[HealthCheck/Scheduler] Warning: {e}')
 
+        # 注册 Dashboard 数据注入 filter
+        try:
+            from plugin_manager.hooks import get_hook_registry
+            _hooks = get_hook_registry()
+            already = any(
+                h.get('identifier') == 'health_check'
+                for hooks_list in _hooks.list_filters('dashboard.data').values()
+                for h in hooks_list
+            )
+            if not already:
+                _hooks.add_filter('dashboard.data', enrich_dashboard,
+                                   priority=15, identifier='health_check')
+                print('[HealthCheck] Dashboard data filter registered')
+        except Exception as e:
+            print(f'[HealthCheck] Dashboard filter registration warning: {e}')
+
         return True
 
     def register_routes(self):
@@ -77,3 +93,42 @@ class HealthCheckPlugin(BasePlugin):
     def on_disable(self, registry):
         print('[HealthCheck] Disabled')
         return True
+
+
+# ═══════════════════════════════════════════════════════════════
+# Dashboard data enrichment
+# ═══════════════════════════════════════════════════════════════
+
+def enrich_dashboard(value, conn=None):
+    """从 health_check 独立 DB 注入健康数据到 Dashboard"""
+    data = value
+    from .models import get_latest_status, get_unread_alert_count, get_health_trend
+
+    try:
+        status = get_latest_status()
+        if status:
+            passed = status.get('passed', 0) or 0
+            warnings = status.get('warnings', 0) or 0
+            errors = status.get('errors', 0) or 0
+            total = passed + warnings + errors
+            if total > 0:
+                score = round(((passed * 100) + (warnings * 60)) / total, 1)
+            else:
+                score = 100.0
+            data['health_score'] = score
+            data['health_passed'] = passed
+            data['health_warnings'] = warnings
+            data['health_errors'] = errors
+    except Exception:
+        pass
+    try:
+        data['unread_alerts'] = get_unread_alert_count()
+    except Exception:
+        pass
+    try:
+        trend = get_health_trend(7)
+        data['health_trend_7d'] = trend if trend else []
+    except Exception:
+        pass
+
+    return data

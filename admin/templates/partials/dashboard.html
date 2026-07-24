@@ -40,6 +40,24 @@ function _render_dashboard(ds){
   }
   h+='</div>';
 
+  // ── Row 3.5: Health Score (conditional, health_check plugin) ──
+  if(ds.health_score !== undefined){
+    h+='<div class="g2" style="margin-bottom:12px">';
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Health Score') }}</div>'+
+      '<div style="display:flex;align-items:center;gap:16px;padding:12px 0">'+
+      '<div style="position:relative;width:100px;height:100px"><canvas id="healthGauge" width="100" height="100"></canvas>'+
+      '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;font-weight:700;color:'+(ds.health_score>=80?'#52c41a':(ds.health_score>=50?'#f6c243':'#ef4444'))+'">'+ds.health_score+'</div></div>'+
+      '<div style="display:flex;flex-direction:column;gap:6px;font-size:13px">'+
+      '<span>✅ {{ _('Passed') }}: <b>'+ds.health_passed+'</b></span>'+
+      '<span>⚠️ {{ _('Warnings') }}: <b>'+(ds.health_warnings||0)+'</b></span>'+
+      '<span>❌ {{ _('Errors') }}: <b style="color:#ef4444">'+(ds.health_errors||0)+'</b></span>'+
+      (ds.unread_alerts>0?'<span style="color:#ef4444">🔔 {{ _('Alerts') }}: <b>'+ds.unread_alerts+'</b></span>':'')+
+      '</div></div></div>';
+    // Health trend (mini sparkline)
+    h+='<div class="chart-box"><div class="chart-title">{{ _('Health Trend') }} <span style="font-size:10px;color:var(--dim)">7{{ _('d') }}</span></div><div id="healthTrendChart" style="width:100%;height:160px"></div></div>';
+    h+='</div>';
+  }
+
   // ── Row 4: 2-column content ──
   h+='<div class="g2" style="margin-bottom:12px">';
   h+='<div class="chart-box"><div class="chart-title">{{ _('Pending Items') }}</div><div id="chartPending" style="width:100%;height:240px"></div></div>';
@@ -239,20 +257,24 @@ function _initCharts(ds){
   if(el6){
     var c6=echarts.init(el6);
     var pp=ds.pending_posts||0, pr=ds.pending_reviews||0, pc=ds.pending_contacts||0, ft=ds.today_failed_tasks||0;
-    if(pp+pr+pc+ft===0){
+    var ot=ds.open_tickets||0, pf=ds.pending_feedback||0, ps=ds.pending_shipments||0;
+    if(pp+pr+pc+ft+ot+pf+ps===0){
       c6.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'All Clear',fontSize:14,fill:'#52c41a'}}]});
     }else{
       c6.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
-        legend:{data:['{{ _('Posts') }}','{{ _('Reviews') }}','{{ _('Tickets') }}','{{ _('Failed') }}'],textStyle:{color:'var(--dim)',fontSize:10},bottom:0},
+        legend:{data:['{{ _('Posts') }}','{{ _('Reviews') }}','{{ _('Messages') }}','{{ _('Failed') }}','{{ _('Open Tickets') }}','{{ _('Feedback') }}','{{ _('Shipments') }}'],textStyle:{color:'var(--dim)',fontSize:10},bottom:0},
         grid:{left:40,right:10,bottom:35,top:10},
         xAxis:{type:'category',data:['{{ _('Pending') }}'],axisLabel:{fontSize:11,color:'var(--dim)'}},
         yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
         series:[
           {name:'{{ _('Posts') }}',type:'bar',stack:'total',data:[pp],itemStyle:{color:'#4a9eff'},barMaxWidth:60},
           {name:'{{ _('Reviews') }}',type:'bar',stack:'total',data:[pr],itemStyle:{color:'#a020f0'},barMaxWidth:60},
-          {name:'{{ _('Tickets') }}',type:'bar',stack:'total',data:[pc],itemStyle:{color:'#f6c243'},barMaxWidth:60},
-          {name:'{{ _('Failed') }}',type:'bar',stack:'total',data:[ft],itemStyle:{color:'#ef4444'},barMaxWidth:60}
+          {name:'{{ _('Messages') }}',type:'bar',stack:'total',data:[pc],itemStyle:{color:'#f6c243'},barMaxWidth:60},
+          {name:'{{ _('Failed') }}',type:'bar',stack:'total',data:[ft],itemStyle:{color:'#ef4444'},barMaxWidth:60},
+          {name:'{{ _('Open Tickets') }}',type:'bar',stack:'total',data:[ot],itemStyle:{color:'#ff7a00'},barMaxWidth:60},
+          {name:'{{ _('Feedback') }}',type:'bar',stack:'total',data:[pf],itemStyle:{color:'#00c853'},barMaxWidth:60},
+          {name:'{{ _('Shipments') }}',type:'bar',stack:'total',data:[ps],itemStyle:{color:'#ff6b6b'},barMaxWidth:60}
         ]
       });
     }
@@ -330,6 +352,31 @@ function _initCharts(ds){
       });
     }
     window.addEventListener('resize',function(){rchart.resize()});
+  }
+
+  // ── Health Trend (conditional, health_check plugin) ──
+  var htEl=document.getElementById('healthTrendChart');
+  if(htEl){
+    var htchart=echarts.init(htEl);
+    var htData=ds.health_trend_7d||[];
+    if(!htData.length){
+      htchart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+    }else{
+      var hdates=htData.map(function(d){return (d.date||'').substr(5)});
+      htchart.setOption({
+        tooltip:{trigger:'axis'},
+        grid:{left:35,right:10,bottom:20,top:10},
+        xAxis:{type:'category',data:hdates,axisLabel:{fontSize:10,color:'var(--dim)'}},
+        yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10,formatter:'{value}'}},
+        series:[{
+          type:'line',data:htData.map(function(d){return d.health_score}),
+          smooth:true,lineStyle:{width:2,color:'#00f5ff'},
+          areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,245,255,0.2)'},{offset:1,color:'rgba(0,245,255,0.02)'}]}},
+          markLine:{silent:true,data:[{yAxis:80,label:{formatter:'80',color:'var(--dim)',fontSize:9},lineStyle:{color:'rgba(82,196,26,0.4)',type:'dashed'}},{yAxis:50,label:{formatter:'50',color:'var(--dim)',fontSize:9},lineStyle:{color:'rgba(246,194,67,0.4)',type:'dashed'}}]}
+        }]
+      });
+    }
+    window.addEventListener('resize',function(){htchart.resize()});
   }
 }
 
