@@ -26,13 +26,12 @@ function mpRefresh(){
         if(!p.models||!p.models.length){
           h+='<div class="em" style="margin:8px">{{ _('No Models') }}</div>';
         }else{
-          h+='<table style="margin:0"><tr><th>{{ _('Name') }}</th><th>{{ _('Model Name') }}</th><th>{{ _('Endpoint') }}</th><th>Key</th><th>{{ _('Ability') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr>';
+          h+='<table style="margin:0"><tr><th>{{ _('Name') }}</th><th>{{ _('Model Name') }}</th><th>{{ _('Endpoint') }}</th><th>{{ _('Ability') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr>';
           p.models.forEach(function(m){
             h+='<tr>';
             h+='<td>'+esc(m.name)+'</td>';
             h+='<td><code style="font-size:10px;color:var(--accent)">'+esc(m.model_name)+'</code></td>';
             h+='<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dim)">'+esc(m.endpoint_url||'—')+'</td>';
-            h+='<td><code style="font-size:10px">'+esc(m.api_key_ref||'—')+'</code></td>';
             h+='<td>'+esc(caps[m.capabilities]||m.capabilities)+'</td>';
             h+='<td>'+(m.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Disable') }}</span>')+'</td>';
             h+='<td><button class="btn bo bs" onclick="mpShowEditModel('+m.id+')">{{ _('Edit') }}</button> ';
@@ -83,14 +82,8 @@ function mpShowAddModel(providerId, providerName){
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Ability Type') }}</div><select class="sl" id="mpCaps" style="width:100%"><option value="text">{{ _('Text') }}</option><option value="image">{{ _('Image') }}</option><option value="voice">{{ _('Voice') }}</option><option value="tts">{{ _('TTS') }}</option><option value="video">{{ _('Video') }}</option></select></div>'+
     '</div>'+
     '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" placeholder="https://api.siliconflow.cn/v1" style="width:100%"></div>'+
-    '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
     '<div style="margin-top:10px"><button class="btn bp" onclick="mpCreateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
     '</div>';
-  // Async load api_key_id dropdown
-  mpRenderKeySelect(null, providerId).then(function(html) {
-    var wrap = document.getElementById("mpKeySelectWrap");
-    if (wrap) wrap.innerHTML = html;
-  });
 }
 
 function mpShowEditModel(id){
@@ -118,15 +111,9 @@ function mpShowEditModel(id){
     '</select></div>'+
     '</div>'+
     '<div style="margin-top:8px"><div style="font-size:11px;color:var(--dim)">API {{ _('Endpoint') }}</div><input class="in" id="mpUrl" value="'+escAttr(m.endpoint_url||'')+'" style="width:100%"></div>'+
-    '<div id="mpKeySelectWrap" style="margin-top:8px"></div>'+
     '<div style="margin-top:8px"><label style="font-size:11px"><input type="checkbox" id="mpActive"'+(m.is_active?' checked':'')+'> {{ _('Enabled') }}</label></div>'+
     '<div style="margin-top:10px"><button class="btn bp" onclick="mpUpdateModel()">{{ _('Save') }}</button> <button class="btn bo" onclick="document.getElementById(\'mpAddForm\').style.display=\'none\'">{{ _('Cancel') }}</button></div>'+
     '</div>';
-    // Async load api_key_id dropdown
-    mpRenderKeySelect(m.api_key_id, m.provider_slug).then(function(html) {
-        var wrap = document.getElementById("mpKeySelectWrap");
-        if (wrap) wrap.innerHTML = html;
-      });
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
 }
 
@@ -138,8 +125,6 @@ function mpCreateModel(){
     provider_id:parseInt(document.getElementById("mpProvId").value),
     model_name:document.getElementById("mpModelName").value.trim(),
     endpoint_url:document.getElementById("mpUrl").value.trim(),
-    api_key_ref:document.getElementById("mpKeyRef").value.trim(),
-    api_key_id:document.getElementById("mpApiKeyId")?document.getElementById("mpApiKeyId").value:'',
     capabilities:document.getElementById("mpCaps").value
   };
   fetch("/admin/provider-models",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
@@ -159,8 +144,6 @@ function mpUpdateModel(){
     provider_id:parseInt(document.getElementById("mpProvId").value),
     model_name:document.getElementById("mpModelName").value.trim(),
     endpoint_url:document.getElementById("mpUrl").value.trim(),
-    api_key_ref:document.getElementById("mpKeyRef").value.trim(),
-    api_key_id:document.getElementById("mpApiKeyId")?document.getElementById("mpApiKeyId").value:'',
     capabilities:document.getElementById("mpCaps").value,
     is_active:document.getElementById("mpActive")?document.getElementById("mpActive").checked?1:0:1
   };
@@ -173,7 +156,22 @@ function mpUpdateModel(){
 }
 
 function mpDeleteModel(id,name){
-  if(!confirm('{{ _('Confirm Deletion of Model') }} "'+name+'"?'))return;
+  var h='<div class="modal-overlay" onclick="mpCloseModal()"><div class="modal-box" onclick="event.stopPropagation()" style="max-width:400px;width:90%">';
+  h+='<h3 style="margin:0 0 12px;color:var(--rose)">{{ _('Confirm Deletion of Model') }}</h3>';
+  h+='<p style="margin:0 0 6px;font-size:14px;color:var(--ink)">{{ _('Are you sure you want to delete') }} <strong>'+esc(name)+'</strong>?</p>';
+  h+='<p style="margin:0 0 20px;font-size:12px;color:var(--dim)">{{ _('This action cannot be undone.') }}</p>';
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end">';
+  h+='<button class="bo" onclick="mpCloseModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
+  h+='<button class="bp" style="padding:6px 16px;background:var(--rose);border-color:var(--rose);color:#fff" onclick="mpConfirmDelete('+id+')">{{ _('Delete') }}</button>';
+  h+='</div></div></div>';
+  var overlay=document.createElement('div');
+  overlay.id='modal-root';
+  overlay.innerHTML=h;
+  document.body.appendChild(overlay);
+}
+function mpCloseModal(){var m=document.getElementById('modal-root');if(m)m.remove();}
+function mpConfirmDelete(id){
+  mpCloseModal();
   fetch("/admin/provider-models/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
   .then(function(r){return r.json()})
   .then(function(d){
