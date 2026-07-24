@@ -433,7 +433,7 @@ def mp_chat_stream():
     # RAG knowledge retrieval
     try:
         from routes.api_v1 import _rag_search, _build_rag_context
-        knowledge = _rag_search(message, top_k=5)
+        knowledge = _rag_search(message, top_k=5, scope='user')
         rag_context = _build_rag_context(knowledge)
     except Exception as e:
         import logging
@@ -557,7 +557,7 @@ def mp_chat_send():
 
     try:
         from routes.api_v1 import _rag_search, _build_rag_context, _get_chatbot_config, _get_chatbot_agent
-        knowledge = _rag_search(message, top_k=5)
+        knowledge = _rag_search(message, top_k=5, scope='user')
         rag_context = _build_rag_context(knowledge)
 
         cfg = _get_chatbot_config()
@@ -634,7 +634,7 @@ def mp_knowledge_search():
 
     try:
         from routes.api_v1 import _rag_search
-        results = _rag_search(query, top_k=top_k, category=category)
+        results = _rag_search(query, top_k=top_k, category=category, scope='user')
         return _ok(results)
     except Exception as e:
         return _err(f'Search failed: {e}', 500)

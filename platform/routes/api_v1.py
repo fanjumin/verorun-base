@@ -737,6 +737,14 @@ def list_knowledge():
     page = data.get('page', 1)
     page_size = data.get('pageSize', 10)
     
+    # 显式权限校验
+    if scope:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+        from auth_center.services.kb_permission import check_kb_permission
+        allowed, err = check_kb_permission(scope, None, 'read', payload)
+        if not allowed:
+            return err
+    
     # 知识库列表获取逻辑
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
@@ -1043,19 +1051,14 @@ def rag_search():
             bigrams = [query[i:i+2] for i in range(len(query)-1)]
             search_terms = set(chars + bigrams)
             
-            # 获取所有知识块
-            sql = "SELECT * FROM knowledge_blocks"
+            # 获取系统知识块（公开端点仅检索系统级知识）
+            sql = "SELECT * FROM knowledge_blocks WHERE deleted_at IS NULL AND scope='system'"
             params = []
             if category:
-                sql += " WHERE category=%s"
+                sql += " AND category=%s"
                 params.append(category)
             sql += " ORDER BY priority DESC"
-            all_blocks = conn.execute(sql, params).fetchall() if not category else \
-                         conn.execute(sql, params).fetchall()
-            if category:
-                all_blocks = [dict(r) for r in all_blocks]
-            else:
-                all_blocks = [dict(r) for r in conn.execute("SELECT * FROM knowledge_blocks ORDER BY priority DESC").fetchall()]
+            all_blocks = [dict(r) for r in conn.execute(sql, params).fetchall()]
         
         # 评分：计算查询词与关键词+内容的匹配度
         results = []

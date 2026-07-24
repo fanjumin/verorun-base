@@ -1378,9 +1378,12 @@ def chat_stream_sse():
     )
 
 
+# DEPRECATED: 此端点操作的是 system_config.chatbot_knowledge_base（旧版文本知识库），
+# 非 knowledge_blocks 表（RAG 知识库）。RAG 知识库管理请使用 /api/v1/knowledge/* 端点。
+# 保留此端点以兼容 ai_chat.html 中的 matEditKnowledge() 功能。
 @agent_matrix_bp.route('/chat/knowledge', methods=['GET'])
 def get_knowledge_base():
-    """获取聊天知识库内容"""
+    """获取聊天知识库内容（旧版）"""
     admin, err = _require_admin()
     if err: return err
 
