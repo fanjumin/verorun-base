@@ -4,34 +4,8 @@
 为各插件提供统一的 psycopg2 连接包装类，替代各插件重复定义的内联包装类。
 """
 import psycopg2
-import psycopg2.pool
 import os
-import threading
 from psycopg2.extras import RealDictCursor
-
-# P2-2: 连接池（避免高并发时耗尽连接数）
-_pool = None
-_pool_lock = threading.Lock()
-
-
-def _get_pool():
-    """获取或创建连接池（线程安全、懒加载）"""
-    global _pool
-    if _pool is None:
-        with _pool_lock:
-            if _pool is None:
-                minconn = int(os.environ.get('PG_POOL_MIN', '2'))
-                maxconn = int(os.environ.get('PG_POOL_MAX', '20'))
-                _pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=minconn,
-                    maxconn=maxconn,
-                    host=os.environ.get('PG_HOST', ''),
-                    port=int(os.environ.get('PG_PORT', 5432)),
-                    dbname=os.environ.get('PG_DB', 'verorun'),
-                    user=os.environ.get('PG_USER', 'easykai'),
-                    password=os.environ.get('PG_PASSWORD', ''),
-                )
-    return _pool
 
 
 class PgConnection:
@@ -62,8 +36,7 @@ class PgConnection:
     def close(self):
         if self._cur:
             self._cur.close()
-        # 归还连接到连接池（而非关闭连接）
-        _get_pool().putconn(self._conn)
+        self._conn.close()
 
     def __enter__(self):
         return self
@@ -77,9 +50,15 @@ class PgConnection:
 
 
 def get_raw_connection():
-    """从连接池获取一个 psycopg2 连接。
+    """Return a raw psycopg2 connection using env-configured PG credentials.
 
-    所有插件和模块应使用此工厂函数获取连接，而不是
-    内联 psycopg2.connect() 调用。
+    All plugins and modules should use this single factory instead of
+    inlining psycopg2.connect() calls with repeated env var lookups.
     """
-    return _get_pool().getconn()
+    return psycopg2.connect(
+        host=os.environ.get('PG_HOST', ''),
+        port=int(os.environ.get('PG_PORT', 5432)),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'easykai'),
+        password=os.environ.get('PG_PASSWORD', ''),
+    )

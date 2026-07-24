@@ -400,7 +400,7 @@ def _merge_entry(old_entry: dict, new_title: str, new_content: str, new_keywords
         )
         conn.execute(
             "UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s",
-            (old_entry['id'], qid)
+            (qid, qid)
         )
         conn.commit()
 

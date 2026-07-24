@@ -250,6 +250,7 @@
       localStorage.removeItem('ez_currency_rates');
       loadRates();
     },
+    getCurrencyInfo: getCurrencyInfo,
     createSelector: createCurrencySelector,
   };
 
