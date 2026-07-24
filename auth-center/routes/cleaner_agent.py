@@ -35,7 +35,7 @@ def _get_existing_for_dedup():
     try:
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT id, title, keywords, category, source FROM knowledge_blocks WHERE deleted_at IS NULL"
+                "SELECT id, title, content, keywords, category, source FROM knowledge_blocks WHERE deleted_at IS NULL"
             ).fetchall()
             return [dict(r) for r in rows]
     except Exception:
