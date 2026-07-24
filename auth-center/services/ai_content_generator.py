@@ -10,8 +10,6 @@ from models import get_db
 
 logger = logging.getLogger(__name__)
 
-DASHSCOPE_BASE = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-
 # =============================================
 # Config helpers
 # =============================================
@@ -25,23 +23,34 @@ def _get_key(key_name):
     return ''
 
 
+def _get_ai_text_config():
+    """从 system_config 读取默认 AI 文本供应商和模型，不再硬编码。"""
+    with get_db() as conn:
+        row_p = conn.execute("SELECT value FROM system_config WHERE key='ai_text_provider'").fetchone()
+        row_m = conn.execute("SELECT value FROM system_config WHERE key='ai_text_model'").fetchone()
+    return (
+        row_p['value'] if row_p and row_p['value'] else 'siliconflow',
+        row_m['value'] if row_m and row_m['value'] else 'deepseek-ai/DeepSeek-V3',
+    )
+
+
 # =============================================
-# 文案生成 — DashScope Qwen
+# 文案生成 — 通过 UnifiedLLM 调用
 # =============================================
 
-def _qwen_chat(messages, model='qwen-turbo', temperature=0.7):
-    """Call Qwen via UnifiedLLM (unified entry with token logging)."""
+def _qwen_chat(messages, model=None, temperature=0.7):
+    """Call AI via UnifiedLLM. Provider and model from system_config, not hardcoded."""
     from agent_matrix.engine import get_gateway
+    provider, default_model = _get_ai_text_config()
     gw = get_gateway()
-    resp = gw.chat(
-        provider='dashscope',
-        model=model,
+    return gw.chat(
+        provider=provider,
+        model=model or default_model,
         messages=messages,
         temperature=temperature,
         max_tokens=4096,
         module='content_generator',
     )
-    return resp.choices[0].message.content
 
 
 CONTENT_PROMPTS = {
@@ -189,9 +198,8 @@ def _get_image_key():
     try:
         from services.crypto import decrypt
         with get_db() as conn:
-            conn.cursor_factory = psycopg2.extras.RealDictCursor
             row = conn.execute(
-                "SELECT key_value_enc FROM provider_api_keys WHERE provider_slug=%s AND is_active=TRUE LIMIT 1",
+                "SELECT key_value_enc FROM provider_api_keys WHERE provider=%s AND is_active=TRUE LIMIT 1",
                 ('dashscope',)
             ).fetchone()
             if row and row['key_value_enc']:
@@ -340,19 +348,15 @@ def download_image_to_file(image_url, filepath):
 
 
 def analyze_image(image_url, question='请详细描述这张图片的内容、布局、颜色和文字信息'):
-    """Use Qwen3-V to analyze an image. Returns analysis text."""
+    """Analyze image via UnifiedLLM (multimodal). Provider from system_config, not hardcoded."""
     _validate_image_url(image_url)
-    api_key = _get_key('dashscope_text_key')
-    if not api_key:
-        raise ValueError('dashscope_text_key 未配置')
-
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-    }
-    body = {
-        'model': 'qwen-vl-max',
-        'messages': [
+    from agent_matrix.engine import get_gateway
+    provider, _ = _get_ai_text_config()
+    gw = get_gateway()
+    return gw.chat(
+        provider=provider,
+        model='Qwen/Qwen2.5-VL-72B-Instruct',
+        messages=[
             {
                 'role': 'user',
                 'content': [
@@ -361,14 +365,6 @@ def analyze_image(image_url, question='请详细描述这张图片的内容、�
                 ]
             }
         ],
-        'max_tokens': 2048,
-    }
-    resp = requests.post(
-        f'{DASHSCOPE_BASE}/chat/completions',
-        headers=headers, json=body, timeout=60
+        max_tokens=2048,
+        module='content_generator',
     )
-    result = resp.json()
-    choices = result.get('choices', [])
-    if choices and choices[0].get('message', {}).get('content'):
-        return choices[0]['message']['content']
-    raise ValueError(f'Qwen3-V 调用失败: {result.get("message", str(result))}')

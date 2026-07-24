@@ -8,28 +8,20 @@ from plugins.content_factory.models import get_cf_db
 logger = logging.getLogger(__name__)
 
 
-def _get_ai_key() -> Optional[str]:
-    import sys, os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center'))
-    from models import get_db
-    with get_db() as conn:
-        row = conn.execute("SELECT value FROM system_config WHERE key='dashscope_text_key'").fetchone()
-    return row['value'] if row else None
-
-
 def _call_qwen(prompt: str, max_tokens: int = 4096) -> Optional[str]:
-    """Call Qwen via UnifiedLLM (unified entry with token logging)."""
-    from agent_matrix.engine import get_gateway
+    """Call AI via UnifiedLLM. Provider and model from system_config, not hardcoded."""
+    from agent_matrix.engine import get_gateway, _get_system_key
+    provider = _get_system_key('ai_text_provider') or 'siliconflow'
+    model = _get_system_key('ai_text_model') or 'deepseek-ai/DeepSeek-V3'
     gw = get_gateway()
-    resp = gw.chat(
-        provider='dashscope',
-        model='qwen-turbo',
+    return gw.chat(
+        provider=provider,
+        model=model,
         messages=[{'role': 'user', 'content': prompt}],
         temperature=0.7,
         max_tokens=max_tokens,
         module='content_factory',
     )
-    return resp.choices[0].message.content
 
 
 PROCESS_PROMPT = """请处理以下原始内容，输出JSON：
