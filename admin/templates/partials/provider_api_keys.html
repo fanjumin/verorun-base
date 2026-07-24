@@ -41,6 +41,7 @@ window.l_provider_keys=function(targetId){
       h+='</tbody></table>';
     }
     h+='</div>';
+    if(targetId) h = '<div class="ai-hub-subtitle">AI Hub <span style="color:var(--dim)">&rsaquo;</span> {{ _('Provider Keys') }}</div>' + h;
     target.innerHTML=h;
   }
 

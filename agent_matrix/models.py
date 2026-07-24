@@ -587,6 +587,19 @@ def create_agent(data):
 
 def update_agent(agent_id, data):
     with get_db() as conn:
+        # 当设置了 provider_model_id，自动同步 provider 和 model_name
+        if data.get('provider_model_id'):
+            row = conn.execute(
+                'SELECT p.slug AS provider, pm.model_name '
+                'FROM provider_models pm '
+                'JOIN providers p ON p.id = pm.provider_id '
+                'WHERE pm.id = %s',
+                (data['provider_model_id'],)
+            ).fetchone()
+            if row:
+                data['provider'] = row['provider']
+                data['model_name'] = row['model_name']
+
         fields = []
         values = []
         for key in ['name', 'role_type', 'description', 'domain',

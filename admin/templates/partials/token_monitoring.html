@@ -33,6 +33,7 @@ window.l_token_monitoring=function(targetId){
     var imageCalls=(dimStats.image||{}).calls||0;
 
     var h='';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><h3 style="margin:0;font-size:16px;color:var(--accent)">{{ _('Token Usage') }}</h3><span style="flex:1"></span></div>';
 
     // {{ _('Alert Bar') }}
     if(mt>=thr.matrix_red){

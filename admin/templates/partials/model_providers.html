@@ -11,7 +11,7 @@ function mpRefresh(){
   .then(function(d){
     if(!d.success){document.getElementById(_mpTargetId).innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var h='<div class="cd" style="margin-bottom:12px">';
-    h+='<div class="st">{{ _('Model Management') }}</div>';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><h3 style="margin:0;font-size:16px;color:var(--accent)">{{ _('Model Management') }}</h3><span style="flex:1"></span></div>';
     h+='<div id="mpAddForm" style="display:none"></div>';
     if(!d.data||!d.data.length){
       h+='<div class="em">{{ _('No Models Settings') }}</div>';
@@ -44,6 +44,7 @@ function mpRefresh(){
       });
     }
     h+='</div>';
+    if(_mpTargetId!=='mc') h = '<div class="ai-hub-subtitle">AI Hub <span style="color:var(--dim)">&rsaquo;</span> {{ _('Model Management') }}</div>' + h;
     document.getElementById(_mpTargetId).innerHTML=h;
   }).catch(function(e){
     document.getElementById(_mpTargetId).innerHTML='<div class="em">{{ _('Request Failed') }} — {{ _('Check Network or') }}<a href="javascript:go(\'model_providers\')">{{ _('Refresh & Retry') }}</a><br><span style="font-size:10px;color:var(--dim)">'+esc(String(e))+'</span></div>';

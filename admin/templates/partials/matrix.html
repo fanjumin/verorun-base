@@ -13,6 +13,7 @@ window.l_matrix=function(targetId){
       var master=agents.filter(function(a){return a.role_type=="master"});
       var subs=agents.filter(function(a){return a.role_type=="sub"});
       var h='';
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><h3 style="margin:0;font-size:16px;color:var(--accent)">{{ _('Agent Matrix') }}</h3><span style="flex:1"></span></div>';
 
       // Stats cards
       h+='<div class="gr">';
