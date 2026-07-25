@@ -1135,6 +1135,9 @@ def _build_ai_plan_from_template(tmpl, prompt_text):
             ]
             raw = engine.chat(messages, temperature=temperature, max_tokens=max_tokens,
                               provider_model_id=master_pm_id)
+            if not raw or not isinstance(raw, str):
+                logger.warning('[MiniApp] LLM returned empty or non-string response: %s', type(raw))
+                return {}
             # Attempt direct JSON extraction
             match = re.search(r'\{[\s\S]*\}', raw)
             if match:
