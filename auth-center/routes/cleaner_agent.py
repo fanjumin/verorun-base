@@ -184,9 +184,9 @@ def _call_llm(system_prompt: str, user_prompt: str):
     # 构建 engine 配置（优先通过 provider_model_id 走 ID 解析路径）
     pm_id = _get_cleaner_provider_model_id()
     engine_config = {
-        'provider_model_id': pm_id,   # 优先：ID 解析（与 Athena 等 Agent 一致）
+        'provider_model_id': pm_id,   # 优先：AI Hub ID 解析
         'provider': 'deepseek',       # 回退：当 pm_id 为 None 时使用
-        'model_name': 'deepseek-chat',
+        'model_name': '',
         'base_url': '',
         'system_prompt': '',
     }
@@ -441,7 +441,7 @@ def auto_register_sub_agent():
             'capabilities': json.dumps(['text_clean', 'content_classify', 'dedup']),
             'description': 'Clean raw content into structured knowledge entries (dedup + classify + save to knowledge base)',
             'provider': 'deepseek',
-            'model_name': 'deepseek-chat',
+            'model_name': '',
             'is_active': 1,
         })
         print(f'[CleanerAgent] ✅ Automatically registered as a matrix sub-agent')
@@ -699,7 +699,9 @@ def get_config():
     payload, err = _require_admin()
     if err:
         return err
+    from models.database import get_active_model
+    _, model_name, base_url = get_active_model('deepseek')
     return jsonify({
         'success': True,
-        'data': {'provider': 'deepseek', 'model': 'deepseek-chat', 'base_url': 'https://api.deepseek.com/v1'}
+        'data': {'provider': 'deepseek', 'model': model_name or '', 'base_url': base_url or 'https://api.deepseek.com/v1'}
     })

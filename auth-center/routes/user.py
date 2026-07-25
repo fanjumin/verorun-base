@@ -591,7 +591,7 @@ CONFIG_SCHEMA = {
     'toutiao_access_token':    {'label': _('Toutiao Account Access Token"'),'category': 'social', 'sensitive': True,  'placeholder': _('API Call Token')},
     # ├─ 小程序 AI 配置 ─
     'mp_ai_provider':          {'label': _('AI Provider'),          'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek / dashscope / openai / openrouter'},
-    'mp_ai_model':             {'label': _('Model Name'),           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'deepseek-chat / qwen-turbo / gpt-4o-mini'},
+    'mp_ai_model':             {'label': _('Model Name'),           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': _('Leave empty to use AI Hub default')},
     'mp_ai_base_url':          {'label': 'API 地址',           'category': 'miniapp_ai', 'sensitive': False, 'placeholder': 'https://api.deepseek.com'},
     'mp_ai_api_key':           {'label': 'API Key',            'category': 'miniapp_ai', 'sensitive': True,  'placeholder': _('Enter API Key')},
     # ├─ 支付配置（已迁移至 PaymentPlugin 插件管理） ─

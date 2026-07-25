@@ -1548,7 +1548,7 @@ def init_db():
     with get_db() as m:
         shop_ai_seeds = [
             ('shop_ai_provider',                'deepseek',     '商城AI商品优化 — 供应商 (deepseek/dashscope/openai/openrouter/siliconflow/ollama)'),
-            ('shop_ai_model',                   'deepseek-chat','商城AI商品优化 — 模型名 (如 deepseek-chat, qwen-max, gpt-4o-mini)'),
+            ('shop_ai_model',                   '','商城AI商品优化 — 模型名（来自 AI Hub，留空自动使用默认）'),
         ]
         for key, value, desc in shop_ai_seeds:
             m.execute(
@@ -2466,6 +2466,26 @@ try:
         print('[Migration] ✅ 旧版套餐数据已清理')
 except Exception as e:
     print(f'[Migration] ⚠️ 旧版套餐数据迁移跳过: {e}')
+
+
+def get_active_model(provider_slug='deepseek'):
+    """从 AI Hub (provider_models) 查询指定 provider 的第一个活跃模型。
+    返回 (provider_model_id, model_name, base_url) 或 (None, None, None)。
+    整个系统必须通过此函数获取模型，严禁硬编码模型名。"""
+    try:
+        with get_db() as conn:
+            row = conn.execute("""
+                SELECT pm.id, pm.model_name, pm.endpoint_url
+                FROM provider_models pm
+                JOIN providers p ON p.id = pm.provider_id
+                WHERE p.slug = %s AND pm.is_active = 1 AND p.is_active = 1
+                ORDER BY pm.id LIMIT 1
+            """, (provider_slug,)).fetchone()
+        if row:
+            return row['id'], row['model_name'], row['endpoint_url'] or ''
+        return None, None, None
+    except Exception:
+        return None, None, None
 
 # ── 国际化: 市场特定表结构 (2026-06-29) ──
 if MARKET == 'intl':

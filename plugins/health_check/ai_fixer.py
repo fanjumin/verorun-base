@@ -48,7 +48,7 @@ def _build_aiengine_config() -> dict:
     """
     config = {
         'provider': 'deepseek',
-        'model_name': 'deepseek-chat',
+        'model_name': '',
         'base_url': '',
         'system_prompt': '',
     }

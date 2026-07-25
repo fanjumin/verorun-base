@@ -122,7 +122,7 @@ CACHE_CONFIG = {
 AI_CONFIG = {
     # AI服务提供商
     "provider": os.environ.get("ALIBABA_AI_PROVIDER", "deepseek"),  # deepseek/openai/local
-    "model": os.environ.get("ALIBABA_AI_MODEL", "deepseek-chat"),
+    "model": os.environ.get("ALIBABA_AI_MODEL", ""),
     
     # 标题优化配置
     "title_prompt": "请优化以下商品标题，使其更吸引人、符合SEO要求，同时保留核心关键词：{title}",

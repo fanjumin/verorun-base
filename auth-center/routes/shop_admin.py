@@ -792,7 +792,11 @@ class ShopAIProcessor:
         """使用 system_config 配置初始化 AIEngine"""
         try:
             self.provider = self._read_config('shop_ai_provider', 'deepseek')
-            self.model = self._read_config('shop_ai_model', 'deepseek-chat')
+            from models.database import get_active_model
+            _, default_model, _ = get_active_model(self.provider)
+            self.model = self._read_config('shop_ai_model', default_model or '')
+            if not self.model:
+                self.model = default_model or ''
 
             from agent_matrix.engine import UnifiedLLM
             agent_config = {

@@ -239,8 +239,10 @@ def chat_request():
                                 "('mp_ai_provider','mp_ai_model','mp_ai_base_url','mp_ai_api_key')").fetchall()}
 
         provider = rows.get('mp_ai_provider', 'deepseek') or 'deepseek'
-        model = rows.get('mp_ai_model', 'deepseek-chat') or 'deepseek-chat'
-        base_url = rows.get('mp_ai_base_url', 'https://api.deepseek.com') or 'https://api.deepseek.com'
+        from models.database import get_active_model
+        _, default_model, _ = get_active_model(provider)
+        model = rows.get('mp_ai_model') or default_model or ''
+        base_url = rows.get('mp_ai_base_url') or 'https://api.deepseek.com'
         api_key = rows.get('mp_ai_api_key', '')
 
         # 回退
@@ -344,8 +346,10 @@ def chat_public():
                                 "('mp_ai_provider','mp_ai_model','mp_ai_base_url','mp_ai_api_key')").fetchall()}
 
         provider = rows.get('mp_ai_provider', 'deepseek') or 'deepseek'
-        model = rows.get('mp_ai_model', 'deepseek-chat') or 'deepseek-chat'
-        base_url = rows.get('mp_ai_base_url', 'https://api.deepseek.com') or 'https://api.deepseek.com'
+        from models.database import get_active_model
+        _, default_model, _ = get_active_model(provider)
+        model = rows.get('mp_ai_model') or default_model or ''
+        base_url = rows.get('mp_ai_base_url') or 'https://api.deepseek.com'
         api_key = rows.get('mp_ai_api_key', '')
 
         if not api_key:
