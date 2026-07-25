@@ -16,6 +16,7 @@ Agent Matrix — 工具注册中心 (Tool Registry)
 """
 from i18n import _
 import json, os, sys, logging
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 logger = logging.getLogger(__name__)
 
