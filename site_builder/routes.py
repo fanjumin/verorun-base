@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
 from services.jwt_service import validate_token
 from i18n import _
+import logging
+logger = logging.getLogger(__name__)
 
 site_builder_bp = Blueprint('site_builder', __name__, url_prefix='/admin/site-builder')
 
@@ -966,45 +968,48 @@ def mini_app_update_platform(platform):
 def _mini_app_generate_with_ai(project, platforms, prompt, template, options,
                                 create_version, next_version_no, admin):
     """AI-prompt branch: call LLM to build plan, create version, return preview URL."""
+    try:
+        # 1. Load template
+        tmpl = _load_prompt_template(template or 'mini_shop')
 
-    # 1. Load template
-    tmpl = _load_prompt_template(template or 'mini_shop')
+        # 2. Build AI plan via Master Agent LLM (falls back to template defaults)
+        plan = _build_ai_plan_from_template(tmpl, prompt)
 
-    # 2. Build AI plan via Master Agent LLM (falls back to template defaults)
-    plan = _build_ai_plan_from_template(tmpl, prompt)
+        # 3. Create version with AI plan saved
+        version_no = next_version_no(project['id'])
+        output_base = _project_version_dir(project['slug'], version_no)
 
-    # 3. Create version with AI plan saved
-    version_no = next_version_no(project['id'])
-    output_base = _project_version_dir(project['slug'], version_no)
+        version_id = create_version(
+            project_id=project['id'],
+            version_no=version_no,
+            platforms=platforms,
+            options=options,
+            result={'ai_generated': True, 'plan': plan},
+            output_path=output_base,
+            status='draft',
+        )
 
-    version_id = create_version(
-        project_id=project['id'],
-        version_no=version_no,
-        platforms=platforms,
-        options=options,
-        result={'ai_generated': True, 'plan': plan},
-        output_path=output_base,
-        status='draft',
-    )
+        # 4. Save AI fields to the version record
+        _save_ai_fields(version_id, prompt, template, plan)
 
-    # 4. Save AI fields to the version record
-    _save_ai_fields(version_id, prompt, template, plan)
-
-    return _success({
-        'task_id': None,
-        'status': 'draft',
-        'version_id': version_id,
-        'project_id': project['id'],
-        'project_slug': project['slug'],
-        'version_no': version_no,
-        'preview_url': '/admin/site-builder/mini-app/preview/%d' % version_id,
-        'plan_summary': {
-            'app_name': plan['brand']['app_name'],
-            'pages': len(plan['pages']),
-            'widgets': len(plan.get('widgets', [])),
-            'tabBar': len(plan.get('tabBar', [])),
-        },
-    })
+        return _success({
+            'task_id': None,
+            'status': 'draft',
+            'version_id': version_id,
+            'project_id': project['id'],
+            'project_slug': project['slug'],
+            'version_no': version_no,
+            'preview_url': '/admin/site-builder/mini-app/preview/%d' % version_id,
+            'plan_summary': {
+                'app_name': plan['brand']['app_name'],
+                'pages': len(plan['pages']),
+                'widgets': len(plan.get('widgets', [])),
+                'tabBar': len(plan.get('tabBar', [])),
+            },
+        })
+    except Exception as e:
+        logger.error('[MiniApp] AI generation failed: %s', e)
+        return _error(str(e), 500)
 
 
 def _save_ai_fields(version_id, prompt, template, plan):
