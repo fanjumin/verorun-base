@@ -82,6 +82,16 @@ def get_changed_files() -> list[tuple[str, str]]:
         path = path.strip('"')
         if status in ('A', 'M', 'D'):
             results.append((status, path.replace('\\', '/')))
+    # Warn about untracked files that won't be deployed
+    untracked = run_git('ls-files', '--others', '--exclude-standard')
+    if untracked:
+        untracked_lines = [l for l in untracked.split('\n') if l]
+        if untracked_lines:
+            print(colored(f'  WARNING: {len(untracked_lines)} untracked file(s) will NOT be deployed:', 33))
+            for f in untracked_lines[:10]:
+                print(colored(f'    {f}', 33))
+            if len(untracked_lines) > 10:
+                print(colored(f'    ... and {len(untracked_lines) - 10} more', 33))
     return results
 
 

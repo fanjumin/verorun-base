@@ -151,10 +151,10 @@ def preview_plan():
     if not prompt_template:
         return _error(_('No available prompt template'), 404)
 
+    import logging, traceback
+    logger = logging.getLogger(__name__)
     try:
         from site_builder.engine import SiteBuilderEngine
-        import logging, traceback
-        logger = logging.getLogger(__name__)
         engine = SiteBuilderEngine()
 
         # Phase 1: Parse requirement
@@ -169,7 +169,6 @@ def preview_plan():
             'summary': plan.get('summary', ''),
         })
     except Exception as e:
-        import traceback
         tb = traceback.format_exc()
         logger.error(f"Site Builder preview failed: {e}\n{tb}")
         return jsonify({'success': False, 'error': f'Plan generation failed: {str(e)[:500]}'}), 500
@@ -1111,12 +1110,14 @@ def _build_ai_plan_from_template(tmpl, prompt_text):
 
     # ── Resolve Master Agent ──
     engine = None
+    master_pm_id = None
     try:
         agents = agent_models.list_agents(role_type='master', active_only=True)
         if agents:
             engine = UnifiedLLM(agents[0])
-    except Exception:
-        pass
+            master_pm_id = agents[0].get('provider_model_id')
+    except Exception as exc:
+        logger.warning('[MiniApp] Master Agent init failed: %s', exc)
 
     def _call_llm_json(system_msg, user_msg, temperature=0.3, max_tokens=2000):
         """Call LLM and parse JSON from response. Returns {} on any failure."""
@@ -1127,7 +1128,8 @@ def _build_ai_plan_from_template(tmpl, prompt_text):
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": user_msg},
             ]
-            raw = engine.chat(messages, temperature=temperature, max_tokens=max_tokens)
+            raw = engine.chat(messages, temperature=temperature, max_tokens=max_tokens,
+                              provider_model_id=master_pm_id)
             # Attempt direct JSON extraction
             match = re.search(r'\{[\s\S]*\}', raw)
             if match:
@@ -1253,7 +1255,10 @@ def mini_app_generate():
         project = create_project(name=project_name, created_by=admin.get('user_id', 0))
 
     # ── AI Prompt Branch ──
-    if prompt and project:
+    if prompt:
+        if not project:
+            project_name = project_name or 'AI Generated App'
+            project = create_project(name=project_name, created_by=admin.get('user_id', 0))
         return _mini_app_generate_with_ai(
             project, platforms, prompt, template, options,
             create_version, next_version_no, admin
