@@ -9,6 +9,7 @@ Responsibilities:
 
 import os, json, re, logging
 import time as _time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ class SiteBuilderEngine:
 
         plan = {'summary': ''}
 
-        # 1. Brand
+        # Pre-fill prompts for Brand, Navigation, Footer
         brand_prompt = self._fill_prompt(
             prompts.get('brand', ''),
             品牌名称=brand_name,
@@ -173,13 +174,6 @@ class SiteBuilderEngine:
             目标受众=target_audience,
             风格偏好=style,
         )
-        try:
-            plan['brand'] = self._call_llm_json(brand_prompt, f'Brand name: {brand_name}')
-        except Exception as e:
-            logger.warning(f'Brand generation failed: {e}')
-            plan['brand'] = {'site_name': brand_name, 'tagline': '', 'brand_story': ''}
-
-        # 2. Navigation
         nav_prompt = self._fill_prompt(
             prompts.get('navigation', ''),
             品牌名称=brand_name,
@@ -187,75 +181,92 @@ class SiteBuilderEngine:
             目标受众=target_audience,
             页面列表=page_names,
         )
-        try:
-            plan['navigation'] = self._call_llm_json(nav_prompt, f'Pages list: {page_names}')
-        except Exception as e:
-            logger.warning(f'Navigation generation failed: {e}')
-            plan['navigation'] = {'nav_items': []}
-
-        # 3. Footer
         footer_prompt = self._fill_prompt(
             prompts.get('footer', ''),
             品牌名称=brand_name,
             行业=industry,
             文档列表=doc_names,
         )
-        try:
-            plan['footer'] = self._call_llm_json(footer_prompt, f'Documents list: {doc_names}')
-        except Exception as e:
-            logger.warning(f'Footer generation failed: {e}')
-            plan['footer'] = {'footer_groups': []}
 
-        # 4. Page content
-        plan['pages'] = {}
-        for page in pages:
-            page_id = page['id']
-            page_name = page['name']
-            page_prompt_key = f'page_{page_id}'
-            page_prompt = prompts.get(page_prompt_key, '')
+        # Run all LLM calls in parallel via ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {}
 
-            if not page_prompt:
-                continue
+            # Submit independent LLM calls
+            futures['brand'] = executor.submit(self._call_llm_json, brand_prompt, f'Brand name: {brand_name}')
+            futures['navigation'] = executor.submit(self._call_llm_json, nav_prompt, f'Pages list: {page_names}')
+            futures['footer'] = executor.submit(self._call_llm_json, footer_prompt, f'Documents list: {doc_names}')
 
-            filled = self._fill_prompt(
-                page_prompt,
-                品牌名称=brand_name,
-                行业=industry,
-                目标受众=target_audience,
-                风格偏好=style,
-            )
-            try:
-                result = self._call_llm_json(filled, f'Generate page: {page_name}')
-                plan['pages'][page_id] = result
-            except Exception as e:
-                logger.warning(f'Page {page_id} generation failed: {e}')
-                plan['pages'][page_id] = {'sections': []}
+            plan['pages'] = {}
+            for page in pages:
+                page_id = page['id']
+                page_name = page['name']
+                page_prompt_key = f'page_{page_id}'
+                page_prompt = prompts.get(page_prompt_key, '')
+                if not page_prompt:
+                    plan['pages'][page_id] = {'sections': []}
+                    continue
+                filled = self._fill_prompt(
+                    page_prompt,
+                    品牌名称=brand_name,
+                    行业=industry,
+                    目标受众=target_audience,
+                    风格偏好=style,
+                )
+                futures[f'page_{page_id}'] = executor.submit(
+                    self._call_llm_json, filled, f'Generate page: {page_name}')
 
-        # 5. Legal documents
-        plan['documents'] = []
-        for doc in documents:
-            doc_id = doc['id']
-            doc_name = doc['name']
-            doc_prompt_key = f'doc_{doc_id}'
-            doc_prompt = prompts.get(doc_prompt_key, '')
+            plan['documents'] = []
+            for doc in documents:
+                doc_id = doc['id']
+                doc_name = doc['name']
+                doc_prompt_key = f'doc_{doc_id}'
+                doc_prompt = prompts.get(doc_prompt_key, '')
+                if not doc_prompt:
+                    continue
+                filled = self._fill_prompt(
+                    doc_prompt,
+                    品牌名称=brand_name,
+                    行业=industry,
+                )
+                futures[f'doc_{doc_id}'] = executor.submit(
+                    self._call_llm, filled, f'Generate document: {doc_name}',
+                    temperature=0.3, max_tokens=3000
+                )
 
-            if not doc_prompt:
-                continue
-
-            filled = self._fill_prompt(
-                doc_prompt,
-                品牌名称=brand_name,
-                行业=industry,
-            )
-            try:
-                html_content = self._call_llm(filled, f'Generate document: {doc_name}', temperature=0.3, max_tokens=3000)
-                plan['documents'].append({
-                    'slug': doc_id,
-                    'title': doc_name,
-                    'content': html_content,
-                })
-            except Exception as e:
-                logger.warning(f'Document {doc_id} generation failed: {e}')
+            # Collect results
+            for key, future in futures.items():
+                try:
+                    result = future.result()
+                    if key == 'brand':
+                        plan['brand'] = result
+                    elif key == 'navigation':
+                        plan['navigation'] = result
+                    elif key == 'footer':
+                        plan['footer'] = result
+                    elif key.startswith('page_'):
+                        page_id = key.replace('page_', '')
+                        plan['pages'][page_id] = result
+                    elif key.startswith('doc_'):
+                        doc_id = key.replace('doc_', '')
+                        doc_name = next((d['name'] for d in documents if d['id'] == doc_id), doc_id)
+                        plan['documents'].append({
+                            'slug': doc_id,
+                            'title': doc_name,
+                            'content': result,
+                        })
+                except Exception as e:
+                    logger.warning(f'{key} generation failed: {e}')
+                    if key == 'brand':
+                        plan['brand'] = {'site_name': brand_name, 'tagline': '', 'brand_story': ''}
+                    elif key == 'navigation':
+                        plan['navigation'] = {'nav_items': []}
+                    elif key == 'footer':
+                        plan['footer'] = {'footer_groups': []}
+                    elif key.startswith('page_'):
+                        page_id = key.replace('page_', '')
+                        plan['pages'].setdefault(page_id, {'sections': []})
+                    # documents with errors are omitted
 
         # Build summary
         plan['summary'] = self._build_summary(brand_name, pages, plan)
