@@ -286,13 +286,13 @@ class UnifiedLLM:
         config = _resolve_agent_model_config(config)
         self._provider = config.get('provider', '')
         self._model = config.get('model_name', '')
+        self._api_key_id = config.get('api_key_id')
         import sys
         print(f"[DIAG] _apply_config: provider={self._provider}, model={self._model}, api_key_id={self._api_key_id}, pm_id={config.get('provider_model_id')}", file=sys.stderr, flush=True)
         self._base_url = config.get('base_url', '')
         self._system_prompt = config.get('system_prompt', '')
         self._agent_id = config.get('id') if config.get('id') is not None else config.get('agent_id')
         self._agent_name = config.get('name') or config.get('agent_name', 'Unknown')
-        self._api_key_id = config.get('api_key_id')
 
     def _get_conn(self):
         """惰性获取 DB 连接（避免 init 时触发 PostgreSQL 连接）"""
@@ -377,10 +377,13 @@ class UnifiedLLM:
             if pm is None:
                 raise ValueError(f'Model not found or inactive: id={provider_model_id}')
             pm = dict(pm)
+            base_url = pm['endpoint_url'] or self._default_base_url(pm['provider_slug'])
+            if base_url and not base_url.rstrip('/').endswith('/v1'):
+                base_url = base_url.rstrip('/') + '/v1'
             return {
                 'provider': pm['provider_slug'],
                 'model': pm['model_name'],
-                'base_url': pm['endpoint_url'] or self._default_base_url(pm['provider_slug']),
+                'base_url': base_url,
                 'api_key': self._resolve_api_key(pm['provider_slug'], pm.get('api_key_id')),
                 'model_id': provider_model_id,
             }
@@ -399,10 +402,13 @@ class UnifiedLLM:
                 ).fetchone()
             if pm:
                 pm = dict(pm)
+                base_url = pm['endpoint_url'] or self._default_base_url(provider)
+                if base_url and not base_url.rstrip('/').endswith('/v1'):
+                    base_url = base_url.rstrip('/') + '/v1'
                 return {
                     'provider': pm['provider_slug'],
                     'model': pm['model_name'],
-                    'base_url': pm['endpoint_url'] or self._default_base_url(provider),
+                    'base_url': base_url,
                     'api_key': self._resolve_api_key(provider, pm.get('api_key_id')),
                     'model_id': pm['id'],
                 }
