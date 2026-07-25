@@ -384,7 +384,7 @@ def create_project(name: str, description: str = '', created_by: int = 0) -> dic
             slug = f'{base_slug}-{n}'
         cur = conn.execute(
             f"""INSERT INTO {TABLE_MINIAPP_PROJECTS} (name, slug, description, created_by)
-                VALUES (%s, %s, %s, %s)""",
+                VALUES (%s, %s, %s, %s) RETURNING id""",
             (name, slug, description, created_by)
         )
         conn.commit()
