@@ -430,13 +430,14 @@ def seed_default_agents():
                     UPDATE agent_matrix SET
                         name=%s, description=%s, domain=%s,
                         managed_modules=%s, auto_approve=%s,
-                        is_system=1, updated_at=NOW()
+                        allowed_tools=%s, is_system=1, updated_at=NOW()
                     WHERE slug=%s
                 """, (
                     a.get('name', ''), a.get('description', ''),
                     a.get('domain', 'general'),
                     a.get('managed_modules', '[]'),
                     a.get('auto_approve', 0),
+                    a.get('allowed_tools', '[]'),
                     slug
                 ))
 
