@@ -256,6 +256,52 @@ TOOL_SCHEMAS = {
             }
         }
     },
+    "cms_list_channels": {
+        "type": "function",
+        "function": {
+            "name": "cms_list_channels",
+            "description": "列出 CMS 系统中所有可用的发布频道（分类/栏目），用于确定文章可以发布到哪些频道。",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    "cms_create_post": {
+        "type": "function",
+        "function": {
+            "name": "cms_create_post",
+            "description": "在 CMS 系统中创建一篇新文章。创建后默认为草稿状态，需要调用 cms_publish_post 发布。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "文章标题（必填）"},
+                    "content": {"type": "string", "description": "文章正文内容，支持 HTML 格式"},
+                    "excerpt": {"type": "string", "description": "文章摘要/导语"},
+                    "category": {"type": "string", "description": "发布频道/分类标识，如 insights、news"},
+                    "cover_image": {"type": "string", "description": "封面图片 URL"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "标签列表"}
+                },
+                "required": ["title"]
+            }
+        }
+    },
+    "cms_publish_post": {
+        "type": "function",
+        "function": {
+            "name": "cms_publish_post",
+            "description": "将 CMS 文章发布到指定频道。可选择本地频道和社交媒体平台。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "post_id": {"type": "integer", "description": "文章 ID（必填）"},
+                    "channels": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "发布目标频道列表，格式为 'local:频道名'，如 ['local:insights']"
+                    }
+                },
+                "required": ["post_id", "channels"]
+            }
+        }
+    },
 }
 
 
@@ -478,6 +524,100 @@ def _tool_ads_render_snippet(args):
     except Exception as e:
         logger.warning(f"[tool:ads_render_snippet] 执行失败: {e}")
         return f"Failed to generate ad rendering code: {e}"
+
+
+def _tool_cms_list_channels(args):
+    """列出 CMS 频道"""
+    try:
+        from models import get_db
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, name, slug, description FROM cms_categories WHERE is_active=1 ORDER BY sort_order"
+            ).fetchall()
+        if not rows:
+            return "No available channels."
+        lines = ["Available CMS channels:"]
+        for r in rows:
+            r = dict(r)
+            lines.append(f"  ID {r['id']}: {r['name']} (slug: {r['slug']})")
+        return '\n'.join(lines)
+    except Exception as e:
+        logger.warning(f"[tool:cms_list_channels] Failed: {e}")
+        return f"Failed to get channel list: {e}"
+
+
+def _tool_cms_create_post(args):
+    """创建 CMS 文章"""
+    try:
+        title = str(args.get('title', '')).strip()
+        if not title:
+            return "Error: Article title is required."
+
+        import uuid
+        post_data = {
+            'title': title,
+            'content': str(args.get('content', '')),
+            'excerpt': str(args.get('excerpt', '')),
+            'category': str(args.get('category', 'insights')),
+            'cover_image': str(args.get('cover_image', '')),
+            'tags': args.get('tags', []),
+            'slug': 'article-' + str(uuid.uuid4())[:8],
+            'source': 'ai',
+            'is_published': 0,
+        }
+
+        from auth_center.models.cms import upsert_post
+        result = upsert_post(post_data)
+        post_id = result.get('id') if isinstance(result, dict) else result
+        return f"Article created, ID: {post_id}, Title: {title}"
+    except Exception as e:
+        logger.warning(f"[tool:cms_create_post] Failed: {e}")
+        return f"Failed to create article: {e}"
+
+
+def _tool_cms_publish_post(args):
+    """发布 CMS 文章"""
+    try:
+        post_id = args.get('post_id')
+        channels = args.get('channels', [])
+
+        if not post_id:
+            return "Error: post_id is required."
+        if not channels:
+            return "Error: channels is required."
+
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT * FROM cms_posts WHERE id=%s", (post_id,)
+            ).fetchone()
+        if not row:
+            return f"Error: Article {post_id} not found."
+
+        # Separate local channels
+        local_cats = []
+        for ch in channels:
+            if ch.startswith('local:'):
+                local_cats.append(ch.split(':', 1)[1])
+
+        if local_cats:
+            from auth_center.models.cms import upsert_post
+            post = dict(row)
+            upsert_post({
+                'id': post_id,
+                'slug': post['slug'],
+                'category': local_cats[0],
+                'title': post['title'],
+                'excerpt': post.get('excerpt', ''),
+                'content': post['content'],
+                'is_published': 1,
+                'publish_channels': channels,
+            })
+
+        return f"Article {post_id} published to: {', '.join(local_cats)}"
+    except Exception as e:
+        logger.warning(f"[tool:cms_publish_post] Failed: {e}")
+        return f"Failed to publish article: {e}"
 
 
 def _tool_generate_ppt(args):
@@ -753,6 +893,9 @@ TOOL_EXECUTORS = {
     "ads_get_stats": _tool_ads_get_stats,
     "ads_analyze": _tool_ads_analyze,
     "ads_render_snippet": _tool_ads_render_snippet,
+    "cms_list_channels": _tool_cms_list_channels,
+    "cms_create_post": _tool_cms_create_post,
+    "cms_publish_post": _tool_cms_publish_post,
     "generate_ppt": _tool_generate_ppt,
     "generate_image": _tool_generate_image,
     "generate_markdown": _tool_generate_markdown,

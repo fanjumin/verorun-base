@@ -278,6 +278,7 @@ class UnifiedLLM:
         self._agent_id = None
         self._agent_name = 'Unknown'
         self._api_key_id = None
+        self._pm_id = None
         if config:
             self._apply_config(config)
 
@@ -287,6 +288,7 @@ class UnifiedLLM:
         self._provider = config.get('provider', '')
         self._model = config.get('model_name', '')
         self._api_key_id = config.get('api_key_id')
+        self._pm_id = config.get('provider_model_id')
         import sys
         print(f"[DIAG] _apply_config: provider={self._provider}, model={self._model}, api_key_id={self._api_key_id}, pm_id={config.get('provider_model_id')}", file=sys.stderr, flush=True)
         self._base_url = config.get('base_url', '')
@@ -496,6 +498,8 @@ class UnifiedLLM:
         if self._provider and not provider_model_id and not provider:
             provider = self._provider
             model = self._model
+            if self._pm_id:
+                provider_model_id = self._pm_id
 
         cfg = self._resolve_model(provider_model_id, provider, model)
 

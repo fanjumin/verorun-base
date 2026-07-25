@@ -31,3 +31,6 @@ allowed_tools:
   - ads_get_stats
   - ads_analyze
   - ads_render_snippet
+  - cms_list_channels
+  - cms_create_post
+  - cms_publish_post

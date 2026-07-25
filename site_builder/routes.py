@@ -151,10 +151,12 @@ def preview_plan():
     if not prompt_template:
         return _error(_('No available prompt template'), 404)
 
-    from site_builder.engine import SiteBuilderEngine
-    engine = SiteBuilderEngine()
-
     try:
+        from site_builder.engine import SiteBuilderEngine
+        import logging, traceback
+        logger = logging.getLogger(__name__)
+        engine = SiteBuilderEngine()
+
         # Phase 1: Parse requirement
         parsed = engine.parse_requirement(prompt_template, user_input)
 
@@ -169,7 +171,12 @@ def preview_plan():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return _error(_('Plan generation failed') + f': {e}', 500)
+        logger.error(
+            f"Site Builder preview failed: user_input={user_input[:100]}, "
+            f"prompt_id={prompt_id}, error={e}, traceback={traceback.format_exc()}"
+        )
+        error_msg = str(e)[:500]
+        return _error(_('Plan generation failed') + f': {error_msg}', 500)
 
 
 @site_builder_bp.route('/execute', methods=['POST'])

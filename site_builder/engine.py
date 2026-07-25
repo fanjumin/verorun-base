@@ -38,11 +38,14 @@ class SiteBuilderEngine:
     def _call_llm(self, system_prompt: str, user_message: str, temperature: float = 0.3, max_tokens: int = 2000) -> str:
         """Call LLM, return raw text"""
         engine = self._get_ai_engine()
+        master = self._get_master_agent()
+        provider_model_id = master.get('provider_model_id')
         return engine.chat(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
             ],
+            provider_model_id=provider_model_id,
             temperature=temperature,
             max_tokens=max_tokens
         )
