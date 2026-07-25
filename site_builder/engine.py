@@ -57,12 +57,16 @@ class SiteBuilderEngine:
             ],
             provider_model_id=self._pm_id,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            module='site_builder'
         )
 
     def _call_llm_json(self, system_prompt: str, user_message: str) -> dict:
         """Call LLM and parse JSON response"""
         raw = self._call_llm(system_prompt, user_message, temperature=0.3)
+        if not raw or not isinstance(raw, str):
+            logger.error(f'LLM returned empty or non-string response: {type(raw)}')
+            raise ValueError('LLM returned empty response')
         # Extract JSON
         match = re.search(r'\{[\s\S]*\}', raw)
         if match:
@@ -117,8 +121,18 @@ class SiteBuilderEngine:
             用户输入=user_input,
         )
 
-        result = self._call_llm_json(filled_prompt, user_input)
-        return result
+        try:
+            result = self._call_llm_json(filled_prompt, user_input)
+            return result
+        except Exception as e:
+            logger.warning(f'Parse requirement failed, using defaults: {e}')
+            return {
+                'brand_name': defaults.get('site_name', 'My Website'),
+                'tagline': defaults.get('tone', ''),
+                'style_preference': defaults.get('style', 'Modern'),
+                'target_audience': '',
+                'special_requirements': '',
+            }
 
     # ── Phase 2: Generate Plan Preview ─────────────────
 
