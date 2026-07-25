@@ -170,13 +170,9 @@ def preview_plan():
         })
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        logger.error(
-            f"Site Builder preview failed: user_input={user_input[:100]}, "
-            f"prompt_id={prompt_id}, error={e}, traceback={traceback.format_exc()}"
-        )
-        error_msg = str(e)[:500]
-        return _error(_('Plan generation failed') + f': {error_msg}', 500)
+        tb = traceback.format_exc()
+        logger.error(f"Site Builder preview failed: {e}\n{tb}")
+        return jsonify({'success': False, 'error': f'Plan generation failed: {str(e)[:500]}'}), 500
 
 
 @site_builder_bp.route('/execute', methods=['POST'])

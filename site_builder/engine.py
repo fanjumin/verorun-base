@@ -18,22 +18,30 @@ class SiteBuilderEngine:
 
     def __init__(self, models_module=None):
         self._models = models_module
+        self._llm_engine = None
+        self._master_agent = None
 
     # ── LLM Calls ──────────────────────────────────────
 
     def _get_master_agent(self):
-        """Get Master Agent configuration"""
+        """Get Master Agent configuration (cached)"""
+        if self._master_agent is not None:
+            return self._master_agent
         from agent_matrix import models as m
         agents = m.list_agents(role_type='master', active_only=True)
         if not agents:
             raise RuntimeError('No available Master Agent')
-        return agents[0]
+        self._master_agent = agents[0]
+        return self._master_agent
 
     def _get_ai_engine(self):
-        """Get AIEngine instance"""
+        """Get AIEngine instance (cached)"""
+        if self._llm_engine is not None:
+            return self._llm_engine
         from agent_matrix.engine import UnifiedLLM
         master = self._get_master_agent()
-        return UnifiedLLM(master)
+        self._llm_engine = UnifiedLLM(master)
+        return self._llm_engine
 
     def _call_llm(self, system_prompt: str, user_message: str, temperature: float = 0.3, max_tokens: int = 2000) -> str:
         """Call LLM, return raw text"""
