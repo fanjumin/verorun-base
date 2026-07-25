@@ -32,10 +32,7 @@ def classify_intent(user_query):
         from .models import get_master_agent_config
 
         config = get_master_agent_config()
-        engine = UnifiedLLM({
-            'provider': config.get('provider', 'dashscope'),
-            'model_name': config.get('model_name', 'qwen-turbo'),
-        })
+        engine = UnifiedLLM(config)
         reply = ''
         for token in engine.chat_stream([
             {'role': 'system', 'content': '你是一个精准的分类器。只输出 JSON。'},

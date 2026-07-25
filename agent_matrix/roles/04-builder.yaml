@@ -11,8 +11,7 @@ managed_modules:
   - site_blocks
   - site_configs
   - site_plans
-provider: deepseek
-model_name: deepseek-chat
+provider_model_id: 401638
 system_prompt: prompts/sub_builder_prompt.md
 is_system: true
 is_active: 1

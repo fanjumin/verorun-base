@@ -105,17 +105,17 @@ def _next_session_id():
 
 
 def get_master_agent_config():
-    """从 agent_matrix 表中读取 Master Agent 的 provider/model 配置"""
+    """从 agent_matrix 表中读取 Master Agent 的模型配置（通过 provider_model_id）"""
     try:
         with get_db() as conn:
             row = conn.execute(
-                "SELECT provider, model_name FROM agent_matrix WHERE is_master=TRUE LIMIT 1"
+                "SELECT provider_model_id FROM agent_matrix WHERE role_type='master' LIMIT 1"
             ).fetchone()
-            if row:
-                return {'provider': row['provider'], 'model_name': row['model_name']}
+            if row and row['provider_model_id']:
+                return {'provider_model_id': row['provider_model_id']}
     except Exception:
         pass
-    return {'provider': 'dashscope', 'model_name': 'qwen-turbo'}
+    return {}
 
 
 # ============================================================

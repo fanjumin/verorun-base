@@ -82,13 +82,21 @@ class AgentRunner:
 
         # 按 allowed_tools 白名单决定是否启用 ReAct 工具循环
         tools = self._get_tools()
-        if tools:
-            logs.append(f'[Tools] Enabled {len(tools)} tools, entering ReAct loop')
-            response = self._run_react_loop(engine, user_query, history, tools, logs, task_id)
-        elif history:
-            response = engine.ask_with_history(history, user_query)
-        else:
-            response = engine.ask(user_query)
+        try:
+            if tools:
+                logs.append(f'[Tools] Enabled {len(tools)} tools, entering ReAct loop')
+                response = self._run_react_loop(engine, user_query, history, tools, logs, task_id)
+            elif history:
+                response = engine.ask_with_history(history, user_query)
+            else:
+                response = engine.ask(user_query)
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"[{self.name}] LLM execute failed: {e}\n{tb}")
+            logs.append(f'[ERROR] {e}')
+            logs.append(f'[TRACEBACK] {tb[:500]}')
+            return self._fail(f'{e}', logs)
 
         if response.startswith('Error:'):
             self._log(task_id, 'error', 'execution', response)
@@ -197,9 +205,10 @@ class AgentRunner:
                 fallback = engine.ask(user_query)
                 return fallback if not last_text else last_text
 
-            tool_calls = getattr(msg, 'tool_calls', None)
-            if msg.content:
-                last_text = msg.content
+            choice_msg = msg.choices[0].message
+            tool_calls = getattr(choice_msg, 'tool_calls', None)
+            if choice_msg.content:
+                last_text = choice_msg.content
 
             # 模型未请求工具 → 终态答复
             if not tool_calls:
@@ -210,7 +219,7 @@ class AgentRunner:
             # 把 assistant 的 tool_calls 消息追加回上下文
             messages.append({
                 "role": "assistant",
-                "content": msg.content or "",
+                "content": choice_msg.content or "",
                 "tool_calls": [
                     {
                         "id": tc.id,
@@ -242,8 +251,10 @@ class AgentRunner:
         # 达到轮次上限，做最后一次无工具收尾
         logs.append(f'[ReAct] Reached maximum rounds {max_rounds}, forced termination')
         final = engine.chat_with_tools(messages, tools)
-        if final is not None and final.content:
-            return final.content
+        if final is not None:
+            final_choice = final.choices[0].message
+            if final_choice.content:
+                return final_choice.content
         return last_text or _('(Tool loop reached limit, no final response generated)')
 
     def _build_query(self, task):

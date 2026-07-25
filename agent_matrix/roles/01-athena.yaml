@@ -13,8 +13,7 @@ managed_modules:
   - cleaner
   - oauth_config
   - captcha_embedded
-provider: deepseek
-model_name: deepseek-chat
+provider_model_id: 401638
 system_prompt: prompts/master_prompt.md
 is_system: true
 auto_approve: 0

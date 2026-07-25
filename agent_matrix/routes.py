@@ -546,8 +546,8 @@ def chat_tool():
 - cms: 写文章。args: {title, category(可选), content_prompt}
 - supply_chain: 供应链与商城操作。args: {action:"search"|"collect"|"optimize"|"publish",keywords(可选),item_id(可选)}
 - clean: 数据清洗。用户提供了需要清洗的原始内容（文章、白皮书、行业背景等）。args: {content: 原始内容全文}
-- site_build: 用户想创建/搭建一个网站。关键词包括_("Build a website")_("Create Website")_("Build Website")_("Help me build a website")_("Generate Website")。args: {prompt_identifier: 行业标识(如law_firm/restaurant等，从用户描述推断), action:"preview"|"execute"|"modify"}
-- ads: 广告管理操作。用户提到了_("Advertisement")_("Ad Position")"AD""banner"_("Campaign")_("Analyze Ad")_("Add Advertisement")等。args: {action:"list"|"create"|"update"|"delete"|"stats"|"analyze"|"snippet", name, position, ad_type, image_url, link_url, ad_code, site_key(默认default), page(默认*), ad_id, days(默认7)}
+- site_build: 用户想创建一个全新的网站（不是广告/文章/PPT等具体内容）。关键词包括_("Build a website")_("Create Website")_("Build Website")_("Help me build a website")_("Generate Website")。注意：创建广告/创建文章/生成PPT等具体内容操作不属于site_build。args: {prompt_identifier: 行业标识(如law_firm/restaurant等，从用户描述推断), action:"preview"|"execute"|"modify"}
+- ads: 广告管理操作（优先级高于site_build）。用户提到了广告相关内容：_("Advertisement")_("Ad Position")"AD""banner"_("Campaign")_("Analyze Ad")_("Add Advertisement")"创建广告""新增广告""广告管理""查看广告""广告列表""帮我创建广告""生成广告""广告代码""ad_code"。注意：如果用户说"创建""新增""帮我创建""生成"广告，action必须设为create；如果说"查看""列出""查询"广告，action设为list。args: {action:"list"|"create"|"update"|"delete"|"stats"|"analyze"|"snippet", name, position, ad_type, image_url, link_url, ad_code, site_key(默认default), page(默认*), ad_id, days(默认7)}
 - chat: 普通对话，不是工具调用。"""
 
     # 用轻量模型快速识别意图
@@ -676,7 +676,24 @@ def chat_tool():
         elif intent == 'ads':
             # 广告管理 → 直接调用插件 AI 工具
             import plugins.ads.ai_tools as ads_ai
-            action = args.get('action', 'list')
+            action = args.get('action', '')
+            # 代码推断 action（LLM 不一定正确返回）
+            if not action:
+                msg_lower = message.lower()
+                if any(w in msg_lower for w in ['创建','新增','生成','帮我创建','添加','create','add','new']):
+                    action = 'create'
+                elif any(w in msg_lower for w in ['更新','修改','编辑','update','edit','modify']):
+                    action = 'update'
+                elif any(w in msg_lower for w in ['删除','移除','delete','remove']):
+                    action = 'delete'
+                elif any(w in msg_lower for w in ['统计','数据','stats','statistics']):
+                    action = 'stats'
+                elif any(w in msg_lower for w in ['分析','analyze','insight']):
+                    action = 'analyze'
+                elif any(w in msg_lower for w in ['代码','snippet','渲染','render','模板']):
+                    action = 'snippet'
+                else:
+                    action = 'list'
             result = {'success': False, 'error': _('Unknown ads operation')}
             try:
                 if action == 'list':

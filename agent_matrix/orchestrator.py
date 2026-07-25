@@ -267,7 +267,7 @@ class AgentOrchestrator:
             )
             model = os.environ.get(
                 'EASYKAI_LLM_MODEL',
-                agent.get('model_name', 'deepseek-chat')
+                agent.get('model_name', '')
             )
 
             resp = requests.post(

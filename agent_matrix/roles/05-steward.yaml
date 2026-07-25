@@ -15,8 +15,7 @@ managed_modules:
   - reward_rules
   - deploy
   - payment
-provider: deepseek
-model_name: deepseek-chat
+provider_model_id: 401638
 system_prompt: prompts/sub_finance_prompt.md
 is_system: true
 is_active: 1

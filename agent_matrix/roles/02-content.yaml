@@ -19,8 +19,15 @@ managed_modules:
   - ads
   - content_factory
   - social_push
-provider: deepseek
-model_name: deepseek-chat
+provider_model_id: 401638
 system_prompt: prompts/sub_content_prompt.md
 is_system: true
 is_active: 1
+allowed_tools:
+  - ads_list
+  - ads_create
+  - ads_update
+  - ads_delete
+  - ads_get_stats
+  - ads_analyze
+  - ads_render_snippet

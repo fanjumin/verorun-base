@@ -37,7 +37,7 @@ PROVIDER_CONFIGS = {
     },
     'deepseek': {
         'base_url': 'https://api.deepseek.com/v1',
-        'default_model': 'deepseek-chat',
+        'default_model': None,
         'key_ref': '',
     },
     'openrouter': {
@@ -284,8 +284,8 @@ class UnifiedLLM:
     def _apply_config(self, config):
         """应用 agent 配置（兼容 AIEngine 构造方式）"""
         config = _resolve_agent_model_config(config)
-        self._provider = config.get('provider', 'deepseek')
-        self._model = config.get('model_name', 'deepseek-chat')
+        self._provider = config.get('provider', '')
+        self._model = config.get('model_name', '')
         import sys
         print(f"[DIAG] _apply_config: provider={self._provider}, model={self._model}, api_key_id={self._api_key_id}, pm_id={config.get('provider_model_id')}", file=sys.stderr, flush=True)
         self._base_url = config.get('base_url', '')
