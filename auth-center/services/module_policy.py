@@ -348,13 +348,32 @@ class ModulePolicyEngine:
     # 配额检查
     # ═══════════════════════════════════════════════════════════
 
+    def _is_admin_user(self, user_id: int) -> bool:
+        """检查用户是否为管理员"""
+        if not user_id or not self._get_main_db:
+            return False
+        try:
+            with self._get_main_db() as conn:
+                row = conn.execute(
+                    "SELECT is_admin FROM users WHERE id = %s",
+                    (user_id,)
+                ).fetchone()
+                return bool(row and row['is_admin'])
+        except Exception:
+            return False
+
     def check_quota(self, user_id: int, module_key: str) -> tuple:
         """
         检查当日配额。
         仅对 interactive 模式 + trial_daily_limit 不为 None 的模块生效。
+        管理员免配额限制。
 
         Returns: (allowed: bool, used: int, limit: int)
         """
+        # 管理员豁免
+        if self._is_admin_user(user_id):
+            return (True, 0, 0)
+
         policy = self.get_policy(module_key)
         if not policy:
             return (True, 0, 0)
@@ -375,8 +394,10 @@ class ModulePolicyEngine:
 
     def record_usage(self, user_id: int, module_key: str,
                      agent_id: int, task_id: str):
-        """记录一次成功的 Agent 调用"""
+        """记录一次成功的 Agent 调用（管理员不计费）"""
         if not user_id or not self._get_db:
+            return
+        if self._is_admin_user(user_id):
             return
         try:
             with self._get_db() as conn:
