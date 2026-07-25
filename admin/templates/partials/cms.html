@@ -463,7 +463,7 @@ function cmsReloadCategoryList(){
     if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var cats=d.data;
     if(!cats.length){el.innerHTML='<div class="em">{{ _('No Columns') }}，{{ _('Add') }}</div>';return}
-    var h='{{ _('<table><tr><th>Order</th><th>Icon</th><th>Name</th><th>Status</th><th>Action</th></tr>') }}';
+    var h='<table><tr><th>{{ _('Order') }}</th><th>{{ _('Icon') }}</th><th>{{ _('Name') }}</th><th>{{ _('Status') }}</th><th>{{ _('Action') }}</th></tr>';
     cats.forEach(function(c,i){
       var st=c.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Deactivate') }}</span>';
       h+='<tr>';

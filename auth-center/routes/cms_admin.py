@@ -103,11 +103,16 @@ def list_posts():
 def create_post():
     a, e = _check()
     if e: return e
-    data = request.get_json(force=True)
-    import uuid
-    data['slug'] = 'article-' + str(uuid.uuid4())[:8]
-    if not data.get('title'): return _err("title is required")
-    return _ok(upsert_post(data))
+    try:
+        data = request.get_json(force=True)
+        import uuid
+        data['slug'] = 'article-' + str(uuid.uuid4())[:8]
+        if not data.get('title'): return _err("title is required")
+        return _ok(upsert_post(data))
+    except Exception as ex:
+        import traceback
+        traceback.print_exc()
+        return _err(f"Failed to create post: {str(ex)}", 500)
 
 
 @cms_admin_bp.route('/posts/<int:post_id>', methods=['PUT'])

@@ -141,6 +141,8 @@ def init_cms_tables():
             conn.execute("ALTER TABLE cms_posts ADD COLUMN source TEXT DEFAULT 'manual'")
         if 'source_id' not in cols:
             conn.execute("ALTER TABLE cms_posts ADD COLUMN source_id BIGINT DEFAULT NULL")
+        if 'views' not in cols:
+            conn.execute("ALTER TABLE cms_posts ADD COLUMN views BIGINT NOT NULL DEFAULT 0")
         conn.commit()
 
 
@@ -257,8 +259,14 @@ def get_all_posts(limit: int = 50, offset: int = 0, status_filter: str = None, a
             conditions.append("source=%s")
             params.append(source)
         if audience:
-            conditions.append(f"audience=%s" if '?' not in audience else "audience IN ({})".format(audience))
-            params.append(audience)
+            if ',' in audience:
+                vals = [v.strip() for v in audience.split(',')]
+                placeholders = ','.join(['%s'] * len(vals))
+                conditions.append(f"audience IN ({placeholders})")
+                params.extend(vals)
+            else:
+                conditions.append("audience=%s")
+                params.append(audience)
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         sql += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
@@ -274,6 +282,10 @@ def get_all_posts(limit: int = 50, offset: int = 0, status_filter: str = None, a
 def sanitize_html(raw: str) -> str:
     """白名单式 HTML 内容净化（不依赖外部库）。"""
     import re
+
+    MAX_LENGTH = 500_000  # 500KB
+    if len(raw) > MAX_LENGTH:
+        raise ValueError(f"Content too long: {len(raw)} chars, max {MAX_LENGTH}")
 
     ALLOWED_TAGS = {
         'p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -301,48 +313,49 @@ def sanitize_html(raw: str) -> str:
 
     # 阶段3：清理所有标签的白名单和属性
     def _clean_tag(m):
-        tag_text = m.group(0)
-        if tag_text.startswith('</'):
-            # 闭合标签，只检查标签名是否在白名单
-            tag_name = tag_text[2:-1].strip().lower()
-            return f'</{tag_name}>' if tag_name in ALLOWED_TAGS else ''
-        # 开始标签或自闭合标签
-        m2 = re.match(r'<(\w+)(.*?)(\s*/?\s*)>', tag_text, re.DOTALL)
-        if not m2:
+        try:
+            tag_text = m.group(0)
+            if tag_text.startswith('</'):
+                tag_name = tag_text[2:-1].strip().lower()
+                return f'</{tag_name}>' if tag_name in ALLOWED_TAGS else ''
+            m2 = re.match(r'<(\w+)(.*?)(\s*/?\s*)>', tag_text, re.DOTALL)
+            if not m2:
+                return ''
+            tag_name = m2.group(1).lower()
+            if tag_name not in ALLOWED_TAGS:
+                return ''
+            attrs_str = m2.group(2)
+            closing = m2.group(3)
+
+            SAFE_ATTRS = {'href', 'src', 'alt', 'title', 'class', 'id', 'style', 'target', 'rel', 'width', 'height', 'loading', 'decoding'}
+            cleaned_attrs = []
+            for attr_match in re.finditer(r'''([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')''', attrs_str):
+                attr_name = attr_match.group(1).lower()
+                attr_val = attr_match.group(2) or attr_match.group(3) or ''
+                if attr_name.startswith('on'):
+                    continue
+                if attr_name not in SAFE_ATTRS:
+                    continue
+                lowered_val = attr_val.strip().lower()
+                if any(lowered_val.startswith(p) for p in ['javascript:', 'vbscript:', 'data:', 'expression']):
+                    continue
+                cleaned_attrs.append(f'{attr_name}="{attr_val}"')
+
+            attr_space = ' ' + ' '.join(cleaned_attrs) if cleaned_attrs else ''
+            return f'<{tag_name}{attr_space}{closing}>'
+        except Exception:
             return ''
-        tag_name = m2.group(1).lower()
-        if tag_name not in ALLOWED_TAGS:
-            return ''
-        # 如果在白名单中，保留标签并清理属性
-        attrs_str = m2.group(2)
-        closing = m2.group(3)
 
-        # 清理属性：只保留白名单属性，且值不能含危险协议
-        SAFE_ATTRS = {'href', 'src', 'alt', 'title', 'class', 'id', 'style', 'target', 'rel', 'width', 'height', 'loading', 'decoding'}
-        cleaned_attrs = []
-        for attr_match in re.finditer(r'''([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')''', attrs_str):
-            attr_name = attr_match.group(1).lower()
-            attr_val = attr_match.group(2) or attr_match.group(3) or ''
-            # 跳过事件处理器
-            if attr_name.startswith('on'):
-                continue
-            # 跳过非白名单属性
-            if attr_name not in SAFE_ATTRS:
-                continue
-            # 检查危险协议
-            lowered_val = attr_val.strip().lower()
-            if any(lowered_val.startswith(p) for p in ['javascript:', 'vbscript:', 'data:', 'expression']):
-                continue
-            cleaned_attrs.append(f'{attr_name}="{attr_val}"')
-
-        attr_space = ' ' + ' '.join(cleaned_attrs) if cleaned_attrs else ''
-        return f'<{tag_name}{attr_space}{closing}>'
-
-    # 递归清理所有标签
+    # 递归清理所有标签（带最大迭代次数保护）
     prev = None
+    max_iterations = 20
+    iterations = 0
     while prev != cleaned:
         prev = cleaned
         cleaned = re.sub(r'<[^>]*>', _clean_tag, cleaned)
+        iterations += 1
+        if iterations > max_iterations:
+            break
 
     return cleaned
 
@@ -390,7 +403,7 @@ def upsert_post(data: dict):
                 data.get('is_published', 0),
                 channels_json,
                 data.get('source', 'manual'), data.get('source_id'),
-                1 if data.get('is_published') in (1, True) else 0
+                True if data.get('is_published') in (1, True) else False
             ))
             data['id'] = cur.fetchone()['id']
         conn.commit()
