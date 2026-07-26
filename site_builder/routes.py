@@ -1086,140 +1086,165 @@ def _build_basic_plan_from_template(tmpl, prompt):
 
 
 def _build_ai_plan_from_template(tmpl, prompt_text):
-    """Build a complete Mini App plan via Master Agent LLM from template + user input.
+    """Build a complete Mini App plan with retries and template fallback.
 
-    Calls the Master Agent in up to (2 + N_pages) rounds:
-      1. Parse user requirement (brand name, features, style)
-      2. Brand configuration (name, tagline, story, colors)
-      3. Per-page content (sections with block_type + widgets)
-
-    Falls back to template defaults when LLM is unavailable (graceful degradation).
+    Up to 3 LLM retry attempts. Falls back to _build_fallback_plan() on failure.
 
     Args:
-        tmpl: Loaded YAML prompt template dict with 'prompts' and 'defaults' keys
-        prompt_text: Raw user prompt from the frontend AI input
+        tmpl: Loaded YAML prompt template dict
+        prompt_text: Raw user prompt
 
     Returns:
         Plan dict with keys: brand, theme, tabBar, pages, widgets
     """
-    import re
-    from agent_matrix.engine import UnifiedLLM
-    from agent_matrix import models as agent_models
+    import re, json, logging
+    logger = logging.getLogger(__name__)
 
     defaults = tmpl.get('defaults', {})
     prompts = tmpl.get('prompts', {})
     tabbar_default = tmpl.get('mini_app', {}).get('tabBar', {}).get('default', [])
-
     industry = defaults.get('industry', 'General')
-    style = defaults.get('style', 'Modern')
 
-    # ── Resolve Master Agent ──
+    # ── Resolve engine ──
     engine = None
     master_pm_id = None
     try:
+        from agent_matrix.engine import UnifiedLLM
+        from agent_matrix import models as agent_models
         agents = agent_models.list_agents(role_type='master', active_only=True)
         if agents:
             engine = UnifiedLLM(agents[0])
             master_pm_id = agents[0].get('provider_model_id')
     except Exception as exc:
-        logger.warning('[MiniApp] Master Agent init failed: %s', exc)
+        logger.warning('[MiniApp] Engine init failed: %s', exc)
 
     def _call_llm_json(system_msg, user_msg, temperature=0.3, max_tokens=2000):
-        """Call LLM and parse JSON from response. Returns {} on any failure."""
+        """Call LLM with retries, parse JSON, return {} on any failure."""
         if not engine:
             return {}
-        try:
-            messages = [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_msg},
-            ]
-            raw = engine.chat(messages, temperature=temperature, max_tokens=max_tokens,
-                              provider_model_id=master_pm_id)
-            if not raw or not isinstance(raw, str):
-                logger.warning('[MiniApp] LLM returned empty or non-string response: %s', type(raw))
-                return {}
-            # Attempt direct JSON extraction
-            match = re.search(r'\{[\s\S]*\}', raw)
-            if match:
-                return json.loads(match.group(0))
-            # Attempt markdown code block
-            match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw)
-            if match:
-                return json.loads(match.group(1))
-            logger.warning('[MiniApp] LLM JSON parse failed, raw: %s', raw[:200])
-        except Exception as exc:
-            logger.warning('[MiniApp] LLM call failed: %s', exc)
+        for attempt in range(3):
+            try:
+                raw = engine.chat(
+                    [{"role":"system","content":system_msg},{"role":"user","content":user_msg}],
+                    temperature=temperature + (0.2 if attempt > 0 else 0),
+                    max_tokens=max_tokens,
+                    provider_model_id=master_pm_id,
+                )
+                if not raw or not isinstance(raw, str) or len(raw) < 20:
+                    continue
+                # Extract JSON
+                match = re.search(r'\{[\s\S]*\}', raw)
+                if match:
+                    return json.loads(match.group(0))
+                match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw)
+                if match:
+                    return json.loads(match.group(1))
+            except Exception:
+                continue
         return {}
 
-    # ── Round 1: Parse user requirement ──
-    parse_tpl = prompts.get('parse', '')
-    if parse_tpl and engine:
-        parse_tpl = parse_tpl.replace('{行业}', industry).replace('{用户输入}', prompt_text)
-        parsed = _call_llm_json(parse_tpl, prompt_text)
-    else:
-        parsed = {}
+    # ── Attempt LLM-based plan generation ──
+    plan = None
+    if engine:
+        try:
+            brand_name = defaults.get('site_name', 'Mini App')
+            style_pref = defaults.get('style', 'Modern')
 
-    brand_name = parsed.get('brand_name',
-        defaults.get('site_name', 'Mini App').replace('{品牌名称}', 'Mini App'))
-    style_pref = parsed.get('style_preference', style)
+            # Round 1: Parse
+            parse_tpl = prompts.get('parse', '')
+            if parse_tpl:
+                parsed = _call_llm_json(
+                    parse_tpl.replace('{行业}', industry).replace('{用户输入}', prompt_text),
+                    prompt_text)
+                brand_name = parsed.get('brand_name', brand_name)
+                style_pref = parsed.get('style_preference', style_pref)
 
-    # ── Round 2: Brand & theme configuration ──
-    brand_tpl = prompts.get('brand', '')
-    if brand_tpl and engine:
-        brand_tpl = (brand_tpl
-            .replace('{品牌名称}', brand_name)
-            .replace('{行业}', industry)
-            .replace('{风格偏好}', style_pref))
-        brand = _call_llm_json(brand_tpl, 'Generate brand config for: ' + brand_name)
-    else:
-        brand = {}
+            # Round 2: Brand
+            brand_tpl = prompts.get('brand', '')
+            if brand_tpl:
+                brand = _call_llm_json(
+                    brand_tpl.replace('{品牌名称}', brand_name).replace('{行业}', industry).replace('{风格偏好}', style_pref),
+                    'Generate brand config for: ' + brand_name)
+            else:
+                brand = {}
+            brand.setdefault('app_name', brand_name)
+            brand.setdefault('tagline', defaults.get('tone', ''))
+            brand.setdefault('primary_color', defaults.get('primary_color', '#4F46E5'))
+            brand.setdefault('secondary_color', defaults.get('accent_color', '#10B981'))
+            brand.setdefault('accent_color', defaults.get('accent_color', '#F59E0B'))
 
-    brand.setdefault('app_name', brand_name)
-    brand.setdefault('tagline', defaults.get('tone', ''))
-    brand.setdefault('brand_story', '')
-    brand.setdefault('primary_color', defaults.get('primary_color', '#4F46E5'))
-    brand.setdefault('secondary_color', defaults.get('accent_color', '#10B981'))
-    brand.setdefault('accent_color', defaults.get('accent_color', '#F59E0B'))
+            # Round 3: Per-page content
+            pages = []
+            all_widgets = []
+            for p in tmpl.get('pages', []):
+                slug = p.get('id', '')
+                title = p.get('name', slug)
+                page_tpl = prompts.get('page_' + slug, '')
+                if page_tpl:
+                    content = _call_llm_json(
+                        page_tpl.replace('{品牌名称}', brand_name).replace('{行业}', industry).replace('{风格偏好}', style_pref),
+                        'Generate page: ' + title)
+                    sections = content.get('sections', [])
+                    for w in content.get('widgets', []):
+                        w.setdefault('page', slug)
+                        all_widgets.append(w)
+                else:
+                    sections = []
 
-    # ── Round 3: Per-page content (one LLM call per page) ──
-    pages = []
-    all_widgets = []
+                pages.append({'slug': slug, 'title': title, 'sections': sections})
 
-    for p in tmpl.get('pages', []):
-        slug = p.get('id', '')
-        title = p.get('name', slug)
-        page_key = 'page_' + slug
-        page_tpl = prompts.get(page_key, '')
+            plan = {
+                'brand': brand,
+                'theme': {'primary_color': brand.get('primary_color', '#4F46E5'),
+                           'secondary_color': brand.get('secondary_color', '#10B981'),
+                           'accent_color': brand.get('accent_color', '#F59E0B')},
+                'tabBar': tabbar_default,
+                'pages': pages,
+                'widgets': all_widgets,
+            }
+        except Exception as exc:
+            logger.warning('[MiniApp] LLM plan generation failed: %s', exc)
 
-        if page_tpl and engine:
-            page_tpl = (page_tpl
-                .replace('{品牌名称}', brand_name)
-                .replace('{行业}', industry)
-                .replace('{风格偏好}', style_pref))
-            content = _call_llm_json(page_tpl, 'Generate page: ' + title)
-            sections = content.get('sections', [])
-            for w in content.get('widgets', []):
-                w.setdefault('page', slug)
-                all_widgets.append(w)
-        else:
-            sections = []
+    # ── Fallback: template-based plan ──
+    if not plan or not plan.get('pages'):
+        logger.warning('[MiniApp] Falling back to template-based plan')
+        plan = _build_fallback_plan(tmpl, prompt_text)
 
-        pages.append({
-            'slug': slug,
-            'title': title,
-            'sections': sections,
-        })
+    return plan
+
+
+def _build_fallback_plan(tmpl, prompt_text):
+    """Build a plan from template defaults without LLM."""
+    defaults = tmpl.get('defaults', {})
+    pages_raw = tmpl.get('pages', [])
 
     return {
-        'brand': brand,
-        'theme': {
-            'primary_color': brand.get('primary_color', '#4F46E5'),
-            'secondary_color': brand.get('secondary_color', '#10B981'),
-            'accent_color': brand.get('accent_color', '#F59E0B'),
+        'brand': {
+            'app_name': defaults.get('site_name', tmpl.get('name', 'Mini App')),
+            'tagline': f"Your {defaults.get('industry', '')} mini program",
+            'primary_color': defaults.get('primary_color', '#4F46E5'),
+            'secondary_color': defaults.get('accent_color', '#10B981'),
+            'accent_color': defaults.get('accent_color', '#F59E0B'),
         },
-        'tabBar': tabbar_default,
-        'pages': pages,
-        'widgets': all_widgets,
+        'theme': {
+            'primary_color': defaults.get('primary_color', '#4F46E5'),
+            'secondary_color': defaults.get('accent_color', '#10B981'),
+            'accent_color': defaults.get('accent_color', '#F59E0B'),
+        },
+        'tabBar': tmpl.get('mini_app', {}).get('tabBar', {}).get('default', []),
+        'pages': [
+            {'slug': p.get('id', f'page_{i}'), 'title': p.get('name', f'Page {i+1}'), 'sections': [
+                {'id': 'hero', 'type': 'banner', 'title': p.get('name', '') + ' Hero', 'content': ''},
+                {'id': 'content', 'type': 'card', 'title': 'Content', 'content': ''},
+            ]} for i, p in enumerate(pages_raw)
+        ] if pages_raw else [
+            {'slug': 'home', 'title': 'Home', 'sections': [
+                {'id': 'hero', 'type': 'banner', 'title': 'Welcome', 'content': prompt_text},
+            ]}
+        ],
+        'widgets': [
+            {'id': 'chat-widget', 'type': 'chat', 'title': 'AI Assistant', 'icon': '💬'},
+        ],
     }
 
 
@@ -1463,6 +1488,51 @@ def mini_app_deploy(platform):
         return _success(res)
     except Exception as e:
         return _error(str(e), 500)
+
+
+# ── Deploy All ──────────────────────────
+
+@site_builder_bp.route('/mini-app/deploy-all', methods=['POST'])
+def mini_app_deploy_all():
+    """Deploy version to all configured platforms at once."""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    version_id = data.get('version_id')
+    if not version_id:
+        return _error('version_id is required')
+
+    from site_builder.models import get_version
+    version = get_version(version_id)
+    if not version:
+        return _error('Version not found', 404)
+
+    platforms = [p for p in _get_mini_app_platforms() if p.get('configured')]
+    if not platforms:
+        return _success({'note': 'No platforms configured. Configure at least one in Dev Accounts.'})
+
+    results = {}
+    for p in platforms:
+        pid = p.get('id', p.get('platform', ''))
+        try:
+            if pid in ('telegram',):
+                from site_builder.mini_app.deployer import MiniAppDeployer
+                deployer = MiniAppDeployer()
+                webapp_url = data.get('webapp_url', '')
+                res = deployer.deploy_telegram(webapp_url) if webapp_url else {'success': False, 'error': 'webapp_url required'}
+            elif pid in ('line',):
+                from site_builder.mini_app.deployer import MiniAppDeployer
+                deployer = MiniAppDeployer()
+                res = deployer.deploy_line(data.get('liff_id'), data.get('url'))
+            else:
+                res = {'success': True, 'note': 'Package ready for manual upload'}
+            results[pid] = res
+        except Exception as e:
+            results[pid] = {'success': False, 'error': str(e)}
+
+    all_ok = all(r.get('success') for r in results.values())
+    return jsonify({'data': results, 'success': all_ok})
 
 
 # ── Mini App Preview Routes ──────────────────────────

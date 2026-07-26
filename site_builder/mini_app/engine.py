@@ -101,13 +101,15 @@ class MiniAppEngine:
         from .generators.wechat import WechatGenerator
         from .generators.telegram import TelegramGenerator
         from .generators.line import LINEGenerator
+        from .generators.whatsapp import WhatsAppGenerator
 
         generators = {
             'douyin': DouyinGenerator,
-            'toutiao': DouyinGenerator,  # Toutiao shares Douyin ecosystem
+            'toutiao': DouyinGenerator,
             'wechat': WechatGenerator,
             'telegram': TelegramGenerator,
             'line': LINEGenerator,
+            'whatsapp': WhatsAppGenerator,
         }
 
         generator_cls = generators.get(platform)
