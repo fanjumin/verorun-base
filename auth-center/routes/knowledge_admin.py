@@ -236,6 +236,27 @@ def kb_update(entry_id):
         return _error(str(e), 500)
 
 
+# ── 4.5 获取单个知识条目 ──
+
+@knowledge_bp.route('/entries/<entry_id>', methods=['GET'])
+def kb_get(entry_id):
+    """获取单个知识条目"""
+    admin, err = _require_admin()
+    if err: return err
+    try:
+        with get_db() as db:
+            row = db.execute(
+                "SELECT * FROM knowledge_blocks WHERE id=%s AND deleted_at IS NULL",
+                (entry_id,)
+            ).fetchone()
+        if not row:
+            return _error(_('Entry not found'), 404)
+        return _success(dict(row))
+    except Exception as e:
+        logger.exception('kb_get failed')
+        return _error(str(e), 500)
+
+
 # ── 5. 删除知识条目（软删除）──
 
 @knowledge_bp.route('/entries/<entry_id>', methods=['DELETE'])
