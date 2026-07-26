@@ -34,6 +34,7 @@ from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
 from routes.deployment_api import deploy_bp, init_deployment_tables
 from routes.renewal import renew_bp
+from routes.knowledge_admin import knowledge_bp
 import time as _time
 
 # ── PluginManager ──
@@ -144,6 +145,7 @@ app.register_blueprint(douyin_mp_bp)  # Douyin Mini-Program API
 app.register_blueprint(shop_bp)        # 商城管理
 app.register_blueprint(sub_bp)
 app.register_blueprint(cleaner_bp)     # 数据清洗智能体
+app.register_blueprint(knowledge_bp)   # 知识库管理后台
 app.register_blueprint(renew_bp)     # 订阅续费页面
 # 独立部署订阅管理API — 仅在主服务器模式注册
 _EASYKAI_MODE = os.environ.get('EASYKAI_MODE', 'main')
