@@ -47,8 +47,9 @@ PROVIDER_CONFIGS = {
     },
     'ollama': {
         'base_url': 'http://localhost:11434/v1',
-        'default_model': 'llama3',
+        'default_model': '',
         'key_ref': '',
+        'custom': True,  # 本地模型，具体模型由管理员通过 provider_models 界面自行添加
     },
     'siliconflow': {
         'base_url': 'https://api.siliconflow.cn/v1',
