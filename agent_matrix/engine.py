@@ -669,7 +669,7 @@ def _write_usage_logs(agent_id, agent_name, model_name, provider,
                 INSERT INTO agent_token_daily
                 (agent_id, agent_name, stat_date,
                  prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
-                VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, 1, NOW())
+                VALUES (%s, %s, CURRENT_DATE::text, %s, %s, %s, 1, NOW())
                 ON CONFLICT(agent_id, stat_date) DO UPDATE SET
                     prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
                     completion_tokens  = completion_tokens + excluded.completion_tokens,

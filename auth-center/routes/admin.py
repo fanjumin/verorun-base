@@ -162,18 +162,16 @@ def _build_dashboard_data(conn):
         data['total_users'] = u['c']; data['active_users'] = u['a']; data['today_new_users'] = u['n']
     except: pass
     try:
-        ta = conn.execute('SELECT COUNT(*) as c FROM user_agents').fetchone()
+        ta = conn.execute('SELECT COUNT(*) as c FROM agent_matrix').fetchone()
         data['total_agents'] = ta['c'] if ta else 0
-        aa = conn.execute("SELECT COUNT(*) as c FROM user_agents WHERE status='active'").fetchone()
+        aa = conn.execute("SELECT COUNT(*) as c FROM agent_matrix WHERE is_active=1").fetchone()
         data['active_agents'] = aa['c'] if aa else 0
     except: pass
     try:
-        tdc_old = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM api_keys WHERE last_reset=CURRENT_DATE")
-        tdc_new = _safe("SELECT COALESCE(SUM(calls_today),0) as c FROM agent_api_keys WHERE last_reset=CURRENT_DATE")
-        data['today_calls'] = (tdc_old['c'] if tdc_old else 0) + (tdc_new['c'] if tdc_new else 0)
-        tc_old = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM api_keys')
-        tc_new = _safe('SELECT COALESCE(SUM(calls_total),0) as c FROM agent_api_keys')
-        data['total_calls'] = (tc_old['c'] if tc_old else 0) + (tc_new['c'] if tc_new else 0)
+        today = _safe("SELECT COUNT(*) as c FROM agent_token_logs WHERE created_at::date=CURRENT_DATE")
+        data['today_calls'] = today['c'] if today else 0
+        total = _safe('SELECT COUNT(*) as c FROM agent_token_logs')
+        data['total_calls'] = total['c'] if total else 0
     except: pass
     try:
         sub = _safe("SELECT COUNT(*) as c FROM subscriptions WHERE status='active'")
@@ -200,25 +198,37 @@ def _build_dashboard_data(conn):
     # --- P0 missing data ---
     try:
         data['total_products'] = conn.execute("SELECT COUNT(*) as c FROM shop.products").fetchone()['c']
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     try:
         data['pending_shipments'] = conn.execute("SELECT COUNT(*) as c FROM shop.order_items WHERE shipping_status='pending'").fetchone()['c']
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     try:
         r = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE is_published=true").fetchone()
         data['published_posts'] = r['c'] if r else 0
         r = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE is_published=false").fetchone()
         data['draft_posts'] = r['c'] if r else 0
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     try:
         data['open_tickets'] = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE status='open'").fetchone()['c']
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     try:
         data['urgent_tickets'] = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE status='open' AND priority='high'").fetchone()['c']
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     try:
         data['pending_feedback'] = conn.execute("SELECT COUNT(*) as c FROM user_feedback WHERE status='pending'").fetchone()['c']
-    except: pass
+    except:
+        try: conn._conn.rollback()
+        except: pass
     # --- Recent data ---
     try:
         data['recent_users'] = [dict(r) for r in conn.execute(

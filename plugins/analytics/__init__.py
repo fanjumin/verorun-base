@@ -192,7 +192,7 @@ def enrich_dashboard(value, conn=None):
                 pass
         try:
             r = conn.execute(
-                "SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=CURRENT_DATE"
+                "SELECT COALESCE(SUM(total_tokens),0) as c FROM agent_token_daily WHERE stat_date=CURRENT_DATE::text"
             ).fetchone()
             data['today_tokens'] = r['c'] if r else 0
         except Exception:
@@ -202,7 +202,7 @@ def enrich_dashboard(value, conn=None):
         try:
             agents = conn.execute(
                 "SELECT t.agent_id, t.agent_name, t.total_tokens as total "
-                "FROM agent_token_daily t WHERE t.stat_date=CURRENT_DATE "
+                "FROM agent_token_daily t WHERE t.stat_date=CURRENT_DATE::text "
                 "ORDER BY t.total_tokens DESC LIMIT 3"
             ).fetchall()
             data['top_token_agents'] = [dict(r) for r in agents]
