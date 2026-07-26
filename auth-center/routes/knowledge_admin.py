@@ -360,3 +360,68 @@ def kb_search():
     except Exception as e:
         logger.exception('kb_search failed')
         return _error(str(e), 500)
+
+
+# ── 7. RAG 查询 ──
+
+@knowledge_bp.route('/query', methods=['POST'])
+def kb_rag_query():
+    """RAG 检索增强生成：搜索知识库 + LLM 回答"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True) or {}
+    question = (data.get('question', '') or data.get('q', '')).strip()
+    if not question:
+        return _error(_('Question is required'))
+    top_k = data.get('topK', 5)
+    top_k = max(1, min(10, top_k))
+
+    try:
+        with get_db() as db:
+            rows = db.execute(
+                "SELECT id, title, content FROM knowledge_blocks WHERE deleted_at IS NULL AND (title LIKE %s OR content LIKE %s) ORDER BY priority DESC, hit_count DESC LIMIT %s",
+                (f'%{question}%', f'%{question}%', top_k)
+            ).fetchall()
+
+        if not rows:
+            return _success({'answer': _('No relevant knowledge found'), 'sources': []})
+
+        # Build context
+        context_parts = []
+        sources = []
+        for row in rows:
+            context_parts.append(f"[{row['title']}]\n{row['content'][:1500]}")
+            sources.append({'id': row['id'], 'title': row['title']})
+        context = '\n\n---\n\n'.join(context_parts)
+
+        # Call LLM
+        from agent_matrix.engine import get_gateway, _get_system_key
+        provider = _get_system_key('ai_text_provider') or 'deepseek'
+        model = _get_system_key('ai_text_model') or 'deepseek-v4-flash'
+        gw = get_gateway()
+        answer = gw.chat(
+            provider=provider,
+            model=model,
+            messages=[
+                {'role': 'system', 'content': 'Based on the knowledge base content below, answer the question accurately in Chinese. If the content does not contain the answer, say so honestly.'},
+                {'role': 'user', 'content': f'Knowledge Base:\n{context}\n\nQuestion: {question}'}
+            ],
+            temperature=0.3,
+            max_tokens=2048,
+            module='knowledge_base',
+        )
+
+        # Update hit_count for sources
+        for row in rows:
+            try:
+                with get_db() as upd:
+                    upd.execute("UPDATE knowledge_blocks SET hit_count = hit_count + 1 WHERE id=%s", (row['id'],))
+                    upd.commit()
+            except Exception:
+                pass
+
+        return _success({'answer': answer, 'sources': sources})
+    except Exception as e:
+        logger.exception('kb_rag_query failed')
+        return _error(str(e), 500)
