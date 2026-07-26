@@ -5,7 +5,10 @@ if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }
 
 function init(){try{
   document.getElementById("an").textContent="{{ _('Admin') }}";
-  go("dashboard");
+  var path=window.location.pathname.replace(/\/+$/,'');
+  var seg=path.split('/').filter(Boolean);
+  var section=seg.length>=2?seg[1]:'dashboard';
+  go(section);
 }catch(e){console.error('init:',e)}}
 setTimeout(function(){
   var mc=document.getElementById("mc");

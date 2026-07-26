@@ -714,6 +714,26 @@ def debug_jwt():
     return jsonify(result)
 
 
+@app.route('/admin/<path:subpath>')
+def admin_spa_catchall(subpath):
+    """SPA catch-all — /admin/xxx 全部渲染 admin SPA 壳，前端根据 pathname 路由"""
+    from services.jwt_service import validate_token
+    from flask import make_response
+    token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = request.cookies.get('sso_token')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return redirect('/admin/login')
+    resp = make_response(render_template('admin.html', sso_token=token))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    resp.set_cookie('sso_token', token, max_age=86400*7, httponly=True,
+                    secure=request.is_secure, samesite='Strict', path='/')
+    return resp
+
+
 @app.route('/avatar/gen/<path:seed>')
 def generated_avatar(seed):
     """生成默认首字母头像 SVG（无自定义头像时使用）"""
