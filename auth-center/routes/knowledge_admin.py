@@ -39,6 +39,29 @@ def _error(message, code=400):
     return jsonify({'success': False, 'error': message}), code
 
 
+# ── 0. 知识库概览 ──
+
+@knowledge_bp.route('/', methods=['GET'])
+def kb_root():
+    """知识库概览：总条目数 + 分类统计"""
+    admin, err = _require_admin()
+    if err: return err
+    try:
+        with get_db() as db:
+            total = db.execute(
+                "SELECT COUNT(*) as c FROM knowledge_blocks WHERE deleted_at IS NULL"
+            ).fetchone()['c']
+            categories = db.execute(
+                "SELECT category, COUNT(*) as cnt FROM knowledge_blocks WHERE deleted_at IS NULL GROUP BY category ORDER BY cnt DESC"
+            ).fetchall()
+        return _success({
+            'total_entries': total,
+            'categories': [dict(r) for r in categories],
+        })
+    except Exception as e:
+        return _error(str(e))
+
+
 # ── 1. 知识库统计 ──
 
 @knowledge_bp.route('/stats', methods=['GET'])
