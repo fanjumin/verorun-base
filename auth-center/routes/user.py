@@ -449,7 +449,7 @@ def password_login():
         recent = conn.execute(
             "SELECT COUNT(*) as c FROM login_attempts WHERE ip=%s AND success=0 AND created_at > NOW() - INTERVAL '15 minutes'",
             (ip,)).fetchone()
-        need_captcha = recent['c'] >= 3
+        need_captcha = recent['c'] >= 10
     captcha_id = data.get('captcha_id', '')
     if need_captcha and not captcha_id:
         return jsonify({'success': False, 'error': 'Please complete the CAPTCHA challenge'}), 400

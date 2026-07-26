@@ -54,12 +54,8 @@ def sms_send():
     if not valid:
         return api_err(phone_err or 'Please enter a valid phone number')
     phone = normalized_phone
-    # CAPTCHA: skip for logged-in users resetting password (already authenticated via JWT)
-    need_captcha = True
-    if purpose == 'modify_password':
-        token = _get_token_from_request()
-        if token and validate_token(token):
-            need_captcha = False
+    # CAPTCHA: disabled for SMS send (only triggered on password login after 10 fails)
+    need_captcha = False
     if need_captcha:
         captcha_id = data.get('captcha_id', '')
         if not captcha_id:
