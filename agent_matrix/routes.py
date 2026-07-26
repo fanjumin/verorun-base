@@ -1897,13 +1897,7 @@ def tts_synthesize():
 
 @agent_matrix_bp.route('/tts/voices', methods=['GET'])
 def tts_list_voices():
-    """List available Azure neural voices.
-
-    Query params:
-        locale: Filter by locale code (e.g. 'zh-CN', 'en-US').
-                Empty = all voices.
-    Requires admin authentication.
-    """
+    """列出可用语音 — 优先 Azure，不可用时回退 Edge-TTS"""
     admin, err = _require_admin()
     if err:
         return err
@@ -1914,64 +1908,50 @@ def tts_list_voices():
         from agent_matrix.audio import AudioOutputProcessor
         processor = AudioOutputProcessor(provider='azure_tts')
         client = processor._get_client()
-        if not client:
-            return _error(_('Azure TTS client not available (key not configured)'), 503)
+        if client:
+            voices = client.list_voices(locale=locale)
+            return _success({
+                'locale': locale or 'all',
+                'count': len(voices),
+                'voices': voices,
+            })
+    except Exception:
+        pass  # Azure 不可用，回退 Edge-TTS
 
-        voices = client.list_voices(locale=locale)
-        return _success({
-            'locale': locale or 'all',
-            'count': len(voices),
-            'voices': voices,
-        })
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(
-            '[TTS] List voices failed: %s', e, exc_info=True
-        )
-        return _error(str(e), 500)
-
-
-# ============================================================
-# 5.5 Edge-TTS 语音合成 API
-# ============================================================
-
-@agent_matrix_bp.route('/tts/voices', methods=['GET'])
-def tts_list_voices():
-    """获取可用中文语音列表"""
+    # Edge-TTS 后备
     try:
         from services.tts_service import list_available_voices, VOICE_PRESETS
         import asyncio
-        voices = asyncio.run(list_available_voices("zh-CN"))
-        return jsonify({
-            "data": {
-                "voices": voices,
-                "presets": VOICE_PRESETS,
-            },
-            "success": True
+        voices = asyncio.run(list_available_voices(locale or 'zh-CN'))
+        return _success({
+            'locale': locale or 'zh-CN',
+            'count': len(voices),
+            'voices': voices,
+            'presets': VOICE_PRESETS,
         })
     except Exception as e:
-        return jsonify({"error": str(e), "success": False}), 500
+        logging.getLogger(__name__).error('[TTS] List voices failed: %s', e, exc_info=True)
+        return _error(str(e), 500)
 
 
 @agent_matrix_bp.route('/tts/generate', methods=['POST'])
-def tts_generate():
-    """
-    文字转语音 API — 直接返回 audio/mpeg 二进制流
-    Request: {"text":"...", "voice":"zh-CN-XiaoxiaoNeural", "rate":"+0%"}
-    """
+def tts_generate_edge():
+    """Edge-TTS 文字转语音 — 直接返回 audio/mpeg 二进制流"""
+    admin, err = _require_admin()
+    if err: return err
+
     data = request.get_json()
     if not data or 'text' not in data:
-        return jsonify({"error": "text is required", "success": False}), 400
-    
+        return _error(_('Text is required'))
+
     text = data.get('text')
     voice = data.get('voice', 'zh-CN-XiaoxiaoNeural')
     rate = data.get('rate', '+0%')
-    
+
     try:
         from services.tts_service import text_to_speech_bytes
         import asyncio
         audio_bytes = asyncio.run(text_to_speech_bytes(text, voice, rate))
-        
         from flask import Response
         return Response(
             audio_bytes,
@@ -1983,53 +1963,7 @@ def tts_generate():
             }
         )
     except Exception as e:
-        return jsonify({"error": str(e), "success": False}), 500
-
-
-@agent_matrix_bp.route('/tts/preview', methods=['POST'])
-def tts_preview():
-    """
-    TTS 预览 API — 保存到静态目录，返回 URL
-    Request: {"text":"...", "preset":"female"}
-    """
-    data = request.get_json()
-    if not data or 'text' not in data:
-        return jsonify({"error": "text is required", "success": False}), 400
-    
-    preset = data.get('preset', 'female')
-    from services.tts_service import VOICE_PRESETS, text_to_speech
-    voice = VOICE_PRESETS.get(preset, VOICE_PRESETS['female'])
-    
-    try:
-        import asyncio, os, uuid
-        
-        output_dir = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'static', 'tts'
-        )
-        os.makedirs(output_dir, exist_ok=True)
-        
-        filename = f"tts_{uuid.uuid4().hex[:8]}.mp3"
-        output_path = os.path.join(output_dir, filename)
-        
-        asyncio.run(text_to_speech(
-            text=data['text'],
-            voice=voice,
-            output_file=output_path
-        ))
-        
-        duration_estimate = len(data['text']) / 4.0
-        
-        return jsonify({
-            "data": {
-                "url": f"/static/tts/{filename}",
-                "voice": voice,
-                "duration_estimate": round(duration_estimate, 1),
-            },
-            "success": True
-        })
-    except Exception as e:
-        return jsonify({"error": str(e), "success": False}), 500
+        return _error(str(e), 500)
 
 
 # ============================================================
