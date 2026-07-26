@@ -786,8 +786,8 @@ def cron_status():
     rows = conn.execute(
         "SELECT t.*, s.name as source_name "
         "FROM content_tasks t LEFT JOIN content_sources s ON t.source_id=s.id "
-        "WHERE t.trigger_type IN ('cron', 'scheduled') "
-        "ORDER BY t.created_at DESC LIMIT 50"
+        "ORDER BY t.id DESC LIMIT ?",
+        [50]
     ).fetchall()
     conn.close()
     return jsonify({
