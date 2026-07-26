@@ -752,6 +752,52 @@ def cron_tick():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# =============================================
+# 16. 调度配置与定时采集状态（管理员视图）
+# =============================================
+
+@cf_bp.route('/schedules', methods=['GET'])
+def list_schedules():
+    """列出所有已配置定时采集的源及其调度信息"""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+    conn = _get_db()
+    rows = conn.execute(
+        "SELECT id, name, source_type, url, crawl_interval, "
+        "is_active, last_crawled_at, auto_publish, skip_review, keywords, max_per_run "
+        "FROM content_sources WHERE is_active = 1 AND crawl_interval > 0 "
+        "ORDER BY name"
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        'success': True,
+        'data': [dict(r) for r in rows]
+    })
+
+
+@cf_bp.route('/cron', methods=['GET'])
+def cron_status():
+    """查看定时采集任务的历史执行记录"""
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+    conn = _get_db()
+    rows = conn.execute(
+        "SELECT t.*, s.name as source_name "
+        "FROM content_tasks t LEFT JOIN content_sources s ON t.source_id=s.id "
+        "WHERE t.trigger_type IN ('cron', 'scheduled') "
+        "ORDER BY t.created_at DESC LIMIT 50"
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        'success': True,
+        'data': [dict(r) for r in rows]
+    })
+
+
 # ─── PluginManager 标准化配置 ─────────────────────────────────────────
 
 _CF_CONFIG_KEYS = ['dashscope_text_key', 'max_items_per_run', 'skip_review', 'auto_publish']

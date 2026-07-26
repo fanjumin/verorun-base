@@ -834,15 +834,15 @@ def get_automation_stats():
         )
         running_instances = conn.fetchone()['count']
         conn.execute(
-            "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND SUBSTR(finished_at, 1, 10)=CURRENT_DATE"
+            "SELECT COUNT(*) FROM workflow_instances WHERE status='completed' AND finished_at::date = CURRENT_DATE"
         )
         completed_today = conn.fetchone()['count']
         conn.execute(
-            "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND SUBSTR(finished_at, 1, 10)=CURRENT_DATE"
+            "SELECT COUNT(*) FROM workflow_instances WHERE status='failed' AND finished_at::date = CURRENT_DATE"
         )
         failed_today = conn.fetchone()['count']
         conn.execute(
-            "SELECT COALESCE(AVG(duration_ms),0) AS avg_duration FROM workflow_instances WHERE status='completed' AND SUBSTR(finished_at, 1, 10)=CURRENT_DATE"
+            "SELECT COALESCE(AVG(duration_ms),0) AS avg_duration FROM workflow_instances WHERE status='completed' AND finished_at::date = CURRENT_DATE"
         )
         avg_duration = conn.fetchone()['avg_duration']
 
