@@ -1932,6 +1932,107 @@ def tts_list_voices():
 
 
 # ============================================================
+# 5.5 Edge-TTS 语音合成 API
+# ============================================================
+
+@agent_matrix_bp.route('/tts/voices', methods=['GET'])
+def tts_list_voices():
+    """获取可用中文语音列表"""
+    try:
+        from services.tts_service import list_available_voices, VOICE_PRESETS
+        import asyncio
+        voices = asyncio.run(list_available_voices("zh-CN"))
+        return jsonify({
+            "data": {
+                "voices": voices,
+                "presets": VOICE_PRESETS,
+            },
+            "success": True
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False}), 500
+
+
+@agent_matrix_bp.route('/tts/generate', methods=['POST'])
+def tts_generate():
+    """
+    文字转语音 API — 直接返回 audio/mpeg 二进制流
+    Request: {"text":"...", "voice":"zh-CN-XiaoxiaoNeural", "rate":"+0%"}
+    """
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({"error": "text is required", "success": False}), 400
+    
+    text = data.get('text')
+    voice = data.get('voice', 'zh-CN-XiaoxiaoNeural')
+    rate = data.get('rate', '+0%')
+    
+    try:
+        from services.tts_service import text_to_speech_bytes
+        import asyncio
+        audio_bytes = asyncio.run(text_to_speech_bytes(text, voice, rate))
+        
+        from flask import Response
+        return Response(
+            audio_bytes,
+            mimetype='audio/mpeg',
+            headers={
+                'Content-Disposition': 'attachment; filename="tts_output.mp3"',
+                'X-TTS-Voice': voice,
+                'X-TTS-Chars': str(len(text)),
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False}), 500
+
+
+@agent_matrix_bp.route('/tts/preview', methods=['POST'])
+def tts_preview():
+    """
+    TTS 预览 API — 保存到静态目录，返回 URL
+    Request: {"text":"...", "preset":"female"}
+    """
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({"error": "text is required", "success": False}), 400
+    
+    preset = data.get('preset', 'female')
+    from services.tts_service import VOICE_PRESETS, text_to_speech
+    voice = VOICE_PRESETS.get(preset, VOICE_PRESETS['female'])
+    
+    try:
+        import asyncio, os, uuid
+        
+        output_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'static', 'tts'
+        )
+        os.makedirs(output_dir, exist_ok=True)
+        
+        filename = f"tts_{uuid.uuid4().hex[:8]}.mp3"
+        output_path = os.path.join(output_dir, filename)
+        
+        asyncio.run(text_to_speech(
+            text=data['text'],
+            voice=voice,
+            output_file=output_path
+        ))
+        
+        duration_estimate = len(data['text']) / 4.0
+        
+        return jsonify({
+            "data": {
+                "url": f"/static/tts/{filename}",
+                "voice": voice,
+                "duration_estimate": round(duration_estimate, 1),
+            },
+            "success": True
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False}), 500
+
+
+# ============================================================
 # 6. 初始化
 # ============================================================
 
