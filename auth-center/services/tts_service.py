@@ -13,7 +13,7 @@ import edge_tts
 
 logger = logging.getLogger(__name__)
 
-# 声音映射: 场景 → 推荐语音
+# 声音映射: 场景 -> 推荐语音
 VOICE_PRESETS = {
     "female":     "zh-CN-XiaoxiaoNeural",   # 温柔女声，默认
     "male":       "zh-CN-YunxiNeural",      # 稳重男声
@@ -33,24 +33,24 @@ async def text_to_speech(
 ) -> str:
     """
     文字转语音核心函数
-    
+
     Args:
         text: 要合成的文本内容
         voice: 语音名称 (默认 zh-CN-XiaoxiaoNeural)
         rate: 语速 -50% 到 +100%
-        pitch: 音调 -20Hz 到 +20Hz  
+        pitch: 音调 -20Hz 到 +20Hz
         output_file: 输出文件路径 (默认生成临时文件)
-    
+
     Returns:
         mp3 文件路径
     """
     if not text or not text.strip():
         raise ValueError("Text cannot be empty")
-    
+
     if output_file is None:
         fd, output_file = tempfile.mkstemp(suffix=".mp3")
         os.close(fd)
-    
+
     try:
         communicate = edge_tts.Communicate(
             text=text,
@@ -59,14 +59,14 @@ async def text_to_speech(
             pitch=pitch
         )
         await communicate.save(output_file)
-        
+
         file_size = os.path.getsize(output_file)
         logger.info(
-            f"TTS generated: {len(text)} chars → {file_size} bytes "
+            f"TTS generated: {len(text)} chars -> {file_size} bytes "
             f"[voice={voice}, rate={rate}]"
         )
         return output_file
-    
+
     except Exception as e:
         logger.error(f"TTS failed: {e}")
         raise
@@ -78,16 +78,16 @@ async def text_to_speech_bytes(
     rate: str = "+0%",
 ) -> bytes:
     """
-    文字转语音 → 直接返回字节流 (适合 HTTP 响应)
+    文字转语音 -> 直接返回字节流 (适合 HTTP 响应)
     """
     import io
     communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
-    
+
     buffer = io.BytesIO()
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             buffer.write(chunk["data"])
-    
+
     return buffer.getvalue()
 
 
