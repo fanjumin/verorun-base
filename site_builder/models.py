@@ -478,12 +478,13 @@ def create_version(project_id: int, version_no: int, platforms: list,
              json.dumps(result, ensure_ascii=False),
              output_path, status)
         )
+        version_id = cur.fetchone()['id']  # 必须在 commit 前取值
         conn.execute(
             f"UPDATE {TABLE_MINIAPP_PROJECTS} SET updated_at=NOW() WHERE id=%s",
             (project_id,)
         )
         conn.commit()
-        return cur.fetchone()['id']
+        return version_id
 
 
 def list_versions(project_id: int) -> list:
