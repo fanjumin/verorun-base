@@ -873,7 +873,6 @@ def serve_theme_file(slug, filename):
 # ── 插件 404 兜底：插件未启用时返回空 JSON ──
 PLUGIN_FALLBACK_PATHS = [
     '/admin/social/',
-    '/admin/content-factory/',
     '/admin/channels/',
     '/plugin/coupons/',
 ]

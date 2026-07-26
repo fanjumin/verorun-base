@@ -481,7 +481,17 @@ def handle_notify(node_def: dict, input_data: dict) -> dict:
       - email_to: 收件人
     """
     config = node_def.get('config', {})
-    channels = config.get('channels', ['notification'])
+    channels_raw = config.get('channels', ['notification'])
+
+    # 类型安全：统一转为列表
+    if isinstance(channels_raw, str):
+        # 逗号分隔的字符串 "notification,email" 或单个字符串 "notification"
+        channels = [c.strip() for c in channels_raw.split(',') if c.strip()]
+    elif isinstance(channels_raw, list):
+        channels = channels_raw
+    else:
+        channels = ['notification']
+
     title = config.get('title', _('Workflow Notification'))
     message = config.get('message', '')
 

@@ -107,16 +107,31 @@ def get_stats():
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
-    stats = m.get_automation_stats()
+    try:
+        stats = m.get_automation_stats()
+    except Exception as e:
+        stats = {'db_error': str(e)}
 
     # 加上调度器和 Worker 状态
-    if _scheduler:
-        sched_status = _scheduler.get_status()
-        stats['scheduler'] = sched_status
+    try:
+        if _scheduler:
+            sched_status = _scheduler.get_status()
+            stats['scheduler'] = sched_status
+    except Exception:
+        stats['scheduler'] = {'error': 'unavailable'}
 
-    if _worker_pool:
-        stats['worker_pool'] = _worker_pool.get_pool_stats()
-        stats['active_tasks'] = _worker_pool.get_active_tasks()
+    try:
+        if _worker_pool:
+            pool_stats = _worker_pool.get_pool_stats()
+            # 移除不可 JSON 序列化的 Future 对象
+            active = _worker_pool.get_active_tasks()
+            stats['worker_pool'] = {
+                'dedicated_queue': pool_stats.get('dedicated_queue', 0),
+                'shared_queue': pool_stats.get('shared_queue', 0),
+                'active_count': len(active) if isinstance(active, dict) else 0
+            }
+    except Exception:
+        stats['worker_pool'] = {'error': 'unavailable'}
 
     return _success(stats)
 
@@ -252,12 +267,23 @@ def run_job_now(job_id):
     if not job:
         return _error(_('Task does not exist'), 404)
 
-    # 通过 Worker 池执行
-    from .scheduler import SchedulerEngine
+    # 通过 Worker 池异步执行（不阻塞请求线程）
+    import threading
     if _scheduler:
-        # 直接调用执行包装器
-        _scheduler._execute_job_wrapper(job_id)
-        return _success(None, _('Task has been started'))
+        # 异步启动任务 — 不阻塞 HTTP 响应
+        thread = threading.Thread(
+            target=_scheduler._execute_job_wrapper,
+            args=(job_id,),
+            daemon=True,
+            name=f'job-run-{job_id}'
+        )
+        thread.start()
+        # 立即返回，前端可通过 /jobs/{job_id} 轮询状态
+        return _success({
+            'job_id': job_id,
+            'status': 'started',
+            'message': 'Job execution started in background'
+        }, _('Task has been started'))
 
     return _error(_('Scheduler not initialized'), 500)
 
@@ -350,7 +376,15 @@ def update_workflow(wf_id):
     if not success:
         return _error(_('Workflow does not exist'), 404)
 
-    return _success(None, _('Workflow has been updated'))
+    # 重新获取更新后的工作流，返回完整数据给前端
+    updated = m.get_workflow(wf_id)
+    if updated:
+        if updated.get('definition'):
+            updated['definition'] = m.from_json(updated['definition'])
+        if updated.get('triggers'):
+            updated['triggers'] = m.from_json(updated['triggers'])
+
+    return _success(updated, _('Workflow has been updated'))
 
 
 @automation_bp.route('/workflows/<int:wf_id>', methods=['DELETE'])
