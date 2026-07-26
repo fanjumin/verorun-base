@@ -759,9 +759,8 @@ def cron_tick():
 @cf_bp.route('/schedules', methods=['GET'])
 def list_schedules():
     """列出所有已配置定时采集的源及其调度信息"""
-    admin = _require_admin()
-    if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    admin, err = _require_admin()
+    if err: return err
 
     conn = _get_db()
     rows = conn.execute(
@@ -780,9 +779,8 @@ def list_schedules():
 @cf_bp.route('/cron', methods=['GET'])
 def cron_status():
     """查看定时采集任务的历史执行记录"""
-    admin = _require_admin()
-    if not admin:
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    admin, err = _require_admin()
+    if err: return err
 
     conn = _get_db()
     rows = conn.execute(
