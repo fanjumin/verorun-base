@@ -185,6 +185,7 @@ function FlowEditor() {
   var edgesRef = useRef(edges);
   nodesRef.current = nodes;
   edgesRef.current = edges;
+  var dragPosRef = useRef(null);
 
   // 保存快照到撤销栈
   var pushUndo = useCallback(function () {
@@ -303,16 +304,18 @@ function FlowEditor() {
   var onDragOver = useCallback(function (event) {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    dragPosRef.current = { x: event.clientX, y: event.clientY };
   }, []);
   var onDrop = useCallback(function (event) {
     event.preventDefault();
     var type = event.dataTransfer.getData('application/reactflow');
     if (!type || !rfInstance) return;
+    var pos = dragPosRef.current || { x: event.clientX, y: event.clientY };
     var reactFlowBounds = document.getElementById('react-flow-root').getBoundingClientRect();
-    var viewport = rfInstance.toObject ? rfInstance.toObject() : { x: 0, y: 0, zoom: 1 };
+    var viewport = rfInstance.getViewport ? rfInstance.getViewport() : { x: 0, y: 0, zoom: 1 };
     var position = {
-      x: (event.clientX - reactFlowBounds.left - viewport.x) / viewport.zoom,
-      y: (event.clientY - reactFlowBounds.top - viewport.y) / viewport.zoom
+      x: (pos.x - reactFlowBounds.left - viewport.x) / viewport.zoom,
+      y: (pos.y - reactFlowBounds.top - viewport.y) / viewport.zoom
     };
     var defaults = editor.getNodeDefaults(type);
     var typeMap = {
@@ -417,18 +420,6 @@ function FlowEditor() {
     className: 'react-flow-custom'
   }, E(Controls, {
     className: 'rf-controls'
-  }), E(Background, {
-    gap: 20,
-    size: 1,
-    color: 'rgba(255,255,255,0.04)'
-  }), E(MiniMap, {
-    style: {
-      width: 140,
-      height: 90
-    },
-    className: 'rf-minimap',
-    nodeColor: 'rgba(99,102,241,0.6)',
-    maskColor: 'rgba(0,0,0,0.6)'
   })));
 }
 

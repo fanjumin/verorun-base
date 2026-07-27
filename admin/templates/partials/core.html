@@ -1,6 +1,34 @@
 function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div></div>'}
 
+// ── 主题确认弹窗 ──
+var _scCB=null;
+function showConfirm(title,text,cb){
+  _scCB=cb;
+  var ov=document.getElementById("scOverlay");
+  if(!ov){
+    ov=document.createElement("div");ov.id="scOverlay";
+    ov.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px)";
+    ov.innerHTML='<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:28px 32px;min-width:340px;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.3)">'
+      +'<div class="scTitle" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:10px"></div>'
+      +'<div class="scText" style="font-size:13px;color:var(--text-dim);margin-bottom:22px;line-height:1.5"></div>'
+      +'<div style="display:flex;gap:10px;justify-content:flex-end">'
+      +'<button class="scCancel btn bo bs">{{ _("Cancel") }}</button>'
+      +'<button class="scOk" style="padding:6px 16px;background:var(--rose);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">{{ _("Delete") }}</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector(".scCancel").onclick=function(){ov.style.display="none";_scCB=null};
+    ov.onclick=function(e){if(e.target.id==="scOverlay"){ov.style.display="none";_scCB=null}};
+    ov.querySelector(".scOk").onclick=function(){
+      ov.style.display="none";
+      if(_scCB){_scCB();_scCB=null}
+    };
+  }
+  ov.querySelector(".scTitle").textContent=title;
+  ov.querySelector(".scText").innerHTML=text;
+  ov.style.display="";
+}
+
 if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>'}
 
 function init(){try{
@@ -256,7 +284,7 @@ function doPluginDistribute(){
   fetch("/plugin/coupons/admin/distribute",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
       if(d.success){showToast(d.message||{{ _('✅ Issued') | tojson }},"success");document.getElementById("cpDistForm").style.display="none";l_coupons_plugin()}
-      else showToast(d.error||{{ _('Failed') | tojson }},"error");
+      else showToast(d.error||{{ _('Failed') }},"error");
     });
 }
 function showPluginRedemptions(cid){
@@ -277,4 +305,3 @@ function showPluginRedemptions(cid){
     content.innerHTML=h;
   });
 }
-

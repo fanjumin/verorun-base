@@ -178,7 +178,7 @@ window.editor = (function() {
     var panel = document.getElementById('node-config-panel');
     if (!panel) return;
     if (!node) {
-      panel.innerHTML = '<div class="panel-empty">{{ _("Select a node to configure") }}</div>';
+      panel.innerHTML = '<div class="panel-empty">' + _t('editor.select_node') + '</div>';
       return;
     }
     var data = node.data;
@@ -226,8 +226,8 @@ window.editor = (function() {
 
     // 保存/取消按钮
     html += '<div class="cp-actions">';
-    html += '<button class="btn bp bs" data-action="save-config">{{ _("Save") }}</button>';
-    html += '<button class="btn bo bs" data-action="cancel-config" style="margin-left:6px">{{ _("Cancel") }}</button>';
+    html += '<button class="btn bp bs" data-action="save-config">' + _t('editor.save') + '</button>';
+    html += '<button class="btn bo bs" data-action="cancel-config" style="margin-left:6px">' + _t('editor.cancel') + '</button>';
     html += '</div>';
 
     panel.innerHTML = html;

@@ -176,10 +176,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: var(--radius);
-  background: var(--bg-card);
-  border: 2px solid var(--indigo);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--indigo);
   font-size: 12px;
   min-width: 140px;
   box-shadow: var(--shadow-sm);
@@ -191,6 +191,10 @@ body {
 .rf-node-selected {
   box-shadow: var(--shadow-glow);
   border-color: var(--blue);
+}
+/* React Flow 默认节点白底 → 透明 */
+.react-flow__node-default {
+  background: transparent !important;
 }
 /* 拖拽中状态 */
 .rf-node.dragging,

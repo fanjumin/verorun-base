@@ -102,14 +102,11 @@ function runWorkflow(id){
 }
 
 function deleteWorkflow(id,name){
-  if(!confirm("{{ _('Delete workflow') }} " + name + " ?")) return;
-  fetch("/admin/automation/workflows/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){
-      loadWorkflowList();
-    }else{
-      alert("{{ _('Failed') }}: "+esc(d.error||''));
-    }
-  }).catch(function(){alert("{{ _('Network error') }}")});
+  showConfirm("{{ _('Delete') }}","{{ _('Are you sure you want to delete') }}「"+esc(name)+"」？",function(){
+    fetch("/admin/automation/workflows/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+      if(d.success){loadWorkflowList()}else{alert("{{ _('Failed') }}: "+esc(d.error||''))}
+    }).catch(function(){alert("{{ _('Network error') }}")});
+  });
 }
 
 function showTemplateMenu(){
