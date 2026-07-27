@@ -152,8 +152,7 @@ window.editor = (function() {
       cat.nodes.forEach(function(type) {
         var cfg = NODE_CONFIGS[type];
         html += '<div class="node-panel-item" draggable="true" data-node-type="' + type + '"';
-        html += ' ondragstart="editor.onNodeDragStart(event)"';
-        html += ' onclick="editor.onNodePanelClick(event)">';
+        html += ' ondragstart="editor.onNodeDragStart(event)">';
         html += '<span class="node-icon" style="background:' + (cfg.color + '22') + ';color:' + cfg.color + '">' + cfg.icon + '</span>';
         html += _t(cfg.label) || cfg.label;
         html += '</div>';
@@ -168,38 +167,6 @@ window.editor = (function() {
     var type = event.target.closest('[data-node-type]').getAttribute('data-node-type');
     event.dataTransfer.setData('application/reactflow', type);
     event.dataTransfer.effectAllowed = 'move';
-  }
-
-  // ── 点击节点面板 → 添加到画布中央 ──
-  function onNodePanelClick(event) {
-    var type = event.currentTarget.getAttribute('data-node-type');
-    if (!type) return;
-    var flowState = window.editor.__flowState;
-    if (!flowState || !flowState.rfInstance) return;
-
-    // 计算画布中央位置（考虑视口偏移和缩放）
-    var rfInstance = flowState.rfInstance;
-    var viewport = rfInstance.toObject ? rfInstance.toObject() : { x: 0, y: 0, zoom: 1 };
-    var rootEl = document.getElementById('react-flow-root');
-    if (!rootEl) return;
-    var bounds = rootEl.getBoundingClientRect();
-    var centerX = ((bounds.width / 2) - viewport.x) / viewport.zoom;
-    var centerY = ((bounds.height / 2) - viewport.y) / viewport.zoom;
-
-    var nodeId = 'node_' + Date.now();
-    var defaults = getNodeDefaults(type);
-    var typeMap = { condition: 'condition', market_check: 'market_check' };
-    var nodeType = typeMap[type] || 'default';
-
-    var newNode = {
-      id: nodeId,
-      type: nodeType,
-      position: { x: centerX, y: centerY },
-      data: defaults
-    };
-
-    flowState.pushUndo();
-    flowState.setNodes(function(nds) { return nds.concat(newNode); });
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -648,7 +615,6 @@ window.editor = (function() {
     getNodeDefaults: getNodeDefaults,
     renderNodePanel: renderNodePanel,
     onNodeDragStart: onNodeDragStart,
-    onNodePanelClick: onNodePanelClick,
     renderConfigPanel: renderConfigPanel,
     saveNodeConfig: saveNodeConfig,
     serializeToDefinition: serializeToDefinition,
