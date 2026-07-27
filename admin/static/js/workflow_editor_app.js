@@ -433,5 +433,4 @@ function FlowEditor() {
 }
 
 // ── 挂载 React 应用 ──
-var root = ReactDOM.createRoot(document.getElementById('react-flow-root'));
-root.render(E(FlowEditor));
+ReactDOM.render(E(FlowEditor), document.getElementById('react-flow-root'));
