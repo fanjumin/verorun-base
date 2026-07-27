@@ -5,13 +5,13 @@
 # 适用: Ubuntu 22.04 / 24.04 全新 VPS (Google Cloud / 阿里云 / 腾讯云等)
 #
 # 用法:
-#   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/main/deploy/bootstrap.sh | sudo bash
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/bootstrap.sh | sudo bash
 #
 #   参数说明:
 #     $1 域名      (默认: easykai.cn)
 #     $2 安装路径   (默认: /var/www/verorun)
 #     $3 Git 仓库   (默认: https://github.com/fanjumin/VeroRunSystem.git)
-#     $4 Git 分支   (默认: main)
+#     $4 Git 分支   (默认: master)
 #
 #   示例:
 #     sudo bash bootstrap.sh
