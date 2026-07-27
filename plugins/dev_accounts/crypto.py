@@ -13,11 +13,16 @@ import base64
 
 
 def _get_encryption_key() -> bytes:
-    """Derive a Fernet-compatible key from the environment variable."""
-    raw_key = os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY', '')
+    """Derive a Fernet-compatible key from the environment variable.
+    
+    Raises RuntimeError if DEV_ACCOUNTS_ENCRYPTION_KEY is not set.
+    """
+    raw_key = os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY')
     if not raw_key:
-        # Fallback key — NOT for production use
-        raw_key = 'vero_run_dev_accounts_default_key_2026'
+        raise RuntimeError(
+            "DEV_ACCOUNTS_ENCRYPTION_KEY environment variable is required. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
     key_bytes = hashlib.sha256(raw_key.encode()).digest()
     return base64.urlsafe_b64encode(key_bytes)
 
@@ -36,7 +41,7 @@ def encrypt(plaintext: str) -> str:
     if not plaintext:
         return ''
     if not _HAS_CRYPTO:
-        return plaintext  # No encryption available — store as plaintext
+        raise RuntimeError("cryptography library is required for dev_accounts encryption")
     return _cipher.encrypt(plaintext.encode()).decode()
 
 
@@ -45,7 +50,7 @@ def decrypt(ciphertext: str) -> str:
     if not ciphertext:
         return ''
     if not _HAS_CRYPTO:
-        return ciphertext
+        raise RuntimeError("cryptography library is required for dev_accounts encryption")
     return _cipher.decrypt(ciphertext.encode()).decode()
 
 

@@ -19,7 +19,12 @@ TRACK_WIDTH = 340          # canvas width (must match frontend)
 CANVAS_HEIGHT = 190        # canvas height
 
 # Security
-SECRET_KEY = os.getenv("CAPTCHA_SECRET_KEY", "change-me-in-production")
+SECRET_KEY = os.getenv("CAPTCHA_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "CAPTCHA_SECRET_KEY environment variable is required. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 HASH_ALGO = "sha256"
 
 # Risk scoring

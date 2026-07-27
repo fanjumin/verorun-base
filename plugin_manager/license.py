@@ -70,8 +70,17 @@ def get_site_id() -> str:
 # ── License 离线 token ────────────────────────────────────────────────
 
 def _get_license_secret() -> str:
-    """获取 License 加密密钥（从环境变量）"""
-    return os.environ.get('PLUGIN_LICENSE_SECRET', 'dev-license-secret-key')
+    """Get License encryption key from environment variable.
+    
+    Raises RuntimeError if PLUGIN_LICENSE_SECRET is not set.
+    """
+    secret = os.environ.get('PLUGIN_LICENSE_SECRET')
+    if not secret:
+        raise RuntimeError(
+            "PLUGIN_LICENSE_SECRET environment variable is required. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+    return secret
 
 
 def generate_offline_token(plugin_id: str, license_key: str,

@@ -37,7 +37,12 @@ except ImportError:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.getenv(')LICENSE_DATA_DIR', os.path.join(BASE_DIR, 'data'))
 DB_PATH = os.path.join(DATA_DIR, 'license_server.db')
-SECRET_KEY = os.getenv('LICENSE_SERVER_SECRET', 'change-me-in-production-2026')
+SECRET_KEY = os.getenv('LICENSE_SERVER_SECRET')
+if not SECRET_KEY:
+    raise RuntimeError(
+        "LICENSE_SERVER_SECRET environment variable is required. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 TOKEN_TTL_HOURS = int(os.getenv('LICENSE_TOKEN_TTL_HOURS', '8760'))  # 默认 1 年
 
 
