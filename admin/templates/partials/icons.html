@@ -75,19 +75,33 @@ var GROUPS=[
   ["{{ _('Dashboard') }}",false,[["dashboard",I.dashboard,"{{ _('Dashboard') }}"]]],
   ["{{ _('Command Console') }}",false,[["ai_chat",I.ai_chat,"{{ _('Command Console') }}"]]],
   ["{{ _('AI & Content') }}",true,[["all_content",I.all_content,"{{ _('All Content') }}"],["cms",I.cms,"{{ _('Create Article') }}"],["downloads",I.downloads,"{{ _('Download Management') }}"],["media_library",I.media_library,"{{ _('Media Library') }}"],["knowledge",I.knowledge,"{{ _('RAG Knowledge') }}"],["cleaner",I.cleaner,"{{ _('Cleaner') }}"]]],
+  ["{{ _('Business Center') }}",false,[
+    ["_section","","{{ _('Subscription') }}"],
+    ["plans",I.plans,"{{ _('Plans') }}"],
+    ["subscriptions",I.subscriptions,"{{ _('Subscription List') }}"],
+    ["sub_orders",I.sub_orders,"{{ _('Plan Orders') }}"],
+    ["feature_orders",I.feature_orders,"{{ _('Feature Orders') }}"],
+    ["sub_stats",I.sub_stats,"{{ _('Revenue Dashboard') }}"],
+    ["sub_events",I.sub_events,"{{ _('Billing Log') }}"],
+    ["reward_rules",I.reward_rules,"{{ _('Rewards') }}"],
+    ["module_pricing",I.config,"Module Pricing"],
+    ["deploy",I.deploy,"{{ _('Deploy Codes') }}"],
+    ["_section","","{{ _('Shop') }}"],
+    ["shop_categories",I.shop_cat,"{{ _('Categories') }}"],
+    ["shop_products",I.shop,"{{ _('Products') }}"],
+    ["shop_orders",I.sub_orders,"{{ _('Shop Orders') }}"],
+    ["shop_purchases",I.subscriptions,"{{ _('Purchases') }}"]
+  ]],
   ["{{ _('System') }}",true,[["ai_hub",I.matrix,"{{ _('AI Hub') }}"],["site_settings",I.site_settings,"{{ _('Basic Settings') }}"],["mini_apps",I.deploy,"{{ _('Mini Programs') }}"],["admins",I.admins,"{{ _('Admins') }}"]]],
   ["{{ _('Publishing') }}",true,[["automation",I.automation,"{{ _('Auto Schedule') }}"],["publish_history",I.logs,"{{ _('Publish History') }}"]]],
-  ["{{ _('Subscription') }}",true,[["plans",I.plans,"{{ _('Plans') }}"],["subscriptions",I.subscriptions,"{{ _('Subscription List') }}"],["sub_orders",I.sub_orders,"{{ _('Plan Orders') }}"],["feature_orders",I.feature_orders,"{{ _('Feature Orders') }}"],["deploy",I.deploy,"{{ _('Deploy Codes') }}"],["sub_stats",I.sub_stats,"{{ _('Revenue Dashboard') }}"],["sub_events",I.sub_events,"{{ _('Billing Log') }}"],["reward_rules",I.reward_rules,"{{ _('Rewards') }}"],["module_pricing",I.config,"Module Pricing"]]],
-  ["{{ _('Shop') }}",true,[["shop_categories",I.shop_cat,"{{ _('Categories') }}"],["shop_products",I.shop,"{{ _('Products') }}"],["shop_orders",I.sub_orders,"{{ _('Shop Orders') }}"],["shop_purchases",I.subscriptions,"{{ _('Purchases') }}"]]],
   ["{{ _('Users & Support') }}",true,[["customers",I.customers,"{{ _('All Customers') }}"],["customer_agents",I.agents,"{{ _('Customer Agents') }}"],["api_keys",I.keys,"{{ _('API Tokens') }}"],["notifications",I.notifications,"{{ _('Notifications') }}"],["tickets",I.tickets,"{{ _('User Tickets') }}"]]],
   ["{{ _('Security & Compliance') }}",true,[["posts",I.posts,"{{ _('Post Audit') }}"],["comments",I.comments,"{{ _('Comment Moderation') }}"]]],
-  ["{{ _('Payment & Operations') }}",true,[]],
   ["{{ _('Monitoring & Data') }}",true,[["logs",I.logs,"{{ _('Operation Log') }}"]]],
   ["{{ _('Plugins & i18n') }}",false,[["plugins",I.plugins,"{{ _('Plugin Management') }}"],["plugins_store",I.plugins,"{{ _('Plugin Store') }}"],["plugins_store_admin",I.plugins,"{{ _('Store Admin') }}"],["plugins_licenses",I.plugins,"{{ _('License Management') }}"],["plugins_subscriptions",I.plugins,"{{ _('Subscriptions') }}"],["i18n_translations",I.i18n_translations,"{{ _('Translations') }}"]]],
 ];
 // 与 GROUPS 一一对应的英文标识（插件 menu.group 用此匹配现有组，避免 i18n 翻译差异）
-var GROUP_KEYS=["Dashboard","Command Console","AI & Content","System","Publishing","Subscription","Shop","Users & Support","Security & Compliance","Payment & Operations","Monitoring & Data","Plugins & i18n"];
-function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(function(g,i){var n=g[0],c=g[1],t=g[2];if(!c&&t.length===1){var k=t[0][0],x=t[0][1],l=t[0][2];h+='<div class="ni" onclick="go(\''+k+'\')\" id="n-'+k+'">'+x+'<span>'+l+'</span></div>'}else{h+='<div class="ng" id="ng-'+i+'"><div class="ns" onclick="toggleGroup('+i+')"><span class="ns-arrow">'+(c?'▶':'▼')+'</span><span class="ns-label">'+n+'</span></div><div class="ng-body'+(c?' collapsed':'')+'" id="ngb-'+i+'">';t.forEach(function(m){var k=m[0],x=m[1],l=m[2];h+='<div class="ni" onclick="go(\''+k+'\')\" id="n-'+k+'">'+x+'<span>'+l+'</span></div>'});h+='</div></div>'}});e.innerHTML=h;
+var GROUP_KEYS=["Dashboard","Command Console","AI & Content","Business Center","System","Publishing","Users & Support","Security & Compliance","Monitoring & Data","Plugins & i18n"];
+function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(function(g,i){var n=g[0],c=g[1],t=g[2];if(!c&&t.length===1){var k=t[0][0],x=t[0][1],l=t[0][2];h+='<div class="ni" onclick="go(\''+k+'\')\" id="n-'+k+'">'+x+'<span>'+l+'</span></div>'}else{h+='<div class="ng" id="ng-'+i+'"><div class="ns" onclick="toggleGroup('+i+')"><span class="ns-arrow">'+(c?'▶':'▼')+'</span><span class="ns-label">'+n+'</span></div><div class="ng-body'+(c?' collapsed':'')+'" id="ngb-'+i+'">';t.forEach(function(m){var k=m[0],x=m[1],l=m[2];if(k==='_section'){h+='<div class="ns-section">'+l+'</div>'}else{h+='<div class="ni" onclick="go(\''+k+'\')\" id="n-'+k+'">'+x+'<span>'+l+'</span></div>'}});h+='</div></div>'}});e.innerHTML=h;
   // Load plugin menus
   fetch("/admin/plugins/menus",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data||!d.data.menus)return;

@@ -27,7 +27,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Payment & Operations",
+        "group": "Business Center",
         "key": "logistics",
         "icon": "plugins",
         "label": "Logistics Tracking"

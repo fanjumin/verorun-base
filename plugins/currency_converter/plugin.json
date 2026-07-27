@@ -47,7 +47,7 @@
 
     "menu": {
         "key": "currency_converter",
-        "group": "Payment & Operations",
+        "group": "Business Center",
         "icon": "currency",
         "label": "Currency Settings",
         "embed_url": "/admin/currency/"

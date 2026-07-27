@@ -21,7 +21,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Payment & Operations",
+        "group": "Business Center",
         "key": "ali_api",
         "icon": "plugins",
         "label": "1688 供应链采集",

@@ -32,7 +32,7 @@
         "listens": []
     },
     "menu": {
-        "group": "Payment & Operations",
+        "group": "AI & Content",
         "key": "ads",
         "icon": "ads",
         "label": "Ad Management"
