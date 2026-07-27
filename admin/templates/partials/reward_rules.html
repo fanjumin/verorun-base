@@ -1,26 +1,29 @@
 window.l_reward_rules=function(){
   document.getElementById("pt").textContent="{{ _('Completion Reward Rules') }}";
-  var h='<div style="margin-bottom:12px"><button class="btn bp" onclick="rrShowForm()">+ {{ _('New Rule') }}</button></div>';
-  h+='<div id="rrForm" style="display:none;margin-bottom:16px" class="cd"><div class="st" id="rrFormTitle">{{ _('New Rule') }}</div>';
-  h+='<div class="field"><label>{{ _('Rule Name') }}</label><input type="text" id="rrName" placeholder="{{ _('e.g.') }}：{{ _('Verification Reward') }}" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 8px"></div>';
-  h+='<div class="field"><label>{{ _('Trigger Condition') }}</label><select id="rrCondition" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 8px">';
+  var h='<div id="rrStats" class="gr" style="margin-bottom:16px"><div class="lo">{{ _('Loading...') }}</div></div>';
+  h+='<div class="cd" style="margin-bottom:12px"><div class="st">{{ _('Rules') }} <button class="btn bp bs" style="margin-left:12px" onclick="rrShowForm()">+ {{ _('New Rule') }}</button></div>';
+  h+='<div id="rrForm" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">';
+  h+='<div class="st" id="rrFormTitle" style="font-size:12px;margin-bottom:4px">{{ _('New Rule') }}</div>';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Rule Name') }}</label><input id="rrName" class="in" placeholder="{{ _('e.g.') }}：{{ _('Verification Reward') }}" style="flex:1"></div>';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Trigger Condition') }}</label><select id="rrCondition" class="in" style="flex:1">';
   h+='<option value="completion_percentage|100">{{ _('Progress') }} 100%</option>';
-  h+='<option value="completion_percentage|50">{{ _('Progress') }} ≥ 50%</option>';
+  h+='<option value="completion_percentage|50">{{ _('Progress') }} >= 50%</option>';
   h+='<option value="phone_verified|1">{{ _('Phone Verified') }}</option>';
   h+='<option value="email_verified|1">{{ _('Email Verified') }}</option>';
   h+='<option value="has_profile|1">{{ _('Fill in Details') }}</option>';
   h+='<option value="avatar_set|1">{{ _('Set Avatar') }}</option>';
   h+='</select></div>';
-  h+='<div class="field"><label>{{ _('Reward Type') }}</label><select id="rrRewardType" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 8px" onchange="rrLoadCoupons()">';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Reward Type') }}</label><select id="rrRewardType" class="in" style="flex:1" onchange="rrLoadCoupons()">';
   h+='<option value="coupon">{{ _('Coupon') }}</option>';
   h+='</select></div>';
-  h+='<div class="field"><label>{{ _('Select Coupon') }}</label><select id="rrCoupon" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 8px"><option value="">{{ _('Select Coupons') }}</option></select></div>';
-  h+='<div class="field"><label>{{ _('Reward Name') }}</label><input type="text" id="rrRewardName" placeholder="{{ _('User-visible Name') }}" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 8px"></div>';
-  h+='<div class="field"><label>{{ _('Sort') }}</label><input type="number" id="rrSort" value="0" style="width:80px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 8px"></div>';
-  h+='<div class="field"><label>{{ _('Enabled') }}</label><label class="sw"><input type="checkbox" id="rrActive" checked><span class="sl"></span></label></div>';
-  h+='<div style="display:flex;gap:8px;margin-top:12px"><button class="btn bp" id="rrSaveBtn" onclick="rrSave()">{{ _('Save') }}</button><button class="btn" onclick="rrHideForm()">{{ _('Cancel') }}</button></div>';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Select Coupon') }}</label><select id="rrCoupon" class="in" style="flex:1"><option value="">{{ _('Select Coupons') }}</option></select></div>';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Reward Name') }}</label><input id="rrRewardName" class="in" placeholder="{{ _('User-visible Name') }}" style="flex:1"></div>';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Sort') }}</label><input type="number" id="rrSort" class="in" value="0" style="width:80px"></div>';
+  h+='<div class="fl"><label style="min-width:110px">{{ _('Enabled') }}</label><label class="sw"><input type="checkbox" id="rrActive" checked><span class="sl"></span></label></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><button class="btn bp" id="rrSaveBtn" onclick="rrSave()">{{ _('Save') }}</button><button class="btn bo" onclick="rrHideForm()">{{ _('Cancel') }}</button></div>';
   h+='</div>';
   h+='<div id="rrList"><div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div></div>';
+  h+='</div>';
   document.getElementById("mc").innerHTML=h;
   rrLoadList();
   rrLoadCoupons();
@@ -50,19 +53,27 @@ function rrLoadList(){
   .then(function(r){return r.json()})
   .then(function(d){
     var _list=document.getElementById("rrList");
-    if(!_list)return;  // 容器已卸载，放弃本次渲染
+    if(!_list)return;
     if(!d.success||!d.data){_list.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var rules=d.data;
-    if(rules.length===0){_list.innerHTML='<div class="em" style="padding:40px;text-align:center;color:var(--muted)">{{ _('No Reward Rules') }} — {{ _('Click') }}"{{ _('New Rule') }}"{{ _('Add') }}</div>';return}
-    var h='<table class="t"><thead><tr><th>{{ _('Name') }}</th><th>{{ _('Trigger Condition') }}</th><th>{{ _('Reward') }}</th><th>{{ _('Sort') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr></thead><tbody>';
-    var condNames={'completion_percentage|100':'{{ _('Progress') }}100%','completion_percentage|50':'{{ _('Progress') }}≥50%','phone_verified|1':'{{ _('Phone Verification') }}','email_verified|1':'{{ _('Email Verification') }}','has_profile|1':'{{ _('Fill in Details') }}','avatar_set|1':'{{ _('Set Avatar') }}'};
+    // update stats
+    var activeCount=rules.filter(function(r){return r.is_active}).length;
+    var sh='<div class="cd" style="text-align:center"><div class="l">{{ _('Total Rules') }}</div><div class="v">'+rules.length+'</div></div>';
+    sh+='<div class="cd" style="text-align:center"><div class="l">{{ _('Active') }}</div><div class="v b">'+activeCount+'</div></div>';
+    sh+='<div class="cd" style="text-align:center"><div class="l">{{ _('Inactive') }}</div><div class="v" style="color:var(--dim)">'+(rules.length-activeCount)+'</div></div>';
+    var _stats=document.getElementById("rrStats");if(_stats)_stats.innerHTML=sh;
+    // render table
+    if(rules.length===0){_list.innerHTML='<div class="em" style="padding:40px;text-align:center;color:var(--muted)">{{ _('No Reward Rules') }} — {{ _('Click') }} "{{ _('New Rule') }}" {{ _('Add') }}</div>';return}
+    var condNames={'completion_percentage|100':'{{ _('Progress') }}100%','completion_percentage|50':'{{ _('Progress') }}>=50%','phone_verified|1':'{{ _('Phone Verification') }}','email_verified|1':'{{ _('Email Verification') }}','has_profile|1':'{{ _('Fill in Details') }}','avatar_set|1':'{{ _('Set Avatar') }}'};
+    var h='<table><tr><th>{{ _('Name') }}</th><th>{{ _('Trigger Condition') }}</th><th>{{ _('Reward') }}</th><th style="width:60px">{{ _('Sort') }}</th><th style="width:70px">{{ _('Status') }}</th><th style="width:120px">{{ _('Actions') }}</th></tr>';
     rules.forEach(function(r){
       var cv=r.condition_key+'|'+r.condition_value;
       var cn=condNames[cv]||r.condition_key;
-      h+='<tr><td>'+esc(r.name)+'</td><td>'+esc(cn)+'</td><td>'+esc(r.reward_name||'')+'</td><td>'+r.sort_order+'</td><td>'+(r.is_active?'<span class="tag tag-green">{{ _('Enabled') }}</span>':'<span class="tag">{{ _('Disable') }}</span>')+'</td>';
-      h+='<td><button class="btn btn-sm" onclick="rrShowForm('+JSON.stringify(r).replace(/"/g,"'")+')">{{ _('Edit') }}</button> <button class="btn btn-sm btn-danger" onclick="rrDelete('+r.id+',\''+esc(r.name)+'\')">{{ _('Delete') }}</button></td></tr>';
+      h+='<tr><td>'+esc(r.name)+'</td><td>'+esc(cn)+'</td><td>'+esc(r.reward_name||'')+'</td><td>'+r.sort_order+'</td><td>'+(r.is_active?'<span class="bdg on">{{ _('Enabled') }}</span>':'<span class="bdg off">{{ _('Disable') }}</span>')+'</td>';
+      h+='<td><button class="btn bs" onclick="rrShowForm('+JSON.stringify(r).replace(/"/g,"'")+')">{{ _('Edit') }}</button> ';
+      h+='<button class="btn bs" onclick="rrDelete('+r.id+',\''+escAttr(r.name)+'\')" style="color:#ef4444">{{ _('Delete') }}</button></td></tr>';
     });
-    h+='</tbody></table>';
+    h+='</table>';
     _list.innerHTML=h;
   }).catch(function(){var _l=document.getElementById("rrList");if(_l)_l.innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
 }
@@ -108,7 +119,18 @@ function rrSave(){
 }
 
 function rrDelete(id,name){
-  if(!confirm('{{ _('Confirm Deletion Rule') }} "'+name+'"? {{ _('Related Claim Records Will Also Be Cleared') }}。'))return;
+  var overlay=document.createElement("div");
+  overlay.className="modal-overlay";
+  overlay.innerHTML='<div class="modal-box" style="width:420px;text-align:center">'
+    +'<div style="font-size:16px;font-weight:700;margin-bottom:12px">{{ _('Confirm Delete') }}</div>'
+    +'<div style="color:var(--muted);margin-bottom:20px">'+'{{ _('Confirm Deletion Rule') }} "<b style="color:var(--text)">'+esc(name)+'</b>"? {{ _('Related Claim Records Will Also Be Cleared') }}。</div>'
+    +'<div style="display:flex;gap:8px;justify-content:center">'
+    +'<button class="btn bo" onclick="this.closest(\'.modal-overlay\').remove()">{{ _('Cancel') }}</button>'
+    +'<button class="btn bp" style="background:#ef4444" onclick="var mo=this.closest(\'.modal-overlay\');mo.remove();rrDoDelete('+id+')">{{ _('Delete') }}</button></div></div>';
+  document.body.appendChild(overlay);
+}
+
+function rrDoDelete(id){
   fetch("/admin/reward-rules/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
   .then(function(r){return r.json()})
   .then(function(d){
