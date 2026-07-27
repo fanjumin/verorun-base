@@ -130,6 +130,9 @@ function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(fu
       gIdx++;
     });
     if(ph)e.insertAdjacentHTML('beforeend',ph);
+    // 清理空 _section 标题
+    var bi=GROUP_KEYS.indexOf("Business Center");
+    if(bi>=0){var bb=document.getElementById("ngb-"+bi);if(bb){var ls=bb.querySelector(".ns-section:last-of-type");if(ls&&!ls.nextElementSibling)ls.style.display="none"}}
   }).catch(function(){});
 }
 function toggleGroup(i){var b=document.getElementById("ngb-"+i),a=document.querySelector("#ng-"+i+" .ns-arrow");b.classList.contains("collapsed")?(b.classList.remove("collapsed"),a.textContent="▼"):(b.classList.add("collapsed"),a.textContent="▶")}
