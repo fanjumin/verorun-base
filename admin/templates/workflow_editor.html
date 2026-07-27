@@ -22,13 +22,13 @@
 {# 编辑器专用样式 #}
 <link rel="stylesheet" href="{{ url_for('static_files', filename='css/workflow_editor.css') }}?v=2"/>
 
-{# React Flow 样式 #}
-<link rel="stylesheet" href="{{ url_for('static_files', filename='lib/workflow/react-flow.css') }}"/>
+{# React Flow v11 样式 #}
+<link rel="stylesheet" href="{{ url_for('static_files', filename='lib/workflow/reactflow.css') }}"/>
 
 {# JS 库：按加载顺序 #}
 <script src="{{ url_for('static_files', filename='lib/workflow/react.production.min.js') }}"></script>
 <script src="{{ url_for('static_files', filename='lib/workflow/react-dom.production.min.js') }}"></script>
-<script src="{{ url_for('static_files', filename='lib/workflow/react-flow-renderer.umd.js') }}"></script>
+<script src="{{ url_for('static_files', filename='lib/workflow/reactflow.umd.js') }}"></script>
 
 {# SSO Token — 必须在 workflow_editor.js 之前设置 #}
 <script>window.__SSO_TOKEN = {{ sso_token|tojson }};</script>
