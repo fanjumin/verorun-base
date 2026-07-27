@@ -98,7 +98,7 @@ def generate_offline_token(plugin_id: str, license_key: str,
         'v': 1,
     }, separators=(',', ':'))
     secret = _get_license_secret()
-    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
     token = base64.urlsafe_b64encode(f'{payload}.{sig}'.encode()).decode()
     return token
 
@@ -115,7 +115,7 @@ def verify_offline_token(token: str, plugin_id: str, site_id: str) -> Tuple[bool
         # 验证签名
         secret = _get_license_secret()
         expected_sig = hmac.new(secret.encode(), payload_str.encode(),
-                                hashlib.sha256).hexdigest()[:16]
+                                hashlib.sha256).hexdigest()[:32]
         if sig != expected_sig:
             return False, 'signature mismatch'
 

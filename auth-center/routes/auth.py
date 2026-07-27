@@ -168,10 +168,10 @@ def sms_register():
     if not v['valid']:
         return api_err('；'.join(v['errors']))
 
-    # Hash password: pbkdf2:sha256:100000:{salt}:{hash}
-    salt = secrets.token_hex(8)
-    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
-    stored = f'pbkdf2:sha256:100000:{salt}:{pw_hash}'
+    # Hash password: pbkdf2:sha256:600000:{salt}:{hash}
+    salt = secrets.token_hex(16)
+    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 600000).hex()
+    stored = f'pbkdf2:sha256:600000:{salt}:{pw_hash}'
 
     # Create user
     with get_db() as conn:

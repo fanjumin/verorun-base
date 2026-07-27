@@ -471,9 +471,9 @@ def admin_update(uid):
             conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
             
             import hashlib, secrets
-            salt = secrets.token_hex(8)
-            pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
-            stored = f'pbkdf2:sha256:100000:{salt}:{pw_hash}'
+            salt = secrets.token_hex(16)
+            pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 600000).hex()
+            stored = f'pbkdf2:sha256:600000:{salt}:{pw_hash}'
             conn.execute('UPDATE users SET password_hash=%s WHERE id=%s', (stored, uid))
         
         conn.commit()

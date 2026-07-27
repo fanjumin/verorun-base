@@ -366,9 +366,9 @@ def set_password():
             return jsonify({'success': False, 'error': 'Invalid or expired verification code'}), 400
         conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
         # Hash password
-        salt = secrets.token_hex(8)
-        pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
-        stored = f'pbkdf2:sha256:100000:{salt}:{pw_hash}'
+        salt = secrets.token_hex(16)
+        pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 600000).hex()
+        stored = f'pbkdf2:sha256:600000:{salt}:{pw_hash}'
         conn.execute('UPDATE users SET password_hash=%s WHERE phone=%s', (stored, phone))
         # IAM v2: force logout all other sessions, update password_changed_at
         user_row = conn.execute('SELECT id FROM users WHERE phone=%s', (phone,)).fetchone()
@@ -479,9 +479,10 @@ def password_login():
         pw_ok = False
         parts = stored.split(':')
         if len(parts) == 5 and parts[0] == 'pbkdf2' and parts[1] == 'sha256':
+            iterations = int(parts[2])
             salt = parts[3]
             pw_hash = parts[4]
-            check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+            check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), iterations).hex()
             pw_ok = hmac.compare_digest(pw_hash, check)
         else:
             # Fallback: werkzeug-style hash (used by older admin accounts)

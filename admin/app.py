@@ -502,9 +502,10 @@ def admin_login_action():
     pw_ok = False
     parts = stored.split(':')
     if len(parts) == 5 and parts[0] == 'pbkdf2' and parts[1] == 'sha256':
+        iterations = int(parts[2])
         salt = parts[3]
         pw_hash = parts[4]
-        check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+        check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), iterations).hex()
         pw_ok = hmac.compare_digest(pw_hash, check)
     else:
         try:
