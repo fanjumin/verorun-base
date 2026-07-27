@@ -2891,6 +2891,70 @@ with get_db() as m:
     print('[Migration] llm_quotas table + default seed created')
 
 
+# ── Migration: unified_api_keys — Phase 3 unified API key management ──
+with get_db() as m:
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS unified_api_keys (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            key_hash        TEXT UNIQUE NOT NULL,
+            key_prefix      TEXT NOT NULL,
+            key_type        TEXT NOT NULL CHECK(key_type IN ('user','agent','provider')),
+            user_id         BIGINT NOT NULL REFERENCES users(id),
+            agent_id        BIGINT DEFAULT NULL REFERENCES user_agents(id),
+            provider        TEXT DEFAULT '',
+            name            TEXT DEFAULT '',
+            scopes          TEXT DEFAULT '[]',
+            quota_daily     BIGINT DEFAULT NULL,
+            expire_at       TIMESTAMP DEFAULT NULL,
+            status          TEXT DEFAULT 'active' CHECK(status IN ('active','revoked','expired')),
+            calls_total     BIGINT DEFAULT 0,
+            calls_today     BIGINT DEFAULT 0,
+            last_used_at    TIMESTAMP DEFAULT NULL,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS api_key_audit (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            key_id          BIGINT NOT NULL REFERENCES unified_api_keys(id),
+            action          TEXT NOT NULL CHECK(action IN ('create','revoke','rotate')),
+            user_id         BIGINT DEFAULT NULL REFERENCES users(id),
+            extra           TEXT DEFAULT '{}',
+            created_at      TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS usage_quotas (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            target_type     TEXT NOT NULL CHECK(target_type IN ('key','user','agent','global')),
+            target_id       BIGINT DEFAULT NULL,
+            daily_limit     BIGINT DEFAULT 1000,
+            rate_limit      BIGINT DEFAULT 10,
+            rate_window_sec BIGINT DEFAULT 60,
+            is_active       BIGINT DEFAULT 1,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+    m.commit()
+    # Create indexes
+    m.execute('CREATE INDEX IF NOT EXISTS idx_unified_keys_user ON unified_api_keys(user_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_unified_keys_type ON unified_api_keys(key_type)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_unified_keys_hash ON unified_api_keys(key_hash)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_unified_keys_status ON unified_api_keys(status)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_apikey_audit_key ON api_key_audit(key_id)')
+    m.commit()
+
+    # Seed default global quota
+    m.execute(
+        "INSERT INTO usage_quotas (target_type, daily_limit, rate_limit) "
+        "VALUES ('global', 100000, 30) "
+        "ON CONFLICT DO NOTHING"
+    )
+    m.commit()
+    print('[Migration] unified_api_keys + api_key_audit + usage_quotas tables created')
+
 if __name__ == "__main__":
     init_db()
     print(f"OK: {DB_PATH}")
