@@ -98,11 +98,11 @@ cp .env.example .env
 
 ### 5. Configure Nginx
 
-Copy the configuration from `deploy/nginx/easykai.conf` to `/etc/nginx/sites-available/`,
+Copy the configuration template from `deploy/nginx/` to `/etc/nginx/sites-available/`,
 replace `__DOMAIN__` and `__APP_ROOT__` placeholders, then enable:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/easykai.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/verorun.conf /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
@@ -128,7 +128,7 @@ sudo env PATH=$PATH pm2 startup systemd -u www-data --hp /home/www-data
 | `DB_PATH` | Yes | SQLite database path |
 | `JWT_SECRET` | Yes | JWT signing secret (64-char random hex) |
 | `FLASK_SECRET_KEY` | Yes | Flask session secret (64-char random hex) |
-| `EASYKAI_MODE` | Yes | Operation mode (`main`) |
+| `APP_MODE` | Yes | Operation mode (`main`) |
 | `PG_HOST` | No | PostgreSQL host (optional) |
 | `PG_PORT` | No | PostgreSQL port |
 | `PG_DB` | No | PostgreSQL database name |
@@ -147,7 +147,7 @@ All services are managed via PM2:
 ```bash
 pm2 status          # View all processes
 pm2 logs            # View logs (all)
-pm2 logs easykai-admin  # View specific service logs
+pm2 logs verorun-admin  # View specific service logs
 pm2 restart all     # Restart all services
 pm2 stop all        # Stop all services
 pm2 start all       # Start all services
@@ -157,10 +157,10 @@ pm2 start all       # Start all services
 
 | PM2 Name | Port | Description |
 |----------|------|-------------|
-| `easykai-main` | 8081 | Main site backend |
-| `easykai-platform` | 8083 | Platform & auth |
-| `easykai-admin` | 8084 | Admin panel |
-| `easykai-health` | — | Health guardian (watchdog) |
+| `verorun-main` | 8081 | Main site backend |
+| `verorun-platform` | 8083 | Platform & auth |
+| `verorun-admin` | 8084 | Admin panel |
+| `verorun-health` | — | Health guardian (watchdog) |
 
 ---
 
@@ -174,7 +174,7 @@ The bootstrap script automatically requests SSL certificates. For manual setup:
 sudo certbot --nginx -d your-domain.com \
     -d www.your-domain.com \
     -d platform.your-domain.com \
-    -d agent.your-domain.com
+    -d admin.your-domain.com
 ```
 
 ### Auto-Renewal
@@ -206,7 +206,7 @@ pm2 restart all
 ### Service not starting
 
 ```bash
-pm2 logs easykai-main --lines 50
+pm2 logs verorun-main --lines 50
 ```
 
 Common causes:
@@ -232,7 +232,7 @@ sudo tail -f /var/log/nginx/error.log
 SQLite databases are stored in `data/`. If you encounter corruption:
 
 ```bash
-sqlite3 data/easykai.db "PRAGMA integrity_check;"
+sqlite3 data/default.db "PRAGMA integrity_check;"
 ```
 
 ---

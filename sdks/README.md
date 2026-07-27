@@ -18,7 +18,7 @@ JavaScript SDKs for VeroRun social media mini-program platforms.
 // Common SDK — works on all platforms
 import { VeroAuth, VeroChat, VeroRAG } from '@verorun/sdk-common';
 
-const auth = new VeroAuth({ baseURL: 'https://easykai.cn', platform: 'telegram' });
+const auth = new VeroAuth({ baseURL: 'https://your-domain.com', platform: 'telegram' });
 const { data } = await auth.login({ initData: tg.initData });
 ```
 

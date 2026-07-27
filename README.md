@@ -1,8 +1,8 @@
-# VeroRun — EasyKai AI
+# VeroRun
 
 **Multi-Agent AI Operating System** — A full-stack SaaS website builder and business management platform powered by a 7-role Agent collaboration matrix.
 
-VeroRun (EasyKai AI) integrates multi-vendor AI engines, e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, and a plugin-based extension system.
+VeroRun integrates multi-vendor AI engines, e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, and a plugin-based extension system.
 
 > **Version:** 0.37.6
 > **Repository:** https://github.com/fanjumin/VeroRunSystem
@@ -28,16 +28,16 @@ VeroRun (EasyKai AI) integrates multi-vendor AI engines, e-commerce operations, 
                           │
               ┌───────────┼───────────┐
               │           │           │
-        easykai.cn   platform.*   agent.*
+         yourdomain   platform.*   admin.*
 ```
 
 ### Service Topology
 
 | Port | Domain | Service |
 |------|--------|---------|
-| 8081 | `easykai.cn` `/auth/oauth/` `/user/` | Main site backend |
-| 8083 | `platform.easykai.cn` `/auth/` `/subscribe` | Auth & subscription |
-| 8084 | `agent.easykai.cn` `/admin/` | Admin panel |
+| 8081 | Main domain `/auth/oauth/` `/user/` | Main site backend |
+| 8083 | `platform.*` `/auth/` `/subscribe` | Auth & subscription |
+| 8084 | `admin.*` `/admin/` | Admin panel |
 
 ### Tech Stack
 
