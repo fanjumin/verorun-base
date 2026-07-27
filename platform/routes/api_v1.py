@@ -479,22 +479,6 @@ def chat_stream():
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-            # RAG检索
-            retrieved_knowledge = []
-            user_query = messages[-1]['content'] if messages else ''
-            if user_query:
-                try:
-                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'cognition-service'))
-                    from services.embedding import search_knowledge
-                    retrieved_knowledge = search_knowledge(user_query, top_k=3)
-                except Exception as e:
-                    logging.warning(f"RAG检索失败，使用默认回答: {e}")
-
-            # 构建系统提示词（包含检索到的知识）
-            knowledge_context = ''
-            if retrieved_knowledge:
-                knowledge_context = "参考知识：\n" + "\n".join([f"- {item.get('content', '')}" for item in retrieved_knowledge])
-
             # 读取转人工规则配置
             handoff_keywords = "人工, 客服, 转人工, 联系真人, 联系工作人员, 商务, 合作, 投诉, 定制, 开发"
             handoff_max_fails = "3"
@@ -543,14 +527,11 @@ def chat_stream():
                 model_name = agent.get('model_name') or cfg.get('model_name', 'qwen-turbo')
             else:
                 system_prompt = f"""
-你是 AI Advisor。请根据用户的问题，结合参考知识进行回答。
-
-{knowledge_context}
+你是 AI Advisor。请根据用户的问题进行回答。
 
 回答规则：
-1. 优先使用参考知识中的信息
-2. 如果参考知识中没有相关内容，可以用你的通用知识回答
-3. 回答要友好、专业、简洁
+1. 用你的通用知识回答
+2. 回答要友好、专业、简洁
 
 转人工触发规则（当消息包含以下关键词时，必须输出转人工提示）：
 {handoff_keywords}
