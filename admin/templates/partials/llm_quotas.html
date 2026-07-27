@@ -114,10 +114,11 @@ window.l_llm_quotas=function(targetId){
   };
 
   window.delQuota=function(id){
-    if(!confirm("{{ _('Delete this quota?') }}"))return;
+    showConfirm("{{ _('Delete Quota') }}","{{ _('Delete this quota?') }}",function(){
     fetch("/admin/llm-quotas/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}})
       .then(function(r){return r.json()}).then(function(d){
         if(d.success){render()}else{alert(d.error||'{{ _('Delete failed') }}')}
       }).catch(function(){alert('{{ _('Network error') }}')});
+  });
   };
 };

@@ -3,7 +3,7 @@ function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class=
 
 // ── 主题确认弹窗 ──
 var _scCB=null;
-function showConfirm(title,text,cb){
+function showConfirm(title,text,cb,okLabel){
   _scCB=cb;
   var ov=document.getElementById("scOverlay");
   if(!ov){
@@ -14,7 +14,7 @@ function showConfirm(title,text,cb){
       +'<div class="scText" style="font-size:13px;color:var(--text-dim);margin-bottom:22px;line-height:1.5"></div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end">'
       +'<button class="scCancel btn bo bs">{{ _("Cancel") }}</button>'
-      +'<button class="scOk" style="padding:6px 16px;background:var(--rose);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">{{ _("Delete") }}</button>'
+      +'<button class="scOk" style="padding:6px 16px;background:var(--rose);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500"></button>'
       +'</div></div>';
     document.body.appendChild(ov);
     ov.querySelector(".scCancel").onclick=function(){ov.style.display="none";_scCB=null};
@@ -26,6 +26,7 @@ function showConfirm(title,text,cb){
   }
   ov.querySelector(".scTitle").textContent=title;
   ov.querySelector(".scText").innerHTML=text;
+  ov.querySelector(".scOk").textContent=okLabel||'{{ _("Delete") }}';
   ov.style.display="";
 }
 

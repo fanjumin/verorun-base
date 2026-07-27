@@ -270,11 +270,9 @@ function mpPollTask(tid, pid) {
 
 // ── 删除 ──
 function mpConfirmDelete(pid, name) {
-  var h = '<div class="cd" style="margin-bottom:12px;border-color:var(--rose)"><div class="st" style="color:var(--rose)">{{ _("Delete") }} ' + esc(name) + '?</div>';
-  h += '<div style="font-size:12px;color:var(--dim);margin-bottom:8px">{{ _("This will remove the project and all its versions.") }}</div>';
-  h += '<button class="btn bp" style="background:var(--rose);border-color:var(--rose)" onclick="mpDoDelete(' + pid + ')">{{ _("Confirm Delete") }}</button>';
-  h += '<button class="btn bo" onclick="refreshProjects()">{{ _("Cancel") }}</button></div>';
-  document.getElementById("mc").insertAdjacentHTML("afterbegin", h);
+  showConfirm("{{ _('Delete') }} " + esc(name) + "?","{{ _('This will remove the project and all its versions.') }}",function(){
+    mpDoDelete(pid);
+  });
 }
 function mpDoDelete(pid) {
   mpApi("/admin/site-builder/mini-app/projects/" + pid, "DELETE").then(function (d) {

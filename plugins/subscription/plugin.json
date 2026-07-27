@@ -33,13 +33,6 @@
             "user/registered"
         ]
     },
-    "menu": {
-        "group": "Subscription",
-        "key": "subscription",
-        "icon": "subscriptions",
-        "label": "Subscriptions",
-        "embed_url": "/admin/subscription/"
-    },
     "settings_schema": {
         "type": "object",
         "properties": {

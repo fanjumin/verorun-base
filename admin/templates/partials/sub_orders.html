@@ -1,5 +1,5 @@
 function refundPlanOrder(orderNo) {
-  if (!confirm("{{ _('Refund this order? This action cannot be undone!') }}")) return;
+  showConfirm("{{ _('Refund Order') }}","{{ _('Refund this order? This action cannot be undone!') }}",function(){
   fetch("/subscription/admin/orders/" + encodeURIComponent(orderNo) + "/refund", {
     method: "POST",
     headers: { "Authorization": "Bearer " + T, "Content-Type": "application/json" },
@@ -9,6 +9,7 @@ function refundPlanOrder(orderNo) {
       if (d.success) { alert("{{ _('Refunded') }}"); l_sub_orders(); }
       else { alert(d.error || "{{ _('Refund failed') }}"); }
     });
+  });
 }
 
 window.l_sub_orders=function(){

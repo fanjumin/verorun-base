@@ -32,7 +32,7 @@ function loadSubs(){
       h+='<td>'+(s.auto_renew?'✅':'❌')+'</td>';
       h+='<td>'+(s.payment_method||'-')+'</td>';
       h+='<td><button class="btn bs bo" onclick="manualRenew('+s.id+')">{{ _('Renew') }}</button> ';
-      h+='<button class="btn bs bo" onclick="showModuleStatus('+s.user_id+',\''+esc(s.nickname||s.phone||'UID:'+s.user_id)+'\')">模块</button> ';
+      h+='<button class="btn bs bo" onclick="showModuleStatus('+s.user_id+',\''+esc(s.nickname||s.phone||'UID:'+s.user_id)+'\')">{{ _('Module') }}</button> ';
       h+='<button class="btn bs bo" onclick="forceCancel('+s.id+')" style="color:#f85149">{{ _('Cancel') }}</button></td></tr>';
     });
     h+='</table></div>';
@@ -41,18 +41,20 @@ function loadSubs(){
 }
 function searchSub(e){if(e.key=='Enter')loadSubs()}
 function manualRenew(sid){
-  if(!confirm('{{ _('Manually renew this subscription?') }}'))return;
+  showConfirm("{{ _('Renew Subscription') }}","{{ _('Manually renew this subscription?') }}",function(){
   fetch("/subscription/admin/subscriptions/"+sid+"/manual-renew",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("{{ _('✅ Renewed') }}","success");loadSubs()}
     else showToast(d.error||"{{ _('Operation Failed') }}","error");
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+  });
 }
 function forceCancel(sid){
-  if(!confirm('{{ _('⚠️ User will be downgraded to free. Confirm?') }}'))return;
+  showConfirm("{{ _('Cancel Subscription') }}","{{ _('User will be downgraded to free. Confirm?') }}",function(){
   fetch("/subscription/admin/subscriptions/"+sid+"/force-cancel",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("{{ _('✅ Force cancelled') }}","success");loadSubs()}
     else showToast(d.error||"{{ _('Operation Failed') }}","error");
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+  });
 }
 
 // ============================
@@ -63,16 +65,16 @@ function showModuleStatus(uid,name){
     if(!d.success){showToast(d.error||"Loading failed","error");return}
     var mods=d.data||[];
     var h='<div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:16px;max-width:600px;margin:auto">';
-    h+='<h3 style="margin:0 0 12px">'+esc(name)+' 模块状态</h3>';
-    h+='<table style="width:100%"><tr><th>模块</th><th>状态</th><th>试用到期</th><th>价格</th></tr>';
-    var stLabel={trial:'试用中',paying:'已付费(退款期)',active:'已生效',locked:'已锁定',paused:'已暂停',expired:'已过期',unused:'未使用',pay_per_use:'按次付费'};
+    h+='<h3 style="margin:0 0 12px">'+esc(name)+' {{ _("Module Status") }}</h3>';
+    h+='<table style="width:100%"><tr><th>{{ _("Module") }}</th><th>{{ _("Status") }}</th><th>{{ _("Trial Ends") }}</th><th>{{ _("Price") }}</th></tr>';
+    var stLabel={trial:'{{ _("Trialing") }}',paying:'{{ _("Paid (Refund Period)") }}',active:'{{ _("Active") }}',locked:'{{ _("Locked") }}',paused:'{{ _("Paused") }}',expired:'{{ _("Expired") }}',unused:'{{ _("Unused") }}',pay_per_use:'{{ _("Pay Per Use") }}'};
     var stColor={trial:'#58a6ff',paying:'#3fb950',active:'#3fb950',locked:'#f85149',paused:'#d2991d',expired:'#f85149',unused:'#8b949e',pay_per_use:'#d2991d'};
     mods.forEach(function(m){
       var color=stColor[m.status]||'#8b949e';
       h+='<tr><td><b>'+esc(m.name)+'</b><br><span style="font-size:12px;color:#8b949e">'+esc(m.desc)+'</span></td>';
       h+='<td><span style="color:'+color+'">'+(stLabel[m.status]||m.status)+'</span></td>';
       h+='<td style="font-size:12px">'+(m.trial_end?m.trial_end.slice(0,10):'-')+'</td>';
-      h+='<td style="font-size:12px">'+m.price_month+'/月</td></tr>';
+      h+='<td style="font-size:12px">'+m.price_month+'/{{ _("month") }}</td></tr>';
     });
     h+='</table></div>';
     showModal(h);
@@ -94,9 +96,9 @@ function showModal(html){
 // Phase 4: 模块定价管理 — l_module_pricing
 // ============================
 window.l_module_pricing=function(){
-  document.getElementById("pt").textContent="模块定价管理";
-  var h='<div class="cd"><div class="st">模块定价（修改后即时生效）</div>';
-  h+='<table><tr><th>模块</th><th>名称</th><th>月付(分)</th><th>年付(分)</th><th>试用(天)</th><th>日配额</th><th>模式</th><th>到期</th><th>退款(天)</th><th>BYOK限</th><th></th></tr>';
+  document.getElementById("pt").textContent="{{ _('Module Pricing') }}";
+  var h='<div class="cd"><div class="st">{{ _("Module Pricing (Effective Immediately)") }}</div>';
+  h+='<table><tr><th>{{ _("Module") }}</th><th>{{ _("Name") }}</th><th>{{ _("Monthly (cents)") }}</th><th>{{ _("Yearly (cents)") }}</th><th>{{ _("Trial (days)") }}</th><th>{{ _("Daily Quota") }}</th><th>{{ _("Pattern") }}</th><th>{{ _("Expiry") }}</th><th>{{ _("Refund (days)") }}</th><th>{{ _("BYOK Limit") }}</th><th></th></tr>';
   h+='<tbody id="mpTbody"><tr><td colspan="11"><div class="lo"><div class="s"></div></div></td></tr></tbody>';
   h+='</table></div>';
   document.getElementById("mc").innerHTML=h;
@@ -104,7 +106,7 @@ window.l_module_pricing=function(){
 };
 function loadModulePricing(){
   fetch("/subscription/admin/module-pricing",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
-    if(!d.success){document.getElementById("mpTbody").innerHTML='<tr><td colspan="11"><div class="em">加载失败</div></td></tr>';return}
+    if(!d.success){document.getElementById("mpTbody").innerHTML='<tr><td colspan="11"><div class="em">{{ _('Load failed') }}</div></td></tr>';return}
     var list=d.data||[];
     var h='';
     list.forEach(function(m){
@@ -114,16 +116,16 @@ function loadModulePricing(){
       h+='<td><input class="in" id="mp_pm_'+m.module_key+'" value="'+(m.price_month_fen||0)+'" style="width:70px" type="number"></td>';
       h+='<td><input class="in" id="mp_py_'+m.module_key+'" value="'+(m.price_year_fen||0)+'" style="width:70px" type="number"></td>';
       h+='<td><input class="in" id="mp_td_'+m.module_key+'" value="'+(m.trial_days||14)+'" style="width:50px" type="number"></td>';
-      h+='<td><input class="in" id="mp_dl_'+m.module_key+'" value="'+(m.trial_daily_limit||'')+'" style="width:50px" type="number" placeholder="不限"></td>';
-      h+='<td><select class="in" id="mp_pat_'+m.module_key+'" style="width:90px"><option value="one_shot"'+(m.pattern=='one_shot'?' selected':'')+'>一次生成</option><option value="interactive"'+(m.pattern=='interactive'?' selected':'')+'>交互迭代</option><option value="continuous"'+(m.pattern=='continuous'?' selected':'')+'>持续运行</option><option value="publish"'+(m.pattern=='publish'?' selected':'')+'>发布推送</option></select></td>';
-      h+='<td><select class="in" id="mp_pta_'+m.module_key+'" style="width:90px"><option value="lock"'+(m.post_trial_action=='lock'?' selected':'')+'>锁定</option><option value="pause"'+(m.post_trial_action=='pause'?' selected':'')+'>暂停</option><option value="pay_per_use"'+(m.post_trial_action=='pay_per_use'?' selected':'')+'>按次付费</option></select></td>';
+      h+='<td><input class="in" id="mp_dl_'+m.module_key+'" value="'+(m.trial_daily_limit||'')+'" style="width:50px" type="number" placeholder="{{ _('Unlimited') }}"></td>';
+      h+='<td><select class="in" id="mp_pat_'+m.module_key+'" style="width:90px"><option value="one_shot"'+(m.pattern=='one_shot'?' selected':'')+'>{{ _("One-shot") }}</option><option value="interactive"'+(m.pattern=='interactive'?' selected':'')+'>{{ _("Interactive") }}</option><option value="continuous"'+(m.pattern=='continuous'?' selected':'')+'>{{ _("Continuous") }}</option><option value="publish"'+(m.pattern=='publish'?' selected':'')+'>{{ _("Publish") }}</option></select></td>';
+      h+='<td><select class="in" id="mp_pta_'+m.module_key+'" style="width:90px"><option value="lock"'+(m.post_trial_action=='lock'?' selected':'')+'>{{ _("Lock") }}</option><option value="pause"'+(m.post_trial_action=='pause'?' selected':'')+'>{{ _("Pause") }}</option><option value="pay_per_use"'+(m.post_trial_action=='pay_per_use'?' selected':'')+'>{{ _("Pay Per Use") }}</option></select></td>';
       h+='<td><input class="in" id="mp_rd_'+m.module_key+'" value="'+(m.refund_days||0)+'" style="width:50px" type="number"></td>';
       h+='<td><input type="checkbox" id="mp_byok_'+m.module_key+'"'+(m.limit_even_byok?' checked':'')+'></td>';
-      h+='<td><button class="btn bs" onclick="saveModulePricing(\''+m.module_key+'\')">保存</button></td>';
+      h+='<td><button class="btn bs" onclick="saveModulePricing(\''+m.module_key+'\')">{{ _('Save') }}</button></td>';
       h+='</tr>';
     });
     document.getElementById("mpTbody").innerHTML=h;
-  }).catch(function(){document.getElementById("mpTbody").innerHTML='<tr><td colspan="11"><div class="em">请求失败</div></td></tr>'});
+  }).catch(function(){document.getElementById("mpTbody").innerHTML='<tr><td colspan="11"><div class="em">{{ _('Request Failed') }}</div></td></tr>'});
 }
 function saveModulePricing(key){
   var data={
@@ -139,7 +141,7 @@ function saveModulePricing(key){
     limit_even_byok: document.getElementById("mp_byok_"+key).checked
   };
   fetch("/subscription/admin/module-pricing/"+key,{method:"PUT",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(d){
-    if(d.success){showToast("✅ "+key+" 已更新","success");loadModulePricing()}
-    else showToast(d.error||"保存失败","error");
-  }).catch(function(){showToast("请求失败","error")});
+    if(d.success){showToast("✅ "+key+" {{ _('Updated') }}","success");loadModulePricing()}
+    else showToast(d.error||"{{ _('Save failed') }}","error");
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
 }

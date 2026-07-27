@@ -122,11 +122,12 @@ function editPlan(id){
 }
 
 function deletePlan(id){
-  if(!confirm("{{ _('Delete this plan?') }}"))return;
+  showConfirm("{{ _('Delete Plan') }}","{{ _('Delete this plan?') }}",function(){
   fetch("/subscription/admin/plans/"+id,{method:"DELETE",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){loadPlans();showToast("{{ _('Deleted') }}","success")}
     else{showToast(d.error||"{{ _('Delete failed') }}","error")}
   }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+  });
 }
 
 function togglePlan(id,current){
