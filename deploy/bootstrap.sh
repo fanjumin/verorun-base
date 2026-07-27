@@ -207,7 +207,7 @@ setup_permissions() {
 write_nginx_config() {
     log "写入 Nginx 配置..."
 
-    cat > /etc/nginx/sites-available/verorun.conf << 'NGINX_EOF'
+    cat > /etc/nginx/sites-available/nginx_configure.conf << 'NGINX_EOF'
 # ========================================================
 # VeroRun — 统一 Nginx 配置
 # 由 bootstrap.sh 自动生成
@@ -350,12 +350,12 @@ server {
 NGINX_EOF
 
     # 替换占位符
-    sed -i "s|__DOMAIN__|${DOMAIN}|g" /etc/nginx/sites-available/verorun.conf
-    sed -i "s|__APP_ROOT__|${APP_ROOT}|g" /etc/nginx/sites-available/verorun.conf
+    sed -i "s|__DOMAIN__|${DOMAIN}|g" /etc/nginx/sites-available/nginx_configure.conf
+    sed -i "s|__APP_ROOT__|${APP_ROOT}|g" /etc/nginx/sites-available/nginx_configure.conf
 
     # 启用站点
     rm -f /etc/nginx/sites-enabled/default
-    ln -sf /etc/nginx/sites-available/verorun.conf /etc/nginx/sites-enabled/verorun.conf
+    ln -sf /etc/nginx/sites-available/nginx_configure.conf /etc/nginx/sites-enabled/nginx_configure.conf
 
     log "Nginx 配置已写入并启用"
 }
@@ -365,7 +365,7 @@ test_nginx() {
     if nginx -t 2>&1; then
         log "Nginx 配置语法正确"
     else
-        err "Nginx 配置有误，请检查 /etc/nginx/sites-available/verorun.conf"
+        err "Nginx 配置有误，请检查 /etc/nginx/sites-available/nginx_configure.conf"
         exit 1
     fi
 }
