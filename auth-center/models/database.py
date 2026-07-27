@@ -2955,6 +2955,87 @@ with get_db() as m:
     m.commit()
     print('[Migration] unified_api_keys + api_key_audit + usage_quotas tables created')
 
+# ── Migration: unified subscription — Phase 4 base plan + plugin addons ──
+with get_db() as m:
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS base_plans (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            plan_key        TEXT UNIQUE NOT NULL,
+            name            TEXT NOT NULL,
+            description     TEXT DEFAULT '',
+            daily_limit     BIGINT DEFAULT 20,
+            is_active       BIGINT DEFAULT 1,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS plugin_products (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            plugin_key      TEXT UNIQUE NOT NULL,
+            name            TEXT NOT NULL,
+            description     TEXT DEFAULT '',
+            icon            TEXT DEFAULT '',
+            category        TEXT DEFAULT '',
+            price_month_fen BIGINT DEFAULT 0,
+            price_year_fen  BIGINT DEFAULT 0,
+            sort_order      BIGINT DEFAULT 0,
+            is_featured     BIGINT DEFAULT 0,
+            is_active       BIGINT DEFAULT 1,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS user_subscriptions (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            user_id         BIGINT NOT NULL REFERENCES users(id),
+            plan_key        TEXT DEFAULT 'free',
+            status          TEXT DEFAULT 'active' CHECK(status IN ('active','cancelled','expired')),
+            daily_limit     BIGINT DEFAULT 20,
+            calls_today     BIGINT DEFAULT 0,
+            calls_total     BIGINT DEFAULT 0,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW(),
+            UNIQUE(user_id)
+        )
+    ''')
+    m.execute('''
+        CREATE TABLE IF NOT EXISTS subscription_addons (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            user_id         BIGINT NOT NULL REFERENCES users(id),
+            plugin_key      TEXT NOT NULL,
+            plugin_name     TEXT DEFAULT '',
+            period          TEXT DEFAULT 'month',
+            period_start    TIMESTAMP DEFAULT NOW(),
+            period_end      TIMESTAMP DEFAULT NULL,
+            price_fen       BIGINT DEFAULT 0,
+            payment_method  TEXT DEFAULT 'wechat',
+            status          TEXT DEFAULT 'active' CHECK(status IN ('active','cancelled','expired')),
+            created_at      TIMESTAMP DEFAULT NOW(),
+            updated_at      TIMESTAMP DEFAULT NOW(),
+            UNIQUE(user_id, plugin_key)
+        )
+    ''')
+    m.commit()
+    # Create indexes
+    m.execute('CREATE INDEX IF NOT EXISTS idx_base_plans_key ON base_plans(plan_key)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_plugin_products_key ON plugin_products(plugin_key)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_plugin_products_cat ON plugin_products(category)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_user_subs_user ON user_subscriptions(user_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_addons_user ON subscription_addons(user_id)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_addons_plugin ON subscription_addons(plugin_key)')
+    m.commit()
+
+    # Seed default free plan
+    m.execute(
+        "INSERT INTO base_plans (plan_key, name, description, daily_limit) "
+        "VALUES ('free', 'Free', 'Free entry plan with 20 API calls per day', 20) "
+        "ON CONFLICT (plan_key) DO NOTHING"
+    )
+    m.commit()
+    print('[Migration] base_plans + plugin_products + user_subscriptions + subscription_addons created')
+
 if __name__ == "__main__":
     init_db()
     print(f"OK: {DB_PATH}")
