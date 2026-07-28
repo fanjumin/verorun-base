@@ -1,6 +1,6 @@
-﻿#!/bin/bash
+#!/bin/bash
 # ==========================================================================
-# VeroRun / easykai.cn — Bare-metal deploy script (v1.0)
+# VeroRun — Bare-metal deploy script (v1.0)
 # ==========================================================================
 # Target: Ubuntu 22.04 / 24.04 fresh VPS (Google Cloud, Alibaba Cloud, Tencent Cloud, etc.)
 #
@@ -8,7 +8,7 @@
 #   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/bootstrap.sh | sudo bash
 #
 #   Parameters:
-#     $1 Domain      (default: easykai.cn)
+#     $1 Domain      (required — will prompt if omitted)
 #     $2 Install path (default: /var/www/verorun)
 #     $3 Git repo     (default: https://github.com/fanjumin/VeroRunSystem.git)
 #     $4 Git branch   (default: master)
@@ -22,7 +22,7 @@
 set -euo pipefail
 
 # ── Parameters ─────────────────────────────────────────────────────────
-DOMAIN="${1:-easykai.cn}"
+DOMAIN=""
 APP_ROOT="${2:-/var/www/verorun}"
 GIT_REPO="${3:-https://github.com/fanjumin/VeroRunSystem.git}"
 GIT_BRANCH="${4:-master}"
@@ -41,6 +41,21 @@ VENV_DIR="${APP_ROOT}/venv"
 # ==========================================================================
 # Phase 0: Pre-checks
 # ==========================================================================
+
+prompt_domain() {
+    DOMAIN="${1:-}"
+    if [ -n "${DOMAIN}" ]; then
+        return
+    fi
+    while [ -z "${DOMAIN}" ]; do
+        read -p "Enter your domain (e.g., verorun.com): " DOMAIN
+        if [ -z "${DOMAIN}" ]; then
+            err "Domain cannot be empty."
+        fi
+    done
+    log "Domain set to: ${DOMAIN}"
+}
+
 banner() {
     echo ""
     echo "  ╔══════════════════════════════════════════════════════╗"
@@ -176,7 +191,7 @@ generate_env() {
 # Replace API keys with real values after deployment
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=${DOMAIN}
-DB_PATH=data/easykai.db
+DB_PATH=data/verorun.db
 JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -184,7 +199,7 @@ EASYKAI_MODE=main
 PG_HOST=127.0.0.1
 PG_PORT=5432
 PG_DB=verorun
-PG_USER=easykai
+PG_USER=verorun
 PG_PASSWORD=
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
 CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
@@ -412,7 +427,7 @@ module.exports = {
   apps: [
     // ─── Main site 8081 (auth-center) ───
     {
-      name: 'easykai-main',
+      name: 'verorun-main',
       script: '${VENV_DIR}/bin/python3',
       args: '-B run_auth_wsgi.py -w 2 -b 0.0.0.0:8081 --log-level warning',
       cwd: '${APP_ROOT}',
@@ -423,7 +438,7 @@ module.exports = {
     },
     // ─── Platform 8083 ───
     {
-      name: 'easykai-platform',
+      name: 'verorun-platform',
       script: '${VENV_DIR}/bin/python3',
       args: '-B run_gunicorn.py -w 2 -b 127.0.0.1:8083 --timeout 120 --access-logfile /tmp/gunicorn_8083_access.log --error-logfile /tmp/gunicorn_8083_error.log app:app',
       cwd: '${APP_ROOT}',
@@ -434,7 +449,7 @@ module.exports = {
     },
     // ─── Admin 8084 ───
     {
-      name: 'easykai-admin',
+      name: 'verorun-admin',
       script: '${VENV_DIR}/bin/python3',
       args: 'admin/run_gunicorn.py -w 2 --max-requests=1000 -b 0.0.0.0:8084 app:app --timeout 120 --graceful-timeout 30 --log-level warning --access-logfile - --error-logfile -',
       cwd: '${APP_ROOT}',
@@ -445,7 +460,7 @@ module.exports = {
     },
     // ─── Health Guardian (watchdog) ───
     {
-      name: 'easykai-health',
+      name: 'verorun-health',
       script: '${VENV_DIR}/bin/python3',
       args: 'health_guardian.py',
       cwd: '${APP_ROOT}',
@@ -468,9 +483,9 @@ setup_pm2_systemd() {
     PM2_HOME="/home/${SYS_USER}/.pm2"
 
     # Create systemd service
-    cat > /etc/systemd/system/pm2-easykai.service << SYSTEMD_EOF
+    cat > /etc/systemd/system/pm2-verorun.service << SYSTEMD_EOF
 [Unit]
-Description=PM2 process manager (easykai)
+Description=PM2 process manager (verorun)
 Documentation=https://pm2.keymetrics.io/
 After=network.target
 
@@ -495,7 +510,7 @@ WantedBy=multi-user.target
 SYSTEMD_EOF
 
     systemctl daemon-reload
-    systemctl enable pm2-easykai
+    systemctl enable pm2-verorun
     log "PM2 systemd service configured"
 }
 
@@ -543,9 +558,9 @@ verify_services() {
 
     echo ""
     info "Smoke test..."
-    check_port 8081 "easykai-main"
-    check_port 8083 "easykai-platform"
-    check_port 8084 "easykai-admin"
+    check_port 8081 "verorun-main"
+    check_port 8083 "verorun-platform"
+    check_port 8084 "verorun-admin"
 
     if [ "$failed" -eq 0 ]; then
         echo ""
@@ -592,6 +607,7 @@ print_summary() {
 # Main flow
 # ==========================================================================
 main() {
+    prompt_domain "${1:-}"
     banner
     check_root
     check_os
