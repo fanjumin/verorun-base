@@ -8,6 +8,7 @@
 #   sudo bash deploy/deploy.sh restart          # restart services only
 #   sudo bash deploy/deploy.sh health           # health check
 #   sudo bash deploy/deploy.sh rollback         # rollback to previous commit
+#   sudo bash deploy/deploy.sh seed             # seed initial data (admin, plans, products)
 # ==========================================================================
 set -euo pipefail
 
@@ -177,6 +178,20 @@ do_update() {
 
     step "Health check"
     health_check
+}
+
+# ==========================================================================
+# Seed initial data
+# ==========================================================================
+do_seed() {
+    step "Seed initial data"
+    if [ ! -f "${VENV_DIR}/bin/python" ]; then
+        echo -e "${FAIL} Python venv not found at ${VENV_DIR}"
+        echo -e "${INFO} Run 'deploy.sh install' first"
+        exit 1
+    fi
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
+    echo -e "${OK} Seed data injected"
 }
 
 # ==========================================================================
@@ -509,8 +524,11 @@ case "${DEPLOY_MODE}" in
     rollback)
         do_rollback
         ;;
+    seed)
+        do_seed
+        ;;
     *)
-        echo "Usage: sudo bash deploy.sh [install|update|restart|health|rollback]"
+        echo "Usage: sudo bash deploy.sh [install|update|restart|health|rollback|seed]"
         exit 1
         ;;
 esac
