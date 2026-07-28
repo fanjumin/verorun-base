@@ -133,7 +133,7 @@ do_install() {
 
         step "Nginx"
         write_nginx_config
-        nginx -t && systemctl reload nginx
+        nginx -t && systemctl restart nginx
         done_step "Nginx configured"
 
         step "Start services"
