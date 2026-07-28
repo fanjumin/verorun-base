@@ -1,21 +1,17 @@
 #!/bin/bash
 # ==========================================================================
-# VeroRun — 一键部署脚本 (v2.0)
+# VeroRun — One-command deploy script (v2.0)
 # ==========================================================================
-# 支持两种模式:
-#   1. 全新安装: curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/deploy.sh | sudo bash
-#   2. 增量更新: sudo bash deploy/deploy.sh update
-#
-# 用法:
-#   sudo bash deploy.sh                # 全新安装
-#   sudo bash deploy.sh update         # 增量更新（拉代码→装依赖→重启服务）
-#   sudo bash deploy.sh restart        # 仅重启服务
-#   sudo bash deploy.sh health         # 健康检查
-#   sudo bash deploy.sh rollback       # 回滚到上一个版本
+# Usage:
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/deploy.sh | sudo bash   # fresh install
+#   sudo bash deploy/deploy.sh update     # update code, deps, and restart
+#   sudo bash deploy/deploy.sh restart    # restart services only
+#   sudo bash deploy/deploy.sh health     # health check
+#   sudo bash deploy/deploy.sh rollback   # rollback to previous commit
 # ==========================================================================
 set -euo pipefail
 
-# ── 默认配置 ──────────────────────────────────────────────────────────
+# ── Default config ────────────────────────────────────────────────────
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback
 : "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
 : "${GIT_BRANCH:=master}"
@@ -26,7 +22,7 @@ set -euo pipefail
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=easykai.cn}"
 
-# ── 颜色 ──────────────────────────────────────────────────────────────
+# ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
@@ -34,7 +30,7 @@ step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
 
-# ── 检测模式 ──────────────────────────────────────────────────────────
+# ── Mode detection ────────────────────────────────────────────────────
 
 detect_mode() {
     local mode="${1:-}"
@@ -45,36 +41,36 @@ detect_mode() {
     else
         DEPLOY_MODE="install"
     fi
-    echo -e "${INFO} 部署模式: ${DEPLOY_MODE}"
+    echo -e "${INFO} Deploy mode: ${DEPLOY_MODE}"
 }
 
 # ==========================================================================
-# 全新安装
+# Fresh install
 # ==========================================================================
 do_install() {
-    step "系统依赖安装"
+    step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y -qq python3 python3-venv python3-pip python3-dev \
         nginx git curl wget build-essential libpq-dev libssl-dev
-    done_step "系统依赖安装完成"
+    done_step "System dependencies installed"
 
-    step "PostgreSQL 安装"
+    step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
         apt-get install -y -qq postgresql postgresql-client
         systemctl enable --now postgresql
     fi
-    done_step "PostgreSQL 运行中"
+    done_step "PostgreSQL is running"
 
-    step "创建用户 & 目录"
+    step "Create user & directories"
     if ! id "${APP_USER}" &>/dev/null; then
         useradd -m -s /bin/bash "${APP_USER}"
     fi
     mkdir -p "${APP_HOME}" "${LOG_DIR}"
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" "${LOG_DIR}"
-    done_step "用户 ${APP_USER} 就绪"
+    done_step "User ${APP_USER} ready"
 
-    step "拉取代码"
+    step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
         cd "${APP_HOME}"
         git fetch origin "${GIT_BRANCH}"
@@ -84,97 +80,97 @@ do_install() {
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}"
-    done_step "代码拉取完成 ($(git -C "${APP_HOME}" log --oneline -1))"
+    done_step "Code pulled ($(git -C "${APP_HOME}" log --oneline -1))"
 
-    step "Python 虚拟环境"
+    step "Python virtual environment"
     if [ ! -f "${VENV_DIR}/bin/python" ]; then
         sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
     fi
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip -q
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
-    done_step "Python 依赖安装完成"
+    done_step "Python dependencies installed"
 
-    step "生成 .env"
+    step "Generate .env"
     generate_env
-    done_step ".env 已生成"
+    done_step ".env generated"
 
-    step "systemd 服务"
+    step "systemd services"
     write_systemd_services
-    done_step "systemd 服务已配置"
+    done_step "systemd services configured"
 
     step "Nginx"
     write_nginx_config
     nginx -t && systemctl reload nginx
-    done_step "Nginx 配置完成"
+    done_step "Nginx configured"
 
-    step "启动服务"
+    step "Start services"
     restart_services
-    done_step "服务已启动"
+    done_step "Services started"
 
     print_summary
 }
 
 # ==========================================================================
-# 增量更新
+# Incremental update
 # ==========================================================================
 do_update() {
     local before_commit
     before_commit=$(git -C "${APP_HOME}" log --oneline -1 2>/dev/null || echo "unknown")
 
-    step "备份当前版本"
+    step "Backup current version"
     mkdir -p "${APP_HOME}/.rollback"
     cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
-    done_step "环境变量已备份"
+    done_step "Environment backed up"
 
-    step "拉取最新代码"
+    step "Pull latest code"
     cd "${APP_HOME}"
     git fetch origin "${GIT_BRANCH}"
     git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
-        echo -e "${WARN} 快进合并失败，执行 reset"
+        echo -e "${WARN} Fast-forward merge failed, falling back to reset"
         git reset --hard "origin/${GIT_BRANCH}"
     }
     local after_commit
     after_commit=$(git log --oneline -1)
-    done_step "代码更新: ${before_commit:0:7} → ${after_commit:0:7}"
+    done_step "Code updated: ${before_commit:0:7} → ${after_commit:0:7}"
 
-    step "更新 .env (补充缺失密钥)"
+    step "Update .env (fill missing keys)"
     update_env
-    done_step ".env 已同步"
+    done_step ".env synced"
 
-    step "更新 Python 依赖"
+    step "Update Python dependencies"
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
-    done_step "依赖更新完成"
+    done_step "Dependencies updated"
 
-    step "重启服务"
+    step "Restart services"
     restart_services
-    done_step "服务已重启"
+    done_step "Services restarted"
 
-    step "健康检查"
+    step "Health check"
     health_check
 }
 
 # ==========================================================================
-# 回滚
+# Rollback
 # ==========================================================================
 do_rollback() {
-    step "回滚到上一个版本"
+    step "Rollback to previous version"
     cd "${APP_HOME}"
     git reflog --oneline -5 | head -5
     if git reset --hard HEAD~1; then
         systemctl restart easykai-admin easykai-auth easykai-main
-        echo -e "${OK} 已回滚到 $(git log --oneline -1)"
+        echo -e "${OK} Rolled back to $(git log --oneline -1)"
     else
-        echo -e "${FAIL} 回滚失败"
+        echo -e "${FAIL} Rollback failed"
     fi
 }
 
 # ==========================================================================
-# .env 管理
+# .env management
 # ==========================================================================
 generate_env() {
     local env_file="${APP_HOME}/.env"
     if [ -f "${env_file}" ]; then
-        echo -e "${WARN} .env 已存在，跳过生成"
+        echo -e "${WARN} .env already exists, skipping"
         return
     fi
 
@@ -187,7 +183,7 @@ generate_env() {
     LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > "${env_file}" << ENVEOF
-# VeroRun 生产环境配置 — 由 deploy.sh 自动生成
+# VeroRun production config — auto-generated by deploy.sh
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=${DOMAIN}
 DB_PATH=${APP_HOME}/data/easykai.db
@@ -201,13 +197,13 @@ FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 EASYKAI_MODE=main
 
-# Phase 1 — 安全加固密钥 (2026-07-28)
+# Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
 CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
 DEV_ACCOUNTS_ENCRYPTION_KEY=${DEV_ACCOUNTS_ENCRYPTION_KEY}
 LICENSE_SERVER_SECRET=${LICENSE_SERVER_SECRET}
 
-# API Keys (请替换为真实值)
+# API Keys (replace with real values)
 DASHSCOPE_TEXT_KEY=sk-your-key-here
 OPENAI_API_KEY=sk-your-key-here
 DEEPSEEK_API_KEY=sk-your-key-here
@@ -224,7 +220,7 @@ update_env() {
         return
     fi
 
-    # 补充缺失的 Phase 1 密钥
+    # Fill missing Phase 1 keys
     local missing=()
     for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
@@ -236,15 +232,15 @@ update_env() {
     done
 
     if [ ${#missing[@]} -gt 0 ]; then
-        echo -e "${OK} 已补充缺失密钥: ${missing[*]}"
+        echo -e "${OK} Filled missing keys: ${missing[*]}"
         chmod 600 "${env_file}"
     else
-        echo -e "${OK} .env 所有密钥已就位"
+        echo -e "${OK} All keys are present in .env"
     fi
 }
 
 # ==========================================================================
-# systemd 服务
+# systemd services
 # ==========================================================================
 write_systemd_services() {
     local env_file="${APP_HOME}/.env"
@@ -276,7 +272,7 @@ SVCEOF
         systemctl enable "${name}"
     }
 
-    # 8081 — 主站 (auth-center)
+    # 8081 — Main site (auth-center)
     write_one_service "easykai-main" 8081 "main" "--timeout 120 --log-level warning"
 
     # 8083 — Platform (auth-center)
@@ -293,12 +289,12 @@ restart_services() {
             systemctl restart "${svc}"
             sleep 2
             if systemctl is-active --quiet "${svc}"; then
-                echo -e "${OK} ${svc} 运行中"
+                echo -e "${OK} ${svc} is running"
             else
-                echo -e "${FAIL} ${svc} 启动失败 — 查看: journalctl -u ${svc} -n 20"
+                echo -e "${FAIL} ${svc} failed to start — check: journalctl -u ${svc} -n 20"
             fi
         else
-            echo -e "${WARN} ${svc} 未配置，跳过"
+            echo -e "${WARN} ${svc} not configured, skipping"
         fi
     done
 }
@@ -311,18 +307,18 @@ write_nginx_config() {
     local nginx_enabled="/etc/nginx/sites-enabled/verorun.conf"
 
     if [ -f "${nginx_enabled}" ]; then
-        echo -e "${WARN} Nginx 配置已存在，跳过"
+        echo -e "${WARN} Nginx config already exists, skipping"
         return
     fi
 
     cat > "${nginx_conf}" << NGXEOF
-# VeroRun Nginx — 由 deploy.sh 自动生成
+# VeroRun Nginx — auto-generated by deploy.sh
 
 server {
     listen 80;
     server_name ${DOMAIN} www.${DOMAIN} platform.${DOMAIN} agent.${DOMAIN};
 
-    # ── 主站 ─────────────────────────────────
+    # ── Main site ───────────────────────────────
     location / {
         proxy_pass http://127.0.0.1:8081;
         proxy_set_header Host \$host;
@@ -359,7 +355,7 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # ── Platform 子域名 ───────────────────────
+    # ── Platform subdomain ─────────────────────
     server {
         listen 80;
         server_name platform.${DOMAIN};
@@ -373,7 +369,7 @@ server {
         }
     }
 
-    # ── Agent 子域名 ──────────────────────────
+    # ── Agent subdomain ──────────────────────────
     server {
         listen 80;
         server_name agent.${DOMAIN};
@@ -394,7 +390,7 @@ NGXEOF
 }
 
 # ==========================================================================
-# 健康检查
+# Health check
 # ==========================================================================
 health_check() {
     echo ""
@@ -407,7 +403,7 @@ health_check() {
         if [ "$code" != "000" ]; then
             echo -e "  ${OK} ${name} (:${port}) → HTTP ${code}"
         else
-            echo -e "  ${FAIL} ${name} (:${port}) → 无响应"
+            echo -e "  ${FAIL} ${name} (:${port}) → no response"
             all_ok=false
         fi
     }
@@ -416,22 +412,22 @@ health_check() {
     check_port 8083 "easykai-platform"
     check_port 8084 "easykai-admin"
 
-    # 检查新表迁移日志
+    # Check DDL migration logs
     echo ""
-    echo -e "${INFO} 迁移日志检查:"
+    echo -e "${INFO} Migration log check:"
     for svc in easykai-admin easykai-auth easykai-main; do
         journalctl -u "${svc}" --since "1 min ago" 2>/dev/null | grep -i "\[Migration\]" | tail -2 || true
     done
 
     if $all_ok; then
-        echo -e "\n${OK} 全部服务健康"
+        echo -e "\n${OK} All services healthy"
     else
-        echo -e "\n${FAIL} 部分服务异常，请检查日志"
+        echo -e "\n${FAIL} Some services are unhealthy — check logs"
     fi
 }
 
 # ==========================================================================
-# 摘要
+# Summary
 # ==========================================================================
 print_summary() {
     local PUBLIC_IP
@@ -439,13 +435,13 @@ print_summary() {
 
     echo ""
     echo "  ╔══════════════════════════════════════════════════════════════╗"
-    echo "  ║              部署完成!                                        ║"
+    echo "  ║              Deployment Complete!                             ║"
     echo "  ╠══════════════════════════════════════════════════════════════╣"
-    echo "  ║  主站:      https://${DOMAIN}                                  ║"
-    echo "  ║  Platform:  https://platform.${DOMAIN}                         ║"
-    echo "  ║  Admin:     https://agent.${DOMAIN}/admin/                     ║"
+    echo "  ║  Main site:  https://${DOMAIN}                                 ║"
+    echo "  ║  Platform:   https://platform.${DOMAIN}                        ║"
+    echo "  ║  Admin:      https://agent.${DOMAIN}/admin/                    ║"
     echo "  ╠══════════════════════════════════════════════════════════════╣"
-    echo "  ║  常用命令:                                                    ║"
+    echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status easykai-{main,auth,admin}                 ║"
     echo "  ║    journalctl -u easykai-admin -f                             ║"
     echo "  ║    bash deploy/deploy.sh update                               ║"
@@ -455,12 +451,12 @@ print_summary() {
 }
 
 # ==========================================================================
-# 主入口
+# Main entry
 # ==========================================================================
 
-# 需要 root 权限
+# Must run as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${FAIL} 请用 sudo 运行: sudo bash deploy.sh [update|restart|health|rollback]"
+    echo -e "${FAIL} Please run with sudo: sudo bash deploy.sh [update|restart|health|rollback]"
     exit 1
 fi
 
@@ -483,7 +479,7 @@ case "${DEPLOY_MODE}" in
         do_rollback
         ;;
     *)
-        echo "用法: sudo bash deploy.sh [install|update|restart|health|rollback]"
+        echo "Usage: sudo bash deploy.sh [install|update|restart|health|rollback]"
         exit 1
         ;;
 esac
