@@ -56,12 +56,18 @@ VeroRun integrates multi-vendor AI engines, e-commerce operations, CMS content m
 ### One-Click Deploy (Ubuntu 22.04/24.04)
 
 ```bash
-git clone https://github.com/fanjumin/VeroRunSystem.git
-cd VeroRunSystem
-sudo bash deploy/bootstrap.sh your-domain.com
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/deploy.sh)" -- install your-domain.com
 ```
 
-For detailed instructions, see [GUIDE.md](GUIDE.md).
+Or via git clone:
+
+```bash
+git clone https://github.com/fanjumin/VeroRunSystem.git
+cd VeroRunSystem
+sudo bash deploy/deploy.sh install your-domain.com
+```
+
+For detailed instructions, see [deploy/README.md](deploy/README.md).
 
 ### Local Development
 
@@ -96,7 +102,7 @@ python app.py
 VeroRunSystem/
 ├── admin/              # Admin panel (port 8084)
 ├── auth-center/        # Authentication & user services
-├── platform/           # Public-facing platform (port 8083)
+├── main_site/          # Main site backend (port 8081)
 ├── agent_matrix/       # Multi-agent orchestration engine
 ├── orchestrator/       # Workflow automation engine
 ├── plugins/            # Plugin system (20+ plugins)
