@@ -85,13 +85,19 @@ do_install() {
         apt-get install -y -qq postgresql postgresql-client
         systemctl enable --now postgresql
     fi
+
+    # Create database role and database if they don't exist
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" | grep -q 1 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD 'change-me-in-production'" 2>/dev/null || true
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
     step "Create user & directories"
     if ! id "${APP_USER}" &>/dev/null; then
         useradd -m -s /bin/bash "${APP_USER}"
     fi
-    mkdir -p "${APP_HOME}" "${LOG_DIR}"
+    mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" "${LOG_DIR}"
     done_step "User ${APP_USER} ready"
 
@@ -234,7 +240,7 @@ do_configure_domain() {
 
     step "Nginx"
     write_nginx_config
-    nginx -t && systemctl reload nginx
+    nginx -t && systemctl restart nginx
     done_step "Nginx configured"
 
     step "Start services"
@@ -392,6 +398,12 @@ restart_services() {
             echo -e "${WARN} ${svc} not configured, skipping"
         fi
     done
+
+    # Also ensure nginx is running after service restart
+    if systemctl is-enabled --quiet nginx 2>/dev/null; then
+        systemctl restart nginx
+        echo -e "${OK} nginx restarted"
+    fi
 }
 
 # ==========================================================================
