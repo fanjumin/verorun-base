@@ -9,11 +9,12 @@
 #   sudo bash deploy/deploy.sh health           # health check
 #   sudo bash deploy/deploy.sh rollback         # rollback to previous commit
 #   sudo bash deploy/deploy.sh seed             # seed initial data (admin, plans, products)
+#   sudo bash deploy/deploy.sh configure-domain  # configure domain post-install
 # ==========================================================================
 set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
-: "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback
+: "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
 : "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=verorun}"
@@ -59,21 +60,19 @@ prompt_domain() {
         return
     fi
     echo -e "${INFO} Domain is required to continue."
-    while [ -z "${DOMAIN}" ]; do
-        read -p "  Enter your domain (e.g., verorun.com): " DOMAIN
-        if [ -z "${DOMAIN}" ]; then
-            echo -e "${FAIL} Domain cannot be empty. Please enter a valid domain."
-        fi
-    done
-    echo -e "${OK} Domain set to: ${DOMAIN}"
+    read -p "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " DOMAIN </dev/tty
+    if [ -z "${DOMAIN}" ]; then
+        echo -e "${WARN} Domain skipped. Run after install:"
+        echo -e "${INFO}   sudo bash deploy/deploy.sh configure-domain <your-domain>"
+    else
+        echo -e "${OK} Domain set to: ${DOMAIN}"
+    fi
 }
 
 # ==========================================================================
 # Fresh install
 # ==========================================================================
 do_install() {
-    prompt_domain
-
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
@@ -117,22 +116,30 @@ do_install() {
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
     done_step "Python dependencies installed"
 
+    prompt_domain
+
     step "Generate .env"
     generate_env
     done_step ".env generated"
 
-    step "systemd services"
-    write_systemd_services
-    done_step "systemd services configured"
+    if [ -z "${DOMAIN}" ]; then
+        echo -e "${WARN} Domain not configured. System and nginx not started."
+        echo -e "${INFO} After install, run:"
+        echo -e "${INFO}   sudo bash deploy/deploy.sh configure-domain <your-domain>"
+    else
+        step "systemd services"
+        write_systemd_services
+        done_step "systemd services configured"
 
-    step "Nginx"
-    write_nginx_config
-    nginx -t && systemctl reload nginx
-    done_step "Nginx configured"
+        step "Nginx"
+        write_nginx_config
+        nginx -t && systemctl reload nginx
+        done_step "Nginx configured"
 
-    step "Start services"
-    restart_services
-    done_step "Services started"
+        step "Start services"
+        restart_services
+        done_step "Services started"
+    fi
 
     print_summary
 }
@@ -192,6 +199,49 @@ do_seed() {
     fi
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     echo -e "${OK} Seed data injected"
+}
+
+# ==========================================================================
+# Configure domain post-install
+# ==========================================================================
+do_configure_domain() {
+    local domain="$1"
+    if [ -z "$domain" ]; then
+        echo -e "${FAIL} Usage: sudo bash deploy/deploy.sh configure-domain <your-domain>"
+        exit 1
+    fi
+
+    step "Configure domain: ${domain}"
+
+    local env_file="${APP_HOME}/.env"
+    if [ ! -f "${env_file}" ]; then
+        echo -e "${FAIL} .env not found. Run 'deploy.sh install' first."
+        exit 1
+    fi
+
+    # Update DEPLOY_DOMAIN in .env
+    if grep -q "^DEPLOY_DOMAIN=" "${env_file}"; then
+        sed -i "s/^DEPLOY_DOMAIN=.*/DEPLOY_DOMAIN=${domain}/" "${env_file}"
+    else
+        echo "DEPLOY_DOMAIN=${domain}" >> "${env_file}"
+    fi
+    DOMAIN="$domain"
+    done_step "Updated DEPLOY_DOMAIN in .env"
+
+    step "systemd services"
+    write_systemd_services
+    done_step "systemd services configured"
+
+    step "Nginx"
+    write_nginx_config
+    nginx -t && systemctl reload nginx
+    done_step "Nginx configured"
+
+    step "Start services"
+    restart_services
+    done_step "Services started"
+
+    print_summary
 }
 
 # ==========================================================================
@@ -481,10 +531,12 @@ print_summary() {
     echo ""
     echo "  ╔══════════════════════════════════════════════════════════════╗"
     echo "  ║              Deployment Complete!                             ║"
+    if [ -n "${DOMAIN}" ]; then
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Main site:  https://${DOMAIN}                                 ║"
     echo "  ║  Platform:   https://platform.${DOMAIN}                        ║"
     echo "  ║  Admin:      https://agent.${DOMAIN}/admin/                    ║"
+    fi
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status verorun-{main,auth,admin}                ║"
@@ -501,7 +553,7 @@ print_summary() {
 
 # Must run as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${FAIL} Please run with sudo: sudo bash deploy.sh [update|restart|health|rollback]"
+    echo -e "${FAIL} Please run with sudo: sudo bash deploy.sh [install|update|restart|health|rollback|seed|configure-domain]"
     exit 1
 fi
 
@@ -527,8 +579,11 @@ case "${DEPLOY_MODE}" in
     seed)
         do_seed
         ;;
+    configure-domain)
+        do_configure_domain "${2:-}"
+        ;;
     *)
-        echo "Usage: sudo bash deploy.sh [install|update|restart|health|rollback|seed]"
+        echo "Usage: sudo bash deploy.sh [install|update|restart|health|rollback|seed|configure-domain <domain>]"
         exit 1
         ;;
 esac
