@@ -94,7 +94,7 @@ def send_sms(phone, code, purpose='login'):
 
     if provider:
         if provider_type == 'twilio':
-            message = f'Your EasyKai verification code is: {code}. Valid for 10 minutes.'
+            message = f'Your verification code is: {code}. Valid for 10 minutes.'
             result = provider.send(phone, message)
             result['template'] = 'plain_text'
             template = 'plain_text'

@@ -1,5 +1,5 @@
 /**
- * Cookie Consent Banner — EasyKai (International / English)
+ * Cookie Consent Banner — (International / English)
  * Self-contained GDPR-compliant consent management.
  *
  * Usage: include <script src="/static/js/cookie-consent-en.js"></script> before </body>.

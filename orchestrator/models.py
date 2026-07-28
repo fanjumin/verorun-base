@@ -22,12 +22,12 @@ from plugins._base.db import get_raw_connection
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# PostgreSQL 连接配置（复用 easykai 主库）
+# PostgreSQL 连接配置
 DB_CONFIG = {
     'host':     os.environ.get('PG_HOST', ''),
     'port':     int(os.environ.get('PG_PORT', 5432)),
     'dbname':   os.environ.get('PG_DB', 'verorun'),
-    'user':     os.environ.get('PG_USER', 'easykai'),
+    'user':     os.environ.get('PG_USER', 'verorun'),
     'password': os.environ.get('PG_PASSWORD', ''),
 }
 

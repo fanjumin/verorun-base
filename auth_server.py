@@ -29,7 +29,7 @@ app = Flask(__name__)
 import jinja2
 app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'site', 'templates')),
-    jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'platform', 'templates')),
+    jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'main_site', 'templates')),
     app.jinja_loader,
 ])
 

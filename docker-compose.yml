@@ -1,22 +1,22 @@
 version: "3.8"
 
 services:
-  easykai:
-    image: easykai/easykai:latest
-    container_name: easykai
+  app:
+    image: your-registry/app:latest
+    container_name: verorun
     restart: unless-stopped
     ports:
       - "80:80"
     volumes:
-      - easykai_data:/app/data
-      - easykai_uploads:/app/admin/static
-      - easykai_platform_uploads:/app/platform/static
+      - app_data:/app/data
+      - app_uploads:/app/admin/static
+      - app_platform_uploads:/app/main_site/static
     environment:
-      - DB_PATH=/app/data/easykai.db
-      - EASYKAI_MODE=${EASYKAI_MODE:-client}
+      - DB_PATH=/app/data/verorun.db
+      - APP_MODE=${APP_MODE:-client}
       - JWT_SECRET=${JWT_SECRET:-}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
-      - EASYKAI_HEARTBEAT_URL=${EASYKAI_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
+      - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
     logging:
       driver: "json-file"
       options:
@@ -24,6 +24,6 @@ services:
         max-file: "3"
 
 volumes:
-  easykai_data:
-  easykai_uploads:
-  easykai_platform_uploads:
+  app_data:
+  app_uploads:
+  app_platform_uploads:

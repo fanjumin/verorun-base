@@ -11,7 +11,7 @@ class VeroAuth {
 
     /**
      * @param {Object} config
-     * @param {string} config.baseURL  - System base URL (e.g., 'https://easykai.cn')
+     * @param {string} config.baseURL  - System base URL (e.g., 'https://your-domain.com')
      * @param {string} config.platform - 'douyin' | 'wechat' | 'telegram' | 'line'
      */
     constructor(config) {

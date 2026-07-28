@@ -8,17 +8,17 @@ No third-party dependencies required — generates Prometheus exposition format
 directly. Designed to be scraped by Prometheus or compatible aggregators.
 
 Metrics exposed:
-  easykai_health_status         — Latest check result (1=pass, 2=warning, 3=error) per check_key
-  easykai_health_score          — Current health score 0-100
-  easykai_health_passed_total   — Passed count (latest run)
-  easykai_health_warnings_total — Warning count (latest run)
-  easykai_health_errors_total   — Error count (latest run)
-  easykai_health_response_ms    — Response time per check_key (latest run)
-  easykai_system_cpu_usage      — CPU usage %
-  easykai_system_memory_usage   — Memory usage %
-  easykai_system_disk_usage     — Disk usage %
-  easykai_db_size_bytes         — Database estimated size (bytes)
-  easykai_db_table_count        — Number of tables in health schema
+  app_health_status         — Latest check result (1=pass, 2=warning, 3=error) per check_key
+  app_health_score          — Current health score 0-100
+  app_health_passed_total   — Passed count (latest run)
+  app_health_warnings_total — Warning count (latest run)
+  app_health_errors_total   — Error count (latest run)
+  app_health_response_ms    — Response time per check_key (latest run)
+  app_system_cpu_usage      — CPU usage %
+  app_system_memory_usage   — Memory usage %
+  app_system_disk_usage     — Disk usage %
+  app_db_size_bytes         — Database estimated size (bytes)
+  app_db_table_count        — Number of tables in health schema
 """
 
 from i18n import _
@@ -140,51 +140,51 @@ def generate_metrics():
 
     # ── System metrics ──
     sys_m = _get_system_metrics()
-    lines.append(f'# HELP easykai_system_cpu_usage CPU usage percentage')
-    lines.append(f'# TYPE easykai_system_cpu_usage gauge')
-    lines.append(f'easykai_system_cpu_usage {sys_m.get("cpu_usage", -1)}')
+    lines.append(f'# HELP app_system_cpu_usage CPU usage percentage')
+    lines.append(f'# TYPE app_system_cpu_usage gauge')
+    lines.append(f'app_system_cpu_usage {sys_m.get("cpu_usage", -1)}')
 
-    lines.append(f'# HELP easykai_system_memory_usage Memory usage percentage')
-    lines.append(f'# TYPE easykai_system_memory_usage gauge')
-    lines.append(f'easykai_system_memory_usage {sys_m.get("mem_usage", -1)}')
+    lines.append(f'# HELP app_system_memory_usage Memory usage percentage')
+    lines.append(f'# TYPE app_system_memory_usage gauge')
+    lines.append(f'app_system_memory_usage {sys_m.get("mem_usage", -1)}')
 
-    lines.append(f'# HELP easykai_system_disk_usage Disk usage percentage')
-    lines.append(f'# TYPE easykai_system_disk_usage gauge')
-    lines.append(f'easykai_system_disk_usage {sys_m.get("disk_usage", -1)}')
+    lines.append(f'# HELP app_system_disk_usage Disk usage percentage')
+    lines.append(f'# TYPE app_system_disk_usage gauge')
+    lines.append(f'app_system_disk_usage {sys_m.get("disk_usage", -1)}')
 
     # ── Database metrics ──
     db_m = _get_db_metrics()
-    lines.append(f'# HELP easykai_db_size_bytes PostgreSQL health schema size in bytes')
-    lines.append(f'# TYPE easykai_db_size_bytes gauge')
-    lines.append(f'easykai_db_size_bytes {db_m.get("db_size_bytes", 0)}')
+    lines.append(f'# HELP app_db_size_bytes PostgreSQL health schema size in bytes')
+    lines.append(f'# TYPE app_db_size_bytes gauge')
+    lines.append(f'app_db_size_bytes {db_m.get("db_size_bytes", 0)}')
 
-    lines.append(f'# HELP easykai_db_table_count Number of tables in database')
-    lines.append(f'# TYPE easykai_db_table_count gauge')
-    lines.append(f'easykai_db_table_count {db_m.get("db_table_count", 0)}')
+    lines.append(f'# HELP app_db_table_count Number of tables in database')
+    lines.append(f'# TYPE app_db_table_count gauge')
+    lines.append(f'app_db_table_count {db_m.get("db_table_count", 0)}')
 
     # ── Health metrics ──
     h_m = _get_health_metrics()
 
-    lines.append(f'# HELP easykai_health_score Current health score 0-100')
-    lines.append(f'# TYPE easykai_health_score gauge')
-    lines.append(f'easykai_health_score {h_m.get("health_score", 0)}')
+    lines.append(f'# HELP app_health_score Current health score 0-100')
+    lines.append(f'# TYPE app_health_score gauge')
+    lines.append(f'app_health_score {h_m.get("health_score", 0)}')
 
     for k, v in sorted(h_m.items()):
         if k.startswith('status_'):
             check_key = k[7:]
-            lines.append(f'# HELP easykai_health_status Status of {check_key} (1=pass,2=warning,3=error)')
-            lines.append(f'# TYPE easykai_health_status gauge')
-            lines.append(f'easykai_health_status{{check_key="{check_key}"}} {v}')
+            lines.append(f'# HELP app_health_status Status of {check_key} (1=pass,2=warning,3=error)')
+            lines.append(f'# TYPE app_health_status gauge')
+            lines.append(f'app_health_status{{check_key="{check_key}"}} {v}')
         elif k.startswith('resp_ms_'):
             check_key = k[8:]
-            lines.append(f'# HELP easykai_health_response_ms Response time of {check_key} in ms')
-            lines.append(f'# TYPE easykai_health_response_ms gauge')
-            lines.append(f'easykai_health_response_ms{{check_key="{check_key}"}} {v}')
+            lines.append(f'# HELP app_health_response_ms Response time of {check_key} in ms')
+            lines.append(f'# TYPE app_health_response_ms gauge')
+            lines.append(f'app_health_response_ms{{check_key="{check_key}"}} {v}')
 
     # ── Meta ──
     import time as _time
-    lines.append(f'# HELP easykai_metrics_scrape_duration_seconds Time to generate this metrics page')
-    lines.append(f'# TYPE easykai_metrics_scrape_duration_seconds gauge')
+    lines.append(f'# HELP app_metrics_scrape_duration_seconds Time to generate this metrics page')
+    lines.append(f'# TYPE app_metrics_scrape_duration_seconds gauge')
     lines.append(f'# EOF')
 
     return '\n'.join(lines) + '\n'

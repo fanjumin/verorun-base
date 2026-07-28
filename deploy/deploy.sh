@@ -296,7 +296,7 @@ PG_PASSWORD=change-me-in-production
 JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
-EASYKAI_MODE=main
+APP_MODE=main
 
 # Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
@@ -377,7 +377,7 @@ SVCEOF
     write_one_service "verorun-main" 8081 "main_site" "--timeout 120 --log-level warning"
 
     # 8083 — Platform / Auth
-    write_one_service "verorun-auth" 8083 "auth_center" "--timeout 120 --log-level warning"
+    write_one_service "verorun-auth" 8083 "auth_server" "--timeout 120 --log-level warning"
 
     # 8084 — Admin
     write_one_service "verorun-admin" 8084 "admin" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning"

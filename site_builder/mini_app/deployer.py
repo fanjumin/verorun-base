@@ -22,7 +22,7 @@ class MiniAppDeployer:
             'telegram': {'bot_token': '...'},
             'line': {'access_token': '...', 'liff_id': '...'},
         })
-        result = deployer.deploy_telegram('https://easykai.cn/static/mini-apps/telegram/')
+        result = deployer.deploy_telegram('https://your-domain.com/static/mini-apps/telegram/')
     """
 
     def __init__(self, dev_accounts: dict = None):

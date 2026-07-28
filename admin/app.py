@@ -148,8 +148,8 @@ app.register_blueprint(cleaner_bp)     # 数据清洗智能体
 app.register_blueprint(knowledge_bp)   # 知识库管理后台
 app.register_blueprint(renew_bp)     # 订阅续费页面
 # 独立部署订阅管理API — 仅在主服务器模式注册
-_EASYKAI_MODE = os.environ.get('EASYKAI_MODE', 'main')
-if _EASYKAI_MODE == 'main':
+_APP_MODE = os.environ.get('APP_MODE', 'main')
+if _APP_MODE == 'main':
     app.register_blueprint(deploy_bp)
     init_deployment_tables()
 else:
@@ -247,7 +247,7 @@ ADS_STATIC = os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'st
 BRAND_STATIC = os.path.join(os.path.dirname(__file__), '..', 'static', 'brand')
 
 # ══ 独立部署：订阅过期锁定（客户端模式，仅锁定后台管理页面） ══
-if os.environ.get('EASYKAI_MODE', 'main') == 'client':
+if os.environ.get('APP_MODE', 'main') == 'client':
     try:
         from services.license_service import LicenseService as _LicenseService
         _ls = _LicenseService()

@@ -11,7 +11,7 @@ class VeroChat {
 
     /**
      * @param {Object} config
-     * @param {string} config.baseURL  - System base URL (e.g., 'https://easykai.cn')
+     * @param {string} config.baseURL  - System base URL (e.g., 'https://your-domain.com')
      * @param {string} config.token    - JWT token from VeroAuth.login()
      * @param {string} config.platform - 'douyin' | 'wechat' | 'telegram' | 'line'
      */

@@ -17,7 +17,7 @@
  */
 
 const LineMiniApp = {
-    baseURL: 'https://easykai.cn',
+    baseURL: 'https://your-domain.com',
     token: null,
     profile: null,
     liffId: null,

@@ -1,4 +1,4 @@
-# EasyKai Chinese Translation (English key -> Chinese value)
+# VeroRun Chinese Translation (English key -> Chinese value)
 ---
 (HTTPS).: （HTTPS）。
 (No input content): （无输入内容）
@@ -418,7 +418,7 @@ Downgrade: 降级
 Download: 下载
 Download failed: 下载失败
 Download management: 下载管理
-Download — EasyKai: 下载 — EasyKai
+Download — VeroRun: 下载 — VeroRun
 Draft: 草稿
 Drag image here or click to upload: 拖拽图片到此处或点击上传
 Draw: 画图
@@ -608,7 +608,7 @@ Initialization Failed: 初始化失败
 Initialize Configuration Items: 初始化配置项
 Initialize Default Content: 初始化默认内容
 Inner Mongolia Autonomous Region: 内蒙古自治区
-Install EasyKai Skills: 安装 EasyKai Skills
+Install VeroRun Skills: 安装 VeroRun Skills
 Install Hermes: 安装 Hermes
 Instance Does Not Exist: 实例不存在
 Intelligent Agent Trends · Stock Market Research · Hermes Ecosystem: 智能体趋势 · 股票市场研究 · Hermes生态
@@ -702,7 +702,7 @@ Loading Failed: 加载失败
 Loading...: 加载中...
 Local order: 本地订单
 Location: 位置
-Log in to the EasyKai console and create your key on the API Key page. All Skills are accessed through a unified API Key.: 登录 EasyKai 控制台，在 API Key 页面创建你的密钥。所有 Skills 通过统一 API Key 接入。
+Log in to the VeroRun console and create your key on the API Key page. All Skills are accessed through a unified API Key.: 登录 VeroRun 控制台，在 API Key 页面创建你的密钥。所有 Skills 通过统一 API Key 接入。
 Login: 登录
 Login to get API Key →: 登录获取 API Key →
 Logistics: 物流
@@ -1213,7 +1213,7 @@ Start Building Your Site Free: 免费开始建站
 Start Free: 免费开始
 Start Now: 立即开始
 Start collecting: 开始采集
-Start from scratch to understand the EasyKai platform and quickly get started with Agent development and financial analysis.: 从零开始了解 EasyKai 平台，快速上手 Agent 开发与金融分析。
+Start from scratch to understand the VeroRun platform and quickly get started with Agent development and financial analysis.: 从零开始了解 VeroRun 平台，快速上手 Agent 开发与金融分析。
 Start from zero and quickly get started with the platform.: 从零开始，快速上手平台。
 Static page generation module is not ready (platform/staticgen not available): 静态页面生成模块未就绪（platform/staticgen 不可用）
 Static site has been updated: 静态站点已更新
@@ -1970,7 +1970,7 @@ avg_response_time (Average response ms): avg_response_time (平均响应ms)
 'Dual Mini-Program Ecosystem': 'Dual Mini-Program Ecosystem'
 'E-Commerce + 1688': 'E-Commerce + 1688'
 'E-Commerce Store': 'E-Commerce Store'
-'EasyKai AI': 'EasyKai AI'
+'VeroRun AI': 'VeroRun AI'
 'Ecosystem Partners': 'Ecosystem Partners'
 'Edit': 'Edit'
 'Edit Address': 'Edit Address'

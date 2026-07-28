@@ -66,7 +66,7 @@ class LicenseService:
     """本地授权验证服务"""
 
     HEARTBEAT_INTERVAL = 86400  # 24小时
-    HEARTBEAT_URL_ENV = 'EASYKAI_HEARTBEAT_URL'
+    HEARTBEAT_URL_ENV = 'APP_HEARTBEAT_URL'
     DEFAULT_HEARTBEAT_URL = 'https://localhost/api/subscription/heartbeat'
 
     def __init__(self, db_path=None):

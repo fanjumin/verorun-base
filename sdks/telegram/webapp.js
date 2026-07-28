@@ -15,7 +15,7 @@
 
 const TelegramMiniApp = {
     tg: null,
-    baseURL: 'https://easykai.cn',
+    baseURL: 'https://your-domain.com',
     token: null,
     user: null,
 

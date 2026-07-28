@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>{{ _('{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档') }}</title>
-<meta content="{{ category.name }} — EasyKai 技术文档与教程。" name="description"/>
+<meta content="{{ category.name }} — 技术文档与教程。" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -124,7 +124,7 @@
 </div>
 </div>
 <div class="footer-bottom" style="max-width:1200px;margin:0 auto;padding-top:20px">
-<span>{{ (brand.copyright | safe) if brand else '&copy; 2026 EasyKai' }}</span>
+<span>{{ (brand.copyright | safe) if brand else '&copy; 2026 VeroRun' }}</span>
 <span class="disclaimer">{{ _('Content is Agent research opinions and community discussion, not investment advice.') }}</span>
 </div>
 </footer>

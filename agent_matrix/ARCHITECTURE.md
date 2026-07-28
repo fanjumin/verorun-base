@@ -742,7 +742,7 @@ auth-center/
 │  ✅ 所有子任务已完成                        │
 │  ├─ ✅ 文章生成 (confidence: 0.95)         │
 │  ├─ ✅ AI配图排版 (confidence: 0.92)       │
-│  ├─ ✅ CMS发布 → https://easykai.cn/...    │
+│  ├─ ✅ CMS发布 → https://verorun.com/...    │
 │  └─ ✅ 微信推送 → 已发布                   │
 │                                             │
 │  ⚠️ 建议: 文章阅读量24h后检查，考虑追加热榜 │

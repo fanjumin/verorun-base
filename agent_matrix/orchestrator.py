@@ -258,15 +258,15 @@ class AgentOrchestrator:
                 return []
 
             api_url = os.environ.get(
-                'EASYKAI_LLM_URL',
+                'LLM_API_URL',
                 agent.get('api_url', 'https://api.deepseek.com/v1/chat/completions')
             )
             api_key = os.environ.get(
-                'EASYKAI_LLM_KEY',
+                'LLM_API_KEY',
                 agent.get('api_key', '')
             )
             model = os.environ.get(
-                'EASYKAI_LLM_MODEL',
+                'LLM_API_MODEL',
                 agent.get('model_name', '')
             )
 
@@ -898,7 +898,7 @@ class AgentOrchestrator:
                 img = Image.open(ref_path).convert('RGBA')
                 txt = Image.new('RGBA', img.size, (0,0,0,0))
                 draw = ImageDraw.Draw(txt)
-                text = p.replace(_('Add Text'),'').replace(_('Write Text'),'').replace(_('Add Text'),'').replace(_('Add Watermark'),'').strip().strip('，,') or 'EasyKai'
+                text = p.replace(_('Add Text'),'').replace(_('Write Text'),'').replace(_('Add Text'),'').replace(_('Add Watermark'),'').strip().strip('，,') or 'AI'
                 try: font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 36)
                 except: font = ImageFont.load_default()
                 bbox = draw.textbbox((0,0), text, font=font)

@@ -46,7 +46,7 @@ COOLDOWN_SECS   = int(os.getenv('GUARDIAN_COOLDOWN', '300'))
 ROLLBACK_TAG    = os.getenv('GUARDIAN_ROLLBACK_TAG', 'stable')
 WEBHOOK_URL     = os.getenv('GUARDIAN_WEBHOOK_URL', '')
 PROJECT_DIR     = os.getenv('GUARDIAN_PROJECT_DIR',
-                    '/home/easykai/easykai-workspace/easykai.cn')
+                    '/home/your-user/your-project')
 LOG_FILE        = os.getenv('GUARDIAN_LOG_FILE',
                     '/var/log/health-guardian.log')
 GITHUB_RAW_BASE = os.getenv('GUARDIAN_GITHUB_RAW',

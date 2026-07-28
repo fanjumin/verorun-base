@@ -525,7 +525,7 @@ def password_login():
         'token': token,
         'user': {'id': user['id'], 'phone': user['phone'], 'nickname': user['display_name'] or user['username'] or ''},
     }}))
-    # Set cross-subdomain SSO cookie so platform.easykai.cn can authenticate
+    # Set cross-subdomain SSO cookie so subdomain can authenticate
     main_domain = os.environ.get('DEPLOY_DOMAIN', '')
     if main_domain:
         resp.set_cookie('sso_token', token, domain='.' + main_domain,
@@ -599,7 +599,7 @@ CONFIG_SCHEMA = {
     # ├─ 实名认证（已迁移至 VerificationPlugin 插件管理） ─
     # ├─ 后台访问控制 ─
     'admin_allowed_domains':   {'label': _('Allowed Management Backend Domains'), 'category': 'admin_access', 'sensitive': False,
-                                'placeholder': 'agent.easykai.cn, admin.easykai.cn'},
+                                'placeholder': 'agent.your-domain.com, admin.your-domain.com'},
 }
 
 CONFIG_CATEGORIES = [

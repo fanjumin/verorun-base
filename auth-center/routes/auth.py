@@ -293,7 +293,7 @@ def sms_login():
         'token': token,
         'user': {'id': user['id'], 'phone': phone, 'nickname': nickname_val},
     }}))
-    # Set cross-subdomain SSO cookie so platform.easykai.cn can authenticate
+    # Set cross-subdomain SSO cookie so subdomain can authenticate
     main_domain = os.environ.get('DEPLOY_DOMAIN', '')
     if main_domain:
         resp.set_cookie('sso_token', token, domain='.' + main_domain,

@@ -84,7 +84,7 @@ class BaseMiniAppGenerator(ABC):
     def _get_api_context(self, options: dict) -> dict:
         """Extract and normalize API context for template rendering."""
         return {
-            'base_url': options.get('base_url', 'https://easykai.cn'),
+            'base_url': options.get('base_url', 'https://your-domain.com'),
             'api_prefix': options.get('api_prefix', '/api/v1/mini-program'),
             'platform': self.platform,
         }

@@ -1,4 +1,4 @@
-# EasyKai English Translation (identity mapping)
+# VeroRun English Translation (identity mapping)
 ---
 (HTTPS).: (HTTPS).
 (No input content): (No input content)
@@ -418,7 +418,7 @@ Downgrade: Downgrade
 Download: Download
 Download failed: Download failed
 Download management: Download management
-Download — EasyKai: Download — EasyKai
+Download — VeroRun: Download — VeroRun
 Draft: Draft
 Drag image here or click to upload: Drag image here or click to upload
 Draw: Draw
@@ -608,7 +608,7 @@ Initialization Failed: Initialization Failed
 Initialize Configuration Items: Initialize Configuration Items
 Initialize Default Content: Initialize Default Content
 Inner Mongolia Autonomous Region: Inner Mongolia Autonomous Region
-Install EasyKai Skills: Install EasyKai Skills
+Install VeroRun Skills: Install VeroRun Skills
 Install Hermes: Install Hermes
 Instance Does Not Exist: Instance Does Not Exist
 Intelligent Agent Trends · Stock Market Research · Hermes Ecosystem: Intelligent Agent Trends · Stock Market Research · Hermes Ecosystem
@@ -702,7 +702,7 @@ Loading Failed: Loading Failed
 Loading...: Loading...
 Local order: Local order
 Location: Location
-Log in to the EasyKai console and create your key on the API Key page. All Skills are accessed through a unified API Key.: Log in to the EasyKai console and create your key on the API Key page. All Skills are accessed through a unified API Key.
+Log in to the VeroRun console and create your key on the API Key page. All Skills are accessed through a unified API Key.: Log in to the VeroRun console and create your key on the API Key page. All Skills are accessed through a unified API Key.
 Login: Login
 Login to get API Key →: Login to get API Key →
 Logistics: Logistics
@@ -1213,7 +1213,7 @@ Start Building Your Site Free: Start Building Your Site Free
 Start Free: Start Free
 Start Now: Start Now
 Start collecting: Start collecting
-Start from scratch to understand the EasyKai platform and quickly get started with Agent development and financial analysis.: Start from scratch to understand the EasyKai platform and quickly get started with Agent development and financial analysis.
+Start from scratch to understand the VeroRun platform and quickly get started with Agent development and financial analysis.: Start from scratch to understand the VeroRun platform and quickly get started with Agent development and financial analysis.
 Start from zero and quickly get started with the platform.: Start from zero and quickly get started with the platform.
 Static page generation module is not ready (platform/staticgen not available): Static page generation module is not ready (platform/staticgen not available)
 Static site has been updated: Static site has been updated
@@ -1970,7 +1970,7 @@ avg_response_time (Average response ms): avg_response_time (Average response ms)
 'Dual Mini-Program Ecosystem': 'Dual Mini-Program Ecosystem'
 'E-Commerce + 1688': 'E-Commerce + 1688'
 'E-Commerce Store': 'E-Commerce Store'
-'EasyKai AI': 'EasyKai AI'
+'VeroRun AI': 'VeroRun AI'
 'Ecosystem Partners': 'Ecosystem Partners'
 'Edit': 'Edit'
 'Edit Address': 'Edit Address'

@@ -2,8 +2,8 @@
 """迁移 analytics 数据：SQLite → PostgreSQL（完整幂等版本）"""
 import sqlite3, psycopg2, psycopg2.extras, sys, os
 
-SQLITE = '/home/easykai/easykai-workspace/easykai.cn/plugins/analytics/data/analytics.db'
-PG_DSN = 'host=localhost port=5432 dbname=verorun user=easykai password=***REMOVED***'
+SQLITE = '/path/to/analytics.db'
+PG_DSN = 'host=localhost port=5432 dbname=verorun user=verorun password=your_password'
 BATCH = 500
 
 TABLES = [

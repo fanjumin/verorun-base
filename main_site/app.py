@@ -123,7 +123,7 @@ app.register_blueprint(shop_public_bp)
 app.register_blueprint(mini_program_bp)
 # 独立部署API — 仅主服务器模式注册
 if _HAS_DEPLOY_API:
-    _MODE = os.environ.get('EASYKAI_MODE', 'main')
+    _MODE = os.environ.get('APP_MODE', 'main')
     if _MODE == 'main':
         app.register_blueprint(deploy_bp)
         try:

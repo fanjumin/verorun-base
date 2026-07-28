@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=easykai
-WorkingDirectory=/home/easykai/easykai-workspace/easykai.cn
+User=verorun
+WorkingDirectory=/home/verorun/verorun-workspace
 EnvironmentFile=/etc/default/health-guardian
 # 使用 runner.py 启动（手动控制 sys.path，避免 platform/ 目录 shadow 标准库）
-ExecStart=/usr/bin/python3 /home/easykai/easykai-workspace/easykai.cn/health_service/runner.py
+ExecStart=/usr/bin/python3 /home/verorun/verorun-workspace/health_service/runner.py
 Restart=always
 RestartSec=5
 

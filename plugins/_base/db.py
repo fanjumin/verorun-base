@@ -59,6 +59,6 @@ def get_raw_connection():
         host=os.environ.get('PG_HOST', ''),
         port=int(os.environ.get('PG_PORT', 5432)),
         dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'easykai'),
+        user=os.environ.get('PG_USER', 'verorun'),
         password=os.environ.get('PG_PASSWORD', ''),
     )

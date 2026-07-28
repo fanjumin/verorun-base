@@ -153,10 +153,10 @@ def _error(message, code=400):
 def _check_ai_access():
     """
     检查 AI 功能是否可用（独立部署订阅过期检查）
-    仅在客户端模式（EASYKAI_MODE=client）生效
+    仅在客户端模式（APP_MODE=client）生效
     返回 None 表示可用，返回 Response 表示已过期
     """
-    if os.environ.get('EASYKAI_MODE', 'main') != 'client':
+    if os.environ.get('APP_MODE', 'main') != 'client':
         return None
     try:
         from services.license_service import LicenseService

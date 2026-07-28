@@ -551,7 +551,7 @@ def _send_webhook(url: str, title: str, message: str) -> dict:
         'title': title,
         'message': message,
         'timestamp': m.now_str(),
-        'source': 'easykai-orchestrator'
+        'source': 'verorun-orchestrator'
     }).encode('utf-8')
     req = urllib.request.Request(url, data=body, method='POST')
     req.add_header('Content-Type', 'application/json')

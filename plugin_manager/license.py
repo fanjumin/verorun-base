@@ -141,7 +141,7 @@ def verify_offline_token(token: str, plugin_id: str, site_id: str) -> Tuple[bool
 
 _REMOTE_LICENSE_URL = os.environ.get(
     'REMOTE_LICENSE_URL',
-    'https://license.easykai.cn/api/v1'
+    'https://license.your-domain.com/api/v1'
 )
 
 

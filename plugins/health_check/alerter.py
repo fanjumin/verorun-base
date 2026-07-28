@@ -253,7 +253,7 @@ def _send_email_alert(message: str, alert_level: str = 'P2'):
                 f'<h2 style="color:{color}">{emoji} [{alert_level}] {level_label}</h2>'
                 f'<p style="white-space:pre-wrap">{message}</p>'
                 f'<p style="color:#8b949e;font-size:12px">Sent at: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>'
-                f'<p><a href="https://agent.easykai.cn/admin/health" style="color:#58a6ff">View in Admin Panel</a></p>'
+                f'<p><a href="https://agent.your-domain.com/admin/health" style="color:#58a6ff">View in Admin Panel</a></p>'
                 f'</div>'
             )
             send_email(
