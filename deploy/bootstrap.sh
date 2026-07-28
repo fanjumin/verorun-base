@@ -165,6 +165,11 @@ generate_env() {
     log "生成 .env 配置..."
     JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    PLUGIN_LICENSE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    CAPTCHA_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    DEV_ACCOUNTS_ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > "${APP_ROOT}/.env" << EOF
 # VeroRun 生产环境配置 — 由 bootstrap.sh 自动生成
@@ -174,12 +179,17 @@ DEPLOY_DOMAIN=${DOMAIN}
 DB_PATH=data/easykai.db
 JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
+ENCRYPTION_KEY=${ENCRYPTION_KEY}
 EASYKAI_MODE=main
 PG_HOST=127.0.0.1
 PG_PORT=5432
 PG_DB=verorun
 PG_USER=easykai
 PG_PASSWORD=
+PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
+CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
+DEV_ACCOUNTS_ENCRYPTION_KEY=${DEV_ACCOUNTS_ENCRYPTION_KEY}
+LICENSE_SERVER_SECRET=${LICENSE_SERVER_SECRET}
 DASHSCOPE_TEXT_KEY=sk-your-key-here
 OPENAI_API_KEY=sk-your-key-here
 DEEPSEEK_API_KEY=sk-your-key-here
