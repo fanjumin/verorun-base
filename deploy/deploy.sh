@@ -72,6 +72,7 @@ do_install() {
 
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
+        git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
@@ -123,6 +124,7 @@ do_update() {
     done_step "Environment backed up"
 
     step "Pull latest code"
+    git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
     cd "${APP_HOME}"
     git fetch origin "${GIT_BRANCH}"
     git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
