@@ -2841,11 +2841,14 @@ with get_db() as m:
     print('[Migration] provider_api_keys table + seed data created')
 
 with get_db() as m:
-    pm_cols = get_table_columns(m, 'provider_models')
-    if 'api_key_id' not in pm_cols:
-        m.execute('ALTER TABLE provider_models ADD COLUMN api_key_id BIGINT DEFAULT NULL REFERENCES provider_api_keys(id)')
-        print('[Migration] provider_models.api_key_id added')
-    m.commit()
+    try:
+        pm_cols = get_table_columns(m, 'provider_models')
+        if 'api_key_id' not in pm_cols:
+            m.execute('ALTER TABLE provider_models ADD COLUMN api_key_id BIGINT DEFAULT NULL REFERENCES provider_api_keys(id)')
+            print('[Migration] provider_models.api_key_id added')
+        m.commit()
+    except Exception:
+        m.rollback()
 
 # ── Migration: llm_quotas 精细化配额管理 ──
 with get_db() as m:
