@@ -368,7 +368,7 @@ SVCEOF
     }
 
     # 8081 — Main site
-    write_one_service "verorun-main" 8081 "main" "--timeout 120 --log-level warning"
+    write_one_service "verorun-main" 8081 "platform" "--timeout 120 --log-level warning"
 
     # 8083 — Platform / Auth
     write_one_service "verorun-auth" 8083 "auth_center" "--timeout 120 --log-level warning"
