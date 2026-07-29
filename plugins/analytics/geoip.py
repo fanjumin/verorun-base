@@ -121,7 +121,10 @@ def _ip2region_lookup(ip: str) -> dict:
         city = parts[2] if len(parts) > 2 and parts[2] != '0' else ''
         # 国家代码映射（ip2region 返回中文名，统一转为 ISO 代码）
         cc = _country_name_to_code(country)
-        return {'country': cc, 'city': city}
+        # 只有合法的 ISO 3166-1 alpha-2 国家码才视为有效
+        if cc and len(cc) == 2 and cc.isalpha() and cc.isupper():
+            return {'country': cc, 'city': city}
+        return {}
     except Exception:
         return {}
 
