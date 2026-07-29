@@ -1,4 +1,4 @@
-﻿window.l_ai_chat=function(){
+window.l_ai_chat=function(){
   document.getElementById("pt").textContent="{{ _('AI Chat — Athena') }}";
   var mc=document.getElementById("mc");
   mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Load Chats') }}...</div>';
@@ -25,6 +25,7 @@
   h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px" onclick="aiNewSession()">🆕 {{ _('New Chat') }}</button>';
   h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px;color:#f85149" onclick="aiResetSession()">🔄 {{ _('Reset') }}</button>';
   h+='<button class="btn bo bs" id="aiBtnTts" style="font-size:11px;padding:3px 10px" onclick="aiToggleTts()">🔇 TTS</button>';
+  h+='<select id="aiTtsVoice" style="display:none;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text)" onchange="aiTtsVoiceChanged()"><option value="zh-CN-XiaoxiaoNeural">{{ _('Female (Xiaoxiao)') }}</option><option value="zh-CN-YunxiNeural">{{ _('Male (Yunxi)') }}</option><option value="en-US-JennyNeural">{{ _('Female (Jenny)') }}</option><option value="en-US-GuyNeural">{{ _('Male (Guy)') }}</option></select>';
   h+='</div>';
 
   // Chat messages area
@@ -1025,14 +1026,12 @@ function matEditProvChange(){
     openai:"https://api.openai.com/v1",
     deepseek:"https://api.deepseek.com",
     openrouter:"https://openrouter.ai/api/v1",
-    ollama:"http://localhost:11434/v1"
   };
   var models={
     dashscope:"qwen-turbo",
     openai:"gpt-4o",
     deepseek:"deepseek-chat",
     openrouter:"openai/gpt-4o-mini",
-    ollama:"llama3"
   };
   var p=document.getElementById("matEditProv").value;
   if(urls[p]){var el=document.getElementById("matEditBaseUrl");el.value=urls[p];el.selectionStart=el.selectionEnd=0}

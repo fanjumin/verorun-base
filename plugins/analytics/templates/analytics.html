@@ -1215,10 +1215,10 @@ function loadGeo() {
   });
 }
 
-function toggleCountrySection() {
+function toggleCountrySection(forceShow) {
   var sec = document.getElementById('countrySection');
   var icon = document.getElementById('countryToggleIcon');
-  if (sec.style.display === 'none') {
+  if (forceShow || sec.style.display === 'none') {
     sec.style.display = '';
     if (icon) icon.textContent = '▼';
     if (!countryDataLoaded) loadGeo();
@@ -1444,7 +1444,12 @@ function refreshAll() {
   loadHourly();
   loadPages();
   loadSources();
-  loadChinaCities();
+  // 非 CN 市场：跳过中国地图，自动展开国家/地区分布
+  if (_MARKET === 'cn') {
+    loadChinaCities();
+  } else {
+    toggleCountrySection(true);
+  }
   loadGeo();
   loadDevices();
   loadEvents();
@@ -1462,6 +1467,7 @@ function startAutoRefresh() {
 // ═══════════════════════════════════════════════════════════════════════════
 // 初始化
 // ═══════════════════════════════════════════════════════════════════════════
+var _MARKET = '{{ deploy.MARKET }}';  // cn / intl
 refreshAll();
 startAutoRefresh();
 </script>
