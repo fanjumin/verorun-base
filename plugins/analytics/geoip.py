@@ -46,8 +46,40 @@ IPAPI_CACHE_TTL = 3600  # 1 小时缓存
 _geoip_reader = None
 _ip2region_searcher = None
 
-# 部署市场检测：intl 环境下优先使用 MaxMind（国际 IP 覆盖更佳）
-_IS_INTL = os.environ.get('DEPLOY_MARKET', 'cn').lower() not in ('cn', 'china', '')
+# 自动检测：启动时查服务器公网 IP，判断是否境外
+# 不再依赖 DEPLOY_MARKET 环境变量
+_IS_INTL = None  # None = 尚未检测，False = 境内，True = 境外
+
+
+def _detect_server_location() -> bool:
+    """
+    通过 ip-api.com 查询服务器自己的公网 IP，判断是否在境外。
+    首次调用后缓存结果。
+    """
+    global _IS_INTL
+    if _IS_INTL is not None:
+        return _IS_INTL
+    try:
+        import json
+        from urllib.request import urlopen
+        resp = urlopen('http://ip-api.com/json/?fields=countryCode', timeout=5)
+        data = json.loads(resp.read().decode())
+        cc = (data.get('countryCode') or '').upper()
+        _IS_INTL = (cc != 'CN')
+    except Exception:
+        # 检测失败时回退到 DEPLOY_MARKET
+        _IS_INTL = os.environ.get('DEPLOY_MARKET', 'cn').lower() not in ('cn', 'china', '')
+    return _IS_INTL
+
+
+def is_server_international() -> bool:
+    """对外公开：判断服务器是否在境外"""
+    return _detect_server_location()
+
+
+def get_market() -> str:
+    """对外公开：返回 'intl' 或 'cn'"""
+    return 'intl' if _detect_server_location() else 'cn'
 
 
 # ─── ip2region ───────────────────────────────────────────────────────────────────
@@ -174,7 +206,7 @@ def geoip_lookup(ip: str) -> dict:
         return {'country': '', 'city': ''}
 
     # 1. 国际部署优先使用 MaxMind，国内部署优先 ip2region
-    if _IS_INTL:
+    if _detect_server_location():
         # 国际：MaxMind（国际 IP 精准）→ ip2region → ip-api
         if _geoip_reader:
             try:

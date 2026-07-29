@@ -23,6 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from . import models as am
 from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
+from .geoip import get_market
 from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
@@ -83,7 +84,7 @@ def analytics_static(filename):
 @analytics_bp.route('/')
 def analytics_page():
     """渲染分析仪表盘页面"""
-    return render_template('analytics.html')
+    return render_template('analytics.html', geo_market=get_market())
 
 
 # ─── 原始日志采集 API（供其他服务使用） ────────────────────────────────────────

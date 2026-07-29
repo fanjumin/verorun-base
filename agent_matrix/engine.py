@@ -45,12 +45,6 @@ PROVIDER_CONFIGS = {
         'default_model': 'openai/gpt-4o-mini',
         'key_ref': '',
     },
-    'ollama': {
-        'base_url': 'http://localhost:11434/v1',
-        'default_model': '',
-        'key_ref': '',
-        'custom': True,  # 本地模型，具体模型由管理员通过 provider_models 界面自行添加
-    },
     'siliconflow': {
         'base_url': 'https://api.siliconflow.cn/v1',
         'default_model': 'deepseek-ai/DeepSeek-V3',
@@ -309,7 +303,6 @@ class UnifiedLLM:
             'openai': 'https://api.openai.com/v1',
             'deepseek': 'https://api.deepseek.com/v1',
             'openrouter': 'https://openrouter.ai/api/v1',
-            'ollama': 'http://localhost:11434/v1',
             'siliconflow': 'https://api.siliconflow.cn/v1',
             'gemini': 'https://generativelanguage.googleapis.com/v1beta/openai/',
             'grok': 'https://api.x.ai/v1',
