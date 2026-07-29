@@ -1,4 +1,4 @@
-﻿<script>
+<script>
 // ── Admin JS runs FIRST, Quill loads async below ──
 var T = {{ sso_token | tojson }};
 if(!T||T.length<10)T=localStorage.getItem("sso_token")||localStorage.getItem("tm_token")||localStorage.getItem("token");
@@ -118,6 +118,8 @@ function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(fu
         var iconHtml=I[m.icon]||I.plugins||'';
         itemsHtml+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
       });
+      // 组别名映射：遗留组名 → 目标组名（System 已合并到 Command Console）
+      if(gn==="System")gn="Command Console";
       // 若插件 group 匹配现有组（英文标识），插入该组 body，避免新建重复组
       var existIdx=GROUP_KEYS.indexOf(gn);
       if(existIdx>=0){
