@@ -33,6 +33,10 @@ def get_db():
         wrapped.execute("CREATE SCHEMA IF NOT EXISTS health")
         wrapped.execute("SET search_path TO health")
         yield wrapped
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
