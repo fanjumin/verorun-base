@@ -176,7 +176,7 @@ do_update() {
     }
     local after_commit
     after_commit=$(git log --oneline -1)
-    done_step "Code updated: ${before_commit:0:7} → ${after_commit:0:7}"
+    done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
 
     step "Update .env (fill missing keys)"
     update_env
@@ -506,9 +506,9 @@ health_check() {
         local code
         code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
         if [ "$code" != "000" ]; then
-            echo -e "  ${OK} ${name} (:${port}) → HTTP ${code}"
+            echo -e "  ${OK} ${name} (:${port}) -> HTTP ${code}"
         else
-            echo -e "  ${FAIL} ${name} (:${port}) → no response"
+            echo -e "  ${FAIL} ${name} (:${port}) -> no response"
             all_ok=false
         fi
     }
