@@ -1278,7 +1278,7 @@ function renderWorldMap(data) {
     if (d.pv > pvMax) pvMax = d.pv;
   });
   if (pvMax === 0) pvMax = 1;
-  fetch('https://cdn.jsdelivr.net/npm/echarts/map/json/world.json')
+  fetch('/admin/analytics/static/world.json')
     .then(function(r){ return r.json(); })
     .then(function(geoJson){
       echarts.registerMap('world', geoJson);
