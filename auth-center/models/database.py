@@ -470,12 +470,13 @@ def init_db():
                 updated_at      TIMESTAMP DEFAULT NOW(),
                 updated_by      BIGINT DEFAULT 0
             );
-            INSERT OR IGNORE INTO system_config (key, value, description) VALUES
+            INSERT INTO system_config (key, value, description) VALUES
                 ('default_language', 'zh-CN', 'Default system language'),
                 ('default_timezone', 'Asia/Shanghai', 'Default timezone'),
                 ('site_name', 'VeroRun', 'Site display name'),
                 ('admin_email', '', 'Admin contact email'),
-                ('maintenance_mode', '0', 'System maintenance mode');
+                ('maintenance_mode', '0', 'System maintenance mode')
+            ON CONFLICT (key) DO NOTHING;
             CREATE TABLE IF NOT EXISTS user_notifications (
                 id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 user_id         BIGINT REFERENCES users(id),
@@ -1233,10 +1234,13 @@ def init_db():
             m.commit()
             print('[Migration] IAM v2 columns added to users table')
         # Backfill existing users
-        m.execute("UPDATE users SET username = phone WHERE username IS NULL AND phone IS NOT NULL")
-        m.execute("UPDATE users SET display_name = COALESCE(display_name, phone, 'User') WHERE display_name = '' OR display_name IS NULL")
-        m.commit()
-        print('[Migration] IAM v2 backfill complete')
+        try:
+            m.execute("UPDATE users SET username = phone WHERE username IS NULL AND phone IS NOT NULL")
+            m.execute("UPDATE users SET display_name = COALESCE(display_name, phone, 'User') WHERE display_name = '' OR display_name IS NULL")
+            m.commit()
+            print('[Migration] IAM v2 backfill complete')
+        except Exception:
+            m.rollback()
     # ── Real-name verification migration v2 (2026-05-19) ──
     # 合规要求：不存储身份证号（明文或加密），只存认证状态标记
     with get_db() as m:
@@ -2424,6 +2428,52 @@ def _get_default_interests():
         for i, n in enumerate(items):
             tags.append((n, cat, i+1, 1))  # is_hot=1
     return tags
+
+
+# ── Module-level: media_files table（防 init_db() 中途失败跳过）──
+with get_db() as m:
+    m.execute('''CREATE TABLE IF NOT EXISTS media_files (
+        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        filename        TEXT NOT NULL,
+        original_name   TEXT NOT NULL,
+        mime_type       TEXT NOT NULL DEFAULT 'application/octet-stream',
+        file_size       BIGINT DEFAULT 0,
+        file_path       TEXT NOT NULL,
+        thumb_path      TEXT DEFAULT '',
+        push_status     TEXT DEFAULT 'none',
+        push_target     TEXT DEFAULT '',
+        pushed_at       TEXT DEFAULT NULL,
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW()
+    )''')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_mf_push_status ON media_files(push_status)')
+    m.execute('CREATE INDEX IF NOT EXISTS idx_mf_created ON media_files(created_at)')
+    m.commit()
+    print('[Migration] media_files table created (module-level)')
+
+# ── Module-level: article_comments table（防 init_db() 中途失败跳过）──
+with get_db() as m:
+    m.execute("""
+        CREATE TABLE IF NOT EXISTS article_comments (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            post_id         BIGINT NOT NULL REFERENCES cms_posts(id),
+            parent_id       BIGINT,
+            nickname        TEXT NOT NULL DEFAULT 'Anonymous',
+            content         TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending','approved','rejected')),
+            ai_review       TEXT DEFAULT '',
+            ai_score        BIGINT DEFAULT 0,
+            ip_address      TEXT DEFAULT '',
+            reviewed_by     BIGINT,
+            reviewed_at     TIMESTAMP,
+            created_at      TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    m.execute("CREATE INDEX IF NOT EXISTS idx_article_comments_post ON article_comments(post_id)")
+    m.execute("CREATE INDEX IF NOT EXISTS idx_article_comments_status ON article_comments(status)")
+    m.commit()
+    print('[Migration] article_comments table created (module-level)')
 
 
 # ── Migration: deployment_codes 独立部署订阅表 (2026-06-27) ──
