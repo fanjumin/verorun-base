@@ -9,8 +9,6 @@ try:
 except Exception:
     pass
 
-from services.deployment_config import deploy
-
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR in sys.path:
     sys.path.remove(_SCRIPT_DIR)
@@ -19,6 +17,8 @@ if '' in sys.path:
 AUTH_DIR = os.path.join(_SCRIPT_DIR, 'auth-center')
 sys.path.insert(0, AUTH_DIR)
 sys.path.append(_SCRIPT_DIR)
+
+from services.deployment_config import deploy
 
 from flask import Flask, render_template, make_response, request, jsonify
 import urllib.request as _ur
