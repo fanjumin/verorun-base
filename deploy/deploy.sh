@@ -120,6 +120,7 @@ do_install() {
     fi
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip -q
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy -q
     done_step "Python dependencies installed"
 
     prompt_domain
@@ -183,6 +184,7 @@ do_update() {
 
     step "Update Python dependencies"
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy -q
     done_step "Dependencies updated"
 
     step "Restart services"
