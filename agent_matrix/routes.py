@@ -1875,6 +1875,22 @@ def tts_synthesize():
 
     voice = data.get('voice', 'zh-CN-XiaoxiaoNeural')
 
+    # 先尝试 Edge-TTS（免费，无需 Key）
+    try:
+        from services.tts_service import text_to_speech_bytes
+        import asyncio
+        audio_bytes = asyncio.run(text_to_speech_bytes(text, voice))
+        if audio_bytes:
+            from flask import Response
+            return Response(
+                audio_bytes,
+                mimetype='audio/mpeg',
+                headers={'Content-Length': str(len(audio_bytes))}
+            )
+    except Exception as e:
+        pass
+
+    # 回退 Azure TTS（需配置 Key）
     try:
         from agent_matrix.audio import AudioOutputProcessor
         processor = AudioOutputProcessor(provider='azure_tts', voice=voice)
@@ -1904,6 +1920,21 @@ def tts_list_voices():
 
     locale = request.args.get('locale', '').strip()
 
+    # 优先 Edge-TTS（免费，无需 Key）
+    try:
+        from services.tts_service import list_available_voices, VOICE_PRESETS
+        import asyncio
+        voices = asyncio.run(list_available_voices(locale or 'zh-CN'))
+        return _success({
+            'locale': locale or 'zh-CN',
+            'count': len(voices),
+            'voices': voices,
+            'presets': VOICE_PRESETS,
+        })
+    except Exception:
+        pass  # Edge 不可用，回退 Azure
+
+    # Azure TTS 后备
     try:
         from agent_matrix.audio import AudioOutputProcessor
         processor = AudioOutputProcessor(provider='azure_tts')
@@ -1915,20 +1946,6 @@ def tts_list_voices():
                 'count': len(voices),
                 'voices': voices,
             })
-    except Exception:
-        pass  # Azure 不可用，回退 Edge-TTS
-
-    # Edge-TTS 后备
-    try:
-        from services.tts_service import list_available_voices, VOICE_PRESETS
-        import asyncio
-        voices = asyncio.run(list_available_voices(locale or 'zh-CN'))
-        return _success({
-            'locale': locale or 'zh-CN',
-            'count': len(voices),
-            'voices': voices,
-            'presets': VOICE_PRESETS,
-        })
     except Exception as e:
         logging.getLogger(__name__).error('[TTS] List voices failed: %s', e, exc_info=True)
         return _error(str(e), 500)

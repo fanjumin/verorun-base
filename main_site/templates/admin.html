@@ -445,7 +445,7 @@ function fm(){
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Name (12 chars)') }}</div><input class="in" id="cfa" maxlength="12" placeholder="{{ _('Community Mgmt Agent') }}" style="width:100%"></div>'+
     '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Core Mission (64 chars)') }}</div><input class="in" id="cfm" maxlength="64" placeholder="{{ _('Responsible for...') }}" style="width:100%"></div>'+
     '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('Prompt (3000 chars)') }}</div><textarea class="ta" id="cfp" maxlength="3000" rows="3"></textarea></div>'+
-    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Provider') }}</div><select class="sl" id="cfpr" onchange="uburl()" style="width:100%"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option><option value="ollama">Ollama</option></select></div>'+
+    '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Provider') }}</div><select class="sl" id="cfpr" onchange="uburl()" style="width:100%"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option></select></div>'+
     '<div><div style="font-size:11px;color:var(--dim)">{{ _('Model Name') }}</div><input class="in" id="cfmo" value="gpt-4o" style="width:100%"></div>'+
     '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('API Endpoint') }}</div><input class="in" id="cfb" value="https://api.openai.com/v1" style="width:100%"></div>'+
     '<div style="grid-column:1/3"><div style="font-size:11px;color:var(--dim)">{{ _('API Key') }}</div><input class="in" id="cfak" type="password" style="width:100%"></div>'+
@@ -470,7 +470,7 @@ function mt(arr){
 function scf(){document.getElementById("cf").style.display="block"}
 function hc(){document.getElementById("cf").style.display="none"}
 function uburl(){
-  var u={openai:"https://api.openai.com/v1",deepseek:"https://api.deepseek.com",openrouter:"https://openrouter.ai/api/v1",ollama:"http://localhost:11434/v1"};
+  var u={openai:"https://api.openai.com/v1",deepseek:"https://api.deepseek.com",openrouter:"https://openrouter.ai/api/v1"};
   var p=document.getElementById("cfpr").value;
   if(u[p])document.getElementById("cfb").value=u[p];
 }

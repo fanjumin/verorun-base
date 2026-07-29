@@ -1370,7 +1370,6 @@ def init_db():
             (pids['azure'],      'Azure Neural TTS',     'azure-tts-neural',       'https://eastasia.tts.speech.microsoft.com/cognitiveservices/v1', 'azure_tts_key',    'tts',      75),
             # Microsoft Edge (free)
             (pids['edge_tts'],   'Edge TTS Neural',      'edge-tts-neural',        '',                                                              '',                     'tts',      80),
-            # Ollama — 本地模型预留接口，具体模型由管理员在 provider_models 界面自行添加
         ]
         for pid, name, model, url, key_ref, caps, sort in model_seeds:
             m.execute(

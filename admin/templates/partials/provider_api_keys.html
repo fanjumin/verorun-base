@@ -67,7 +67,7 @@ window.l_provider_keys=function(targetId){
     h+='<input id="pk-name" class="in" style="width:100%" value="'+escAttr(isEdit?key.name:'')+'" placeholder="{{ _('e.g. Alibaba Cloud DashScope') }}"></div>';
     h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Provider') }}</label>';
     h+='<select id="pk-provider" class="in" style="width:100%">';
-    var providers=['dashscope','openai','deepseek','openrouter','ollama','siliconflow','gemini','grok'];
+    var providers=['dashscope','openai','deepseek','openrouter','siliconflow','gemini','grok'];
     providers.forEach(function(p){
       h+='<option value="'+p+'"'+(isEdit&&key.provider===p?' selected':'')+'>'+p+'</option>';
     });

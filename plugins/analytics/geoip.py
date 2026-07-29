@@ -46,6 +46,9 @@ IPAPI_CACHE_TTL = 3600  # 1 小时缓存
 _geoip_reader = None
 _ip2region_searcher = None
 
+# 部署市场检测：intl 环境下优先使用 MaxMind（国际 IP 覆盖更佳）
+_IS_INTL = os.environ.get('DEPLOY_MARKET', 'cn').lower() not in ('cn', 'china', '')
+
 
 # ─── ip2region ───────────────────────────────────────────────────────────────────
 
@@ -170,14 +173,30 @@ def geoip_lookup(ip: str) -> dict:
     if not ip or ip == '127.0.0.1' or ip == '0.0.0.x' or ip.startswith('192.168.'):
         return {'country': '', 'city': ''}
 
-    # 1. ip2region（中国 IP 优先）
-    result = _ip2region_lookup(ip)
-    if result.get('city'):
-        return result
-    if result.get('country') and not _geoip_reader:
-        return result
+    # 1. 国际部署优先使用 MaxMind，国内部署优先 ip2region
+    if _IS_INTL:
+        # 国际：MaxMind（国际 IP 精准）→ ip2region → ip-api
+        if _geoip_reader:
+            try:
+                response = _geoip_reader.city(ip)
+                mm_city = response.city.name or ''
+                mm_country = response.country.iso_code or ''
+                if mm_country:
+                    return {'country': mm_country, 'city': mm_city}
+            except:
+                pass
+        result = _ip2region_lookup(ip)
+        if result.get('country'):
+            return result
+    else:
+        # 国内：ip2region（中国 IP 精准）→ MaxMind → ip-api
+        result = _ip2region_lookup(ip)
+        if result.get('city'):
+            return result
+        if result.get('country') and not _geoip_reader:
+            return result
 
-    # 2. 本地 MaxMind
+        # 2. 本地 MaxMind
     if _geoip_reader:
         try:
             response = _geoip_reader.city(ip)

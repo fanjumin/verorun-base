@@ -129,6 +129,7 @@ var aiMode="fast";
 var aiSessionId="";
 var aiUploadedFiles=[];
 var aiTtsEnabled=localStorage.getItem('tts_enabled')==='1';
+var aiTtsVoice=localStorage.getItem('tts_voice')||'zh-CN-XiaoxiaoNeural';
 
 // ═══════════════════════════════════════════
 // AI Site Builder (site_builder) 前端逻辑
@@ -393,11 +394,18 @@ function aiToggleTts(){
   aiTtsEnabled=!aiTtsEnabled;
   localStorage.setItem('tts_enabled',aiTtsEnabled?'1':'0');
   var btn=document.getElementById('aiBtnTts');
+  var sel=document.getElementById('aiTtsVoice');
   if(btn){
     btn.textContent=aiTtsEnabled?'🔊 TTS':'🔇 TTS';
     btn.style.borderColor=aiTtsEnabled?'var(--accent)':'';
     btn.style.background=aiTtsEnabled?'rgba(0,245,255,0.1)':'';
   }
+  if(sel)sel.style.display=aiTtsEnabled?'inline-block':'none';
+}
+
+function aiTtsVoiceChanged(){
+  var sel=document.getElementById('aiTtsVoice');
+  if(sel){aiTtsVoice=sel.value;localStorage.setItem('tts_voice',aiTtsVoice)}
 }
 
 function aiNewSession(){
@@ -605,7 +613,7 @@ function aiSend(){
       fetch('/admin/agent-matrix/tts/synthesize',{
         method:'POST',
         headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},
-        body:JSON.stringify({text:summary})
+        body:JSON.stringify({text:summary,voice:aiTtsVoice})
       }).then(function(r){
         if(!r.ok)return;
         return r.blob();
@@ -997,15 +1005,13 @@ function matProvChange(){
     dashscope:"https://dashscope.aliyuncs.com/compatible-mode/v1",
     openai:"https://api.openai.com/v1",
     deepseek:"https://api.deepseek.com",
-    openrouter:"https://openrouter.ai/api/v1",
-    ollama:"http://localhost:11434/v1"
+    openrouter:"https://openrouter.ai/api/v1"
   };
   var models={
     dashscope:"qwen-turbo",
     openai:"gpt-4o",
     deepseek:"deepseek-chat",
-    openrouter:"openai/gpt-4o-mini",
-    ollama:"llama3"
+    openrouter:"openai/gpt-4o-mini"
   };
   var p=document.getElementById("matNewProv").value;
   if(urls[p]){var el=document.getElementById("matNewBaseUrl");el.value=urls[p];el.selectionStart=el.selectionEnd=0}
