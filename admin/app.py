@@ -40,7 +40,7 @@ import time as _time
 # ── PluginManager ──
 from plugin_manager.manager import PluginManager
 from plugin_manager.routes import bp as plugin_bp
-from captcha_bp import captcha_bp
+from admin.captcha_bp import captcha_bp
 
 # ══ Simple in-memory rate limiter for captcha consume ══
 _captcha_rate_limit = {}

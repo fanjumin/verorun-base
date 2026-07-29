@@ -30,7 +30,7 @@ class CaptchaEmbeddedPlugin(BasePlugin):
 
     def register_routes(self):
         """注册 Captcha Blueprint"""
-        from captcha_bp import captcha_bp, init_i18n
+        from admin.captcha_bp import captcha_bp, init_i18n
         init_i18n(self.t)
         return [captcha_bp]
 
