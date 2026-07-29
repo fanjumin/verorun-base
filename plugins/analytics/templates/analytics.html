@@ -1052,7 +1052,7 @@ var _CITY_PROVINCE = {
   'Lanzhou':{{ _('Gansu Province') | tojson }},'Urumqi':{{ _('Xinjiang Uyghur Autonomous Region') | tojson }},
 };
 
-function loadChinaCities() {
+function loadChinaCities(skipMap) {
   api('/geo/china-cities?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('chinaMapChart').innerHTML =
@@ -1081,7 +1081,7 @@ function loadChinaCities() {
     var provinces = Object.keys(provMap).map(function(k){ return {name:k, pv:provMap[k].pv, uv:provMap[k].uv}; });
     provinces.sort(function(a,b){ return b.pv - a.pv; });
 
-    renderChinaMap(provinces);
+    if (!skipMap) renderChinaMap(provinces);
     renderChinaProvinceTable(provinces);
     renderChinaCityTable(chinaData.slice(0, 15));
   });
@@ -1159,6 +1159,94 @@ function renderChinaMap(provinces) {
     })
     .catch(function(){
       dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('Map loading failed (network issue). See table below for data.') }}</div></div>';
+    });
+}
+
+// ── ISO 国家码 → ECharts 国家名映射（世界地图用） ──
+var _COUNTRY_NAMES = {
+  'CN':'China','US':'United States','JP':'Japan','KR':'South Korea','GB':'United Kingdom',
+  'DE':'Germany','FR':'France','RU':'Russia','IN':'India','BR':'Brazil','CA':'Canada',
+  'AU':'Australia','SG':'Singapore','MY':'Malaysia','TH':'Thailand','VN':'Vietnam',
+  'ID':'Indonesia','PH':'Philippines','NL':'Netherlands','IT':'Italy','ES':'Spain',
+  'SE':'Sweden','CH':'Switzerland','HK':'Hong Kong','TW':'Taiwan','MO':'Macau',
+  'AE':'United Arab Emirates','SA':'Saudi Arabia','NO':'Norway','FI':'Finland',
+  'DK':'Denmark','BE':'Belgium','AT':'Austria','IE':'Ireland','NZ':'New Zealand',
+  'PL':'Poland','CZ':'Czech Republic','PT':'Portugal','GR':'Greece','HU':'Hungary',
+  'IL':'Israel','TR':'Turkey','ZA':'South Africa','MX':'Mexico','AR':'Argentina',
+  'CO':'Colombia','CL':'Chile','PE':'Peru','EG':'Egypt','NG':'Nigeria','KE':'Kenya',
+  'PK':'Pakistan','BD':'Bangladesh','LK':'Sri Lanka','MM':'Myanmar','KH':'Cambodia',
+  'LA':'Laos','MN':'Mongolia','KZ':'Kazakhstan','UZ':'Uzbekistan','RO':'Romania',
+  'UA':'Ukraine','SK':'Slovakia','SI':'Slovenia','HR':'Croatia','BG':'Bulgaria',
+  'RS':'Serbia','LT':'Lithuania','LV':'Latvia','EE':'Estonia','IS':'Iceland',
+  'LU':'Luxembourg','MT':'Malta','CY':'Cyprus','CR':'Costa Rica','PA':'Panama',
+  'GT':'Guatemala','DO':'Dominican Republic','PR':'Puerto Rico','EC':'Ecuador',
+  'VE':'Venezuela','PY':'Paraguay','UY':'Uruguay','BO':'Bolivia','TT':'Trinidad and Tobago'
+};
+
+// 世界地图（国家热力图）— 国际模式替代中国地图
+function loadWorldMap() {
+  api('/geo?days=30').then(function(res){
+    if (!res.success || !res.data.length) {
+      document.getElementById('chinaMapChart').innerHTML =
+        '<div class="empty-state" style="padding:60px 0"><div class="icon">🌍</div><div class="text">{{ _('No country data') }}</div></div>';
+      return;
+    }
+    renderWorldMap(res.data);
+  });
+}
+function renderWorldMap(data) {
+  var dom = document.getElementById('chinaMapChart');
+  if (charts.chinaMap) charts.chinaMap.dispose();
+  var pvMax = 0, mapData = [];
+  data.forEach(function(d){
+    var name = _COUNTRY_NAMES[d.country] || d.country;
+    mapData.push({name: name, value: d.pv || 0});
+    if (d.pv > pvMax) pvMax = d.pv;
+  });
+  if (pvMax === 0) pvMax = 1;
+  fetch('https://cdn.jsdelivr.net/npm/echarts@5.5.0/map/json/world.json')
+    .then(function(r){ return r.json(); })
+    .then(function(geoJson){
+      echarts.registerMap('world', geoJson);
+      charts.chinaMap = echarts.init(dom);
+      var option = {
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: 'rgba(10,10,18,0.92)',
+          borderColor: 'rgba(0,245,255,0.2)',
+          textStyle: { color: '#e2e4e9', fontSize: 12 },
+          formatter: function(p){
+            return p.value ? '<b>' + p.name + '</b><br/>PV: ' + p.value.toLocaleString()
+              : '<b>' + p.name + '</b><br/>{{ _('No data') }}';
+          }
+        },
+        visualMap: {
+          min: 0, max: pvMax, left: 'left', bottom: 10,
+          text: ['{{ _('High') }}', '{{ _('Low') }}'],
+          textStyle: { color: '#6b7280' },
+          inRange: { color: ['#0f1a2e', '#1a3860', '#2568a0', '#3d98d0', '#00f5ff'] },
+          calculable: true
+        },
+        series: [{
+          type: 'map', map: 'world', roam: false,
+          label: {
+            show: true, color: '#6b7280', fontSize: 8,
+            formatter: function(p){ return mapData.some(function(d){return d.name===p.name}) ? p.name : ''; }
+          },
+          emphasis: {
+            label: { show: true, color: '#00f5ff', fontSize: 12 },
+            itemStyle: { areaColor: 'rgba(0,245,255,0.25)' }
+          },
+          itemStyle: {
+            borderColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, areaColor: '#0a1628'
+          },
+          data: mapData
+        }]
+      };
+      charts.chinaMap.setOption(option);
+    })
+    .catch(function(){
+      dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('World map loading failed (network issue). See table below for data.') }}</div></div>';
     });
 }
 
@@ -1444,10 +1532,12 @@ function refreshAll() {
   loadHourly();
   loadPages();
   loadSources();
-  // 非 CN 市场：跳过中国地图，自动展开国家/地区分布
+  // 非 CN 市场：世界地图 + 中国表（如有中国访客）+ 展开国家/地区
   if (_MARKET === 'cn') {
-    loadChinaCities();
+    loadChinaCities(false);
   } else {
+    loadChinaCities(true);   // 只渲染省份/城市表（不渲染中国地图）
+    loadWorldMap();           // 地图容器改为世界地图
     toggleCountrySection(true);
   }
   loadGeo();
