@@ -148,6 +148,10 @@ do_install() {
         done_step "Services started"
     fi
 
+    step "Seed data"
+    do_seed
+    done_step "Seed data injected"
+
     print_summary
 }
 

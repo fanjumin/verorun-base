@@ -33,6 +33,8 @@ function showConfirm(title,text,cb,okLabel){
 if(!T){document.getElementById("mc").innerHTML='<div class="em">{{ _('Please') }} <a href="/admin/login">{{ _('Log In') }}</a></div>'}
 
 function init(){try{
+  var _qp=new URLSearchParams(window.location.search);
+  if(_qp.get('force_pwd')==='1'){showForcePasswordChange();return}
   document.getElementById("an").textContent="{{ _('Admin') }}";
   var path=window.location.pathname.replace(/\/+$/,'');
   var seg=path.split('/').filter(Boolean);
@@ -51,6 +53,51 @@ function logout(){
   localStorage.removeItem("admin_token");
   localStorage.removeItem("admin_user");
   window.location.href="/admin/logout";
+}
+
+/* ── Force password change on first login ── */
+function showForcePasswordChange(){
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div style="display:flex;align-items:center;justify-content:center;min-height:70vh">'
+    +'<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:32px;max-width:440px;width:100%">'
+    +'<div style="font-size:18px;font-weight:700;margin-bottom:6px">{{ _('Change Your Password') }}</div>'
+    +'<div style="font-size:12px;color:var(--rose);margin-bottom:18px">{{ _('You must change your password before first use. At least 10 characters with uppercase, lowercase, numbers and special characters.') }}</div>'
+    +'<div style="margin-bottom:12px"><label style="font-size:12px;font-weight:500;color:var(--text-muted);display:block;margin-bottom:4px">{{ _('New Password') }}</label>'
+    +'<input class="in" id="fpwd" type="password" placeholder="{{ _('At least 10 characters') }}" style="width:100%"></div>'
+    +'<div style="margin-bottom:18px"><label style="font-size:12px;font-weight:500;color:var(--text-muted);display:block;margin-bottom:4px">{{ _('Confirm New Password') }}</label>'
+    +'<input class="in" id="fpwdConfirm" type="password" placeholder="{{ _('Re-enter password') }}" style="width:100%"></div>'
+    +'<div id="fpwdMsg" style="font-size:12px;color:var(--rose);margin-bottom:12px;display:none"></div>'
+    +'<button class="btn" style="width:100%;padding:12px;background:var(--gradient-primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:14px;font-weight:600" onclick="submitFirstPassword()">{{ _('Set Password') }}</button>'
+    +'</div></div>';
+}
+function submitFirstPassword(){
+  var pwd=document.getElementById("fpwd").value;
+  var confirm=document.getElementById("fpwdConfirm").value;
+  var msg=document.getElementById("fpwdMsg");
+  if(!pwd||pwd.length<10){msg.style.display="";msg.textContent="{{ _('Password must be at least 10 characters') }}";return}
+  if(pwd!==confirm){msg.style.display="";msg.textContent="{{ _('Passwords do not match') }}";return}
+  if(!/[A-Z]/.test(pwd)){msg.style.display="";msg.textContent="{{ _('Password must contain uppercase letter') }}";return}
+  if(!/[a-z]/.test(pwd)){msg.style.display="";msg.textContent="{{ _('Password must contain lowercase letter') }}";return}
+  if(!/[0-9]/.test(pwd)){msg.style.display="";msg.textContent="{{ _('Password must contain a number') }}";return}
+  if(!/[!@#$%^&*(),.?":{}|<>_+\-=\[\]~`\/;]/.test(pwd)){msg.style.display="";msg.textContent="{{ _('Password must contain special character') }}";return}
+  msg.style.display="none";
+  var btn=document.querySelector("#mc button");btn.disabled=true;btn.textContent="{{ _('Setting...') }}";
+  fetch('/api/admin/first-password-set',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+T},
+    body:JSON.stringify({password:pwd})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      msg.style.cssText="font-size:12px;color:var(--success);margin-bottom:12px";
+      msg.style.display="";
+      msg.textContent="{{ _('Password set successfully! Redirecting to login...') }}";
+      setTimeout(function(){localStorage.clear();window.location.href="/admin/login"},1500);
+    }else{
+      msg.style.display="";msg.textContent=d.error||"{{ _('Failed to set password') }}";btn.disabled=false;btn.textContent="{{ _('Set Password') }}"
+    }
+  }).catch(function(){
+    msg.style.display="";msg.textContent="{{ _('Network error') }}";btn.disabled=false;btn.textContent="{{ _('Set Password') }}"
+  });
 }
 
 function go(s){

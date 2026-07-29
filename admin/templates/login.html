@@ -542,7 +542,7 @@ async function smsLogin() {
   try {
     const r = await fetch('/auth/sms/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p, code: c }) });
     const d = await r.json();
-    if (d.success) { localStorage.setItem('admin_token', d.data.token); localStorage.setItem('admin_user', JSON.stringify(d.data.user)); toast("{{ _('Login successful, redirecting...') }}", 'success'); setTimeout(() => { const rd = new URLSearchParams(location.search).get('redirect') || '/admin'; window.location.href = rd + (rd.includes('?') ? '&' : '?') + 'token=' + d.data.token; }, 100); }
+    if (d.success) { localStorage.setItem('admin_token', d.data.token); localStorage.setItem('admin_user', JSON.stringify(d.data.user)); toast("{{ _('Login successful, redirecting...') }}", 'success'); setTimeout(function(){ var forcePwd = d.data.user && !d.data.user.password_changed_at ? '&force_pwd=1' : ''; window.location.href = '/admin?token=' + d.data.token + forcePwd; }, 100); }
     else { showMsg('codeMsg', d.error || "{{ _('Login failed') }}", 'error'); btn.disabled = false; btn.classList.remove('loading'); }
   } catch (e) { showMsg('codeMsg', "{{ _('Network error') }}", 'error'); btn.disabled = false; btn.classList.remove('loading'); }
 }
@@ -569,7 +569,7 @@ async function pwdLogin() {
   try {
     const r = await fetch('/user/password/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p, password: pw, captcha_id: capToken || (document.getElementById('puzzle-captcha').dataset.token || '') }) });
     const d = await r.json();
-    if (d.success) { localStorage.setItem('admin_token', d.data.token); localStorage.setItem('admin_user', JSON.stringify(d.data.user)); toast("{{ _('Login successful, redirecting...') }}", 'success'); setTimeout(() => { const rd = new URLSearchParams(location.search).get('redirect') || '/admin'; window.location.href = rd + (rd.includes('?') ? '&' : '?') + 'token=' + d.data.token; }, 600); }
+    if (d.success) { localStorage.setItem('admin_token', d.data.token); localStorage.setItem('admin_user', JSON.stringify(d.data.user)); toast("{{ _('Login successful, redirecting...') }}", 'success'); setTimeout(function(){ var forcePwd = d.data.user && d.data.user.is_admin && !d.data.user.password_changed_at ? '&force_pwd=1' : ''; window.location.href = '/admin?token=' + d.data.token + forcePwd; }, 600); }
     else { showMsg('pwdMsg', d.error || "{{ _('Login failed') }}", 'error'); btn.disabled = false; btn.classList.remove('loading'); if (d.error && d.error.includes("{{ _('Verification Code') }}")) { capSolved = false; capToken = ''; } }
   } catch (e) { showMsg('pwdMsg', "{{ _('Network error') }}", 'error'); btn.disabled = false; btn.classList.remove('loading'); }
 }

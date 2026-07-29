@@ -523,7 +523,8 @@ def password_login():
         conn.commit()
     resp = make_response(jsonify({'success': True, 'data': {
         'token': token,
-        'user': {'id': user['id'], 'phone': user['phone'], 'nickname': user['display_name'] or user['username'] or ''},
+        'user': {'id': user['id'], 'phone': user['phone'], 'nickname': user['display_name'] or user['username'] or '',
+                 'is_admin': bool(user['is_admin']), 'password_changed_at': user.get('password_changed_at') or ''},
     }}))
     # Set cross-subdomain SSO cookie so subdomain can authenticate
     main_domain = os.environ.get('DEPLOY_DOMAIN', '')

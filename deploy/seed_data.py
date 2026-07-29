@@ -11,8 +11,11 @@ Usage:
 import os, sys, hashlib, secrets, json, argparse
 
 # ── Admin credentials ─────────────────────────────────────────────────
+# Username is randomly generated on each seed run to prevent guessing.
+# It prints at install time; save it or check deploy output.
+import secrets as _secrets
 ADMIN_PHONE    = "13800000000"
-ADMIN_USERNAME = "***REMOVED***"
+ADMIN_USERNAME = "adm_" + _secrets.token_hex(8)
 ADMIN_PASSWORD = "***REMOVED***"
 ADMIN_DISPLAY  = "Administrator"
 
@@ -179,9 +182,9 @@ def seed_admin_user(db: SeedDB):
     if row:
         user_id = row[0]
         db.execute(
-            "UPDATE users SET password_hash = %s, is_admin = 1, active = 1, phone_verified = 1 WHERE id = %s"
+            "UPDATE users SET password_hash = %s, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = %s"
             if db._db_type == "postgresql" else
-            "UPDATE users SET password_hash = ?, is_admin = 1, active = 1, phone_verified = 1 WHERE id = ?",
+            "UPDATE users SET password_hash = ?, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = ?",
             (pw_hash, user_id)
         )
         print(f"  [OK] admin user updated (id={user_id})")
@@ -266,7 +269,7 @@ def main():
     db.close()
 
     print(f"\n[OK] Seed data injected successfully.")
-    print(f"     Admin login: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
+    print(f"     Admin login: {ADMIN_USERNAME}")
     print(f"     Plugins seeded: {len(DEFAULT_PLUGIN_PRODUCTS)}")
 
 

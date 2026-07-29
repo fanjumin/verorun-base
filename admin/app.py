@@ -662,6 +662,38 @@ def _log_admin_action(admin_id, action, ip, detail=''):
     threading.Thread(target=_write, daemon=True).start()
 
 
+@app.route('/api/admin/first-password-set', methods=['POST'])
+def first_password_set():
+    """首次登录强制修改密码（无需短信验证）。仅当 password_changed_at IS NULL 时可用。"""
+    from services.jwt_service import validate_token
+    import hashlib, secrets as _secrets
+    data = request.get_json() or {}
+    token = (request.headers.get('Authorization', '') or '').replace('Bearer ', '')
+    password = (data.get('password') or '').strip()
+    if not token or not password:
+        return jsonify({'success': False, 'error': 'Missing token or password'}), 400
+    if len(password) < 10:
+        return jsonify({'success': False, 'error': 'Password must be at least 10 characters'}), 400
+    payload = validate_token(token)
+    if not payload:
+        return jsonify({'success': False, 'error': 'Invalid or expired token'}), 401
+    from models import get_db
+    with get_db() as conn:
+        user = conn.execute('SELECT id, password_changed_at FROM users WHERE id=%s AND is_admin=1', (payload['user_id'],)).fetchone()
+        if not user:
+            return jsonify({'success': False, 'error': 'Admin user not found'}), 404
+        if user['password_changed_at'] is not None:
+            return jsonify({'success': False, 'error': 'Password already set, use /user/password/set'}), 400
+        from datetime import datetime as _dt
+        salt = _secrets.token_hex(16)
+        pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 600000).hex()
+        stored = f'pbkdf2:sha256:600000:{salt}:{pw_hash}'
+        now_str = _dt.utcnow().isoformat()
+        conn.execute('UPDATE users SET password_hash=%s, password_changed_at=%s WHERE id=%s', (stored, now_str, payload['user_id']))
+        conn.commit()
+    return jsonify({'success': True, 'message': 'Password set, please login again'}), 200
+
+
 @app.route('/reset-password')
 def reset_password_page():
     return render_template('reset_password.html')
@@ -799,6 +831,12 @@ def static_files(filename):
     if os.path.isfile(local_path):
         return send_from_directory(ADMIN_STATIC, filename)
     return send_from_directory(PLATFORM_STATIC, filename)
+
+
+@app.route('/admin/static/<path:filename>')
+def admin_static_files(filename):
+    """Nginx 代理 /admin/ → 8084 后，/admin/static/ 路径也需处理"""
+    return static_files(filename)
 
 
 @app.route('/static/brand/<path:filename>')
