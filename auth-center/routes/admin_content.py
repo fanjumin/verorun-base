@@ -579,17 +579,22 @@ def media_library_list():
     admin, err = _require_admin()
     if err:
         return err
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 50, type=int)
-    if limit > 500: limit = 500
-    offset = (page - 1) * limit
-    with get_db() as conn:
-        total = conn.execute("SELECT COUNT(*) as c FROM media_files").fetchone()['c']
-        rows = conn.execute(
-            "SELECT id, filename, original_name, mime_type, file_size, file_path, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT %s OFFSET %s",
-            (limit, offset)
-        ).fetchall()
-    return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total, 'page': page, 'limit': limit})
+    try:
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 50, type=int)
+        if limit > 500: limit = 500
+        offset = (page - 1) * limit
+        with get_db() as conn:
+            total = conn.execute("SELECT COUNT(*) as c FROM media_files").fetchone()['c']
+            rows = conn.execute(
+                "SELECT id, filename, original_name, mime_type, file_size, file_path, thumb_path, push_status, created_at FROM media_files ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                (limit, offset)
+            ).fetchall()
+        return jsonify({'success': True, 'data': [dict(r) for r in rows], 'total': total, 'page': page, 'limit': limit})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_bp.route('/media-library/<int:fid>', methods=['DELETE'])
 def media_library_delete(fid):

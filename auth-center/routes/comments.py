@@ -92,42 +92,47 @@ def admin_list_comments():
     admin, err = _require_admin()
     if err: return err
 
-    status = request.args.get('status', '')
-    post_id = request.args.get('post_id', type=int)
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 30, type=int)
-    offset = (page - 1) * limit
+    try:
+        status = request.args.get('status', '')
+        post_id = request.args.get('post_id', type=int)
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 30, type=int)
+        offset = (page - 1) * limit
 
-    where = ['1=1']
-    params = []
-    if status:
-        where.append('c.status=%s')
-        params.append(status)
-    if post_id:
-        where.append('c.post_id=%s')
-        params.append(post_id)
+        where = ['1=1']
+        params = []
+        if status:
+            where.append('c.status=%s')
+            params.append(status)
+        if post_id:
+            where.append('c.post_id=%s')
+            params.append(post_id)
 
-    with get_db() as conn:
-        total = conn.execute(
-            f"SELECT COUNT(*) as c FROM article_comments c WHERE {' AND '.join(where)}", params
-        ).fetchone()['c']
-        rows = conn.execute(
-            f"""SELECT c.*, p.title as post_title FROM article_comments c
-                LEFT JOIN cms_posts p ON c.post_id=p.id
-                WHERE {' AND '.join(where)}
-                ORDER BY c.created_at DESC LIMIT %s OFFSET %s""",
-            params + [limit, offset]
-        ).fetchall()
+        with get_db() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) as c FROM article_comments c WHERE {' AND '.join(where)}", params
+            ).fetchone()['c']
+            rows = conn.execute(
+                f"""SELECT c.*, p.title as post_title FROM article_comments c
+                    LEFT JOIN cms_posts p ON c.post_id=p.id
+                    WHERE {' AND '.join(where)}
+                    ORDER BY c.created_at DESC LIMIT %s OFFSET %s""",
+                params + [limit, offset]
+            ).fetchall()
 
-    return jsonify({
-        'success': True,
-        'data': {
-            'total': total,
-            'page': page,
-            'limit': limit,
-            'items': [dict(r) for r in rows]
-        }
-    })
+        return jsonify({
+            'success': True,
+            'data': {
+                'total': total,
+                'page': page,
+                'limit': limit,
+                'items': [dict(r) for r in rows]
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ===== Admin: Review comment =====
