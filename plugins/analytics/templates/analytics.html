@@ -504,7 +504,7 @@ body {
     <!-- 主视图：中国城市 -->
     <div class="dashboard-grid" style="margin-bottom:16px">
       <div class="glass-card" style="grid-column: 1 / -1;">
-        <div class="label" style="margin-bottom:12px">{{ _('🇨🇳 China Access Map') }}</div>
+        <div class="label" style="margin-bottom:12px" id="mapTitle">{{ _('🇨🇳 China Access Map') }}</div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
       </div>
     </div>
@@ -1089,6 +1089,8 @@ function loadChinaCities(skipMap) {
 
 // ECharts 中国地图（省份热力图）
 function renderChinaMap(provinces) {
+  var titleEl = document.getElementById('mapTitle');
+  if (titleEl) titleEl.textContent = '{{ _('🇨🇳 China Access Map') }}';
   var dom = document.getElementById('chinaMapChart');
   if (charts.chinaMap) charts.chinaMap.dispose();
 
@@ -1183,6 +1185,12 @@ var _COUNTRY_NAMES = {
   'VE':'Venezuela','PY':'Paraguay','UY':'Uruguay','BO':'Bolivia','TT':'Trinidad and Tobago'
 };
 
+// ISO 国家码 → 国旗 emoji
+function _flagEmoji(cc) {
+  if (!cc || cc.length !== 2) return '';
+  return String.fromCodePoint(0x1F1E6 + cc.charCodeAt(0) - 65) + String.fromCodePoint(0x1F1E6 + cc.charCodeAt(1) - 65);
+}
+
 // 世界地图（国家热力图）— 国际模式替代中国地图
 function loadWorldMap() {
   api('/geo?days=30').then(function(res){
@@ -1194,7 +1202,73 @@ function loadWorldMap() {
     renderWorldMap(res.data);
   });
 }
+// 世界城市/国家排名（国际模式替代中国省份/城市表）
+function loadWorldCities() {
+  api('/geo/cities?days=30').then(function(res){
+    if (!res.success || !res.data.length) {
+      document.getElementById('chinaProvinceContent').innerHTML =
+        '<div class="empty-state"><div class="icon">🌍</div><div class="text">{{ _('No city data') }}</div></div>';
+      document.getElementById('chinaCityContent').innerHTML =
+        '<div class="empty-state"><div class="icon">🌍</div><div class="text">{{ _('No city data') }}</div></div>';
+      return;
+    }
+    // 按国家聚合
+    var countryMap = {};
+    res.data.forEach(function(d){
+      var cc = d.country || 'XX';
+      if (!countryMap[cc]) countryMap[cc] = {name: _COUNTRY_NAMES[cc] || cc, country: cc, pv:0, uv:0};
+      countryMap[cc].pv += (d.pv||0);
+      countryMap[cc].uv += (d.uv||0);
+    });
+    var countries = Object.keys(countryMap).map(function(k){ return countryMap[k]; });
+    countries.sort(function(a,b){ return b.pv - a.pv; });
+
+    renderWorldProvinceTable(countries);
+    renderWorldCityTable(res.data.slice(0, 15));
+  });
+}
+
+// 世界国家排名表
+function renderWorldProvinceTable(countries) {
+  var top10 = countries.slice(0, 10);
+  var totalPv = countries.reduce(function(s,d){ return s + d.pv; }, 0) || 1;
+  var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('Country') }}</th><th>PV</th><th>{{ _('Percentage') }}</th></tr></thead><tbody>';
+  top10.forEach(function(d, i){
+    var pct = (d.pv / totalPv * 100).toFixed(1);
+    var flag = _flagEmoji(d.country);
+    html += '<tr>' +
+      '<td style="color:var(--text-dim);font-size:11px">' + (i+1) + '</td>' +
+      '<td style="font-weight:600">' + flag + ' ' + d.name + '</td>' +
+      '<td style="color:var(--blue);font-weight:600">' + d.pv.toLocaleString() + '</td>' +
+      '<td><span class="pct-bar" style="width:' + Math.min(pct*3,100) + 'px;max-width:100px"></span>' + pct + '%</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('chinaProvinceContent').innerHTML = html;
+}
+
+// 世界城市明细表
+function renderWorldCityTable(cities) {
+  var totalPv = cities.reduce(function(s,d){ return s + (d.pv||0); }, 0) || 1;
+  var html = '<table class="data-table"><thead><tr><th>#</th><th>{{ _('Country') }}</th><th>{{ _('City') }}</th><th>PV</th><th>UV</th></tr></thead><tbody>';
+  cities.forEach(function(d, i){
+    var pct = ((d.pv||0) / totalPv * 100).toFixed(1);
+    var flag = _flagEmoji(d.country);
+    html += '<tr>' +
+      '<td style="color:var(--text-dim);font-size:11px">' + (i+1) + '</td>' +
+      '<td>' + flag + '</td>' +
+      '<td style="font-weight:600">' + (d.city || '{{ _('Unknown') }}') + '</td>' +
+      '<td style="color:var(--red);font-weight:600">' + (d.pv||0).toLocaleString() + '</td>' +
+      '<td>' + (d.uv||0).toLocaleString() + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('chinaCityContent').innerHTML = html;
+}
+
 function renderWorldMap(data) {
+  var titleEl = document.getElementById('mapTitle');
+  if (titleEl) titleEl.textContent = '{{ _('🌍 World Access Map') }}';
   var dom = document.getElementById('chinaMapChart');
   if (charts.chinaMap) charts.chinaMap.dispose();
   var pvMax = 0, mapData = [];
@@ -1204,7 +1278,7 @@ function renderWorldMap(data) {
     if (d.pv > pvMax) pvMax = d.pv;
   });
   if (pvMax === 0) pvMax = 1;
-  fetch('https://cdn.jsdelivr.net/npm/echarts@5.5.0/map/json/world.json')
+  fetch('https://cdn.jsdelivr.net/npm/echarts/map/json/world.json')
     .then(function(r){ return r.json(); })
     .then(function(geoJson){
       echarts.registerMap('world', geoJson);
@@ -1536,7 +1610,7 @@ function refreshAll() {
   if (_MARKET === 'cn') {
     loadChinaCities(false);
   } else {
-    loadChinaCities(true);   // 只渲染省份/城市表（不渲染中国地图）
+    loadWorldCities();        // 全球城市/国家排名（替代中国省份/城市表）
     loadWorldMap();           // 地图容器改为世界地图
     toggleCountrySection(true);
   }
