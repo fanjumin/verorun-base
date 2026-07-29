@@ -1,4 +1,4 @@
-<script>
+﻿<script>
 // ── Admin JS runs FIRST, Quill loads async below ──
 var T = {{ sso_token | tojson }};
 if(!T||T.length<10)T=localStorage.getItem("sso_token")||localStorage.getItem("tm_token")||localStorage.getItem("token");

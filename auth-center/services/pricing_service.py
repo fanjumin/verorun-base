@@ -17,6 +17,7 @@ Usage:
                                      days_remaining=15, total_days=30)
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -344,6 +345,12 @@ class PricingService:
         except (ValueError, TypeError):
             return (datetime.now() + timedelta(days=days)).isoformat()
 
-    def format_price(self, fen: int) -> str:
-        """Format fen to yuan display string."""
-        return f'¥{fen/100:.2f}'
+    def format_price(self, fen: int, currency: str = None) -> str:
+        """Format fen to yuan display string with currency symbol."""
+        if not currency:
+            currency = os.environ.get('DEPLOY_CURRENCY', 'CNY')
+        symbols = {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'SGD': 'S$', 'HKD': 'HK$'}
+        sym = symbols.get(currency, '')
+        if sym:
+            return f'{sym}{fen/100:.2f}'
+        return f'{fen/100:.2f} {currency}'

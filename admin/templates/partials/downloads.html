@@ -1,4 +1,4 @@
-window.l_downloads=function(){
+﻿window.l_downloads=function(){
   document.getElementById("pt").textContent="{{ _('Download Management') }}";
   fetch("/admin/downloads",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;

@@ -9,6 +9,8 @@ try:
 except Exception:
     pass
 
+from services.deployment_config import deploy
+
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR in sys.path:
     sys.path.remove(_SCRIPT_DIR)
@@ -79,7 +81,7 @@ def site_home():
         site_plans = get_all_plans() or []
     except Exception:
         pass
-    resp = make_response(render_template('public_home.html', LANG='zh-CN', site_plans=site_plans))
+    resp = make_response(render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans))
     # Set cross-subdomain SSO cookie if token present in URL
     token = request.args.get('token', '')
     if token and len(token) > 20:
@@ -105,7 +107,7 @@ def site_pricing():
         site_plans = get_all_plans() or []
     except Exception:
         pass
-    return render_template('public_home.html', LANG='zh-CN', site_plans=site_plans)
+    return render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans)
 
 
 @app.route('/features')
@@ -116,7 +118,7 @@ def site_features():
         site_plans = get_all_plans() or []
     except Exception:
         pass
-    return render_template('public_home.html', LANG='zh-CN', site_plans=site_plans)
+    return render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans)
 
 
 @app.route('/contact')
@@ -127,7 +129,7 @@ def site_contact():
         site_plans = get_all_plans() or []
     except Exception:
         pass
-    return render_template('public_home.html', LANG='zh-CN', site_plans=site_plans)
+    return render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans)
 
 
 @app.route('/login')
@@ -135,7 +137,7 @@ def login_page():
     """Unified SSO login page."""
     from services.brand_service import get_brand_settings
     brand = get_brand_settings() or {}
-    return render_template('login.html', LANG='zh-CN', brand=brand)
+    return render_template('login.html', LANG=deploy.LANG, brand=brand)
 
 
 # ══ Captcha proxy → admin:8084 ══

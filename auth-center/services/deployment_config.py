@@ -13,7 +13,8 @@ class DeployConfig:
 
     # ── 市场与语言配置 ──
     MARKET = os.environ.get('DEPLOY_MARKET', 'cn')
-    LANG = os.environ.get('DEPLOY_LANG', 'zh-CN')
+    LANG = os.environ.get('DEPLOY_LANG', 'en')
+    CURRENCY = os.environ.get('DEPLOY_CURRENCY', 'CNY')  # CNY / USD / EUR
 
     # ── 域名配置（必须通过环境变量设置）──
     DOMAIN = os.environ.get('DEPLOY_DOMAIN', 'localhost')
@@ -46,6 +47,7 @@ class DeployConfig:
         return {
             'market': cls.MARKET,
             'lang': cls.LANG,
+            'currency': cls.CURRENCY,
             'domain': cls.DOMAIN,
             'protocol': cls.PROTOCOL,
             'email_domain': cls.EMAIL_DOMAIN,

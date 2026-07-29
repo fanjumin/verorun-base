@@ -1,4 +1,4 @@
-window.l_sub_stats=function(){
+﻿window.l_sub_stats=function(){
   document.getElementById("pt").textContent="{{ _('Revenue Dashboard') }}";
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
   fetch("/admin/revenue/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){

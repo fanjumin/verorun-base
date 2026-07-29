@@ -1,4 +1,4 @@
-window.l_keys=function(){
+﻿window.l_keys=function(){
   document.getElementById("pt").textContent="{{ _('API Key Management') }}";
   fetch("/admin/api-keys?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;

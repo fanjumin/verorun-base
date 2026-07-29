@@ -1,4 +1,4 @@
-window.l_posts=function(){
+﻿window.l_posts=function(){
   document.getElementById("pt").textContent="{{ _('Content') }}";
   fetch("/admin/posts?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){
     if(!r.ok)throw new Error("HTTP "+r.status);

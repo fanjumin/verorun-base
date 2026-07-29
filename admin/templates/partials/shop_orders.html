@@ -1,4 +1,4 @@
-window.l_shop_orders=function(){
+﻿window.l_shop_orders=function(){
   document.getElementById("pt").textContent="{{ _('📦 Order Management') }}";
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
   fetch("/shop/orders",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){

@@ -1,4 +1,4 @@
-function refundPlanOrder(orderNo) {
+﻿function refundPlanOrder(orderNo) {
   showConfirm("{{ _('Refund Order') }}","{{ _('Refund this order? This action cannot be undone!') }}",function(){
   fetch("/subscription/admin/orders/" + encodeURIComponent(orderNo) + "/refund", {
     method: "POST",

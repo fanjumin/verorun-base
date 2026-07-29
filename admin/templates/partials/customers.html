@@ -1,4 +1,4 @@
-window.l_customers=function(){
+﻿window.l_customers=function(){
   document.getElementById("pt").innerHTML="{{ _('All Customers') }}";
   var url="/admin/customers?limit=100";
   fetch(url,{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){

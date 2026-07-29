@@ -1,4 +1,4 @@
-window.l_shop_purchases=function(){
+﻿window.l_shop_purchases=function(){
   document.getElementById("pt").textContent="{{ _('📦 Purchase History') }}";
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
   fetch("/shop/purchases",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){

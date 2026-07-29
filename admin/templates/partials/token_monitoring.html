@@ -1,4 +1,4 @@
-var _tokenTargetId=null;
+﻿var _tokenTargetId=null;
 window._tokenDispatch=function(ev,d){document.getElementById(_tokenTargetId).dispatchEvent(new CustomEvent(ev,{detail:d}))};
 window.l_token_monitoring=function(targetId){
   if(!targetId) document.getElementById("pt").textContent="{{ _('Token Usage') }}";

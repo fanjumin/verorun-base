@@ -1,4 +1,4 @@
-function refundFeatureOrder(orderNo) {
+﻿function refundFeatureOrder(orderNo) {
   if (!confirm("{{ _('Refund this order? This action cannot be undone!') }}")) return;
   fetch("/subscription/admin/orders/" + encodeURIComponent(orderNo) + "/refund", {
     method: "POST",

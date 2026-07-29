@@ -1,4 +1,4 @@
-window.l_logs=function(){
+﻿window.l_logs=function(){
   document.getElementById("pt").textContent="{{ _('Operation Log') }}";
   fetch("/admin/logs",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;

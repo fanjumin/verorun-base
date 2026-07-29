@@ -1,4 +1,4 @@
-window.l_orders=function(){
+﻿window.l_orders=function(){
   document.getElementById("pt").textContent="{{ _('Order Management') }}";
   fetch("/admin/orders?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data)return;
