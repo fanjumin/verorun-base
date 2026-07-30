@@ -1944,11 +1944,14 @@ def init_db():
             print('[Migration] knowledge_blocks.owner_id added')
         m.execute('CREATE INDEX IF NOT EXISTS idx_kb_scope ON knowledge_blocks(scope)')
         m.execute('CREATE INDEX IF NOT EXISTS idx_kb_owner ON knowledge_blocks(owner_id)')
-        # 存量数据回填：根据 id 前缀区分系统KB 和 用户KB
+        # Backfill existing data: distinguish system KB from user KB by id prefix
         m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE id LIKE 'kb_company_%' OR id LIKE 'kb_product_%' OR id LIKE 'kb_faq_faq_%' OR id LIKE 'kb_faq_whitepaper%' OR (id LIKE 'kb_faq_%' AND id NOT LIKE 'kb_faq_faq_%')")
         m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE id LIKE 'kb_cleaner_%'")
-        m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE scope IS NULL AND source='manual'")
-        m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE scope IS NULL AND source IN ('auto','matrix')")
+        try:
+            m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE scope IS NULL AND source='manual'")
+            m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE scope IS NULL AND source IN ('auto','matrix')")
+        except Exception:
+            pass  # source column may not exist on fresh install
         print('[Migration] knowledge_blocks scope/owner_id migration completed')
         # Seed knowledge blocks from mini-program
         row = m.execute("SELECT COUNT(*) as c FROM knowledge_blocks").fetchone()
