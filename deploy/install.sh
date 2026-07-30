@@ -73,6 +73,9 @@ prompt_domain() {
 # Fresh install
 # ==========================================================================
 do_install() {
+    # Generate PG password early so PostgreSQL role and .env match
+    PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
@@ -88,7 +91,7 @@ do_install() {
 
     # Create database role and database if they don't exist
     sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" | grep -q 1 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD 'change-me-in-production'" 2>/dev/null || true
+        sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
@@ -123,7 +126,7 @@ do_install() {
     prompt_domain
 
     step "Generate .env"
-    generate_env
+    generate_env force
     done_step ".env generated"
 
     if [ -z "${DOMAIN}" ]; then
@@ -294,9 +297,21 @@ do_rollback() {
 # ==========================================================================
 generate_env() {
     local env_file="${APP_HOME}/.env"
-    if [ -f "${env_file}" ]; then
+    local force="${1:-}"
+
+    if [ -f "${env_file}" ] && [ "${force}" != "force" ]; then
         echo -e "${WARN} .env already exists, skipping"
         return
+    fi
+
+    # Backup existing .env on force overwrite
+    if [ -f "${env_file}" ] && [ "${force}" = "force" ]; then
+        cp "${env_file}" "${env_file}.bak.$(date +%s)" 2>/dev/null || true
+        echo -e "${INFO} Existing .env backed up"
+    fi
+
+    if [ -z "${PG_PASSWORD:-}" ]; then
+        PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
     fi
 
     JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
@@ -316,7 +331,7 @@ PG_HOST=localhost
 PG_PORT=5432
 PG_DB=verorun
 PG_USER=verorun
-PG_PASSWORD=change-me-in-production
+PG_PASSWORD=${PG_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
