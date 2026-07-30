@@ -56,9 +56,12 @@ def user_list():
            "COALESCE(p.industry,'') as industry, COALESCE(p.occupation,'') as occupation "
            + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
     csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
-    with get_db() as conn:
-        total = conn.execute(csql, params).fetchone()
-        rows = conn.execute(sql, params + [limit, offset]).fetchall()
+    try:
+        with get_db() as conn:
+            total = conn.execute(csql, params).fetchone()
+            rows = conn.execute(sql, params + [limit, offset]).fetchall()
+    except Exception as e:
+        return jsonify({"success": False, "error": _("Failed to query user list: ") + str(e)}), 500
     return jsonify({"success": True, "data": {
         'total': total['c'], 'page': page, 'limit': limit,
         'users': [dict(r) for r in rows],

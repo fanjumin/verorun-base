@@ -12,6 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
+from werkzeug.middleware.proxy_fix import ProxyFix
 from models import init_db, init_shop_db, get_db
 from services.deployment_config import DeployConfig, deploy
 from routes.auth import auth_bp
@@ -59,6 +60,8 @@ def _check_rate_limit(key, max_per_minute=10):
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32)))
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 @app.context_processor
 def inject_deploy():

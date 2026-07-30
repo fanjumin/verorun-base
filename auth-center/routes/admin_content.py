@@ -542,8 +542,13 @@ def media_library_upload():
     import uuid as _uuid
     safe_name = _uuid.uuid4().hex + os.path.splitext(f.filename)[1].lower()
     save_path = os.path.join(MEDIA_LIB_DIR, safe_name)
-    f.save(save_path)
-    file_size = os.path.getsize(save_path)
+    MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
+    file_data = f.read()
+    if len(file_data) > MAX_UPLOAD_SIZE:
+        return jsonify({'success': False, 'error': _('File size exceeds 100MB limit')}), 413
+    with open(save_path, 'wb') as fout:
+        fout.write(file_data)
+    file_size = len(file_data)
     mime = f.content_type or 'application/octet-stream'
     # 兜底：浏览器可能不传正确 content_type，按扩展名补
     if mime == 'application/octet-stream' or not mime:
@@ -558,12 +563,21 @@ def media_library_upload():
     thumb_name = ''
 
     with get_db() as conn:
-        new_id = conn.execute(
-            "INSERT INTO media_files (filename, original_name, mime_type, file_size, file_path, thumb_path) "
-            "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-            (safe_name, f.filename, mime, file_size, 'media/' + safe_name,
-             'media/thumbs/' + thumb_name if thumb_name else '')
-        ).fetchone()['id']
+        try:
+            new_id = conn.execute(
+                "INSERT INTO media_files (filename, original_name, mime_type, file_size, file_path, thumb_path) "
+                "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+                (safe_name, f.filename, mime, file_size, 'media/' + safe_name,
+                 'media/thumbs/' + thumb_name if thumb_name else '')
+            ).fetchone()['id']
+        except Exception:
+            cur = conn.execute(
+                "INSERT INTO media_files (filename, original_name, mime_type, file_size, file_path, thumb_path) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (safe_name, f.filename, mime, file_size, 'media/' + safe_name,
+                 'media/thumbs/' + thumb_name if thumb_name else '')
+            )
+            new_id = cur.lastrowid
         conn.commit()
     return jsonify({
         'success': True,

@@ -39,6 +39,21 @@ def _error(message, code=400):
     return jsonify({'success': False, 'error': message}), code
 
 
+_DW = None
+
+def _dw():
+    """Return soft-delete WHERE clause; falls back to '1=1' if deleted_at column missing."""
+    global _DW
+    if _DW is None:
+        try:
+            with get_db() as db:
+                db.execute("SELECT deleted_at FROM knowledge_blocks LIMIT 0")
+            _DW = "deleted_at IS NULL"
+        except Exception:
+            _DW = "1=1"
+    return _DW
+
+
 # ── 0. 知识库概览 ──
 
 @knowledge_bp.route('/', methods=['GET'])
@@ -49,10 +64,10 @@ def kb_root():
     try:
         with get_db() as db:
             total = db.execute(
-                "SELECT COUNT(*) as c FROM knowledge_blocks WHERE deleted_at IS NULL"
+                "SELECT COUNT(*) as c FROM knowledge_blocks WHERE " + _dw()
             ).fetchone()['c']
             categories = db.execute(
-                "SELECT category, COUNT(*) as cnt FROM knowledge_blocks WHERE deleted_at IS NULL GROUP BY category ORDER BY cnt DESC"
+                "SELECT category, COUNT(*) as cnt FROM knowledge_blocks WHERE " + _dw() + " GROUP BY category ORDER BY cnt DESC"
             ).fetchall()
         return _success({
             'total_entries': total,
@@ -73,16 +88,16 @@ def kb_stats():
     try:
         with get_db() as db:
             total = db.execute(
-                "SELECT COUNT(*) as c FROM knowledge_blocks WHERE deleted_at IS NULL"
+                "SELECT COUNT(*) as c FROM knowledge_blocks WHERE " + _dw()
             ).fetchone()['c']
             by_category = db.execute(
-                "SELECT category, COUNT(*) as cnt FROM knowledge_blocks WHERE deleted_at IS NULL GROUP BY category ORDER BY cnt DESC"
+                "SELECT category, COUNT(*) as cnt FROM knowledge_blocks WHERE " + _dw() + " GROUP BY category ORDER BY cnt DESC"
             ).fetchall()
             by_scope = db.execute(
-                "SELECT scope, COUNT(*) as cnt FROM knowledge_blocks WHERE deleted_at IS NULL GROUP BY scope"
+                "SELECT scope, COUNT(*) as cnt FROM knowledge_blocks WHERE " + _dw() + " GROUP BY scope"
             ).fetchall()
             total_hits = db.execute(
-                "SELECT COALESCE(SUM(hit_count), 0) as hits FROM knowledge_blocks WHERE deleted_at IS NULL"
+                "SELECT COALESCE(SUM(hit_count), 0) as hits FROM knowledge_blocks WHERE " + _dw()
             ).fetchone()['hits']
 
         return _success({
@@ -117,7 +132,7 @@ def kb_list():
 
     try:
         with get_db() as db:
-            where = ["deleted_at IS NULL"]
+            where = [_dw()]
             params = []
 
             if keyword:
@@ -227,7 +242,7 @@ def kb_update(entry_id):
 
     try:
         with get_db() as db:
-            sql = f"UPDATE knowledge_blocks SET {', '.join(fields)} WHERE id=%s AND deleted_at IS NULL"
+            sql = f"UPDATE knowledge_blocks SET {', '.join(fields)} WHERE id=%s AND " + _dw()
             db.execute(sql, params)
             db.commit()
         return _success(None, _('Updated'))
@@ -246,7 +261,7 @@ def kb_get(entry_id):
     try:
         with get_db() as db:
             row = db.execute(
-                "SELECT * FROM knowledge_blocks WHERE id=%s AND deleted_at IS NULL",
+                "SELECT * FROM knowledge_blocks WHERE id=%s AND " + _dw(),
                 (entry_id,)
             ).fetchone()
         if not row:
@@ -268,7 +283,7 @@ def kb_delete(entry_id):
     try:
         with get_db() as db:
             db.execute(
-                "UPDATE knowledge_blocks SET deleted_at=NOW() WHERE id=%s AND deleted_at IS NULL",
+                "UPDATE knowledge_blocks SET deleted_at=NOW() WHERE id=%s AND " + _dw(),
                 (entry_id,)
             )
             db.commit()
@@ -296,7 +311,7 @@ def kb_search():
 
     try:
         with get_db() as conn:
-            where = ["deleted_at IS NULL"]
+            where = [_dw()]
             params = [f'%{query}%', f'%{query}%']
             if category:
                 where.append("category=%s")
@@ -380,7 +395,7 @@ def kb_rag_query():
     try:
         with get_db() as db:
             rows = db.execute(
-                "SELECT id, title, content FROM knowledge_blocks WHERE deleted_at IS NULL AND (title LIKE %s OR content LIKE %s) ORDER BY priority DESC, hit_count DESC LIMIT %s",
+                "SELECT id, title, content FROM knowledge_blocks WHERE " + _dw() + " AND (title LIKE %s OR content LIKE %s) ORDER BY priority DESC, hit_count DESC LIMIT %s",
                 (f'%{question}%', f'%{question}%', top_k)
             ).fetchall()
 

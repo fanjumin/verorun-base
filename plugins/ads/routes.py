@@ -61,6 +61,7 @@ def _ad_row_to_dict(row):
 
 # ── GET /admin/ads ──
 @ads_bp.route('/', methods=['GET'])
+@ads_bp.route('', methods=['GET'])
 def list_ads():
     admin, err = _require_admin()
     if err:

@@ -1,4 +1,4 @@
-﻿function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
+function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 function hk(l,v,c){return '<div class="cd"><div class="l">'+l+'</div><div class="v '+(c||"")+'">'+v+'</div></div>'}
 
 // ── 主题确认弹窗 ──
@@ -100,12 +100,14 @@ function submitFirstPassword(){
   });
 }
 
+var sectionMap={};
 function go(s){
   document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
   var el=document.getElementById("n-"+s);if(el)el.classList.add("sel");
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  var maxRetries=sectionMap.hasOwnProperty(s)?100:3;
   var _tries=0;
-  (function _try(){_tries++;if(typeof window["l_"+s]=="function"){window["l_"+s]()}else if(_tries<100)setTimeout(_try,50);else document.getElementById("mc").innerHTML='<div class="em">{{ _('Plugin render function') }} l_'+s+'() {{ _('not found') }}. {{ _('Try refreshing the page') }}.'})();
+  (function _try(){_tries++;if(typeof window["l_"+s]=="function"){window["l_"+s]()}else if(_tries<maxRetries)setTimeout(_try,50);else document.getElementById("mc").innerHTML='<div class="em">{{ _('Plugin render function') }} l_'+s+'() {{ _('not found') }}. {{ _('Try refreshing the page') }}.'})();
 }
 
 function goPlugin(key,embedUrl){
