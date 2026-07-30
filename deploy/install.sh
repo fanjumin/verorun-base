@@ -73,15 +73,15 @@ prompt_domain() {
 # Fresh install
 # ==========================================================================
 do_install() {
-    # Generate PG password early so PostgreSQL role and .env match
-    PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y -qq python3 python3-venv python3-pip python3-dev \
         nginx git curl wget build-essential libpq-dev libssl-dev
     done_step "System dependencies installed"
+
+    # Generate PG password early so PostgreSQL role and .env match
+    PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
@@ -103,7 +103,8 @@ do_install() {
     mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true "${LOG_DIR}"
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
 
     step "Pull code"
@@ -292,7 +293,7 @@ do_rollback() {
     cd "${APP_HOME}"
     git reflog --oneline -5 | head -5
     if git reset --hard HEAD~1; then
-        systemctl restart verorun-admin verorun-auth verorun-main
+        systemctl restart verorun-admin verorun-auth verorun-main verorun-health
         echo -e "${OK} Rolled back to $(git log --oneline -1)"
     else
         echo -e "${FAIL} Rollback failed"
