@@ -156,6 +156,10 @@ do_install() {
         done_step "Services started"
     fi
 
+    step "Database migration"
+    sudo -u "${APP_USER}" bash -c "cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
+    done_step "Database migrated"
+
     step "Seed data"
     do_seed
     done_step "Seed data injected"
