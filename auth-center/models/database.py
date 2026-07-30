@@ -2456,7 +2456,7 @@ with get_db() as m:
     m.execute("""
         CREATE TABLE IF NOT EXISTS article_comments (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            post_id         BIGINT NOT NULL REFERENCES cms_posts(id),
+            post_id         BIGINT NOT NULL,
             parent_id       BIGINT,
             nickname        TEXT NOT NULL DEFAULT 'Anonymous',
             content         TEXT NOT NULL,
@@ -2556,7 +2556,7 @@ if MARKET == 'intl':
         # INTL 地址表（自由文本）
         m.execute('''CREATE TABLE IF NOT EXISTS user_addresses_intl (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            user_id         BIGINT NOT NULL REFERENCES users(id),
+            user_id         BIGINT NOT NULL,
             label           TEXT DEFAULT '',
             recipient_name  TEXT NOT NULL DEFAULT '',
             phone           TEXT NOT NULL DEFAULT '',
@@ -2951,8 +2951,8 @@ with get_db() as m:
             key_hash        TEXT UNIQUE NOT NULL,
             key_prefix      TEXT NOT NULL,
             key_type        TEXT NOT NULL CHECK(key_type IN ('user','agent','provider')),
-            user_id         BIGINT NOT NULL REFERENCES users(id),
-            agent_id        BIGINT DEFAULT NULL REFERENCES user_agents(id),
+            user_id         BIGINT NOT NULL,
+            agent_id        BIGINT DEFAULT NULL,
             provider        TEXT DEFAULT '',
             name            TEXT DEFAULT '',
             scopes          TEXT DEFAULT '[]',
@@ -3041,7 +3041,7 @@ with get_db() as m:
     m.execute('''
         CREATE TABLE IF NOT EXISTS user_subscriptions (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            user_id         BIGINT NOT NULL REFERENCES users(id),
+            user_id         BIGINT NOT NULL,
             plan_key        TEXT DEFAULT 'free',
             status          TEXT DEFAULT 'active' CHECK(status IN ('active','cancelled','expired')),
             daily_limit     BIGINT DEFAULT 20,
@@ -3055,7 +3055,7 @@ with get_db() as m:
     m.execute('''
         CREATE TABLE IF NOT EXISTS subscription_addons (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-            user_id         BIGINT NOT NULL REFERENCES users(id),
+            user_id         BIGINT NOT NULL,
             plugin_key      TEXT NOT NULL,
             plugin_name     TEXT DEFAULT '',
             period          TEXT DEFAULT 'month',
