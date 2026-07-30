@@ -1951,7 +1951,7 @@ def init_db():
             m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE scope IS NULL AND source='manual'")
             m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE scope IS NULL AND source IN ('auto','matrix')")
         except Exception:
-            pass  # source column may not exist on fresh install
+            m.rollback()  # source column may not exist on fresh install — clear aborted tx
         print('[Migration] knowledge_blocks scope/owner_id migration completed')
         # Seed knowledge blocks from mini-program
         row = m.execute("SELECT COUNT(*) as c FROM knowledge_blocks").fetchone()
