@@ -17,7 +17,7 @@ set -euo pipefail
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
 : "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
 : "${GIT_BRANCH:=master}"
-: "${APP_USER:=verorun}"
+: "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun-workspace}"
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
@@ -93,13 +93,10 @@ do_install() {
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
-    step "Create user & directories"
-    if ! id "${APP_USER}" &>/dev/null; then
-        useradd -m -s /bin/bash "${APP_USER}"
-    fi
+    step "Create directories"
     mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" "${LOG_DIR}"
-    done_step "User ${APP_USER} ready"
+    done_step "Directories ready"
 
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
