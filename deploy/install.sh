@@ -89,9 +89,12 @@ do_install() {
         systemctl enable --now postgresql
     fi
 
-    # Create database role and database if they don't exist
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" | grep -q 1 2>/dev/null || \
+    # Ensure role exists and password matches .env
+    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -q 1; then
+        sudo -u postgres psql -c "ALTER ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
+    else
         sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
+    fi
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
