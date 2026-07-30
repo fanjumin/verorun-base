@@ -101,7 +101,9 @@ do_install() {
 
     step "Create directories"
     mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
-    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" "${LOG_DIR}"
+    # Clean stale __pycache__ before chown (avoids race-condition failures)
+    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true "${LOG_DIR}"
     done_step "Directories ready"
 
     step "Pull code"
@@ -114,7 +116,9 @@ do_install() {
         rm -rf "${APP_HOME}"
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
-    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}"
+    # Clean stale __pycache__ before chown (avoids race-condition failures)
+    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
     done_step "Code pulled ($(git -C "${APP_HOME}" log --oneline -1))"
 
     step "Python virtual environment"
