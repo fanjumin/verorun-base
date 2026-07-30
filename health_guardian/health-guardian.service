@@ -9,7 +9,7 @@ Wants=health.service
 Type=simple
 User=root
 EnvironmentFile=-/etc/default/health-guardian
-ExecStart=/usr/bin/python3 /home/verorun/verorun-workspace/health_guardian.py
+ExecStart=/usr/bin/python3 %h/verorun-workspace/health_guardian.py
 Restart=always
 RestartSec=5
 

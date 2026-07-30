@@ -408,10 +408,13 @@ SVCEOF
 
     # 8084 — Admin
     write_one_service "verorun-admin" 8084 "admin" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning"
+
+    # 8085 — Health Check (独立服务)
+    write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
 }
 
 restart_services() {
-    local services=("verorun-admin" "verorun-auth" "verorun-main")
+    local services=("verorun-admin" "verorun-auth" "verorun-main" "verorun-health")
     for svc in "${services[@]}"; do
         if systemctl is-enabled --quiet "${svc}" 2>/dev/null; then
             systemctl restart "${svc}"
@@ -541,6 +544,7 @@ health_check() {
     check_port 8081 "verorun-main"
     check_port 8083 "verorun-auth"
     check_port 8084 "verorun-admin"
+    check_port 8085 "verorun-health"
 
     # Check DDL migration logs
     echo ""

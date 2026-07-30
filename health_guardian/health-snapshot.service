@@ -4,5 +4,5 @@ Description=Daily Health Guardian Snapshot
 [Service]
 Type=oneshot
 User=verorun
-WorkingDirectory=/home/verorun/verorun-workspace
-ExecStart=/usr/bin/python3 /home/verorun/verorun-workspace/health_guardian.py --snapshot
+WorkingDirectory=~/verorun-workspace
+ExecStart=/usr/bin/python3 %h/verorun-workspace/health_guardian.py --snapshot
