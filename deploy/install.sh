@@ -75,8 +75,8 @@ prompt_domain() {
 do_install() {
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq
-    apt-get install -y -qq python3 python3-venv python3-pip python3-dev \
+    apt-get update
+    apt-get install -y python3 python3-venv python3-pip python3-dev \
         nginx git curl wget build-essential libpq-dev libssl-dev
     done_step "System dependencies installed"
 
@@ -85,7 +85,7 @@ do_install() {
 
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
-        apt-get install -y -qq postgresql postgresql-client
+        apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
 
@@ -126,9 +126,9 @@ do_install() {
     if [ ! -f "${VENV_DIR}/bin/python" ]; then
         sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
     fi
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip -q
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy -q
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt"
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy
     done_step "Python dependencies installed"
 
     prompt_domain
@@ -211,8 +211,8 @@ do_update() {
     done_step ".env synced"
 
     step "Update Python dependencies"
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy -q
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt"
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy
     done_step "Dependencies updated"
 
     step "Update systemd services"
@@ -430,13 +430,13 @@ SVCEOF
         systemctl enable "${name}"
     }
 
-    # 8081 — Main site（首页 public_home.html）
+    # 8081 — Main site (homepage public_home.html)
     write_one_service "verorun-main" 8081 "auth_server" "--timeout 120 --log-level warning"
 
-    # 8083 — Platform / User Console（用户控制台）
+    # 8083 — Platform / User Console
     write_one_service "verorun-auth" 8083 "main_site" "--timeout 120 --log-level warning"
 
-    # 8084 — Admin（使用 run_gunicorn.py 处理 platform/ 遮蔽 stdlib）
+    # 8084 — Admin (uses run_gunicorn.py to avoid platform/ shadowing stdlib)
     write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning" "admin/run_gunicorn.py"
 
     # 8085 — Health Check

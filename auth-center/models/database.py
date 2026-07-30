@@ -2163,7 +2163,7 @@ def init_db():
         else:
             print('[Migration] orders → subscription_orders: no orders to migrate')
 
-        print('[Migration] 旧表合并完成。service_plans/billing_orders/orders 保留以兼容旧代码，新代码应使用 subscription_* 表')
+        print('[Migration] Legacy table merge complete. service_plans/billing_orders/orders retained for backward compatibility; new code should use subscription_* tables')
 
     # ── 抖音小程序支持：chat_messages + mp_profiles (2026-06-11) ──
     with get_db() as m:
@@ -2186,7 +2186,7 @@ def init_db():
             )
         """)
         m.commit()
-        print('[Migration] chat_messages + mp_profiles 表已创建')
+        print('[Migration] chat_messages + mp_profiles tables created')
 
     # 迁移：为 mp_profiles 表添加 visit_count 字段
     try:
@@ -2250,7 +2250,7 @@ def init_db():
                     "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (plan_key) DO NOTHING",
                     (pk, nm, desc, pm, py, td, tier, feats, so))
         m.commit()
-        print(f'[Migration] 独立部署套餐 subscription_plans 已更新')
+        print(f'[Migration] Standalone deployment subscription_plans updated')
 
     # ── pricing_rules / order_items payment+shipping / express_companies ──
     # All handled by init_shop_db() with full column set.
@@ -2500,7 +2500,7 @@ with get_db() as m:
     m.execute('CREATE INDEX IF NOT EXISTS idx_dc_user ON deployment_codes(user_id)')
     m.execute('CREATE INDEX IF NOT EXISTS idx_dc_status ON deployment_codes(status)')
     m.commit()
-    print('[Migration] ✅ deployment_codes 独立部署订阅表')
+    print('[Migration] deployment_codes (standalone deployment subscriptions) table created')
 
 # ── Migration: 清理旧版套餐数据 (2026-06-27) ──
 try:
@@ -2513,9 +2513,9 @@ try:
         m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
         m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
         m.commit()
-        print('[Migration] ✅ 旧版套餐数据已清理')
+        print('[Migration] Legacy plan data cleaned up')
 except Exception as e:
-    print(f'[Migration] ⚠️ 旧版套餐数据迁移跳过: {e}')
+    print(f'[Migration] Legacy plan data migration skipped: {e}')
 
 
 def get_active_model(provider_slug='deepseek'):
@@ -2737,14 +2737,14 @@ with get_db() as m:
     m.execute('CREATE INDEX IF NOT EXISTS idx_sd_config ON site_domains(site_config_id)')
     m.execute('CREATE INDEX IF NOT EXISTS idx_sd_domain ON site_domains(full_domain)')
     m.commit()
-    print('[Migration] ✅ site_domains 子域名管理表')
+    print('[Migration] site_domains (subdomain management) table created')
 
 # ── Migration: site_domains 新增 service_port 列 (2026-07-06) ──
 try:
     with get_db() as m:
         m.execute("ALTER TABLE site_domains ADD COLUMN service_port BIGINT DEFAULT NULL")
         m.commit()
-        print('[Migration] ✅ site_domains 新增 service_port 列')
+        print('[Migration] site_domains.service_port column added')
 except Exception:
     pass  # 列已存在
 
@@ -2775,7 +2775,7 @@ try:
                 (sub, full, name, template, pub, so)
             )
         m.commit()
-    print('[Migration] ✅ site_domains 默认种子 (www/agent/platform)')
+    print('[Migration] site_domains default seeds (www/agent/platform)')
 except Exception:
     pass  # site_domains 表可能尚未创建
 
@@ -2821,7 +2821,7 @@ with get_db() as m:
     m.execute('CREATE INDEX IF NOT EXISTS idx_sbt_user ON site_builder_tasks(user_id)')
     m.execute('CREATE INDEX IF NOT EXISTS idx_sbt_status ON site_builder_tasks(status)')
     m.commit()
-    print('[Migration] ✅ site_builder 表已创建')
+    print('[Migration] site_builder table created')
 
     # ── site_settings: 统一设计令牌表（替代 brand_settings + header_nav + footer_* + themes）──
     try:
@@ -2840,9 +2840,9 @@ with get_db() as m:
         """)
         m.execute("CREATE INDEX IF NOT EXISTS idx_dt_site_key ON design_tokens(site_key)")
         m.commit()
-        print('[Migration] ✅ design_tokens 表已创建')
+        print('[Migration] design_tokens table created')
     except Exception as e_th:
-        print(f'[Migration] ⚠️ design_tokens 表创建失败（可能已存在）: {e_th}')
+        print(f'[Migration] design_tokens table creation failed (may already exist): {e_th}')
 
 
 def now_iso():
