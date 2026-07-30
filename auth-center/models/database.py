@@ -2971,7 +2971,7 @@ with get_db() as m:
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             key_id          BIGINT NOT NULL REFERENCES unified_api_keys(id),
             action          TEXT NOT NULL CHECK(action IN ('create','revoke','rotate')),
-            user_id         BIGINT DEFAULT NULL REFERENCES users(id),
+            user_id         BIGINT DEFAULT NULL,
             extra           TEXT DEFAULT '{}',
             created_at      TIMESTAMP DEFAULT NOW()
         )
