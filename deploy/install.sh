@@ -371,8 +371,14 @@ write_systemd_services() {
     local env_file="${APP_HOME}/.env"
 
     write_one_service() {
-        local name=$1 port=$2 module=$3 extra_args="${4:-}"
+        local name=$1 port=$2 module=$3 extra_args="${4:-}" runner="${5:-}"
         local file="${SERVICE_DIR}/${name}.service"
+
+        if [ -n "${runner}" ]; then
+            local exec_cmd="${VENV_DIR}/bin/python ${APP_HOME}/${runner} -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app"
+        else
+            local exec_cmd="${VENV_DIR}/bin/gunicorn -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app"
+        fi
 
         cat > "${file}" << SVCEOF
 [Unit]
@@ -384,7 +390,7 @@ User=${APP_USER}
 Group=${APP_USER}
 WorkingDirectory=${APP_HOME}
 EnvironmentFile=${env_file}
-ExecStart=${VENV_DIR}/bin/gunicorn -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app
+ExecStart=${exec_cmd}
 Restart=always
 RestartSec=5
 StandardOutput=append:${LOG_DIR}/${name}.log
@@ -403,10 +409,10 @@ SVCEOF
     # 8083 — Platform / Auth
     write_one_service "verorun-auth" 8083 "auth_server" "--timeout 120 --log-level warning"
 
-    # 8084 — Admin
-    write_one_service "verorun-admin" 8084 "admin" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning"
+    # 8084 — Admin（使用 run_gunicorn.py 处理 platform/ 遮蔽 stdlib）
+    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning" "admin/run_gunicorn.py"
 
-    # 8085 — Health Check (独立服务)
+    # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
 }
 
