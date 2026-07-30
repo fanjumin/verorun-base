@@ -56,7 +56,7 @@ VeroRun integrates multi-vendor AI engines, e-commerce operations, CMS content m
 ### One-Click Deploy (Ubuntu 22.04/24.04)
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/deploy.sh)" -- install your-domain.com
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh)" -- install your-domain.com
 ```
 
 Or via git clone:
@@ -64,7 +64,7 @@ Or via git clone:
 ```bash
 git clone https://github.com/fanjumin/VeroRunSystem.git
 cd VeroRunSystem
-sudo bash deploy/deploy.sh install your-domain.com
+sudo bash deploy/install.sh install your-domain.com
 ```
 
 For detailed instructions, see [deploy/README.md](deploy/README.md).

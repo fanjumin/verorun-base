@@ -3,13 +3,13 @@
 # VeroRun — One-command deploy script (v2.1)
 # ==========================================================================
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/deploy.sh | sudo bash   # fresh install
-#   sudo bash deploy/deploy.sh update           # update code, deps, and restart
-#   sudo bash deploy/deploy.sh restart          # restart services only
-#   sudo bash deploy/deploy.sh health           # health check
-#   sudo bash deploy/deploy.sh rollback         # rollback to previous commit
-#   sudo bash deploy/deploy.sh seed             # seed initial data (admin, plans, products)
-#   sudo bash deploy/deploy.sh configure-domain  # configure domain post-install
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh | sudo bash   # fresh install
+#   sudo bash deploy/install.sh update           # update code, deps, and restart
+#   sudo bash deploy/install.sh restart          # restart services only
+#   sudo bash deploy/install.sh health           # health check
+#   sudo bash deploy/install.sh rollback         # rollback to previous commit
+#   sudo bash deploy/install.sh seed             # seed initial data (admin, plans, products)
+#   sudo bash deploy/install.sh configure-domain  # configure domain post-install
 # ==========================================================================
 set -euo pipefail
 
@@ -63,7 +63,7 @@ prompt_domain() {
     read -p "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " DOMAIN </dev/tty
     if [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain skipped. Run after install:"
-        echo -e "${INFO}   sudo bash deploy/deploy.sh configure-domain <your-domain>"
+        echo -e "${INFO}   sudo bash deploy/install.sh configure-domain <your-domain>"
     else
         echo -e "${OK} Domain set to: ${DOMAIN}"
     fi
@@ -132,7 +132,7 @@ do_install() {
     if [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain not configured. System and nginx not started."
         echo -e "${INFO} After install, run:"
-        echo -e "${INFO}   sudo bash deploy/deploy.sh configure-domain <your-domain>"
+        echo -e "${INFO}   sudo bash deploy/install.sh configure-domain <your-domain>"
     else
         step "systemd services"
         write_systemd_services
@@ -159,6 +159,9 @@ do_install() {
 # Incremental update
 # ==========================================================================
 do_update() {
+    # Self-update tracking: md5 of currently-running install.sh
+    UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
+
     # Read domain from existing .env
     DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2) || true
 
@@ -182,6 +185,15 @@ do_update() {
     after_commit=$(git log --oneline -1)
     done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
 
+    # Self-update: if install.sh itself changed, re-run update with new version
+    local script_md5
+    script_md5=$(md5sum "${APP_HOME}/deploy/install.sh" | awk '{print $1}')
+    if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
+        echo -e "${INFO} install.sh updated, re-running with new version..."
+        exec sudo bash "${APP_HOME}/deploy/install.sh" update
+        exit
+    fi
+
     step "Update .env (fill missing keys)"
     update_env
     done_step ".env synced"
@@ -190,6 +202,15 @@ do_update() {
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt" -q
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy -q
     done_step "Dependencies updated"
+
+    step "Update systemd services"
+    write_systemd_services
+    done_step "Systemd services updated"
+
+    step "Update Nginx config"
+    write_nginx_config
+    nginx -t && systemctl restart nginx
+    done_step "Nginx config updated"
 
     step "Restart services"
     restart_services
@@ -206,7 +227,7 @@ do_seed() {
     step "Seed initial data"
     if [ ! -f "${VENV_DIR}/bin/python" ]; then
         echo -e "${FAIL} Python venv not found at ${VENV_DIR}"
-        echo -e "${INFO} Run 'deploy.sh install' first"
+        echo -e "${INFO} Run 'install.sh install' first"
         exit 1
     fi
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
@@ -219,7 +240,7 @@ do_seed() {
 do_configure_domain() {
     local domain="$1"
     if [ -z "$domain" ]; then
-        echo -e "${FAIL} Usage: sudo bash deploy/deploy.sh configure-domain <your-domain>"
+        echo -e "${FAIL} Usage: sudo bash deploy/install.sh configure-domain <your-domain>"
         exit 1
     fi
 
@@ -227,7 +248,7 @@ do_configure_domain() {
 
     local env_file="${APP_HOME}/.env"
     if [ ! -f "${env_file}" ]; then
-        echo -e "${FAIL} .env not found. Run 'deploy.sh install' first."
+        echo -e "${FAIL} .env not found. Run 'install.sh install' first."
         exit 1
     fi
 
@@ -290,7 +311,7 @@ generate_env() {
     LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > "${env_file}" << ENVEOF
-# VeroRun production config — auto-generated by deploy.sh
+# VeroRun production config — auto-generated by install.sh
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=${DOMAIN}
 DB_PATH=${APP_HOME}/data/verorun.db
@@ -420,7 +441,7 @@ write_nginx_config() {
     local nginx_enabled="/etc/nginx/sites-enabled/verorun.conf"
 
     cat > "${nginx_conf}" << NGXEOF
-# VeroRun Nginx — auto-generated by deploy.sh
+# VeroRun Nginx — auto-generated by install.sh
 
 # ── Main domain ────────────────────────────────
 server {
@@ -555,8 +576,8 @@ print_summary() {
     echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status verorun-{main,auth,admin}                ║"
     echo "  ║    journalctl -u verorun-admin -f                            ║"
-    echo "  ║    bash deploy/deploy.sh update                              ║"
-    echo "  ║    bash deploy/deploy.sh rollback                            ║"
+    echo "  ║    bash deploy/install.sh update                              ║"
+    echo "  ║    bash deploy/install.sh rollback                            ║"
     echo "  ╚══════════════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -567,7 +588,7 @@ print_summary() {
 
 # Must run as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${FAIL} Please run with sudo: sudo bash deploy.sh [install|update|restart|health|rollback|seed|configure-domain]"
+    echo -e "${FAIL} Please run with sudo: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain]"
     exit 1
 fi
 
@@ -597,7 +618,7 @@ case "${DEPLOY_MODE}" in
         do_configure_domain "${2:-}"
         ;;
     *)
-        echo "Usage: sudo bash deploy.sh [install|update|restart|health|rollback|seed|configure-domain <domain>]"
+        echo "Usage: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain <domain>]"
         exit 1
         ;;
 esac

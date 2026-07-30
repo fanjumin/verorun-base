@@ -3,7 +3,7 @@
 # VeroRun — Uninstall script
 # ==========================================================================
 # Usage: sudo bash deploy/uninstall.sh
-# Mirrors every resource created by deploy.sh install, reverses them.
+# Mirrors every resource created by install.sh install, reverses them.
 # Does NOT remove system packages (python3/nginx/postgresql/git).
 # ==========================================================================
 set -euo pipefail
@@ -82,4 +82,4 @@ echo -e "${INFO} System packages (python3, nginx, postgresql, git) are NOT remov
 echo -e "${INFO} Server is clean. Ready for fresh install:"
 echo -e "${INFO}   git clone https://github.com/fanjumin/VeroRunSystem.git"
 echo -e "${INFO}   cd VeroRunSystem"
-echo -e "${INFO}   sudo bash deploy/deploy.sh install your-domain.com"
+echo -e "${INFO}   sudo bash deploy/install.sh install your-domain.com"

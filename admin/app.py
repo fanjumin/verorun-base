@@ -92,7 +92,7 @@ def add_security_headers(response):
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "img-src 'self' data: blob: https:; "
         "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; "
-        "connect-src 'self' ws: wss: https://cdn.jsdelivr.net; "
+        "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://api.github.com; "
         "frame-ancestors 'self';"
     )
     return response
@@ -946,6 +946,41 @@ def plugin_fallback_404(e):
             return '<html><body style="background:#0d1117;color:#8b949e;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0"><div style="text-align:center"><h2 style="color:#f85149">Plugin Not Available</h2><p>This plugin is currently disabled or not installed.</p></div></body></html>', 200, {'Content-Type': 'text/html; charset=utf-8'}
     # Non-plugin 404 — return plain text
     return 'Not Found', 404
+
+
+@app.route('/admin/api/update', methods=['POST'])
+def admin_update():
+    """One-click update: git pull → pip install → restart services"""
+    from services.jwt_service import validate_token
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.cookies.get('sso_token', '')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return jsonify({'success': False, 'error': _('Unauthorized')}), 401
+
+    _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _venv_dir = os.environ.get('VENV_DIR', os.path.join(_project_root, 'venv'))
+    _pip_path = os.path.join(_venv_dir, 'bin', 'pip')
+    _req_path = os.path.join(_project_root, 'requirements.txt')
+
+    def _do_update():
+        import subprocess as _sp
+        try:
+            _sp.run(['git', 'fetch', 'origin', 'master'], cwd=_project_root,
+                    check=True, capture_output=True, timeout=60)
+            _sp.run(['git', 'reset', '--hard', 'origin/master'], cwd=_project_root,
+                    check=True, capture_output=True, timeout=60)
+            _sp.run([_pip_path, 'install', '-r', _req_path],
+                    check=True, capture_output=True, timeout=120)
+            for _svc in ('verorun-admin', 'verorun-auth', 'verorun-main'):
+                _sp.run(['sudo', 'systemctl', 'restart', _svc],
+                        check=True, capture_output=True, timeout=30)
+        except Exception as _e:
+            print(f'[Update] Error: {_e}')
+
+    import threading
+    threading.Thread(target=_do_update, daemon=True).start()
+
+    return jsonify({'success': True, 'message': _('Update started, services will restart shortly')})
 
 
 if __name__ == '__main__(':
