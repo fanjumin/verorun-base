@@ -94,8 +94,11 @@ def public_convert():
 @currency_bp.route('/preference', methods=['GET'])
 def get_preference():
     """获取当前用户币种偏好"""
-    from flask import g
-    user_id = getattr(g, 'user_id', None)
+    from services.jwt_service import validate_token
+    auth = request.headers.get('Authorization', '')
+    token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
+    payload = validate_token(token) if token else None
+    user_id = payload.get('user_id') if payload else None
     if not user_id:
         return jsonify({'success': False, 'error': 'Not logged in'}), 401
     from .services import get_user_preferred_currency
@@ -106,8 +109,11 @@ def get_preference():
 @currency_bp.route('/preference', methods=['POST'])
 def set_preference():
     """设置当前用户币种偏好"""
-    from flask import g
-    user_id = getattr(g, 'user_id', None)
+    from services.jwt_service import validate_token
+    auth = request.headers.get('Authorization', '')
+    token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
+    payload = validate_token(token) if token else None
+    user_id = payload.get('user_id') if payload else None
     if not user_id:
         return jsonify({'success': False, 'error': 'Not logged in'}), 401
     data = request.get_json(force=True) or {}

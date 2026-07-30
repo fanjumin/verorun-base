@@ -101,7 +101,7 @@ def sms_template_update(tid):
     params.append(tid)
     conn = get_sms_db()
     conn.execute(
-        f'UPDATE sms_templates SET {", ".join(fields)}, updated_at=NOW() WHERE id=%s',
+        f'UPDATE sms_templates SET {", ".join(fields)}, updated_at=NOW() WHERE id=?',
         params
     )
     conn.commit()

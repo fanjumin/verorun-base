@@ -44,8 +44,8 @@ def _get_user_id():
     auth = request.headers.get('Authorization', '')
     if auth.startswith('Bearer '):
         try:
-            import jwt
-            payload = jwt.decode(auth[7:], options={"verify_signature": False})
+            from services.jwt_service import validate_token
+            payload = validate_token(auth[7:])
             return payload.get('user_id') or payload.get('sub')
         except Exception:
             pass
@@ -81,8 +81,8 @@ def _admin_required(f):
         auth = request.headers.get('Authorization', '')
         if auth.startswith('Bearer '):
             try:
-                import jwt
-                payload = jwt.decode(auth[7:], options={"verify_signature": False})
+                from services.jwt_service import validate_token
+                payload = validate_token(auth[7:])
                 if payload.get('is_admin'):
                     return f(*args, **kwargs)
             except Exception:
@@ -322,6 +322,7 @@ def notify_paypal():
 # ═══════════════════════════════════════════════════════════════════════════
 
 @sub_bp.route('/admin/subscription/items', methods=['GET'])
+@_admin_required
 def admin_list_items():
     """管理员：列出所有 SKU"""
     svc = get_subscription_service()
@@ -330,6 +331,7 @@ def admin_list_items():
 
 
 @sub_bp.route('/admin/subscription/items', methods=['POST'])
+@_admin_required
 def admin_save_item():
     """管理员：新增/更新 SKU"""
     data = request.get_json(silent=True) or {}
@@ -342,6 +344,7 @@ def admin_save_item():
 
 
 @sub_bp.route('/admin/subscription/items/<item_key>', methods=['DELETE'])
+@_admin_required
 def admin_delete_item(item_key):
     """管理员：停用 SKU"""
     svc = get_subscription_service()
@@ -365,6 +368,7 @@ def admin_delete_item(item_key):
 
 
 @sub_bp.route('/admin/subscription/users', methods=['GET'])
+@_admin_required
 def admin_list_users():
     """管理员：查看用户订阅列表"""
     user_id = request.args.get('user_id', type=int)
@@ -377,6 +381,7 @@ def admin_list_users():
 
 
 @sub_bp.route('/admin/subscription/orders', methods=['GET'])
+@_admin_required
 def admin_list_orders():
     """管理员：订单列表"""
     limit = request.args.get('limit', 100, type=int)

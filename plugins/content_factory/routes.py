@@ -402,7 +402,7 @@ def review_content():
         return jsonify({'success': False, 'error': f'Status {cur} does not allow {action}'})
 
     conn.execute(
-        "UPDATE processed_contents SET status=%s, reviewed_by=%s, reviewed_at=NOW() WHERE id=%s",
+        "UPDATE processed_contents SET status=?, reviewed_by=?, reviewed_at=NOW() WHERE id=?",
         (target, admin['user_id'], pid)
     )
     conn.commit()
@@ -718,6 +718,9 @@ def push_processed_to_knowledge():
 
 @cf_bp.route('/cron/tick', methods=['POST'])
 def cron_tick():
+    secret = request.headers.get('X-Cron-Secret', '')
+    if secret != os.environ.get('CRON_SECRET', ''):
+        return jsonify({'error': 'Unauthorized'}), 403
     from datetime import datetime
     try:
         now = datetime.now()

@@ -52,18 +52,16 @@ def _safe_int(v, default=0):
 
 
 def _require_auth():
-    """从请求头解析用户 JWT（读取环境变量 JWT_SECRET）。"""
+    """从请求头解析用户 JWT（使用主系统 validate_token）。"""
+    from services.jwt_service import validate_token
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None, jsonify({'success': False, 'error': _t(_('Not logged in'))}), 401
     token = auth[7:]
     try:
-        import jwt as pyjwt
-        import os
-        secret = os.environ.get('JWT_SECRET', '')
-        if not secret:
+        payload = validate_token(token)
+        if not payload:
             return None, jsonify({'success': False, 'error': _t(_('Token is invalid or expired'))}), 401
-        payload = pyjwt.decode(token, secret, algorithms=['HS256'])
         return payload, None, None
     except Exception:
         return None, jsonify({'success': False, 'error': _t(_('Token is invalid or expired'))}), 401

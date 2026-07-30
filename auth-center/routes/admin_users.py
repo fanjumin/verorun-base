@@ -4,7 +4,7 @@ from .admin import admin_bp, _require_admin, _log, _cached_get, _qcached
 from i18n import _
 from datetime import datetime, timedelta
 from flask import Response, jsonify, request
-from models import get_db
+from models import get_db, now_iso
 import os
 import json
 
@@ -73,18 +73,21 @@ def user_detail(uid):
     admin, err = _require_admin()
     if err:
         return err
-    with get_db() as conn:
-        user = conn.execute("SELECT id, username, phone, phone_verified, email, COALESCE(display_name, username, '') as nickname, "
-                            "wechat_nickname, avatar_url, "
-                            "verified_by, verified_at, display_name, "
-                            "'' as agent_id, '' as agent_nickname, '' as agent_avatar_url, "
-                            "is_admin, active, created_at, last_login "
-                            "FROM users WHERE id=%s", (uid,)).fetchone()
-        if not user:
-            return jsonify({'success': False, 'error': chr(29992)+chr(25143)+chr(19981)+chr(23384)+chr(22312)}), 404
-        auths = conn.execute('SELECT app_name, tier, tier_expire_at, calls_today, calls_total FROM app_authorizations WHERE user_id=%s', (uid,)).fetchall()
-        orders = conn.execute('SELECT id, order_no, amount, item_type, item_desc, status, created_at FROM billing_orders WHERE user_id=%s ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
-    return jsonify({'success': True, 'data': {'user': dict(user), 'authorizations': [dict(a) for a in auths], 'orders': [dict(o) for o in orders]}})
+    try:
+        with get_db() as conn:
+            user = conn.execute("SELECT id, username, phone, phone_verified, email, COALESCE(display_name, username, '') as nickname, "
+                                "wechat_nickname, avatar_url, "
+                                "verified_by, verified_at, display_name, "
+                                "'' as agent_id, '' as agent_nickname, '' as agent_avatar_url, "
+                                "is_admin, active, created_at, last_login "
+                                "FROM users WHERE id=%s", (uid,)).fetchone()
+            if not user:
+                return jsonify({'success': False, 'error': chr(29992)+chr(25143)+chr(19981)+chr(23384)+chr(22312)}), 404
+            auths = conn.execute('SELECT app_name, tier, tier_expire_at, calls_today, calls_total FROM app_authorizations WHERE user_id=%s', (uid,)).fetchall()
+            orders = conn.execute('SELECT id, order_no, amount, item_type, item_desc, status, created_at FROM billing_orders WHERE user_id=%s ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
+        return jsonify({'success': True, 'data': {'user': dict(user), 'authorizations': [dict(a) for a in auths], 'orders': [dict(o) for o in orders]}})
+    except Exception as e:
+        return jsonify({'success': False, 'error': _('Query failed')}), 500
 
 @admin_bp.route('/users/<int:uid>/status', methods=['PUT'])
 def user_status(uid):
@@ -93,9 +96,12 @@ def user_status(uid):
         return err
     data = request.get_json(force=True) or {}
     active = data.get('active', 1)
-    with get_db() as conn:
-        conn.execute('UPDATE users SET active=%s WHERE id=%s', (1 if active else 0, uid))
-        conn.commit()
+    try:
+        with get_db() as conn:
+            conn.execute('UPDATE users SET active=%s WHERE id=%s', (1 if active else 0, uid))
+            conn.commit()
+    except Exception as e:
+        return jsonify({'success': False, 'error': _('Update failed')}), 500
     _log(admin['user_id'], 'ban_user' if not active else 'activate_user', 'user', str(uid))
     return jsonify({'success': True, 'message': chr(29366)+chr(24577)+chr(24050)+chr(26356)+chr(26032)})
 

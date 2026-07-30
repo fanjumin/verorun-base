@@ -55,10 +55,13 @@ def admin_list_codes():
     admin, err = _require_admin()
     if err:
         return err
-    with get_db() as conn:
-        rows = conn.execute(
-            'SELECT * FROM deployment_codes ORDER BY created_at DESC'
-        ).fetchall()
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                'SELECT * FROM deployment_codes ORDER BY created_at DESC'
+            ).fetchall()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
     return jsonify({'success': True, 'data': [dict(r) for r in rows]})
 
 
@@ -83,12 +86,15 @@ def admin_generate_code():
 
     expires_at = (datetime.now() + timedelta(days=duration_days)).isoformat()
 
-    with get_db() as conn:
-        conn.execute('''INSERT INTO deployment_codes
-            (code, code_hash, user_id, plan_key, duration_days, expires_at, status)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)''',
-            (code, code_hash, user_id, plan_key, duration_days, expires_at, 'active'))
-        conn.commit()
+    try:
+        with get_db() as conn:
+            conn.execute('''INSERT INTO deployment_codes
+                (code, code_hash, user_id, plan_key, duration_days, expires_at, status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)''',
+                (code, code_hash, user_id, plan_key, duration_days, expires_at, 'active'))
+            conn.commit()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     return jsonify({
         'success': True,
@@ -108,9 +114,12 @@ def admin_revoke_code(code_id):
     admin, err = _require_admin()
     if err:
         return err
-    with get_db() as conn:
-        conn.execute("UPDATE deployment_codes SET status='revoked', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (code_id,))
-        conn.commit()
+    try:
+        with get_db() as conn:
+            conn.execute("UPDATE deployment_codes SET status='revoked', updated_at=CURRENT_TIMESTAMP WHERE id=%s", (code_id,))
+            conn.commit()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
     return jsonify({'success': True, 'message': _('Deployment code has been revoked')})
 
 
@@ -144,11 +153,14 @@ def heartbeat():
 
     now = datetime.now()
 
-    with get_db() as conn:
-        row = conn.execute(
-            'SELECT * FROM deployment_codes WHERE code=%s',
-            (code,)
-        ).fetchone()
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                'SELECT * FROM deployment_codes WHERE code=%s',
+                (code,)
+            ).fetchone()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     if not row:
         return jsonify({
@@ -172,12 +184,15 @@ def heartbeat():
 
     # 更新最后心跳时间
     if is_valid:
-        with get_db() as conn:
-            conn.execute(
-                "UPDATE deployment_codes SET last_heartbeat=CURRENT_TIMESTAMP, last_hostname=%s, last_version=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
-                (hostname[:200], version[:50], d['id'])
-            )
-            conn.commit()
+        try:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE deployment_codes SET last_heartbeat=CURRENT_TIMESTAMP, last_hostname=%s, last_version=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+                    (hostname[:200], version[:50], d['id'])
+                )
+                conn.commit()
+        except Exception:
+            return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     return jsonify({
         'success': True,
@@ -201,11 +216,14 @@ def check_subscription_public():
     if not code:
         return jsonify({'success': False, 'error': _('Missing deployment code')}), 400
 
-    with get_db() as conn:
-        row = conn.execute(
-            'SELECT code, plan_key, status, expires_at, created_at FROM deployment_codes WHERE code=%s',
-            (code,)
-        ).fetchone()
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                'SELECT code, plan_key, status, expires_at, created_at FROM deployment_codes WHERE code=%s',
+                (code,)
+            ).fetchone()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     if not row:
         return jsonify({'success': False, 'error': _('Deployment code does not exist')}), 404

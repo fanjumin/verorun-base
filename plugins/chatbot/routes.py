@@ -105,6 +105,28 @@ def _require_admin():
     return None
 
 
+def _login_required(f):
+    """登录检查装饰器：验证 JWT token 有效即可（不限角色）。"""
+    from functools import wraps
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+    from services.jwt_service import validate_token
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        auth = request.headers.get('Authorization', '')
+        token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
+        if not token:
+            token = request.cookies.get('sso_token') or request.cookies.get('tm_token')
+        try:
+            payload = validate_token(token) if token else None
+            if not payload:
+                return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        except Exception:
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def _get_plugin_manager():
     pm = getattr(request, 'plugin_manager', None) or g.get('plugin_manager')
     if pm is None:
@@ -183,6 +205,7 @@ def get_settings():
 
 
 @chatbot_bp.route('/log_session', methods=['POST'])
+@_login_required
 def log_session_route():
     """记录一次 AI 对话回合（由 api_v1.py 内部调用）。"""
     data = request.get_json(silent=True) or {}
@@ -240,6 +263,7 @@ def agent_performance():
 
 
 @chatbot_bp.route('/qa_check', methods=['POST'])
+@_login_required
 def qa_check():
     """对话质检：分析一轮对话质量。"""
     data = request.get_json(silent=True) or {}
@@ -258,6 +282,7 @@ def qa_check():
 
 
 @chatbot_bp.route('/copilot_suggest', methods=['POST'])
+@_login_required
 def copilot_suggest():
     """Agent Copilot：根据对话上下文，为坐席生成回复建议。"""
     data = request.get_json(silent=True) or {}
@@ -353,6 +378,7 @@ def line_webhook():
 
 
 @chatbot_bp.route('/csat', methods=['POST'])
+@_login_required
 def csat():
     """提交 CSAT 满意度评分。"""
     data = request.get_json(silent=True) or {}
@@ -423,6 +449,7 @@ def save_handoff_rules():
 
 
 @chatbot_bp.route('/escalate', methods=['POST'])
+@_login_required
 def escalate():
     """AI 转人工 — 创建工单。
     

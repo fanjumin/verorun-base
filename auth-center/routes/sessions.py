@@ -36,15 +36,18 @@ def session_list():
     if err:
         return err
     uid = payload['user_id']
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, device_name, device_type, ip_address, user_agent, "
-            "       location, is_current, created_at "
-            "FROM user_sessions WHERE user_id=%s AND (expired_at IS NULL OR expired_at > NOW()) "
-            "ORDER BY is_current DESC, created_at DESC",
-            (uid,)
-        ).fetchall()
-    return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, device_name, device_type, ip_address, user_agent, "
+                "       location, is_current, created_at "
+                "FROM user_sessions WHERE user_id=%s AND (expired_at IS NULL OR expired_at > NOW()) "
+                "ORDER BY is_current DESC, created_at DESC",
+                (uid,)
+            ).fetchall()
+        return jsonify({'success': True, 'data': [dict(r) for r in rows]})
+    except Exception:
+        return jsonify({'success': False, 'error': _('Query failed')}), 500
 
 
 # =============================================
@@ -61,32 +64,35 @@ def session_current():
     token = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT id, device_name, device_type, ip_address, user_agent, "
-            "       location, created_at "
-            "FROM user_sessions WHERE user_id=%s AND token_hash=%s",
-            (uid, token_hash)
-        ).fetchone()
-        if not row:
-            # Record this as a new session
-            user_agent = request.headers.get('User-Agent', '')[:256]
-            ip = request.remote_addr or ''
-            sid = conn.execute(
-                "INSERT INTO user_sessions (user_id, token_hash, device_type, ip_address, user_agent, is_current) "
-                "VALUES (%s,%s,%s,%s,%s,1) RETURNING id",
-                (uid, token_hash, 'api', ip, user_agent)
-            ).fetchone()['id']
-            conn.commit()
-            return jsonify({'success': True, 'data': {
-                'id': sid,
-                'device_type': 'api',
-                'ip_address': ip,
-                'user_agent': user_agent,
-                'is_new': True,
-            }})
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id, device_name, device_type, ip_address, user_agent, "
+                "       location, created_at "
+                "FROM user_sessions WHERE user_id=%s AND token_hash=%s",
+                (uid, token_hash)
+            ).fetchone()
+            if not row:
+                # Record this as a new session
+                user_agent = request.headers.get('User-Agent', '')[:256]
+                ip = request.remote_addr or ''
+                sid = conn.execute(
+                    "INSERT INTO user_sessions (user_id, token_hash, device_type, ip_address, user_agent, is_current) "
+                    "VALUES (%s,%s,%s,%s,%s,1) RETURNING id",
+                    (uid, token_hash, 'api', ip, user_agent)
+                ).fetchone()['id']
+                conn.commit()
+                return jsonify({'success': True, 'data': {
+                    'id': sid,
+                    'device_type': 'api',
+                    'ip_address': ip,
+                    'user_agent': user_agent,
+                    'is_new': True,
+                }})
     
-    return jsonify({'success': True, 'data': dict(row)})
+        return jsonify({'success': True, 'data': dict(row)})
+    except Exception:
+        return jsonify({'success': False, 'error': _('Query failed')}), 500
 
 
 # =============================================
@@ -98,18 +104,21 @@ def session_terminate(sid):
     if err:
         return err
     uid = payload['user_id']
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT id, is_current FROM user_sessions WHERE id=%s AND user_id=%s",
-            (sid, uid)
-        ).fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': _('Session does not exist')}), 404
-        if row['is_current']:
-            return jsonify({'success': False, 'error': '不能退出当前会话，请使用退出登录'}), 400
-        conn.execute(
-            "UPDATE user_sessions SET expired_at=NOW() WHERE id=%s",
-            (sid,)
-        )
-        conn.commit()
-    return jsonify({'success': True, 'message': _('Session has been terminated')})
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id, is_current FROM user_sessions WHERE id=%s AND user_id=%s",
+                (sid, uid)
+            ).fetchone()
+            if not row:
+                return jsonify({'success': False, 'error': _('Session does not exist')}), 404
+            if row['is_current']:
+                return jsonify({'success': False, 'error': '不能退出当前会话，请使用退出登录'}), 400
+            conn.execute(
+                "UPDATE user_sessions SET expired_at=NOW() WHERE id=%s",
+                (sid,)
+            )
+            conn.commit()
+        return jsonify({'success': True, 'message': _('Session has been terminated')})
+    except Exception:
+        return jsonify({'success': False, 'error': _('Query failed')}), 500

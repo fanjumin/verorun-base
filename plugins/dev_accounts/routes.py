@@ -5,6 +5,7 @@ Prefix: /admin/dev-accounts/
 """
 
 from flask import Blueprint, request, jsonify
+from services.jwt_service import validate_token
 
 dev_accounts_bp = Blueprint('dev_accounts_api', __name__, url_prefix='/admin/dev-accounts')
 
@@ -17,8 +18,19 @@ def _err(msg, code=400):
     return jsonify({'success': False, 'error': msg}), code
 
 
+def _require_admin():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return _err('Requires admin permissions', 403)
+
+
 @dev_accounts_bp.route('/', methods=['GET'])
 def list_accounts():
+    err = _require_admin()
+    if err: return err
     """List all developer accounts."""
     platform = request.args.get('platform', None)
     try:
@@ -31,6 +43,8 @@ def list_accounts():
 
 @dev_accounts_bp.route('/<int:account_id>', methods=['GET'])
 def get_account(account_id):
+    err = _require_admin()
+    if err: return err
     """Get a single developer account."""
     try:
         from .models import get_by_id
@@ -44,6 +58,8 @@ def get_account(account_id):
 
 @dev_accounts_bp.route('/', methods=['POST'])
 def create_account():
+    err = _require_admin()
+    if err: return err
     """Create a new developer account."""
     data = request.get_json(force=True, silent=True) or {}
     platform = data.get('platform', '')
@@ -77,6 +93,8 @@ def create_account():
 
 @dev_accounts_bp.route('/<int:account_id>', methods=['PUT'])
 def update_account(account_id):
+    err = _require_admin()
+    if err: return err
     """Update an existing developer account."""
     data = request.get_json(force=True, silent=True) or {}
     if not data:
@@ -94,6 +112,8 @@ def update_account(account_id):
 
 @dev_accounts_bp.route('/<int:account_id>', methods=['DELETE'])
 def delete_account(account_id):
+    err = _require_admin()
+    if err: return err
     """Delete a developer account."""
     try:
         from .models import delete
@@ -105,6 +125,8 @@ def delete_account(account_id):
 
 @dev_accounts_bp.route('/<int:account_id>/test', methods=['POST'])
 def test_account(account_id):
+    err = _require_admin()
+    if err: return err
     """Test connection for a developer account."""
     try:
         from .models import test_connection

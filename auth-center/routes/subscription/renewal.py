@@ -22,22 +22,26 @@ def run_renewal_scan():
     today = datetime.now().date()
     print(f'[renewal] Scan starting {today.isoformat()}')
 
-    with get_db() as conn:
-        # 查找今天到期的活跃订阅
-        due = conn.execute("""
-            SELECT s.*, u.nickname, u.phone, u.agent_id
-            FROM subscriptions s
-            JOIN users u ON u.id = s.user_id
-            WHERE s.auto_renew = 1
-              AND s.status = 'active'
-              AND date(s.current_period_end) = CURRENT_DATE
-        """).fetchall()
+    try:
+        with get_db() as conn:
+            # 查找今天到期的活跃订阅
+            due = conn.execute("""
+                SELECT s.*, u.nickname, u.phone, u.agent_id
+                FROM subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.auto_renew = 1
+                  AND s.status = 'active'
+                  AND date(s.current_period_end) = CURRENT_DATE
+            """).fetchall()
 
-        print(f'[renewal] {len(due)} subscription(s) due for renewal')
+            print(f'[renewal] {len(due)} subscription(s) due for renewal')
 
-        for sub in due:
-            sub = dict(sub)
-            _process_renewal(conn, sub)
+            for sub in due:
+                sub = dict(sub)
+                _process_renewal(conn, sub)
+    except Exception as e:
+        print(f'[renewal] DB error: {e}')
+        return
 
 
 def run_dunning_scan():
@@ -47,62 +51,66 @@ def run_dunning_scan():
     today = datetime.now().date()
     print(f'[dunning] Scan starting {today.isoformat()}')
 
-    with get_db() as conn:
-        # 查找 past_due 状态的订阅
-        past_due = conn.execute("""
-            SELECT s.*, u.nickname, u.phone, u.agent_id
-            FROM subscriptions s
-            JOIN users u ON u.id = s.user_id
-            WHERE s.status = 'past_due'
-              AND s.auto_renew = 1
-              AND date(s.current_period_end) >= CURRENT_DATE - (%s * INTERVAL '1 day')
-        """, (GRACE_DAYS,)).fetchall()
+    try:
+        with get_db() as conn:
+            # 查找 past_due 状态的订阅
+            past_due = conn.execute("""
+                SELECT s.*, u.nickname, u.phone, u.agent_id
+                FROM subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.status = 'past_due'
+                  AND s.auto_renew = 1
+                  AND date(s.current_period_end) >= CURRENT_DATE - (%s * INTERVAL '1 day')
+            """, (GRACE_DAYS,)).fetchall()
 
-        print(f'[dunning] {len(past_due)} past_due subscription(s) to check')
+            print(f'[dunning] {len(past_due)} past_due subscription(s) to check')
 
-        for sub in past_due:
-            sub = dict(sub)
-            _retry_charge(conn, sub)
+            for sub in past_due:
+                sub = dict(sub)
+                _retry_charge(conn, sub)
 
-        # 超期宽限期的 → 降级为免费套餐
-        # 先查询受影响的用户（含套餐名）
-        expired_users = conn.execute("""
-            SELECT s.user_id, u.nickname, u.display_name, u.phone, sp.name as plan_name
-            FROM subscriptions s
-            JOIN users u ON u.id = s.user_id
-            JOIN subscription_plans sp ON sp.plan_key = s.plan_key
-            WHERE s.status='past_due'
-              AND date(s.current_period_end) < CURRENT_DATE - (%s * INTERVAL '1 day')
-        """, (GRACE_DAYS,)).fetchall()
+            # 超期宽限期的 → 降级为免费套餐
+            # 先查询受影响的用户（含套餐名）
+            expired_users = conn.execute("""
+                SELECT s.user_id, u.nickname, u.display_name, u.phone, sp.name as plan_name
+                FROM subscriptions s
+                JOIN users u ON u.id = s.user_id
+                JOIN subscription_plans sp ON sp.plan_key = s.plan_key
+                WHERE s.status='past_due'
+                  AND date(s.current_period_end) < CURRENT_DATE - (%s * INTERVAL '1 day')
+            """, (GRACE_DAYS,)).fetchall()
 
-        if expired_users:
-            expired_ids = [u['user_id'] for u in expired_users]
-            placeholders = ','.join(['%s'] * len(expired_ids))
-            print(f'[dunning] {len(expired_users)} user(s) downgraded to free after grace period')
+            if expired_users:
+                expired_ids = [u['user_id'] for u in expired_users]
+                placeholders = ','.join(['%s'] * len(expired_ids))
+                print(f'[dunning] {len(expired_users)} user(s) downgraded to free after grace period')
 
-            conn.execute(f"""
-                UPDATE subscriptions SET status='expired', plan_key='free', period='month', auto_renew=0, updated_at=NOW()
-                WHERE user_id IN ({placeholders})
-            """, expired_ids)
-            # 同步降级 app_authorizations 和 skill_keys
-            conn.execute(f"""
-                UPDATE app_authorizations SET tier='free', tier_expire_at=NOW() + INTERVAL '365 days'
-                WHERE user_id IN ({placeholders}) AND app_name='trademind'
-            """, expired_ids)
-            conn.execute(f"""
-                UPDATE skill_keys SET tier='free'
-                WHERE user_id IN ({placeholders})
-            """, expired_ids)
-            conn.commit()
+                conn.execute(f"""
+                    UPDATE subscriptions SET status='expired', plan_key='free', period='month', auto_renew=0, updated_at=NOW()
+                    WHERE user_id IN ({placeholders})
+                """, expired_ids)
+                # 同步降级 app_authorizations 和 skill_keys
+                conn.execute(f"""
+                    UPDATE app_authorizations SET tier='free', tier_expire_at=NOW() + INTERVAL '365 days'
+                    WHERE user_id IN ({placeholders}) AND app_name='trademind'
+                """, expired_ids)
+                conn.execute(f"""
+                    UPDATE skill_keys SET tier='free'
+                    WHERE user_id IN ({placeholders})
+                """, expired_ids)
+                conn.commit()
 
-            # 发送降级通知
-            for eu in expired_users:
-                eu = dict(eu)
-                try:
-                    from services.renewal_reminder import notify_downgraded_to_free
-                    notify_downgraded_to_free(eu['user_id'], eu['plan_name'])
-                except Exception as e:
-                    print(f'[dunning] notify downgrade failed user={eu["user_id"]}: {e}')
+                # 发送降级通知
+                for eu in expired_users:
+                    eu = dict(eu)
+                    try:
+                        from services.renewal_reminder import notify_downgraded_to_free
+                        notify_downgraded_to_free(eu['user_id'], eu['plan_name'])
+                    except Exception as e:
+                        print(f'[dunning] notify downgrade failed user={eu["user_id"]}: {e}')
+    except Exception as e:
+        print(f'[dunning] DB error: {e}')
+        return
 
 
 def _process_renewal(conn, sub):

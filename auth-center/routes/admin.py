@@ -168,7 +168,7 @@ def _build_dashboard_data(conn):
         data['active_agents'] = aa['c'] if aa else 0
     except: pass
     try:
-        today = _safe("SELECT COUNT(*) as c FROM agent_token_logs WHERE created_at::date=CURRENT_DATE")
+        today = _safe("SELECT COUNT(*) as c FROM agent_token_logs WHERE date(created_at)=CURRENT_DATE")
         data['today_calls'] = today['c'] if today else 0
         total = _safe('SELECT COUNT(*) as c FROM agent_token_logs')
         data['total_calls'] = total['c'] if total else 0
@@ -179,7 +179,8 @@ def _build_dashboard_data(conn):
     except: pass
     try:
         data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
-        mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'").fetchone()
+        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).strftime('%Y-%m-%d')
+        mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,)).fetchone()
         data['monthly_revenue'] = round(mr['c'], 2) if mr else 0
     except: pass
     # --- Action items ---
@@ -310,103 +311,115 @@ def revenue_dashboard():
 
 def _revenue_dashboard_data():
     with get_db() as conn:
+        # ── Python date precomputation ──
+        now = datetime.utcnow()
+        today_str = now.strftime('%Y-%m-%d')
+        this_month_start = now.replace(day=1).strftime('%Y-%m-%d')
+        next_month = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
+        next_month_start = next_month.strftime('%Y-%m-%d')
+        last_month_end = now.replace(day=1).strftime('%Y-%m-%d')
+        last_month_start = (now.replace(day=1) - timedelta(days=1)).replace(day=1).strftime('%Y-%m-%d')
+        this_year_start = now.replace(month=1, day=1).strftime('%Y-%m-%d')
+        next_year_start = now.replace(month=1, day=1, year=now.year + 1).strftime('%Y-%m-%d')
+        twelve_months_ago = (now - timedelta(days=365)).strftime('%Y-%m-%d')
+        thirty_days_ago = (now - timedelta(days=30)).strftime('%Y-%m-%d')
         # ── 收入汇总 ──
         today = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND date(paid_at)=%s
+        """, (today_str,)).fetchone()['rev'] or 0)
         today += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND date(paid_at)=%s
+        """, (today_str,)).fetchone()['rev'] or 0)
         today += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND date(paid_at)=CURRENT_DATE
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND date(paid_at)=%s
+        """, (today_str,)).fetchone()['rev'] or 0)
 
         this_month = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (this_month_start, next_month_start)).fetchone()['rev'] or 0)
         this_month += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (this_month_start, next_month_start)).fetchone()['rev'] or 0)
         this_month += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (this_month_start, next_month_start)).fetchone()['rev'] or 0)
 
         this_year = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (this_year_start, next_year_start)).fetchone()['rev'] or 0)
         this_year += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (this_year_start, next_year_start)).fetchone()['rev'] or 0)
         this_year += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND EXTRACT(YEAR FROM paid_at)=EXTRACT(YEAR FROM NOW())
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (this_year_start, next_year_start)).fetchone()['rev'] or 0)
 
         # ── 上月收入（环比） ──
         last_month = float(conn.execute("""
             SELECT COALESCE(SUM(amount),0) as rev FROM billing_orders
-            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (last_month_start, last_month_end)).fetchone()['rev'] or 0)
         last_month += float(conn.execute("""
             SELECT COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (last_month_start, last_month_end)).fetchone()['rev'] or 0)
         last_month += float(conn.execute("""
             SELECT COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND TO_CHAR(paid_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
-        """).fetchone()['rev'] or 0)
+            WHERE status='paid' AND paid_at>=%s AND paid_at<%s
+        """, (last_month_start, last_month_end)).fetchone()['rev'] or 0)
 
         # ── 近30天每日收入趋势 ──
         trend = conn.execute("""
             SELECT date(paid_at) as day, SUM(amount) as rev FROM billing_orders
-            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
+            WHERE status='paid' AND paid_at>=%s
             GROUP BY date(paid_at) ORDER BY day
-        """).fetchall()
+        """, (thirty_days_ago,)).fetchall()
         trend_map = {r['day']: float(r['rev']) for r in trend}
         # Add subscription orders
         sub_trend = conn.execute("""
             SELECT date(paid_at) as day, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
+            WHERE status='paid' AND paid_at>=%s
             GROUP BY date(paid_at) ORDER BY day
-        """).fetchall()
+        """, (thirty_days_ago,)).fetchall()
         for r in sub_trend:
             trend_map[r['day']] = trend_map.get(r['day'], 0.0) + float(r['rev'])
         # Add shop orders
         shop_trend = conn.execute("""
             SELECT date(paid_at) as day, COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '30 days'
+            WHERE status='paid' AND paid_at>=%s
             GROUP BY date(paid_at) ORDER BY day
-        """).fetchall()
+        """, (thirty_days_ago,)).fetchall()
         for r in shop_trend:
             trend_map[r['day']] = trend_map.get(r['day'], 0.0) + float(r['rev'])
 
         # ── 近12月月度收入 ──
         monthly = conn.execute("""
-            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, SUM(amount) as rev FROM billing_orders
-            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
+            SELECT strftime('%%Y-%%m', paid_at) as ym, SUM(amount) as rev FROM billing_orders
+            WHERE status='paid' AND paid_at>=%s
             GROUP BY ym ORDER BY ym
-        """).fetchall()
+        """, (twelve_months_ago,)).fetchall()
         monthly_map = {r['ym']: float(r['rev']) for r in monthly}
         sub_monthly = conn.execute("""
-            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
-            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
+            SELECT strftime('%%Y-%%m', paid_at) as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            WHERE status='paid' AND paid_at>=%s
             GROUP BY ym ORDER BY ym
-        """).fetchall()
+        """, (twelve_months_ago,)).fetchall()
         for r in sub_monthly:
             monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
         shop_monthly = conn.execute("""
-            SELECT TO_CHAR(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
-            WHERE status='paid' AND paid_at>=NOW() - INTERVAL '12 months'
+            SELECT strftime('%%Y-%%m', paid_at) as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
+            WHERE status='paid' AND paid_at>=%s
             GROUP BY ym ORDER BY ym
-        """).fetchall()
+        """, (twelve_months_ago,)).fetchall()
         for r in shop_monthly:
             monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
 
@@ -481,48 +494,50 @@ def _revenue_dashboard_data():
         canceled = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='canceled'
-              AND TO_CHAR(canceled_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()
+              AND canceled_at>=%s AND canceled_at<%s
+        """, (this_month_start, next_month_start)).fetchone()
         active_start_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status IN ('active','trialing')
-              AND (canceled_at IS NULL OR canceled_at >= DATE_TRUNC('month', CURRENT_DATE)::DATE)
-              AND created_at < DATE_TRUNC('month', CURRENT_DATE)::DATE
-        """).fetchone()['c'] or 1
+              AND (canceled_at IS NULL OR canceled_at >= %s)
+              AND created_at < %s
+        """, (this_month_start, this_month_start)).fetchone()['c'] or 1
         churn_rate = round((canceled['c'] / active_start_month) * 100, 2) if active_start_month > 0 else 0
 
         # 上月流失率
         last_month_canceled = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='canceled'
-              AND TO_CHAR(canceled_at, 'YYYY-MM')=TO_CHAR(NOW() - INTERVAL '1 month', 'YYYY-MM')
-        """).fetchone()['c']
+              AND canceled_at>=%s AND canceled_at<%s
+        """, (last_month_start, last_month_end)).fetchone()['c']
         last_month_active_start = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status IN ('active','trialing')
-              AND canceled_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')::DATE
-              AND created_at < DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')::DATE
-        """).fetchone()['c'] or 1
+              AND canceled_at >= %s
+              AND created_at < %s
+        """, (last_month_start, last_month_start)).fetchone()['c'] or 1
         last_churn_rate = round((last_month_canceled / last_month_active_start) * 100, 2) if last_month_active_start > 0 else 0
 
         # ── 近12月月度流失率趋势 ──
         churn_trend = []
         for i in range(11, -1, -1):
-            ym_start = f"DATE_TRUNC('month', CURRENT_DATE - INTERVAL '{i} months')::DATE"
-            ym_end = f"DATE_TRUNC('month', CURRENT_DATE - INTERVAL '{i-1} months')::DATE"
-            m_canceled = conn.execute(f"""
+            ref_date = now.replace(day=1) - timedelta(days=30*i)
+            ref_date = ref_date.replace(day=1)
+            ms = ref_date.strftime('%Y-%m-%d')
+            me = (ref_date.replace(day=1) + timedelta(days=32)).replace(day=1).strftime('%Y-%m-%d')
+            m_canceled = conn.execute("""
                 SELECT COUNT(*) as c FROM subscriptions
                 WHERE status='canceled'
-                  AND canceled_at >= {ym_start} AND canceled_at < {ym_end}
-            """).fetchone()['c']
-            m_active_start = conn.execute(f"""
+                  AND canceled_at >= %s AND canceled_at < %s
+            """, (ms, me)).fetchone()['c']
+            m_active_start = conn.execute("""
                 SELECT COUNT(*) as c FROM subscriptions
                 WHERE status IN ('active','trialing')
-                  AND (canceled_at IS NULL OR canceled_at >= {ym_start})
-                  AND created_at < {ym_start}
-            """).fetchone()['c'] or 1
+                  AND (canceled_at IS NULL OR canceled_at >= %s)
+                  AND created_at < %s
+            """, (ms, ms)).fetchone()['c'] or 1
             m_churn = round((m_canceled / m_active_start) * 100, 2)
-            ym_label = (datetime.now().replace(day=1) - timedelta(days=30*i)).strftime('%Y-%m')
+            ym_label = ref_date.strftime('%Y-%m')
             churn_trend.append({'ym': ym_label, 'churn_rate': m_churn, 'canceled': m_canceled, 'active_start': m_active_start})
 
         # ── 近30天活跃订阅趋势 ──
@@ -540,18 +555,18 @@ def _revenue_dashboard_data():
         # 本月新增订阅（含 trialing 和 past_due 中本月创建的）
         new_this_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
-            WHERE TO_CHAR(created_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()['c'] + conn.execute("""
+            WHERE created_at>=%s AND created_at<%s
+        """, (this_month_start, next_month_start)).fetchone()['c'] + conn.execute("""
             SELECT COUNT(*) as c FROM subscription_orders
-            WHERE TO_CHAR(created_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM') AND item_type='new' AND status='paid'
-        """).fetchone()['c']
+            WHERE created_at>=%s AND created_at<%s AND item_type='new' AND status='paid'
+        """, (this_month_start, next_month_start)).fetchone()['c']
 
         # 本月已过期
         expired_this_month = conn.execute("""
             SELECT COUNT(*) as c FROM subscriptions
             WHERE status='expired'
-              AND TO_CHAR(updated_at, 'YYYY-MM')=TO_CHAR(NOW(), 'YYYY-MM')
-        """).fetchone()['c']
+              AND updated_at>=%s AND updated_at<%s
+        """, (this_month_start, next_month_start)).fetchone()['c']
 
     return jsonify({"success": True, "data": {
         'summary': {

@@ -125,11 +125,8 @@ def update_channel(channel):
         merged[k] = v
 
     conn.execute(
-        """INSERT INTO channel_configs (channel, config_json, is_enabled)
-           VALUES (%s, %s, %s)
-           ON CONFLICT(channel) DO UPDATE SET
-           config_json=excluded.config_json, is_enabled=excluded.is_enabled,
-           updated_at=NOW()""",
+        """INSERT OR REPLACE INTO channel_configs (channel, config_json, is_enabled)
+           VALUES (?, ?, ?)""",
         (channel, json.dumps(merged, ensure_ascii=False), is_enabled)
     )
     conn.commit()

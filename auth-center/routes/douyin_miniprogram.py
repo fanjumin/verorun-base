@@ -88,50 +88,9 @@ def login_with_code():
         return api_err(_('Failed to Obtain User Identifier'), 500)
 
     # 查找或创建用户
-    with get_db() as conn:
-        # 检查是否已存在该抖音用户
-        user = conn.execute(
-            'SELECT id, phone, username, display_name, douyin_open_id, douyin_nickname, '
-            'douyin_avatar, is_admin, agent_id, agent_nickname, agent_avatar_url '
-            'FROM users WHERE douyin_open_id = %s',
-            (openid,)
-        ).fetchone()
-
-        is_new_user = False
-        if user:
-            # 已存在用户：更新昵称和头像（如果提供）
-            if nickname or avatar:
-                conn.execute('''
-                    UPDATE users 
-                    SET douyin_nickname = COALESCE(%s, douyin_nickname),
-                        douyin_avatar = COALESCE(%s, douyin_avatar),
-                        last_login = %s
-                    WHERE id = %s
-                ''', (nickname or None, avatar or None, now_iso(), user['id']))
-                conn.commit()
-        else:
-            # 新用户：自动创建
-            is_new_user = True
-            display_name = nickname or f'TikTok User_{openid[-6:]}'
-            safe_name = sanitize_name(display_name) if nickname else f'dy_{openid[-8:]}'
-            
-            conn.execute('''
-                INSERT INTO users (
-                    username, display_name, douyin_open_id, douyin_nickname, 
-                    douyin_avatar, created_at, last_login
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ''', (
-                safe_name,
-                display_name,
-                openid,
-                nickname or '',
-                avatar or '',
-                now_iso(),
-                now_iso()
-            ))
-            conn.commit()
-            
-            # 获取刚创建的用户
+    try:
+        with get_db() as conn:
+            # 检查是否已存在该抖音用户
             user = conn.execute(
                 'SELECT id, phone, username, display_name, douyin_open_id, douyin_nickname, '
                 'douyin_avatar, is_admin, agent_id, agent_nickname, agent_avatar_url '
@@ -139,29 +98,73 @@ def login_with_code():
                 (openid,)
             ).fetchone()
 
-        # 生成 JWT Token
-        token = create_token(
-            user_id=user['id'],
-            phone=user['phone'] or '',
-            app_name='douyin_miniprogram'
-        )
+            is_new_user = False
+            if user:
+                # 已存在用户：更新昵称和头像（如果提供）
+                if nickname or avatar:
+                    conn.execute('''
+                        UPDATE users 
+                        SET douyin_nickname = COALESCE(%s, douyin_nickname),
+                            douyin_avatar = COALESCE(%s, douyin_avatar),
+                            last_login = %s
+                        WHERE id = %s
+                    ''', (nickname or None, avatar or None, now_iso(), user['id']))
+                    conn.commit()
+            else:
+                # 新用户：自动创建
+                is_new_user = True
+                display_name = nickname or f'TikTok User_{openid[-6:]}'
+                safe_name = sanitize_name(display_name) if nickname else f'dy_{openid[-8:]}'
+            
+                conn.execute('''
+                    INSERT INTO users (
+                        username, display_name, douyin_open_id, douyin_nickname, 
+                        douyin_avatar, created_at, last_login
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    safe_name,
+                    display_name,
+                    openid,
+                    nickname or '',
+                    avatar or '',
+                    now_iso(),
+                    now_iso()
+                ))
+                conn.commit()
+            
+                # 获取刚创建的用户
+                user = conn.execute(
+                    'SELECT id, phone, username, display_name, douyin_open_id, douyin_nickname, '
+                    'douyin_avatar, is_admin, agent_id, agent_nickname, agent_avatar_url '
+                    'FROM users WHERE douyin_open_id = %s',
+                    (openid,)
+                ).fetchone()
+    except Exception:
+        return api_err('Query failed', 500)
 
-        return api_ok({
-            'token': token,
-            'user': {
-                'id': user['id'],
-                'username': user['username'],
-                'display_name': user['display_name'] or user['username'],
-                'phone': user['phone'] or '',
-                'douyin_nickname': user['douyin_nickname'] or '',
-                'douyin_avatar': user['douyin_avatar'] or '',
-                'is_admin': bool(user['is_admin']),
-                'agent_id': user['agent_id'] or '',
-                'agent_nickname': user['agent_nickname'] or '',
-                'agent_avatar_url': user['agent_avatar_url'] or '',
-            },
-            'is_new_user': is_new_user
-        })
+    # 生成 JWT Token
+    token = create_token(
+        user_id=user['id'],
+        phone=user['phone'] or '',
+        app_name='douyin_miniprogram'
+    )
+
+    return api_ok({
+        'token': token,
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'display_name': user['display_name'] or user['username'],
+            'phone': user['phone'] or '',
+            'douyin_nickname': user['douyin_nickname'] or '',
+            'douyin_avatar': user['douyin_avatar'] or '',
+            'is_admin': bool(user['is_admin']),
+            'agent_id': user['agent_id'] or '',
+            'agent_nickname': user['agent_nickname'] or '',
+            'agent_avatar_url': user['agent_avatar_url'] or '',
+        },
+        'is_new_user': is_new_user
+    })
 
 
 @douyin_mp_bp.route('/user/info', methods=['GET'])
@@ -177,31 +180,34 @@ def user_info():
     if not user_id:
         return api_err(_('Invalid or Expired Token'), 401)
     
-    with get_db() as conn:
-        user = conn.execute('''
-            SELECT id, phone, username, display_name, 
-                   douyin_open_id, douyin_nickname, douyin_avatar,
-                   is_admin, agent_id, agent_nickname, agent_avatar_url
-            FROM users WHERE id = %s
-        ''', (user_id,)).fetchone()
-        if not user:
-            return api_err(_('User does not exist'), 404)
+    try:
+        with get_db() as conn:
+            user = conn.execute('''
+                SELECT id, phone, username, display_name, 
+                       douyin_open_id, douyin_nickname, douyin_avatar,
+                       is_admin, agent_id, agent_nickname, agent_avatar_url
+                FROM users WHERE id = %s
+            ''', (user_id,)).fetchone()
+            if not user:
+                return api_err(_('User does not exist'), 404)
         
-        # Convert to dict and sanitize
-        user_dict = {
-            'id': user['id'],
-            'phone': user['phone'],
-            'username': user['username'],
-            'display_name': user['display_name'] or user['username'],
-            'is_admin': bool(user['is_admin']),
-            'douyin_bound': bool(user['douyin_open_id']),
-            'douyin_nickname': user['douyin_nickname'] or '',
-            'douyin_avatar': user['douyin_avatar'] or '',
-            'agent_id': user['agent_id'] or '',
-            'agent_nickname': user['agent_nickname'] or '',
-            'agent_avatar_url': user['agent_avatar_url'] or ''
-        }
-        return api_ok(user_dict)
+            # Convert to dict and sanitize
+            user_dict = {
+                'id': user['id'],
+                'phone': user['phone'],
+                'username': user['username'],
+                'display_name': user['display_name'] or user['username'],
+                'is_admin': bool(user['is_admin']),
+                'douyin_bound': bool(user['douyin_open_id']),
+                'douyin_nickname': user['douyin_nickname'] or '',
+                'douyin_avatar': user['douyin_avatar'] or '',
+                'agent_id': user['agent_id'] or '',
+                'agent_nickname': user['agent_nickname'] or '',
+                'agent_avatar_url': user['agent_avatar_url'] or ''
+            }
+    except Exception:
+        return api_err('Query failed', 500)
+    return api_ok(user_dict)
 
 
 @douyin_mp_bp.route('/user/unbind_douyin', methods=['POST'])
@@ -217,26 +223,29 @@ def unbind_douyin():
     if not user_id:
         return api_err(_('Invalid or Expired Token'), 401)
     
-    with get_db() as conn:
-        # Check if user has Douyin bound
-        current = conn.execute(
-            'SELECT douyin_open_id FROM users WHERE id = %s', 
-            (user_id,)
-        ).fetchone()
-        if not current or not current['douyin_open_id']:
-            return api_err(_('Current user has not bound a Douyin account'), 400)
+    try:
+        with get_db() as conn:
+            # Check if user has Douyin bound
+            current = conn.execute(
+                'SELECT douyin_open_id FROM users WHERE id = %s', 
+                (user_id,)
+            ).fetchone()
+            if not current or not current['douyin_open_id']:
+                return api_err(_('Current user has not bound a Douyin account'), 400)
         
-        # Unbind: set Douyin fields to NULL/empty
-        conn.execute('''
-            UPDATE users 
-            SET douyin_open_id = NULL, 
-                douyin_nickname = NULL, 
-                douyin_avatar = NULL
-            WHERE id = %s
-        ''', (user_id,))
-        conn.commit()
+            # Unbind: set Douyin fields to NULL/empty
+            conn.execute('''
+                UPDATE users 
+                SET douyin_open_id = NULL, 
+                    douyin_nickname = NULL, 
+                    douyin_avatar = NULL
+                WHERE id = %s
+            ''', (user_id,))
+            conn.commit()
+    except Exception:
+        return api_err('Query failed', 500)
         
-        return api_ok({'message': _('TikTok Account Successfully Unlinked')})
+    return api_ok({'message': _('TikTok Account Successfully Unlinked')})
 
 
 @douyin_mp_bp.route('/user/bind_status', methods=['GET'])
@@ -252,13 +261,16 @@ def bind_status():
     if not user_id:
         return api_err(_('Invalid or Expired Token'), 401)
     
-    with get_db() as conn:
-        douyin_open_id = conn.execute(
-            'SELECT douyin_open_id FROM users WHERE id = %s', 
-            (user_id,)
-        ).fetchone()
-        is_bound = bool(douyin_open_id and douyin_open_id['douyin_open_id'])
-        return api_ok({'bound': is_bound})
+    try:
+        with get_db() as conn:
+            douyin_open_id = conn.execute(
+                'SELECT douyin_open_id FROM users WHERE id = %s', 
+                (user_id,)
+            ).fetchone()
+    except Exception:
+        return api_err('Query failed', 500)
+    is_bound = bool(douyin_open_id and douyin_open_id['douyin_open_id'])
+    return api_ok({'bound': is_bound})
 
 
 # Note: Publishing content from mini-program would require additional security considerations

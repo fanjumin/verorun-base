@@ -157,8 +157,8 @@ def update_ad(ad_id):
         name=?, site_key=?, zone_id=?, position=?, page=?, ad_type=?, image_url=?,
         link_url=?, ad_code=?, width=?, height=?, targeting_rules=?, schedule_start=?,
         schedule_end=?, weight=?, freq_cap=?, click_tag=?, utm_source=?, is_active=?,
-        sort_order=%s, updated_at=NOW()
-        WHERE id=%s''',
+        sort_order=?, updated_at=NOW()
+        WHERE id=?''',
         (data.get('name', ''),
          data.get('site_key', 'default'),
          data.get('zone_id', 0),

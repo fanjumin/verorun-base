@@ -27,23 +27,29 @@ def submit_comment():
         return jsonify({'success': False, 'error': 'Comment exceeds 500 characters'}), 400
 
     # Verify post exists
-    with get_db() as conn:
-        post = conn.execute('SELECT id FROM cms_posts WHERE id=%s AND is_published=1', (post_id,)).fetchone()
-        if not post:
-            return jsonify({'success': False, 'error': 'Post not found'}), 404
+    try:
+        with get_db() as conn:
+            post = conn.execute('SELECT id FROM cms_posts WHERE id=%s AND is_published=1', (post_id,)).fetchone()
+            if not post:
+                return jsonify({'success': False, 'error': 'Post not found'}), 404
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     # AI review
     status, reason, score = review_comment(nickname, content)
     ai_review = json.dumps({'reason': reason, 'score': score}, ensure_ascii=False)
 
-    with get_db() as conn:
-        cur = conn.execute('INSERT INTO article_comments'
-            ' (post_id, parent_id, nickname, content, status, ai_review, ai_score, ip_address)'
-            ' VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
-            (post_id, parent_id, nickname, content, status, ai_review, score,
-             request.remote_addr or ''))
-        comment_id = cur.fetchone()['id']
-        conn.commit()
+    try:
+        with get_db() as conn:
+            cur = conn.execute('INSERT INTO article_comments'
+                ' (post_id, parent_id, nickname, content, status, ai_review, ai_score, ip_address)'
+                ' VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
+                (post_id, parent_id, nickname, content, status, ai_review, score,
+                 request.remote_addr or ''))
+            comment_id = cur.fetchone()['id']
+            conn.commit()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     msg_map = {
         'approved': 'Comment posted successfully',
@@ -63,16 +69,19 @@ def get_comments(post_id):
     limit = request.args.get('limit', 20, type=int)
     offset = (page - 1) * limit
 
-    with get_db() as conn:
-        total = conn.execute(
-            "SELECT COUNT(*) as c FROM article_comments WHERE post_id=%s AND status='approved'",
-            (post_id,)
-        ).fetchone()['c']
-        rows = conn.execute(
-            "SELECT id, parent_id, nickname, content, created_at FROM article_comments "
-            "WHERE post_id=%s AND status='approved' ORDER BY created_at DESC LIMIT %s OFFSET %s",
-            (post_id, limit, offset)
-        ).fetchall()
+    try:
+        with get_db() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) as c FROM article_comments WHERE post_id=%s AND status='approved'",
+                (post_id,)
+            ).fetchone()['c']
+            rows = conn.execute(
+                "SELECT id, parent_id, nickname, content, created_at FROM article_comments "
+                "WHERE post_id=%s AND status='approved' ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                (post_id, limit, offset)
+            ).fetchall()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     return jsonify({
         'success': True,
@@ -107,17 +116,20 @@ def admin_list_comments():
         where.append('c.post_id=%s')
         params.append(post_id)
 
-    with get_db() as conn:
-        total = conn.execute(
-            f"SELECT COUNT(*) as c FROM article_comments c WHERE {' AND '.join(where)}", params
-        ).fetchone()['c']
-        rows = conn.execute(
-            f"""SELECT c.*, p.title as post_title FROM article_comments c
-                LEFT JOIN cms_posts p ON c.post_id=p.id
-                WHERE {' AND '.join(where)}
-                ORDER BY c.created_at DESC LIMIT %s OFFSET %s""",
-            params + [limit, offset]
-        ).fetchall()
+    try:
+        with get_db() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) as c FROM article_comments c WHERE {' AND '.join(where)}", params
+            ).fetchone()['c']
+            rows = conn.execute(
+                f"""SELECT c.*, p.title as post_title FROM article_comments c
+                    LEFT JOIN cms_posts p ON c.post_id=p.id
+                    WHERE {' AND '.join(where)}
+                    ORDER BY c.created_at DESC LIMIT %s OFFSET %s""",
+                params + [limit, offset]
+            ).fetchall()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     return jsonify({
         'success': True,
@@ -141,9 +153,12 @@ def admin_review_comment(cid):
     action = data.get('action', '')  # approve / reject / delete
 
     if action == 'delete':
-        with get_db() as conn:
-            conn.execute('DELETE FROM article_comments WHERE id=%s', (cid,))
-            conn.commit()
+        try:
+            with get_db() as conn:
+                conn.execute('DELETE FROM article_comments WHERE id=%s', (cid,))
+                conn.commit()
+        except Exception:
+            return jsonify({'success': False, 'error': 'Query failed'}), 500
         _log(admin['user_id'], 'comment_delete', 'comment', str(cid))
         return jsonify({'success': True})
 
@@ -151,12 +166,15 @@ def admin_review_comment(cid):
         return jsonify({'success': False, 'error': 'Invalid action'}), 400
 
     new_status = 'approved' if action == 'approve' else 'rejected'
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE article_comments SET status=%s, reviewed_at=NOW(), reviewed_by=%s WHERE id=%s",
-            (new_status, admin['user_id'], cid)
-        )
-        conn.commit()
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE article_comments SET status=%s, reviewed_at=NOW(), reviewed_by=%s WHERE id=%s",
+                (new_status, admin['user_id'], cid)
+            )
+            conn.commit()
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     _log(admin['user_id'], f'comment_{action}', 'comment', str(cid))
     return jsonify({'success': True, 'status': new_status})
@@ -169,11 +187,14 @@ def admin_comment_stats():
     admin, err = _require_admin()
     if err: return err
 
-    with get_db() as conn:
-        total = conn.execute('SELECT COUNT(*) as c FROM article_comments').fetchone()['c']
-        pending = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='pending'").fetchone()['c']
-        approved = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='approved'").fetchone()['c']
-        rejected = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='rejected'").fetchone()['c']
+    try:
+        with get_db() as conn:
+            total = conn.execute('SELECT COUNT(*) as c FROM article_comments').fetchone()['c']
+            pending = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='pending'").fetchone()['c']
+            approved = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='approved'").fetchone()['c']
+            rejected = conn.execute("SELECT COUNT(*) as c FROM article_comments WHERE status='rejected'").fetchone()['c']
+    except Exception:
+        return jsonify({'success': False, 'error': 'Query failed'}), 500
 
     return jsonify({
         'success': True,
