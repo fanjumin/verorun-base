@@ -403,11 +403,11 @@ SVCEOF
         systemctl enable "${name}"
     }
 
-    # 8081 — Main site
-    write_one_service "verorun-main" 8081 "main_site" "--timeout 120 --log-level warning"
+    # 8081 — Main site（首页 public_home.html）
+    write_one_service "verorun-main" 8081 "auth_server" "--timeout 120 --log-level warning"
 
-    # 8083 — Platform / Auth
-    write_one_service "verorun-auth" 8083 "auth_server" "--timeout 120 --log-level warning"
+    # 8083 — Platform / User Console（用户控制台）
+    write_one_service "verorun-auth" 8083 "main_site" "--timeout 120 --log-level warning"
 
     # 8084 — Admin（使用 run_gunicorn.py 处理 platform/ 遮蔽 stdlib）
     write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning" "admin/run_gunicorn.py"
