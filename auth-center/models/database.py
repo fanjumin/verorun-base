@@ -1202,12 +1202,15 @@ def init_db():
     # Migration: add agent_avatar_url if missing
     with get_db() as m:
         # Also ensure admin_profiles users have is_admin=1
-        m.execute(
-            "UPDATE users SET is_admin=1 WHERE id IN ("
-            "  SELECT user_id FROM admin_profiles"
-            ") AND is_admin=0"
-        )
-        m.commit()
+        try:
+            m.execute(
+                "UPDATE users SET is_admin=1 WHERE id IN ("
+                "  SELECT user_id FROM admin_profiles"
+                ") AND is_admin=0"
+            )
+            m.commit()
+        except Exception:
+            m.rollback()
     with get_db() as m:
         cols = get_table_columns(m, 'users')
         if 'agent_avatar_url' not in cols:
