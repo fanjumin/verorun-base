@@ -245,26 +245,31 @@ def admin_list():
     admin, err = _require_super_admin()
     if err:
         return err
-    with get_db() as conn:
-        rows = conn.execute('''
-            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url, u.active, 
-                   u.last_login, u.created_at as registered_at,
-                   p.role, p.permissions, p.real_name, p.internal_phone, 
-                   p.internal_email, p.notes, p.last_login_ip
-            FROM users u 
-            JOIN admin_profiles p ON u.id = p.user_id
-            WHERE u.is_admin = 1
-            ORDER BY p.role, u.id
-        ''').fetchall()
-    admins = []
-    for r in rows:
-        d = dict(r)
-        try:
-            d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
-        except Exception:
-            d['permissions'] = []
-        admins.append(d)
-    return jsonify({'success': True, 'data': admins})
+    try:
+        with get_db() as conn:
+            rows = conn.execute('''
+                SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url, u.active, 
+                       u.last_login, u.created_at as registered_at,
+                       p.role, p.permissions, p.real_name, p.internal_phone, 
+                       p.internal_email, p.notes, p.last_login_ip
+                FROM users u 
+                JOIN admin_profiles p ON u.id = p.user_id
+                WHERE u.is_admin = 1
+                ORDER BY p.role, u.id
+            ''').fetchall()
+        admins = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
+            except Exception:
+                d['permissions'] = []
+            admins.append(d)
+        return jsonify({'success': True, 'data': admins})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to load admins: {str(e)}'}), 500
 
 
 @admin_bp.route('/admins/me', methods=['GET'])
@@ -273,24 +278,29 @@ def admin_me():
     admin, err = _require_admin()
     if err:
         return err
-    with get_db() as conn:
-        row = conn.execute('''
-            SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url,
-                   p.role, p.permissions, p.real_name, p.internal_phone,
-                   p.internal_email, p.notes, p.last_login_ip, p.last_login_at,
-                   p.created_at as admin_since
-            FROM users u 
-            JOIN admin_profiles p ON u.id = p.user_id
-            WHERE u.id = %s
-        ''', (admin['user_id'],)).fetchone()
-    if not row:
-        return jsonify({'success': False, 'error': _('Administrator configuration does not exist')}), 404
-    d = dict(row)
     try:
-        d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
-    except Exception:
-        d['permissions'] = []
-    return jsonify({'success': True, 'data': d})
+        with get_db() as conn:
+            row = conn.execute('''
+                SELECT u.id, u.phone, COALESCE(u.display_name, u.username), u.email, u.avatar_url,
+                       p.role, p.permissions, p.real_name, p.internal_phone,
+                       p.internal_email, p.notes, p.last_login_ip, p.last_login_at,
+                       p.created_at as admin_since
+                FROM users u 
+                JOIN admin_profiles p ON u.id = p.user_id
+                WHERE u.id = %s
+            ''', (admin['user_id'],)).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': _('Administrator configuration does not exist')}), 404
+        d = dict(row)
+        try:
+            d['permissions'] = __import__('json').loads(d['permissions'] or '[]')
+        except Exception:
+            d['permissions'] = []
+        return jsonify({'success': True, 'data': d})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to load admin profile: {str(e)}'}), 500
 
 
 @admin_bp.route('/admins/me', methods=['PUT'])

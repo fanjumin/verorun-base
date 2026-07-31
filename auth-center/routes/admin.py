@@ -306,6 +306,7 @@ def revenue_dashboard():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        current_app.logger.error(f"Revenue dashboard failed: {traceback.format_exc()}")
         return jsonify({"success": False, "error": f"Revenue dashboard unavailable: {e}"}), 500
 
 

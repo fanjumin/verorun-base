@@ -104,77 +104,82 @@ def check_config():
     admin, err = _require_admin()
     if err:
         return err
-    config_keys = (
-        'wechat_app_id','wechat_app_secret','weibo_app_key','weibo_access_token',
-        'toutiao_app_id','toutiao_access_token','dashscope_api_key','dashscope_text_key',
-    ) + tuple(_INTERNATIONAL_CONFIG_KEYS)
-    with _get_main_db() as conn:
-        rows = conn.execute(
-            f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in config_keys)})",
-            config_keys
-        ).fetchall()
-    cfg = {r['key']: r['value'] for r in rows}
+    try:
+        config_keys = (
+            'wechat_app_id','wechat_app_secret','weibo_app_key','weibo_access_token',
+            'toutiao_app_id','toutiao_access_token','dashscope_api_key','dashscope_text_key',
+        ) + tuple(_INTERNATIONAL_CONFIG_KEYS)
+        with _get_main_db() as conn:
+            rows = conn.execute(
+                f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in config_keys)})",
+                config_keys
+            ).fetchall()
+        cfg = {r['key']: r['value'] for r in rows}
 
-    # Base domestic platforms
-    platforms = [
-        {
-            'id': 'wechat',
-            'name': _('WeChat Official Account'),
-            'icon': '💬',
-            'configured': bool(cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')),
-            'fields_needed': [] if (cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')) else ['AppID', 'AppSecret'],
-        },
-        {
-            'id': 'weibo',
-            'name': _('Weibo'),
-            'icon': '📢',
-            'configured': bool(cfg.get('weibo_app_key') and cfg.get('weibo_access_token')),
-            'fields_needed': [] if (cfg.get('weibo_app_key') and cfg.get('weibo_access_token')) else ['App Key', 'Access Token'],
-        },
-        {
-            'id': 'toutiao',
-            'name': _('Toutiao'),
-            'icon': '📰',
-            'configured': bool(cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')),
-            'fields_needed': [] if (cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')) else ['App ID', 'Access Token'],
-        },
-    ]
+        # Base domestic platforms
+        platforms = [
+            {
+                'id': 'wechat',
+                'name': _('WeChat Official Account'),
+                'icon': '💬',
+                'configured': bool(cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')),
+                'fields_needed': [] if (cfg.get('wechat_app_id') and cfg.get('wechat_app_secret')) else ['AppID', 'AppSecret'],
+            },
+            {
+                'id': 'weibo',
+                'name': _('Weibo'),
+                'icon': '📢',
+                'configured': bool(cfg.get('weibo_app_key') and cfg.get('weibo_access_token')),
+                'fields_needed': [] if (cfg.get('weibo_app_key') and cfg.get('weibo_access_token')) else ['App Key', 'Access Token'],
+            },
+            {
+                'id': 'toutiao',
+                'name': _('Toutiao'),
+                'icon': '📰',
+                'configured': bool(cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')),
+                'fields_needed': [] if (cfg.get('toutiao_app_id') and cfg.get('toutiao_access_token')) else ['App ID', 'Access Token'],
+            },
+        ]
 
-    # Add international platforms if market is 'intl'
-    market = _get_market()
-    if market == 'intl':
-        intl_providers = _get_international_providers('intl')
-        for pid, info in intl_providers.items():
-            platforms.append({
-                'id': pid,
-                'name': info.get('name', pid),
-                'icon': info.get('icon', ''),
-                'configured': info.get('configured', False),
-                'fields_needed': [] if info.get('configured') else [],
-            })
+        # Add international platforms if market is 'intl'
+        market = _get_market()
+        if market == 'intl':
+            intl_providers = _get_international_providers('intl')
+            for pid, info in intl_providers.items():
+                platforms.append({
+                    'id': pid,
+                    'name': info.get('name', pid),
+                    'icon': info.get('icon', ''),
+                    'configured': info.get('configured', False),
+                    'fields_needed': [] if info.get('configured') else [],
+                })
 
-    return jsonify({
-        'success': True,
-        'data': {
-            'platforms': platforms,
-            'ai_capabilities': [
-                {
-                    'id': 'image_gen',
-                    'name': _('AI-generated Image (Tongyi Wanxiang)'),
-                    'icon': '🎨',
-                    'configured': bool(cfg.get('dashscope_api_key')),
-                    'fields_needed': [] if cfg.get('dashscope_api_key') else [_('Tongyi Wanxiang Key')],
-                },
-                {
-                    'id': 'text_gen',
-                    'name': _('AI Copywriting (Tongyi Qianwen)'),
-                    'icon': '✍️',
-                    'configured': bool(cfg.get('dashscope_text_key')),
-                    'fields_needed': [] if cfg.get('dashscope_text_key') else ['DashScope Key'],
-                },
-            ],
-        }
-    })
+        return jsonify({
+            'success': True,
+            'data': {
+                'platforms': platforms,
+                'ai_capabilities': [
+                    {
+                        'id': 'image_gen',
+                        'name': _('AI-generated Image (Tongyi Wanxiang)'),
+                        'icon': '🎨',
+                        'configured': bool(cfg.get('dashscope_api_key')),
+                        'fields_needed': [] if cfg.get('dashscope_api_key') else [_('Tongyi Wanxiang Key')],
+                    },
+                    {
+                        'id': 'text_gen',
+                        'name': _('AI Copywriting (Tongyi Qianwen)'),
+                        'icon': '✍️',
+                        'configured': bool(cfg.get('dashscope_text_key')),
+                        'fields_needed': [] if cfg.get('dashscope_text_key') else ['DashScope Key'],
+                    },
+                ],
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Social config check failed: {str(e)}'}), 500
 
 
 # =============================================
@@ -572,36 +577,41 @@ def push_history():
     admin, err = _require_admin()
     if err:
         return err
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 20, type=int)
-    platform = request.args.get('platform', '')
-    offset = (page - 1) * limit
+    try:
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        platform = request.args.get('platform', '')
+        offset = (page - 1) * limit
 
-    where = ''
-    params = []
-    if platform:
-        where = 'WHERE platform=?'
-        params.append(platform)
+        where = ''
+        params = []
+        if platform:
+            where = 'WHERE platform=?'
+            params.append(platform)
 
-    with get_sp_db() as conn:
-        total = conn.execute(f'SELECT COUNT(*) as c FROM social_push_logs {where}', params).fetchone()
-        rows = conn.execute(
-            f"""SELECT id, platform, content_type, title, summary, media_id, publish_id,
-                       status, push_time, error_msg, created_at, admin_id
-               FROM social_push_logs {where}
-               ORDER BY created_at DESC LIMIT ? OFFSET ?""",
-            params + [limit, offset]
-        ).fetchall()
+        with get_sp_db() as conn:
+            total = conn.execute(f'SELECT COUNT(*) as c FROM social_push_logs {where}', params).fetchone()
+            rows = conn.execute(
+                f"""SELECT id, platform, content_type, title, summary, media_id, publish_id,
+                           status, push_time, error_msg, created_at, admin_id
+                   FROM social_push_logs {where}
+                   ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+                params + [limit, offset]
+            ).fetchall()
 
-    return jsonify({
-        'success': True,
-        'data': {
-            'total': total['c'],
-            'page': page,
-            'limit': limit,
-            'items': [dict(r) for r in rows],
-        }
-    })
+        return jsonify({
+            'success': True,
+            'data': {
+                'total': total['c'],
+                'page': page,
+                'limit': limit,
+                'items': [dict(r) for r in rows],
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to load publish history: {str(e)}'}), 500
 
 
 # =============================================

@@ -163,6 +163,9 @@ def index():
 @ali_admin_bp.route('/dashboard')
 def dashboard():
     """仪表盘数据"""
+    admin, err = _require_admin_or_error()
+    if err:
+        return err
     try:
         # 获取统计信息
         with get_db() as conn:
@@ -218,7 +221,7 @@ def dashboard():
         
     except Exception as e:
         logger.error(f"获取仪表盘数据失败: {e}")
-        return _error(f"获取数据失败: {e}")
+        return _error(f"获取数据失败: {e}", 500)
 
 @ali_admin_bp.route('/items')
 def list_items():

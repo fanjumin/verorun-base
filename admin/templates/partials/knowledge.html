@@ -1,4 +1,4 @@
-﻿window.l_knowledge=function(){
+window.l_knowledge=function(){
   var c=document.getElementById("mc"),h='';
   var role='admin';
   try{role=JSON.parse(atob(T.split('.')[1])).role||'admin';}catch(e){}
@@ -70,10 +70,8 @@ function kbLoad(){
   var scope=window._kbScope||'system';
   var page=window._kbPage||1;
   var keyword=(document.getElementById('kb-search')||{}).value||'';
-  fetch('/api/v1/knowledge/list',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+T},
-    body:JSON.stringify({scope:scope,keyword:keyword,page:page,pageSize:15})
+  fetch('/admin/knowledge/entries?scope='+encodeURIComponent(scope)+'&keyword='+encodeURIComponent(keyword)+'&page='+page+'&pageSize=15',{
+    headers:{'Authorization':'Bearer '+T}
   })
   .then(function(r){return r.json()})
   .then(function(d){
@@ -144,10 +142,8 @@ function kbOpenEdit(id){
 
   if(id){
     // Load existing entry
-    fetch('/api/v1/knowledge/list',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+T},
-      body:JSON.stringify({scope:scope,page:1,pageSize:1000})
+    fetch('/admin/knowledge/entries?scope='+encodeURIComponent(scope)+'&page=1&pageSize=1000',{
+      headers:{'Authorization':'Bearer '+T}
     })
     .then(function(r){return r.json()})
     .then(function(d){
