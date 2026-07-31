@@ -14,7 +14,6 @@ import os, sys, hashlib, secrets, json, argparse
 # Username is randomly generated on each seed run to prevent guessing.
 # It prints at install time; save it or check deploy output.
 import secrets as _secrets
-ADMIN_PHONE    = "13800000000"
 ADMIN_USERNAME = os.environ.get("VR_ADMIN_USERNAME", "adm_" + _secrets.token_hex(8))
 ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD", "***REMOVED***")
 ADMIN_DISPLAY  = "Administrator"
@@ -163,39 +162,38 @@ def seed_plugin_products(db: SeedDB):
 
 
 def seed_admin_user(db: SeedDB):
-    """Create or update the admin user."""
+    """Create or update the admin user (no phone required)."""
     pw_hash = hash_password(ADMIN_PASSWORD)
 
     if db._db_type == "postgresql":
-        # Check if exists
         cur = db.execute(
-            "SELECT id FROM users WHERE username = %s OR phone = %s",
-            (ADMIN_USERNAME, ADMIN_PHONE)
+            "SELECT id FROM users WHERE username = %s",
+            (ADMIN_USERNAME,)
         )
     else:
         cur = db.execute(
-            "SELECT id FROM users WHERE username = ? OR phone = ?",
-            (ADMIN_USERNAME, ADMIN_PHONE)
+            "SELECT id FROM users WHERE username = ?",
+            (ADMIN_USERNAME,)
         )
 
     row = cur.fetchone()
     if row:
         user_id = row[0]
         db.execute(
-            "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = %s"
+            "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1, password_changed_at = NULL WHERE id = %s"
             if db._db_type == "postgresql" else
-            "UPDATE users SET username = ?, display_name = ?, password_hash = ?, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = ?",
+            "UPDATE users SET username = ?, display_name = ?, password_hash = ?, is_admin = 1, active = 1, password_changed_at = NULL WHERE id = ?",
             (ADMIN_USERNAME, ADMIN_DISPLAY, pw_hash, user_id)
         )
         print(f"  [OK] admin user updated (id={user_id})")
     else:
         cur = db.execute(
-            "INSERT INTO users (username, phone, display_name, password_hash, is_admin, active, phone_verified) "
-            "VALUES (%s, %s, %s, %s, 1, 1, 1) RETURNING id"
+            "INSERT INTO users (username, display_name, password_hash, is_admin, active) "
+            "VALUES (%s, %s, %s, 1, 1) RETURNING id"
             if db._db_type == "postgresql" else
-            "INSERT INTO users (username, phone, display_name, password_hash, is_admin, active, phone_verified) "
-            "VALUES (?, ?, ?, ?, 1, 1, 1)",
-            (ADMIN_USERNAME, ADMIN_PHONE, ADMIN_DISPLAY, pw_hash)
+            "INSERT INTO users (username, display_name, password_hash, is_admin, active) "
+            "VALUES (?, ?, ?, 1, 1)",
+            (ADMIN_USERNAME, ADMIN_DISPLAY, pw_hash)
         )
         if db._db_type == "postgresql":
             user_id = cur.fetchone()[0]
