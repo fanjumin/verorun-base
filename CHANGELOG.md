@@ -1,5 +1,12 @@
 # 修改记录
 
+## v0.39.3 — 2026-07-31
+
+### Optimize install.sh update — skip pip install when requirements.txt unchanged
+
+- Add md5 hash cache for requirements.txt in deploy/install.sh
+- Only run pip install when requirements.txt has changed since last run
+
 ## v0.39.2 — 2026-07-31
 
 ### Agent Discussion — Revised Design v2.0 + Version bump

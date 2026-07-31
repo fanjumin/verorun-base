@@ -227,7 +227,14 @@ do_update() {
     done_step ".env synced"
 
     step "Update Python dependencies"
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --only-binary=:all: -r "${APP_HOME}/requirements.txt"
+    req_hash=$(md5sum "${APP_HOME}/requirements.txt" | awk '{print $1}')
+    cached_hash=$(cat "${APP_HOME}/.requirements_hash" 2>/dev/null || echo "")
+    if [ "${req_hash}" != "${cached_hash}" ]; then
+        sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --only-binary=:all: -r "${APP_HOME}/requirements.txt"
+        echo "${req_hash}" > "${APP_HOME}/.requirements_hash"
+    else
+        echo -e "${INFO} requirements.txt unchanged, skipping pip install"
+    fi
     done_step "Dependencies updated"
 
     step "Update systemd services"

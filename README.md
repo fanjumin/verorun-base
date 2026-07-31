@@ -4,7 +4,7 @@
 
 VeroRun integrates multi-vendor AI engines, e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, and a plugin-based extension system.
 
-> **Version:** 0.39.2
+> **Version:** 0.39.3
 > **Repository:** https://github.com/fanjumin/VeroRunSystem
 
 ---
