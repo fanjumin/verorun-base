@@ -262,33 +262,49 @@ do_seed() {
     echo ""
     echo -e "${INFO} Create the administrator account for VeroRun"
 
-    # Read from /dev/tty so interactive prompts work even when stdin is a pipe (curl | bash)
-    if [ -t 0 ] || [ -e /dev/tty ]; then
-        read -r -p "  Admin username: " _vr_admin_user < /dev/tty
-        while [ -z "${_vr_admin_user}" ]; do
-            echo -e "${WARN} Username cannot be empty" > /dev/tty
-            read -r -p "  Admin username: " _vr_admin_user < /dev/tty
-        done
+    # Determine which TTY to read from (works with curl|bash pipe and detached setsid+nohup)
+    local _tty=""
+    if [ -t 0 ]; then
+        _tty="/dev/stdin"
+    elif [ -r /dev/tty ] 2>/dev/null && read -t 0 < /dev/tty 2>/dev/null; then
+        _tty="/dev/tty"
+    fi
 
-        read -r -s -p "  Admin password: " _vr_admin_pass < /dev/tty
-        echo "" > /dev/tty
-        while [ -z "${_vr_admin_pass}" ]; do
-            echo -e "${WARN} Password cannot be empty" > /dev/tty
-            read -r -s -p "  Admin password: " _vr_admin_pass < /dev/tty
-            echo "" > /dev/tty
-        done
+    if [ -n "${_tty}" ]; then
+        echo -e "${INFO} Using terminal: ${_tty}"
+        if read -r -p "  Admin username: " _vr_admin_user < "${_tty}" 2>/dev/null; then
+            while [ -z "${_vr_admin_user}" ]; do
+                echo -e "${WARN} Username cannot be empty" > "${_tty}"
+                read -r -p "  Admin username: " _vr_admin_user < "${_tty}" 2>/dev/null || break
+            done
 
-        read -r -s -p "  Confirm password: " _vr_admin_pass2 < /dev/tty
-        echo "" > /dev/tty
-        while [ "${_vr_admin_pass}" != "${_vr_admin_pass2}" ]; do
-            echo -e "${WARN} Passwords do not match, try again" > /dev/tty
-            read -r -s -p "  Admin password: " _vr_admin_pass < /dev/tty
-            echo "" > /dev/tty
-            read -r -s -p "  Confirm password: " _vr_admin_pass2 < /dev/tty
-            echo "" > /dev/tty
-        done
-    else
-        echo -e "${INFO} No TTY available — admin username will be auto-generated"
+            if [ -n "${_vr_admin_user}" ]; then
+                read -r -s -p "  Admin password: " _vr_admin_pass < "${_tty}" 2>/dev/null
+                echo "" > "${_tty}"
+                while [ -z "${_vr_admin_pass}" ]; do
+                    echo -e "${WARN} Password cannot be empty" > "${_tty}"
+                    read -r -s -p "  Admin password: " _vr_admin_pass < "${_tty}" 2>/dev/null || break
+                    echo "" > "${_tty}"
+                done
+
+                if [ -n "${_vr_admin_pass}" ]; then
+                    read -r -s -p "  Confirm password: " _vr_admin_pass2 < "${_tty}" 2>/dev/null
+                    echo "" > "${_tty}"
+                    while [ "${_vr_admin_pass}" != "${_vr_admin_pass2}" ]; do
+                        echo -e "${WARN} Passwords do not match, try again" > "${_tty}"
+                        read -r -s -p "  Admin password: " _vr_admin_pass < "${_tty}" 2>/dev/null || break
+                        echo "" > "${_tty}"
+                        [ -z "${_vr_admin_pass}" ] && break
+                        read -r -s -p "  Confirm password: " _vr_admin_pass2 < "${_tty}" 2>/dev/null || break
+                        echo "" > "${_tty}"
+                    done
+                fi
+            fi
+        fi
+    fi
+
+    if [ -z "${_vr_admin_user}" ]; then
+        echo -e "${INFO} No interactive terminal available — admin username will be auto-generated"
     fi
 
     VR_ADMIN_USERNAME="${_vr_admin_user}" VR_ADMIN_PASSWORD="${_vr_admin_pass}" \

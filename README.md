@@ -65,7 +65,7 @@ Supporting services:
 ### One-Click Deploy (Ubuntu 22.04/24.04)
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh)" -- install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
 
 Or via git clone:

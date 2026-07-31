@@ -35,7 +35,7 @@
 ### With a domain
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh)" -- install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
 
 Replace `your-domain.com` with your actual domain name.
@@ -43,7 +43,7 @@ Replace `your-domain.com` with your actual domain name.
 ### Without a domain (configure later)
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh)" -- install
+curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh | sudo bash -s -- install
 ```
 
 You will be prompted to enter a domain or skip. If skipped, you can configure it later:
