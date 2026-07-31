@@ -2398,7 +2398,7 @@ def init_db():
                 kb_id            VARCHAR(64) NOT NULL,
                 previous_title   VARCHAR(200),
                 previous_content TEXT,
-                changed_at       DATETIME DEFAULT NOW()
+                changed_at       TIMESTAMP DEFAULT NOW()
             )
         """)
         m.execute('CREATE INDEX IF NOT EXISTS idx_kh_kb_id ON knowledge_history(kb_id)')
