@@ -114,7 +114,12 @@ do_install() {
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
     else
-        rm -rf "${APP_HOME}"
+        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
+            rm -rf "${APP_HOME}"
+        else
+            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
+            exit 1
+        fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
     # Clean stale __pycache__ before chown (avoids race-condition failures)
@@ -127,8 +132,8 @@ do_install() {
         sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
     fi
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt"
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy
+    # --only-binary: fail fast if no pre-built wheel instead of compiling for hours
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --only-binary=:all: -r "${APP_HOME}/requirements.txt"
     done_step "Python dependencies installed"
 
     prompt_domain
@@ -211,8 +216,7 @@ do_update() {
     done_step ".env synced"
 
     step "Update Python dependencies"
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_HOME}/requirements.txt"
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install numpy
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --only-binary=:all: -r "${APP_HOME}/requirements.txt"
     done_step "Dependencies updated"
 
     step "Update systemd services"
@@ -617,6 +621,33 @@ print_summary() {
 }
 
 # ==========================================================================
+# SSH disconnect protection — re-run this script detached (setsid nohup)
+# so that a dropped SSH connection cannot kill a long-running install.
+# ==========================================================================
+maybe_detach() {
+    case "${DEPLOY_MODE}" in install|update) ;; *) return 0 ;; esac
+    [ -n "${TMUX:-}" ] && return 0
+    [ -n "${STY:-}" ] && return 0
+    [ -n "${VERORUN_DETACHED:-}" ] && return 0
+    [ -t 0 ] || return 0   # stdin not a TTY (curl pipe / nohup / CI) → run inline
+
+    local self_file="${BASH_SOURCE[0]}"
+    if [ ! -f "${self_file}" ]; then
+        echo -e "${WARN} Running via 'curl | bash' — SSH disconnect will kill this install."
+        echo -e "${INFO} Re-run detached for disconnect protection:"
+        echo -e "  curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh -o /tmp/verorun-install.sh"
+        echo -e "  sudo bash /tmp/verorun-install.sh ${DEPLOY_MODE} ${DOMAIN}"
+        return 0
+    fi
+
+    echo -e "${INFO} Detaching from SSH session — install continues even if connection drops."
+    echo -e "${INFO}   Watch progress: tail -f /tmp/verorun-install.log"
+    VERORUN_DETACHED=1 setsid nohup bash "${self_file}" "$@" \
+        > /tmp/verorun-install.log 2>&1 < /dev/null &
+    exec tail -f /tmp/verorun-install.log
+}
+
+# ==========================================================================
 # Main entry
 # ==========================================================================
 
@@ -628,6 +659,9 @@ fi
 
 detect_mode "${1:-}"
 detect_domain "${2:-}"
+
+# Detach from SSH session so a dropped connection cannot kill the install
+maybe_detach
 
 case "${DEPLOY_MODE}" in
     install)

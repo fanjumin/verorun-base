@@ -103,7 +103,13 @@ def get_db():
     )
     try:
         yield db
-        conn.commit()
+        try:
+            conn.commit()
+        except Exception:
+            # Swallow commit failure left over from a caught DB error (e.g. a
+            # migration touched a not-yet-created table on a fresh install).
+            # Roll back so the caller can continue instead of aborting the import.
+            conn.rollback()
     except Exception:
         conn.rollback()
         raise
