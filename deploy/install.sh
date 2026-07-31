@@ -701,33 +701,6 @@ print_summary() {
 }
 
 # ==========================================================================
-# SSH disconnect protection — re-run this script detached (setsid nohup)
-# so that a dropped SSH connection cannot kill a long-running install.
-# ==========================================================================
-maybe_detach() {
-    case "${DEPLOY_MODE}" in install|update) ;; *) return 0 ;; esac
-    [ -n "${TMUX:-}" ] && return 0
-    [ -n "${STY:-}" ] && return 0
-    [ -n "${VERORUN_DETACHED:-}" ] && return 0
-    [ -t 0 ] || return 0   # stdin not a TTY (curl pipe / nohup / CI) → run inline
-
-    local self_file="${BASH_SOURCE[0]}"
-    if [ ! -f "${self_file}" ]; then
-        echo -e "${WARN} Running via 'curl | bash' — SSH disconnect will kill this install."
-        echo -e "${INFO} Re-run detached for disconnect protection:"
-        echo -e "  curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh -o /tmp/verorun-install.sh"
-        echo -e "  sudo bash /tmp/verorun-install.sh ${DEPLOY_MODE} ${DOMAIN}"
-        return 0
-    fi
-
-    echo -e "${INFO} Detaching from SSH session — install continues even if connection drops."
-    echo -e "${INFO}   Watch progress: tail -f /tmp/verorun-install.log"
-    VERORUN_DETACHED=1 APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" setsid nohup bash "${self_file}" "$@" \
-        > /tmp/verorun-install.log 2>&1 < /dev/null &
-    exec tail -f /tmp/verorun-install.log
-}
-
-# ==========================================================================
 # Main entry
 # ==========================================================================
 
@@ -740,11 +713,8 @@ fi
 detect_mode "${1:-}"
 detect_domain "${2:-}"
 
-# Ask for admin credentials BEFORE detach (TTY is still alive)
+# Ask for admin credentials (TTY is still alive)
 prompt_admin_creds
-
-# Detach from SSH session so a dropped connection cannot kill the install
-maybe_detach "$@"
 
 case "${DEPLOY_MODE}" in
     install)
