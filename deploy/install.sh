@@ -262,8 +262,13 @@ do_seed() {
     echo ""
     echo -e "${INFO} Create the administrator account for VeroRun"
 
+    # Pre-initialize so set -u won't crash if TTY is unavailable
+    _vr_admin_user=""
+    _vr_admin_pass=""
+    _vr_admin_pass2=""
+
     # Determine which TTY to read from (works with curl|bash pipe and detached setsid+nohup)
-    local _tty=""
+    _tty=""
     if [ -t 0 ]; then
         _tty="/dev/stdin"
     elif [ -r /dev/tty ] 2>/dev/null && read -t 0 < /dev/tty 2>/dev/null; then
@@ -271,7 +276,6 @@ do_seed() {
     fi
 
     if [ -n "${_tty}" ]; then
-        echo -e "${INFO} Using terminal: ${_tty}"
         if read -r -p "  Admin username: " _vr_admin_user < "${_tty}" 2>/dev/null; then
             while [ -z "${_vr_admin_user}" ]; do
                 echo -e "${WARN} Username cannot be empty" > "${_tty}"
