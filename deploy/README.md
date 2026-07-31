@@ -115,6 +115,35 @@ sudo bash deploy/install.sh seed
 
 ---
 
+## Clean Uninstall
+
+Remove everything (services, database, code, logs) for a complete fresh start:
+
+```bash
+# 1. Stop and disable all services
+sudo systemctl stop verorun-main verorun-auth verorun-admin verorun-health 2>/dev/null
+sudo systemctl disable verorun-main verorun-auth verorun-admin verorun-health 2>/dev/null
+
+# 2. Remove systemd service files
+sudo rm -f /etc/systemd/system/verorun-*.service
+sudo systemctl daemon-reload
+
+# 3. Remove Nginx config
+sudo rm -f /etc/nginx/sites-enabled/verorun.conf /etc/nginx/sites-available/verorun.conf
+sudo systemctl restart nginx
+
+# 4. Drop database and role
+sudo -u postgres dropdb verorun
+sudo -u postgres dropuser verorun
+
+# 5. Remove code, venv, and logs
+sudo rm -rf ~/verorun-workspace /var/log/verorun
+```
+
+After this, you can run the install command again for a clean install.
+
+---
+
 ## Architecture Overview
 
 ### Service Layout
