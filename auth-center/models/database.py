@@ -1953,11 +1953,11 @@ def init_db():
         # Backfill existing data: distinguish system KB from user KB by id prefix
         m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE id LIKE 'kb_company_%' OR id LIKE 'kb_product_%' OR id LIKE 'kb_faq_faq_%' OR id LIKE 'kb_faq_whitepaper%' OR (id LIKE 'kb_faq_%' AND id NOT LIKE 'kb_faq_faq_%')")
         m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE id LIKE 'kb_cleaner_%'")
-        try:
+        # Backfill only when the 'source' column exists (added by the 2026-07-18 migration)
+        kb_cols_after = get_table_columns(m, 'knowledge_blocks')
+        if 'source' in kb_cols_after:
             m.execute("UPDATE knowledge_blocks SET scope='system', owner_id=NULL WHERE scope IS NULL AND source='manual'")
             m.execute("UPDATE knowledge_blocks SET scope='user', owner_id=NULL WHERE scope IS NULL AND source IN ('auto','matrix')")
-        except Exception:
-            m.rollback()  # source column may not exist on fresh install — clear aborted tx
         print('[Migration] knowledge_blocks scope/owner_id migration completed')
         # Seed knowledge blocks from mini-program
         row = m.execute("SELECT COUNT(*) as c FROM knowledge_blocks").fetchone()
