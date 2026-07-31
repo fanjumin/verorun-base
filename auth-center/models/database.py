@@ -945,34 +945,37 @@ def init_db():
                        "('pro', 'Pro', '每日1000次调用', 188, 1888, 1000, '[\"all\"]', 3) ON CONFLICT (plan_key) DO NOTHING")
             c3.commit()
         # ── 管理员配置表 (2026-05-10) ──
-        with get_db() as c_adm:
-            c_adm.execute("""
-                CREATE TABLE IF NOT EXISTS admin_profiles (
-                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    user_id         BIGINT UNIQUE REFERENCES users(id),
-                    role            TEXT DEFAULT 'admin',           -- super_admin / admin / operator
-                    permissions     TEXT DEFAULT '[]',              -- JSON array
-                    real_name       TEXT DEFAULT '',
-                    internal_phone  TEXT DEFAULT '',
-                    internal_email  TEXT DEFAULT '',
-                    notes           TEXT DEFAULT '',
-                    created_by      BIGINT DEFAULT 0,
-                    last_login_ip   TEXT DEFAULT '',
-                    last_login_at   TIMESTAMP,
-                    created_at      TIMESTAMP DEFAULT NOW(),
-                    updated_at      TIMESTAMP DEFAULT NOW()
-                )
-            """)
-            # 种子：***REMOVED*** (user_id=7) 为 super_admin，全部权限
-            try:
-                c_adm.execute(
-                    "INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes) "
-                    "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING",
-                    (7, 'super_admin', '["users","content","finance","system","matrix","admins"]', '***REMOVED***', 'Initial Super Admin')
-                )
-            except Exception:
-                pass  # User may not exist yet, skip
-            c_adm.commit()
+        cur = fresh_conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS admin_profiles (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT UNIQUE REFERENCES users(id),
+                role            TEXT DEFAULT 'admin',           -- super_admin / admin / operator
+                permissions     TEXT DEFAULT '[]',              -- JSON array
+                real_name       TEXT DEFAULT '',
+                internal_phone  TEXT DEFAULT '',
+                internal_email  TEXT DEFAULT '',
+                notes           TEXT DEFAULT '',
+                created_by      BIGINT DEFAULT 0,
+                last_login_ip   TEXT DEFAULT '',
+                last_login_at   TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                updated_at      TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        fresh_conn.commit()
+        # 种子：***REMOVED*** (user_id=7) 为 super_admin，全部权限
+        try:
+            cur.execute(
+                "INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes) "
+                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING",
+                (7, 'super_admin', '["users","content","finance","system","matrix","admins"]', '***REMOVED***', 'Initial Super Admin')
+            )
+            fresh_conn.commit()
+        except Exception:
+            fresh_conn.rollback()
+            pass  # User may not exist yet, skip
+        print('[Migration] admin_profiles table created', flush=True)
         # ── 主题管理 (2026-05-16) ──
         with get_db() as c_th:
             c_th.execute("""
