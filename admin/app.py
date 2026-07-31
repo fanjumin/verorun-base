@@ -7,7 +7,7 @@ import platform as _stdlib_platform
 """Admin Panel — 管理后台 (独立端口 8084)"""
 """VeroRun v0.39.3 — Multi-agent AI Content & Commerce Hub"""
 
-import sys, os, secrets
+import sys, os, re, secrets, time as _time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -948,6 +948,64 @@ def plugin_fallback_404(e):
     return 'Not Found', 404
 
 
+@app.route('/admin/api/check-update', methods=['GET'])
+def admin_check_update():
+    """Check for new version: compare local VERSION against remote git tags.
+    Cached for 5 minutes to avoid hammering the remote on every page load."""
+    from services.jwt_service import validate_token
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.cookies.get('sso_token', '')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    from version import get_version
+
+    # In-memory cache (5 minutes)
+    now = _time.time()
+    cached = getattr(admin_check_update, '_cache', None)
+    if cached and (now - cached['ts']) < 300:
+        return jsonify(cached['data'])
+
+    local_ver = get_version()
+    _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # Get latest remote tag via git ls-remote
+    try:
+        result = __import__('subprocess').run(
+            ['git', 'ls-remote', '--tags', 'origin'],
+            cwd=_project_root, capture_output=True, text=True, timeout=15
+        )
+        tags = re.findall(r'refs/tags/(\d+\.\d+\.\d+)', result.stdout)
+        if not tags:
+            tags = ['0.0.0']
+        tags.sort(key=lambda v: [int(x) for x in v.split('.')])
+        latest_ver = tags[-1]
+    except Exception:
+        latest_ver = local_ver
+
+    # Semantic version comparison
+    def _cmp(v1, v2):
+        a = [int(x) for x in v1.split('.')]
+        b = [int(x) for x in v2.split('.')]
+        for i in range(max(len(a), len(b))):
+            av = a[i] if i < len(a) else 0
+            bv = b[i] if i < len(b) else 0
+            if av != bv:
+                return av - bv
+        return 0
+
+    has_update = _cmp(latest_ver, local_ver) > 0
+
+    data = {
+        'success': True,
+        'current': local_ver,
+        'latest': latest_ver,
+        'has_update': has_update,
+    }
+    admin_check_update._cache = {'ts': now, 'data': data}
+    return jsonify(data)
+
+
 @app.route('/admin/api/update', methods=['POST'])
 def admin_update():
     """One-click update: git pull → pip install → restart services"""
@@ -967,13 +1025,21 @@ def admin_update():
         try:
             _sp.run(['git', 'fetch', 'origin', 'master'], cwd=_project_root,
                     check=True, capture_output=True, timeout=60)
-            _sp.run(['git', 'reset', '--hard', 'origin/master'], cwd=_project_root,
+            _sp.run(['git', 'reset', '--hard', 'HEAD'], cwd=_project_root,
+                    check=True, capture_output=True, timeout=30)
+            _sp.run(['git', 'pull', 'origin', 'master'], cwd=_project_root,
                     check=True, capture_output=True, timeout=60)
+            # Clear version-check cache so next load fetches fresh data
+            admin_check_update._cache = None
             _sp.run([_pip_path, 'install', '-r', _req_path],
                     check=True, capture_output=True, timeout=120)
-            for _svc in ('verorun-admin', 'verorun-auth', 'verorun-main'):
+            # Restart non-admin services first
+            for _svc in ('verorun-main', 'verorun-auth'):
                 _sp.run(['sudo', 'systemctl', 'restart', _svc],
                         check=True, capture_output=True, timeout=30)
+            # Restart admin LAST — this kills the current process
+            _sp.run(['sudo', 'systemctl', 'restart', 'verorun-admin'],
+                    check=True, capture_output=True, timeout=30)
         except Exception as _e:
             print(f'[Update] Error: {_e}')
 

@@ -153,10 +153,10 @@ a:hover{text-decoration:underline}
   </div>
   <nav id="nav"></nav>
   <div class="ver" id="ver">
-    <div>VeroRun AI v{{ brand.version if brand and brand.version else '0.12.0' }}</div>
+    <div>VeroRun AI v<span id="currentVer">{{ brand.version if brand and brand.version else '0.12.0' }}</span></div>
     <div style="margin-top:6px;display:flex;flex-direction:column;gap:2px">
       <div style="font-size:9px;color:var(--muted);display:flex;align-items:center;gap:4px">
-        <span>{{ _('Current') }}: v{{ brand.version if brand and brand.version else '0.12.0' }}</span>
+        <span>{{ _('Current') }}: v<span id="currentVer2">{{ brand.version if brand and brand.version else '0.12.0' }}</span></span>
         <span>|</span>
         <span>{{ _('Latest') }}: <span id="latestVer">-</span></span>
       </div>
@@ -168,11 +168,15 @@ a:hover{text-decoration:underline}
     var btn=document.getElementById('btnUpdate');
     var el=document.getElementById('latestVer');
     el.textContent='{{ _('Checking') }}...';
-    fetch('https://api.github.com/repos/fanjumin/VeroRunSystem/releases/latest').then(function(r){return r.json()}).then(function(d){
-      var lt=d.tag_name;
-      el.textContent=lt;
-      var cv='v{{ brand.version if brand and brand.version else '0.12.0' }}';
-      if(lt!==cv){btn.style.display='inline-block'}
+    fetch('/admin/api/check-update').then(function(r){return r.json()}).then(function(d){
+      if(d.success){
+        el.textContent=d.latest;
+        document.getElementById('currentVer').textContent=d.current;
+        document.getElementById('currentVer2').textContent=d.current;
+        if(d.has_update){btn.style.display='inline-block'}
+      }else{
+        el.textContent='-';
+      }
     }).catch(function(){el.textContent='{{ _('Failed') }}'});
   }
   function doUpdate(){
