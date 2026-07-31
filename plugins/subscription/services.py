@@ -16,8 +16,9 @@ from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from functools import wraps
 
-from .models import (
 from plugins._base.db import get_raw_connection
+
+from .models import (
     get_db, get_db_path,
     SubItem, UserSubscription, SubOrder,
     SubStatus, OrderStatus, IntervalType,
