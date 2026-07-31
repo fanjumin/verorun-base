@@ -213,6 +213,18 @@ def seed_quotas(db: SeedDB):
         print(f"  [OK] quota: {q['target_type']}")
 
 
+def seed_admin_profile(db: SeedDB, user_id: int):
+    """Create admin_profiles row for the admin user."""
+    db.insert_on_conflict("admin_profiles", {
+        "user_id": user_id,
+        "role": "super_admin",
+        "permissions": '["users","content","finance","system","matrix","admins"]',
+        "real_name": ADMIN_USERNAME,
+        "notes": "Initial Super Admin",
+    }, conflict_col="user_id")
+    print(f"  [OK] admin profile created (user_id={user_id})")
+
+
 def seed_admin_subscription(db: SeedDB, user_id: int):
     """Create a free subscription for the admin user."""
     db.insert_on_conflict("user_subscriptions", {
@@ -257,7 +269,7 @@ def main():
     db = SeedDB(env, sqlite_path=args.sqlite)
 
     # Verify required tables exist
-    required = ["users", "base_plans", "plugin_products", "usage_quotas", "user_subscriptions"]
+    required = ["users", "base_plans", "plugin_products", "usage_quotas", "user_subscriptions", "admin_profiles"]
     missing = [t for t in required if not db.table_exists(t)]
     if missing:
         print(f"[FAIL] Tables not found: {', '.join(missing)}")
@@ -269,6 +281,7 @@ def main():
     seed_base_plan(db)
     seed_plugin_products(db)
     user_id = seed_admin_user(db)
+    seed_admin_profile(db, user_id)
     seed_quotas(db)
     seed_admin_subscription(db, user_id)
 

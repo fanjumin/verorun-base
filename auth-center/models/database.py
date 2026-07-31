@@ -964,17 +964,6 @@ def init_db():
             )
         """)
         fresh_conn.commit()
-        # 种子：***REMOVED*** (user_id=7) 为 super_admin，全部权限
-        try:
-            cur.execute(
-                "INSERT INTO admin_profiles (user_id, role, permissions, real_name, notes) "
-                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING",
-                (7, 'super_admin', '["users","content","finance","system","matrix","admins"]', '***REMOVED***', 'Initial Super Admin')
-            )
-            fresh_conn.commit()
-        except Exception:
-            fresh_conn.rollback()
-            pass  # User may not exist yet, skip
         print('[Migration] admin_profiles table created', flush=True)
         # ── 主题管理 (2026-05-16) ──
         with get_db() as c_th:
