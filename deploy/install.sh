@@ -287,32 +287,32 @@ prompt_admin_creds() {
     # If already set (e.g. re-run after detach), skip
     [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
 
-    echo ""
-    echo -e "${INFO} Create the administrator account for VeroRun"
+    echo "" > /dev/tty
+    echo -e "${INFO} Create the administrator account for VeroRun" > /dev/tty
 
     local _user="" _pass="" _pass2=""
-    read -r -p "  Admin username: " _user
+    read -r -p "  Admin username: " _user < /dev/tty
     while [ -z "${_user}" ]; do
-        echo -e "${WARN} Username cannot be empty"
-        read -r -p "  Admin username: " _user
+        echo -e "${WARN} Username cannot be empty" > /dev/tty
+        read -r -p "  Admin username: " _user < /dev/tty
     done
 
-    read -r -s -p "  Admin password: " _pass
-    echo ""
+    read -r -s -p "  Admin password: " _pass < /dev/tty
+    echo "" > /dev/tty
     while [ -z "${_pass}" ]; do
-        echo -e "${WARN} Password cannot be empty"
-        read -r -s -p "  Admin password: " _pass
-        echo ""
+        echo -e "${WARN} Password cannot be empty" > /dev/tty
+        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo "" > /dev/tty
     done
 
-    read -r -s -p "  Confirm password: " _pass2
-    echo ""
+    read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+    echo "" > /dev/tty
     while [ "${_pass}" != "${_pass2}" ]; do
-        echo -e "${WARN} Passwords do not match, try again"
-        read -r -s -p "  Admin password: " _pass
-        echo ""
-        read -r -s -p "  Confirm password: " _pass2
-        echo ""
+        echo -e "${WARN} Passwords do not match, try again" > /dev/tty
+        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo "" > /dev/tty
+        read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+        echo "" > /dev/tty
     done
 
     cat > "${VR_ADMIN_CREDS_FILE}" << CREDS_EOF
