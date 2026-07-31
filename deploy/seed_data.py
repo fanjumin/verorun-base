@@ -232,7 +232,14 @@ def main():
     parser = argparse.ArgumentParser(description="VeroRun seed data injector")
     parser.add_argument("--env", default=None, help="Path to .env file")
     parser.add_argument("--sqlite", default=None, help="Force SQLite mode with explicit path")
+    parser.add_argument("--admin-user", default=None, help="Admin username (overrides env var)")
+    parser.add_argument("--admin-pass", default=None, help="Admin password (overrides env var)")
     args = parser.parse_args()
+
+    if args.admin_user:
+        global ADMIN_USERNAME; ADMIN_USERNAME = args.admin_user
+    if args.admin_pass:
+        global ADMIN_PASSWORD; ADMIN_PASSWORD = args.admin_pass
 
     # Locate .env
     env_path = args.env

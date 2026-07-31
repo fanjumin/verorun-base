@@ -274,8 +274,11 @@ do_seed() {
         echo -e "${INFO} No admin credentials provided — username will be auto-generated"
     fi
 
-    VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
-        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
+    local _seed_args=""
+    if [ -n "${VR_ADMIN_USERNAME}" ]; then
+        _seed_args="--admin-user ${VR_ADMIN_USERNAME} --admin-pass ${VR_ADMIN_PASSWORD}"
+    fi
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py" ${_seed_args}
     echo -e "${OK} Seed data injected"
 }
 
