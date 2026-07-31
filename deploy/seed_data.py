@@ -182,10 +182,10 @@ def seed_admin_user(db: SeedDB):
     if row:
         user_id = row[0]
         db.execute(
-            "UPDATE users SET password_hash = %s, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = %s"
+            "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = %s"
             if db._db_type == "postgresql" else
-            "UPDATE users SET password_hash = ?, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = ?",
-            (pw_hash, user_id)
+            "UPDATE users SET username = ?, display_name = ?, password_hash = ?, is_admin = 1, active = 1, phone_verified = 1, password_changed_at = NULL WHERE id = ?",
+            (ADMIN_USERNAME, ADMIN_DISPLAY, pw_hash, user_id)
         )
         print(f"  [OK] admin user updated (id={user_id})")
     else:
