@@ -191,13 +191,24 @@ do_update() {
     done_step "Environment backed up"
 
     step "Pull latest code"
-    git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
-    cd "${APP_HOME}"
-    git fetch origin "${GIT_BRANCH}"
-    git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
-        echo -e "${WARN} Fast-forward merge failed, falling back to reset"
-        git reset --hard "origin/${GIT_BRANCH}"
-    }
+    if [ ! -d "${APP_HOME}/.git" ]; then
+        echo -e "${WARN} .git missing — re-cloning repository"
+        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
+            rm -rf "${APP_HOME}"
+        else
+            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
+            exit 1
+        fi
+        git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
+    else
+        git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
+        cd "${APP_HOME}"
+        git fetch origin "${GIT_BRANCH}"
+        git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
+            echo -e "${WARN} Fast-forward merge failed, falling back to reset"
+            git reset --hard "origin/${GIT_BRANCH}"
+        }
+    fi
     local after_commit
     after_commit=$(git log --oneline -1)
     done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
@@ -661,7 +672,7 @@ detect_mode "${1:-}"
 detect_domain "${2:-}"
 
 # Detach from SSH session so a dropped connection cannot kill the install
-maybe_detach
+maybe_detach "$@"
 
 case "${DEPLOY_MODE}" in
     install)
