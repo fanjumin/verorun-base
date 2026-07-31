@@ -975,11 +975,15 @@ def admin_check_update():
             ['git', 'ls-remote', '--tags', 'origin'],
             cwd=_project_root, capture_output=True, text=True, timeout=15
         )
-        tags = re.findall(r'refs/tags/(\d+\.\d+\.\d+)', result.stdout)
-        if not tags:
-            tags = ['0.0.0']
-        tags.sort(key=lambda v: [int(x) for x in v.split('.')])
-        latest_ver = tags[-1]
+        if result.returncode != 0:
+            latest_ver = local_ver  # git remote not accessible
+        else:
+            tags = re.findall(r'refs/tags/(\d+\.\d+\.\d+)', result.stdout)
+            if not tags:
+                latest_ver = local_ver  # no semver tags found
+            else:
+                tags.sort(key=lambda v: [int(x) for x in v.split('.')])
+                latest_ver = tags[-1]
     except Exception:
         latest_ver = local_ver
 
