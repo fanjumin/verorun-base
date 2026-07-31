@@ -2356,14 +2356,15 @@ def init_db():
             ('source',        "VARCHAR(20) DEFAULT 'manual'"),
             ('hit_count',     "INTEGER DEFAULT 0"),
             ('quality_score', "REAL DEFAULT 0.5"),
-            ('updated_at',    "DATETIME DEFAULT NULL"),
-            ('deleted_at',    "DATETIME DEFAULT NULL"),
+            ('updated_at',    "TIMESTAMP DEFAULT NULL"),
+            ('deleted_at',    "TIMESTAMP DEFAULT NULL"),
         ]:
             if col_name not in kb_cols:
                 try:
                     m.execute(f"ALTER TABLE knowledge_blocks ADD COLUMN {col_name} {col_def}")
                     print(f'[Migration] knowledge_blocks.{col_name} added')
                 except Exception as e:
+                    m.rollback()  # clear aborted transaction
                     print(f'[Migration] knowledge_blocks.{col_name} skipped: {e}')
         m.commit()
 
