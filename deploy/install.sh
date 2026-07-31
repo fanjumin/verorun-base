@@ -722,7 +722,7 @@ maybe_detach() {
 
     echo -e "${INFO} Detaching from SSH session — install continues even if connection drops."
     echo -e "${INFO}   Watch progress: tail -f /tmp/verorun-install.log"
-    VERORUN_DETACHED=1 setsid nohup bash "${self_file}" "$@" \
+    VERORUN_DETACHED=1 APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" setsid nohup bash "${self_file}" "$@" \
         > /tmp/verorun-install.log 2>&1 < /dev/null &
     exec tail -f /tmp/verorun-install.log
 }
