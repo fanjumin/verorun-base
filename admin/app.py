@@ -459,7 +459,7 @@ def admin_login_action():
         if not user:
             attempts['count'] += 1
             _admin_login_attempts[attempt_key] = attempts
-            return jsonify({'success': False, 'error': '账号不存在或非管理员账号'}), 400
+            return jsonify({'success': False, 'error': 'Account not found or not an admin account'}), 400
 
         user = dict(user)
         # Query admin role
@@ -494,7 +494,7 @@ def admin_login_action():
             attempts['banned_until'] = now + 1800
         _admin_login_attempts[attempt_key] = attempts
         _log_admin_action(None, 'login_failed', ip, f'user={username} not_found')
-        return jsonify({'success': False, 'error': '账号不存在或非管理员账号'}), 400
+        return jsonify({'success': False, 'error': 'Account not found or not an admin account'}), 400
 
     stored = user['password_hash']
     if not stored:
@@ -598,7 +598,7 @@ def admin_send_code():
             user = conn.execute('SELECT id FROM users WHERE phone=%s AND is_admin=1', (target,)).fetchone()
 
     if not user:
-        return jsonify({'success': False, 'error': '该账号不存在或非管理员账号'}), 400
+        return jsonify({'success': False, 'error': 'Account not found or not an admin account'}), 400
 
     if market == 'intl':
         # 邮箱验证码：存表 + 发邮件

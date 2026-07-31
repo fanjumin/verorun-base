@@ -257,7 +257,42 @@ do_seed() {
         echo -e "${INFO} Run 'install.sh install' first"
         exit 1
     fi
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
+
+    # ── Interactive admin account creation ──
+    echo ""
+    echo -e "${INFO} Create the administrator account for VeroRun"
+
+    # Read from /dev/tty so interactive prompts work even when stdin is a pipe (curl | bash)
+    if [ -t 0 ] || [ -e /dev/tty ]; then
+        read -r -p "  Admin username: " _vr_admin_user < /dev/tty
+        while [ -z "${_vr_admin_user}" ]; do
+            echo -e "${WARN} Username cannot be empty" > /dev/tty
+            read -r -p "  Admin username: " _vr_admin_user < /dev/tty
+        done
+
+        read -r -s -p "  Admin password: " _vr_admin_pass < /dev/tty
+        echo "" > /dev/tty
+        while [ -z "${_vr_admin_pass}" ]; do
+            echo -e "${WARN} Password cannot be empty" > /dev/tty
+            read -r -s -p "  Admin password: " _vr_admin_pass < /dev/tty
+            echo "" > /dev/tty
+        done
+
+        read -r -s -p "  Confirm password: " _vr_admin_pass2 < /dev/tty
+        echo "" > /dev/tty
+        while [ "${_vr_admin_pass}" != "${_vr_admin_pass2}" ]; do
+            echo -e "${WARN} Passwords do not match, try again" > /dev/tty
+            read -r -s -p "  Admin password: " _vr_admin_pass < /dev/tty
+            echo "" > /dev/tty
+            read -r -s -p "  Confirm password: " _vr_admin_pass2 < /dev/tty
+            echo "" > /dev/tty
+        done
+    else
+        echo -e "${INFO} No TTY available — admin username will be auto-generated"
+    fi
+
+    VR_ADMIN_USERNAME="${_vr_admin_user}" VR_ADMIN_PASSWORD="${_vr_admin_pass}" \
+        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     echo -e "${OK} Seed data injected"
 }
 

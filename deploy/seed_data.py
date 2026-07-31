@@ -15,8 +15,8 @@ import os, sys, hashlib, secrets, json, argparse
 # It prints at install time; save it or check deploy output.
 import secrets as _secrets
 ADMIN_PHONE    = "13800000000"
-ADMIN_USERNAME = "adm_" + _secrets.token_hex(8)
-ADMIN_PASSWORD = "***REMOVED***"
+ADMIN_USERNAME = os.environ.get("VR_ADMIN_USERNAME", "adm_" + _secrets.token_hex(8))
+ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD", "***REMOVED***")
 ADMIN_DISPLAY  = "Administrator"
 
 # ── Seed data ─────────────────────────────────────────────────────────
@@ -269,7 +269,7 @@ def main():
     db.close()
 
     print(f"\n[OK] Seed data injected successfully.")
-    print(f"     Admin login: {ADMIN_USERNAME}")
+    print(f"     Admin account: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
     print(f"     Plugins seeded: {len(DEFAULT_PLUGIN_PRODUCTS)}")
 
 
