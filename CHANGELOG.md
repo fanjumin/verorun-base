@@ -1,5 +1,13 @@
 # 修改记录
 
+## v0.39.2 — 2026-07-31
+
+### Agent Discussion — Revised Design v2.0 + Version bump
+
+- Bump system version to 0.39.2 (consistent across VERSION, package.json, README.md, admin/app.py)
+- Fix admin/app.py stale version string (was v0.32.2)
+- Agent Discussion v2.0 design document: 5 critical fixes + 6 supplementary improvements + 7-phase roadmap
+
 ## v0.8.6 — 2026-06-20
 
 ### Agent Matrix P0 修复 + 新增供应链/商城Agent
