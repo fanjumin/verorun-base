@@ -250,6 +250,9 @@ do_update() {
 # ==========================================================================
 # Seed initial data
 # ==========================================================================
+# ── Admin credentials temp file ──────────────────────────────────────
+VR_ADMIN_CREDS_FILE="/tmp/verorun-admin-creds"
+
 do_seed() {
     step "Seed initial data"
     if [ ! -f "${VENV_DIR}/bin/python" ]; then
@@ -258,62 +261,65 @@ do_seed() {
         exit 1
     fi
 
-    # ── Interactive admin account creation ──
+    # Read credentials from temp file (set by prompt_admin_creds before detach)
+    VR_ADMIN_USERNAME=""
+    VR_ADMIN_PASSWORD=""
+    if [ -f "${VR_ADMIN_CREDS_FILE}" ]; then
+        # shellcheck disable=SC1090
+        source "${VR_ADMIN_CREDS_FILE}"
+        rm -f "${VR_ADMIN_CREDS_FILE}"
+    fi
+
+    if [ -z "${VR_ADMIN_USERNAME}" ]; then
+        echo -e "${INFO} No admin credentials provided — username will be auto-generated"
+    fi
+
+    VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
+        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
+    echo -e "${OK} Seed data injected"
+}
+
+# Prompt for admin credentials BEFORE detach (while TTY is still alive).
+# Saves to a temp file that survives setsid+nohup.
+prompt_admin_creds() {
+    case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
+
+    # If already set (e.g. re-run after detach), skip
+    [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
+
     echo ""
     echo -e "${INFO} Create the administrator account for VeroRun"
 
-    # Pre-initialize so set -u won't crash if TTY is unavailable
-    _vr_admin_user=""
-    _vr_admin_pass=""
-    _vr_admin_pass2=""
+    local _user="" _pass="" _pass2=""
+    read -r -p "  Admin username: " _user
+    while [ -z "${_user}" ]; do
+        echo -e "${WARN} Username cannot be empty"
+        read -r -p "  Admin username: " _user
+    done
 
-    # Determine which TTY to read from (works with curl|bash pipe and detached setsid+nohup)
-    _tty=""
-    if [ -t 0 ]; then
-        _tty="/dev/stdin"
-    elif [ -r /dev/tty ] 2>/dev/null && read -t 0 < /dev/tty 2>/dev/null; then
-        _tty="/dev/tty"
-    fi
+    read -r -s -p "  Admin password: " _pass
+    echo ""
+    while [ -z "${_pass}" ]; do
+        echo -e "${WARN} Password cannot be empty"
+        read -r -s -p "  Admin password: " _pass
+        echo ""
+    done
 
-    if [ -n "${_tty}" ]; then
-        if read -r -p "  Admin username: " _vr_admin_user < "${_tty}" 2>/dev/null; then
-            while [ -z "${_vr_admin_user}" ]; do
-                echo -e "${WARN} Username cannot be empty" > "${_tty}"
-                read -r -p "  Admin username: " _vr_admin_user < "${_tty}" 2>/dev/null || break
-            done
+    read -r -s -p "  Confirm password: " _pass2
+    echo ""
+    while [ "${_pass}" != "${_pass2}" ]; do
+        echo -e "${WARN} Passwords do not match, try again"
+        read -r -s -p "  Admin password: " _pass
+        echo ""
+        read -r -s -p "  Confirm password: " _pass2
+        echo ""
+    done
 
-            if [ -n "${_vr_admin_user}" ]; then
-                read -r -s -p "  Admin password: " _vr_admin_pass < "${_tty}" 2>/dev/null
-                echo "" > "${_tty}"
-                while [ -z "${_vr_admin_pass}" ]; do
-                    echo -e "${WARN} Password cannot be empty" > "${_tty}"
-                    read -r -s -p "  Admin password: " _vr_admin_pass < "${_tty}" 2>/dev/null || break
-                    echo "" > "${_tty}"
-                done
-
-                if [ -n "${_vr_admin_pass}" ]; then
-                    read -r -s -p "  Confirm password: " _vr_admin_pass2 < "${_tty}" 2>/dev/null
-                    echo "" > "${_tty}"
-                    while [ "${_vr_admin_pass}" != "${_vr_admin_pass2}" ]; do
-                        echo -e "${WARN} Passwords do not match, try again" > "${_tty}"
-                        read -r -s -p "  Admin password: " _vr_admin_pass < "${_tty}" 2>/dev/null || break
-                        echo "" > "${_tty}"
-                        [ -z "${_vr_admin_pass}" ] && break
-                        read -r -s -p "  Confirm password: " _vr_admin_pass2 < "${_tty}" 2>/dev/null || break
-                        echo "" > "${_tty}"
-                    done
-                fi
-            fi
-        fi
-    fi
-
-    if [ -z "${_vr_admin_user}" ]; then
-        echo -e "${INFO} No interactive terminal available — admin username will be auto-generated"
-    fi
-
-    VR_ADMIN_USERNAME="${_vr_admin_user}" VR_ADMIN_PASSWORD="${_vr_admin_pass}" \
-        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
-    echo -e "${OK} Seed data injected"
+    cat > "${VR_ADMIN_CREDS_FILE}" << CREDS_EOF
+VR_ADMIN_USERNAME="${_user}"
+VR_ADMIN_PASSWORD="${_pass}"
+CREDS_EOF
+    echo -e "${OK} Admin credentials saved"
 }
 
 # ==========================================================================
@@ -725,6 +731,9 @@ fi
 
 detect_mode "${1:-}"
 detect_domain "${2:-}"
+
+# Ask for admin credentials BEFORE detach (TTY is still alive)
+prompt_admin_creds
 
 # Detach from SSH session so a dropped connection cannot kill the install
 maybe_detach "$@"
