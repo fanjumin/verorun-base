@@ -390,7 +390,15 @@ def init_db():
                 completion_percentage  BIGINT DEFAULT 0,
                 completion_last_updated TIMESTAMP,
                 alipay_user_id          TEXT UNIQUE,
-                telegram_open_id        TEXT UNIQUE
+                telegram_open_id        TEXT UNIQUE,
+                enterprise_name         TEXT DEFAULT '',
+                enterprise_tax_id       TEXT DEFAULT '',
+                enterprise_address      TEXT DEFAULT '',
+                enterprise_phone        TEXT DEFAULT '',
+                enterprise_bank         TEXT DEFAULT '',
+                enterprise_bank_acct    TEXT DEFAULT '',
+                enterprise_verified     BIGINT DEFAULT 0,
+                enterprise_verified_at  TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
             CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
@@ -1024,6 +1032,7 @@ def init_db():
                     features_json   TEXT DEFAULT '[]',
                     sort_order      BIGINT DEFAULT 0,
                     is_active       BIGINT DEFAULT 1,
+                    currency        TEXT DEFAULT 'CNY',
                     created_at      TIMESTAMP DEFAULT NOW(),
                     updated_at      TIMESTAMP DEFAULT NOW()
                 )
@@ -1060,6 +1069,7 @@ def init_db():
                     pending_plan_key    TEXT,
                     pending_period      TEXT,
                     pending_at          TIMESTAMP,
+                    module_states       TEXT DEFAULT '{}',
                     created_at          TIMESTAMP DEFAULT NOW(),
                     updated_at          TIMESTAMP DEFAULT NOW()
                 )
@@ -2443,6 +2453,17 @@ def _get_default_interests():
     return tags
 
 
+# ── 模块级迁移守卫：全新库（核心表不存在）时，引用 init_db() 建表的迁移自动跳过 ──
+def _table_exists(m, table: str) -> bool:
+    """Return True if a table exists in the current search path."""
+    row = m.execute(
+        "SELECT COUNT(*) AS c FROM information_schema.tables "
+        "WHERE table_schema=ANY(current_schemas(false)) AND table_name=%s",
+        (table,),
+    ).fetchone()
+    return bool(row['c'])
+
+
 # ── Module-level: media_files table（防 init_db() 中途失败跳过）──
 with get_db() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS media_files (
@@ -2515,15 +2536,18 @@ with get_db() as m:
 # ── Migration: 清理旧版套餐数据 (2026-06-27) ──
 try:
     with get_db() as m:
-        old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
-        for pk in old_plan_keys:
-            m.execute("DELETE FROM subscription_plans WHERE plan_key = %s", (pk,))
-        # 更新已存在的老 plan_key 的订阅记录
-        m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
-        m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
-        m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
-        m.commit()
-        print('[Migration] Legacy plan data cleaned up')
+        if not _table_exists(m, 'subscription_plans'):
+            print('[Migration] subscription_plans not created yet, skip legacy plan cleanup')
+        else:
+            old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
+            for pk in old_plan_keys:
+                m.execute("DELETE FROM subscription_plans WHERE plan_key = %s", (pk,))
+            # 更新已存在的老 plan_key 的订阅记录
+            m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
+            m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
+            m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
+            m.commit()
+            print('[Migration] Legacy plan data cleaned up')
 except Exception as e:
     print(f'[Migration] Legacy plan data migration skipped: {e}')
 
@@ -2609,13 +2633,14 @@ if MARKET == 'intl':
 else:
     # CN 区: subscription_plans 增加 currency 字段（向后兼容）
     with get_db() as m:
-        plan_cols = get_table_columns(m, 'subscription_plans')
-        if 'currency' not in plan_cols:
-            try:
-                m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
-                print('[i18n] subscription_plans.currency added (CNY)')
-            except Exception as e:
-                print(f'[i18n] subscription_plans.currency skipped: {e}')
+        if _table_exists(m, 'subscription_plans'):
+            plan_cols = get_table_columns(m, 'subscription_plans')
+            if 'currency' not in plan_cols:
+                try:
+                    m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
+                    print('[i18n] subscription_plans.currency added (CNY)')
+                except Exception as e:
+                    print(f'[i18n] subscription_plans.currency skipped: {e}')
 
 # ── Phase 2: 模块化订阅 — module_states 字段 ──
 with get_db() as m:
@@ -2679,35 +2704,38 @@ with get_db() as m:
 
 # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
 with get_db() as m:
-    user_cols = get_table_columns(m, 'users')
-    enterprise_fields = {
-        'enterprise_name': "enterprise_name TEXT DEFAULT ''",
-        'enterprise_tax_id': "enterprise_tax_id TEXT DEFAULT ''",
-        'enterprise_address': "enterprise_address TEXT DEFAULT ''",
-        'enterprise_phone': "enterprise_phone TEXT DEFAULT ''",
-        'enterprise_bank': "enterprise_bank TEXT DEFAULT ''",
-        'enterprise_bank_acct': "enterprise_bank_acct TEXT DEFAULT ''",
-        'enterprise_verified': "enterprise_verified BIGINT DEFAULT 0",
-        'enterprise_verified_at': "enterprise_verified_at TEXT",
-    }
-    for col_name, col_def in enterprise_fields.items():
-        if col_name not in user_cols:
-            try:
-                m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
-            except Exception as e:
-                print(f'[migration] users.{col_name} skipped: {e}')
+    if not _table_exists(m, 'users'):
+        print('[Migration] users table not created yet, skip enterprise/oauth fields')
+    else:
+        user_cols = get_table_columns(m, 'users')
+        enterprise_fields = {
+            'enterprise_name': "enterprise_name TEXT DEFAULT ''",
+            'enterprise_tax_id': "enterprise_tax_id TEXT DEFAULT ''",
+            'enterprise_address': "enterprise_address TEXT DEFAULT ''",
+            'enterprise_phone': "enterprise_phone TEXT DEFAULT ''",
+            'enterprise_bank': "enterprise_bank TEXT DEFAULT ''",
+            'enterprise_bank_acct': "enterprise_bank_acct TEXT DEFAULT ''",
+            'enterprise_verified': "enterprise_verified BIGINT DEFAULT 0",
+            'enterprise_verified_at': "enterprise_verified_at TEXT",
+        }
+        for col_name, col_def in enterprise_fields.items():
+            if col_name not in user_cols:
+                try:
+                    m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+                except Exception as e:
+                    print(f'[migration] users.{col_name} skipped: {e}')
 
-    # ── Migration: alipay_user_id + telegram_open_id (2026-07-11) ──
-    oauth_user_fields = {
-        'alipay_user_id': "alipay_user_id TEXT UNIQUE",
-        'telegram_open_id': "telegram_open_id TEXT UNIQUE",
-    }
-    for col_name, col_def in oauth_user_fields.items():
-        if col_name not in user_cols:
-            try:
-                m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
-            except Exception as e:
-                print(f'[migration] users.{col_name} skipped: {e}')
+        # ── Migration: alipay_user_id + telegram_open_id (2026-07-11) ──
+        oauth_user_fields = {
+            'alipay_user_id': "alipay_user_id TEXT UNIQUE",
+            'telegram_open_id': "telegram_open_id TEXT UNIQUE",
+        }
+        for col_name, col_def in oauth_user_fields.items():
+            if col_name not in user_cols:
+                try:
+                    m.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+                except Exception as e:
+                    print(f'[migration] users.{col_name} skipped: {e}')
 
 
 # ── i18n 翻译表 (2026-06-30) ──
