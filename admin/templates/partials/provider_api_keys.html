@@ -66,12 +66,7 @@ window.l_provider_keys=function(targetId){
     h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Name') }}</label>';
     h+='<input id="pk-name" class="in" style="width:100%" value="'+escAttr(isEdit?key.name:'')+'" placeholder="{{ _('e.g. Alibaba Cloud DashScope') }}"></div>';
     h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Provider') }}</label>';
-    h+='<select id="pk-provider" class="in" style="width:100%">';
-    var providers=['dashscope','openai','deepseek','openrouter','siliconflow','gemini','grok','kimi','zhipu'];
-    providers.forEach(function(p){
-      h+='<option value="'+p+'"'+(isEdit&&key.provider===p?' selected':'')+'>'+p+'</option>';
-    });
-    h+='</select></div>';
+    h+='<select id="pk-provider" class="in" style="width:100%"><option>{{ _('Loading...') }}</option></select></div>';
     h+='<div style="margin-bottom:12px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('API Key Value') }}';
     if(isEdit&&key.has_value)h+=' <span style="color:var(--dim);font-weight:400">({{ _('leave blank to keep current') }})</span>';
     var pkPlaceholder=isEdit&&key.has_value?(key.key_preview||'***'):'';
@@ -84,11 +79,25 @@ window.l_provider_keys=function(targetId){
     h+='<button class="bo" onclick="closeModal()" style="padding:6px 16px">{{ _('Cancel') }}</button>';
     h+='<button class="bp pk-save-btn" onclick="saveKey('+(isEdit?key.id:'null')+')" style="padding:6px 16px">{{ _('Save') }}</button>';
     h+='</div></div></div>';
+h+='</div>';
     var old=document.getElementById('modal-root');if(old)old.remove();
     var overlay=document.createElement('div');
     overlay.id='modal-root';
     overlay.innerHTML=h;
     document.body.appendChild(overlay);
+    // 动态加载 Provider 列表
+    fetch("/admin/providers",{headers:{"Authorization":"Bearer "+T}})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        var sel=document.getElementById('pk-provider');
+        sel.innerHTML='';
+        (d.data||[]).forEach(function(p){
+          sel.innerHTML+='<option value="'+escAttr(p.slug)+'"'+(isEdit&&key.provider===p.slug?' selected':'')+'>'+esc(p.name)+' ('+esc(p.slug)+')</option>';
+        });
+      }).catch(function(){
+        var sel=document.getElementById('pk-provider');
+        sel.innerHTML='<option>{{ _('Load failed') }}</option>';
+      });
   }
 
   window.closeModal=function(){
