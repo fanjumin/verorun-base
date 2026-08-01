@@ -1,5 +1,12 @@
 # 修改记录
 
+## v0.39.4 — 2026-07-31
+
+### One-click update testing release
+
+- Fix checkUpdate() JS TypeError on deleted currentVer element (showed "Failed")
+- Fix .git permission issues on server (sudo git pull)
+
 ## v0.39.3 — 2026-07-31
 
 ### Optimize install.sh update — skip pip install when requirements.txt unchanged
