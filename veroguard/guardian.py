@@ -29,7 +29,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from veroguard import config
-from veroguard.modules import health
+from veroguard.modules import health, integrity
 
 # ── 日志 ────────────────────────────────────────
 os.makedirs(os.path.dirname(config.LOG_FILE), exist_ok=True)
@@ -96,9 +96,22 @@ def main():
                 failures = 0
             last_health_check = now
 
-        # ── 通道 2: 完整性校验 (300s) — 占位 ──
+        # ── 通道 2: 完整性校验 (300s) ──
         if now - last_integrity_check >= config.INTEGRITY_CHECK_INTERVAL:
-            # TODO Phase 2: modules.integrity.run()
+            violations = integrity.run()
+            if violations:
+                health.write_status('integrity', {
+                    'status': 'violated',
+                    'last_check': datetime.now().isoformat(),
+                    'checked_files': 'N/A',
+                    'violations': violations,
+                })
+            else:
+                health.write_status('integrity', {
+                    'status': 'clean',
+                    'last_check': datetime.now().isoformat(),
+                    'violations': [],
+                })
             last_integrity_check = now
 
         # ── 通道 3: 心跳上报 (300s) — 占位 ──

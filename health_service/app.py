@@ -50,6 +50,18 @@ def ready():
         return {'status': 'not_ready', 'error': str(e)}, 503
 
 
+@app.route('/api/guardian/status')
+def guardian_status():
+    """返回本地 verorun-guardian 守护进程的运行状态"""
+    import json as _json
+    try:
+        with open('/var/run/verorun-guardian/status.json', 'r') as f:
+            data = _json.load(f)
+        return {'status': 'ok', 'data': data}
+    except FileNotFoundError:
+        return {'status': 'not_running', 'error': 'guardian 未运行或状态文件不存在'}, 503
+
+
 if __name__ == '__main__(':
     init_health_tables()
     migrate_alert_schema()
