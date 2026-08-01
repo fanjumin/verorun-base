@@ -1,0 +1,62 @@
+{
+    "name": "Vault",
+    "identifier": "vault",
+    "version": "1.0.0",
+    "description": "Data vault — database backup, file archive, remote storage (S3/OSS)",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "dependencies": {},
+    "enabled": true,
+    "config": {
+        "backup_dir": "data/vault",
+        "keep_days": 30,
+        "include_files": true,
+        "include_config": true,
+        "storage": {
+            "type": "local",
+            "s3_bucket": "",
+            "s3_region": "",
+            "s3_access_key": "",
+            "s3_secret_key": "",
+            "oss_endpoint": "",
+            "oss_bucket": "",
+            "oss_access_key": "",
+            "oss_secret_key": ""
+        },
+        "schedule": {
+            "enabled": false,
+            "interval_hours": 24
+        }
+    },
+    "permissions": [
+        "vault.read",
+        "vault.write",
+        "vault.download"
+    ],
+    "hooks": {
+        "provides": [
+            "vault/create_backup",
+            "vault/list_backups",
+            "vault/delete_backup"
+        ],
+        "listens": []
+    },
+    "menu": {
+        "group": "System",
+        "key": "vault",
+        "icon": "vault",
+        "label": "Vault",
+        "embed_url": "/admin/vault/"
+    },
+    "settings_schema": {
+        "type": "object",
+        "properties": {
+            "backup_dir": { "type": "string", "default": "data/vault" },
+            "keep_days": { "type": "integer", "default": 30, "minimum": 1 },
+            "include_files": { "type": "boolean", "default": true },
+            "include_config": { "type": "boolean", "default": true },
+            "storage": { "type": "object" },
+            "schedule": { "type": "object" }
+        }
+    }
+}

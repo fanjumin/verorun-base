@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault — VeroRun</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; color: #1a1a2e; line-height: 1.6; }
+        .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        .header h1 { font-size: 1.5rem; font-weight: 600; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; }
+        .btn-primary { background: #4361ee; color: #fff; }
+        .btn-primary:hover { background: #3a56d4; }
+        .btn-primary:disabled { background: #a0b0f0; cursor: not-allowed; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: #fff; color: #4361ee; border: 1px solid #4361ee; }
+        .btn-outline:hover { background: #eef2ff; }
+        .btn-sm { padding: 4px 12px; font-size: 0.8rem; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .status-bar { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+        .status-item { display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; }
+        .status-dot.off { background: #9ca3af; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+        th { font-weight: 600; color: #6b7280; font-size: 0.8rem; text-transform: uppercase; }
+        tr:hover { background: #fafbfc; }
+        .empty-state { text-align: center; padding: 48px 0; color: #9ca3af; }
+        .empty-state p { margin-top: 8px; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: #fff; font-size: 0.9rem; z-index: 9999; animation: slideIn 0.3s ease; }
+        .toast-success { background: #22c55e; }
+        .toast-error { background: #ef4444; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .files-list { margin-top: 8px; font-size: 0.85rem; color: #6b7280; }
+        .actions-col { display: flex; gap: 8px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div>
+            <h1>Vault</h1>
+            <p style="color:#6b7280;font-size:0.9rem;">Data backup — database, files, config</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="cleanupBackups()">Cleanup</button>
+            <button class="btn btn-primary" id="btnCreate" onclick="createBackup()">Create Backup</button>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-item"><span class="status-dot" id="schedDot"></span> <span id="schedText">Auto Backup</span></div>
+        <div class="status-item">Storage: <strong id="storageType">local</strong></div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom:12px;">Backup Archives</h3>
+        <table>
+            <thead><tr><th>Label</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="backupTable"><tr><td colspan="4" class="empty-state"><p>Loading...</p></td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+    function toast(msg, type) {
+        const el = document.createElement('div');
+        el.className = 'toast toast-' + type;
+        el.textContent = msg;
+        document.getElementById('toastContainer').appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+    }
+
+    function loadBackups() {
+        fetch('/admin/vault/api/list')
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('backupTable');
+                if (!data.backups || data.backups.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><p>No backups yet</p></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.backups.map(b =>
+                    `<tr>
+                        <td><strong>${b.label}</strong></td>
+                        <td>${b.size_mb} MB</td>
+                        <td>${b.created_at}</td>
+                        <td class="actions-col">
+                            <a class="btn btn-outline btn-sm" href="/admin/vault/api/download/${b.label}" download>Download</a>
+                            <button class="btn btn-danger btn-sm" onclick="deleteBackup('${b.label}')">Delete</button>
+                        </td>
+                    </tr>`
+                ).join('');
+            })
+            .catch(() => { toast('Failed to load backups', 'error'); });
+    }
+
+    function createBackup() {
+        const btn = document.getElementById('btnCreate');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+        fetch('/admin/vault/api/create', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    toast('Backup created: ' + data.label + ' (' + data.size_mb + ' MB)', 'success');
+                    if (data.remote && data.remote.uploaded) {
+                        toast('Uploaded to ' + data.remote.target, 'success');
+                    }
+                    loadBackups();
+                } else {
+                    toast('Backup failed: ' + (data.error || 'unknown'), 'error');
+                }
+            })
+            .catch(e => { toast('Backup error: ' + e.message, 'error'); })
+            .finally(() => { btn.disabled = false; btn.textContent = 'Create Backup'; });
+    }
+
+    function deleteBackup(label) {
+        if (!confirm('Delete backup ' + label + '?')) return;
+        fetch('/admin/vault/api/delete/' + label, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { toast('Backup deleted', 'success'); loadBackups(); }
+                else { toast('Delete failed: ' + data.error, 'error'); }
+            })
+            .catch(e => { toast('Delete error: ' + e.message, 'error'); });
+    }
+
+    function cleanupBackups() {
+        if (!confirm('Delete backups older than retention period?')) return;
+        fetch('/admin/vault/api/cleanup', { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    toast('Cleaned up ' + data.deleted + ' old backup(s)', 'success');
+                    loadBackups();
+                } else { toast('Cleanup failed', 'error'); }
+            })
+            .catch(e => { toast('Cleanup error: ' + e.message, 'error'); });
+    }
+
+    // Init
+    loadBackups();
+</script>
+</body>
+</html>
