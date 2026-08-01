@@ -1,5 +1,11 @@
 # 修改记录
 
+## v0.40.0 — 2026-08-01
+
+### Changes
+
+- Version bump from v0.39.4
+
 ## v0.39.4 — 2026-07-31
 
 ### One-click update testing release

@@ -1,6 +1,5 @@
 {
   "name": "verorun-system",
-  "version": "0.39.4",
   "description": "VeroRun",
   "main": "index.js",
   "scripts": {
