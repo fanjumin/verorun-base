@@ -126,13 +126,8 @@ try:
 except Exception as e:
     print(f'[DB] init_db warning: {e}')
 
-# ── i18n: 启动时从 YAML 播种到 DB ──
-try:
-    from i18n import seed_from_yaml
-    seed_from_yaml('zh-CN')
-    seed_from_yaml('en')
-except Exception as e:
-    print(f'[i18n] seed warning: {e}')
+# ── i18n: 启动时从 YAML 播种到 DB（已移至 gunicorn_config.py post_fork） ──
+# seed_from_yaml 通过 pg_try_advisory_lock + post_fork 延迟初始化，避免阻塞 worker
 # 注册管理后台需要的 blueprint — 包含 user_bp（管理员基本设置 /user/config）
 app.register_blueprint(user_bp)
 app.register_blueprint(auth_bp)

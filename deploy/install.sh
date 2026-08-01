@@ -261,6 +261,24 @@ do_update() {
     nginx -t && systemctl restart nginx
     done_step "Nginx config updated"
 
+    step "Pre-flight check"
+    # 验证数据库可连接
+    if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
+from plugins._base.db import get_raw_connection
+c = get_raw_connection()
+c.close()
+print('DB OK')
+\""; then
+        echo -e "${FAIL} Database not accessible — aborting update"
+        exit 1
+    fi
+    # 验证 Python 语法无致命错误
+    if ! sudo -u "${APP_USER}" bash -c "${VENV_DIR}/bin/python -m py_compile ${APP_HOME}/admin/app.py"; then
+        echo -e "${FAIL} Syntax error in new code — aborting update"
+        exit 1
+    fi
+    done_step "Pre-flight passed"
+
     step "Restart services"
     restart_services
     done_step "Services restarted"
@@ -525,6 +543,10 @@ EnvironmentFile=${env_file}
 ExecStart=${exec_cmd}
 Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# 启动健康检查：30 秒内 /health 不返回 200 → systemd 认为启动失败
+ExecStartPost=/bin/bash -c 'for i in $(seq 1 30); do curl -sf http://127.0.0.1:${port}/health && exit 0; sleep 1; done; exit 1'
 StandardOutput=append:${LOG_DIR}/${name}.log
 StandardError=append:${LOG_DIR}/${name}.log
 
@@ -542,7 +564,7 @@ SVCEOF
     write_one_service "verorun-auth" 8083 "main_site" "--timeout 120 --log-level warning"
 
     # 8084 — Admin (uses run_gunicorn.py to avoid platform/ shadowing stdlib)
-    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning" "admin/run_gunicorn.py"
+    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py"
 
     # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"

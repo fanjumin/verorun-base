@@ -247,6 +247,7 @@ def list_translations(locale: str = None, search: str = '',
 def seed_from_yaml(locale: str = None) -> int:
     """
     将 YAML 文件中的翻译导入到 DB（已存在的跳过）。
+    使用 pg_try_advisory_lock 避免多进程阻塞，finally 确保锁释放。
     返回本次导入的数量。
     """
     locale = locale or DEPLOY_LANG
@@ -255,11 +256,15 @@ def seed_from_yaml(locale: str = None) -> int:
         return 0
 
     count = 0
+    conn = None
+    lock_id = hash(f'i18n_yaml_{locale}') & 0x7FFFFFFF
     try:
         conn = _get_db()
-        # 防止多 worker 并发 seeding 导致 i18n_strings 死锁
-        lock_id = hash(f'i18n_yaml_{locale}') & 0x7FFFFFFF
-        conn.execute('SELECT pg_advisory_lock(%s)', (lock_id,))
+        acquired = conn.execute(
+            'SELECT pg_try_advisory_lock(%s)', (lock_id,)
+        ).fetchone()
+        if not acquired or not acquired[0]:
+            return 0  # 其他进程正在播种，跳过
         for source, translation in yml.items():
             if not source or not translation or source == translation:
                 continue  # 跳过无效条目和源=译的条目
@@ -275,12 +280,21 @@ def seed_from_yaml(locale: str = None) -> int:
                 )
                 count += 1
         conn.commit()
-        conn.close()
         if count:
             get_all_translations.cache_clear()
         print(f'[i18n] Seeded {count} translations from {locale}.yml')
     except Exception as e:
         print(f'[i18n] seed_from_yaml error: {e}')
+    finally:
+        if conn:
+            try:
+                conn.execute('SELECT pg_advisory_unlock(%s)', (lock_id,))
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
     return count
 
 
@@ -310,11 +324,15 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
             continue
         if not data:
             continue
+        conn = None
+        lock_id = hash('i18n_plugin_seed') & 0x7FFFFFFF
         try:
             conn = _get_db()
-            # 防止多 worker 并发 seeding 导致 i18n_strings 死锁
-            lock_id = hash('i18n_plugin_seed') & 0x7FFFFFFF
-            conn.execute('SELECT pg_advisory_lock(%s)', (lock_id,))
+            acquired = conn.execute(
+                'SELECT pg_try_advisory_lock(%s)', (lock_id,)
+            ).fetchone()
+            if not acquired or not acquired[0]:
+                continue  # 其他进程正在播种，跳过
             for source, translation in data.items():
                 if not source or not translation:
                     continue
@@ -330,9 +348,18 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
                 )
                 count += 1
             conn.commit()
-            conn.close()
         except Exception as e:
             print(f'[i18n] plugin {plugin_id} {locale} db error: {e}')
+        finally:
+            if conn:
+                try:
+                    conn.execute('SELECT pg_advisory_unlock(%s)', (lock_id,))
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
     if count:
         print(f'[i18n] plugin {plugin_id}: seeded {count} translations')
     return count
