@@ -1332,7 +1332,6 @@ def init_db():
             ('grok',       'xAI Grok', 'Grok-3 Beta'),
             ('kimi',       'KIMI / 月之暗面', 'Moonshot AI large language models'),
             ('zhipu',      'Zhipu / 智谱 AI', 'ChatGLM large language models'),
-            ('azure',      'Microsoft Azure', 'Azure Cognitive Services: TTS, Speech Recognition'),
             ('edge_tts',   'Microsoft Edge TTS', 'Free Edge browser TTS — no key required, same neural voices'),
         ]
         for slug, name, desc in provider_seeds:
@@ -1389,9 +1388,7 @@ def init_db():
             # Zhipu / ChatGLM (OpenAI-compatible)
             (pids['zhipu'],      'GLM-4 Flash',         'glm-4-flash',            'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     73),
             (pids['zhipu'],      'GLM-4 Plus',          'glm-4-plus',             'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     74),
-            # Microsoft Azure
-            (pids['azure'],      'Azure Neural TTS',     'azure-tts-neural',       'https://eastasia.tts.speech.microsoft.com/cognitiveservices/v1', 'azure_tts_key',    'tts',      75),
-            # Microsoft Edge (free)
+            # Edge-TTS (free, no key needed)
             (pids['edge_tts'],   'Edge TTS Neural',      'edge-tts-neural',        '',                                                              '',                     'tts',      80),
         ]
         for pid, name, model, url, key_ref, caps, sort in model_seeds:
