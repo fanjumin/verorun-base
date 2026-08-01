@@ -978,7 +978,7 @@ def admin_check_update():
         if result.returncode != 0:
             latest_ver = local_ver  # git remote not accessible
         else:
-            tags = re.findall(r'refs/tags/(\d+\.\d+\.\d+)', result.stdout)
+            tags = re.findall(r'refs/tags/v?(\d+\.\d+\.\d+)', result.stdout)
             if not tags:
                 latest_ver = local_ver  # no semver tags found
             else:
