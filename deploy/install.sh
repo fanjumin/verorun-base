@@ -28,7 +28,17 @@ set -euo pipefail
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
-# ── Pip mirror: auto-detect China network ──
+# ── Git mirror: auto-detect GitHub connectivity (for China servers) ──
+if [ -z "${GIT_MIRROR:-}" ]; then
+    if command -v curl >/dev/null 2>&1 && ! curl -s --connect-timeout 5 https://github.com > /dev/null 2>&1; then
+        GIT_MIRROR="https://ghproxy.com/"
+        echo -e "${INFO} github.com unreachable, using ghproxy.com mirror"
+    fi
+fi
+GIT_MIRROR="${GIT_MIRROR:-}"
+GIT_REPO="${GIT_MIRROR}${GIT_REPO}"
+
+# ── Pip mirror: auto-detect PyPI connectivity ──
 PIP_MIRROR=""
 if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 https://pypi.org >/dev/null 2>&1; then
     : # pypi.org reachable
