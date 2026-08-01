@@ -5,7 +5,7 @@ import platform as _stdlib_platform
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """Admin Panel — 管理后台 (独立端口 8084)"""
-"""VeroRun v0.39.4 — Multi-agent AI Content & Commerce Hub"""
+"""VeroRun v0.40.0 — Multi-agent AI Content & Commerce Hub"""
 
 import sys, os, re, secrets, time as _time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))

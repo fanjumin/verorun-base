@@ -1984,6 +1984,118 @@ def tts_generate_edge():
 
 
 # ============================================================
+# 5.5 Discussion Mode — Multi-Agent Collaborative Chat
+# ============================================================
+
+@agent_matrix_bp.route('/chat/discuss', methods=['POST'])
+def chat_discuss_sse():
+    """
+    SSE streaming discussion endpoint — multi-agent collaborative orchestration.
+
+    Request: { "message": "...", "session_id": "(optional)" }
+    Response: text/event-stream with event types:
+      - phase: discussion phase indicator (planning/review/revision/decision/execution)
+      - message: agent output content
+      - needs_approval: JSON parse failed, requires manual intervention
+      - warning: degradation notice (e.g. single-agent fallback)
+      - error: unrecoverable error
+      - done: discussion complete
+
+    Total timeout: 300s enforced at Flask level.
+    """
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    ai_err = _check_ai_access()
+    if ai_err:
+        return ai_err
+
+    data = request.get_json(force=True) or {}
+    message = (data.get('message') or '').strip()
+    if not message:
+        return _error('Message cannot be empty')
+
+    session_id = data.get('session_id', '')
+    if not session_id:
+        session_id = _m().create_session()
+
+    from agent_matrix.orchestrator import AgentOrchestrator
+    from flask import Response, stream_with_context
+
+    orchestrator = AgentOrchestrator(models_module=_m())
+
+    def generate():
+        try:
+            for event in orchestrator.discuss_and_execute(
+                instruction=message,
+                user_id=admin.get('user_id', 0),
+                session_id=session_id
+            ):
+                event['session_id'] = session_id
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e), 'session_id': session_id})}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+        }
+    )
+
+
+@agent_matrix_bp.route('/discuss/approve', methods=['POST'])
+def discuss_approve():
+    """
+    Manual approval endpoint — triggered when Agent C outputs invalid JSON.
+
+    Request: { "steps": [{"type":"...", "params":{...}}], "workflow_id": (optional) }
+    Response: { "success": true, "message": "..." } or { "error": "..." }
+    """
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    ai_err = _check_ai_access()
+    if ai_err:
+        return ai_err
+
+    data = request.get_json(force=True) or {}
+    steps = data.get('steps')
+    if not steps or not isinstance(steps, list):
+        return _error('Steps must be a non-empty JSON array')
+
+    workflow_id = data.get('workflow_id')
+
+    exec_plan = {
+        'approved': True,
+        'confidence': 1.0,
+        'reason': 'Manually approved by admin',
+        'steps': steps,
+    }
+    if workflow_id:
+        exec_plan['workflow_id'] = workflow_id
+
+    from agent_matrix.orchestrator import AgentOrchestrator
+    orchestrator = AgentOrchestrator(models_module=_m())
+
+    try:
+        result = orchestrator._trigger_dag_from_plan(exec_plan, admin.get('user_id', 0))
+        return _success({'message': result})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return _error(f'Execution failed: {e}', 500)
+
+
+# ============================================================
 # 6. 初始化
 # ============================================================
 

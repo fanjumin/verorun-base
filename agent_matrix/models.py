@@ -299,6 +299,43 @@ def init_agent_matrix_tables():
 
             CREATE INDEX IF NOT EXISTS idx_mul_user_module ON module_usage_log(user_id, module_key);
             CREATE INDEX IF NOT EXISTS idx_mul_used_at ON module_usage_log(used_at);
+
+            -- ================================================
+            -- 8. Discussion Sessions (Agent Discussion v2.0)
+            -- ================================================
+            CREATE TABLE IF NOT EXISTS discussion_sessions (
+                id                      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id                 BIGINT NOT NULL,
+                task_text               TEXT NOT NULL,
+                status                  TEXT DEFAULT 'running',
+                final_plan              TEXT DEFAULT NULL,
+                workflow_instance_id    BIGINT DEFAULT NULL,
+                agent_planner_id        BIGINT DEFAULT NULL,
+                agent_reviewer_id       BIGINT DEFAULT NULL,
+                agent_decider_id        BIGINT DEFAULT NULL,
+                created_at              TEXT DEFAULT (NOW()),
+                completed_at            TEXT DEFAULT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ds_user ON discussion_sessions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_ds_status ON discussion_sessions(status);
+
+            -- ================================================
+            -- 9. Discussion Messages (Agent Discussion v2.0)
+            -- ================================================
+            CREATE TABLE IF NOT EXISTS discussion_messages (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                session_id      BIGINT NOT NULL,
+                round_num       INT NOT NULL DEFAULT 1,
+                agent_name      TEXT NOT NULL,
+                role            TEXT NOT NULL,
+                content         TEXT NOT NULL,
+                content_type    TEXT DEFAULT 'text',
+                created_at      TEXT DEFAULT (NOW())
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dm_session ON discussion_messages(session_id);
+            CREATE INDEX IF NOT EXISTS idx_dm_round ON discussion_messages(session_id, round_num);
         """)
         conn.commit()
 

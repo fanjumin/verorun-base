@@ -21,6 +21,7 @@ window.l_ai_chat=function(){
   h+='<button class="btn bo bs" id="aiBtnDeep" style="font-size:11px;padding:3px 10px" onclick="aiSetMode(\'deep\')">🧠 {{ _('Deep Thinking') }}</button>';
   h+='<button class="btn bo bs" id="aiBtnImage" style="font-size:11px;padding:3px 10px" onclick="aiSetMode(\'image\')">🎨 {{ _('Image Processing') }}</button>';
   h+='<button class="btn bo bs" id="aiBtnBuild" style="font-size:11px;padding:3px 10px;border-color:#f0a020;color:#f0a020" onclick="sbToggle()">🏗️ {{ _('AI Site Builder') }}</button>';
+  h+='<button class="btn bo bs" id="aiBtnDiscuss" style="font-size:11px;padding:3px 10px" onclick="aiSetMode(\'discuss\')">🤝 {{ _('Discuss') }}</button>';
   h+='<span style="flex:1"></span>';
   h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px" onclick="aiNewSession()">🆕 {{ _('New Chat') }}</button>';
   h+='<button class="btn bo bs" style="font-size:11px;padding:3px 10px;color:#f85149" onclick="aiResetSession()">🔄 {{ _('Reset') }}</button>';
@@ -383,7 +384,7 @@ function sbDoModify(){
 
 function aiSetMode(m){
   aiMode=m;
-  ["aiBtnFast","aiBtnDeep","aiBtnImage","aiBtnTool"].forEach(function(id){
+  ["aiBtnFast","aiBtnDeep","aiBtnImage","aiBtnTool","aiBtnDiscuss"].forEach(function(id){
     var b=document.getElementById(id);
     if(b){b.style.borderColor="";b.style.background=""}
   });
@@ -542,6 +543,7 @@ function aiUpload(input){
 }
 
 function aiSend(){
+  if(aiMode==='discuss'){ aiDiscussSend(); return; }
   var inp=document.getElementById("aiChatInput");
   var msg=inp.value.trim();
   if(!msg)return;
@@ -1517,6 +1519,325 @@ function matTestChatStream(){
     read();
     return null;
   });
+}
+
+// ============================================================
+// Discussion Mode — Multi-Agent Collaborative Chat (v2.0)
+// ============================================================
+
+var aiDiscussStartTime = null;
+var aiDiscussionController = null;
+
+// Phase labels for progress indicator
+var aiDiscussPhaseLabels = {
+  'planning': '{{ _('Planning') }}',
+  'review': '{{ _('Reviewing') }}',
+  'revision': '{{ _('Revising') }}',
+  'decision': '{{ _('Deciding') }}',
+  'execution': '{{ _('Executing') }}'
+};
+
+function aiDiscussSend() {
+  var inp = document.getElementById('aiChatInput');
+  var msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+
+  var msgs = document.getElementById('aiChatMsgs');
+  msgs.innerHTML += '<div style="color:var(--accent);margin:4px 0">👤 Me: ' + esc(msg) + '</div>';
+
+  // Progress indicator with elapsed time
+  aiDiscussStartTime = Date.now();
+  var progressHTML = '<div id="discussProgress" style="margin:8px 0;padding:8px 12px;' +
+    'background:rgba(0,245,255,0.06);border:1px solid var(--accent);border-radius:6px;' +
+    'font-size:11px;color:var(--accent)">' +
+    '🤝 Discussion starting... (0.0s)</div>';
+  msgs.innerHTML += progressHTML;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  aiDiscussionController = new AbortController();
+
+  fetch('/admin/agent-matrix/chat/discuss', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + T
+    },
+    body: JSON.stringify({ message: msg }),
+    signal: aiDiscussionController.signal
+  }).then(function (response) {
+    aiDiscussionStartStream(response);
+  }).catch(function (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Discussion request failed:', err);
+      var progEl = document.getElementById('discussProgress');
+      if (progEl) progEl.remove();
+      msgs.innerHTML += '<div style="color:#f85149;margin:4px 0">❌ Discussion request failed</div>';
+    }
+  });
+}
+
+// Line-by-line SSE reader (Fix #3)
+function aiDiscussionStartStream(response) {
+  var reader = response.body.getReader();
+  var decoder = new TextDecoder();
+  var buffer = '';
+  var currentEvent = {};
+
+  function processLine(line) {
+    if (line === '') {
+      if (currentEvent.data !== undefined) {
+        var dataStr = currentEvent.data;
+        if (dataStr === '[DONE]') {
+          var progEl = document.getElementById('discussProgress');
+          if (progEl) progEl.remove();
+          aiDiscussionController = null;
+          aiDiscussStartTime = null;
+          return;
+        }
+        try {
+          var msg = JSON.parse(dataStr);
+          handleDiscussMessage(msg, document.getElementById('aiChatMsgs'));
+        } catch (e) {
+          console.warn('Discussion message parse failed:', e, dataStr);
+        }
+      }
+      currentEvent = {};
+      return;
+    }
+
+    if (line.startsWith('data: ')) {
+      currentEvent.data = (currentEvent.data || '') + line.slice(6);
+    } else if (line.startsWith('data:')) {
+      currentEvent.data = (currentEvent.data || '') + line.slice(5);
+    } else if (line.startsWith('event: ')) {
+      currentEvent.event = line.slice(7);
+    }
+  }
+
+  function readChunk() {
+    reader.read().then(function (result) {
+      if (result.done) return;
+
+      buffer += decoder.decode(result.value, { stream: true });
+
+      var pos = 0;
+      var idx;
+      while ((idx = buffer.indexOf('\n', pos)) !== -1) {
+        var line = buffer.substring(pos, idx).replace(/\r$/, '');
+        pos = idx + 1;
+        processLine(line);
+      }
+      buffer = buffer.substring(pos);
+
+      readChunk();
+    }).catch(function (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Discussion stream error:', err);
+        var progEl = document.getElementById('discussProgress');
+        if (progEl) progEl.remove();
+        aiDiscussionController = null;
+        aiDiscussStartTime = null;
+      }
+    });
+  }
+
+  readChunk();
+}
+
+function handleDiscussMessage(msg, msgs) {
+  var progressEl = document.getElementById('discussProgress');
+
+  switch (msg.type) {
+    case 'phase':
+      var elapsed = aiDiscussStartTime
+        ? ((Date.now() - aiDiscussStartTime) / 1000).toFixed(1)
+        : '...';
+      if (progressEl) {
+        var label = aiDiscussPhaseLabels[msg.phase] || msg.content;
+        progressEl.textContent = '🤝 ' + label + ' (' + elapsed + 's)';
+      }
+      break;
+
+    case 'message':
+      var roleLabel = msg.role || msg.agent || 'Agent';
+      var cssClass = 'agent';
+      if (roleLabel === 'Execution Engine') cssClass = 'system';
+      if (roleLabel === 'Orchestrator') cssClass = 'system';
+
+      msgs.innerHTML += renderDiscussMessage({
+        agent: msg.agent || 'System',
+        role: roleLabel,
+        content: msg.content,
+        timestamp: msg.timestamp
+          ? (msg.timestamp.toFixed ? msg.timestamp.toFixed(1) + 's' : msg.timestamp)
+          : ''
+      }, cssClass);
+
+      // Remove progress on first message
+      if (progressEl) progressEl.remove();
+      break;
+
+    case 'needs_approval':
+      if (progressEl) progressEl.remove();
+      // Render raw output first
+      msgs.innerHTML += renderDiscussMessage({
+        agent: msg.agent,
+        role: msg.role,
+        content: msg.content,
+        timestamp: ''
+      }, 'agent');
+
+      // Inject approval panel
+      var approvalHTML =
+        '<div id="discussApproval" style="margin:16px 0;padding:16px;' +
+        'background:rgba(210,153,34,0.08);border:1px solid var(--warn);border-radius:8px">' +
+        '<div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:10px">' +
+        '⚠ ' + esc(msg.hint || 'Manual approval required') + '</div>' +
+        '<textarea id="approvalSteps" style="width:100%;height:80px;' +
+        'background:var(--bg);color:var(--ink);border:1px solid var(--rule);' +
+        'border-radius:4px;padding:10px;font-size:12px;font-family:monospace;resize:vertical" ' +
+        'placeholder=\'[{"type":"http_request","params":{"url":"/api/..."}}]\'>' +
+        '</textarea>' +
+        '<div style="margin-top:10px;display:flex;gap:10px">' +
+        '<button onclick="aiApproveDiscussion()" style="padding:6px 18px;' +
+        'background:var(--accent2);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">' +
+        'Approve &amp; Execute</button>' +
+        '<button onclick="aiRejectDiscussion()" style="padding:6px 18px;' +
+        'background:var(--danger);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">' +
+        'Reject</button>' +
+        '</div></div>';
+      msgs.innerHTML += approvalHTML;
+      msgs.scrollTop = msgs.scrollHeight;
+      break;
+
+    case 'warning':
+      if (progressEl) {
+        progressEl.textContent = '⚠ ' + esc(msg.content);
+        progressEl.style.color = 'var(--warn)';
+        progressEl.style.borderColor = 'var(--warn)';
+        progressEl.style.background = 'rgba(210,153,34,0.06)';
+      }
+      break;
+
+    case 'error':
+      if (progressEl) progressEl.remove();
+      msgs.innerHTML += '<div style="color:#f85149;margin:4px 0;padding:8px;' +
+        'background:rgba(248,81,73,0.08);border:1px solid var(--danger);border-radius:6px;font-size:12px">' +
+        '❌ ' + esc(msg.content) + '</div>';
+      break;
+
+    case 'done':
+      if (progressEl) progressEl.remove();
+      aiDiscussStartTime = null;
+      aiDiscussionController = null;
+      break;
+  }
+
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// Role-colored chat bubble colors
+var aiDiscussRoleColors = {
+  'Planner': { border: '#58a6ff', bg: 'rgba(88,166,255,0.06)', icon: '📋' },
+  'Planner (Revised)': { border: '#58a6ff', bg: 'rgba(88,166,255,0.06)', icon: '📋' },
+  'Reviewer': { border: '#d29922', bg: 'rgba(210,153,34,0.06)', icon: '🔍' },
+  'Decider': { border: '#3fb950', bg: 'rgba(63,185,80,0.06)', icon: '⚖' },
+  'Decision Maker': { border: '#3fb950', bg: 'rgba(63,185,80,0.06)', icon: '⚖' },
+  'Fast Mode': { border: '#8b949e', bg: 'rgba(139,148,158,0.06)', icon: '⚡' },
+  'Execution Engine': { border: '#f0a020', bg: 'rgba(240,160,32,0.06)', icon: '🚀' },
+  'Orchestrator': { border: '#6e7681', bg: 'rgba(110,118,129,0.06)', icon: '🎯' }
+};
+
+function renderDiscussMessage(msg, cssClass) {
+  var colors = aiDiscussRoleColors[msg.role] || { border: '#8b949e', bg: 'rgba(139,148,158,0.06)', icon: '💬' };
+  var tagColor = colors.border;
+
+  var html = '<div style="margin:8px 0;padding:8px 12px;' +
+    'border-left:3px solid ' + colors.border + ';' +
+    'background:' + colors.bg + ';border-radius:0 6px 6px 0;font-size:12px;line-height:1.6">';
+
+  // Header: icon + agent name + role + timestamp
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+  html += '<span style="font-size:14px">' + colors.icon + '</span>';
+  html += '<span style="font-weight:600;color:#f0f6fc">' + esc(msg.agent) + '</span>';
+  html += '<span style="display:inline-block;padding:1px 8px;border-radius:3px;' +
+    'font-size:10px;font-weight:600;background:' + colors.bg + ';' +
+    'border:1px solid ' + colors.border + ';color:' + tagColor + '">' +
+    esc(msg.role) + '</span>';
+  if (msg.timestamp) {
+    html += '<span style="margin-left:auto;font-size:10px;color:var(--muted)">' + esc(String(msg.timestamp)) + '</span>';
+  }
+  html += '</div>';
+
+  // Content
+  html += '<div style="white-space:pre-wrap;word-break:break-word">' + esc(msg.content) + '</div>';
+  html += '</div>';
+
+  return html;
+}
+
+// Manual approval: accept and execute with user-provided steps
+function aiApproveDiscussion() {
+  var stepsText = document.getElementById('approvalSteps').value.trim();
+  if (!stepsText) {
+    alert('Please enter execution steps as a JSON array.');
+    return;
+  }
+
+  var steps;
+  try {
+    steps = JSON.parse(stepsText);
+    if (!Array.isArray(steps)) throw new Error('Expected an array');
+  } catch (e) {
+    alert('Invalid JSON. Expected: [{"type":"...","params":{...}}]');
+    return;
+  }
+
+  var panel = document.getElementById('discussApproval');
+  if (panel) panel.remove();
+
+  var msgs = document.getElementById('aiChatMsgs');
+  fetch('/admin/agent-matrix/discuss/approve', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + T
+    },
+    body: JSON.stringify({ steps: steps })
+  }).then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) {
+        msgs.innerHTML += renderDiscussMessage({
+          agent: 'System', role: 'Execution Engine',
+          content: 'Execution failed: ' + data.error,
+          timestamp: ''
+        }, 'system');
+      } else {
+        msgs.innerHTML += renderDiscussMessage({
+          agent: 'System', role: 'Execution Engine',
+          content: 'Manually approved. ' + (data.message || ''),
+          timestamp: ''
+        }, 'system');
+      }
+      msgs.scrollTop = msgs.scrollHeight;
+    }).catch(function (err) {
+      console.error('Approval request failed:', err);
+    });
+}
+
+// Manual approval: reject the plan
+function aiRejectDiscussion() {
+  var panel = document.getElementById('discussApproval');
+  if (panel) panel.remove();
+
+  var msgs = document.getElementById('aiChatMsgs');
+  msgs.innerHTML += renderDiscussMessage({
+    agent: 'System', role: 'Execution Engine',
+    content: 'Plan rejected by user. Discussion ended.',
+    timestamp: ''
+  }, 'system');
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
 

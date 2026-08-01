@@ -1041,6 +1041,549 @@ class AgentOrchestrator:
             except Exception:
                 pass
 
+    # ============================================================
+    # Discussion Mode — Multi-Agent Collaborative Orchestration
+    # ============================================================
+
+    # Module-level constants
+    MAX_CONTEXT_CHARS = 8000
+    DISCUSS_TOTAL_TIMEOUT = 300
+    AGENT_TIMEOUT = 120
+    MAX_DISCUSS_ROUNDS = 3
+
+    # Discussion prompt file paths
+    PROMPT_PLANNER = 'prompts/discuss_planner.md'
+    PROMPT_REVIEWER = 'prompts/discuss_reviewer.md'
+    PROMPT_DECIDER = 'prompts/discuss_decider.md'
+
+    # ============================================================
+    # Helper: find agent by domain
+    # ============================================================
+
+    def _find_agent_by_domain(self, domain):
+        """Find the first active sub-agent matching the given domain.
+
+        Returns the agent config dict, or None if not found.
+        """
+        agents = self.models.list_agents(role_type='sub', domain=domain, active_only=True)
+        return agents[0] if agents else None
+
+    # ============================================================
+    # Core: run a single discussion agent round
+    # ============================================================
+
+    def _run_discussion_agent(self, agent_config, task, context, user_id, prompt_path):
+        """Run a single agent round in discussion mode.
+
+        Uses the agent's existing provider/model config but overrides the
+        system_prompt with the discussion-specific prompt file.
+
+        Args:
+            agent_config: dict from agent_matrix table (Builder/Ops/Steward)
+            task: str, the task description to send to the agent
+            context: list of prior discussion messages
+            user_id: int
+            prompt_path: str, path to discussion prompt (e.g. 'prompts/discuss_planner.md')
+
+        Returns:
+            str, the agent's text response
+        """
+        import copy
+        from agent_matrix.agent_runner import AgentRunner
+
+        config = copy.deepcopy(agent_config)
+        config['system_prompt'] = prompt_path
+
+        # Build the full task text including discussion context
+        full_task = ''
+        if context:
+            full_task += '=== Discussion History ===\n'
+            for msg in context:
+                full_task += f'[{msg["role"]}] {msg["agent"]}:\n{msg["content"]}\n\n'
+            full_task += '=== Current Task ===\n'
+        full_task += task
+
+        runner = AgentRunner(config, db_models=self.models)
+        result = runner.execute({
+            'task_id': f'DISCUSS-{time.time()}',
+            'title': 'Discussion Round',
+            'description': full_task,
+            'input_data': {'user_id': user_id},
+            'max_retries': 1,
+            'skip_critique': True,
+        }, history=[])
+
+        return result.get('response', '') if result.get('status') == 'completed' else ''
+
+    # ============================================================
+    # Timeout wrapper for single agent round
+    # ============================================================
+
+    def _run_discussion_agent_with_timeout(self, agent_config, task, context,
+                                            user_id, prompt_path, timeout=None):
+        """Run a single agent round with a timeout guard.
+
+        Raises TimeoutError if the agent round exceeds the timeout.
+        """
+        import threading, queue
+
+        if timeout is None:
+            timeout = self.AGENT_TIMEOUT
+
+        result_queue = queue.Queue()
+
+        def runner():
+            try:
+                res = self._run_discussion_agent(
+                    agent_config=agent_config,
+                    task=task,
+                    context=context,
+                    user_id=user_id,
+                    prompt_path=prompt_path
+                )
+                result_queue.put(('ok', res))
+            except Exception as e:
+                result_queue.put(('error', str(e)))
+
+        t = threading.Thread(target=runner, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+
+        if t.is_alive():
+            raise TimeoutError(f'Agent round timed out after {timeout}s')
+
+        status, value = result_queue.get_nowait()
+        if status == 'error':
+            raise RuntimeError(value)
+        return value
+
+    # ============================================================
+    # JSON parsing with real LLM retries (Fix #1)
+    # ============================================================
+
+    def _parse_decision_json(self, decision_text, agent_config, user_id=0, max_retries=2):
+        """Parse JSON decision from agent output with real LLM retries.
+
+        Attempt 1: direct regex extraction.
+        Attempts 2..N: ask the LLM to reformat its output as pure JSON.
+        Returns None if all attempts fail (caller triggers manual approval fallback).
+        """
+        import re, json as _json
+
+        # Attempt 1: direct parsing
+        try:
+            match = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', decision_text)
+            if match:
+                return _json.loads(match.group(1))
+            match = re.search(r'\{[\s\S]*"approved"[\s\S]*\}', decision_text)
+            if match:
+                return _json.loads(match.group(0))
+        except _json.JSONDecodeError:
+            pass
+
+        # Attempts 2..N: LLM re-generation
+        last_text = decision_text
+        for _attempt in range(max_retries):
+            try:
+                fix_prompt = (
+                    'Your previous output was not valid JSON and could not be parsed.\n'
+                    'Output ONLY the following JSON object — no markdown fences, no extra text:\n\n'
+                    '{\n'
+                    '  "approved": true,\n'
+                    '  "confidence": 0.0,\n'
+                    '  "reason": "your decision rationale",\n'
+                    '  "steps": [{"type": "node_type", "params": {}}]\n'
+                    '}\n\n'
+                    'Your previous raw output (for reference):\n'
+                    f'{last_text[-800:]}'
+                )
+
+                fixed = self._run_discussion_agent(
+                    agent_config=agent_config,
+                    task=fix_prompt,
+                    context=[],
+                    user_id=user_id,
+                    prompt_path=self.PROMPT_DECIDER
+                )
+
+                match = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', fixed)
+                if match:
+                    return _json.loads(match.group(1))
+                match = re.search(r'\{[\s\S]*"approved"[\s\S]*\}', fixed)
+                if match:
+                    return _json.loads(match.group(0))
+
+                last_text = fixed
+            except (_json.JSONDecodeError, Exception):
+                continue
+
+        return None
+
+    # ============================================================
+    # Context compaction (Fix #2)
+    # ============================================================
+
+    def _compact_context(self, context):
+        """Compress discussion context when it exceeds MAX_CONTEXT_CHARS.
+
+        Keeps the most recent message intact; summarizes all earlier messages
+        into a short System note so the downstream agent still has context.
+        """
+        total = sum(len(m['content']) for m in context)
+        if total <= self.MAX_CONTEXT_CHARS:
+            return context
+
+        latest = context[-1]
+        earlier = context[:-1]
+
+        summary = self._summarize_earlier(earlier)
+
+        return [
+            {
+                'agent': 'System',
+                'role': 'Discussion Summary',
+                'content': summary
+            },
+            latest,
+        ]
+
+    def _summarize_earlier(self, messages):
+        """Generate a compact summary of earlier discussion rounds.
+
+        Uses a lightweight LLM call directly for speed.
+        Falls back to truncation if the LLM call fails.
+        """
+        history_text = '\n\n'.join(
+            f'[{m["role"]}] {m["agent"]}:\n{m["content"][:500]}'
+            for m in messages
+        )
+
+        try:
+            from agent_matrix.engine import UnifiedLLM
+            llm = UnifiedLLM()
+            summary = llm.chat(
+                messages=[{
+                    'role': 'user',
+                    'content': (
+                        'Summarize the following multi-agent discussion history '
+                        'in under 200 characters. Keep key decisions and revision points:\n\n'
+                        f'{history_text}'
+                    )
+                }],
+                max_tokens=300,
+                temperature=0.3
+            )
+            return summary.strip()
+        except Exception:
+            return '\n'.join(
+                f'[{m["role"]}] {m["agent"]}: {m["content"][:100]}...'
+                for m in messages
+            )
+
+    # ============================================================
+    # DAG workflow trigger (Fix #6)
+    # ============================================================
+
+    def _trigger_dag_from_plan(self, exec_plan, user_id):
+        """Submit the parsed execution plan to the DAG workflow engine.
+
+        Prefers the workflow_id specified by the Decider agent.
+        Falls back to DISCUSS_DEFAULT_WORKFLOW_ID env var.
+        Uses workflow_id=1 as last resort with a warning.
+        """
+        import os as _os
+        from orchestrator.workflow_engine import WorkflowEngine
+
+        engine = WorkflowEngine()
+        workflow_id = exec_plan.get('workflow_id')
+
+        if workflow_id is None:
+            workflow_id = _os.environ.get('DISCUSS_DEFAULT_WORKFLOW_ID')
+            if workflow_id:
+                try:
+                    workflow_id = int(workflow_id)
+                except (ValueError, TypeError):
+                    workflow_id = None
+
+        if workflow_id is None:
+            workflow_id = 1
+            logger.warning(
+                'No workflow_id specified and DISCUSS_DEFAULT_WORKFLOW_ID not set. '
+                'Falling back to workflow_id=1.'
+            )
+
+        try:
+            instance_id = engine.run_workflow(
+                workflow_id=workflow_id,
+                trigger_type='agent_discussion',
+                trigger_config={'user_id': user_id},
+                initial_context={
+                    'steps': exec_plan.get('steps', []),
+                    'confidence': exec_plan.get('confidence', 0),
+                    'reason': exec_plan.get('reason', ''),
+                }
+            )
+        except Exception as e:
+            raise RuntimeError(f'DAG workflow failed to start: {e}') from e
+
+        return (
+            f'Workflow triggered. Instance ID: {instance_id}. '
+            f'Steps: {len(exec_plan.get("steps", []))}'
+        )
+
+    # ============================================================
+    # Main entry: discuss_and_execute (SSE generator)
+    # ============================================================
+
+    def discuss_and_execute(self, instruction, user_id=0, session_id=None):
+        """Multi-agent discussion orchestration — SSE event generator.
+
+        Protocol: Agent A (Planner) → Agent B (Reviewer) → Agent A (Revise)
+                  → Agent C (Decider) → Parse JSON → Trigger DAG
+
+        Yields SSE dicts with keys: type, phase, agent, role, content, timestamp
+
+        On JSON parse failure, yields 'needs_approval' event for manual fallback.
+        On agent unavailability, degrades to single-agent fast mode.
+        """
+        import re as _re
+        startup = time.time()
+        discussion_context = []
+        round_num = 0
+
+        # Helper to emit a discussion event
+        def _emit(typ, **kwargs):
+            event = {'type': typ, **kwargs}
+            if 'timestamp' not in event:
+                event['timestamp'] = time.time() - startup
+            return event
+
+        # ── Agent availability check with degradation (Fix #5) ──
+        planner_agent = self._find_agent_by_domain('site_builder')   # Builder → Planner
+        reviewer_agent = self._find_agent_by_domain('ops')           # Ops → Reviewer
+        decider_agent = self._find_agent_by_domain('finance')        # Steward → Decider
+
+        missing = []
+        if not planner_agent:
+            missing.append('Planner (Builder/site_builder)')
+        if not reviewer_agent:
+            missing.append('Reviewer (Ops/ops)')
+        if not decider_agent:
+            missing.append('Decider (Steward/finance)')
+
+        if missing:
+            degradation_msg = 'Discussion roles unavailable: ' + ', '.join(missing) + '. '
+            available = planner_agent or reviewer_agent or decider_agent
+
+            if available:
+                yield _emit('warning',
+                            content=degradation_msg + 'Degraded to single-agent fast mode.')
+
+                try:
+                    plan = self._run_discussion_agent(
+                        agent_config=available,
+                        task='Generate an executable plan for the following task '
+                             'and output it as JSON:\n\n' + instruction,
+                        context=[],
+                        user_id=user_id,
+                        prompt_path=self.PROMPT_DECIDER
+                    )
+                    exec_plan = self._parse_decision_json(plan, available, user_id)
+
+                    if exec_plan is None:
+                        yield _emit('needs_approval',
+                                    agent=available.get('name', 'Agent'),
+                                    role='Fast Mode',
+                                    content=plan,
+                                    raw_output=plan,
+                                    hint=(
+                                        'Single-agent output could not be parsed as JSON. '
+                                        'Please review and manually approve.'
+                                    ))
+                    elif exec_plan.get('approved'):
+                        result = self._trigger_dag_from_plan(exec_plan, user_id)
+                        yield _emit('message',
+                                    agent=available.get('name', 'Agent'),
+                                    role='Fast Mode',
+                                    content=result)
+                    else:
+                        yield _emit('message',
+                                    agent=available.get('name', 'Agent'),
+                                    role='Fast Mode',
+                                    content=(
+                                        'Plan not approved. '
+                                        f'Reason: {exec_plan.get("reason", "Unknown")}'
+                                    ))
+                except Exception as e:
+                    yield _emit('error', content=f'Fast-mode execution failed: {e}')
+            else:
+                yield _emit('error',
+                            content=(
+                                degradation_msg +
+                                'Cannot start discussion. Please configure at least one '
+                                'sub-agent in Admin → Agent Management.'
+                            ))
+            return
+
+        # ── Round 1: Planner (Agent A) produces initial plan ──
+        round_num += 1
+        yield _emit('phase', phase='planning',
+                    agent=planner_agent['name'], role='Planner',
+                    content=f'Round {round_num}: Generating initial plan...')
+
+        plan_v1 = self._run_discussion_agent_with_timeout(
+            agent_config=planner_agent,
+            task=instruction,
+            context=discussion_context,
+            user_id=user_id,
+            prompt_path=self.PROMPT_PLANNER
+        )
+
+        discussion_context.append({
+            'agent': planner_agent['name'],
+            'role': 'Planner',
+            'content': plan_v1
+        })
+        yield _emit('message', agent=planner_agent['name'], role='Planner',
+                    content=plan_v1)
+
+        discussion_context = self._compact_context(discussion_context)
+
+        # ── Round 2: Reviewer (Agent B) critiques the plan ──
+        round_num += 1
+        yield _emit('phase', phase='review',
+                    agent=reviewer_agent['name'], role='Reviewer',
+                    content=f'Round {round_num}: Reviewing plan...')
+
+        review_task = (
+            'Review the following execution plan. Identify issues, risks, and '
+            'missing steps. Output your review as a JSON object with "revised_steps" '
+            'field containing the corrected step list.\n\n'
+            f'Plan to review:\n{plan_v1}'
+        )
+
+        review_output = self._run_discussion_agent_with_timeout(
+            agent_config=reviewer_agent,
+            task=review_task,
+            context=discussion_context,
+            user_id=user_id,
+            prompt_path=self.PROMPT_REVIEWER
+        )
+
+        discussion_context.append({
+            'agent': reviewer_agent['name'],
+            'role': 'Reviewer',
+            'content': review_output
+        })
+        yield _emit('message', agent=reviewer_agent['name'], role='Reviewer',
+                    content=review_output)
+
+        discussion_context = self._compact_context(discussion_context)
+
+        # ── Round 3: Planner (Agent A) revises based on review ──
+        round_num += 1
+        yield _emit('phase', phase='revision',
+                    agent=planner_agent['name'], role='Planner (Revise)',
+                    content=f'Round {round_num}: Revising plan based on review...')
+
+        revision_task = (
+            'Revise your original plan based on the reviewer\'s feedback below. '
+            'Output the final revised plan as a JSON object with "steps" field.\n\n'
+            f'Your original plan:\n{plan_v1}\n\n'
+            f'Reviewer feedback:\n{review_output}\n\n'
+            'Output the FINAL revised plan as JSON.'
+        )
+
+        plan_v2 = self._run_discussion_agent_with_timeout(
+            agent_config=planner_agent,
+            task=revision_task,
+            context=discussion_context,
+            user_id=user_id,
+            prompt_path=self.PROMPT_PLANNER
+        )
+
+        discussion_context.append({
+            'agent': planner_agent['name'],
+            'role': 'Planner (Revised)',
+            'content': plan_v2
+        })
+        yield _emit('message', agent=planner_agent['name'], role='Planner (Revised)',
+                    content=plan_v2)
+
+        discussion_context = self._compact_context(discussion_context)
+
+        # ── Round 4: Decider (Agent C) makes final decision ──
+        round_num += 1
+        yield _emit('phase', phase='decision',
+                    agent=decider_agent['name'], role='Decider',
+                    content=f'Round {round_num}: Making final decision...')
+
+        decision_task = (
+            'You are the final Decider. Review the discussion and make a decision.\n\n'
+            f'Original user request:\n{instruction}\n\n'
+            f'Final revised plan (v2):\n{plan_v2}\n\n'
+            'Output ONLY a JSON object with "approved", "confidence", "reason", and "steps".'
+        )
+
+        decision = self._run_discussion_agent_with_timeout(
+            agent_config=decider_agent,
+            task=decision_task,
+            context=discussion_context,
+            user_id=user_id,
+            prompt_path=self.PROMPT_DECIDER
+        )
+
+        discussion_context.append({
+            'agent': decider_agent['name'],
+            'role': 'Decider',
+            'content': decision
+        })
+        yield _emit('message', agent=decider_agent['name'], role='Decider',
+                    content=decision)
+
+        # ── Round 5: Parse decision → trigger DAG ──
+        yield _emit('phase', phase='execution',
+                    agent='System', role='Execution Engine',
+                    content='Parsing decision and triggering execution...')
+
+        exec_plan = self._parse_decision_json(decision, decider_agent, user_id)
+
+        # Fallback: JSON parsing failed → ask user for manual approval (Fix #4)
+        if exec_plan is None:
+            yield _emit('needs_approval',
+                        agent='Steward', role='Decision Maker',
+                        content=decision,
+                        raw_output=decision,
+                        hint=(
+                            'Agent C output could not be parsed as valid JSON. '
+                            'Please review the raw output above and either: '
+                            '(1) approve with manually entered steps, or (2) reject and re-discuss.'
+                        ))
+            return
+
+        if not exec_plan.get('approved', False):
+            yield _emit('message',
+                        agent='System', role='Execution Engine',
+                        content=(
+                            'Plan not approved. '
+                            f'Reason: {exec_plan.get("reason", "Unknown")}'
+                        ))
+            return
+
+        # Normal path: trigger DAG
+        try:
+            result = self._trigger_dag_from_plan(exec_plan, user_id)
+        except Exception as e:
+            yield _emit('error', content=f'Execution failed: {e}')
+            return
+
+        yield _emit('message', agent='System', role='Execution Engine',
+                    content=result)
+
+        # ── Done ──
+        yield _emit('done', agent='System', role='Orchestrator',
+                    content='Discussion complete.')
+
 
 # ============================================================
 # 更新 Agent 统计的辅助函数
