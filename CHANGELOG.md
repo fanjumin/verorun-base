@@ -1,5 +1,12 @@
 # 修改记录
 
+## v0.41.0 — 2026-08-01
+
+### Changes
+
+- feat: .cache/ 运行时缓存 — LLM 响应缓存 + 会话摘要缓存，自动 TTL 和容量限制
+- refactor: APP_HOME 默认值从 verorun-workspace 简化为 verorun
+
 ## v0.40.0 — 2026-08-01
 
 ### Changes
