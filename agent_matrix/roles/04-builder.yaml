@@ -12,6 +12,8 @@ managed_modules:
   - site_configs
   - site_plans
 provider_model_id: 401638
+provider: siliconflow
+model_name: deepseek-ai/DeepSeek-V3
 system_prompt: prompts/sub_builder_prompt.md
 is_system: true
 is_active: 1

@@ -15,6 +15,8 @@ managed_modules:
   - enterprise_verify
   - verification
 provider_model_id: 401638
+provider: kimi
+model_name: moonshot-v1-32k
 system_prompt: prompts/sub_chatbot_prompt.md
 is_system: true
 is_active: 1

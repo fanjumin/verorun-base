@@ -449,15 +449,17 @@ def seed_default_agents():
                 conn.execute("""
                     INSERT INTO agent_matrix
                     (name, slug, role_type, description, domain, managed_modules,
-                     provider, model_name, system_prompt, auto_approve, is_active, is_system)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     provider, model_name, system_prompt, auto_approve, is_active, is_system,
+                     capabilities, allowed_tools)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (
                     a.get('name', ''), slug, a.get('role_type', 'sub'),
                     a.get('description', ''), a.get('domain', 'general'),
                     a.get('managed_modules', '[]'),
                     a.get('provider', 'dashscope'), a.get('model_name', 'qwen-turbo'),
                     a.get('system_prompt', ''),
-                    a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1)
+                    a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1),
+                    a.get('capabilities', '[]'), a.get('allowed_tools', '[]')
                 ))
                 print(f'[Seed] Insert system role: {slug}')
             else:
@@ -467,7 +469,7 @@ def seed_default_agents():
                     UPDATE agent_matrix SET
                         name=%s, description=%s, domain=%s,
                         managed_modules=%s, auto_approve=%s,
-                        allowed_tools=%s, is_system=1, updated_at=NOW()
+                        allowed_tools=%s, capabilities=%s, is_system=1, updated_at=NOW()
                     WHERE slug=%s
                 """, (
                     a.get('name', ''), a.get('description', ''),
@@ -475,6 +477,7 @@ def seed_default_agents():
                     a.get('managed_modules', '[]'),
                     a.get('auto_approve', 0),
                     a.get('allowed_tools', '[]'),
+                    a.get('capabilities', '[]'),
                     slug
                 ))
 

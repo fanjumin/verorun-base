@@ -16,6 +16,8 @@ managed_modules:
   - deploy
   - payment
 provider_model_id: 401638
+provider: gemini
+model_name: gemini-2.5-flash
 system_prompt: prompts/sub_finance_prompt.md
 is_system: true
 is_active: 1

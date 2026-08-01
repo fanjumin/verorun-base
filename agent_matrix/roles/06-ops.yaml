@@ -14,6 +14,8 @@ managed_modules:
   - provision
   - captcha_embedded
 provider_model_id: 401638
+provider: deepseek
+model_name: deepseek-v4-flash
 system_prompt: prompts/sub_ops_prompt.md
 is_system: true
 is_active: 1

@@ -20,6 +20,8 @@ managed_modules:
   - content_factory
   - social_push
 provider_model_id: 401638
+provider: siliconflow
+model_name: deepseek-ai/DeepSeek-V3
 system_prompt: prompts/sub_content_prompt.md
 is_system: true
 is_active: 1
