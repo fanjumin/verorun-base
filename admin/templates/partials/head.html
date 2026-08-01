@@ -171,7 +171,6 @@ a:hover{text-decoration:underline}
     fetch('/admin/api/check-update').then(function(r){return r.json()}).then(function(d){
       if(d.success){
         el.textContent=d.latest;
-        document.getElementById('currentVer').textContent=d.current;
         document.getElementById('currentVer2').textContent=d.current;
         if(d.has_update){btn.style.display='inline-block'}
       }else{
