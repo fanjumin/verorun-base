@@ -404,20 +404,20 @@ def _revenue_dashboard_data():
 
         # ── 近12月月度收入 ──
         monthly = conn.execute("""
-            SELECT strftime('%%Y-%%m', paid_at) as ym, SUM(amount) as rev FROM billing_orders
+            SELECT to_char(paid_at, 'YYYY-MM') as ym, SUM(amount) as rev FROM billing_orders
             WHERE status='paid' AND paid_at>=%s
             GROUP BY ym ORDER BY ym
         """, (twelve_months_ago,)).fetchall()
         monthly_map = {r['ym']: float(r['rev']) for r in monthly}
         sub_monthly = conn.execute("""
-            SELECT strftime('%%Y-%%m', paid_at) as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
+            SELECT to_char(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(amount_fen)/100.0,0) as rev FROM subscription_orders
             WHERE status='paid' AND paid_at>=%s
             GROUP BY ym ORDER BY ym
         """, (twelve_months_ago,)).fetchall()
         for r in sub_monthly:
             monthly_map[r['ym']] = monthly_map.get(r['ym'], 0.0) + float(r['rev'])
         shop_monthly = conn.execute("""
-            SELECT strftime('%%Y-%%m', paid_at) as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
+            SELECT to_char(paid_at, 'YYYY-MM') as ym, COALESCE(SUM(subtotal),0) as rev FROM order_items
             WHERE status='paid' AND paid_at>=%s
             GROUP BY ym ORDER BY ym
         """, (twelve_months_ago,)).fetchall()
