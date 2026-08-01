@@ -1377,19 +1377,33 @@ def init_db():
             (pids['siliconflow'], 'FLUX.1 Dev',          'black-forest-labs/FLUX.1-dev',           'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'image',    60),
             (pids['siliconflow'], 'Stable Diffusion 3.5','stabilityai/stable-diffusion-3.5-large', 'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'image',    61),
             (pids['siliconflow'], 'SDXL Base 1.0',       'stabilityai/stable-diffusion-xl-base-1.0','https://api.siliconflow.cn/v1',           'siliconflow_api_key',   'image',    62),
+            (pids['siliconflow'], 'Qwen 2.5 72B',        'Qwen/Qwen2.5-72B-Instruct',       'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'text',     63),
+            (pids['siliconflow'], 'Llama 3.3 70B',       'meta-llama/Llama-3.3-70B-Instruct','https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'text',     64),
+            (pids['siliconflow'], 'DeepSeek R1 0528',    'deepseek-ai/DeepSeek-R1-0528',   'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'text',     65),
+            (pids['siliconflow'], 'QwQ-32B',             'Qwen/QwQ-32B',                    'https://api.siliconflow.cn/v1',            'siliconflow_api_key',   'text',     66),
             # Google Gemini (OpenAI-compatible endpoint)
-            (pids['gemini'],     'Gemini 2.5 Flash',    'gemini-2.5-flash',       'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     65),
-            (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
+            (pids['gemini'],     'Gemini 3.0 Pro',       'gemini-3.0-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     63),
+            (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     64),
+            (pids['gemini'],     'Gemini 2.5 Flash',     'gemini-2.5-flash',       'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     65),
+            (pids['gemini'],     'Gemini 2.5 Flash Lite','gemini-2.5-flash-lite',  'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
+            (pids['gemini'],     'Gemini Embedding',     'text-embedding-004',     'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'embedding',67),
             # xAI Grok
-            (pids['grok'],       'Grok-3 Beta',          'grok-3-beta',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     70),
+            (pids['grok'],       'Grok-3',               'grok-3',                 'https://api.x.ai/v1',                                         'xai_api_key',           'text',     70),
+            (pids['grok'],       'Grok-3 Beta',          'grok-3-beta',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     71),
+            (pids['grok'],       'Grok-2',               'grok-2-1212',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     72),
             # KIMI / Moonshot (OpenAI-compatible)
-            (pids['kimi'],       'Moonshot v1 8K',      'moonshot-v1-8k',         'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     71),
-            (pids['kimi'],       'Moonshot v1 32K',     'moonshot-v1-32k',        'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     72),
+            (pids['kimi'],       'Moonshot v1 8K',      'moonshot-v1-8k',         'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     73),
+            (pids['kimi'],       'Moonshot v1 32K',     'moonshot-v1-32k',        'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     74),
+            (pids['kimi'],       'Moonshot v1 128K',    'moonshot-v1-128k',       'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     75),
+            (pids['kimi'],       'K2',                   'kimi-k2',                'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     76),
             # Zhipu / ChatGLM (OpenAI-compatible)
-            (pids['zhipu'],      'GLM-4 Flash',         'glm-4-flash',            'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     73),
-            (pids['zhipu'],      'GLM-4 Plus',          'glm-4-plus',             'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     74),
+            (pids['zhipu'],      'GLM-4',               'glm-4',                  'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     77),
+            (pids['zhipu'],      'GLM-4 Flash',         'glm-4-flash',            'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     78),
+            (pids['zhipu'],      'GLM-4 Plus',          'glm-4-plus',             'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     79),
+            (pids['zhipu'],      'GLM-4V Plus',          'glm-4v-plus',            'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'vision',   80),
+            (pids['zhipu'],      'CogView-4',            'cogview-4',              'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'image',    81),
             # Edge-TTS (free, no key needed)
-            (pids['edge_tts'],   'Edge TTS Neural',      'edge-tts-neural',        '',                                                              '',                     'tts',      80),
+            (pids['edge_tts'],   'Edge TTS Neural',      'edge-tts-neural',        '',                                                              '',                     'tts',      100),
         ]
         for pid, name, model, url, key_ref, caps, sort in model_seeds:
             m.execute(
