@@ -257,7 +257,7 @@ def seed_from_yaml(locale: str = None) -> int:
 
     count = 0
     conn = None
-    lock_id = hash(f'i18n_yaml_{locale}') & 0x7FFFFFFF
+    lock_id = int(hashlib.md5(f'i18n_yaml_{locale}'.encode()).hexdigest()[:8], 16) & 0x7FFFFFFF
     try:
         conn = _get_db()
         acquired = conn.execute(
@@ -325,7 +325,7 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
         if not data:
             continue
         conn = None
-        lock_id = hash('i18n_plugin_seed') & 0x7FFFFFFF
+        lock_id = int(hashlib.md5('i18n_plugin_seed'.encode()).hexdigest()[:8], 16) & 0x7FFFFFFF
         try:
             conn = _get_db()
             acquired = conn.execute(
