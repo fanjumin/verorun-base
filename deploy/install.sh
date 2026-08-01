@@ -416,7 +416,7 @@ do_rollback() {
     cd "${APP_HOME}"
     git reflog --oneline -5 | head -5
     if git reset --hard HEAD~1; then
-        systemctl restart verorun-admin verorun-auth verorun-main verorun-health
+        systemctl restart verorun-admin verorun-auth verorun-main verorun-health verorun-guardian
         echo -e "${OK} Rolled back to $(git log --oneline -1)"
     else
         echo -e "${FAIL} Rollback failed"
@@ -568,6 +568,68 @@ SVCEOF
 
     # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
+
+    # ── verorun-guardian (独立守护进程，不占用端口) ──
+    write_guardian_service
+    write_guardian_env
+}
+
+# ==========================================================================
+# Guardian service + env
+# ==========================================================================
+write_guardian_service() {
+    local file="${SERVICE_DIR}/verorun-guardian.service"
+    cat > "${file}" << 'GDEVEOF'
+[Unit]
+Description=VeroGuard — Unified Guardian Daemon (Health + Integrity + Heartbeat)
+After=network.target postgresql.service
+Wants=verorun-health.service verorun-main.service verorun-admin.service verorun-auth.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=GDEVDIR
+EnvironmentFile=-/etc/default/verorun-guardian
+ExecStart=GDEVDIR/venv/bin/python GDEVDIR/veroguard/guardian.py
+Restart=always
+RestartSec=5
+RuntimeDirectory=verorun-guardian
+RuntimeDirectoryMode=0755
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+GDEVEOF
+    # Replace placeholder with actual path
+    sed -i "s|GDEVDIR|${APP_HOME}|g" "${file}"
+    systemctl daemon-reload
+    systemctl enable verorun-guardian
+}
+
+write_guardian_env() {
+    local env_file="/etc/default/verorun-guardian"
+    # Read PROBE_SECRET from .env
+    local probe_secret=""
+    if [ -f "${APP_HOME}/.env" ]; then
+        probe_secret=$(grep "^PROBE_SECRET=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2) || true
+        [ -n "${probe_secret}" ] && probe_secret="PROBE_SECRET=${probe_secret}"
+    fi
+    cat > "${env_file}" << GENVEOF
+# VeroGuard Guardian 环境配置 — 由 install.sh 生成
+GUARDIAN_PROJECT_DIR=${APP_HOME}
+GUARDIAN_LOG_FILE=${LOG_DIR}/verorun-guardian.log
+GUARDIAN_CHECK_INTERVAL=30
+GUARDIAN_MAX_FAILURES=3
+GUARDIAN_COOLDOWN=300
+GUARDIAN_INTEGRITY_INTERVAL=300
+GUARDIAN_HEARTBEAT_INTERVAL=300
+GUARDIAN_WEBHOOK_URL=
+GUARDIAN_REMOTE_URL=https://api.verorun.com
+${probe_secret}
+DEPLOYMENT_CODE=
+GENVEOF
+    chmod 600 "${env_file}"
 }
 
 # ==========================================================================
@@ -586,6 +648,7 @@ ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-health
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-guardian
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
 SUEOF
     chmod 440 "${sudoers_file}"
@@ -597,7 +660,7 @@ SUEOF
 }
 
 restart_services() {
-    local services=("verorun-admin" "verorun-auth" "verorun-main" "verorun-health")
+    local services=("verorun-admin" "verorun-auth" "verorun-main" "verorun-health" "verorun-guardian")
     for svc in "${services[@]}"; do
         if systemctl is-enabled --quiet "${svc}" 2>/dev/null; then
             systemctl restart "${svc}"
@@ -730,6 +793,14 @@ health_check() {
     check_port 8084 "verorun-admin"
     check_port 8085 "verorun-health"
 
+    # Guardian: 无 HTTP 端口，通过 systemctl 检查
+    if systemctl is-active --quiet verorun-guardian 2>/dev/null; then
+        echo -e "  ${OK} verorun-guardian (systemd)"
+    else
+        echo -e "  ${FAIL} verorun-guardian (inactive)"
+        all_ok=false
+    fi
+
     # Check DDL migration logs
     echo ""
     echo -e "${INFO} Migration log check:"
@@ -762,8 +833,8 @@ print_summary() {
     fi
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Useful commands:                                            ║"
-    echo "  ║    systemctl status verorun-{main,auth,admin}                ║"
-    echo "  ║    journalctl -u verorun-admin -f                            ║"
+    echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
+    echo "  ║    journalctl -u verorun-guardian -f                         ║"
     echo "  ║    bash deploy/install.sh update                              ║"
     echo "  ║    bash deploy/install.sh rollback                            ║"
     echo "  ╚══════════════════════════════════════════════════════════════╝"
