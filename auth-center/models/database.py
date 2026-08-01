@@ -1330,6 +1330,8 @@ def init_db():
             ('siliconflow','SiliconFlow', 'SiliconFlow model platform (DeepSeek-OCR etc.)'),
             ('gemini',     'Google Gemini', 'Gemini 2.5 Flash/Pro'),
             ('grok',       'xAI Grok', 'Grok-3 Beta'),
+            ('kimi',       'KIMI / 月之暗面', 'Moonshot AI large language models'),
+            ('zhipu',      'Zhipu / 智谱 AI', 'ChatGLM large language models'),
             ('azure',      'Microsoft Azure', 'Azure Cognitive Services: TTS, Speech Recognition'),
             ('edge_tts',   'Microsoft Edge TTS', 'Free Edge browser TTS — no key required, same neural voices'),
         ]
@@ -1381,6 +1383,12 @@ def init_db():
             (pids['gemini'],     'Gemini 2.5 Pro',       'gemini-2.5-pro',         'https://generativelanguage.googleapis.com/v1beta/openai/',     'gemini_api_key',        'text',     66),
             # xAI Grok
             (pids['grok'],       'Grok-3 Beta',          'grok-3-beta',            'https://api.x.ai/v1',                                         'xai_api_key',           'text',     70),
+            # KIMI / Moonshot (OpenAI-compatible)
+            (pids['kimi'],       'Moonshot v1 8K',      'moonshot-v1-8k',         'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     71),
+            (pids['kimi'],       'Moonshot v1 32K',     'moonshot-v1-32k',        'https://api.moonshot.cn/v1',                                  'kimi_api_key',          'text',     72),
+            # Zhipu / ChatGLM (OpenAI-compatible)
+            (pids['zhipu'],      'GLM-4 Flash',         'glm-4-flash',            'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     73),
+            (pids['zhipu'],      'GLM-4 Plus',          'glm-4-plus',             'https://open.bigmodel.cn/api/paas/v4',                        'zhipu_api_key',         'text',     74),
             # Microsoft Azure
             (pids['azure'],      'Azure Neural TTS',     'azure-tts-neural',       'https://eastasia.tts.speech.microsoft.com/cognitiveservices/v1', 'azure_tts_key',    'tts',      75),
             # Microsoft Edge (free)
@@ -2910,7 +2918,8 @@ with get_db() as m:
         ('SiliconFlow',             '', 'siliconflow','SiliconFlow platform API Key'),
         ('Google Gemini',            '', 'gemini',    'Google Gemini API Key'),
         ('xAI Grok',                 '', 'grok',      'xAI Grok API Key'),
-        ('Edge-TTS',                 '', 'azure',     'Edge-TTS text-to-speech service'),
+        ('KIMI',                     '', 'kimi',      'Moonshot AI / 月之暗面 API Key'),
+        ('Zhipu',                    '', 'zhipu',     '智谱 AI / ChatGLM API Key'),
     ]
     for name, key_val, provider, desc in seed_keys:
         m.execute(
