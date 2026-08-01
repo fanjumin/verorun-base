@@ -29,7 +29,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from veroguard import config
-from veroguard.modules import health, integrity
+from veroguard.modules import health, integrity, fingerprint, runtime, communicator
 
 # ── 日志 ────────────────────────────────────────
 os.makedirs(os.path.dirname(config.LOG_FILE), exist_ok=True)
@@ -114,15 +114,18 @@ def main():
                 })
             last_integrity_check = now
 
-        # ── 通道 3: 心跳上报 (300s) — 占位 ──
+        # ── 通道 3: 心跳上报 (300s) ──
         if now - last_heartbeat >= config.HEARTBEAT_INTERVAL:
-            # TODO Phase 3: modules.fingerprint.collect()
-            # TODO Phase 3: modules.runtime.check()
-            # TODO Phase 3: modules.communicator.send_heartbeat()
+            fp = fingerprint.collect()
+            rt = runtime.check()
+            ig = health.read_status('integrity', {})
+            response = communicator.send_heartbeat(fp, ig, rt)
             health.write_status('heartbeat', {
                 'last_sent': datetime.now().isoformat(),
-                'last_response': 'pending',
+                'last_response': response.get('status', 'unknown'),
+                'pending_commands': len(response.get('commands', [])),
             })
+            # TODO Phase 4: 处理远程命令 executor.execute()
             last_heartbeat = now
 
         time.sleep(config.CHECK_INTERVAL)
