@@ -29,7 +29,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from veroguard import config
-from veroguard.modules import health, integrity, fingerprint, runtime, communicator
+from veroguard.modules import health, integrity, fingerprint, runtime, communicator, executor
 
 # ── 日志 ────────────────────────────────────────
 os.makedirs(os.path.dirname(config.LOG_FILE), exist_ok=True)
@@ -52,6 +52,8 @@ def init():
         "fingerprint": {"hostname": os.uname().nodename if hasattr(os, 'uname') else ""},
     }
     health._write_status_file(status)
+    # Phase 5: 启动自我保护子进程
+    self_protect.start_watchdog()
     logging.info("VeroGuard Guardian started (health + integrity + heartbeat)")
 
 # ── 主循环 ──────────────────────────────────────
@@ -125,7 +127,13 @@ def main():
                 'last_response': response.get('status', 'unknown'),
                 'pending_commands': len(response.get('commands', [])),
             })
-            # TODO Phase 4: 处理远程命令 executor.execute()
+            # Phase 4: 处理远程命令
+            commands = response.get('commands', [])
+            for cmd in commands:
+                result = executor.execute(cmd)
+                communicator.send_ack(
+                    cmd.get('command_id', ''), result['status'], result.get('result', '')
+                )
             last_heartbeat = now
 
         time.sleep(config.CHECK_INTERVAL)
