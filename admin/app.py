@@ -1020,30 +1020,20 @@ def admin_update():
         return jsonify({'success': False, 'error': _('Unauthorized')}), 401
 
     _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _venv_dir = os.environ.get('VENV_DIR', os.path.join(_project_root, 'venv'))
-    _pip_path = os.path.join(_venv_dir, 'bin', 'pip')
-    _req_path = os.path.join(_project_root, 'requirements.txt')
 
     def _do_update():
+        # Delegate the whole update pipeline to install.sh (the single source
+        # of truth): backup, git pull, dependency hash check, systemd/nginx
+        # refresh, service restarts. sudoers permission is provisioned by
+        # install.sh itself (write_sudoers), so no TTY password is required.
         import subprocess as _sp
+        install_sh = os.path.join(_project_root, 'deploy', 'install.sh')
         try:
-            _sp.run(['git', 'fetch', 'origin', 'master'], cwd=_project_root,
-                    check=True, capture_output=True, timeout=60)
-            _sp.run(['git', 'reset', '--hard', 'HEAD'], cwd=_project_root,
-                    check=True, capture_output=True, timeout=30)
-            _sp.run(['git', 'pull', 'origin', 'master'], cwd=_project_root,
-                    check=True, capture_output=True, timeout=60)
             # Clear version-check cache so next load fetches fresh data
             admin_check_update._cache = None
-            _sp.run([_pip_path, 'install', '-r', _req_path],
-                    check=True, capture_output=True, timeout=120)
-            # Restart non-admin services first
-            for _svc in ('verorun-main', 'verorun-auth'):
-                _sp.run(['sudo', 'systemctl', 'restart', _svc],
-                        check=True, capture_output=True, timeout=30)
-            # Restart admin LAST — this kills the current process
-            _sp.run(['sudo', 'systemctl', 'restart', 'verorun-admin'],
-                    check=True, capture_output=True, timeout=30)
+            _sp.run(['sudo', 'bash', install_sh, 'update'],
+                    cwd=_project_root, check=True, capture_output=True,
+                    timeout=600)
         except Exception as _e:
             print(f'[Update] Error: {_e}')
 

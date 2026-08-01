@@ -161,6 +161,10 @@ do_install() {
         done_step "Services started"
     fi
 
+    step "Configure sudoers (one-click update permissions)"
+    write_sudoers
+    done_step "Sudoers configured"
+
     step "Database migration"
     sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
     done_step "Database migrated"
@@ -240,6 +244,10 @@ do_update() {
     step "Update systemd services"
     write_systemd_services
     done_step "Systemd services updated"
+
+    step "Update sudoers (one-click update permissions)"
+    write_sudoers
+    done_step "Sudoers updated"
 
     step "Update Nginx config"
     write_nginx_config
@@ -527,6 +535,32 @@ SVCEOF
 
     # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
+}
+
+# ==========================================================================
+# sudoers — one-click update permissions (declarative, idempotent)
+# Grants APP_USER passwordless access to run install.sh and restart the
+# VeroRun systemd services. Scoped to the minimum command set.
+# ==========================================================================
+write_sudoers() {
+    local sudoers_file="/etc/sudoers.d/verorun"
+    cat > "${sudoers_file}" << SUEOF
+# Managed by VeroRun install.sh — regenerated on every install/update
+# Grants ${APP_USER} passwordless one-click update for VeroRun services
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh update
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh restart
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-health
+${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
+SUEOF
+    chmod 440 "${sudoers_file}"
+    visudo -c -f "${sudoers_file}" || {
+        echo -e "${FAIL} Invalid sudoers file — restoring previous state"
+        rm -f "${sudoers_file}"
+        exit 1
+    }
 }
 
 restart_services() {
