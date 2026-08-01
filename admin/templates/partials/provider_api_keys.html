@@ -85,13 +85,15 @@ h+='</div>';
     overlay.id='modal-root';
     overlay.innerHTML=h;
     document.body.appendChild(overlay);
-    // 动态加载 Provider 列表
+    // 动态加载 Provider 列表（排除不需要 API Key 的：edge_tts, ollama）
     fetch("/admin/providers",{headers:{"Authorization":"Bearer "+T}})
       .then(function(r){return r.json()})
       .then(function(d){
         var sel=document.getElementById('pk-provider');
         sel.innerHTML='';
+        var skip=['edge_tts','ollama'];
         (d.data||[]).forEach(function(p){
+          if(skip.indexOf(p.slug)>=0)return;
           sel.innerHTML+='<option value="'+escAttr(p.slug)+'"'+(isEdit&&key.provider===p.slug?' selected':'')+'>'+esc(p.name)+' ('+esc(p.slug)+')</option>';
         });
       }).catch(function(){
