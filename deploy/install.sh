@@ -28,6 +28,19 @@ set -euo pipefail
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
+# ── Pip mirror: auto-detect China network ──
+PIP_MIRROR=""
+if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 https://pypi.org >/dev/null 2>&1; then
+    : # pypi.org reachable
+else
+    PIP_MIRROR="-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com"
+    echo -e "${INFO} using Aliyun PyPI mirror"
+fi
+# --prefer-binary: prefer wheels, fall back to source build
+_pip_install() {
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --prefer-binary ${PIP_MIRROR} "$@"
+}
+
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
@@ -135,8 +148,7 @@ do_install() {
         sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
     fi
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip
-    # --only-binary: fail fast if no pre-built wheel instead of compiling for hours
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --only-binary=:all: -r "${APP_HOME}/requirements.txt"
+    _pip_install -r "${APP_HOME}/requirements.txt"
     done_step "Python dependencies installed"
 
     prompt_domain
@@ -241,7 +253,7 @@ do_update() {
     req_hash=$(md5sum "${APP_HOME}/requirements.txt" | awk '{print $1}')
     cached_hash=$(cat "${APP_HOME}/.requirements_hash" 2>/dev/null || echo "")
     if [ "${req_hash}" != "${cached_hash}" ]; then
-        sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --only-binary=:all: -r "${APP_HOME}/requirements.txt"
+        _pip_install -r "${APP_HOME}/requirements.txt"
         echo "${req_hash}" > "${APP_HOME}/.requirements_hash"
     else
         echo -e "${INFO} requirements.txt unchanged, skipping pip install"
