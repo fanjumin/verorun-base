@@ -2907,11 +2907,10 @@ with get_db() as m:
         ('OpenAI',                  '', 'openai',    'GPT-4o series models API Key'),
         ('DeepSeek',                '', 'deepseek',  'DeepSeek models API Key'),
         ('OpenRouter',              '', 'openrouter','Multi-model aggregation API Key'),
-        ('Ollama Local',             '', 'ollama',    'Local open-source models (optional)'),
         ('SiliconFlow',             '', 'siliconflow','SiliconFlow platform API Key'),
         ('Google Gemini',            '', 'gemini',    'Google Gemini API Key'),
         ('xAI Grok',                 '', 'grok',      'xAI Grok API Key'),
-        ('Azure Speech Service',     '', 'azure',     'Microsoft Azure Cognitive Services subscription key'),
+        ('Edge-TTS',                 '', 'azure',     'Edge-TTS text-to-speech service'),
     ]
     for name, key_val, provider, desc in seed_keys:
         m.execute(
