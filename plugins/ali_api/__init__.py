@@ -60,7 +60,7 @@ class AliApiPlugin(BasePlugin):
                         """SELECT oi.*, p.features, p.title as prod_title
                            FROM order_items oi
                            JOIN products p ON oi.product_id = p.id
-                           WHERE oi.order_id = ?""", (order_id,)
+                           WHERE oi.order_id = %s""", (order_id,)
                     ).fetchall()
                 for item in items:
                     item = dict(item)
@@ -78,7 +78,7 @@ class AliApiPlugin(BasePlugin):
                         continue
                     # 从 ali_api_items 获取供应商信息
                     ali_item = main_conn.execute(
-                        """SELECT * FROM ali_api_items WHERE product_id=?""", (ali_pid,)
+                        """SELECT * FROM ali_api_items WHERE product_id=%s""", (ali_pid,)
                     ).fetchone()
                     ali_item = dict(ali_item) if ali_item else {}
                     AliPurchaseOrder.insert(conn, {

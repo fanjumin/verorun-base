@@ -38,7 +38,7 @@ def _get_alibaba_config_from_db() -> Dict[str, str]:
         # ② 回退：从旧 system_config（主库）只读
         from .models import get_main_db
         with get_main_db() as mconn:
-            placeholders = ','.join('?' for _ in required_keys)
+            placeholders = ','.join('%s' for _ in required_keys)
             rows = mconn.execute(
                 f"SELECT key, value FROM system_config WHERE key IN ({placeholders})",
                 required_keys

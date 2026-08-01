@@ -750,7 +750,7 @@ def publish_product(item_id):
                         price, original_price, stock, sales_count,
                         thumbnail, description, features, ai_config,
                         sort_order, is_active, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                 ''', (
                     final_title,
                     '',
@@ -779,7 +779,7 @@ def publish_product(item_id):
                                     product_id, sku_code, spec1_name, spec1_value,
                                     spec2_name, spec2_value, price_offset,
                                     stock, image_url, is_active, created_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ''', (
                                 target_product_id,
                                 sku.get('sku_code', ''),
@@ -833,7 +833,7 @@ def unpublish_product(item_id):
                     from models import get_db as get_main_db
                     with get_main_db() as main_conn:
                         main_conn.execute(
-                            'UPDATE products SET is_active = 0, updated_at = ? WHERE id = ?',
+                            'UPDATE products SET is_active = 0, updated_at = %s WHERE id = %s',
                             (datetime.now().isoformat(), target_product_id)
                         )
                         main_conn.commit()
@@ -1687,7 +1687,7 @@ def list_purchase_orders():
                            FROM order_items oi
                            LEFT JOIN users u ON oi.user_id=u.id
                            LEFT JOIN products p ON oi.product_id=p.id
-                           WHERE oi.id=?""",
+                           WHERE oi.id=%s""",
                         (po['local_order_item_id'],)
                     ).fetchone()
                     if order_row:
@@ -1741,7 +1741,7 @@ def create_purchase_order():
             receiver_address = ''
             with get_main_db() as mdb:
                 oi = mdb.execute(
-                    'SELECT receiver_name, receiver_phone, receiver_address FROM order_items WHERE id=?',
+                    'SELECT receiver_name, receiver_phone, receiver_address FROM order_items WHERE id=%s',
                     (po['local_order_item_id'],)
                 ).fetchone()
                 if oi:
@@ -1877,9 +1877,9 @@ def sync_tracking():
                     with get_main_db() as main_conn:
                         main_conn.execute(
                             """UPDATE order_items SET
-                               tracking_company=?, tracking_number=?,
-                               shipping_status='shipped', shipped_at=?
-                               WHERE id=?""",
+                               tracking_company=%s, tracking_number=%s,
+                               shipping_status='shipped', shipped_at=%s
+                               WHERE id=%s""",
                             (tracking_info.get('company',''), tracking_info.get('number',''),
                              now, po['local_order_item_id'])
                         )
