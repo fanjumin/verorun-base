@@ -5,6 +5,9 @@
     "description": "Data vault — database backup, file archive, remote storage (S3/OSS)",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
+    "category": "system",
+    "icon": "vault",
+    "tags": ["backup", "storage", "system"],
     "dependencies": {},
     "enabled": true,
     "config": {
