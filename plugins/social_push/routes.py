@@ -111,7 +111,7 @@ def check_config():
         ) + tuple(_INTERNATIONAL_CONFIG_KEYS)
         with _get_main_db() as conn:
             rows = conn.execute(
-                f"SELECT key, value FROM system_config WHERE key IN ({','.join('?' for _ in config_keys)})",
+                f"SELECT key, value FROM system_config WHERE key IN ({','.join('%s' for _ in config_keys)})",
                 config_keys
             ).fetchall()
         cfg = {r['key']: r['value'] for r in rows}
@@ -351,7 +351,7 @@ def _load_config_for_provider(provider_name: str) -> dict:
         keys = [f['key'] for f in provider.get_config_fields()]
         with _get_main_db() as conn:
             rows = conn.execute(
-                f'SELECT key, value FROM system_config WHERE key IN ({",".join("?" for _ in keys)})',
+                f'SELECT key, value FROM system_config WHERE key IN ({",".join("%s" for _ in keys)})',
                 keys
             ).fetchall()
         return {r['key']: r['value'] for r in rows}
