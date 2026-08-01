@@ -21,7 +21,7 @@ import shutil
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, render_template, send_file, request
 
-vault_bp = Blueprint('vault', __name__, template_folder='templates')
+vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault', template_folder='templates')
 
 
 def _get_backup_dir():
