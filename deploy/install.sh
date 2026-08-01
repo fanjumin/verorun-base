@@ -229,7 +229,7 @@ do_update() {
     script_md5=$(md5sum "${APP_HOME}/deploy/install.sh" | awk '{print $1}')
     if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
         echo -e "${INFO} install.sh updated, re-running with new version..."
-        exec sudo bash "${APP_HOME}/deploy/install.sh" update
+        exec sudo APP_HOME="${APP_HOME}" bash "${APP_HOME}/deploy/install.sh" update
         exit
     fi
 
