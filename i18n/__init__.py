@@ -257,6 +257,9 @@ def seed_from_yaml(locale: str = None) -> int:
     count = 0
     try:
         conn = _get_db()
+        # 防止多 worker 并发 seeding 导致 i18n_strings 死锁
+        lock_id = hash(f'i18n_yaml_{locale}') & 0x7FFFFFFF
+        conn.execute('SELECT pg_advisory_lock(%s)', (lock_id,))
         for source, translation in yml.items():
             if not source or not translation or source == translation:
                 continue  # 跳过无效条目和源=译的条目
@@ -309,6 +312,9 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
             continue
         try:
             conn = _get_db()
+            # 防止多 worker 并发 seeding 导致 i18n_strings 死锁
+            lock_id = hash('i18n_plugin_seed') & 0x7FFFFFFF
+            conn.execute('SELECT pg_advisory_lock(%s)', (lock_id,))
             for source, translation in data.items():
                 if not source or not translation:
                     continue

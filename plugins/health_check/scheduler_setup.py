@@ -106,7 +106,7 @@ def seed_health_schedules():
             with orch_db() as conn:
                 # Check if already exists by name
                 existing = conn.execute(
-                    'SELECT id FROM cron_jobs WHERE name=?', (name,)
+                    'SELECT id FROM cron_jobs WHERE name=%s', (name,)
                 ).fetchone()
 
                 if existing:
