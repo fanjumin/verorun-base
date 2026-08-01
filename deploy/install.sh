@@ -18,7 +18,7 @@ set -euo pipefail
 : "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-: "${APP_HOME:=/home/${APP_USER}/verorun-workspace}"
+: "${APP_HOME:=/home/${APP_USER}/verorun}"
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
@@ -101,6 +101,9 @@ do_install() {
 
     step "Create directories"
     mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
+    mkdir -p "${APP_HOME}/.cache/llm" \
+             "${APP_HOME}/.cache/sessions" \
+             "${APP_HOME}/.cache/agents"
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
@@ -190,6 +193,10 @@ do_update() {
     before_commit=$(git -C "${APP_HOME}" log --oneline -1 2>/dev/null || echo "unknown")
 
     step "Backup current version"
+    # Ensure .cache/ dirs exist (fresh install or upgrade from pre-cache version)
+    mkdir -p "${APP_HOME}/.cache/llm" \
+             "${APP_HOME}/.cache/sessions" \
+             "${APP_HOME}/.cache/agents"
     mkdir -p "${APP_HOME}/.rollback"
     cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
     done_step "Environment backed up"

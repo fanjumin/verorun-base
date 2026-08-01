@@ -11,6 +11,8 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import time as _time
 
+from agent_matrix.cache_utils import get_llm_cache
+
 logger = logging.getLogger(__name__)
 
 # 模块级 sys.path 设置（只执行一次，避免函数内重复插入）
@@ -508,6 +510,18 @@ class UnifiedLLM:
 
         client = self._get_client(cfg['base_url'], cfg['api_key'])
 
+        # Phase 2: LLM response cache — check before API call
+        _cache_sys = ''
+        _cache_usr = ''
+        if temperature == 0 and not raw_response:
+            _cache_sys = next((m['content'] for m in messages if m['role'] == 'system'), '')
+            _cache_usr = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), '')
+            _cache_hist = [m for m in messages if m['role'] not in ('system',)]
+            _cache_hist = _cache_hist[:-1] if _cache_hist else []
+            _cached = get_llm_cache().get_response(cfg['model'], _cache_sys, _cache_usr, _cache_hist)
+            if _cached is not None:
+                return _cached
+
         start_time = _time.time()
         resp = client.chat.completions.create(
             model=cfg['model'],
@@ -528,9 +542,18 @@ class UnifiedLLM:
                 'chat', module, elapsed_ms=int(elapsed * 1000),
             )
 
+        result = resp.choices[0].message.content
+
+        # Phase 2: cache the response
+        if temperature == 0 and not raw_response:
+            get_llm_cache().set_response(
+                cfg['model'], _cache_sys, _cache_usr, result,
+                tokens_used=usage.total_tokens if usage else 0,
+            )
+
         if raw_response:
             return resp
-        return resp.choices[0].message.content
+        return result
 
     def chat_stream(self, messages, provider_model_id=None, provider=None,
                     model=None, module='unknown', **kwargs):

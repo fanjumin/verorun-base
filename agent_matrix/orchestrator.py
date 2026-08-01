@@ -8,6 +8,8 @@ from i18n import _
 import json, os, sys, logging, time
 from datetime import datetime
 
+from agent_matrix.cache_utils import get_summary_store
+
 logger = logging.getLogger(__name__)
 
 
@@ -716,12 +718,13 @@ class AgentOrchestrator:
 
         return results
 
-    def _compress_history(self, conv, agent_config):
+    def _compress_history(self, conv, agent_config, session_id=None):
         """构建注入 Agent 的历史消息。
 
         - 会话 <= 8 条：直接返回原文。
         - 会话 > 8 条：保留最近 6 条原文，对更早消息用 LLM 生成一段摘要，
           作为一条 assistant 记忆消息插到最前。LLM 不可用/失败时回退为 conv[-6:]。
+        - Phase 3: 摘要写入 .cache/sessions/ 缓存，避免重复 LLM 调用。
         """
         recent_n = 6
         threshold = 8
@@ -734,7 +737,21 @@ class AgentOrchestrator:
         recent = conv[-recent_n:]
         recent_msgs = [{'role': m['role'], 'content': m['content']} for m in recent]
 
-        summary = self._summarize_messages(older, agent_config)
+        # Phase 3: check session summary cache before calling LLM
+        summary = None
+        if session_id:
+            summary = get_summary_store().get_summary(session_id, len(conv))
+
+        if summary is None:
+            summary = self._summarize_messages(older, agent_config)
+            # Phase 3: cache the generated summary
+            if summary and session_id:
+                get_summary_store().set_summary(
+                    session_id, summary, len(conv),
+                    (0, len(conv) - recent_n),
+                    agent_config.get('model_name', '')
+                )
+
         if not summary:
             # 摘要失败，回退为最近 6 条原文
             return recent_msgs
@@ -776,7 +793,7 @@ class AgentOrchestrator:
         history = None
         if session_id:
             conv = self.models.get_conversation(session_id)
-            history = self._compress_history(conv, agent_config)
+            history = self._compress_history(conv, agent_config, session_id)
         if session_id:
             self.models.add_message(
                 session_id, 'system', f"Start Execution: {task_def.get('title', '')}",
