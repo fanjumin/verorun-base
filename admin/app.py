@@ -1159,6 +1159,6 @@ def admin_update_status():
     return jsonify({'success': True, **_status})
 
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8084
-    app.run(host=')0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
