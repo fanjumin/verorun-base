@@ -1,5 +1,5 @@
-name: Steward
-slug: steward
+name: Finance
+slug: finance
 role_type: sub
 description: Financial steward — plans, subscriptions, billing, orders, payment, invoices, rewards, deployment
 domain: finance

@@ -1,8 +1,8 @@
-name: Shop
-slug: shop
+name: Business
+slug: business
 role_type: sub
-description: Shop manager — products, orders, supply chain, logistics, reviews, wishlist
-domain: shop
+description: Business manager — products, orders, supply chain, logistics, reviews, wishlist
+domain: business
 managed_modules:
   - products
   - categories
@@ -17,6 +17,6 @@ managed_modules:
 provider_model_id: 401638
 provider: deepseek
 model_name: deepseek-v4-flash
-system_prompt: prompts/sub_shop_prompt.md
+system_prompt: prompts/sub_business_prompt.md
 is_system: true
 is_active: 1

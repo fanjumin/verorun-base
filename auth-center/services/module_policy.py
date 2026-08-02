@@ -115,12 +115,12 @@ MODULE_POLICIES = {
 
 DOMAIN_TO_MODULE = {
     'site_builder': 'site_builder',
-    'shop': 'commerce_plus',
+    'business': 'commerce_plus',
     'service': 'service_hub',
 }
 
 FREE_DOMAINS = {
-    '', 'general', 'athena', 'steward', 'ops',
+    '', 'general', 'athena', 'finance', 'ops',
     'monitor', 'alerter', 'cron', 'deployment',
 }
 
