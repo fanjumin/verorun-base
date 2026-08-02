@@ -17,10 +17,8 @@ set -euo pipefail
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
 : "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
 : "${GIT_BRANCH:=master}"
-# Auto-detect project home from script location (reliable across sudo/systemd/root contexts)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-: "${APP_HOME:=$(dirname "${SCRIPT_DIR}")}"
-: "${APP_USER:=$(stat -c %U "${APP_HOME}" 2>/dev/null || echo "${SUDO_USER:-$(whoami)}")}"
+: "${APP_USER:=${SUDO_USER:-$(whoami)}}"
+: "${APP_HOME:=/home/${APP_USER}/verorun}"
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
@@ -31,15 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
-# ── Git mirror: auto-detect GitHub connectivity (for China servers) ──
-if [ -z "${GIT_MIRROR:-}" ]; then
-    if command -v curl >/dev/null 2>&1 && ! curl -s --connect-timeout 5 https://github.com > /dev/null 2>&1; then
-        GIT_MIRROR="https://ghproxy.com/"
-        echo -e "${INFO} github.com unreachable, using ghproxy.com mirror"
-    fi
-fi
-GIT_MIRROR="${GIT_MIRROR:-}"
-GIT_REPO="${GIT_MIRROR}${GIT_REPO}"
+# ── Git mirror: DISABLED — ghproxy.com unstable, direct GitHub preferred ──
 
 # ── Pip mirror: auto-detect PyPI connectivity ──
 PIP_MIRROR=""
@@ -143,10 +133,9 @@ do_install() {
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
     else
-        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
-            rm -rf "${APP_HOME}"
-        else
-            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
+        if [ -d "${APP_HOME}" ] && [ ! -d "${APP_HOME}/.git" ]; then
+            echo -e "${FAIL} APP_HOME='${APP_HOME}' exists but is not a git repository — refusing to remove"
+            echo -e "${INFO} Move or delete the directory manually, then re-run install.sh"
             exit 1
         fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
@@ -251,10 +240,9 @@ do_update() {
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
         echo -e "${WARN} .git missing — re-cloning repository"
-        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
-            rm -rf "${APP_HOME}"
-        else
-            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
+        if [ -d "${APP_HOME}" ]; then
+            echo -e "${FAIL} APP_HOME='${APP_HOME}' exists without .git — refusing to remove"
+            echo -e "${INFO} Move or delete the directory manually, then re-run install.sh update"
             exit 1
         fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"

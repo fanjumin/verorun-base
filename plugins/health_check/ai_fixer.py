@@ -75,6 +75,18 @@ def _build_aiengine_config() -> dict:
     except Exception as e:
         logger.warning("Failed to read AIEngine config from DB: %s", e)
 
+    # Fallback: if model_name is still empty, query AI Hub for active model
+    if not config['model_name']:
+        try:
+            from models.database import get_active_model
+            _, model_name, base_url = get_active_model(config['provider'])
+            if model_name:
+                config['model_name'] = model_name
+            if base_url:
+                config['base_url'] = config['base_url'] or base_url
+        except Exception as e:
+            logger.warning("Failed to get active model from AI Hub: %s", e)
+
     return config
 
 
