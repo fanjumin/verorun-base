@@ -324,6 +324,33 @@ def _build_password_method():
     }
 
 
+def _build_email_register_method():
+    """Core email register method — default signup channel, always available.
+
+    Email registration is the system default (independent of SMS plugin).
+    EmailPlugin acts only as the sending channel; this route lives in auth.py.
+    """
+    return {
+        'type': 'email',
+        'name': 'Email Registration',
+        'icon': 'mail',
+        'priority': 10,
+        'fields': [
+            {'name': 'email', 'type': 'email', 'placeholder': 'Enter email',
+             'autocomplete': 'email'},
+            {'name': 'code', 'type': 'text', 'placeholder': 'Verification code',
+             'autocomplete': 'one-time-code'},
+            {'name': 'password', 'type': 'password', 'placeholder': 'Set password',
+             'autocomplete': 'new-password'},
+            {'name': 'username', 'type': 'text', 'placeholder': 'Username',
+             'autocomplete': 'username'},
+        ],
+        'send_url': '/auth/email/send',
+        'submit_url': '/auth/email/register',
+        'submit_text': 'Sign Up',
+    }
+
+
 @auth_bp.route('/login-methods', methods=['GET'])
 def login_methods():
     """Return all available login and register methods based on enabled plugins.
@@ -332,7 +359,8 @@ def login_methods():
     methods via get_login_methods() / get_register_methods() on their instance.
     """
     methods = [_build_password_method()]
-    register_methods = []
+    # Email registration is the system default — always available
+    register_methods = [_build_email_register_method()]
 
     try:
         from flask import current_app
@@ -398,24 +426,43 @@ def refresh_token():
 # =============================================
 @auth_bp.route('/email/send', methods=['POST'])
 def email_send_code():
-    """Send verification code to email. Requires JWT auth."""
-    token = _get_token_from_request()
-    payload = validate_token(token) if token else None
-    if not payload:
-        return api_err('Please login first', 401)
+    """Send verification code to email.
+
+    Purposes:
+    - 'email_verify': requires JWT auth (binding flow, logged-in user)
+    - 'register':     no JWT required (signup flow, anonymous user)
+    - 'login':        no JWT required (email login flow, anonymous user)
+    """
     data = request.get_json() or {}
+    purpose = (data.get('purpose') or 'email_verify').strip()
     email = data.get('email', '').strip()
     if not email or '@' not in email:
         return api_err('Please enter a valid email address')
+
+    # Binding flow requires JWT; register/login flows are anonymous
+    if purpose == 'email_verify':
+        token = _get_token_from_request()
+        payload = validate_token(token) if token else None
+        if not payload:
+            return api_err('Please login first', 401)
+
     # Rate limit: 60s cooldown
     if not check_rate_limit(email):
         return api_err('Too many requests, please retry later')
+
+    # For register purpose: reject if email already registered
+    if purpose == 'register':
+        with get_db() as conn:
+            exist = conn.execute('SELECT id FROM users WHERE email=%s', (email,)).fetchone()
+            if exist:
+                return api_err('This email is already registered')
+
     code = generate_code()
     with get_db() as conn:
         expires_at = (__import__('datetime').datetime.now() +
                       __import__('datetime').timedelta(minutes=10)).isoformat()
         conn.execute('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (%s,%s,%s,%s)',
-                     (email, code, 'email_verify', expires_at))
+                     (email, code, purpose, expires_at))
         conn.commit()
     from plugins.email.services import send_email
     subject = _('VeroRun Email Verification Code')
@@ -429,6 +476,118 @@ def email_send_code():
     if not success:
         return api_err('Email send failed: ' + msg)
     return api_ok({'sent': True})
+
+
+@auth_bp.route('/email/register', methods=['POST'])
+def email_register():
+    """Register with email + verification code + password + username.
+
+    Mirrors /auth/sms/register but uses email instead of phone. Email is
+    verified at registration time (email_verified=1 on insert).
+    """
+    import re, secrets
+    data = request.get_json() or {}
+    email = data.get('email', '').strip()
+    code = data.get('code', '').strip()
+    password = data.get('password', '')
+    username = data.get('username', '').strip()
+    display_name = data.get('display_name', '').strip()
+
+    if not email or not code or not password or not username:
+        return api_err('Email, verification code, password and username are required')
+
+    # Verify email code (purpose='register')
+    now = now_iso()
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
+            (email, code, 'register', now))
+        code_row = row.fetchone()
+        if not code_row:
+            return api_err(_('Invalid or expired verification code'))
+        code_row = dict(code_row)
+        if code_row['attempts'] >= 5:
+            return api_err(_('Too many attempts, please request a new code'))
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (code_row['id'],))
+
+    # Validate display_name (sanitize first)
+    from services.name_validator import check_username, check_display_name, sanitize_name
+    display_name = sanitize_name(display_name) if display_name else ''
+    if display_name:
+        dn = check_display_name(display_name)
+        if not dn['valid']:
+            return api_err(_('Display name') + dn['error'])
+
+    # Validate username (3-20 chars, alphanumeric + _ + -, starts with letter)
+    if len(username) < 3 or len(username) > 20:
+        return api_err('Username must be 3-20 characters long')
+    if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]+$', username):
+        return api_err('Username must start with a letter, only letters, digits, underscores and hyphens allowed')
+    un = check_username(username)
+    if not un['valid']:
+        return api_err(un['error'])
+
+    # Validate password
+    from services.password_validator import validate_password
+    v = validate_password(password)
+    if not v['valid']:
+        return api_err('；'.join(v['errors']))
+
+    # Hash password: pbkdf2:sha256:600000:{salt}:{hash}
+    salt = secrets.token_hex(16)
+    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 600000).hex()
+    stored = f'pbkdf2:sha256:600000:{salt}:{pw_hash}'
+
+    # Create user
+    with get_db() as conn:
+        # Check email uniqueness
+        existing_email = conn.execute('SELECT id FROM users WHERE email=%s', (email,)).fetchone()
+        if existing_email:
+            return api_err('This email is already registered')
+        # Check username uniqueness
+        existing = conn.execute('SELECT id FROM users WHERE username=%s', (username,)).fetchone()
+        if existing:
+            return api_err(_('Username already taken'))
+        user_id = conn.execute(
+            'INSERT INTO users (email, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (%s,%s,%s,%s,0,1,%s) RETURNING id',
+            (email, username, display_name or username, stored, now)).fetchone()['id']
+        # Auto-create free-tier authorization
+        conn.execute(
+            'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+            (user_id, 'trademind', 'free'))
+        conn.commit()
+
+    token = create_token(user_id, phone=None, app_name='trademind', is_admin=0)
+
+    # Record user session
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    user_agent = request.headers.get('User-Agent', '')
+    ip_address = request.remote_addr or ''
+    device_type = 'mobile' if ('Mobile' in user_agent or 'Android' in user_agent) else 'desktop'
+    device_name = user_agent[:256] if user_agent else ''
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO user_sessions (user_id, token_hash, device_name, device_type, ip_address, user_agent, is_current, created_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,1, NOW())",
+            (user_id, token_hash, device_name, device_type, ip_address, user_agent))
+        conn.commit()
+
+    # ── Hook: user registered ──
+    try:
+        from plugin_manager.injectors import fire_hook
+        fire_hook('user/registered', user_id=user_id, username=username, email=email)
+    except Exception:
+        pass
+
+    return api_ok({
+        'token': token,
+        'user': {
+            'id': user_id,
+            'email': email,
+            'username': username,
+            'display_name': display_name or username,
+        },
+    })
 
 
 @auth_bp.route('/email/verify', methods=['POST'])
