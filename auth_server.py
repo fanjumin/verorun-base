@@ -137,7 +137,8 @@ def login_page():
     """Unified SSO login page."""
     from services.brand_service import get_brand_settings
     brand = get_brand_settings() or {}
-    return render_template('login.html', LANG=deploy.LANG, brand=brand)
+    from version import get_version
+    return render_template('login.html', LANG=deploy.LANG, brand=brand, version=get_version())
 
 
 # ══ Captcha proxy → admin:8084 ══
