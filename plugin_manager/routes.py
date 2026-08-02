@@ -78,6 +78,23 @@ def list_plugins():
     return _json_result(True, data=[_info_to_dict(p) for p in plugins])
 
 
+# ── 1a. 统一列表：本地 + 商店 ─────────────────────────────────────
+
+@bp.route('/unified', methods=['GET'])
+def list_plugins_unified():
+    """合并本地已安装插件 + 商店目录中未安装的插件"""
+    mgr = _get_manager()
+    if not mgr:
+        return _json_result(False, error='PluginManager not initialized', code=503)
+
+    try:
+        data = mgr.get_unified_list()
+        return _json_result(True, data=data)
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=str(e), code=500)
+
+
 # ── 2. 发现新插件 ──────────────────────────────────────────────────
 
 @bp.route('/discover', methods=['GET'])
@@ -541,20 +558,43 @@ def store_detail(identifier: str):
 
 @bp.route('/store/<identifier>/install', methods=['POST'])
 def store_install(identifier: str):
-    """从商店安装插件（未来: 下载 + 解压 + 安装流程）"""
+    """从商店下载并安装插件"""
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
+    if not mgr.store_client:
+        return _json_result(False, error='Store not available', code=503)
 
-    detail = mgr.store_client.get_detail(identifier) if mgr.store_client else None
+    # 获取商店插件详情
+    detail = mgr.store_client.get_detail(identifier)
     if not detail:
         return _json_result(False, error=f'Plugin "{identifier}" not found in store', code=404)
 
     # 如果已安装，直接返回
     existing = mgr.get_info(identifier)
-    if existing and existing.status != PluginStatus.UNKNOWN.value:
-        return _json_result(True, data={'identifier': identifier, 'status': 'already_installed'})
+    if existing and existing.status.value not in ('unknown', 'uninstalled'):
+        return _json_result(True, data={
+            'identifier': identifier,
+            'status': 'already_installed',
+            'version': existing.version,
+        })
 
+    # 获取下载地址
+    download_url = mgr.store_client.get_download_url(identifier)
+    if not download_url:
+        return _json_result(False, error=f'No download URL for "{identifier}"', code=404)
+
+    # 下载并解压到 plugins/<identifier>/
+    plugin_dest = os.path.join(mgr.plugins_dir, identifier)
+    try:
+        from .downloader import download_plugin
+        package_hash = detail.get('package_hash', '')
+        download_plugin(download_url, plugin_dest, expected_hash=package_hash)
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=f'Download failed: {e}', code=500)
+
+    # 安装插件
     try:
         info = mgr.install(identifier)
         return _json_result(True, data={

@@ -105,6 +105,16 @@ class PluginManager:
         self._license_mgr = get_license_manager()
         self._store_client = get_store_client()
 
+        # ── 异步同步商店目录（不阻塞 app 启动）─────────────
+        store_client = self._store_client
+        def _sync_store_catalog():
+            try:
+                count = store_client.sync_all()
+                print(f'[PluginManager] Store catalog synced: {count} plugins')
+            except Exception as e:
+                print(f'[PluginManager] Store sync failed: {e}')
+        threading.Thread(target=_sync_store_catalog, daemon=True).start()
+
         # 从数据库加载已注册插件到缓存
         self._load_cache()
 
@@ -627,6 +637,54 @@ class PluginManager:
         if status:
             return [p for p in self._cache.values() if p.status.value == status]
         return list(self._cache.values())
+
+    def get_unified_list(self) -> dict:
+        """合并本地已安装插件 + 商店目录中未安装的插件
+
+        Returns:
+            {
+                'local': [PluginInfo dict],      # 已安装插件
+                'store': [StorePlugin dict],     # 商店中未安装的插件
+                'total_local': int,
+                'total_store': int,
+            }
+        """
+        from .models_store import get_registry_db as _get_store_db
+        local_ids = set(self._cache.keys())
+        local = [p.to_dict() for p in self._cache.values()]
+        for p in local:
+            if isinstance(p.get('status'), PluginStatus):
+                p['status'] = p['status'].value
+            p['_source'] = 'local'
+
+        store_plugins = []
+        try:
+            with _get_store_db() as conn:
+                rows = conn.execute(
+                    'SELECT * FROM store_plugins WHERE enabled=1 ORDER BY downloads DESC'
+                ).fetchall()
+                for row in rows:
+                    sp = dict(row)
+                    if sp['identifier'] not in local_ids:
+                        sp['_source'] = 'store'
+                        sp['status'] = 'available'
+                        # 解析 JSON 字段
+                        for field in ('tags', 'screenshots', 'depends_on'):
+                            if isinstance(sp.get(field), str):
+                                try:
+                                    sp[field] = json.loads(sp[field])
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                        store_plugins.append(sp)
+        except Exception as e:
+            print(f'[PluginManager] get_unified_list store query failed: {e}')
+
+        return {
+            'local': local,
+            'store': store_plugins,
+            'total_local': len(local),
+            'total_store': len(store_plugins),
+        }
 
     def is_enabled(self, identifier: str) -> bool:
         info = self._cache.get(identifier)
