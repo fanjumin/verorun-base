@@ -1057,7 +1057,9 @@ def admin_update():
     import json, subprocess, threading, time
 
     _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _log_dir = os.path.join(_project_root, 'logs')
+    # /run/verorun/ — managed by systemd RuntimeDirectory (see deploy/install.sh).
+    # tmpfs: cleared on reboot, owned by APP_USER, no root-permission conflicts.
+    _log_dir = '/run/verorun'
     _log_file = os.path.join(_log_dir, 'update.log')
     _status_file = os.path.join(_log_dir, 'update_status.json')
 
@@ -1148,8 +1150,7 @@ def admin_update_status():
         return jsonify({'success': False, 'error': _('Unauthorized')}), 401
 
     import json, os as _os
-    _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _status_file = os.path.join(_project_root, 'logs', 'update_status.json')
+    _status_file = '/run/verorun/update_status.json'
 
     if not _os.path.exists(_status_file):
         return jsonify({'success': True, 'status': 'idle', 'progress': 0, 'message': 'No update running'})

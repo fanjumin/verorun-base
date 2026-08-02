@@ -209,9 +209,12 @@ do_install() {
 # ==========================================================================
 do_update() {
     # ── Trap: write failure status on any early exit ──
-    local _status_file="${APP_HOME}/logs/update_status.json"
-    mkdir -p "$(dirname "${_status_file}")"
-    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > "'"${APP_HOME}"'/logs/update_status.json"' EXIT
+    # /run/verorun/ is tmpfs managed by systemd RuntimeDirectory (verorun-admin.service).
+    # Owned by APP_USER, no root-permission conflicts. Cleared on reboot (intended).
+    local _status_file="/run/verorun/update_status.json"
+    mkdir -p /run/verorun 2>/dev/null || true
+    chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > /run/verorun/update_status.json' EXIT
 
     # Self-update tracking: md5 of currently-running install.sh
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
@@ -340,8 +343,9 @@ print('DB OK')
 
     # ── Write final update status for admin UI polling ──
     trap - EXIT  # Clear the failure trap before writing success
-    local _status_file="${APP_HOME}/logs/update_status.json"
-    mkdir -p "$(dirname "${_status_file}")"
+    local _status_file="/run/verorun/update_status.json"
+    mkdir -p /run/verorun 2>/dev/null || true
+    chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
     if [ "${UPDATE_FAILED:-0}" -eq 0 ]; then
         echo '{"status":"success","progress":100,"message":"Update completed successfully","error":null}' > "${_status_file}"
     else
@@ -587,13 +591,20 @@ write_systemd_services() {
     local env_file="${APP_HOME}/.env"
 
     write_one_service() {
-        local name=$1 port=$2 module=$3 extra_args="${4:-}" runner="${5:-}"
+        local name=$1 port=$2 module=$3 extra_args="${4:-}" runner="${5:-}" runtime_dir="${6:-}"
         local file="${SERVICE_DIR}/${name}.service"
 
         if [ -n "${runner}" ]; then
             local exec_cmd="${VENV_DIR}/bin/python ${APP_HOME}/${runner} -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app"
         else
             local exec_cmd="${VENV_DIR}/bin/gunicorn -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app"
+        fi
+
+        # Build optional RuntimeDirectory block (only emitted when runtime_dir is set)
+        local rt_block=""
+        if [ -n "${runtime_dir}" ]; then
+            rt_block="RuntimeDirectory=${runtime_dir}
+RuntimeDirectoryMode=0755"
         fi
 
         cat > "${file}" << SVCEOF
@@ -615,6 +626,7 @@ TimeoutStopSec=30
 ExecStartPost=${APP_HOME}/deploy/health_check.sh ${port}
 StandardOutput=append:${LOG_DIR}/${name}.log
 StandardError=append:${LOG_DIR}/${name}.log
+${rt_block}
 
 [Install]
 WantedBy=multi-user.target
@@ -630,7 +642,9 @@ SVCEOF
     write_one_service "verorun-auth" 8083 "main_site" "--timeout 120 --log-level warning"
 
     # 8084 — Admin (uses run_gunicorn.py to avoid platform/ shadowing stdlib)
-    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py"
+    # RuntimeDirectory=verorun → systemd creates /run/verorun/ owned by APP_USER on service start.
+    # Used by admin/app.py for update_status.json + update.log (no more root-permission 500s).
+    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py" "verorun"
 
     # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
