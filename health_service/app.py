@@ -38,6 +38,12 @@ def ping():
     return {'status': 'ok', 'service': 'health-service'}
 
 
+@app.route('/')
+def root():
+    """Root redirect to /health"""
+    return {'status': 'ok', 'service': 'health-service'}
+
+
 @app.route('/ready')
 def ready():
     """Readiness probe — 检查数据库连接"""

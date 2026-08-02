@@ -29,7 +29,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from veroguard import config
-from veroguard.modules import health, integrity, fingerprint, runtime, communicator, executor
+from veroguard.modules import health, integrity, fingerprint, runtime, communicator, executor, self_protect
 
 # ── 日志 ────────────────────────────────────────
 os.makedirs(os.path.dirname(config.LOG_FILE), exist_ok=True)
