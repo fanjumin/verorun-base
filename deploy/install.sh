@@ -25,6 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=}"
+: "${REGION:=global}"                # cn | global
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -544,6 +545,9 @@ PROBE_SECRET=${PROBE_SECRET}
 DASHSCOPE_TEXT_KEY=sk-your-key-here
 OPENAI_API_KEY=sk-your-key-here
 DEEPSEEK_API_KEY=sk-your-key-here
+
+# Region routing (VeroRun 0.43.0+)
+VERORUN_REGION=${REGION}
 ENVEOF
 
     chown "${APP_USER}:${APP_USER}" "${env_file}"
@@ -904,18 +908,30 @@ print_summary() {
     echo ""
 }
 
-# ==========================================================================
-# Main entry
-# ==========================================================================
+# ── Main entry ──────────────────────────────────────────────────────────
 
 # Must run as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${FAIL} Please run with sudo: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain]"
+    echo -e "${FAIL} Please run with sudo: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain] [--region cn|global]"
     exit 1
 fi
 
 detect_mode "${1:-}"
 detect_domain "${2:-}"
+
+# Parse --region flag
+for arg in "$@"; do
+    case "${arg}" in
+        --region=*) REGION="${arg#*=}" ;;
+        --region) ;; # value consumed in next iteration if present, but --region value form preferred
+    esac
+done
+# Validate region
+if [ "${REGION}" != "cn" ] && [ "${REGION}" != "global" ]; then
+    echo -e "${FAIL} --region must be 'cn' or 'global' (got: ${REGION})"
+    exit 1
+fi
+echo -e "${INFO} Region: ${REGION}"
 
 # Ask for admin credentials (TTY is still alive)
 prompt_admin_creds

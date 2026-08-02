@@ -107,18 +107,52 @@ class StoreAPIClient:
 
     # ── 下载 ────────────────────────────────────────────────────────
 
-    def get_download_url(self, identifier: str) -> Optional[str]:
-        """获取插件下载地址"""
+    def get_download_url(self, identifier: str, app_version: str = '') -> Optional[str]:
+        """获取插件下载地址（含版本兼容校验）
+
+        Args:
+            identifier: 插件标识符
+            app_version: 当前系统版本号（如 '0.44.2'），用于兼容性校验
+
+        Returns:
+            下载 URL，或 None（不兼容时返回 None）
+        """
         remote = _call_remote('GET', f'/plugins/{identifier}/download')
         if remote.get('success') and remote.get('data', {}).get('download_url'):
-            return remote['data']['download_url']
+            data = remote['data']
+            # 版本兼容校验
+            if app_version and data.get('min_app_version'):
+                if not self._version_compatible(app_version, data['min_app_version']):
+                    return None
+            return data['download_url']
+
         # 本地缓存
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT download_url FROM store_plugins WHERE identifier=%s',
+                'SELECT download_url, min_app_version FROM store_plugins WHERE identifier=%s',
                 (identifier,)
             ).fetchone()
-            return row['download_url'] if row else None
+            if not row or not row['download_url']:
+                return None
+            # 版本校验
+            if app_version and row['min_app_version']:
+                if not self._version_compatible(app_version, row['min_app_version']):
+                    return None
+            return row['download_url']
+
+    @staticmethod
+    def _version_compatible(current: str, required: str) -> bool:
+        """检查当前版本是否满足最低版本要求（semver）"""
+        try:
+            from packaging.version import Version
+            return Version(current) >= Version(required)
+        except ImportError:
+            def _parse(v):
+                try:
+                    return tuple(int(x) for x in v.split('.'))
+                except (ValueError, AttributeError):
+                    return (0,)
+            return _parse(current) >= _parse(required)
 
     # ── 本地缓存 ────────────────────────────────────────────────────
 

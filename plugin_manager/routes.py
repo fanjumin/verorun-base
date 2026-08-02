@@ -579,9 +579,18 @@ def store_install(identifier: str):
             'version': existing.version,
         })
 
-    # 获取下载地址
-    download_url = mgr.store_client.get_download_url(identifier)
+    # 获取下载地址（含版本兼容校验）
+    app_version = getattr(mgr.app, 'version', '')
+    download_url = mgr.store_client.get_download_url(identifier, app_version)
     if not download_url:
+        # 区分：无下载 URL vs 版本不兼容
+        detail_version = detail.get('min_app_version', '')
+        if detail_version and app_version:
+            from .store import StoreAPIClient
+            if not StoreAPIClient._version_compatible(app_version, detail_version):
+                return _json_result(False,
+                    error=f'App version ({app_version}) < required ({detail_version}). Please upgrade.',
+                    code=400)
         return _json_result(False, error=f'No download URL for "{identifier}"', code=404)
 
     # 下载并解压到 plugins/<identifier>/
@@ -605,6 +614,37 @@ def store_install(identifier: str):
     except Exception as e:
         traceback.print_exc()
         return _json_result(False, error=f'Install failed: {e}', code=500)
+
+
+# ── 版本兼容性检查 ──────────────────────────────────
+
+@bp.route('/store/check-compatibility/<identifier>', methods=['GET'])
+def store_check_compatibility(identifier: str):
+    """检查插件与当前系统版本的兼容性"""
+    mgr = _get_manager()
+    if not mgr:
+        return _json_result(False, error='PluginManager not initialized', code=503)
+    if not mgr.store_client:
+        return _json_result(False, error='Store not available', code=503)
+
+    detail = mgr.store_client.get_detail(identifier)
+    if not detail:
+        return _json_result(False, error=f'Plugin "{identifier}" not found', code=404)
+
+    app_version = getattr(mgr.app, 'version', '')
+    min_ver = detail.get('min_app_version', '')
+    compatible = True
+    if app_version and min_ver:
+        from .store import StoreAPIClient
+        compatible = StoreAPIClient._version_compatible(app_version, min_ver)
+
+    return _json_result(True, data={
+        'identifier': identifier,
+        'app_version': app_version,
+        'min_app_version': min_ver,
+        'compatible': compatible,
+        'plugin_version': detail.get('version', ''),
+    })
 
 
 # ====================================================================

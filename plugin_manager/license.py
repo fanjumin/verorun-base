@@ -139,10 +139,17 @@ def verify_offline_token(token: str, plugin_id: str, site_id: str) -> Tuple[bool
 
 # ── 远程 License 服务 API (SPI 模式) ──────────────────────────────────
 
-_REMOTE_LICENSE_URL = os.environ.get(
-    'REMOTE_LICENSE_URL',
-    'https://license.your-domain.com/api/v1'
-)
+from .region import get_api_base
+
+
+def _get_license_url() -> str:
+    """获取 License 服务 API 基础 URL（区域感知）。
+    环境变量 REMOTE_LICENSE_URL 覆盖优先（向后兼容）。
+    """
+    override = os.environ.get('REMOTE_LICENSE_URL', '')
+    if override:
+        return override.rstrip('/')
+    return f"{get_api_base().rstrip('/v1')}/license"
 
 
 def _call_remote(method: str, path: str, data: dict = None) -> dict:
@@ -151,8 +158,9 @@ def _call_remote(method: str, path: str, data: dict = None) -> dict:
     可 mock: 设置环境变量 REMOTE_LICENSE_URL = 'mock://' 或捕获异常后降级。
     本方法仅为 SPI 占位，阶段六部署真实服务后替换。
     """
-    url = f'{_REMOTE_LICENSE_URL.rstrip("/")}/{path.lstrip("/")}'
-    if _REMOTE_LICENSE_URL.startswith('mock://'):
+    base = _get_license_url()
+    url = f'{base.rstrip("/")}/{path.lstrip("/")}'
+    if base.startswith('mock://'):
         # Mock 模式
         return _mock_remote(method, path, data)
 

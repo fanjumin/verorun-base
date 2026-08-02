@@ -70,7 +70,27 @@ INTEGRITY_CHECK_INTERVAL = int(os.getenv('GUARDIAN_INTEGRITY_INTERVAL', '300'))
 HEARTBEAT_INTERVAL = int(os.getenv('GUARDIAN_HEARTBEAT_INTERVAL', '300'))
 PROBE_SECRET       = os.getenv('PROBE_SECRET', '')
 DEPLOYMENT_CODE    = os.getenv('DEPLOYMENT_CODE', '')
-REMOTE_URL         = os.getenv('GUARDIAN_REMOTE_URL', 'https://api.verorun.com')
+def _get_remote_url() -> str:
+    """获取 VeroGuard 远程端点（区域感知）。
+    环境变量 GUARDIAN_REMOTE_URL 覆盖优先（向后兼容）。
+    容错：Nuitka 编译时 plugin_manager 不可导入，回退直接读环境变量。
+    """
+    override = os.getenv('GUARDIAN_REMOTE_URL', '')
+    if override:
+        return override
+    try:
+        import sys
+        import os as _os
+        _verorun_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        if _verorun_root not in sys.path:
+            sys.path.insert(0, _verorun_root)
+        from plugin_manager.region import get_veroguard_url
+        return get_veroguard_url()
+    except ImportError:
+        region = os.getenv('VERORUN_REGION', 'global')
+        return 'https://api.verorun.cn' if region == 'cn' else 'https://api.verorun.com'
+
+REMOTE_URL = _get_remote_url()
 
 # ── 状态文件路径 ───────────────────────────────
 STATUS_FILE = os.getenv('GUARDIAN_STATUS_FILE',

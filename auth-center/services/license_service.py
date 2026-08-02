@@ -67,6 +67,29 @@ class LicenseService:
 
     HEARTBEAT_INTERVAL = 86400  # 24小时
     HEARTBEAT_URL_ENV = 'APP_HEARTBEAT_URL'
+
+    @staticmethod
+    def _get_heartbeat_url() -> str:
+        """获取心跳 URL（区域感知）。
+        环境变量 APP_HEARTBEAT_URL 覆盖优先（向后兼容）。
+        容错：独立部署时 plugin_manager 可能不在路径中。
+        """
+        override = os.environ.get('APP_HEARTBEAT_URL', '')
+        if override:
+            return override
+        try:
+            import sys
+            _verorun_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if _verorun_root not in sys.path:
+                sys.path.insert(0, _verorun_root)
+            from plugin_manager.region import get_license_service_url
+            return get_license_service_url()
+        except ImportError:
+            region = os.environ.get('VERORUN_REGION', 'global')
+            if region == 'cn':
+                return 'https://api.verorun.cn/api/subscription/heartbeat'
+            return 'https://api.verorun.com/api/subscription/heartbeat'
+
     DEFAULT_HEARTBEAT_URL = 'https://localhost/api/subscription/heartbeat'
 
     def __init__(self, db_path=None):
