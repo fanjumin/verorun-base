@@ -955,32 +955,59 @@ def admin_check_update():
 
     from version import get_version
 
-    # In-memory cache (5 minutes)
+    # In-memory cache (60 seconds — shorter cache so new commits are detected quickly)
     now = _time.time()
     cached = getattr(admin_check_update, '_cache', None)
-    if cached and (now - cached['ts']) < 300:
+    if cached and (now - cached['ts']) < 60:
         return jsonify(cached['data'])
 
     local_ver = get_version()
     _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _subprocess = __import__('subprocess')
 
-    # Get latest remote tag via git ls-remote
+    # ── Strategy: compare local HEAD vs remote master commit hash ──
+    # This detects new updates even when no git tag is pushed.
+    local_commit = ''
+    remote_commit = ''
+    commit_diff = False
     try:
-        result = __import__('subprocess').run(
+        r = _subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=_project_root, capture_output=True, text=True, timeout=10
+        )
+        if r.returncode == 0:
+            local_commit = r.stdout.strip()
+    except Exception:
+        pass
+
+    try:
+        r = _subprocess.run(
+            ['git', 'ls-remote', 'origin', 'master'],
+            cwd=_project_root, capture_output=True, text=True, timeout=15
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            # Output format: "<commit_hash>\trefs/heads/master"
+            remote_commit = r.stdout.split()[0].strip()
+    except Exception:
+        pass
+
+    if local_commit and remote_commit:
+        commit_diff = (local_commit != remote_commit)
+
+    # ── Also fetch latest semver tag (for display purposes) ──
+    latest_tag_ver = local_ver
+    try:
+        r = _subprocess.run(
             ['git', 'ls-remote', '--tags', 'origin'],
             cwd=_project_root, capture_output=True, text=True, timeout=15
         )
-        if result.returncode != 0:
-            latest_ver = local_ver  # git remote not accessible
-        else:
-            tags = re.findall(r'refs/tags/v?(\d+\.\d+\.\d+)', result.stdout)
-            if not tags:
-                latest_ver = local_ver  # no semver tags found
-            else:
+        if r.returncode == 0:
+            tags = re.findall(r'refs/tags/v?(\d+\.\d+\.\d+)', r.stdout)
+            if tags:
                 tags.sort(key=lambda v: [int(x) for x in v.split('.')])
-                latest_ver = tags[-1]
+                latest_tag_ver = tags[-1]
     except Exception:
-        latest_ver = local_ver
+        pass
 
     # Semantic version comparison
     def _cmp(v1, v2):
@@ -993,13 +1020,24 @@ def admin_check_update():
                 return av - bv
         return 0
 
-    has_update = _cmp(latest_ver, local_ver) > 0
+    # has_update if remote commit differs OR a newer tag exists
+    has_update = commit_diff or _cmp(latest_tag_ver, local_ver) > 0
+
+    # Display version: prefer latest tag if newer than local; otherwise show remote commit short hash
+    if _cmp(latest_tag_ver, local_ver) > 0:
+        latest_ver = latest_tag_ver
+    elif commit_diff and remote_commit:
+        latest_ver = f'{local_ver}+{remote_commit[:7]}'
+    else:
+        latest_ver = local_ver
 
     data = {
         'success': True,
         'current': local_ver,
         'latest': latest_ver,
         'has_update': has_update,
+        'local_commit': local_commit[:7] if local_commit else '',
+        'remote_commit': remote_commit[:7] if remote_commit else '',
     }
     admin_check_update._cache = {'ts': now, 'data': data}
     return jsonify(data)
