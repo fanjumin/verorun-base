@@ -93,3 +93,34 @@ class SmsPlugin(BasePlugin):
         """检查手机号是否超出频率限制"""
         from .services import check_rate_limit as _chk
         return _chk(phone, max_per_hour)
+
+    # ── Login / Register method registration (dynamic UI) ──
+
+    def get_login_methods(self):
+        """Register SMS login as a dynamic login method for the frontend."""
+        return [{
+            'type': 'sms',
+            'name': 'SMS Login',
+            'icon': 'phone',
+            'tab_id': 'tabSms',
+            'priority': 20,
+            'fields': [
+                {'name': 'phone', 'type': 'tel', 'placeholder': 'Enter phone number',
+                 'autocomplete': 'tel', 'maxlength': 13},
+                {'name': 'code', 'type': 'text', 'placeholder': 'Enter 6-digit code',
+                 'autocomplete': 'one-time-code', 'inputmode': 'numeric', 'maxlength': 6},
+            ],
+            'send_code_url': '/auth/sms/send',
+            'submit_url': '/auth/sms/login',
+            'submit_text': 'Log In / Register',
+        }]
+
+    def get_register_methods(self):
+        """Register phone-based registration as a dynamic method."""
+        return [{
+            'type': 'sms',
+            'name': 'Phone Registration',
+            'icon': 'phone',
+            'register_url': '/register',
+            'priority': 10,
+        }]

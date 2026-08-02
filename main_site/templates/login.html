@@ -75,97 +75,28 @@
       </div>
     </div>
 
-    <!-- RIGHT: Login Form -->
+    <!-- RIGHT: Login Form (dynamic) -->
     <div class="login-right">
       <div class="login-card">
 
-        <!-- Tabs -->
-        <div class="login-tabs">
-          <button type="button" class="login-tab active" id="tabSms">{{ _('SMS Login') }}</button>
-          <button type="button" class="login-tab" id="tabPwd">{{ _('Password Login') }}</button>
-        </div>
+        <!-- Dynamic Tabs — rendered by JS -->
+        <div class="login-tabs" id="loginTabs"></div>
 
         <!-- Captcha (hidden by default) -->
         <div class="lf-captcha" id="captchaWrap" style="display:none">
           <div id="puzzle-captcha" data-api=""></div>
         </div>
 
-        <!-- SMS Tab -->
-        <div id="smsTab">
-          <div class="lf">
-            <label class="lf-label" for="phone">{{ _('Phone Number') }}</label>
-            <div class="lf-row">
-              <div class="lf-wrap">
-                <span class="lf-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
-                </span>
-                <input class="lf-in" type="tel" id="phone" placeholder="{{ _('Enter phone number') }}" maxlength="13" autocomplete="tel">
-              </div>
-              <button type="button" class="lf-btn-send" id="sendBtn">{{ _('Get Code') }}</button>
-            </div>
-            <div class="lf-msg" id="phoneMsg"></div>
-          </div>
-          <div class="lf">
-            <label class="lf-label" for="code">{{ _('Verification Code') }}</label>
-            <div class="lf-wrap">
-              <span class="lf-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </span>
-              <input class="lf-in" type="text" id="code" placeholder="{{ _('Enter 6-digit code') }}" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
-            </div>
-            <div class="lf-msg" id="codeMsg"></div>
-          </div>
-
-          <div class="lf-agreement">
-            {{ _('By logging in you agree to') }}《<a href="/terms" target="_blank">{{ _('Service Agreement') }}</a>》{{ _('and') }}《<a href="/privacy" target="_blank">{{ _('Privacy Policy') }}</a>》
-          </div>
-
-          <button type="button" class="lf-btn-primary" id="loginSmsBtn">
-            <span class="lf-btn-text">{{ _('Log In / Register') }}</span>
-            <div class="lf-spinner"></div>
-          </button>
-          <div class="lf-toggle"><button type="button" id="toPwdTab">{{ _('Use password to login') }}</button></div>
-        </div>
-
-        <!-- Password Tab -->
-        <div id="pwdTab" style="display:none">
-          <div class="lf">
-            <label class="lf-label" for="pwdPhone">{{ _('Username / Email') }}</label>
-            <div class="lf-wrap">
-              <span class="lf-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </span>
-              <input class="lf-in" type="text" id="pwdPhone" placeholder="{{ _('Username or email') }}" autocomplete="username">
-            </div>
-          </div>
-          <div class="lf">
-            <label class="lf-label" for="password">{{ _('Password') }}</label>
-            <div class="lf-pwd-row">
-              <input class="lf-in" type="password" id="password" placeholder="{{ _('Enter password') }}" autocomplete="current-password">
-              <button type="button" class="lf-pwd-eye" id="pwdEye">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </div>
-            <div class="lf-msg" id="pwdMsg"></div>
-          </div>
-
-          <div class="lf-agreement">
-            {{ _('By logging in you agree to') }}《<a href="/terms" target="_blank">{{ _('Service Agreement') }}</a>》{{ _('and') }}《<a href="/privacy" target="_blank">{{ _('Privacy Policy') }}</a>》
-          </div>
-
-          <button type="button" class="lf-btn-primary" id="loginPwdBtn">
-            <span class="lf-btn-text">{{ _('Log In') }}</span>
-            <div class="lf-spinner"></div>
-          </button>
-          <div class="lf-toggle"><a href="/reset-password">{{ _('Forgot password?') }}</a></div>
-        </div>
+        <!-- Dynamic Forms — rendered by JS -->
+        <div id="loginForms"></div>
 
         <!-- Divider & Third-party (dynamic) -->
         <div class="lf-divider" id="oauthDivider" style="display:none"><span>{{ _('Other login methods') }}</span></div>
         <div class="lf-social-row" id="oauthProviders">
         </div>
 
-        <div class="lf-register">
+        <!-- Dynamic Register link -->
+        <div class="lf-register" id="registerLink" style="display:none">
           {{ _('No account?') }} <a href="/register">{{ _('Register Now') }}</a>
         </div>
 
@@ -187,6 +118,38 @@
 </div>
 
 </div>
+
+<!-- i18n dictionary for JavaScript -->
+<script>
+window.__I18N__ = {
+  "Please enter 11-digit phone number": "{{ _('Please enter 11-digit phone number') }}",
+  "Verification code sent": "{{ _('Verification code sent') }}",
+  "Login successful, redirecting...": "{{ _('Login successful, redirecting...') }}",
+  "Network error, please retry": "{{ _('Network error, please retry') }}",
+  "Send failed": "{{ _('Send failed') }}",
+  "Login failed": "{{ _('Login failed') }}",
+  "Please enter verification code": "{{ _('Please enter verification code') }}",
+  "Please enter account and password": "{{ _('Please enter account and password') }}",
+  "Incorrect password": "{{ _('Incorrect password') }}",
+  "Account not found": "{{ _('Account not found') }}",
+  "No password set for this account, please use SMS login": "{{ _('No password set for this account, please use SMS login') }}",
+  "Too many login attempts, please retry in 15 minutes": "{{ _('Too many login attempts, please retry in 15 minutes') }}",
+  "Please complete the CAPTCHA challenge": "{{ _('Please complete the CAPTCHA challenge') }}",
+  "CAPTCHA expired or incomplete, please retry": "{{ _('CAPTCHA expired or incomplete, please retry') }}",
+  "Invalid or expired verification code": "{{ _('Invalid or expired verification code') }}",
+  "Get Code": "{{ _('Get Code') }}",
+  "Resend": "{{ _('Resend') }}",
+  "Use password to login": "{{ _('Use password to login') }}",
+  "By logging in you agree to": "{{ _('By logging in you agree to') }}",
+  "Service Agreement": "{{ _('Service Agreement') }}",
+  "and": "{{ _('and') }}",
+  "Privacy Policy": "{{ _('Privacy Policy') }}",
+  "Log In": "{{ _('Log In') }}",
+  "Log In / Register": "{{ _('Log In / Register') }}",
+  "Forgot password?": "{{ _('Forgot password?') }}"
+};
+function __(key) { return window.__I18N__[key] || key; }
+</script>
 
 <script src="/static/puzzle-captcha.js"></script>
 <script src="/static/js/login.js"></script>

@@ -52,3 +52,22 @@ class OauthConfigPlugin(_BASE_CLS):
     def on_disable(self, registry):
         print(_('[OauthConfigPlugin] ⚠️ OAuth plugin disabled'))
         return True
+
+    # ── Login method registration (dynamic UI) ──
+
+    def get_login_methods(self):
+        """Register all enabled OAuth providers as third-party login methods."""
+        from .services.oauth_service import get_enabled_oauth_providers
+        providers = get_enabled_oauth_providers()
+        return [
+            {
+                'type': 'oauth',
+                'provider': p['provider'],
+                'name': p['name'],
+                'icon': p['provider'],
+                'priority': 30 + i,
+                'login_url': p['login_url'],
+                'is_third_party': True,
+            }
+            for i, p in enumerate(providers)
+        ]

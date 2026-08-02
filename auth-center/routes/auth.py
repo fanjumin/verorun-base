@@ -301,6 +301,74 @@ def sms_login():
                         secure=True, httponly=True)
     return resp
 
+# =============================================
+# Dynamic login methods — plugin-driven
+# =============================================
+def _build_password_method():
+    """Core password login method — always available"""
+    return {
+        'type': 'password',
+        'name': 'Password Login',
+        'icon': 'key',
+        'tab_id': 'tabPwd',
+        'priority': 10,
+        'fields': [
+            {'name': 'account', 'type': 'text', 'placeholder': 'Username / Email / Phone',
+             'autocomplete': 'username'},
+            {'name': 'password', 'type': 'password', 'placeholder': 'Enter password',
+             'autocomplete': 'current-password'},
+        ],
+        'submit_url': '/user/password/login',
+        'submit_text': 'Log In',
+        'has_forgot_password': True,
+    }
+
+
+@auth_bp.route('/login-methods', methods=['GET'])
+def login_methods():
+    """Return all available login and register methods based on enabled plugins.
+
+    Core 'password' method is always included. Plugins register additional
+    methods via get_login_methods() / get_register_methods() on their instance.
+    """
+    methods = [_build_password_method()]
+    register_methods = []
+
+    try:
+        from flask import current_app
+        pm = current_app.extensions.get('plugin_manager')
+        if pm:
+            for identifier, info in pm._cache.items():
+                if not pm.is_enabled(identifier):
+                    continue
+                instance = pm.get_instance(identifier)
+                if instance is None:
+                    continue
+                if hasattr(instance, 'get_login_methods'):
+                    extra = instance.get_login_methods()
+                    if extra:
+                        methods.extend(extra)
+                if hasattr(instance, 'get_register_methods'):
+                    extra = instance.get_register_methods()
+                    if extra:
+                        register_methods.extend(extra)
+    except Exception:
+        pass
+
+    # Sort: primary methods (is_third_party=False) first by priority,
+    # then third-party methods by priority
+    primary = [m for m in methods if not m.get('is_third_party')]
+    third_party = [m for m in methods if m.get('is_third_party')]
+    primary.sort(key=lambda m: m.get('priority', 50))
+    third_party.sort(key=lambda m: m.get('priority', 50))
+    register_methods.sort(key=lambda m: m.get('priority', 50))
+
+    return api_ok({
+        'methods': primary + third_party,
+        'register_methods': register_methods,
+    })
+
+
 # ---------------------------------------------------------------------------
 # The following OAuth routes (wechat/qr, wechat/callback, wechat/login,
 # douyin/qr, douyin/callback, oauth/providers, oauth/*/login, oauth/*/callback,

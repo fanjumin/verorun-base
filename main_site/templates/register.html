@@ -384,6 +384,36 @@
    VeroRun Registration Wizard
    ════════════════════════════════════════════════════════════ */
 
+/* ── i18n Dictionary ── */
+window.__I18N__ = {
+  "Sign Up": "{{ _('Sign Up') }}",
+  "Please enter 11-digit phone number": "{{ _('Please enter 11-digit phone number') }}",
+  "Please fill in phone number": "{{ _('Please fill in phone number') }}",
+  "Please enter verification code": "{{ _('Please enter verification code') }}",
+  "Please complete captcha first": "{{ _('Please complete captcha first') }}",
+  "Please set a valid password": "{{ _('Please set a valid password') }}",
+  "Passwords do not match": "{{ _('Passwords do not match') }}",
+  "Please complete phone verification first": "{{ _('Please complete phone verification first') }}",
+  "Please complete SMS verification first": "{{ _('Please complete SMS verification first') }}",
+  "Please set a valid password in previous step": "{{ _('Please set a valid password in previous step') }}",
+  "Username at least 4 characters": "{{ _('Username at least 4 characters') }}",
+  "Username only letters, numbers, underscores": "{{ _('Username only letters, numbers, underscores') }}",
+  "Please confirm username availability": "{{ _('Please confirm username availability') }}",
+  "Please enter display name": "{{ _('Please enter display name') }}",
+  "Display name max 30 chars": "{{ _('Display name max 30 chars') }}",
+  "Code sent to your phone": "{{ _('Code sent to your phone') }}",
+  "Failed to send, please retry": "{{ _('Failed to send, please retry') }}",
+  "Network error, please retry": "{{ _('Network error, please retry') }}",
+  "Network error, please check connection": "{{ _('Network error, please check connection') }}",
+  "Registration successful! Redirecting...": "{{ _('Registration successful! Redirecting...') }}",
+  "Registration failed, please retry": "{{ _('Registration failed, please retry') }}",
+  "Verification code expired, please get a new one": "{{ _('Verification code expired, please get a new one') }}",
+  "No registration method available, please contact administrator": "{{ _('No registration method available, please contact administrator') }}"
+};
+if (typeof _ === 'undefined') {
+  function _(key) { return window.__I18N__[key] || key; }
+}
+
 /* ── State ── */
 let capToken = '';
 let capSolved = false;
@@ -855,6 +885,24 @@ function toast(msg, t) {
 
 /* ── Keyboard Navigation ── */
 document.addEventListener('DOMContentLoaded', () => {
+  // Check if registration is available via enabled plugins
+  fetch('/auth/login-methods')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success && d.data && d.data.register_methods) {
+        if (d.data.register_methods.length === 0) {
+          // No registration method available — redirect to login
+          setTimeout(function() {
+            window.location.href = '/login';
+          }, 100);
+          return;
+        }
+      }
+    })
+    .catch(function() {
+      // Fallback: allow registration (SMS plugin may not have registered yet, but the page is already loaded)
+    });
+
   // Enter key on phone field → send code
   document.getElementById('regPhone').addEventListener('keydown', e => {
     if (e.key === 'Enter') sendRegCode();
