@@ -208,7 +208,7 @@ do_update() {
     # ── Trap: write failure status on any early exit ──
     local _status_file="${APP_HOME}/logs/update_status.json"
     mkdir -p "$(dirname "${_status_file}")"
-    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > "${_status_file}"' EXIT
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > "'"${APP_HOME}"'/logs/update_status.json"' EXIT
 
     # Self-update tracking: md5 of currently-running install.sh
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
