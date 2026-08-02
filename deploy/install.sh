@@ -17,8 +17,10 @@ set -euo pipefail
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
 : "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
 : "${GIT_BRANCH:=master}"
-: "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-: "${APP_HOME:=/home/${APP_USER}/verorun}"
+# Auto-detect project home from script location (reliable across sudo/systemd/root contexts)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${APP_HOME:=$(dirname "${SCRIPT_DIR}")}"
+: "${APP_USER:=$(stat -c %U "${APP_HOME}" 2>/dev/null || echo "${SUDO_USER:-$(whoami)}")}"
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
