@@ -452,7 +452,8 @@
 </div>
 </div>
 <div class="reg-footer">
-  {{ (brand.copyright | safe) if brand else 'VeroRun &copy; 2026' }} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number if brand and brand.icp_number else '苏ICP备2026017510号-1' }}</a>
+  {{ (brand.copyright | safe) if brand else 'VeroRun &copy; 2026' }}
+  {% if brand and brand.icp_number %} · <a href="https://beian.miit.gov.cn/">{{ brand.icp_number | safe }}</a>{% endif %}
 </div>
 </div><!-- /reg-page -->
 

@@ -128,7 +128,7 @@ def sms_register():
     display_name = data.get('display_name', '').strip()
 
     if not phone or not code or not password or not username:
-        return api_err('Phone, verification code, password and username are required')
+        return api_err(_('Phone, verification code, password and username are required'))
 
     # Verify SMS code (purpose='register')
     now = now_iso()
@@ -154,9 +154,9 @@ def sms_register():
 
     # Validate username (3-20 chars, alphanumeric + _ + -, starts with letter)
     if len(username) < 3 or len(username) > 20:
-        return api_err('Username must be 3-20 characters long')
+        return api_err(_('Username must be 3-20 characters long'))
     if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]+$', username):
-        return api_err('Username must start with a letter, only letters, digits, underscores and hyphens allowed')
+        return api_err(_('Username must start with a letter, only letters, digits, underscores and hyphens allowed'))
     # Check against prohibited words
     un = check_username(username)
     if not un['valid']:
@@ -182,7 +182,7 @@ def sms_register():
         # Check phone uniqueness
         existing_phone = conn.execute('SELECT id FROM users WHERE phone=%s', (phone,)).fetchone()
         if existing_phone:
-            return api_err('This phone is already registered')
+            return api_err(_('This phone is already registered'))
         user_id = conn.execute(
             'INSERT INTO users (phone, username, display_name, password_hash, phone_verified, email_verified, last_login) VALUES (%s,%s,%s,%s,1,0,%s) RETURNING id',
             (phone, username, display_name or username, stored, now)).fetchone()['id']
@@ -494,7 +494,7 @@ def email_register():
     display_name = data.get('display_name', '').strip()
 
     if not email or not code or not password or not username:
-        return api_err('Email, verification code, password and username are required')
+        return api_err(_('Email, verification code, password and username are required'))
 
     # Verify email code (purpose='register')
     now = now_iso()
@@ -520,9 +520,9 @@ def email_register():
 
     # Validate username (3-20 chars, alphanumeric + _ + -, starts with letter)
     if len(username) < 3 or len(username) > 20:
-        return api_err('Username must be 3-20 characters long')
+        return api_err(_('Username must be 3-20 characters long'))
     if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]+$', username):
-        return api_err('Username must start with a letter, only letters, digits, underscores and hyphens allowed')
+        return api_err(_('Username must start with a letter, only letters, digits, underscores and hyphens allowed'))
     un = check_username(username)
     if not un['valid']:
         return api_err(un['error'])
@@ -543,7 +543,7 @@ def email_register():
         # Check email uniqueness
         existing_email = conn.execute('SELECT id FROM users WHERE email=%s', (email,)).fetchone()
         if existing_email:
-            return api_err('This email is already registered')
+            return api_err(_('This email is already registered'))
         # Check username uniqueness
         existing = conn.execute('SELECT id FROM users WHERE username=%s', (username,)).fetchone()
         if existing:
