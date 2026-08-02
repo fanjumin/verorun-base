@@ -445,23 +445,49 @@ def seed_default_agents():
             ).fetchone()
 
             if not exists:
-                # INSERT new system role
-                conn.execute("""
-                    INSERT INTO agent_matrix
-                    (name, slug, role_type, description, domain, managed_modules,
-                     provider, model_name, system_prompt, auto_approve, is_active, is_system,
-                     capabilities, allowed_tools)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (
-                    a.get('name', ''), slug, a.get('role_type', 'sub'),
-                    a.get('description', ''), a.get('domain', 'general'),
-                    a.get('managed_modules', '[]'),
-                    a.get('provider', 'dashscope'), a.get('model_name', 'qwen-turbo'),
-                    a.get('system_prompt', ''),
-                    a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1),
-                    a.get('capabilities', '[]'), a.get('allowed_tools', '[]')
-                ))
-                print(f'[Seed] Insert system role: {slug}')
+                # slug 不存在 → 查 (name, role_type) 兜底（防止不同 slug 冲突 UNIQUE 约束）
+                by_name = conn.execute(
+                    "SELECT id, slug as old_slug FROM agent_matrix WHERE name=%s AND role_type=%s",
+                    (a.get('name', ''), a.get('role_type', 'sub'))
+                ).fetchone()
+
+                if by_name:
+                    # 同名同类型记录存在但 slug 不同 → UPDATE 迁移 slug + 同步元数据
+                    old_slug = by_name['old_slug']
+                    conn.execute("""
+                        UPDATE agent_matrix SET
+                            slug=%s, name=%s, description=%s, domain=%s,
+                            managed_modules=%s, auto_approve=%s,
+                            allowed_tools=%s, capabilities=%s, is_system=1, updated_at=NOW()
+                        WHERE id=%s
+                    """, (
+                        slug, a.get('name', ''), a.get('description', ''),
+                        a.get('domain', 'general'),
+                        a.get('managed_modules', '[]'),
+                        a.get('auto_approve', 0),
+                        a.get('allowed_tools', '[]'),
+                        a.get('capabilities', '[]'),
+                        by_name['id']
+                    ))
+                    print(f'[Seed] Migrate slug: {old_slug} → {slug}')
+                else:
+                    # INSERT new system role
+                    conn.execute("""
+                        INSERT INTO agent_matrix
+                        (name, slug, role_type, description, domain, managed_modules,
+                         provider, model_name, system_prompt, auto_approve, is_active, is_system,
+                         capabilities, allowed_tools)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (
+                        a.get('name', ''), slug, a.get('role_type', 'sub'),
+                        a.get('description', ''), a.get('domain', 'general'),
+                        a.get('managed_modules', '[]'),
+                        a.get('provider', 'dashscope'), a.get('model_name', 'qwen-turbo'),
+                        a.get('system_prompt', ''),
+                        a.get('auto_approve', 0), a.get('is_active', 1), a.get('is_system', 1),
+                        a.get('capabilities', '[]'), a.get('allowed_tools', '[]')
+                    ))
+                    print(f'[Seed] Insert system role: {slug}')
             else:
                 # UPDATE existing system role — sync metadata only, preserve AI config
                 # NEVER overwrite provider/model_name/api_key_ref on existing agents
