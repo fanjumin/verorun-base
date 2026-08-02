@@ -1007,35 +1007,117 @@ def admin_check_update():
 
 @app.route('/admin/api/update', methods=['POST'])
 def admin_update():
-    """One-click update: git pull → pip install → restart services"""
+    """One-click update: git pull → pip install → restart services.
+    Output is streamed to a log file and status is tracked via a JSON status file
+    so the admin UI can poll for real-time progress."""
     from services.jwt_service import validate_token
     token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.cookies.get('sso_token', '')
     payload = validate_token(token) if token else None
     if not payload or not payload.get('is_admin'):
         return jsonify({'success': False, 'error': _('Unauthorized')}), 401
 
+    import json, subprocess, threading, time
+
     _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _log_dir = os.path.join(_project_root, 'logs')
+    _log_file = os.path.join(_log_dir, 'update.log')
+    _status_file = os.path.join(_log_dir, 'update_status.json')
+
+    # Reject if an update is already running
+    if os.path.exists(_status_file):
+        try:
+            with open(_status_file, 'r') as f:
+                _prev = json.load(f)
+            if _prev.get('status') == 'running':
+                return jsonify({'success': False, 'error': _('An update is already in progress')}), 409
+        except Exception:
+            pass
+
+    # Write initial status
+    os.makedirs(_log_dir, exist_ok=True)
+    _status = {'status': 'running', 'progress': 0, 'message': 'Starting update...', 'error': None}
+    with open(_status_file, 'w') as f:
+        json.dump(_status, f)
+
+    def _write_status(status, progress, message, error=None):
+        with open(_status_file, 'w') as f:
+            json.dump({'status': status, 'progress': progress, 'message': message, 'error': error}, f)
 
     def _do_update():
-        # Delegate the whole update pipeline to install.sh (the single source
-        # of truth): backup, git pull, dependency hash check, systemd/nginx
-        # refresh, service restarts. sudoers permission is provisioned by
-        # install.sh itself (write_sudoers), so no TTY password is required.
-        import subprocess as _sp
-        install_sh = os.path.join(_project_root, 'deploy', 'install.sh')
         try:
-            # Clear version-check cache so next load fetches fresh data
-            admin_check_update._cache = None
-            _sp.run(['sudo', 'bash', install_sh, 'update'],
-                    cwd=_project_root, check=True, capture_output=True,
-                    timeout=600)
-        except Exception as _e:
-            print(f'[Update] Error: {_e}')
+            with open(_log_file, 'a') as log:
+                log.write(f"\n=== Update started at {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+                log.flush()
 
-    import threading
+                install_sh = os.path.join(_project_root, 'deploy', 'install.sh')
+                _write_status('running', 10, 'Fetching updates from remote...')
+
+                proc = subprocess.Popen(
+                    ['sudo', 'bash', install_sh, 'update'],
+                    cwd=_project_root,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+
+                for line in proc.stdout:
+                    log.write(line)
+                    log.flush()
+                    # Update progress based on recognizable output markers
+                    lower = line.lower()
+                    if 'git fetch' in lower:
+                        _write_status('running', 20, 'Fetching updates from remote...')
+                    elif 'git merge' in lower or 'git reset' in lower:
+                        _write_status('running', 40, 'Applying updates...')
+                    elif 'pip install' in lower or 'pip3 install' in lower:
+                        _write_status('running', 60, 'Installing dependencies...')
+                    elif 'restart' in lower or 'systemctl' in lower:
+                        _write_status('running', 80, 'Restarting services...')
+
+                proc.wait()
+
+                log.write(f"\n=== Update finished at {time.strftime('%Y-%m-%d %H:%M:%S')} exit_code={proc.returncode} ===\n")
+                log.flush()
+
+                if proc.returncode == 0:
+                    _write_status('success', 100, 'Update completed successfully')
+                else:
+                    _write_status('failed', 100, 'Update failed', f'exit_code={proc.returncode}')
+        except Exception as e:
+            _write_status('failed', 0, 'Update failed', str(e))
+            try:
+                with open(_log_file, 'a') as log:
+                    log.write(f"[ERROR] {e}\n")
+                    log.flush()
+            except Exception:
+                pass
+
+    # Clear version-check cache so next load fetches fresh data
+    admin_check_update._cache = None
     threading.Thread(target=_do_update, daemon=True).start()
 
-    return jsonify({'success': True, 'message': _('Update started, services will restart shortly')})
+    return jsonify({'success': True, 'message': _('Update started'), 'log_file': _log_file})
+
+
+@app.route('/admin/api/update-status', methods=['GET'])
+def admin_update_status():
+    """Poll update progress from the status file."""
+    from services.jwt_service import validate_token
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.cookies.get('sso_token', '')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return jsonify({'success': False, 'error': _('Unauthorized')}), 401
+
+    import json, os as _os
+    _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _status_file = os.path.join(_project_root, 'logs', 'update_status.json')
+
+    if not _os.path.exists(_status_file):
+        return jsonify({'success': True, 'status': 'idle', 'progress': 0, 'message': 'No update running'})
+
+    with open(_status_file, 'r') as f:
+        _status = json.load(f)
+    return jsonify({'success': True, **_status})
 
 
 if __name__ == '__main__(':

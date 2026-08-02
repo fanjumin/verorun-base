@@ -236,10 +236,17 @@ do_update() {
     else
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
-        git fetch origin "${GIT_BRANCH}"
+        if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
+            echo -e "${ERROR} Git fetch failed. Check network connectivity to GitHub."
+            echo -e "${ERROR} Update aborted."
+            exit 1
+        fi
         git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
             echo -e "${WARN} Fast-forward merge failed, falling back to reset"
-            git reset --hard "origin/${GIT_BRANCH}"
+            git reset --hard "origin/${GIT_BRANCH}" || {
+                echo -e "${ERROR} Git reset failed."
+                exit 1
+            }
         }
     fi
     local after_commit

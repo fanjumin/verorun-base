@@ -185,13 +185,46 @@ a:hover{text-decoration:underline}
     btn.textContent='{{ _('Updating') }}...';
     fetch('/admin/api/update',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
       if(d.success){
-        el.textContent='{{ _('Restarting') }}...';
-        btn.textContent='{{ _('Done') }}';
+        pollUpdateStatus(btn,el);
+      }else{
+        btn.textContent=d.error||'{{ _('Failed') }}';
+        btn.disabled=false;
       }
     }).catch(function(){
       btn.textContent='{{ _('Failed') }}';
       btn.disabled=false;
     });
+  }
+  function pollUpdateStatus(btn,el){
+    var attempts=0,maxAttempts=120;
+    var interval=setInterval(function(){
+      attempts++;
+      fetch('/admin/api/update-status').then(function(r){return r.json()}).then(function(d){
+        if(d.status==='success'){
+          clearInterval(interval);
+          el.textContent='{{ _('Restarting') }}...';
+          btn.textContent='{{ _('Done') }}';
+          btn.disabled=false;
+        }else if(d.status==='failed'){
+          clearInterval(interval);
+          btn.textContent='{{ _('Failed') }}: '+(d.error||'');
+          btn.disabled=false;
+        }else{
+          btn.textContent=d.message||'{{ _('Updating') }}...';
+        }
+        if(attempts>=maxAttempts){
+          clearInterval(interval);
+          btn.textContent='{{ _('Timeout') }}';
+          btn.disabled=false;
+        }
+      }).catch(function(){
+        if(attempts>=maxAttempts){
+          clearInterval(interval);
+          btn.textContent='{{ _('Timeout') }}';
+          btn.disabled=false;
+        }
+      });
+    },5000);
   }
   document.addEventListener('DOMContentLoaded',checkUpdate);
   </script>
