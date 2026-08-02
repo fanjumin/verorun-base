@@ -278,6 +278,7 @@ do_update() {
     done_step "Dependencies updated"
 
     step "Update systemd services"
+    chmod +x "${APP_HOME}/deploy/health_check.sh" 2>/dev/null || true
     write_systemd_services
     done_step "Systemd services updated"
 
@@ -422,6 +423,7 @@ do_configure_domain() {
     done_step "Updated DEPLOY_DOMAIN in .env"
 
     step "systemd services"
+    chmod +x "${APP_HOME}/deploy/health_check.sh" 2>/dev/null || true
     write_systemd_services
     done_step "systemd services configured"
 
@@ -575,7 +577,7 @@ RestartSec=5
 KillSignal=SIGTERM
 TimeoutStopSec=30
 # 启动健康检查：30 秒内 /health 不返回 200 → systemd 认为启动失败
-ExecStartPost=/bin/bash -c 'for i in $(seq 1 30); do curl -sf http://127.0.0.1:${port}/health && exit 0; sleep 1; done; exit 1'
+ExecStartPost=${APP_HOME}/deploy/health_check.sh ${port}
 StandardOutput=append:${LOG_DIR}/${name}.log
 StandardError=append:${LOG_DIR}/${name}.log
 
