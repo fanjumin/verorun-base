@@ -1057,7 +1057,8 @@ def admin_update():
                     cwd=_project_root,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
+                    start_new_session=True
                 )
 
                 for line in proc.stdout:

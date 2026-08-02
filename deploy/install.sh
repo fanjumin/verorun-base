@@ -205,6 +205,11 @@ do_install() {
 # Incremental update
 # ==========================================================================
 do_update() {
+    # ── Trap: write failure status on any early exit ──
+    local _status_file="${APP_HOME}/logs/update_status.json"
+    mkdir -p "$(dirname "${_status_file}")"
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > "${_status_file}"' EXIT
+
     # Self-update tracking: md5 of currently-running install.sh
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
 
@@ -315,6 +320,16 @@ print('DB OK')
 
     step "Health check"
     health_check
+
+    # ── Write final update status for admin UI polling ──
+    trap - EXIT  # Clear the failure trap before writing success
+    local _status_file="${APP_HOME}/logs/update_status.json"
+    mkdir -p "$(dirname "${_status_file}")"
+    if [ "${UPDATE_FAILED:-0}" -eq 0 ]; then
+        echo '{"status":"success","progress":100,"message":"Update completed successfully","error":null}' > "${_status_file}"
+    else
+        echo '{"status":"failed","progress":100,"message":"Update completed with errors","error":"Some services are unhealthy"}' > "${_status_file}"
+    fi
 }
 
 # ==========================================================================
@@ -843,6 +858,7 @@ health_check() {
         echo -e "\n${OK} All services healthy"
     else
         echo -e "\n${FAIL} Some services are unhealthy — check logs"
+        UPDATE_FAILED=1
     fi
 }
 
