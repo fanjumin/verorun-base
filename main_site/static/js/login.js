@@ -37,7 +37,19 @@ function fetchLoginMethods() {
   fetch('/auth/login-methods')
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (!d.success) { return; }
+      if (!d.success || !d.data) {
+        // Fallback: show password form only (same as catch branch)
+        loginMethods = [{
+          type: 'password', name: 'Password Login', icon: 'key',
+          fields: [
+            {name: 'account', type: 'text', placeholder: 'Username / Email / Phone', autocomplete: 'username'},
+            {name: 'password', type: 'password', placeholder: 'Enter password', autocomplete: 'current-password'}
+          ]
+        }];
+        registerMethods = [];
+        buildUI();
+        return;
+      }
       loginMethods = d.data.methods || [];
       registerMethods = d.data.register_methods || [];
       buildUI();

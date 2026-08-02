@@ -141,6 +141,15 @@ def login_page():
     return render_template('login.html', LANG=deploy.LANG, brand=brand, version=get_version())
 
 
+@app.route('/register')
+def register_page():
+    """Unified SSO register page."""
+    from services.brand_service import get_brand_settings
+    brand = get_brand_settings() or {}
+    from version import get_version
+    return render_template('register.html', LANG=deploy.LANG, brand=brand, version=get_version())
+
+
 # ══ Captcha proxy → admin:8084 ══
 def _proxy_captcha(path, data=None, method='GET'):
     url = 'http://127.0.0.1:8084' + path
@@ -186,7 +195,7 @@ def health():
     return jsonify({'status': 'ok', 'service': 'auth-center+site'})
 
 
-if __name__ == '__main__(':
-    port = int(os.environ.get(')PORT', 8081))
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 8081))
     print(f'[Auth-Center+Site] starting on port {port}')
     app.run(host='0.0.0.0', port=port, debug=False)
