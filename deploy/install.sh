@@ -228,6 +228,20 @@ do_update() {
     cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
     done_step "Environment backed up"
 
+    step "Restore locally modified files"
+    # 生产环境严禁手动修改 tracked 文件，自动恢复 working directory 的本地修改
+    if [ -d "${APP_HOME}/.git" ]; then
+        if ! git -C "${APP_HOME}" diff --quiet; then
+            echo -e "${WARN} Local modifications detected, restoring to git version..."
+            git -C "${APP_HOME}" checkout -- $(git -C "${APP_HOME}" diff --name-only)
+            done_step "Locally modified files restored"
+        else
+            done_step "No local modifications"
+        fi
+    else
+        done_step "Skipped (no .git directory)"
+    fi
+
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
         echo -e "${WARN} .git missing — re-cloning repository"
