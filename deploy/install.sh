@@ -122,23 +122,12 @@ do_install() {
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
     else
-        if [ -d "${APP_HOME}" ] && [ ! -d "${APP_HOME}/.git" ] && [ "$(ls -A "${APP_HOME}" 2>/dev/null)" ]; then
-            echo -e "${FAIL} APP_HOME='${APP_HOME}' is not empty and not a git repository — refusing to overwrite"
-            echo -e "${INFO} Move or delete the directory manually, then re-run install.sh"
-            exit 1
-        fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
 
-    step "Create directories"
-    mkdir -p "${APP_HOME}/data" "${LOG_DIR}"
-    mkdir -p "${APP_HOME}/.cache/llm" \
-             "${APP_HOME}/.cache/sessions" \
-             "${APP_HOME}/.cache/agents"
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
-    chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Code pulled ($(git -C "${APP_HOME}" log --oneline -1))"
 
     step "Python virtual environment"
@@ -211,10 +200,6 @@ do_update() {
     before_commit=$(git -C "${APP_HOME}" log --oneline -1 2>/dev/null || echo "unknown")
 
     step "Backup current version"
-    # Ensure .cache/ dirs exist (fresh install or upgrade from pre-cache version)
-    mkdir -p "${APP_HOME}/.cache/llm" \
-             "${APP_HOME}/.cache/sessions" \
-             "${APP_HOME}/.cache/agents"
     mkdir -p "${APP_HOME}/.rollback"
     cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
     done_step "Environment backed up"
