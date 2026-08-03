@@ -1,0 +1,298 @@
+#!/usr/bin/env python3
+"""
+Plugin Manager — 商店客户端
+=============================
+连接远程插件商店 API，本地缓存插件目录。
+远程 API 未就绪时使用内置 Mock 数据。
+
+SPI 模式: store.py 与 license.py 共享 _call_remote() 通信层。
+"""
+
+import json
+import threading
+from typing import Dict, List, Optional, Any
+from datetime import datetime
+
+from .models_store import (
+    StorePlugin, init_license_store_tables, get_registry_db,
+)
+from .license import _call_remote
+
+
+class StoreAPIClient:
+    """插件商店 API 客户端"""
+
+    def __init__(self):
+        self._cache_lock = threading.Lock()
+        init_license_store_tables()
+
+    # ── 搜索/列表 ──────────────────────────────────────────────────
+
+    def search(self, query: str = '', category: str = '',
+               price_type: str = '', page: int = 1,
+               page_size: int = 20, sort_by: str = 'downloads') -> dict:
+        """搜索商店插件
+
+        先尝试远程 API，失败后从本地缓存查询。
+        """
+        remote = _call_remote('GET', '/plugins/search', {
+            'query': query,
+            'category': category,
+            'price_type': price_type,
+            'page': page,
+            'page_size': page_size,
+        })
+
+        if remote.get('success') and remote.get('data', {}).get('plugins'):
+            plugins_data = remote['data']['plugins']
+            # 同步到本地缓存
+            for pdata in plugins_data:
+                self._upsert_cache(pdata)
+            return remote['data']
+
+        # 降级：本地缓存
+        return self._search_local(query, category, price_type, page, page_size, sort_by)
+
+    def list_by_category(self, category: str = '') -> List[dict]:
+        """按分类列出（从本地缓存）"""
+        with self._cache_lock:
+            with get_registry_db() as conn:
+                if category:
+                    rows = conn.execute(
+                        'SELECT * FROM store_plugins WHERE enabled=1 AND category=%s ORDER BY downloads DESC',
+                        (category,)
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        'SELECT * FROM store_plugins WHERE enabled=1 ORDER BY downloads DESC'
+                    ).fetchall()
+                return [StorePlugin.from_row(dict(r)).to_dict() for r in rows]
+
+    def get_detail(self, identifier: str) -> Optional[dict]:
+        """获取插件详情（含评分聚合数据）"""
+        # 尝试远程
+        remote = _call_remote('GET', f'/plugins/{identifier}')
+        if remote.get('success') and remote.get('data'):
+            pdata = remote['data']
+            self._upsert_cache(pdata)
+            return pdata
+
+        # 降级：本地缓存
+        with get_registry_db() as conn:
+            row = conn.execute(
+                'SELECT * FROM store_plugins WHERE identifier=%s',
+                (identifier,)
+            ).fetchone()
+            if row:
+                plugin = StorePlugin.from_row(dict(row)).to_dict()
+                # 附加评分统计
+                plugin['_reviews'] = self._get_review_summary(identifier, conn)
+                return plugin
+        return None
+
+    def _get_review_summary(self, identifier: str, conn=None) -> dict:
+        """获取评价统计摘要"""
+        if conn is None:
+            with get_registry_db() as c:
+                return self._get_review_summary(identifier, c)
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt, AVG(rating) as avg_rating FROM plugin_reviews "
+            "WHERE plugin_identifier=%s AND is_active=1",
+            (identifier,)
+        ).fetchone()
+        return {
+            'total': row['cnt'] if row else 0,
+            'average': round(row['avg_rating'], 1) if row and row['avg_rating'] else 0.0,
+        }
+
+    # ── 下载 ────────────────────────────────────────────────────────
+
+    def get_download_url(self, identifier: str, app_version: str = '') -> Optional[str]:
+        """获取插件下载地址（含版本兼容校验）
+
+        Args:
+            identifier: 插件标识符
+            app_version: 当前系统版本号（如 '0.44.2'），用于兼容性校验
+
+        Returns:
+            下载 URL，或 None（不兼容时返回 None）
+        """
+        remote = _call_remote('GET', f'/plugins/{identifier}/download')
+        if remote.get('success') and remote.get('data', {}).get('download_url'):
+            data = remote['data']
+            # 版本兼容校验
+            if app_version and data.get('min_app_version'):
+                if not self._version_compatible(app_version, data['min_app_version']):
+                    return None
+            return data['download_url']
+
+        # 本地缓存
+        with get_registry_db() as conn:
+            row = conn.execute(
+                'SELECT download_url, min_app_version FROM store_plugins WHERE identifier=%s',
+                (identifier,)
+            ).fetchone()
+            if not row or not row['download_url']:
+                return None
+            # 版本校验
+            if app_version and row['min_app_version']:
+                if not self._version_compatible(app_version, row['min_app_version']):
+                    return None
+            return row['download_url']
+
+    @staticmethod
+    def _version_compatible(current: str, required: str) -> bool:
+        """检查当前版本是否满足最低版本要求（semver）"""
+        try:
+            from packaging.version import Version
+            return Version(current) >= Version(required)
+        except ImportError:
+            def _parse(v):
+                try:
+                    return tuple(int(x) for x in v.split('.'))
+                except (ValueError, AttributeError):
+                    return (0,)
+            return _parse(current) >= _parse(required)
+
+    # ── 本地缓存 ────────────────────────────────────────────────────
+
+    def _search_local(self, query: str, category: str,
+                      price_type: str, page: int,
+                      page_size: int, sort_by: str = 'downloads') -> dict:
+        """从本地缓存搜索"""
+        with self._cache_lock:
+            with get_registry_db() as conn:
+                sql = 'SELECT s.* FROM store_plugins s WHERE s.enabled=1'
+                params = []
+
+                if query:
+                    sql += ' AND (s.name LIKE %s OR s.description LIKE %s OR s.identifier LIKE %s)'
+                    like = f'%{query}%'
+                    params.extend([like, like, like])
+                if category:
+                    sql += ' AND s.category=%s'
+                    params.append(category)
+                if price_type:
+                    sql += ' AND s.price_type=%s'
+                    params.append(price_type)
+
+                # 排序
+                sort_map = {
+                    'downloads': 's.downloads DESC',
+                    'rating': 's.rating DESC',
+                    'newest': 's.created_at DESC',
+                    'price_asc': 's.price_amount ASC',
+                    'price_desc': 's.price_amount DESC',
+                }
+                sql += f' ORDER BY {sort_map.get(sort_by, "s.downloads DESC")}'
+
+                # 总数（去掉 ORDER BY，PG 不允许 count 查询带排序列）
+                count_sql = sql.replace('SELECT s.* FROM', 'SELECT COUNT(*) as cnt FROM')
+                order_pos = count_sql.find(' ORDER BY ')
+                if order_pos != -1:
+                    count_sql = count_sql[:order_pos]
+                total = conn.execute(count_sql, params).fetchone()['cnt']
+
+                # 分页
+                offset = (page - 1) * page_size
+                sql += ' LIMIT %s OFFSET %s'
+                params.extend([page_size, offset])
+
+                rows = conn.execute(sql, params).fetchall()
+                plugins = []
+                for r in rows:
+                    p = StorePlugin.from_row(dict(r)).to_dict()
+                    p['_reviews'] = self._get_review_summary(p['identifier'], conn)
+                    plugins.append(p)
+
+                return {
+                    'plugins': plugins,
+                    'total': total,
+                    'page': page,
+                    'page_size': page_size,
+                }
+
+    def _upsert_cache(self, pdata: dict):
+        """插入或更新本地缓存"""
+        with self._cache_lock:
+            with get_registry_db() as conn:
+                conn.execute("""
+                    INSERT INTO store_plugins (
+                        identifier, name, description, version, author,
+                        author_url, icon_url, price_type, price_amount,
+                        price_interval, trial_days, download_url, package_hash,
+                        file_size, category, tags, min_app_version, depends_on,
+                        screenshots, readme_url, downloads, rating, review_count, enabled
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
+                    ON CONFLICT(identifier) DO UPDATE SET
+                        name=excluded.name,
+                        description=excluded.description,
+                        version=excluded.version,
+                        price_type=excluded.price_type,
+                        price_amount=excluded.price_amount,
+                        price_interval=excluded.price_interval,
+                        download_url=excluded.download_url,
+                        package_hash=excluded.package_hash,
+                        file_size=excluded.file_size,
+                        category=excluded.category,
+                        tags=excluded.tags,
+                        downloads=excluded.downloads,
+                        rating=excluded.rating,
+                        review_count=excluded.review_count,
+                        updated_at=NOW()
+                """, (
+                    pdata.get('identifier', ''),
+                    pdata.get('name', ''),
+                    pdata.get('description', ''),
+                    pdata.get('version', '0.1.0'),
+                    pdata.get('author', ''),
+                    pdata.get('author_url', ''),
+                    pdata.get('icon_url', ''),
+                    pdata.get('price_type', 'free'),
+                    pdata.get('price_amount', 0),
+                    pdata.get('price_interval', 'onetime'),
+                    pdata.get('trial_days', 0),
+                    pdata.get('download_url', ''),
+                    pdata.get('package_hash', ''),
+                    pdata.get('file_size', 0),
+                    pdata.get('category', ''),
+                    json.dumps(pdata.get('tags', [])),
+                    pdata.get('min_app_version', '0.10.0'),
+                    json.dumps(pdata.get('depends_on', {})),
+                    json.dumps(pdata.get('screenshots', [])),
+                    pdata.get('readme_url', ''),
+                    pdata.get('downloads', 0),
+                    pdata.get('rating', 0.0),
+                    pdata.get('review_count', 0),
+                ))
+                conn.commit()
+
+    def sync_all(self) -> int:
+        """从远程同步全部插件目录
+
+        Returns:
+            同步的插件数量
+        """
+        remote = _call_remote('GET', '/plugins', {'page_size': 200})
+        if not remote.get('success'):
+            return 0
+
+        plugins_data = remote.get('data', {}).get('plugins', [])
+        for pdata in plugins_data:
+            self._upsert_cache(pdata)
+        return len(plugins_data)
+
+
+# ── 模块级单例 ──────────────────────────────────────────────────────
+
+_STORE_CLIENT = None
+_STORE_CLIENT_LOCK = threading.Lock()
+
+
+def get_store_client() -> StoreAPIClient:
+    global _STORE_CLIENT
+    if _STORE_CLIENT is None:
+        with _STORE_CLIENT_LOCK:
+            if _STORE_CLIENT is None:
+                _STORE_CLIENT = StoreAPIClient()
+    return _STORE_CLIENT

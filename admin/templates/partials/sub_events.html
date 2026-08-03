@@ -1,0 +1,24 @@
+﻿window.l_sub_events=function(){
+  document.getElementById("pt").textContent="{{ _('Billing Log') }}";
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  fetch("/subscription/admin/events?limit=100",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var events=d.data&&d.data.events?d.data.events:(d.events||[]);
+    var h='<div class="cd"><div class="st">{{ _('Debit Event') }} ('+events.length+')</div><table><tr><th>{{ _('User') }}</th><th>{{ _('Type') }}</th><th>{{ _('Channel') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Result') }}</th><th>{{ _('Reason') }}</th><th>{{ _('Time') }}</th></tr>';
+    if(!events.length)h+='<tr><td colspan="7"><div class="em">{{ _('No Events') }}</div></td></tr>';
+    else events.forEach(function(e){
+      var rcls=e.result=='success'?'on':'off';
+      h+='<tr><td>'+esc(e.nickname||'UID:'+e.user_id)+'</td><td>'+esc(e.event_type)+'</td>';
+      h+='<td>'+esc(e.channel)+'</td>';
+      h+='<td>'+(e.amount_fen?'¥'+(e.amount_fen/100).toFixed(2):'-')+'</td>';
+      h+='<td><span class="bdg '+rcls+'">'+(e.result||'unk')+'</span></td>';
+      h+='<td style="font-size:11px">'+esc(e.fail_reason||'-')+'</td>';
+      h+='<td style="font-size:11px">'+(e.created_at||'').slice(0,16)+'</td></tr>';
+    });
+    h+='</table></div>';
+    document.getElementById("mc").innerHTML=h;
+  }).catch(function(e){
+    document.getElementById("mc").innerHTML='<div class="em">{{ _('Request Failed') }} — {{ _('Check Network or') }}<a href="javascript:go(\'model_providers\')">{{ _('Refresh & Retry') }}</a><br><span style="font-size:10px;color:var(--dim)">'+esc(String(e))+'</span></div>';
+  });
+}
+

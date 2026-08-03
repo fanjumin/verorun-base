@@ -1,0 +1,30 @@
+<view class="home-page">
+    <view class="home-header" style="background-color: {{ primary_color }}">
+        <text class="home-title">{{ app_name }}</text>
+        <text class="home-subtitle" wx:if="{{ siteInfo.description }}">{{ siteInfo.description }}</text>
+    </view>
+
+    <view class="loading-container" wx:if="{{ loading }}">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">Loading...</text>
+    </view>
+
+    <view class="page-list" wx:if="{{ !loading }}">
+        <view class="page-card"
+              wx:for="{{ pages }}"
+              wx:key="slug"
+              data-slug="{{ item.slug }}"
+              bindtap="onNavigateToPage">
+            <text class="page-card-title">{{ item.title }}</text>
+            <text class="page-card-desc">{{ item.description }}</text>
+        </view>
+
+        <view class="empty-state" wx:if="{{ pages.length === 0 }}">
+            <text class="empty-text">No pages available yet</text>
+        </view>
+    </view>
+
+    <view class="fab" bindtap="onNavigateToChat" style="background-color: {{ primary_color }}">
+        <text class="fab-icon">Chat</text>
+    </view>
+</view>

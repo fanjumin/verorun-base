@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""CMS Page Generator — Write LLM page content into cms_blocks / cms_posts tables"""
+
+import json
+from models import get_db
+
+
+class PageGenerator:
+    """CMS page block generator"""
+
+    @staticmethod
+    def apply_page_blocks(page: str, sections_data: list, draft=False):
+        """Write page block data into cms_blocks table (idempotent: clear then write)
+
+        page: page identifier, e.g. 'home', 'about', 'services'
+        sections_data: list of sections returned by LLM
+        draft: if True, writes with is_published=0
+        """
+        is_pub = 0 if draft else 1
+        with get_db() as conn:
+            # Clear existing blocks for this page (draft mode: only clear draft blocks)
+            conn.execute("DELETE FROM cms_blocks WHERE page=? AND is_published=?", (page, is_pub))
+
+            position = 0
+            for section in sections_data:
+                position += 1
+                block_type = section.get('block_type', 'text')
+                title = section.get('title', '')
+                subtitle = section.get('subtitle', '')
+                section_name = section.get('section_name', block_type)
+
+                # Handle items list (features, services blocks)
+                items = section.get('items', [])
+                if items:
+                    # Each item as an independent block
+                    for item in items:
+                        position += 1
+                        conn.execute(
+                            """INSERT INTO cms_blocks
+                               (page, section, block_type, position, title, subtitle, content, link_text, link_url, icon, is_published)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                            (
+                                page,
+                                section_name,
+                                'feature' if block_type == 'features' else 'text',
+                                position,
+                                item.get('title', ''),
+                                item.get('description', ''),
+                                item.get('description', ''),
+                                'Learn More',
+                                f"/{page}",
+                                item.get('icon', ''),
+                                is_pub,
+                            )
+                        )
+                else:
+                    # Single block (hero, cta, text)
+                    conn.execute(
+                        """INSERT INTO cms_blocks
+                           (page, section, block_type, position, title, subtitle, content, link_text, link_url, is_published)
+                           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (
+                            page,
+                            section_name,
+                            block_type,
+                            position,
+                            title,
+                            subtitle,
+                            section.get('description', subtitle),
+                            section.get('cta_text', ''),
+                            section.get('cta_url', '/'),
+                            is_pub,
+                        )
+                    )
+            conn.commit()
+        mode = 'draft' if draft else 'production'
+        print(f'[SiteBuilder] ✅ Page "{page}" applied ({mode}): {len(sections_data)} sections')
+
+    @staticmethod
+    def apply_page_text(page: str, text_data: dict, draft=False):
+        """Write simple text page (e.g. about us, service areas — non-block pages)
+
+        text_data: JSON returned by LLM (contains 'content' or 'sections' field)
+        draft: if True, writes with is_published=0
+        """
+        # Try to extract sections first
+        sections = text_data.get('sections', [])
+        if sections:
+            PageGenerator.apply_page_blocks(page, sections, draft=draft)
+            return
+
+        # Plain text page: write a single text block
+        is_pub = 0 if draft else 1
+        content = text_data.get('content', '') or json.dumps(text_data, ensure_ascii=False)
+        with get_db() as conn:
+            conn.execute("DELETE FROM cms_blocks WHERE page=? AND is_published=?", (page, is_pub))
+            conn.execute(
+                """INSERT INTO cms_blocks (page, section, block_type, position, title, content, is_published)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (page, 'main', 'text', 1, page, content, is_pub)
+            )
+            conn.commit()
+        mode = 'draft' if draft else 'production'
+        print(f'[SiteBuilder] ✅ Page "{page}" applied ({mode}, text mode)')
+
+    @staticmethod
+    def apply_document(slug: str, title: str, html_content: str, draft=False):
+        """Write legal document into cms_posts table
+
+        slug: document identifier (e.g. privacy_policy, terms_of_service)
+        title: document title
+        html_content: HTML content generated by LLM
+        draft: if True, writes with is_published=0
+        """
+        is_pub = 0 if draft else 1
+        with get_db() as conn:
+            # UPSERT
+            existing = conn.execute(
+                "SELECT id FROM cms_posts WHERE slug=?", (slug,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE cms_posts SET title=%s, content=%s, is_published=%s, updated_at=NOW() WHERE slug=%s",
+                    (title, html_content, is_pub, slug)
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO cms_posts (slug, title, content, category, status, is_published, created_at)
+                       VALUES (%s,%s,%s,'legal','published',%s,NOW())""",
+                    (slug, title, html_content, is_pub)
+                )
+            conn.commit()
+        mode = 'draft' if draft else 'production'
+        print(f'[SiteBuilder] ✅ Document "{slug}" applied ({mode})')
+
+    @staticmethod
+    def modify_block(block_id: int, changes: dict):
+        """Minimal edit: update specific fields of a single block
+
+        changes: {"title": "New Title", "content": "New Content", ...}
+        """
+        allowed_fields = ['title', 'subtitle', 'content', 'link_text', 'link_url', 'image_url', 'icon']
+        fields = []
+        params = []
+        for key, val in changes.items():
+            if key in allowed_fields:
+                fields.append(f"{key}=?")
+                params.append(val)
+        if not fields:
+            return False
+
+        params.append(block_id)
+        with get_db() as conn:
+            conn.execute(
+                f"UPDATE cms_blocks SET {', '.join(fields)} WHERE id=?",
+                params
+            )
+            conn.commit()
+        print(f'[SiteBuilder] ✅ Block #{block_id} modified: {list(changes.keys())}')
+        return True
+
+    @staticmethod
+    def get_page_summary(page: str) -> list:
+        """Get summary of all blocks for a page (used by LLM modification context)"""
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, block_type, section, title, subtitle, content FROM cms_blocks WHERE page=? ORDER BY position",
+                (page,)
+            ).fetchall()
+        return [{
+            'id': r['id'],
+            'block_type': r['block_type'],
+            'section': r['section'],
+            'title': (r['title'] or '')[:80],
+            'content_preview': (r['content'] or '')[:100],
+        } for r in rows]

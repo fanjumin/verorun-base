@@ -1,0 +1,120 @@
+﻿window.l_deploy=function(){
+  document.getElementById("pt").textContent="{{ _('Deploy Code Management') }}";
+  var h='<div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">';
+  h+='<button class="btn bp" onclick="showDeployForm()">+ {{ _('Generate Code') }}</button>';
+  h+='<button class="btn bo" onclick="refreshDeployList()">🔄 {{ _('Refresh') }}</button></div>';
+  h+='<div id="deployForm" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('Generate Code') }}</div>';
+  h+='<div class="g2">';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('User') }} ID</div><input class="in" id="dpUserId" type="number" min="1" value="1" style="width:100%"></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Plan') }}</div><select class="in" id="dpPlanKey" style="width:100%"></select></div>';
+  h+='<div><div style="font-size:11px;color:var(--dim)">{{ _('Valid Period (days)') }}</div><select class="in" id="dpDuration" style="width:100%"><option value="365">1 {{ _('Year') }}</option><option value="730">2 {{ _('Years') }}</option><option value="1095">3 {{ _('Years') }}</option><option value="30">1 {{ _('Month') }}</option><option value="90">3 {{ _('Months') }}</option></select></div>';
+  h+='<div style="display:flex;align-items:end;gap:8px"><button class="btn bp" onclick="doGenerateCode()">{{ _('Confirm Generate') }}</button> <button class="btn bo" onclick="hideDeployForm()">{{ _('Cancel') }}</button></div>';
+  h+='</div></div>';
+  h+='<div id="deployResult" style="display:none;margin-bottom:16px" class="cd"><div class="st">{{ _('Deploy Code') }}</div>';
+  h+='<div style="font-size:24px;font-weight:700;text-align:center;padding:20px;letter-spacing:4px;font-family:monospace" id="deployCodeText"></div>';
+  h+='<div style="text-align:center;margin-top:8px"><button class="btn bp" onclick="copyDeployCode()">📋 {{ _('Copy') }}</button></div></div>';
+  h+='<div id="deployList"><div class="lo"><div class="s"></div></div></div>';
+  document.getElementById("mc").innerHTML=h;
+  fetch("/subscription/admin/plans",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    var sel=document.getElementById("dpPlanKey");
+    if(d.success&&d.data&&d.data.plans){
+      d.data.plans.forEach(function(p){
+        var opt=document.createElement("option");
+        opt.value=p.plan_key;
+        opt.textContent=p.name+' ('+p.plan_key+')';
+        sel.appendChild(opt);
+      });
+    }
+  });
+  refreshDeployList();
+};
+
+function refreshDeployList(){
+  document.getElementById("deployList").innerHTML='<div class="lo"><div class="s"></div></div>';
+  fetch("/api/subscription/admin/codes",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){document.getElementById("deployList").innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
+    var rows=d.data||[];
+    var h='<div class="cd"><div class="st">{{ _('Deploy Codes') }} ('+rows.length+')</div>';
+    h+='<div style="overflow-x:auto"><table><tr><th>ID</th><th>{{ _('Deploy Code') }}</th><th>{{ _('User') }}</th><th>{{ _('Plan') }}</th><th>{{ _('Status') }}</th><th>{{ _('Expires') }}</th><th>{{ _('Last Heartbeat') }}</th><th>{{ _('Hostname') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!rows.length){h+='<tr><td colspan="9"><div class="em">{{ _('No Deploy Code') }}</div></td></tr>'}
+    else{
+      rows.forEach(function(r){
+        var st='';
+        if(r.status==='active') st='<span class="bdg on">{{ _('Active') }}</span>';
+        else if(r.status==='used') st='<span class="bdg pd">{{ _('Used') }}</span>';
+        else if(r.status==='expired') st='<span class="bdg off">{{ _('Expired') }}</span>';
+        else if(r.status==='revoked') st='<span class="bdg off">{{ _('Voided') }}</span>';
+        else st='<span class="bdg">'+esc(r.status)+'</span>';
+        var revokeBtn=r.status==='active'?'<button class="btn bo bs" onclick="doRevokeCode('+r.id+')">{{ _('Revoke') }}</button>':'';
+        h+='<tr><td>'+r.id+'</td><td style="font-family:monospace;font-size:12px">'+esc(r.code)+'</td>'+
+          '<td>'+r.user_id+'</td><td style="font-family:monospace;font-size:11px">'+esc(r.plan_key)+'</td>'+
+          '<td>'+st+'</td><td style="font-size:12px">'+(r.expires_at||'-')+'</td>'+
+          '<td style="font-size:12px">'+(r.last_heartbeat||'-')+'</td><td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+(r.last_hostname||'')+'</td>'+
+          '<td>'+revokeBtn+'</td></tr>';
+      });
+    }
+    h+='</table></div></div>';
+    document.getElementById("deployList").innerHTML=h;
+  }).catch(function(){document.getElementById("deployList").innerHTML='<div class="em">{{ _('Load failed') }}</div>'});
+}
+
+function showDeployForm(){
+  document.getElementById("deployForm").style.display="block";
+  document.getElementById("deployResult").style.display="none";
+}
+
+function hideDeployForm(){
+  document.getElementById("deployForm").style.display="none";
+}
+
+function doGenerateCode(){
+  var userId=parseInt(document.getElementById("dpUserId").value)||1;
+  var planKey=document.getElementById("dpPlanKey").value;
+  var duration=parseInt(document.getElementById("dpDuration").value)||365;
+  if(!planKey){showToast("{{ _('Select a plan') }}","error");return}
+  fetch("/api/subscription/admin/codes/generate",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
+    body:JSON.stringify({user_id:userId,plan_key:planKey,duration_days:duration})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      var code=d.data.code;
+      document.getElementById("deployCodeText").textContent=code;
+      document.getElementById("deployResult").style.display="block";
+      document.getElementById("deployForm").style.display="none";
+      showToast("{{ _('Deploy code generated') }}","success");
+      refreshDeployList();
+    }else{
+      showToast(d.error||"{{ _('Generation Failed') }}","error");
+    }
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+function copyDeployCode(){
+  var code=document.getElementById("deployCodeText").textContent;
+  if(!code)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(code).then(function(){showToast("{{ _('Copied to clipboard') }}","success")});
+  }else{
+    var ta=document.createElement("textarea");
+    ta.value=code;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast("{{ _('Copied to clipboard') }}","success");
+  }
+}
+
+function doRevokeCode(id){
+  if(!confirm("{{ _('Void this deploy code? This cannot be undone!') }}"))return;
+  fetch("/api/subscription/admin/codes/"+id+"/revoke",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+T}
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Voided') }}","success");refreshDeployList()}
+    else{showToast(d.error||"{{ _('Revoke Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Request Failed') }}","error")});
+}
+
+// 函数别名：修复 PPT/图像生成/多媒体 的 loading 问题

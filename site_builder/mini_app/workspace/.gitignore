@@ -1,0 +1,3 @@
+# Generated mini-app projects/versions — do not track build artifacts
+*/
+!.gitignore
