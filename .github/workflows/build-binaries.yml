@@ -23,6 +23,15 @@ jobs:
           pip install --upgrade pip
           pip install nuitka cryptography
 
+      - name: Generate integrity manifest
+        run: |
+          PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+          echo "PROBE_SECRET=$PROBE_SECRET" >> $GITHUB_ENV
+          python3 veroguard/tools/build_manifest.py \
+            --project-dir . \
+            --output veroguard/data/manifest.json.enc \
+            --secret "$PROBE_SECRET"
+
       - name: Build VeroGuard (Nuitka)
         run: |
           python veroguard/compile/build_guardian.py
