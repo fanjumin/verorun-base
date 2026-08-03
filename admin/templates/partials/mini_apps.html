@@ -1,0 +1,282 @@
+﻿window.l_mini_apps = function () {
+  document.getElementById("pt").textContent = "{{ _('Mini Programs') }}";
+  var mc = document.getElementById("mc");
+  mc.innerHTML = '<div class="lo"><div class="s"></div>{{ _("Loading...") }}</div>';
+  refreshProjects();
+};
+
+var _mpPolling = null;
+function mpApi(url, method, body) {
+  var opts = { method: method || "GET", headers: { Authorization: "Bearer " + T } };
+  if (body) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  return fetch(url, opts).then(function (r) { return r.json(); });
+}
+
+// ── 工程列表 ──
+function refreshProjects() {
+  mpApi("/admin/site-builder/mini-app/projects").then(function (d) {
+    if (!d.success) { document.getElementById("mc").innerHTML = '<div class="em">' + esc(d.error || "{{ _('Load failed') }}") + '</div>'; return; }
+    renderProjectList(d.data || []);
+  });
+}
+function renderProjectList(projects) {
+  var h = '<div style="display:flex;gap:8px;margin-bottom:12px">';
+  h += '<button class="btn bp" onclick="mpShowCreate()">+ {{ _("New Project") }}</button>';
+  h += '<button class="btn bo" onclick="refreshProjects()">&#x1f504; {{ _("Refresh") }}</button></div>';
+  if (!projects.length) {
+    h += '<div class="cd"><div class="em">{{ _("No projects yet. Create one to start.") }}</div></div>';
+  } else {
+    projects.forEach(function (p) {
+      h += '<div class="cd" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center">';
+      h += '<div><span class="st" style="cursor:pointer" onclick="mpToggleVersions(' + p.id + ')">' + esc(p.name) + '</span>';
+      h += ' <span style="font-size:11px;color:var(--dim)">v' + (p.version_count || 0) + '</span></div>';
+      h += '<div style="display:flex;gap:6px">';
+      h += '<button class="btn bp bs" onclick="mpShowGenerate(' + p.id + ',\'' + escAttr(p.name) + '\')">{{ _("Generate") }}</button>';
+      h += '<button class="btn bo bs" style="color:var(--rose);border-color:var(--rose)" onclick="mpConfirmDelete(' + p.id + ',\'' + escAttr(p.name) + '\')">{{ _("Delete") }}</button>';
+      h += '</div></div>';
+      h += '<div id="mpVers-' + p.id + '" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">';
+      h += '<div class="lo"><div class="s"></div></div></div>';
+      h += '</div>';
+    });
+  }
+  document.getElementById("mc").innerHTML = h;
+}
+
+// ── 版本展开/折叠 ──
+var _mpVersLoaded = {};
+function mpToggleVersions(pid) {
+  var el = document.getElementById("mpVers-" + pid);
+  if (el.style.display === "none") {
+    el.style.display = "block";
+    if (!_mpVersLoaded[pid]) {
+      mpApi("/admin/site-builder/mini-app/projects/" + pid + "/versions").then(function (d) {
+        el.innerHTML = mpRenderVersions(pid, d.data || []);
+        _mpVersLoaded[pid] = true;
+      });
+    }
+  } else {
+    el.style.display = "none";
+  }
+}
+function mpRenderVersions(pid, vers) {
+  if (!vers.length) return '<div class="em">{{ _("No versions yet.") }}</div>';
+  var h = '';
+  vers.forEach(function (v) {
+    h += '<div style="margin-bottom:8px;font-size:13px"><b>v' + v.version_no + '</b> <span style="color:var(--dim);font-size:11px">' + (v.created_at || '').slice(0, 16) + '</span>';
+    // result_json contains per-platform output info
+    var res = v.result || {};
+    Object.keys(res).forEach(function (plat) {
+      var r = res[plat];
+      if (r && r.status === 'completed') {
+        h += ' <a style="color:var(--accent);font-size:11px;text-decoration:none;margin-left:8px" href="/admin/site-builder/mini-app/versions/' + v.id + '/download/' + plat + '?token=' + encodeURIComponent(T) + '">&#x2b07; ' + plat + '</a>';
+      }
+    });
+    h += '</div>';
+  });
+  return h;
+}
+
+// ── 新建工程 ──
+function mpShowCreate() {
+  var h = '<div class="cd" style="margin-bottom:12px"><div class="st">{{ _("New Project") }}</div>';
+  h += '<div style="margin-bottom:8px"><label style="display:block;font-size:12px;margin-bottom:2px">{{ _("Project Name") }}</label>';
+  h += '<input class="in" id="mpNewName" style="width:100%" placeholder="{{ _("e.g. My Shop") }}" onkeydown="if(event.key===\'Enter\')mpDoCreate()"></div>';
+  h += '<div><button class="btn bp" onclick="mpDoCreate()">{{ _("Create") }}</button> <button class="btn bo" onclick="refreshProjects()">{{ _("Cancel") }}</button></div></div>';
+  document.getElementById("mc").insertAdjacentHTML("afterbegin", h);
+}
+function mpDoCreate() {
+  var n = (document.getElementById("mpNewName")?.value || "").trim();
+  if (!n) { showToast("{{ _('Name required') }}", "error"); return; }
+  mpApi("/admin/site-builder/mini-app/projects", "POST", { name: n }).then(function (d) {
+    if (d.success) { showToast("{{ _('Created') }}", "success"); refreshProjects(); }
+    else showToast(d.error || "{{ _('Failed') }}", "error");
+  });
+}
+
+// ── 生成小程序 ──
+function mpShowGenerate(pid, pname) {
+  var el = document.getElementById("mpVers-" + pid), panel = document.getElementById("mpGenPanel");
+  if (panel) { panel.remove(); return; }
+
+  var h = '<div class="cd" id="mpGenPanel" style="margin-bottom:12px;border-color:var(--accent)">';
+  h += '<div class="st">{{ _("Generate for") }} ' + esc(pname) + '</div>';
+
+  // ── Tab switcher ──
+  h += '<div style="display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content">';
+  h += '<button class="btn bp" id="mpTabAI" style="border-radius:0;border:none;border-right:1px solid var(--border)" onclick="switchMiniTab(\'ai\',' + pid + ')">{{ _("AI Generate") }}</button>';
+  h += '<button class="btn bo" id="mpTabManual" style="border-radius:0;border:none" onclick="switchMiniTab(\'manual\',' + pid + ')">{{ _("Manual") }}</button>';
+  h += '</div>';
+
+  // ── AI Panel ──
+  h += '<div id="mpAIPanel" style="display:block">';
+  h += '<div style="margin-bottom:8px"><label style="display:block;font-size:12px;margin-bottom:2px">{{ _("Describe your Mini App") }}</label>';
+  h += '<textarea class="in" id="mpAIPrompt" rows="3" style="width:100%;resize:vertical" placeholder="{{ _("e.g. A milk tea shop mini app, pink theme, focus on new arrivals and member points") }}"></textarea>';
+  h += '<div style="font-size:11px;color:var(--dim)">{{ _("Include industry, style, features, and layout preferences for best results.") }}</div></div>';
+
+  h += '<div style="margin-bottom:8px"><label style="display:block;font-size:12px;margin-bottom:2px">{{ _("Template (optional)") }}</label>';
+  h += '<select class="in" id="mpAITemplate" style="width:100%">';
+  h += '<option value="">{{ _("Auto Detect") }}</option>';
+  h += '<option value="mini_shop">{{ _("Shop Mini App") }}</option>';
+  h += '<option value="mini_service">{{ _("Service Booking Mini App") }}</option>';
+  h += '<option value="mini_brand">{{ _("Brand Showcase Mini App") }}</option>';
+  h += '<option value="mini_community">{{ _("Community Forum Mini App") }}</option>';
+  h += '</select></div>';
+
+  h += '<div style="font-size:12px;color:var(--dim);margin-bottom:8px">{{ _("Target Platforms:") }}</div>';
+  var plats = ['douyin', 'wechat', 'telegram', 'line'];
+  var platLabels = ['Douyin / Toutiao', 'WeChat', 'Telegram', 'LINE'];
+  h += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">';
+  plats.forEach(function (p, i) {
+    h += '<label style="font-size:13px;cursor:pointer"><input type="checkbox" id="mpGenPlat-' + p + '" checked> ' + platLabels[i] + '</label>';
+  });
+  h += '</div>';
+
+  h += '<div style="margin-bottom:12px">';
+  h += '<label style="font-size:13px;cursor:pointer;margin-right:12px"><input type="checkbox" id="mpAIChat" checked> {{ _("AI Chat") }}</label>';
+  h += '<label style="font-size:13px;cursor:pointer;margin-right:12px"><input type="checkbox" id="mpAICart" checked> {{ _("Cart") }}</label>';
+  h += '<label style="font-size:13px;cursor:pointer"><input type="checkbox" id="mpAICoupons"> {{ _("Coupons") }}</label>';
+  h += '</div>';
+
+  h += '<button class="btn bp" onclick="mpDoAIGenerate(' + pid + ')">{{ _("AI Generate Preview") }}</button>';
+  h += '<button class="btn bo" onclick="document.getElementById(\'mpGenPanel\').remove()">{{ _("Cancel") }}</button>';
+  h += '<div id="mpGenStatus" style="margin-top:8px;font-size:12px;color:var(--dim)"></div>';
+  h += '</div>'; // #mpAIPanel
+
+  // ── Manual Panel (hidden by default) ──
+  h += '<div id="mpManualPanel" style="display:none">';
+  h += '<div style="font-size:12px;color:var(--dim);margin-bottom:8px">{{ _("Select platforms:") }}</div>';
+  var mPlats = ['douyin', 'wechat', 'telegram', 'line'];
+  var mPlatLabels = ['Douyin / Toutiao', 'WeChat', 'Telegram', 'LINE'];
+  h += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">';
+  mPlats.forEach(function (p, i) {
+    h += '<label style="font-size:13px;cursor:pointer"><input type="checkbox" id="mpGenPlatM-' + p + '" checked> ' + mPlatLabels[i] + '</label>';
+  });
+  h += '</div>';
+  h += '<button class="btn bp" onclick="mpDoGenerateM(' + pid + ')">{{ _("Start Generation") }}</button>';
+  h += '<button class="btn bo" onclick="document.getElementById(\'mpGenPanel\').remove()">{{ _("Cancel") }}</button>';
+  h += '<div id="mpGenStatusM" style="margin-top:8px;font-size:12px;color:var(--dim)"></div>';
+  h += '</div>'; // #mpManualPanel
+
+  h += '</div>'; // #mpGenPanel
+  if (el) { el.insertAdjacentHTML("beforebegin", h); el.scrollIntoView({ behavior: "smooth" }); }
+  else { document.getElementById("mc").insertAdjacentHTML("afterbegin", h); }
+}
+
+function switchMiniTab(tab, pid) {
+  var aiPanel = document.getElementById("mpAIPanel");
+  var manualPanel = document.getElementById("mpManualPanel");
+  var btnAI = document.getElementById("mpTabAI");
+  var btnManual = document.getElementById("mpTabManual");
+  if (tab === 'ai') {
+    if (aiPanel) aiPanel.style.display = 'block';
+    if (manualPanel) manualPanel.style.display = 'none';
+    if (btnAI) { btnAI.className = 'btn bp'; btnAI.style.borderRadius = '0'; btnAI.style.border = 'none'; btnAI.style.borderRight = '1px solid var(--border)'; }
+    if (btnManual) { btnManual.className = 'btn bo'; btnManual.style.borderRadius = '0'; btnManual.style.border = 'none'; }
+  } else {
+    if (aiPanel) aiPanel.style.display = 'none';
+    if (manualPanel) manualPanel.style.display = 'block';
+    if (btnAI) { btnAI.className = 'btn bo'; btnAI.style.borderRadius = '0'; btnAI.style.border = 'none'; btnAI.style.borderRight = '1px solid var(--border)'; }
+    if (btnManual) { btnManual.className = 'btn bp'; btnManual.style.borderRadius = '0'; btnManual.style.border = 'none'; }
+  }
+}
+
+function mpDoAIGenerate(pid) {
+  var prompt = (document.getElementById("mpAIPrompt")?.value || "").trim();
+  if (!prompt) { showToast("{{ _('Please describe your Mini App') }}", "error"); return; }
+  var plats = ['douyin', 'wechat', 'telegram', 'line'];
+  var selected = plats.filter(function (p) { return document.getElementById("mpGenPlat-" + p)?.checked; });
+  if (!selected.length) { showToast("{{ _('Select at least one platform') }}", "error"); return; }
+  var statusEl = document.getElementById("mpGenStatus");
+  statusEl.textContent = "{{ _('AI analyzing...') }}";
+  mpApi("/admin/site-builder/mini-app/generate", "POST", {
+    project_id: pid,
+    platforms: selected,
+    prompt: prompt,
+    template: document.getElementById("mpAITemplate")?.value || null,
+    options: {
+      include_chat: document.getElementById("mpAIChat")?.checked !== false,
+      include_cart: document.getElementById("mpAICart")?.checked !== false,
+      include_coupons: document.getElementById("mpAICoupons")?.checked || false,
+    }
+  }).then(function (d) {
+    if (!d.success || !d.data) { statusEl.innerHTML = '<span style="color:#f85149">{{ _("Failed") }}</span>: ' + esc(d.error || ''); return; }
+    var versionId = d.data.version_id;
+    var summary = d.data.plan_summary || {};
+    var previewUrl = d.data.preview_url || '';
+    statusEl.innerHTML = '<span style="color:#3fb950">&#x2705; {{ _("Plan ready") }}</span> ' +
+      esc(summary.app_name || '') + ' | ' + (summary.pages || 0) + ' {{ _("pages") }} | ' + (summary.widgets || 0) + ' {{ _("widgets") }}' +
+      '<div style="margin-top:8px">' +
+      (previewUrl ? '<a class="btn bp bs" href="' + previewUrl + '" target="_blank">{{ _("Preview & Edit") }}</a> ' : '') +
+      '<button class="btn bp bs" onclick="confirmMiniAppGenerate(' + pid + ',' + versionId + ')">{{ _("Confirm & Build") }}</button>' +
+      '</div>';
+    _mpVersLoaded[pid] = false;
+  }).catch(function (err) {
+    statusEl.innerHTML = '<span style="color:#f85149">{{ _("Error") }}</span>: ' + esc(err.message || '');
+  });
+}
+
+function confirmMiniAppGenerate(pid, versionId) {
+  var plats = ['douyin', 'wechat', 'telegram', 'line'];
+  var selected = plats.filter(function (p) { return document.getElementById("mpGenPlat-" + p)?.checked; });
+  mpApi("/admin/site-builder/mini-app/generate", "POST", {
+    project_id: pid,
+    platforms: selected,
+    options: { include_chat: true }
+  }).then(function (d) {
+    if (!d.success || !d.data) { showToast("{{ _('Generation failed') }}", "error"); return; }
+    var tid = d.data.task_id;
+    if (!tid) { showToast("{{ _('No task returned') }}", "error"); return; }
+    mpPollTask(tid, pid);
+  });
+}
+
+function mpDoGenerateM(pid) {
+  var plats = ['douyin', 'wechat', 'telegram', 'line'];
+  var selected = plats.filter(function (p) { return document.getElementById("mpGenPlatM-" + p)?.checked; });
+  if (!selected.length) { showToast("{{ _('Select at least one platform') }}", "error"); return; }
+  var statusEl = document.getElementById("mpGenStatusM");
+  statusEl.textContent = "{{ _('Submitting...') }}";
+  mpApi("/admin/site-builder/mini-app/generate", "POST", { project_id: pid, platforms: selected, options: { include_chat: true } }).then(function (d) {
+    if (!d.success || !d.data) { statusEl.textContent = '{{ _("Failed") }}: ' + (d.error || ''); return; }
+    var tid = d.data.task_id;
+    mpPollTask(tid, pid);
+  });
+}
+
+function mpPollTask(tid, pid) {
+  var statusEl = document.getElementById("mpGenStatus") || document.getElementById("mpGenStatusM");
+  if (!statusEl) return;
+  statusEl.textContent = '{{ _("Generating...") }} task=' + tid;
+  if (_mpPolling) clearInterval(_mpPolling);
+  var count = 0;
+  _mpPolling = setInterval(function () {
+    mpApi("/admin/site-builder/mini-app/status/" + tid).then(function (sd) {
+      if (!sd.success) return;
+      var t = sd.data;
+      if (t.status === "completed") {
+        clearInterval(_mpPolling); _mpPolling = null;
+        statusEl.innerHTML = '<span style="color:#3fb950">&#x2705; {{ _("Done!") }} v' + (t.version_no || '?' ) + '</span>';
+        _mpVersLoaded[pid] = false;
+        setTimeout(function () { location.reload(); }, 1200);
+      } else if (t.status === "failed") {
+        clearInterval(_mpPolling); _mpPolling = null;
+        statusEl.innerHTML = '<span style="color:#f85149">{{ _("Failed") }}: ' + esc(t.error || '') + '</span>';
+      }
+    });
+    count++;
+    if (count > 120) { clearInterval(_mpPolling); _mpPolling = null; statusEl.textContent = '{{ _("Timeout") }}'; }
+  }, 3000);
+}
+
+// ── 删除 ──
+function mpConfirmDelete(pid, name) {
+  showConfirm("{{ _('Delete') }} " + esc(name) + "?","{{ _('This will remove the project and all its versions.') }}",function(){
+    mpDoDelete(pid);
+  });
+}
+function mpDoDelete(pid) {
+  mpApi("/admin/site-builder/mini-app/projects/" + pid, "DELETE").then(function (d) {
+    if (d.success) { showToast("{{ _('Deleted') }}", "success"); refreshProjects(); }
+    else showToast(d.error || "{{ _('Failed') }}", "error");
+  });
+}

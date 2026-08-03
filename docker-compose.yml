@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  app:
+    image: your-registry/app:latest
+    container_name: verorun
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - app_data:/app/data
+      - app_uploads:/app/admin/static
+      - app_platform_uploads:/app/main_site/static
+    environment:
+      - DB_PATH=/app/data/verorun.db
+      - APP_MODE=${APP_MODE:-client}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
+      - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  app_data:
+  app_uploads:
+  app_platform_uploads:

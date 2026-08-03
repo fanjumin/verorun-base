@@ -1,0 +1,35 @@
+﻿window.l_health=function(){
+  document.getElementById("pt").textContent="{{ _('Health Check') }}";
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/admin/health/', true);
+  xhr.setRequestHeader('Authorization', 'Bearer ' + T);
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      var html = xhr.responseText;
+      var headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+      var headHtml = headMatch ? headMatch[1] : '';
+      var headResources = '';
+      headHtml.replace(/<(style|link|script)[^>]*>[\s\S]*?<\/\1>/gi, function(m){ headResources += m; return m; });
+      headHtml.replace(/<(style|link|script)[^>]*\/>/gi, function(m){ headResources += m; return m; });
+      var bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      var bodyContent = bodyMatch ? bodyMatch[1] : html;
+      document.getElementById("mc").innerHTML = '<div id="health-root">' + headResources + bodyContent + '</div>';
+      document.getElementById("health-root").querySelectorAll("script").forEach(function(oldScript){
+        var ns = document.createElement("script");
+        if (oldScript.src) { ns.src = oldScript.src; }
+        else { ns.textContent = oldScript.textContent; }
+        oldScript.parentNode.replaceChild(ns, oldScript);
+      });
+    } else {
+      document.getElementById("mc").innerHTML = '<div class="em">{{ _('Load failed') }}: HTTP ' + xhr.status + '</div>';
+    }
+  };
+  xhr.onerror = function() {
+    document.getElementById("mc").innerHTML = '<div class="em">{{ _('Network Request Failed') }}</div>';
+  };
+  xhr.send();
+}
+
+// 🌐 i18n {{ _('Translations') }}
+// ============================

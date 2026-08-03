@@ -1,0 +1,128 @@
+/* Telegram Mini App Styles */
+:root {
+    --tg-bg-color: #ffffff;
+    --tg-text-color: #333333;
+    --tg-button-color: #1890ff;
+    --tg-button-text-color: #ffffff;
+    --primary: {{ primary_color }};
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--tg-bg-color);
+    color: var(--tg-text-color);
+    overflow: hidden;
+    height: 100vh;
+}
+
+.tg-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.tg-header {
+    background: var(--primary);
+    color: #ffffff;
+    padding: 16px 20px;
+    text-align: center;
+}
+
+.tg-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.tg-subtitle {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+.tg-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tg-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.msg-user, .msg-assistant {
+    margin-bottom: 12px;
+    display: flex;
+}
+
+.msg-user {
+    justify-content: flex-end;
+}
+
+.msg-assistant {
+    justify-content: flex-start;
+}
+
+.msg-bubble {
+    max-width: 80%;
+    padding: 10px 16px;
+    border-radius: 18px;
+    font-size: 15px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.msg-user .msg-bubble {
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.msg-assistant .msg-bubble {
+    background: #f0f0f0;
+    color: var(--tg-text-color);
+}
+
+.tg-input-area {
+    display: flex;
+    padding: 12px 16px;
+    background: var(--tg-bg-color);
+    border-top: 1px solid #e5e5e5;
+    gap: 8px;
+}
+
+.tg-input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 15px;
+    outline: none;
+    background: #f5f5f5;
+}
+
+.tg-input:focus {
+    border-color: var(--primary);
+}
+
+.tg-send-btn {
+    padding: 10px 20px;
+    background: var(--primary);
+    color: #ffffff;
+    border: none;
+    border-radius: 20px;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.tg-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

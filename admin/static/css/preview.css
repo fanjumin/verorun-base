@@ -1,0 +1,213 @@
+/* ═══════════════════════════════════════════════════════════
+   Device Simulator — Preview site in mobile device frames
+   ═══════════════════════════════════════════════════════════ */
+
+.preview-toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    background: #1a1a2e;
+    color: #fff;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 13px;
+}
+
+.preview-toolbar label {
+    font-weight: 500;
+    color: #a0a0b8;
+    white-space: nowrap;
+}
+
+.preview-toolbar select {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #2a2a3e;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.preview-toolbar select:focus {
+    outline: none;
+    border-color: #6366f1;
+}
+
+.preview-toolbar .device-info {
+    color: #888;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* ── Device Frame Wrapper ── */
+.device-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 60px 20px 40px;
+    min-height: 100vh;
+    background: #f0f0f5;
+}
+
+.device-frame {
+    position: relative;
+    background: #fff;
+    border-radius: 36px;
+    box-shadow: 0 0 0 3px #1a1a2e, 0 0 0 6px #333, 0 20px 60px rgba(0,0,0,0.3);
+    overflow: hidden;
+    transition: width 0.3s ease, height 0.3s ease;
+}
+
+.device-frame .notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: #1a1a2e;
+    border-radius: 0 0 18px 18px;
+}
+
+.device-frame .home-bar {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: #333;
+    border-radius: 100px;
+}
+
+.device-frame .device-screen {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.device-frame .device-screen iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* ── iPhone SE (375x667) ── */
+.device-frame.iphone-se {
+    width: 375px;
+    height: 667px;
+}
+.device-frame.iphone-se .notch {
+    width: 0;
+    height: 0;
+}
+.device-frame.iphone-se .home-bar {
+    width: 120px;
+    height: 4px;
+}
+
+/* ── iPhone 12/13/14 (390x844) ── */
+.device-frame.iphone-12 {
+    width: 390px;
+    height: 844px;
+}
+.device-frame.iphone-12 .notch {
+    width: 150px;
+    height: 30px;
+}
+.device-frame.iphone-12 .home-bar {
+    width: 134px;
+    height: 5px;
+}
+
+/* ── iPhone 12/13 Pro Max (428x926) ── */
+.device-frame.iphone-pro-max {
+    width: 428px;
+    height: 926px;
+}
+.device-frame.iphone-pro-max .notch {
+    width: 160px;
+    height: 34px;
+}
+.device-frame.iphone-pro-max .home-bar {
+    width: 140px;
+    height: 5px;
+}
+
+/* ── iPhone 14 Pro (393x852) ── */
+.device-frame.iphone-14-pro {
+    width: 393px;
+    height: 852px;
+}
+.device-frame.iphone-14-pro .notch {
+    width: 126px;
+    height: 32px;
+    border-radius: 0 0 24px 24px;
+}
+.device-frame.iphone-14-pro .home-bar {
+    width: 134px;
+    height: 5px;
+}
+
+/* ── iPhone 15 Pro Max (430x932) ── */
+.device-frame.iphone-15-pro-max {
+    width: 430px;
+    height: 932px;
+}
+.device-frame.iphone-15-pro-max .notch {
+    width: 126px;
+    height: 32px;
+    border-radius: 0 0 24px 24px;
+}
+.device-frame.iphone-15-pro-max .home-bar {
+    width: 140px;
+    height: 5px;
+}
+
+/* ── H5 / Desktop (no frame) ── */
+.device-frame.h5 {
+    width: 100%;
+    max-width: 1200px;
+    height: auto;
+    min-height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+}
+.device-frame.h5 .notch,
+.device-frame.h5 .home-bar {
+    display: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 500px) {
+    .device-wrapper {
+        padding: 50px 4px 20px;
+    }
+    .device-frame {
+        border-radius: 0;
+        box-shadow: none;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 100vh;
+    }
+    .device-frame .notch,
+    .device-frame .home-bar {
+        display: none;
+    }
+    .preview-toolbar {
+        padding: 6px 8px;
+        gap: 6px;
+        font-size: 11px;
+    }
+    .preview-toolbar select {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+}
