@@ -400,6 +400,162 @@ body {
   color: var(--text-dim);
   margin-top: 4px;
 }
+
+/* ─── 自定义弹窗 / Toast ─── */
+.custom-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: var(--font-cn);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 3s forwards;
+  max-width: 480px;
+  text-align: center;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+}
+.custom-toast.error {
+  background: rgba(244,63,94,0.15);
+  border: 1px solid rgba(244,63,94,0.4);
+  color: var(--rose);
+}
+.custom-toast.success {
+  background: rgba(0,255,159,0.12);
+  border: 1px solid rgba(0,255,159,0.3);
+  color: var(--green);
+}
+.custom-toast.info {
+  background: rgba(0,245,255,0.1);
+  border: 1px solid rgba(0,245,255,0.25);
+  color: var(--blue);
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* ─── 自定义确认弹窗 ─── */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+.modal-dialog {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 50px rgba(0,0,0,0.6);
+}
+.modal-dialog .modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 12px;
+}
+.modal-dialog .modal-body {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+.modal-dialog .modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.modal-dialog .modal-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-cn);
+  transition: all 0.2s;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+.modal-dialog .modal-btn:hover { background: rgba(255,255,255,0.05); }
+.modal-dialog .modal-btn.primary {
+  background: var(--gradient-primary);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+.modal-dialog .modal-btn.danger {
+  background: rgba(244,63,94,0.15);
+  border-color: rgba(244,63,94,0.3);
+  color: var(--rose);
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ─── 设置表单 ─── */
+.settings-form {
+  display: grid;
+  gap: 16px;
+}
+.settings-form .form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.settings-form .form-row label {
+  font-size: 13px;
+  color: var(--text);
+  min-width: 140px;
+  font-weight: 500;
+}
+.settings-form .form-row input,
+.settings-form .form-row select {
+  flex: 1;
+  min-width: 120px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-cn);
+}
+.settings-form .form-row input:focus,
+.settings-form .form-row select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+.settings-form .form-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: -8px;
+  margin-left: 152px;
+}
+.save-btn {
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-cn);
+  font-weight: 600;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+.save-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+.save-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 </style>
 </head>
 <body>
@@ -595,6 +751,34 @@ body {
 
   <!-- Tab: 设置 -->
   <div class="tab-content" id="tab-settings">
+
+    <!-- 通用插件设置 -->
+    <div class="glass-card" style="margin-bottom:20px">
+      <div class="label" style="margin-bottom:16px">{{ _('Plugin Settings') }}</div>
+      <div id="settingsStatus" style="margin-bottom:12px"></div>
+      <form id="pluginSettingsForm" class="settings-form">
+        <div class="form-row">
+          <label for="cfgSampleRate">{{ _('Sampling Rate') }}</label>
+          <input id="cfgSampleRate" type="number" step="0.1" min="0" max="1" value="1.0" style="max-width:100px">
+          <span style="font-size:11px;color:var(--text-dim)">0.0 ~ 1.0 (1.0 = {{ _('all requests') }})</span>
+        </div>
+        <div class="form-row">
+          <label for="cfgGeoipEnabled">{{ _('GeoIP Enabled') }}</label>
+          <select id="cfgGeoipEnabled" style="max-width:120px">
+            <option value="true">{{ _('Enabled') }}</option>
+            <option value="false">{{ _('Disabled') }}</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="cfgServiceName">{{ _('Service Name') }}</label>
+          <input id="cfgServiceName" type="text" value="admin" style="max-width:200px">
+          <span style="font-size:11px;color:var(--text-dim)">{{ _('Label for analytics logs') }}</span>
+        </div>
+        <button type="submit" class="save-btn" id="settingsSaveBtn">{{ _('Save Settings') }}</button>
+      </form>
+    </div>
+
+    <!-- GeoIP 数据库设置 -->
     <div class="glass-card" style="margin-bottom:20px">
       <div class="label" style="margin-bottom:16px">{{ _('GeoIP Database Setup') }}</div>
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:20px">{{ _('GeoIP databases are required to show geographic distribution on the Region tab. Choose the one that matches your user base.') }}</div>
@@ -625,10 +809,6 @@ body {
         </div>
         <div id="geolite2Status" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
         <form id="geoipForm" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <div style="width:100px">
-            <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">Account ID</label>
-            <input name="account_id" type="text" placeholder="1343784" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
-          </div>
           <div style="flex:1;min-width:200px">
             <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">License Key</label>
             <input name="license_key" type="text" placeholder="MaxMind License Key" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
@@ -646,6 +826,42 @@ body {
 <button class="refresh-btn" onclick="refreshAll()" title="{{ _('Refresh') }}">⟳</button>
 
 <script>
+// ═══════════════════════════════════════════════════════════════════════════
+// 自定义 Toast / Modal（替代原生 alert/confirm）
+// ═══════════════════════════════════════════════════════════════════════════
+function showToast(msg, type) {
+  type = type || 'info';
+  var el = document.createElement('div');
+  el.className = 'custom-toast ' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 3300);
+}
+
+function showConfirm(title, message, onConfirm) {
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML =
+    '<div class="modal-dialog">' +
+    '<div class="modal-title">' + title + '</div>' +
+    '<div class="modal-body">' + message + '</div>' +
+    '<div class="modal-actions">' +
+    '<button class="modal-btn" id="modalCancel">{{ _('Cancel') }}</button>' +
+    '<button class="modal-btn danger" id="modalOk">{{ _('Delete') }}</button>' +
+    '</div></div>';
+  document.body.appendChild(overlay);
+  document.getElementById('modalCancel').addEventListener('click', function(){
+    document.body.removeChild(overlay);
+  });
+  document.getElementById('modalOk').addEventListener('click', function(){
+    document.body.removeChild(overlay);
+    if (onConfirm) onConfirm();
+  });
+  overlay.addEventListener('click', function(e){
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 粒子系统
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1622,11 +1838,12 @@ function renderAlerts(alerts) {
 }
 
 function deleteAlert(id) {
-  if (!confirm('{{ _('Delete this alert rule?') }}')) return;
-  fetch(API_BASE + '/alerts/' + id, { method: 'DELETE' }).then(function(r){
-    return r.json();
-  }).then(function(res){
-    if (res.success) loadAlerts();
+  showConfirm('{{ _('Delete Alert Rule') }}', '{{ _('Delete this alert rule?') }}', function(){
+    fetch(API_BASE + '/alerts/' + id, { method: 'DELETE' }).then(function(r){
+      return r.json();
+    }).then(function(res){
+      if (res.success) loadAlerts();
+    });
   });
 }
 
@@ -1693,14 +1910,15 @@ function downloadIp2region() {
     if (res.success) {
       btn.textContent = '{{ _('Update ip2region') }}';
       loadGeoipStatus();
+      showToast('{{ _('ip2region database downloaded successfully') }}', 'success');
     } else {
       btn.textContent = '{{ _('Download ip2region Database') }}';
-      alert('Error: ' + (res.error || 'Unknown error'));
+      showToast('Error: ' + (res.error || 'Unknown error'), 'error');
     }
   }).catch(function(err){
     btn.disabled = false;
     btn.textContent = '{{ _('Download ip2region Database') }}';
-    alert('Network error: ' + err.message);
+    showToast('Network error: ' + err.message, 'error');
   });
 }
 
@@ -1719,37 +1937,99 @@ function _authHeaders() {
 document.getElementById('geoipForm').addEventListener('submit', function(e){
   e.preventDefault();
   var btn = document.getElementById('geoipDownloadBtn');
-  var accountId = this.account_id.value.trim();
   var key = this.license_key.value.trim();
-  if (!accountId || !key) return;
+  if (!key) return;
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
   fetch(SETTINGS_BASE + '/settings/geoip/download', {
     method: 'POST',
     headers: _authHeaders(),
-    body: JSON.stringify({account_id: accountId, license_key: key}),
+    body: JSON.stringify({license_key: key}),
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.disabled = false;
     if (res.success) {
       btn.textContent = '{{ _('Update GeoLite2') }}';
       loadGeoipStatus();
+      showToast('{{ _('GeoLite2 database downloaded successfully') }}', 'success');
     } else {
       btn.textContent = '{{ _('Download GeoLite2 Database') }}';
-      alert('Error: ' + (res.error || 'Unknown error'));
+      showToast('Error: ' + (res.error || 'Unknown error'), 'error');
     }
   }).catch(function(err){
     btn.disabled = false;
     btn.textContent = '{{ _('Download GeoLite2 Database') }}';
-    alert('Network error: ' + err.message);
+    showToast('Network error: ' + err.message, 'error');
   });
 });
 
-// 切换到 Settings tab 时加载 GeoIP 状态
+// 切换到 Settings tab 时加载 GeoIP 状态和设置
 document.querySelectorAll('.tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     if (this.getAttribute('data-tab') === 'settings') {
       loadGeoipStatus();
+      loadPluginSettings();
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 动态市场检测（根据客户端 IP 判断 cn / intl）
+// ═══════════════════════════════════════════════════════════════════════════
+var _MARKET = 'cn';  // 默认值，启动后异步更新
+
+function detectMarket() {
+  fetch(SETTINGS_BASE + '/api/v1/geo/market', {headers: _authHeaders()})
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.success && res.data) {
+        _MARKET = res.data.market;
+      }
+    })
+    .catch(function(){ /* keep default */ });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 通用插件设置保存
+// ═══════════════════════════════════════════════════════════════════════════
+function loadPluginSettings() {
+  fetch(SETTINGS_BASE + '/settings', {headers: _authHeaders()})
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.success && res.data) {
+        var d = res.data;
+        document.getElementById('cfgSampleRate').value = d.sample_rate || 1.0;
+        document.getElementById('cfgGeoipEnabled').value = d.geoip_enabled ? 'true' : 'false';
+        document.getElementById('cfgServiceName').value = d.service_name || 'admin';
+      }
+    });
+}
+
+document.getElementById('pluginSettingsForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  var btn = document.getElementById('settingsSaveBtn');
+  btn.textContent = '{{ _('Saving...') }}';
+  btn.disabled = true;
+  var data = {
+    sample_rate: parseFloat(document.getElementById('cfgSampleRate').value) || 1.0,
+    geoip_enabled: document.getElementById('cfgGeoipEnabled').value === 'true',
+    service_name: document.getElementById('cfgServiceName').value.trim() || 'admin'
+  };
+  fetch(SETTINGS_BASE + '/settings', {
+    method: 'POST',
+    headers: _authHeaders(),
+    body: JSON.stringify(data),
+  }).then(function(r){ return r.json(); }).then(function(res){
+    btn.textContent = '{{ _('Save Settings') }}';
+    btn.disabled = false;
+    if (res.success) {
+      showToast('{{ _('Settings saved successfully') }}', 'success');
+    } else {
+      showToast('Error: ' + (res.error || res.warning || 'Unknown error'), 'error');
+    }
+  }).catch(function(err){
+    btn.textContent = '{{ _('Save Settings') }}';
+    btn.disabled = false;
+    showToast('Network error: ' + err.message, 'error');
   });
 });
 
@@ -1787,7 +2067,7 @@ function startAutoRefresh() {
 // ═══════════════════════════════════════════════════════════════════════════
 // 初始化
 // ═══════════════════════════════════════════════════════════════════════════
-var _MARKET = '{{ geo_market }}';  // auto-detected: cn / intl
+detectMarket();       // 异步检测客户端 IP 市场
 refreshAll();
 startAutoRefresh();
 </script>

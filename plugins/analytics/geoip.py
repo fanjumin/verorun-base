@@ -97,6 +97,30 @@ def get_market() -> str:
     return 'intl' if _detect_server_location() else 'cn'
 
 
+def detect_client_market(ip: str) -> str:
+    """
+    根据客户端 IP 判断市场：'cn' 或 'intl'
+    用于前端根据访客 IP 动态切换中国/国际视图。
+    """
+    if not ip or ip.startswith('127.') or ip.startswith('192.168.') or ip.startswith('10.'):
+        return get_market()  # 内网 IP 回退到服务器市场
+
+    # 优先用 ip2region（本地，零延迟）
+    result = _ip2region_lookup(ip)
+    if result.get('country'):
+        return 'cn' if result['country'] == 'CN' else 'intl'
+
+    # 回退到 ip-api
+    try:
+        api_result = _ipapi_lookup(ip)
+        if api_result.get('country'):
+            return 'cn' if api_result['country'] == 'CN' else 'intl'
+    except Exception:
+        pass
+
+    return get_market()  # 最终回退到服务器市场
+
+
 # ─── ip2region ───────────────────────────────────────────────────────────────────
 
 def _init_ip2region() -> bool:
@@ -309,10 +333,10 @@ def _ipapi_lookup(ip: str) -> dict:
 
 # ─── 维护工具 ──────────────────────────────────────────────────────────────────
 
-def download_geolite2_auto(account_id: str, license_key: str) -> dict:
+def download_geolite2_auto(license_key: str) -> dict:
     """
     自动下载 GeoLite2-City.mmdb 到 analytics/data/ 目录。
-    使用 HTTP Basic Auth: base64(account_id:license_key)
+    使用 MaxMind 新版 API: license_key 作为 URL 查询参数。
 
     返回: {'success': True, 'path': '...', 'size_mb': 12.3}
          或 {'success': False, 'error': '...'}
@@ -321,7 +345,6 @@ def download_geolite2_auto(account_id: str, license_key: str) -> dict:
     import tarfile
     import tempfile
     import shutil
-    import base64
 
     target_dir = os.path.join(os.path.dirname(__file__), 'data')
     os.makedirs(target_dir, exist_ok=True)
@@ -329,20 +352,18 @@ def download_geolite2_auto(account_id: str, license_key: str) -> dict:
 
     url = (
         'https://download.maxmind.com/app/geoip_download'
-        '?edition_id=GeoLite2-City&suffix=tar.gz'
+        f'?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
     )
-    auth = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
 
     try:
         req = Request(url)
-        req.add_header('Authorization', f'Basic {auth}')
         resp = urlopen(req, timeout=120)
         if resp.status != 200:
             return {
                 'success': False,
                 'error': (
                     f'HTTP {resp.status}: '
-                    'Account ID or license key may be invalid, or key not yet activated '
+                    'License key may be invalid, or key not yet activated '
                     '(wait up to 30 minutes after creation).'
                 ),
             }
@@ -435,10 +456,11 @@ def download_ip2region_auto() -> dict:
     os.makedirs(target_dir, exist_ok=True)
     target_path = os.path.join(target_dir, 'ip2region_v4.xdb')
 
-    # GitHub / Gitee mirror（国内优先 Gitee，境外优先 GitHub）
+    # GitHub / Gitee 镜像（国内优先 Gitee，境外优先 GitHub）
     urls = [
         'https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region.xdb',
-        'https://gitee.com/lionsoul/ip2region/raw/master/data/ip2region.xdb',
+        'https://gitee.com/mirrors/ip2region/raw/master/data/ip2region.xdb',
+        'https://ghproxy.com/https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region.xdb',
     ]
 
     last_error = ''

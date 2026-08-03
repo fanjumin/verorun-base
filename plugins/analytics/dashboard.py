@@ -23,7 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from . import models as am
 from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
-from .geoip import get_market, download_geolite2_auto, download_ip2region_auto, get_geoip_status
+from .geoip import get_market, download_geolite2_auto, download_ip2region_auto, get_geoip_status, detect_client_market
 from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
@@ -266,6 +266,18 @@ def api_china_cities():
         conn.close()
 
 
+@analytics_bp.route('/api/v1/geo/market')
+def api_geo_market():
+    """根据客户端 IP 判断市场：'cn' 或 'intl'"""
+    client_ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+    if not client_ip:
+        client_ip = request.headers.get('X-Real-IP', '')
+    if not client_ip:
+        client_ip = request.remote_addr or ''
+    market = detect_client_market(client_ip)
+    return jsonify({'success': True, 'data': {'market': market}})
+
+
 @analytics_bp.route('/api/v1/devices')
 def api_devices():
     """设备分布"""
@@ -395,14 +407,11 @@ def api_geoip_status():
 def api_geoip_download():
     """下载/更新 GeoLite2 数据库"""
     data = request.get_json(silent=True) or {}
-    account_id = (data.get('account_id') or '').strip()
     license_key = (data.get('license_key') or '').strip()
-    if not account_id:
-        return jsonify({'success': False, 'error': _t('account_id required')}), 400
     if not license_key:
         return jsonify({'success': False, 'error': _t('license_key required')}), 400
 
-    result = download_geolite2_auto(account_id, license_key)
+    result = download_geolite2_auto(license_key)
     return jsonify(result)
 
 
