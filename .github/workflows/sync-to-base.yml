@@ -1,0 +1,68 @@
+name: Sync to verorun-base
+
+# ── 触发条件：verorun-code 推送 tag ──
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verorun-code
+        uses: actions/checkout@v4
+
+      - name: Set tag variables
+        id: vars
+        run: |
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "msg=Sync from verorun-code ${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Clone verorun-base
+        run: |
+          git clone https://x-access-token:${{ secrets.GH_PAT }}@github.com/fanjumin/verorun-base.git /tmp/base
+          cd /tmp/base
+          git config user.name  "VeroRun CI"
+          git config user.email "ci@verorun.com"
+
+      - name: Remove old tracked files from verorun-base
+        run: |
+          cd /tmp/base
+          # 保留 verorun-base 自己的文件（README.md, .gitignore）
+          # 其余全部清除，准备接收新文件
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.git' \
+            ! -name 'README.md' \
+            ! -name '.gitignore' \
+            -exec rm -rf {} +
+
+      - name: Copy base files from verorun-code
+        run: |
+          # 排除：插件源码、文档、测试、开发工具、CI
+          rsync -av \
+            --exclude='plugins/' \
+            --exclude='文档/' \
+            --exclude='docs/' \
+            --exclude='tests/' \
+            --exclude='scripts/' \
+            --exclude='prompts/' \
+            --exclude='.trae/' \
+            --exclude='.github/' \
+            --exclude='.git/' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='临时文件/' \
+            ./ /tmp/base/
+
+      - name: Commit and push to verorun-base
+        run: |
+          cd /tmp/base
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+          else
+            git commit -m "${{ steps.vars.outputs.msg }}"
+            git tag "${{ steps.vars.outputs.tag }}"
+            git push origin master --tags
+          fi

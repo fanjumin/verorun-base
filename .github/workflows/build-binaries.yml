@@ -1,0 +1,47 @@
+name: Build binaries (Nuitka)
+
+# ── 触发条件：verorun-code 推送 tag ──
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verorun-code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          pip install --upgrade pip
+          pip install nuitka
+
+      - name: Build VeroGuard (Nuitka)
+        run: |
+          python veroguard/compile/build_guardian.py
+
+      - name: Verify binary
+        run: |
+          if [ -f veroguard/dist/verorun-guardian.bin ]; then
+            echo "Binary built successfully"
+            ls -lh veroguard/dist/verorun-guardian.bin
+            file veroguard/dist/verorun-guardian.bin || true
+          else
+            echo "ERROR: Binary not found"
+            exit 1
+          fi
+
+      - name: Upload binary to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            veroguard/dist/verorun-guardian.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
