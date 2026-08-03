@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Runtime
+/run/
+/logs/*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+veroguard/dist/
+*.bin
+*.exe
+
+# Data directories (production data)
+data/uploads/*
+data/backups/*
+!data/.gitkeep
+
+# Session files
+flask_session/
+
+# Compiled translations
+*.mo
