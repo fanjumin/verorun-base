@@ -115,6 +115,17 @@ do_install() {
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
+    step "Create directories"
+    mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
+    mkdir -p "${APP_HOME}/.cache/llm" \
+             "${APP_HOME}/.cache/sessions" \
+             "${APP_HOME}/.cache/agents"
+    # Clean stale __pycache__ before chown (avoids race-condition failures)
+    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
+    done_step "Directories ready"
+
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
@@ -122,9 +133,14 @@ do_install() {
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
     else
+        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
+            rm -rf "${APP_HOME}"
+        else
+            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
+            exit 1
+        fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
-
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
@@ -221,9 +237,10 @@ do_update() {
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
         echo -e "${WARN} .git missing — re-cloning repository"
-        if [ -d "${APP_HOME}" ] && [ "$(ls -A "${APP_HOME}" 2>/dev/null)" ]; then
-            echo -e "${FAIL} APP_HOME='${APP_HOME}' is not empty and has no .git — refusing to overwrite"
-            echo -e "${INFO} Move or delete the directory manually, then re-run install.sh update"
+        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
+            rm -rf "${APP_HOME}"
+        else
+            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
             exit 1
         fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
