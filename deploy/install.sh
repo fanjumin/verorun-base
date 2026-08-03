@@ -115,17 +115,6 @@ do_install() {
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
-    step "Create directories"
-    mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
-    mkdir -p "${APP_HOME}/.cache/llm" \
-             "${APP_HOME}/.cache/sessions" \
-             "${APP_HOME}/.cache/agents"
-    # Clean stale __pycache__ before chown (avoids race-condition failures)
-    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
-    chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
-    done_step "Directories ready"
-
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
@@ -140,9 +129,16 @@ do_install() {
         fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
+
+    step "Create directories"
+    mkdir -p "${APP_HOME}/data" "${LOG_DIR}"
+    mkdir -p "${APP_HOME}/.cache/llm" \
+             "${APP_HOME}/.cache/sessions" \
+             "${APP_HOME}/.cache/agents"
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Code pulled ($(git -C "${APP_HOME}" log --oneline -1))"
 
     step "Python virtual environment"
