@@ -133,8 +133,8 @@ do_install() {
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
     else
-        if [ -d "${APP_HOME}" ] && [ ! -d "${APP_HOME}/.git" ]; then
-            echo -e "${FAIL} APP_HOME='${APP_HOME}' exists but is not a git repository — refusing to remove"
+        if [ -d "${APP_HOME}" ] && [ ! -d "${APP_HOME}/.git" ] && [ "$(ls -A "${APP_HOME}" 2>/dev/null)" ]; then
+            echo -e "${FAIL} APP_HOME='${APP_HOME}' is not empty and not a git repository — refusing to overwrite"
             echo -e "${INFO} Move or delete the directory manually, then re-run install.sh"
             exit 1
         fi
@@ -240,8 +240,8 @@ do_update() {
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
         echo -e "${WARN} .git missing — re-cloning repository"
-        if [ -d "${APP_HOME}" ]; then
-            echo -e "${FAIL} APP_HOME='${APP_HOME}' exists without .git — refusing to remove"
+        if [ -d "${APP_HOME}" ] && [ "$(ls -A "${APP_HOME}" 2>/dev/null)" ]; then
+            echo -e "${FAIL} APP_HOME='${APP_HOME}' is not empty and has no .git — refusing to overwrite"
             echo -e "${INFO} Move or delete the directory manually, then re-run install.sh update"
             exit 1
         fi
