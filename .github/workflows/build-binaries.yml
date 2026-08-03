@@ -20,13 +20,14 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf
           pip install --upgrade pip
           pip install nuitka cryptography
 
       - name: Generate integrity manifest
         run: |
           PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-          echo "PROBE_SECRET=$PROBE_SECRET" >> $GITHUB_ENV
           python3 veroguard/tools/build_manifest.py \
             --project-dir . \
             --output veroguard/data/manifest.json.enc \
@@ -34,7 +35,20 @@ jobs:
 
       - name: Build VeroGuard (Nuitka)
         run: |
-          python veroguard/compile/build_guardian.py
+          mkdir -p veroguard/dist
+          python3 -m nuitka \
+            --standalone \
+            --onefile \
+            --follow-imports \
+            --include-package=veroguard \
+            --include-package=veroguard.modules \
+            --include-data-file=veroguard/data/manifest.json.enc=data/manifest.json.enc \
+            --output-dir=veroguard/dist \
+            --output-filename=verorun-guardian.bin \
+            --assume-yes-for-downloads \
+            --show-progress \
+            --show-scons \
+            veroguard/guardian.py
 
       - name: Verify binary
         run: |
