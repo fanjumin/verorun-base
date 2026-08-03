@@ -730,10 +730,16 @@ restart_services() {
     for svc in "${services[@]}"; do
         if systemctl is-enabled --quiet "${svc}" 2>/dev/null; then
             systemctl restart "${svc}"
-            sleep 2
-            if systemctl is-active --quiet "${svc}"; then
-                echo -e "${OK} ${svc} is running"
-            else
+            local _waited=0
+            while [ $_waited -lt 60 ]; do
+                if systemctl is-active --quiet "${svc}" 2>/dev/null; then
+                    echo -e "${OK} ${svc} is running"
+                    break
+                fi
+                sleep 2
+                _waited=$((_waited + 2))
+            done
+            if [ $_waited -ge 60 ]; then
                 echo -e "${FAIL} ${svc} failed to start — check: journalctl -u ${svc} -n 20"
             fi
         else
