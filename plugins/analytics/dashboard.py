@@ -395,11 +395,14 @@ def api_geoip_status():
 def api_geoip_download():
     """下载/更新 GeoLite2 数据库"""
     data = request.get_json(silent=True) or {}
+    account_id = (data.get('account_id') or '').strip()
     license_key = (data.get('license_key') or '').strip()
+    if not account_id:
+        return jsonify({'success': False, 'error': _t('account_id required')}), 400
     if not license_key:
         return jsonify({'success': False, 'error': _t('license_key required')}), 400
 
-    result = download_geolite2_auto(license_key)
+    result = download_geolite2_auto(account_id, license_key)
     return jsonify(result)
 
 

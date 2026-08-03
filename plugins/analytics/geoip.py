@@ -24,7 +24,7 @@ import os
 import sys
 import time
 import json
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from urllib.parse import urlencode
 
 # ─── 配置 ──────────────────────────────────────────────────────────────────────
@@ -309,10 +309,10 @@ def _ipapi_lookup(ip: str) -> dict:
 
 # ─── 维护工具 ──────────────────────────────────────────────────────────────────
 
-def download_geolite2_auto(license_key: str) -> dict:
+def download_geolite2_auto(account_id: str, license_key: str) -> dict:
     """
     自动下载 GeoLite2-City.mmdb 到 analytics/data/ 目录。
-    从 MaxMind 下载 tar.gz → 解压 → 写入 mmdb → 重置 reader 使下次查询自动加载。
+    使用 HTTP Basic Auth: base64(account_id:license_key)
 
     返回: {'success': True, 'path': '...', 'size_mb': 12.3}
          或 {'success': False, 'error': '...'}
@@ -321,6 +321,7 @@ def download_geolite2_auto(license_key: str) -> dict:
     import tarfile
     import tempfile
     import shutil
+    import base64
 
     target_dir = os.path.join(os.path.dirname(__file__), 'data')
     os.makedirs(target_dir, exist_ok=True)
@@ -328,17 +329,20 @@ def download_geolite2_auto(license_key: str) -> dict:
 
     url = (
         'https://download.maxmind.com/app/geoip_download'
-        f'?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
+        '?edition_id=GeoLite2-City&suffix=tar.gz'
     )
+    auth = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
 
     try:
-        resp = urlopen(url, timeout=120)
+        req = Request(url)
+        req.add_header('Authorization', f'Basic {auth}')
+        resp = urlopen(req, timeout=120)
         if resp.status != 200:
             return {
                 'success': False,
                 'error': (
                     f'HTTP {resp.status}: '
-                    'License key may be invalid or not yet activated '
+                    'Account ID or license key may be invalid, or key not yet activated '
                     '(wait up to 30 minutes after creation).'
                 ),
             }
@@ -431,10 +435,10 @@ def download_ip2region_auto() -> dict:
     os.makedirs(target_dir, exist_ok=True)
     target_path = os.path.join(target_dir, 'ip2region_v4.xdb')
 
-    # GitHub release 直链
+    # GitHub / Gitee mirror（国内优先 Gitee，境外优先 GitHub）
     urls = [
-        'https://github.com/lionsoul2014/ip2region/raw/master/data/ip2region.xdb',
         'https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region.xdb',
+        'https://gitee.com/lionsoul/ip2region/raw/master/data/ip2region.xdb',
     ]
 
     last_error = ''

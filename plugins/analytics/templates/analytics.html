@@ -625,7 +625,12 @@ body {
         </div>
         <div id="geolite2Status" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
         <form id="geoipForm" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <div style="flex:1;min-width:240px">
+          <div style="width:100px">
+            <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">Account ID</label>
+            <input name="account_id" type="text" placeholder="1343784" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
+          </div>
+          <div style="flex:1;min-width:200px">
+            <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">License Key</label>
             <input name="license_key" type="text" placeholder="MaxMind License Key" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
           </div>
           <button type="submit" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoLite2 Database') }}</button>
@@ -1714,14 +1719,15 @@ function _authHeaders() {
 document.getElementById('geoipForm').addEventListener('submit', function(e){
   e.preventDefault();
   var btn = document.getElementById('geoipDownloadBtn');
+  var accountId = this.account_id.value.trim();
   var key = this.license_key.value.trim();
-  if (!key) return;
+  if (!accountId || !key) return;
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
   fetch(SETTINGS_BASE + '/settings/geoip/download', {
     method: 'POST',
     headers: _authHeaders(),
-    body: JSON.stringify({license_key: key}),
+    body: JSON.stringify({account_id: accountId, license_key: key}),
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.disabled = false;
     if (res.success) {
