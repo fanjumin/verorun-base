@@ -386,14 +386,76 @@ def download_geolite2_auto(license_key: str) -> dict:
 
 
 def get_geoip_status() -> dict:
-    """返回 GeoIP 数据库安装状态"""
-    db_path = _find_db()
-    if db_path:
-        stat = os.stat(db_path)
-        return {
+    """返回 GeoIP 数据库安装状态（ip2region + MaxMind）"""
+    result = {}
+
+    # ip2region
+    if os.path.exists(IP2REGION_DB):
+        stat = os.stat(IP2REGION_DB)
+        result['ip2region'] = {
             'installed': True,
-            'path': db_path,
+            'path': IP2REGION_DB,
             'size_mb': round(stat.st_size / (1024 * 1024), 1),
             'mtime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stat.st_mtime)),
         }
-    return {'installed': False, 'path': None}
+    else:
+        result['ip2region'] = {'installed': False, 'path': None}
+
+    # MaxMind GeoLite2
+    mmdb_path = _find_db()
+    if mmdb_path:
+        stat = os.stat(mmdb_path)
+        result['geolite2'] = {
+            'installed': True,
+            'path': mmdb_path,
+            'size_mb': round(stat.st_size / (1024 * 1024), 1),
+            'mtime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stat.st_mtime)),
+        }
+    else:
+        result['geolite2'] = {'installed': False, 'path': None}
+
+    return result
+
+
+def download_ip2region_auto() -> dict:
+    """
+    从 GitHub 下载 ip2region_v4.xdb 到 analytics/data/ 目录。
+    开源免费，无需注册。
+
+    返回: {'success': True, 'path': '...', 'size_mb': 11.2}
+         或 {'success': False, 'error': '...'}
+    """
+    import shutil
+
+    target_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(target_dir, exist_ok=True)
+    target_path = os.path.join(target_dir, 'ip2region_v4.xdb')
+
+    # GitHub release 直链
+    urls = [
+        'https://github.com/lionsoul2014/ip2region/raw/master/data/ip2region.xdb',
+        'https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region.xdb',
+    ]
+
+    last_error = ''
+    for url in urls:
+        try:
+            resp = urlopen(url, timeout=120)
+            if resp.status == 200:
+                with open(target_path, 'wb') as f:
+                    shutil.copyfileobj(resp, f)
+
+                size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
+
+                # 重置 searcher，下次 geoip_lookup 自动重新加载
+                global _ip2region_searcher
+                _ip2region_searcher = None
+
+                print(f'[Analytics] ✅ ip2region.xdb downloaded ({size_mb} MB) → {target_path}')
+                return {'success': True, 'path': target_path, 'size_mb': size_mb}
+            else:
+                last_error = f'HTTP {resp.status} from {url}'
+        except Exception as e:
+            last_error = f'{url}: {e}'
+
+    return {'success': False, 'error': f'All mirrors failed: {last_error}'}

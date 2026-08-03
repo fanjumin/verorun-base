@@ -23,7 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from . import models as am
 from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
-from .geoip import get_market, download_geolite2_auto, get_geoip_status
+from .geoip import get_market, download_geolite2_auto, download_ip2region_auto, get_geoip_status
 from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
@@ -400,6 +400,13 @@ def api_geoip_download():
         return jsonify({'success': False, 'error': _t('license_key required')}), 400
 
     result = download_geolite2_auto(license_key)
+    return jsonify(result)
+
+
+@analytics_bp.route('/settings/geoip/download-ip2region', methods=['POST'])
+def api_geoip_download_ip2region():
+    """下载 ip2region 数据库（开源免费，无需注册）"""
+    result = download_ip2region_auto()
     return jsonify(result)
 
 

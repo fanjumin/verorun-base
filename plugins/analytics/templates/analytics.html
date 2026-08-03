@@ -596,16 +596,41 @@ body {
   <!-- Tab: 设置 -->
   <div class="tab-content" id="tab-settings">
     <div class="glass-card" style="margin-bottom:20px">
-      <div class="label" style="margin-bottom:12px">{{ _('GeoLite2 Database') }}</div>
-      <div id="geoipStatus" style="margin-bottom:16px"><div class="loading"><div class="spinner"></div></div></div>
-      <form id="geoipForm" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-        <div style="flex:1;min-width:280px">
-          <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px">MaxMind License Key</label>
-          <input name="license_key" type="text" placeholder="e.g. abc123_YourMaxMindLicenseKey" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:monospace">
-          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Free registration at <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank" style="color:var(--blue)">maxmind.com</a>. No credit card required.</div>
+      <div class="label" style="margin-bottom:16px">{{ _('GeoIP Database Setup') }}</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:20px">{{ _('GeoIP databases are required to show geographic distribution on the Region tab. Choose the one that matches your user base.') }}</div>
+
+      <!-- ip2region -->
+      <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">📍</span>
+          <span style="font-weight:600;color:var(--text)">{{ _('ip2region') }} — {{ _('Chinese IPs') }}</span>
+          <span style="font-size:11px;background:rgba(34,211,238,0.12);color:var(--blue);padding:2px 8px;border-radius:4px">{{ _('Free · No Registration · Open Source') }}</span>
         </div>
-        <button type="submit" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:10px 20px;color:white;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoIP Database') }}</button>
-      </form>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">
+          {{ _('Source') }}: <a href="https://github.com/lionsoul2014/ip2region" target="_blank" style="color:var(--blue)">github.com/lionsoul2014/ip2region</a>
+        </div>
+        <div id="ip2regionStatus" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
+        <button onclick="downloadIp2region()" id="ip2regionBtn" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit">{{ _('Download ip2region Database') }}</button>
+      </div>
+
+      <!-- MaxMind -->
+      <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">🌍</span>
+          <span style="font-weight:600;color:var(--text)">MaxMind GeoLite2 — {{ _('International IPs') }}</span>
+          <span style="font-size:11px;background:rgba(160,32,240,0.12);color:var(--purple);padding:2px 8px;border-radius:4px">{{ _('Free Registration Required') }}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">
+          {{ _('Register at') }} <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank" style="color:var(--blue)">maxmind.com/en/geolite2/signup</a> — {{ _('no credit card required. After registration, generate a license key and paste it below.') }}
+        </div>
+        <div id="geolite2Status" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
+        <form id="geoipForm" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:240px">
+            <input name="license_key" type="text" placeholder="MaxMind License Key" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
+          </div>
+          <button type="submit" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoLite2 Database') }}</button>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -1075,11 +1100,11 @@ function loadChinaCities(skipMap) {
   api('/geo/china-cities?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('chinaMapChart').innerHTML =
-        '<div class="empty-state" style="padding:60px 0"><div class="icon">🇨🇳</div><div class="text">{{ _('No China city data') }}</div></div>';
-      document.getElementById('chinaCityContent').innerHTML =
-        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('No China city data') }}</div></div>';
-      document.getElementById('chinaProvinceContent').innerHTML =
-        '<div class="empty-state"><div class="icon">🇨🇳</div><div class="text">{{ _('No province data') }}</div></div>';
+        '<div class="empty-state" style="padding:40px 20px"><div class="icon">🇨🇳</div>' +
+        '<div class="text">{{ _('No geographic data yet') }}</div>' +
+        '<div class="text" style="font-size:12px;color:var(--text-dim);margin-top:8px;max-width:400px;margin-left:auto;margin-right:auto">{{ _('Go to the Settings tab to set up GeoIP databases — ip2region (free, no registration) for Chinese IPs or MaxMind GeoLite2 for international coverage.') }}</div></div>';
+      document.getElementById('chinaCityContent').innerHTML = '';
+      document.getElementById('chinaProvinceContent').innerHTML = '';
       return;
     }
     // 聚合省份数据（未匹配的归入「其他地区」，避免地级市混入省列表）
@@ -1215,7 +1240,9 @@ function loadWorldMap() {
   api('/geo?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       document.getElementById('chinaMapChart').innerHTML =
-        '<div class="empty-state" style="padding:60px 0"><div class="icon">🌍</div><div class="text">{{ _('No country data') }}</div></div>';
+        '<div class="empty-state" style="padding:40px 20px"><div class="icon">🌍</div>' +
+        '<div class="text">{{ _('No geographic data yet') }}</div>' +
+        '<div class="text" style="font-size:12px;color:var(--text-dim);margin-top:8px;max-width:400px;margin-left:auto;margin-right:auto">{{ _('Go to the Settings tab to set up GeoIP databases — MaxMind GeoLite2 (free registration) for international coverage or ip2region for Chinese IPs.') }}</div></div>';
       return;
     }
     renderWorldMap(res.data);
@@ -1623,17 +1650,52 @@ function loadGeoipStatus() {
   fetch(SETTINGS_BASE + '/settings/geoip/status', {headers: _authHeaders()}).then(function(r){return r.json();}).then(function(res){
     if (!res.success) return;
     var d = res.data;
-    var el = document.getElementById('geoipStatus');
-    if (d.installed) {
-      el.innerHTML = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
-        '<span style="color:var(--green);font-weight:600">&#x2705; Installed</span>' +
-        '<span style="color:var(--text-dim);font-size:12px">' + d.size_mb + ' MB &middot; ' + d.mtime + '</span>' +
-        '<span style="color:var(--text-dim);font-size:11px">' + d.path + '</span>' +
-        '</div>';
-      document.getElementById('geoipDownloadBtn').textContent = '{{ _('Update GeoIP Database') }}';
+
+    // ip2region
+    var ip2 = d.ip2region;
+    var ip2El = document.getElementById('ip2regionStatus');
+    if (ip2.installed) {
+      ip2El.innerHTML = '<span style="color:var(--green);font-weight:600">&#x2705; {{ _('Installed') }}</span>' +
+        ' <span style="color:var(--text-dim);font-size:11px">' + ip2.size_mb + ' MB &middot; ' + ip2.mtime + '</span>';
+      document.getElementById('ip2regionBtn').textContent = '{{ _('Update ip2region') }}';
     } else {
-      el.innerHTML = '<div style="color:var(--rose);font-weight:600">&#x26A0; {{ _('Not installed') }}</div>';
+      ip2El.innerHTML = '<span style="color:var(--rose);font-weight:600">&#x26A0; {{ _('Not installed') }}</span>' +
+        ' <span style="color:var(--text-dim);font-size:11px">— {{ _('Click the button below to download from GitHub') }}</span>';
     }
+
+    // MaxMind
+    var mm = d.geolite2;
+    var mmEl = document.getElementById('geolite2Status');
+    if (mm.installed) {
+      mmEl.innerHTML = '<span style="color:var(--green);font-weight:600">&#x2705; {{ _('Installed') }}</span>' +
+        ' <span style="color:var(--text-dim);font-size:11px">' + mm.size_mb + ' MB &middot; ' + mm.mtime + '</span>';
+      document.getElementById('geoipDownloadBtn').textContent = '{{ _('Update GeoLite2') }}';
+    } else {
+      mmEl.innerHTML = '<span style="color:var(--rose);font-weight:600">&#x26A0; {{ _('Not installed') }}</span>';
+    }
+  });
+}
+
+function downloadIp2region() {
+  var btn = document.getElementById('ip2regionBtn');
+  btn.textContent = '{{ _('Downloading...') }}';
+  btn.disabled = true;
+  fetch(SETTINGS_BASE + '/settings/geoip/download-ip2region', {
+    method: 'POST',
+    headers: _authHeaders(),
+  }).then(function(r){ return r.json(); }).then(function(res){
+    btn.disabled = false;
+    if (res.success) {
+      btn.textContent = '{{ _('Update ip2region') }}';
+      loadGeoipStatus();
+    } else {
+      btn.textContent = '{{ _('Download ip2region Database') }}';
+      alert('Error: ' + (res.error || 'Unknown error'));
+    }
+  }).catch(function(err){
+    btn.disabled = false;
+    btn.textContent = '{{ _('Download ip2region Database') }}';
+    alert('Network error: ' + err.message);
   });
 }
 
@@ -1663,15 +1725,15 @@ document.getElementById('geoipForm').addEventListener('submit', function(e){
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.disabled = false;
     if (res.success) {
-      btn.textContent = '{{ _('Update GeoIP Database') }}';
+      btn.textContent = '{{ _('Update GeoLite2') }}';
       loadGeoipStatus();
     } else {
-      btn.textContent = '{{ _('Download GeoIP Database') }}';
+      btn.textContent = '{{ _('Download GeoLite2 Database') }}';
       alert('Error: ' + (res.error || 'Unknown error'));
     }
   }).catch(function(err){
     btn.disabled = false;
-    btn.textContent = '{{ _('Download GeoIP Database') }}';
+    btn.textContent = '{{ _('Download GeoLite2 Database') }}';
     alert('Network error: ' + err.message);
   });
 });
