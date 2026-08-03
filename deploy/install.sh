@@ -41,7 +41,7 @@ else
 fi
 # --prefer-binary: prefer wheels, fall back to source build
 _pip_install() {
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --prefer-binary ${PIP_MIRROR} "$@"
+    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"
 }
 
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
