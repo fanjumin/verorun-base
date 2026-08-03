@@ -53,12 +53,26 @@ _IS_INTL = None  # None = 尚未检测，False = 境内，True = 境外
 
 def _detect_server_location() -> bool:
     """
-    通过 ip-api.com 查询服务器自己的公网 IP，判断是否在境外。
+    判断服务器是否在境外。
+    优先级: DEPLOY_MARKET 环境变量 > ip-api.com 自动检测（仅启动时一次）
     首次调用后缓存结果。
     """
     global _IS_INTL
     if _IS_INTL is not None:
         return _IS_INTL
+
+    # 1. 优先读取环境变量（部署时常量，零延迟，可靠）
+    market_env = os.environ.get('DEPLOY_MARKET', '').lower()
+    if market_env in ('intl', 'international', 'global'):
+        _IS_INTL = True
+        print(f'[Analytics] Market set via DEPLOY_MARKET={market_env} → intl')
+        return _IS_INTL
+    if market_env in ('cn', 'china'):
+        _IS_INTL = False
+        print(f'[Analytics] Market set via DEPLOY_MARKET={market_env} → cn')
+        return _IS_INTL
+
+    # 2. 回退到 ip-api 自动检测（仅启动时一次）
     try:
         import json
         from urllib.request import urlopen
@@ -66,9 +80,10 @@ def _detect_server_location() -> bool:
         data = json.loads(resp.read().decode())
         cc = (data.get('countryCode') or '').upper()
         _IS_INTL = (cc != 'CN')
+        print(f'[Analytics] Market auto-detected via ip-api: {"intl" if _IS_INTL else "cn"}')
     except Exception:
-        # 检测失败时回退到 DEPLOY_MARKET
-        _IS_INTL = os.environ.get('DEPLOY_MARKET', 'cn').lower() not in ('cn', 'china', '')
+        _IS_INTL = False  # 默认国内
+        print('[Analytics] Market detection failed, defaulting to cn')
     return _IS_INTL
 
 
@@ -294,26 +309,91 @@ def _ipapi_lookup(ip: str) -> dict:
 
 # ─── 维护工具 ──────────────────────────────────────────────────────────────────
 
-def download_geolite2(output_path: str = None):
+def download_geolite2_auto(license_key: str) -> dict:
     """
-    下载最新 GeoLite2 City 数据库
-    需要 MaxMind 许可证密钥（免费注册: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data）
-    用法: python3 -c "from analytics.geoip import download_geolite2; download_geolite2()"
+    自动下载 GeoLite2-City.mmdb 到 analytics/data/ 目录。
+    从 MaxMind 下载 tar.gz → 解压 → 写入 mmdb → 重置 reader 使下次查询自动加载。
+
+    返回: {'success': True, 'path': '...', 'size_mb': 12.3}
+         或 {'success': False, 'error': '...'}
+    调用: from analytics.geoip import download_geolite2_auto
     """
-    import sys
-    print("=" * 60)
-    print(" GeoLite2 City 数据库下载")
-    print("=" * 60)
-    print()
-    print("1. 注册 MaxMind 账号: https://www.maxmind.com/en/geolite2/signup")
-    print("2. 创建许可证密钥: https://www.maxmind.com/en/accounts/current/license")
-    print(_("3. After Downloading, Place in Any of the Following Paths:"))
-    for p in GEOIP_DB_CANDIDATES:
-        print(f"   • {p}")
-    print()
-    print(_("Or run:"))
-    print("  wget 'https://download.maxmind.com/app/geoip_download?" +
-          "edition_id=GeoLite2-City&license_key=YOUR_KEY&suffix=tar.gz'")
-    print("  tar -xzf GeoLite2-City_*.tar.gz")
-    print("  mv GeoLite2-City_*/GeoLite2-City.mmdb /path/to/")
-    print()
+    import tarfile
+    import tempfile
+    import shutil
+
+    target_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(target_dir, exist_ok=True)
+    target_path = os.path.join(target_dir, 'GeoLite2-City.mmdb')
+
+    url = (
+        'https://download.maxmind.com/app/geoip_download'
+        f'?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
+    )
+
+    try:
+        resp = urlopen(url, timeout=120)
+        if resp.status != 200:
+            return {
+                'success': False,
+                'error': (
+                    f'HTTP {resp.status}: '
+                    'License key may be invalid or not yet activated '
+                    '(wait up to 30 minutes after creation).'
+                ),
+            }
+
+        # 写入临时文件
+        with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as tmp:
+            tmp.write(resp.read())
+            tmp_path = tmp.name
+
+        try:
+            with tarfile.open(tmp_path, 'r:gz') as tar:
+                mmdb_member = None
+                for member in tar.getmembers():
+                    if member.name.endswith('GeoLite2-City.mmdb'):
+                        mmdb_member = member
+                        break
+                if not mmdb_member:
+                    return {
+                        'success': False,
+                        'error': 'GeoLite2-City.mmdb not found in downloaded archive',
+                    }
+
+                extracted = tar.extractfile(mmdb_member)
+                if extracted:
+                    with open(target_path, 'wb') as f:
+                        shutil.copyfileobj(extracted, f)
+        finally:
+            os.unlink(tmp_path)
+
+        size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
+
+        # 重置 reader，下次 geoip_lookup 自动重新加载
+        global _geoip_reader
+        _geoip_reader = None
+
+        # 确保路径在探测列表中
+        if target_path not in GEOIP_DB_CANDIDATES:
+            GEOIP_DB_CANDIDATES.insert(0, target_path)
+
+        print(f'[Analytics] ✅ GeoLite2-City.mmdb downloaded ({size_mb} MB) → {target_path}')
+        return {'success': True, 'path': target_path, 'size_mb': size_mb}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def get_geoip_status() -> dict:
+    """返回 GeoIP 数据库安装状态"""
+    db_path = _find_db()
+    if db_path:
+        stat = os.stat(db_path)
+        return {
+            'installed': True,
+            'path': db_path,
+            'size_mb': round(stat.st_size / (1024 * 1024), 1),
+            'mtime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stat.st_mtime)),
+        }
+    return {'installed': False, 'path': None}

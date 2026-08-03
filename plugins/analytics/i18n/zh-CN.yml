@@ -87,3 +87,11 @@ Unauthorized: 未授权
 path required: 缺少 path 参数
 event_name required: 缺少 event_name 参数
 unknown type: 未知类型
+license_key required: 缺少 license_key 参数
+🌍 World Access Map: 🌍 全球访问分布图
+GeoLite2 Database: GeoLite2 数据库
+Not installed: 未安装
+Download GeoIP Database: 下载 GeoIP 数据库
+Update GeoIP Database: 更新 GeoIP 数据库
+Downloading...: 下载中...
+Settings: 设置

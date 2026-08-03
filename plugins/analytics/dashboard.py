@@ -23,7 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from . import models as am
 from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
-from .geoip import get_market
+from .geoip import get_market, download_geolite2_auto, get_geoip_status
 from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
@@ -380,6 +380,27 @@ def api_privacy_update():
         return jsonify({'success': True})
     finally:
         conn.close()
+
+
+# ─── GeoIP 设置 API ────────────────────────────────────────────────────────────
+
+@analytics_bp.route('/settings/geoip/status', methods=['GET'])
+def api_geoip_status():
+    """获取 GeoIP 数据库安装状态"""
+    status = get_geoip_status()
+    return jsonify({'success': True, 'data': status})
+
+
+@analytics_bp.route('/settings/geoip/download', methods=['POST'])
+def api_geoip_download():
+    """下载/更新 GeoLite2 数据库"""
+    data = request.get_json(silent=True) or {}
+    license_key = (data.get('license_key') or '').strip()
+    if not license_key:
+        return jsonify({'success': False, 'error': _t('license_key required')}), 400
+
+    result = download_geolite2_auto(license_key)
+    return jsonify(result)
 
 
 # ─── 维护 API ──────────────────────────────────────────────────────────────────

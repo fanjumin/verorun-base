@@ -1,4 +1,12 @@
 Unauthorized: 未授权
 path required: 缺少 path 参数
 event_name required: 缺少 event_name 参数
-unknown type: 未知类型
+unknown type: Unknown type
+license_key required: License key required
+🌍 World Access Map: 🌍 World Access Map
+GeoLite2 Database: GeoLite2 Database
+Not installed: Not installed
+Download GeoIP Database: Download GeoIP Database
+Update GeoIP Database: Update GeoIP Database
+Downloading...: Downloading...
+Settings: Settings
