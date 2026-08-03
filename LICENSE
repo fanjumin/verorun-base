@@ -1,21 +1,80 @@
-MIT License
+VeroRun Base End User License Agreement v1.0
+=====================================================
 
-Copyright (c) 2026 Fan Jumin
+Version:    1.0
+Effective:  2026-08-03
+Licensor:   VeroRun AI
+Website:    https://verorun.com
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Copyright (c) 2024-2026 VeroRun AI. All rights reserved.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. GRANT OF LICENSE
+
+   Subject to the terms below, you are granted a non-exclusive,
+   non-transferable, revocable license to download, install, and run
+   VeroRun Base for your own internal business operations.
+
+
+2. SOURCE CODE
+
+   2.1  Visible Source. You may read and modify the human-readable
+        Python source code provided with VeroRun Base for the purpose
+        of customization and integration with your own systems.
+
+   2.2  Compiled Binaries. VeroRun Base includes pre-compiled binary
+        components (including but not limited to .pyd, .so, .dll, and
+        standalone executable files). You may NOT decompile,
+        disassemble, reverse engineer, or otherwise attempt to derive
+        the source code of these binary components.
+
+
+3. PROHIBITED USES
+
+   You may NOT:
+
+   (a) Redistribute, resell, sublicense, or lease VeroRun Base or any
+       part of it to any third party.
+
+   (b) Use VeroRun Base to build a product or service that competes
+       with VeroRun AI or its offerings.
+
+   (c) Remove, obscure, or alter any copyright notices, license keys,
+       or DRM mechanisms.
+
+
+4. COMMERCIAL USE
+
+   Production commercial deployment requires a valid commercial license
+   obtained from VeroRun AI. Evaluation and non-production testing are
+   permitted without a commercial license.
+
+
+5. PLUGIN MARKETPLACE
+
+   VeroRun Base includes a built-in plugin manager and marketplace.
+   Plugins downloaded from the marketplace are governed by their own
+   license terms. This Agreement does not apply to third-party plugins.
+
+
+6. TERMINATION
+
+   This license terminates automatically if you violate any of its
+   terms. Upon termination, you must cease all use and destroy all
+   copies of VeroRun Base in your possession.
+
+
+7. DISCLAIMER OF WARRANTY
+
+   VERO RUN BASE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL VERO RUN AI BE LIABLE FOR ANY
+   CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE
+   SOFTWARE.
+
+
+8. GOVERNING LAW
+
+   This Agreement shall be governed by the laws of the People's
+   Republic of China.
