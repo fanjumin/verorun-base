@@ -410,10 +410,7 @@ prompt_admin_creds() {
         echo "" > /dev/tty
     done
 
-    cat > "${VR_ADMIN_CREDS_FILE}" << CREDS_EOF
-VR_ADMIN_USERNAME="${_user}"
-VR_ADMIN_PASSWORD="${_pass}"
-CREDS_EOF
+    printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${_user}" "${_pass}" > "${VR_ADMIN_CREDS_FILE}"
     echo -e "${OK} Admin credentials saved"
 }
 
