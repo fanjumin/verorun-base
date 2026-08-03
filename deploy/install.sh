@@ -150,7 +150,7 @@ do_install() {
     if [ ! -f "${VENV_DIR}/bin/python" ]; then
         sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
     fi
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip
+    _pip_install --upgrade pip
     _pip_install -r "${APP_HOME}/requirements.txt"
     done_step "Python dependencies installed"
 
