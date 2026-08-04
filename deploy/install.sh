@@ -15,7 +15,7 @@ set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
-: "${GIT_REPO:=https://github.com/fanjumin/VeroRunSystem.git}"
+: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -47,6 +47,49 @@ _pip_install() {
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
+
+# ── Git SSH auth setup ───────────────────────────────────────────────
+
+ensure_git_auth() {
+    local ssh_key="/root/.ssh/id_ed25519"
+
+    # Generate SSH key for root if not exists
+    if [ ! -f "${ssh_key}" ]; then
+        echo -e "${INFO} Generating SSH deploy key for git operations..."
+        mkdir -p /root/.ssh
+        ssh-keygen -t ed25519 -N "" -f "${ssh_key}" -C "verorun-deploy-$(hostname)" >/dev/null 2>&1
+        chmod 600 "${ssh_key}"
+        chmod 644 "${ssh_key}.pub"
+        echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║${NC}"
+        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${YELLOW}║  URL: https://github.com/fanjumin/verorun-code/settings/keys/new${NC}"
+        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
+        cat "${ssh_key}.pub" | while read -r line; do
+            echo -e "${GREEN}║  ${line}${NC}"
+        done
+        echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${WARN} After adding the key, re-run this script to continue."
+        exit 0
+    fi
+
+    # Ensure github.com in known_hosts
+    if [ ! -f /root/.ssh/known_hosts ] || ! grep -q '^github\.com' /root/.ssh/known_hosts 2>/dev/null; then
+        echo -e "${INFO} Adding github.com to known_hosts..."
+        ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
+    fi
+
+    # Switch existing HTTPS remote to SSH
+    if [ -d "${APP_HOME}/.git" ]; then
+        local current_url
+        current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
+        if echo "${current_url}" | grep -q '^https://'; then
+            echo -e "${INFO} Switching git remote to SSH..."
+            git -C "${APP_HOME}" remote set-url origin "${GIT_REPO}"
+            done_step "Git remote switched to SSH"
+        fi
+    fi
+}
 
 # ── Mode / Domain detection ──────────────────────────────────────────
 
@@ -125,6 +168,8 @@ do_install() {
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
+
+    ensure_git_auth
 
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
@@ -233,6 +278,8 @@ do_update() {
     else
         done_step "Skipped (no .git directory)"
     fi
+
+    ensure_git_auth
 
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
