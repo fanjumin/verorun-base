@@ -53,7 +53,7 @@ from flask import Blueprint, jsonify, render_template, send_file, request, sessi
 vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault',
                      template_folder='templates',
                      static_folder='static',
-                     static_url_path='/plugins/vault/static')
+                     static_url_path='/admin/vault/static')
 
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
@@ -107,39 +107,46 @@ def _list_backup_archives():
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/')
+@_require_vault_auth
 def dashboard():
     """Render vault dashboard page."""
     return render_template('vault.html')
 
 
 @vault_bp.route('/backups')
+@_require_vault_auth
 def backups_page():
     return render_template('vault.html')
 
 
 @vault_bp.route('/restore')
+@_require_vault_auth
 def restore_page():
-    return 'Vault Restore — coming in Phase 2', 501
+    return render_template('vault.html')
 
 
 @vault_bp.route('/schedules')
+@_require_vault_auth
 def schedules_page():
-    return 'Vault Schedules — coming in Phase 2', 501
+    return render_template('vault.html')
 
 
 @vault_bp.route('/storage')
+@_require_vault_auth
 def storage_page():
-    return 'Vault Storage Config — coming in Phase 2', 501
+    return render_template('vault.html')
 
 
 @vault_bp.route('/settings')
+@_require_vault_auth
 def settings_page():
-    return 'Vault Settings — coming in Phase 2', 501
+    return render_template('vault.html')
 
 
 @vault_bp.route('/audit')
+@_require_vault_auth
 def audit_page():
-    return 'Vault Audit Log — coming in Phase 3', 501
+    return render_template('vault.html')
 
 
 # ══════════════════════════════════════════════════════════════
@@ -147,12 +154,14 @@ def audit_page():
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/create', methods=['POST'])
+@_require_vault_auth
 def api_create_backup_legacy():
     """Trigger a full backup (legacy endpoint)."""
     return _handle_backup_create()
 
 
 @vault_bp.route('/api/list', methods=['GET'])
+@_require_vault_auth
 def api_list_backups_legacy():
     """List all backup archives (legacy endpoint)."""
     try:
@@ -163,18 +172,21 @@ def api_list_backups_legacy():
 
 
 @vault_bp.route('/api/download/<label>', methods=['GET'])
+@_require_vault_auth
 def api_download_backup_legacy(label):
     """Download a backup archive (legacy endpoint)."""
     return _handle_backup_download(label)
 
 
 @vault_bp.route('/api/delete/<label>', methods=['DELETE'])
+@_require_vault_auth
 def api_delete_backup_legacy(label):
     """Delete a backup archive (legacy endpoint)."""
     return _handle_backup_delete(label)
 
 
 @vault_bp.route('/api/cleanup', methods=['DELETE'])
+@_require_vault_auth
 def api_cleanup_backups():
     """Cleanup backups older than configured keep_days."""
     try:
@@ -212,12 +224,14 @@ def api_cleanup_backups():
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/backup/create', methods=['POST'])
+@_require_vault_auth
 def api_create_backup():
     """Create backup (supports full / incremental / differential)."""
     return _handle_backup_create()
 
 
 @vault_bp.route('/api/backup/list', methods=['GET'])
+@_require_vault_auth
 def api_list_backups():
     """List backups with search, filtering, and pagination."""
     try:
@@ -255,6 +269,7 @@ def api_list_backups():
 
 
 @vault_bp.route('/api/backup/detail/<label>', methods=['GET'])
+@_require_vault_auth
 def api_backup_detail(label):
     """Get backup detail with content preview."""
     archive_path = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
@@ -287,12 +302,14 @@ def api_backup_detail(label):
 
 
 @vault_bp.route('/api/backup/download/<label>', methods=['GET'])
+@_require_vault_auth
 def api_download_backup(label):
     """Download a backup archive."""
     return _handle_backup_download(label)
 
 
 @vault_bp.route('/api/backup/delete/<label>', methods=['DELETE'])
+@_require_vault_auth
 def api_delete_backup(label):
     """Delete a backup (requires confirmation)."""
     return _handle_backup_delete(label)
@@ -303,6 +320,7 @@ def api_delete_backup(label):
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/health', methods=['GET'])
+@_require_vault_auth
 def api_health_check():
     """System health: backup status, storage usage, last backup time."""
     try:
@@ -378,6 +396,7 @@ def api_health_check():
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/audit', methods=['GET'])
+@_require_vault_auth
 def api_audit_logs():
     """Query audit logs."""
     try:
@@ -411,6 +430,7 @@ def api_audit_logs():
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/schedule/list', methods=['GET'])
+@_require_vault_auth
 def api_list_schedules():
     """List all backup schedules."""
     try:
@@ -432,6 +452,7 @@ def api_list_schedules():
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/restore/preview', methods=['POST'])
+@_require_vault_auth
 def api_restore_preview():
     """Preview backup contents before restore."""
     try:
@@ -449,6 +470,7 @@ def api_restore_preview():
 
 
 @vault_bp.route('/api/restore', methods=['POST'])
+@_require_vault_auth
 def api_restore():
     """Execute restore (Phase 2 — stub for now)."""
     return jsonify({

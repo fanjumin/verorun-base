@@ -25,9 +25,9 @@
 
   // ── API helper ──
   function api(url, opts) {
-    opts = opts || {};
+    opts = opts || {}; 
     opts.headers = opts.headers || {};
-    opts.headers['X-Internal-Secret'] = 'vault-internal';
+    // Authentication via session cookie — no extra headers needed
     return fetch(url, opts).then(function (r) {
       if (!r.ok) {
         return r.json().then(function (d) {
