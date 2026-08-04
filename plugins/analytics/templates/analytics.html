@@ -501,6 +501,28 @@ body {
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* ─── 下载进度条 ─── */
+@keyframes progress-slide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+.progress-bar-wrap {
+  margin-top: 10px;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.progress-bar-inner {
+  position: absolute;
+  top: 0; left: 0;
+  width: 40%; height: 100%;
+  background: var(--gradient-primary);
+  border-radius: 2px;
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+
 /* ─── 设置表单 ─── */
 .settings-form {
   display: grid;
@@ -661,7 +683,10 @@ body {
     <!-- 主视图：中国城市 -->
     <div class="dashboard-grid" style="margin-bottom:16px">
       <div class="glass-card" style="grid-column: 1 / -1;">
-        <div class="label" style="margin-bottom:12px" id="mapTitle">{% if geo_market == 'cn' %}{{ _('🇨🇳 China Access Map') }}{% else %}{{ _('🌍 World Access Map') }}{% endif %}</div>
+        <div class="label" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+          <span id="mapTitle">{% if geo_market == 'cn' %}{{ _('🇨🇳 China Access Map') }}{% else %}{{ _('🌍 World Access Map') }}{% endif %}</span>
+          <button onclick="toggleMapView()" id="mapToggleBtn" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:2px 10px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:inherit">{% if geo_market == 'cn' %}🌍 {{ _('World') }}{% else %}🇨🇳 {{ _('China') }}{% endif %}</button>
+        </div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
       </div>
     </div>
@@ -1941,24 +1966,36 @@ function downloadIp2region() {
   var btn = document.getElementById('ip2regionBtn');
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
-  fetch(SETTINGS_BASE + '/settings/geoip/download-ip2region', {
-    method: 'POST',
-    headers: _authHeaders(),
-  }).then(function(r){ return r.json(); }).then(function(res){
+  showProgress('ip2regionBtn');
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', SETTINGS_BASE + '/settings/geoip/download-ip2region');
+  var hdrs = _authHeaders();
+  for (var k in hdrs) xhr.setRequestHeader(k, hdrs[k]);
+  xhr.onload = function() {
     btn.disabled = false;
-    if (res.success) {
-      btn.textContent = '{{ _('Update ip2region') }}';
-      loadGeoipStatus();
-      showToast('{{ _('ip2region database downloaded successfully') }}', 'success');
-    } else {
+    hideProgress('ip2regionBtn');
+    try {
+      var res = JSON.parse(xhr.responseText);
+      if (res.success) {
+        btn.textContent = '{{ _('Update ip2region') }}';
+        loadGeoipStatus();
+        showToast('{{ _('ip2region downloaded successfully') }}', 'success');
+      } else {
+        btn.textContent = '{{ _('Download ip2region Database') }}';
+        showToast(res.error || 'Unknown error', 'error');
+      }
+    } catch(e) {
       btn.textContent = '{{ _('Download ip2region Database') }}';
-      showToast('Error: ' + (res.error || 'Unknown error'), 'error');
+      showToast('Parse error: ' + e.message, 'error');
     }
-  }).catch(function(err){
+  };
+  xhr.onerror = function() {
     btn.disabled = false;
+    hideProgress('ip2regionBtn');
     btn.textContent = '{{ _('Download ip2region Database') }}';
-    showToast('Network error: ' + err.message, 'error');
-  });
+    showToast('{{ _('Network error — check console') }}', 'error');
+  };
+  xhr.send();
 }
 
 function _authHeaders() {
@@ -2015,27 +2052,37 @@ document.getElementById('geoipDownloadBtn').addEventListener('click', function()
   var btn = document.getElementById('geoipDownloadBtn');
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
-  var hdrs2 = _authHeaders();
-  hdrs2['Content-Type'] = 'application/json';
-  fetch(SETTINGS_BASE + '/settings/geoip/download', {
-    method: 'POST',
-    headers: hdrs2,
-    body: JSON.stringify({account_id: accountId, license_key: key}),
-  }).then(function(r){ return r.json(); }).then(function(res){
+  showProgress('geoipDownloadBtn');
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', SETTINGS_BASE + '/settings/geoip/download');
+  var hdrs_dl = _authHeaders();
+  hdrs_dl['Content-Type'] = 'application/json';
+  for (var k in hdrs_dl) xhr.setRequestHeader(k, hdrs_dl[k]);
+  xhr.onload = function() {
     btn.disabled = false;
-    if (res.success) {
-      btn.textContent = '{{ _('Update GeoLite2') }}';
-      loadGeoipStatus();
-      showToast('{{ _('GeoLite2 database downloaded successfully') }}', 'success');
-    } else {
+    hideProgress('geoipDownloadBtn');
+    try {
+      var res = JSON.parse(xhr.responseText);
+      if (res.success) {
+        btn.textContent = '{{ _('Update GeoLite2') }}';
+        loadGeoipStatus();
+        showToast('{{ _('GeoLite2 downloaded successfully') }} (' + (res.size_mb||'?') + ' MB)', 'success');
+      } else {
+        btn.textContent = '{{ _('Download GeoLite2 Database') }}';
+        showToast(res.error || 'Unknown error', 'error');
+      }
+    } catch(e) {
       btn.textContent = '{{ _('Download GeoLite2 Database') }}';
-      showToast('Error: ' + (res.error || 'Unknown error'), 'error');
+      showToast('Parse error: ' + e.message, 'error');
     }
-  }).catch(function(err){
+  };
+  xhr.onerror = function() {
     btn.disabled = false;
+    hideProgress('geoipDownloadBtn');
     btn.textContent = '{{ _('Download GeoLite2 Database') }}';
-    showToast('Network error: ' + err.message, 'error');
-  });
+    showToast('{{ _('Network error — check console') }}', 'error');
+  };
+  xhr.send(JSON.stringify({account_id: accountId, license_key: key}));
 });
 
 // 切换到 Settings tab 时加载 GeoIP 状态和设置
@@ -2052,6 +2099,47 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
 // 动态市场检测（根据客户端 IP 判断 cn / intl）
 // ═══════════════════════════════════════════════════════════════════════════
 var _MARKET = 'cn';  // 默认值，启动后异步更新
+var _MAP_VIEW = 'auto';  // 'auto' | 'china' | 'world' — 地图视图切换
+
+function showProgress(containerId) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'progress-bar-wrap';
+  wrap.id = containerId + '-progress';
+  wrap.innerHTML = '<div class="progress-bar-inner"></div>';
+  el.parentNode.insertBefore(wrap, el.nextSibling);
+}
+
+function hideProgress(containerId) {
+  var el = document.getElementById(containerId + '-progress');
+  if (el) el.parentNode.removeChild(el);
+}
+
+function toggleMapView() {
+  var btn = document.getElementById('mapToggleBtn');
+  if (_MAP_VIEW === 'auto') {
+    _MAP_VIEW = (_MARKET === 'cn') ? 'world' : 'china';
+  } else if (_MAP_VIEW === 'china') {
+    _MAP_VIEW = 'world';
+  } else {
+    _MAP_VIEW = 'china';
+  }
+  // Update button text
+  if (_MAP_VIEW === 'world') {
+    if (btn) btn.innerHTML = '&#x1F1E8;&#x1F1F3; {{ _('China') }}';
+    document.getElementById('mapTitle').textContent = '{{ _('🌍 World Access Map') }}';
+    if (charts.chinaMap) charts.chinaMap.dispose();
+    loadWorldMap();
+    loadWorldCities();
+    toggleCountrySection(true);
+  } else {
+    if (btn) btn.innerHTML = '&#x1F30D; {{ _('World') }}';
+    document.getElementById('mapTitle').textContent = '{{ _('🇨🇳 China Access Map') }}';
+    if (charts.chinaMap) charts.chinaMap.dispose();
+    loadChinaCities(false);
+  }
+}
 
 function detectMarket() {
   return fetch(SETTINGS_BASE + '/api/v1/geo/market', {headers: _authHeaders()})
@@ -2120,13 +2208,14 @@ function refreshAll() {
   loadHourly();
   loadPages();
   loadSources();
-  // 非 CN 市场：世界地图 + 中国表（如有中国访客）+ 展开国家/地区
-  if (_MARKET === 'cn') {
-    loadChinaCities(false);
-  } else {
-    loadWorldCities();        // 全球城市/国家排名（替代中国省份/城市表）
-    loadWorldMap();           // 地图容器改为世界地图
+  // 地图视图：auto → 跟随市场；可手动切换
+  var showWorld = (_MAP_VIEW === 'world') || (_MAP_VIEW === 'auto' && _MARKET !== 'cn');
+  if (showWorld) {
+    loadWorldCities();
+    loadWorldMap();
     toggleCountrySection(true);
+  } else {
+    loadChinaCities(false);
   }
   loadGeo();
   loadDevices();
