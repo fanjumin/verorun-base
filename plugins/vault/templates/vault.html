@@ -40,6 +40,23 @@
         <a href="/admin/vault/schedules" class="btn btn-outline">Schedules</a>
         <a href="/admin/vault/storage" class="btn btn-outline">Storage</a>
         <a href="/admin/vault/settings" class="btn btn-outline">Settings</a>
+        <button class="btn btn-outline btn-sm" id="btnDrill" title="Test restore to verify backup integrity">Drill</button>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="chart-row">
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>Backup Size Trend</h3>
+            </div>
+            <div id="chartTrend" class="chart-container"></div>
+        </div>
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>Storage Growth</h3>
+            </div>
+            <div id="chartStorage" class="chart-container"></div>
+        </div>
     </div>
 
     <!-- Backup Archives Table -->
@@ -72,6 +89,7 @@
 
 </div>
 
+<script src="/admin/static/lib/echarts.min.js"></script>
 <script src="/admin/vault/static/vault.js"></script>
 </body>
 </html>

@@ -465,7 +465,7 @@ def api_list_schedules():
 
 
 # ══════════════════════════════════════════════════════════════
-# Restore API (Phase 1 preview-only; execution in Phase 2)
+# Restore API
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/restore/preview', methods=['POST'])
@@ -489,11 +489,144 @@ def api_restore_preview():
 @vault_bp.route('/api/restore', methods=['POST'])
 @_require_vault_auth
 def api_restore():
-    """Execute restore (Phase 2 — stub for now)."""
-    return jsonify({
-        'success': False,
-        'error': 'Restore execution coming in Phase 2. Use /api/restore/preview for dry-run.',
-    }), 501
+    """Execute restore with optional scope."""
+    try:
+        data = request.get_json(silent=True) or {}
+        label = data.get('label', '')
+        if not label:
+            return jsonify({'success': False, 'error': 'Backup label is required'}), 400
+
+        scope = data.get('scope', {})
+        target_db = data.get('target_db')
+
+        from .services.restore_engine import RestoreEngine
+        engine = RestoreEngine()
+        result = engine.restore(label, scope=scope or None, target_db=target_db)
+
+        # Audit log
+        try:
+            from .services.audit import log_audit
+            log_audit(
+                action='restore.execute',
+                resource_type='backup',
+                resource_id=label,
+                details={'scope': scope, 'success': result.get('success')},
+            )
+        except Exception:
+            pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/restore/pitr', methods=['POST'])
+@_require_vault_auth
+def api_restore_pitr():
+    """Point-in-time recovery to a specific timestamp."""
+    try:
+        data = request.get_json(silent=True) or {}
+        target_time = data.get('target_time', '')
+        if not target_time:
+            return jsonify({'success': False, 'error': 'target_time is required (ISO format)'}), 400
+
+        from .services.restore_engine import RestoreEngine
+        engine = RestoreEngine()
+        result = engine.restore_pitr(target_time)
+
+        try:
+            from .services.audit import log_audit
+            log_audit(
+                action='restore.pitr',
+                resource_type='database',
+                resource_id=target_time,
+                details={'success': result.get('success')},
+            )
+        except Exception:
+            pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/restore/drill', methods=['POST'])
+@_require_vault_auth
+def api_restore_drill():
+    """Execute a restore drill — restore to sandbox, verify, cleanup."""
+    try:
+        data = request.get_json(silent=True) or {}
+        label = data.get('label', '')
+
+        from .services.restore_engine import RestoreEngine
+        engine = RestoreEngine()
+        result = engine.drill_restore(label or None)
+
+        try:
+            from .services.audit import log_audit
+            log_audit(
+                action='restore.drill',
+                resource_type='backup',
+                resource_id=label or 'latest',
+                details={'success': result.get('success')},
+            )
+        except Exception:
+            pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# Trend API (Dashboard charts)
+# ══════════════════════════════════════════════════════════════
+
+@vault_bp.route('/api/trend', methods=['GET'])
+@_require_vault_auth
+def api_trend():
+    """Return backup size trend data for dashboard charts."""
+    try:
+        from plugins._base.db import get_raw_connection
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT label, backup_type, size_bytes, status,
+                   COALESCE(completed_at, created_at) as ts
+            FROM vault_backups
+            WHERE status = 'success'
+            ORDER BY ts DESC
+            LIMIT 90
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        trend_data = []
+        for row in reversed(rows):
+            label, btype, size_bytes, status, ts = row
+            if ts and size_bytes:
+                trend_data.append({
+                    'label': label,
+                    'type': btype,
+                    'size_mb': round(size_bytes / (1024 * 1024), 1),
+                    'date': ts.strftime('%Y-%m-%d') if hasattr(ts, 'strftime') else str(ts)[:10],
+                })
+
+        return jsonify({'success': True, 'trend': trend_data})
+    except Exception as e:
+        # Fallback: compute from backup archives
+        try:
+            archives = _list_backup_archives()
+            trend_data = [{
+                'label': a['label'],
+                'type': a.get('backup_type', 'full'),
+                'size_mb': a['size_mb'],
+                'date': a['created_at'][:10],
+            } for a in reversed(archives[-90:])]
+            return jsonify({'success': True, 'trend': trend_data})
+        except Exception as e2:
+            return jsonify({'success': False, 'error': str(e2)}), 500
 
 
 # ══════════════════════════════════════════════════════════════

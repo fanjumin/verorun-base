@@ -523,6 +523,23 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   margin-right: auto;
 }
 
+/* ── Charts ── */
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-card {
+  padding: 16px;
+}
+
+.chart-container {
+  width: 100%;
+  height: 240px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .vault-dashboard { padding: 16px; }
@@ -533,4 +550,5 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   .restore-steps { flex-direction: column; gap: 8px; }
   .step-connector { width: 2px; height: 16px; margin: 0; }
   .panel-actions { justify-content: flex-start; }
+  .chart-row { grid-template-columns: 1fr; }
 }

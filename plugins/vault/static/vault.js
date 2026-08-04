@@ -163,6 +163,99 @@
       }).catch(function (e) { toast('Cleanup error: ' + e.message, 'error'); });
   }
 
+  // ── ECharts: Trend & Storage Charts ──
+
+  function loadCharts() {
+    if (typeof echarts === 'undefined') { console.log('[Vault] echarts not loaded'); return; }
+
+    api('/admin/vault/api/trend')
+      .then(function (data) {
+        if (!data.trend || data.trend.length === 0) return;
+
+        var dates = data.trend.map(function (d) { return d.date; });
+        var sizes = data.trend.map(function (d) { return d.size_mb; });
+        var cumulative = [];
+        var total = 0;
+        sizes.forEach(function (s) { total += s; cumulative.push(parseFloat(total.toFixed(1))); });
+
+        // Chart 1: Backup Size Trend
+        var ct = document.getElementById('chartTrend');
+        if (ct) {
+          var chartTrend = echarts.init(ct);
+          chartTrend.setOption({
+            tooltip: { trigger: 'axis' },
+            grid: { left: 50, right: 20, top: 20, bottom: 30 },
+            xAxis: { type: 'category', data: dates, axisLabel: { color: '#94a3b8', fontSize: 10, rotate: 30 } },
+            yAxis: { type: 'value', name: 'MB', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+            series: [{
+              data: sizes, type: 'bar',
+              itemStyle: { color: '#6366f1', borderRadius: [4, 4, 0, 0] },
+            }],
+          });
+          window.addEventListener('resize', function () { chartTrend.resize(); });
+        }
+
+        // Chart 2: Storage Growth (cumulative)
+        var cs = document.getElementById('chartStorage');
+        if (cs) {
+          var chartStorage = echarts.init(cs);
+          chartStorage.setOption({
+            tooltip: { trigger: 'axis' },
+            grid: { left: 50, right: 20, top: 20, bottom: 30 },
+            xAxis: { type: 'category', data: dates, axisLabel: { color: '#94a3b8', fontSize: 10, rotate: 30 } },
+            yAxis: { type: 'value', name: 'MB', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+            series: [{
+              data: cumulative, type: 'line', smooth: true,
+              lineStyle: { color: '#00f5ff', width: 2 },
+              itemStyle: { color: '#00f5ff' },
+              areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [{ offset: 0, color: 'rgba(0,245,255,0.2)' }, { offset: 1, color: 'rgba(0,245,255,0.01)' }] } },
+            }],
+          });
+          window.addEventListener('resize', function () { chartStorage.resize(); });
+        }
+      })
+      .catch(function () { /* charts optional */ });
+  }
+
+  // ── Drill: Restore Drill ──
+
+  function runDrill() {
+    if (!confirm('Run a restore drill? This will restore the latest backup to a sandbox database, verify it, and clean up. No production data will be affected.')) return;
+    var btn = document.getElementById('btnDrill');
+    if (btn) { btn.disabled = true; btn.textContent = 'Drilling...'; }
+
+    api('/admin/vault/api/restore/drill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    }).then(function (data) {
+      if (data.verified) {
+        toast('Drill passed: backup is valid and restorable', 'success');
+      } else {
+        toast('Drill failed: ' + (data.report || data.error || 'verification failed'), 'error');
+      }
+    }).catch(function (e) { toast('Drill error: ' + e.message, 'error'); })
+      .finally(function () { if (btn) { btn.disabled = false; btn.textContent = 'Drill'; } });
+  }
+
+  // ── PITR (available from Restore page) ──
+
+  function runPitr(targetTime) {
+    if (!confirm('Run Point-in-Time Recovery to ' + targetTime + '? This will create a sandbox database.')) return;
+    api('/admin/vault/api/restore/pitr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_time: targetTime }),
+    }).then(function (data) {
+      if (data.success) {
+        toast('PITR completed. Sandbox database: ' + data.sandbox_db, 'success');
+      } else {
+        toast('PITR failed: ' + (data.error || 'unknown'), 'error');
+      }
+    }).catch(function (e) { toast('PITR error: ' + e.message, 'error'); });
+  }
+
   // ══════════════════════════════════════════════════════════════
   // RESTORE WIZARD
   // ══════════════════════════════════════════════════════════════
@@ -580,6 +673,7 @@
     if (pageId === 'dashboard') {
       loadHealth();
       loadBackups();
+      loadCharts();
       setInterval(loadHealth, 30000);
       var searchInput = document.getElementById('backupSearch');
       if (searchInput) {
@@ -591,6 +685,8 @@
       }
       var btn = document.getElementById('btnBackupNow');
       if (btn) btn.addEventListener('click', function () { createBackup('full'); });
+      var drillBtn = document.getElementById('btnDrill');
+      if (drillBtn) drillBtn.addEventListener('click', runDrill);
     } else if (pageId === 'restore') {
       initRestore();
     } else if (pageId === 'schedules') {

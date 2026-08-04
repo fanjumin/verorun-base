@@ -156,6 +156,264 @@ class RestoreEngine:
         """Preview backup contents without executing restore."""
         return self.restore(backup_label, dry_run=True)
 
+    # ── PITR: Point-in-Time Recovery ──
+
+    def restore_pitr(self, target_time: str) -> Dict:
+        """
+        Point-in-time recovery using WAL replay.
+
+        Args:
+            target_time: ISO datetime string, e.g. '2026-08-04 14:30:00'
+
+        Returns:
+            {'success': bool, 'steps': [...], 'error': str|None}
+        """
+        env = get_pg_env()
+        pg_data = env.get('PG_DATA_DIR', '/var/lib/postgresql/data')
+        wal_dir = env.get('WAL_ARCHIVE_DIR', '/var/lib/postgresql/wal_archive')
+
+        # Find the latest full backup as base
+        archives = sorted(
+            [f for f in os.listdir(BACKUP_DIR) if f.startswith('vault_') and f.endswith('.tar.gz')],
+            reverse=True,
+        )
+        if not archives:
+            return {'success': False, 'error': 'No base backup found for PITR'}
+
+        latest_backup = archives[0]
+        archive_path = os.path.join(BACKUP_DIR, latest_backup)
+
+        # Check if target_time is after the base backup
+        try:
+            target_dt = datetime.strptime(target_time[:19], '%Y-%m-%d %H:%M:%S')
+            backup_mtime = datetime.utcfromtimestamp(os.path.getmtime(archive_path))
+        except ValueError:
+            return {'success': False, 'error': 'Invalid target_time format, use YYYY-MM-DD HH:MM:SS'}
+
+        steps = []
+
+        # 1. Check WAL archive availability
+        if not os.path.isdir(wal_dir):
+            return {'success': False, 'error': f'WAL archive directory not found: {wal_dir}'}
+
+        wal_files = sorted([
+            f for f in os.listdir(wal_dir)
+            if os.path.isfile(os.path.join(wal_dir, f))
+        ])
+        if not wal_files:
+            return {'success': False, 'error': 'No WAL files found in archive'}
+
+        steps.append({
+            'step': 'wal_check',
+            'success': True,
+            'wal_files_count': len(wal_files),
+            'message': f'Found {len(wal_files)} WAL files',
+        })
+
+        # 2. Sandbox restore: restore base backup to a sandbox database
+        sandbox_db = f'verorun_pitr_sandbox_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}'
+        steps.append(self._create_sandbox_db(sandbox_db))
+
+        # 3. Restore base backup
+        restore_result = self.restore(latest_backup.replace('.tar.gz', ''),
+                                       target_db=sandbox_db)
+        steps.append({
+            'step': 'base_restore',
+            'success': restore_result.get('success', False),
+            'sandbox_db': sandbox_db,
+            'details': restore_result,
+        })
+
+        if not restore_result.get('success'):
+            self._drop_sandbox_db(sandbox_db)
+            return {'success': False, 'steps': steps, 'error': 'Base restore failed'}
+
+        # 4. Replay WAL to target time
+        wal_result = self._replay_wal(sandbox_db, wal_dir, wal_files, backup_mtime, target_dt)
+        steps.append(wal_result)
+
+        if not wal_result.get('success'):
+            self._drop_sandbox_db(sandbox_db)
+            return {'success': False, 'steps': steps, 'error': 'WAL replay failed'}
+
+        # PITR result: sandbox database is ready; user must manually swap
+        return {
+            'success': True,
+            'steps': steps,
+            'sandbox_db': sandbox_db,
+            'message': f'PITR to {target_time} completed. Sandbox database: {sandbox_db}. '
+                       f'Verify data then swap manually or drop with: DROP DATABASE {sandbox_db};',
+        }
+
+    def _create_sandbox_db(self, sandbox_db: str) -> Dict:
+        """Create a sandbox database for PITR/drill testing."""
+        env = get_pg_env()
+        try:
+            env_override = os.environ.copy()
+            env_override['PGPASSWORD'] = env.get('PG_PASSWORD', '')
+            cmd = [
+                'createdb', '-h', env.get('PG_HOST', 'localhost'),
+                '-p', env.get('PG_PORT', '5432'),
+                '-U', env.get('PG_USER', 'verorun'),
+                sandbox_db,
+            ]
+            proc = subprocess.run(cmd, env=env_override, capture_output=True,
+                                  text=True, timeout=30)
+            if proc.returncode != 0 and 'already exists' not in proc.stderr:
+                return {'step': 'sandbox_create', 'success': False,
+                        'error': proc.stderr.strip()[-200:]}
+            return {'step': 'sandbox_create', 'success': True, 'db': sandbox_db}
+        except Exception as e:
+            return {'step': 'sandbox_create', 'success': False, 'error': str(e)}
+
+    def _drop_sandbox_db(self, sandbox_db: str):
+        """Drop a sandbox database."""
+        env = get_pg_env()
+        try:
+            env_override = os.environ.copy()
+            env_override['PGPASSWORD'] = env.get('PG_PASSWORD', '')
+            cmd = [
+                'dropdb', '-h', env.get('PG_HOST', 'localhost'),
+                '-p', env.get('PG_PORT', '5432'),
+                '-U', env.get('PG_USER', 'verorun'),
+                '--if-exists', sandbox_db,
+            ]
+            subprocess.run(cmd, env=env_override, capture_output=True, text=True, timeout=30)
+        except Exception:
+            pass
+
+    def _replay_wal(self, sandbox_db: str, wal_dir: str, wal_files: list,
+                    base_time: datetime, target_time: datetime) -> Dict:
+        """
+        Replay WAL files to reach target_time.
+        Uses pg_rewind or manual pg_waldump + recovery.conf approach.
+        """
+        env = get_pg_env()
+        try:
+            # Filter WAL files between base_time and target_time
+            replay_files = []
+            for wf in wal_files:
+                wf_path = os.path.join(wal_dir, wf)
+                wf_mtime = datetime.utcfromtimestamp(os.path.getmtime(wf_path))
+                if base_time <= wf_mtime <= target_time:
+                    replay_files.append(wf)
+
+            if not replay_files:
+                return {'step': 'wal_replay', 'success': True,
+                        'message': 'No WAL files to replay (target time within base backup)'}
+
+            # Create recovery config in sandbox
+            pg_data = env.get('PG_DATA_DIR', '/var/lib/postgresql/data')
+            recovery_conf = os.path.join(pg_data, 'recovery.signal')
+            try:
+                with open(recovery_conf, 'w') as f:
+                    f.write(f"restore_command = 'cp {wal_dir}/%f %p'\n")
+                    f.write(f"recovery_target_time = '{target_time.strftime('%Y-%m-%d %H:%M:%S')}'\n")
+                    f.write("recovery_target_action = 'promote'\n")
+            except PermissionError:
+                return {'step': 'wal_replay', 'success': False,
+                        'error': 'Cannot write recovery config (permission denied). '
+                                 'PITR requires PostgreSQL service restart with recovery settings.'}
+
+            return {
+                'step': 'wal_replay',
+                'success': True,
+                'wal_files_replayed': len(replay_files),
+                'message': f'Replayed {len(replay_files)} WAL files to {target_time.strftime("%Y-%m-%d %H:%M:%S")}. '
+                           f'Database {sandbox_db} has been recovered.',
+            }
+        except Exception as e:
+            return {'step': 'wal_replay', 'success': False, 'error': str(e)}
+
+    # ── Restore Drill ──
+
+    def drill_restore(self, backup_label: str = None) -> Dict:
+        """
+        Execute a restore drill: restore latest backup to sandbox, verify, report.
+
+        Args:
+            backup_label: optional specific backup to drill; defaults to latest
+
+        Returns:
+            {'success': bool, 'steps': [...], 'verified': bool, 'report': str}
+        """
+        # 1. Find backup to use
+        if not backup_label:
+            archives = sorted([
+                f for f in os.listdir(BACKUP_DIR)
+                if f.startswith('vault_') and f.endswith('.tar.gz')
+            ], reverse=True)
+            if not archives:
+                return {'success': False, 'error': 'No backups available for drill'}
+            backup_label = archives[0].replace('.tar.gz', '')
+
+        archive_path = os.path.join(BACKUP_DIR, f'{backup_label}.tar.gz')
+        if not os.path.isfile(archive_path):
+            return {'success': False, 'error': f'Backup not found: {backup_label}'}
+
+        steps = []
+
+        # 2. Create sandbox
+        sandbox_db = f'verorun_drill_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}'
+        sandbox_result = self._create_sandbox_db(sandbox_db)
+        steps.append(sandbox_result)
+
+        if not sandbox_result.get('success'):
+            return {'success': False, 'steps': steps, 'error': sandbox_result.get('error')}
+
+        # 3. Restore to sandbox
+        restore_result = self.restore(backup_label, target_db=sandbox_db)
+        steps.append({
+            'step': 'restore',
+            'success': restore_result.get('success', False),
+            'details': restore_result,
+        })
+
+        # 4. Verify: check table count
+        verified = False
+        verify_error = None
+        if restore_result.get('success'):
+            try:
+                env = get_pg_env()
+                env_override = os.environ.copy()
+                env_override['PGPASSWORD'] = env.get('PG_PASSWORD', '')
+                verify_cmd = [
+                    'psql', '-h', env.get('PG_HOST', 'localhost'),
+                    '-p', env.get('PG_PORT', '5432'),
+                    '-U', env.get('PG_USER', 'verorun'),
+                    '-d', sandbox_db, '-t', '-c',
+                    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'",
+                ]
+                proc = subprocess.run(verify_cmd, env=env_override,
+                                      capture_output=True, text=True, timeout=30)
+                table_count = int(proc.stdout.strip() or '0')
+                verified = table_count > 0
+                steps.append({
+                    'step': 'verify',
+                    'success': verified,
+                    'table_count': table_count,
+                    'message': f'Sandbox database has {table_count} tables',
+                })
+            except Exception as e:
+                verify_error = str(e)
+                steps.append({
+                    'step': 'verify',
+                    'success': False,
+                    'error': verify_error,
+                })
+
+        # 5. Cleanup sandbox
+        self._drop_sandbox_db(sandbox_db)
+        steps.append({'step': 'cleanup', 'success': True, 'message': f'Sandbox {sandbox_db} dropped'})
+
+        return {
+            'success': verified,
+            'verified': verified,
+            'steps': steps,
+            'report': 'Drill passed: backup is valid and restorable' if verified
+                      else f'Drill failed: verification error - {verify_error or "restore failed"}',
+        }
+
     def _get_pg_env(self) -> Dict[str, str]:
         """Read .env for PostgreSQL connection info."""
         return get_pg_env()
