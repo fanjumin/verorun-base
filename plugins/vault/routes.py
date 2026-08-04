@@ -139,31 +139,31 @@ def backups_page():
 @vault_bp.route('/restore')
 @_require_vault_auth
 def restore_page():
-    return render_template('vault.html')
+    return render_template('vault_restore.html')
 
 
 @vault_bp.route('/schedules')
 @_require_vault_auth
 def schedules_page():
-    return render_template('vault.html')
+    return render_template('vault_schedules.html')
 
 
 @vault_bp.route('/storage')
 @_require_vault_auth
 def storage_page():
-    return render_template('vault.html')
+    return render_template('vault_storage.html')
 
 
 @vault_bp.route('/settings')
 @_require_vault_auth
 def settings_page():
-    return render_template('vault.html')
+    return render_template('vault_settings.html')
 
 
 @vault_bp.route('/audit')
 @_require_vault_auth
 def audit_page():
-    return render_template('vault.html')
+    return render_template('vault_audit.html')
 
 
 # ══════════════════════════════════════════════════════════════
