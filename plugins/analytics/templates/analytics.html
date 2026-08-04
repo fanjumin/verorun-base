@@ -836,11 +836,30 @@ body {
 // ═══════════════════════════════════════════════════════════════════════════
 function showToast(msg, type) {
   type = type || 'info';
+  var colors = {
+    error:   { bg: 'rgba(244,63,94,0.15)', border: 'rgba(244,63,94,0.4)', color: '#f43f5e' },
+    success: { bg: 'rgba(0,255,159,0.12)', border: 'rgba(0,255,159,0.3)', color: '#00ff9f' },
+    info:    { bg: 'rgba(0,245,255,0.1)', border: 'rgba(0,245,255,0.25)', color: '#00f5ff' }
+  };
+  var c = colors[type] || colors.info;
   var el = document.createElement('div');
-  el.className = 'custom-toast ' + type;
+  el.style.cssText =
+    'position:fixed;top:20px;left:50%;z-index:99999;padding:12px 24px;border-radius:10px;' +
+    'font-size:14px;max-width:480px;text-align:center;box-shadow:0 4px 30px rgba(0,0,0,0.5);' +
+    'transform:translateX(-50%);transition:opacity 0.3s ease;opacity:0;' +
+    'background:' + c.bg + ';border:1px solid ' + c.border + ';color:' + c.color + ';';
   el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 3300);
+  // If inside iframe, append to top window for guaranteed visibility
+  var target = document.body;
+  try {
+    if (window.top !== window && window.top.document) { target = window.top.document.body; }
+  } catch(e) {}
+  target.appendChild(el);
+  requestAnimationFrame(function(){ el.style.opacity = '1'; });
+  setTimeout(function(){
+    el.style.opacity = '0';
+    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+  }, 3000);
 }
 
 function showConfirm(title, message, onConfirm) {
@@ -1333,6 +1352,7 @@ function loadChinaCities(skipMap) {
         '<div class="text" style="font-size:12px;color:var(--text-dim);margin-top:8px;max-width:400px;margin-left:auto;margin-right:auto">{{ _('Go to the Settings tab to set up GeoIP databases — ip2region (free, no registration) for Chinese IPs or MaxMind GeoLite2 for international coverage.') }}</div></div>';
       document.getElementById('chinaCityContent').innerHTML = '';
       document.getElementById('chinaProvinceContent').innerHTML = '';
+      toggleCountrySection(true);
       return;
     }
     // 聚合省份数据（未匹配的归入「其他地区」，避免地级市混入省列表）
