@@ -58,3 +58,6 @@ auth-center/services/license_service.py export-ignore
 deploy/caddy export-ignore
 tools export-ignore
 tmp export-ignore
+
+# ── .gitattributes 自身（不应进入 verorun-base） ──
+.gitattributes export-ignore
