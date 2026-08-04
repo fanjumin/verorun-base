@@ -28,7 +28,7 @@ def init_i18n(t_fn):
 
 class EmailPlugin(BasePlugin):
     name = 'email'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'Email Service — SMTP/IMAP email client with inbox, compose, attachments, and contact management'
     author = 'VeroRun'
 

@@ -28,7 +28,7 @@ def init_i18n(t_fn):
 
 class AdsPlugin(BasePlugin):
     name = 'ads'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'Ad Management — AI-powered ad placements, zones, stats, multi-site, and Agent Matrix integration'
     author = 'VeroRun'
 

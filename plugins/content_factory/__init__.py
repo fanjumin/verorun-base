@@ -27,7 +27,7 @@ def init_i18n(t_fn):
 
 class ContentFactoryPlugin(BasePlugin):
     name = 'content_factory'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'Content Factory — Collection, AI processing, review, publishing, skill push'
     author = 'VeroRun'
 

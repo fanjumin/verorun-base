@@ -30,8 +30,8 @@ def init_i18n(t_fn):
 
 class OauthConfigPlugin(_BASE_CLS):
     name = 'oauth_config'
-    version = '1.0.0'
-    description = 'OAuth 第三方登录 — 完整的登录/回调/配置管理插件'
+    version = '1.1.0'
+    description = _('OAuth 第三方登录 — 完整的登录/回调/配置管理插件')
     author = 'VeroRun'
 
     def on_enable(self, registry):

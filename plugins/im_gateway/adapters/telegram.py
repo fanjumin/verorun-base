@@ -31,7 +31,7 @@ class TelegramAdapter(BaseIMAdapter):
             if resp.get('ok'):
                 bot_name = resp['result'].get('first_name', '')
                 return True, f'Telegram Connected! Bot: {bot_name}'
-            return False, f"Telegram 返回错误: {resp.get('description', _('Unknown'))}"
+            return False, _("Telegram 返回错误: {}").format(resp.get('description', _('Unknown')))
         except Exception as e:
             return False, f'Connection failed: {str(e)}'
 

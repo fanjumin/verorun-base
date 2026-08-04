@@ -146,7 +146,7 @@ def cmd_stats():
 def cmd_add_alert():
     """交互式添加告警规则"""
     import readline  # 增强输入体验
-    print('\n=== 添加分析告警规则 ===')
+    print(_('\n=== 添加分析告警规则 ==='))
     print()
 
     name = input(_('Alert name: ')).strip()
@@ -154,7 +154,7 @@ def cmd_add_alert():
         print(_('❌ Name Cannot Be Empty'))
         return
 
-    print('\n指标选项:')
+    print(_('\n指标选项:'))
     metrics = [_('UV (Unique Visitors)'), _('PV (Page Views)'), _('bounce_rate (Bounce rate %)'),
                _('Error rate (%)'), _('avg_response_time (Average response ms)')]
     for i, m in enumerate(metrics, 1):
@@ -163,7 +163,7 @@ def cmd_add_alert():
     metric_map = ['', 'uv', 'pv', 'bounce_rate', 'error_rate', 'avg_response_time']
     metric = metric_map[metric_idx]
 
-    print('\n操作符:')
+    print(_('\n操作符:'))
     print(_('  1. > (Greater than)'))
     print(_('  2. < (Less than)'))
     print(_('  3. >= (Greater than or equal to)'))
@@ -174,7 +174,7 @@ def cmd_add_alert():
 
     threshold = float(input(_('Threshold: ')).strip())
 
-    print('\n时间窗口:')
+    print(_('\n时间窗口:'))
     print(_('  1. 1h (1 hour)'))
     print(_('  2. 24h (24 hours)'))
     print(_('  3. 7d (7 days)'))
@@ -183,7 +183,7 @@ def cmd_add_alert():
     time_window = tw_map[tw_idx]
 
     alert_id = create_alert(name, metric, operator, threshold, time_window)
-    print(f'\n✅ 告警规则已创建 (ID: {alert_id})')
+    print(_('\n✅ 告警规则已创建 (ID: {})').format(alert_id))
 
 
 def cmd_seed_workflows():
@@ -201,8 +201,8 @@ def cmd_seed_workflows():
         daily_id = create_daily_report_workflow(conn)
         weekly_id = create_weekly_report_workflow(conn)
         print(f'✅ Predefined Workflow Created:')
-        print(f'  📊 每日分析报告 (ID: {daily_id})')
-        print(f'  📊 每周运营报告 (ID: {weekly_id})')
+        print(_('  📊 每日分析报告 (ID: {})').format(daily_id))
+        print(_('  📊 每周运营报告 (ID: {})').format(weekly_id))
 
         # 创建工作流绑定的 Cron 任务
         from orchestrator import models as om

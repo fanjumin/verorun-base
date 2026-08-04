@@ -21,8 +21,8 @@ from plugin_manager.base import BasePlugin
 
 class SiteDomainsPlugin(BasePlugin):
     name = 'site_domains'
-    version = '0.1.0'
-    description = 'Site Domains — 子域名 & Nginx 配置管理'
+    version = '1.0.0'
+    description = _('Site Domains — 子域名 & Nginx 配置管理')
     author = 'VeroRun'
 
     def on_enable(self, registry):

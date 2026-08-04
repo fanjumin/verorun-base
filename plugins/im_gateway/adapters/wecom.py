@@ -86,7 +86,7 @@ class WecomAdapter(BaseIMAdapter):
             body = {"msgtype": "file", "file": {"media_id": _("File upload not supported")}}
         else:
             body = {"msgtype": "markdown",
-                    "markdown": {"content": "**{}**\n[下载文件]({})".format(filename, file_url)}}
+                    "markdown": {"content": _("**{}**\n[下载文件]({})").format(filename, file_url)}}
         resp = _json.loads(_ur.urlopen(_ur.Request(webhook,
             data=_json.dumps(body).encode(), headers={'Content-Type': 'application/json'}
         )).read())

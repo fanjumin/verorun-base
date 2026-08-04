@@ -242,7 +242,7 @@ AI：{ai_reply[:500]}"""
         engine = UnifiedLLM({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
         reply = ''
         for token in engine.chat_stream([
-            {'role': 'system', 'content': '你是一个对话质量评审员。只输出 JSON。'},
+            {'role': 'system', 'content': _('你是一个对话质量评审员。只输出 JSON。')},
             {'role': 'user', 'content': prompt}
         ], temperature=0.1, max_tokens=256):
             if not token.startswith('Error:'):

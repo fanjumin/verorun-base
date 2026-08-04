@@ -576,7 +576,7 @@ function aiAnalyze(itemId) {
       el.innerHTML = {{ _t('<span style="color:var(--red)">Analysis Failed: ') | tojson }} + esc(d.error||'') + '</span>';
     }
   }).catch(function(e){
-    el.innerHTML = '<span style="color:var(--red)">请求失败</span>';
+    el.innerHTML = '<span style="color:var(--red)">{{ _t('请求失败') }}</span>';
   });
 }
 

@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 class ReviewsPlugin(BasePlugin):
     name = 'reviews'
-    version = '1.0.0'
-    description = '商品评价系统 — 用户对已购商品打分、写评价、晒图'
+    version = '1.1.0'
+    description = _('商品评价系统 — 用户对已购商品打分、写评价、晒图')
 
     def on_install(self, registry) -> bool:
         """安装时创建插件表"""

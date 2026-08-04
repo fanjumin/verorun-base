@@ -106,7 +106,7 @@ def admin_oauth_save():
         if provider not in existing_providers and len(existing_providers) >= 2:
             return jsonify({
                 'success': False,
-                'error': f'该站点已启用 {len(existing_providers)} 个第三方登录（{", ".join(existing_providers)}），最多允许 2 个。请先禁用或删除一个再添加。'
+                'error': _('该站点已启用 {} 个第三方登录（{}），最多允许 2 个。请先禁用或删除一个再添加。').format(len(existing_providers), ", ".join(existing_providers))
             }), 400
 
     # secret 为空时保留原有（编辑不改密钥场景）

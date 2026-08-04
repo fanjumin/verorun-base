@@ -353,11 +353,11 @@ class AnalyticsProcessor:
     def _handle_alerts(self, triggered: list):
         """处理触发的告警"""
         for alert in triggered:
-            msg = (f'🚨 告警触发: {alert["name"]}\n'
-                   f'指标: {alert["metric"]}\n'
-                   f'Current value: {alert["current_value"]} '
-                   f'(阈值: {alert["operator"]} {alert["threshold"]})\n'
-                   f'Time Window: {alert["time_window"]}')
+            msg = (_("🚨 告警触发: {}\n").format(alert["name"]) +
+                   _("指标: {}\n").format(alert["metric"]) +
+                   "Current value: {} ".format(alert["current_value"]) +
+                   _("(阈值: {} {})\n").format(alert["operator"], alert["threshold"]) +
+                   "Time Window: {}".format(alert["time_window"]))
             print(f'[Analytics Alert] {msg}')
 
             # 写入通知（集成到现有通知系统）
@@ -408,7 +408,7 @@ def run_forever(interval: int = 60):
 
     def _signal_handler(sig, frame):
         nonlocal running
-        print('\n[Analytics Processor] 正在停止...')
+        print(_('\n[Analytics Processor] 正在停止...'))
         running = False
 
     signal.signal(signal.SIGINT, _signal_handler)

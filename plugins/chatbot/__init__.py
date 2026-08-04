@@ -9,7 +9,7 @@ from plugin_manager.base import BasePlugin
 class ChatbotPlugin(BasePlugin):
     name = 'AI Advisor'
     identifier = 'chatbot'
-    version = '1.0.0'
+    version = '1.1.0'
 
     def setup(self):
         # 先执行父类 setup()，触发 on_install（建表/写种子）和 on_enable（注册Agent）

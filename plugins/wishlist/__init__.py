@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 class WishlistPlugin(BasePlugin):
     name = 'wishlist'
-    version = '1.0.0'
-    description = '收藏/心愿单 — 用户收藏商品、管理心愿清单'
+    version = '1.1.0'
+    description = _('收藏/心愿单 — 用户收藏商品、管理心愿清单')
 
     def on_install(self, registry) -> bool:
         """安装时创建插件表"""

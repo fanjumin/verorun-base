@@ -237,7 +237,7 @@ def generate_content():
     temperature = data.get('temperature', 0.7)
 
     if not topic:
-        return jsonify({'success': False, 'error': '请输入主题'}), 400
+        return jsonify({'success': False, 'error': _('请输入主题')}), 400
 
     try:
         from services.ai_content_generator import generate_article
@@ -265,7 +265,7 @@ def generate_image():
     use_for_cover = data.get('cover', True)
 
     if not prompt and not title:
-        return jsonify({'success': False, 'error': '请输入图片描述或文章标题'}), 400
+        return jsonify({'success': False, 'error': _('请输入图片描述或文章标题')}), 400
 
     try:
         from services.ai_content_generator import generate_image as gen_img

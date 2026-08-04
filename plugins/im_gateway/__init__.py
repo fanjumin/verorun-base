@@ -29,7 +29,7 @@ def init_i18n(t_fn):
 
 class ImGatewayPlugin(BasePlugin):
     name = 'im_gateway'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'IM Gateway — Unified instant-messaging channel gateway'
     author = 'VeroRun'
 

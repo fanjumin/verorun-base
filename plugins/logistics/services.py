@@ -56,7 +56,7 @@ def query_track(shipper_code: str, logistic_code: str,
         eid, api_key = _get_kdniao_config()
     if not eid or not api_key:
         _log_query(shipper_code, logistic_code, order_code, False, _('Kuaidi100 Not Configured'))
-        return False, {}, '快递鸟未配置: 请在系统设置→基本设置→物流配送中填写商户ID和API Key'
+        return False, {}, _('快递鸟未配置: 请在系统设置→基本设置→物流配送中填写商户ID和API Key')
 
     req_body = {
         'OrderCode': order_code,
@@ -107,7 +107,7 @@ def query_track(shipper_code: str, logistic_code: str,
         return False, {}, f'Failed to parse response: {e}'
     except Exception as e:
         _log_query(shipper_code, logistic_code, order_code, False, str(e))
-        return False, {}, f'网络请求失败: {e}'
+        return False, {}, _('网络请求失败: {}').format(e)
 
 
 def _state_text(state: str) -> str:

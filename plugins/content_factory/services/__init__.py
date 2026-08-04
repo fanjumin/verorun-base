@@ -24,7 +24,7 @@ def get_collector(source_type: str, source_id: int, config: dict = None) -> Opti
         cls = getattr(mod, cls_name)
         return cls(source_id, config or {})
     except Exception as e:
-        logger.error(f"[CF] 加载采集器 {source_type} 失败: {e}")
+        logger.error(_("[CF] 加载采集器 {} 失败: {}").format(source_type, e))
         return None
 
 

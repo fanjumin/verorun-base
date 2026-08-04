@@ -6,6 +6,8 @@ Coupon Plugin — 智能优惠券引擎
 使用独立 coupons.db 存储券表，主库只读查询。
 """
 
+from i18n import _
+
 from plugin_manager.base import BasePlugin
 
 from .engine import CouponEngine
@@ -30,8 +32,8 @@ def get_recommender() -> AICouponRecommender:
 
 class CouponPlugin(BasePlugin):
     name = 'coupons'
-    version = '1.0.0'
-    description = '智能优惠券引擎 — 场景券/AI推荐/订阅联动'
+    version = '1.1.0'
+    description = _('智能优惠券引擎 — 场景券/AI推荐/订阅联动')
     author = 'VeroRun'
 
     def on_install(self, registry):

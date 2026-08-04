@@ -2,6 +2,7 @@
 """Content Factory Plugin — RSS/Atom 通用采集器"""
 from datetime import datetime
 from typing import List
+from i18n import _
 from plugins.content_factory.services.base_collector import BaseCollector, CollectResult
 
 try:
@@ -16,7 +17,7 @@ class RSSCollector(BaseCollector):
 
     def collect(self, **kwargs) -> List[CollectResult]:
         if feedparser is None:
-            raise ImportError("请先 pip install feedparser")
+            raise ImportError(_("请先 pip install feedparser"))
 
         url = kwargs.get('url') or self.config.get('url', '')
         if not url:

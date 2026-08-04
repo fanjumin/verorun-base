@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 class OrderNotifyPlugin(BasePlugin):
     name = 'order_notify'
-    version = '1.0.0'
-    description = '订单通知 — 下单/支付成功/发货/退款时自动发送通知'
+    version = '1.1.0'
+    description = _('订单通知 — 下单/支付成功/发货/退款时自动发送通知')
 
     def on_enable(self, registry) -> bool:
         init_db()

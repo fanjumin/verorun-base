@@ -17,7 +17,7 @@ from plugin_manager.base import BasePlugin
 
 class LogisticsPlugin(BasePlugin):
     name = 'logistics'
-    version = '0.1.0'
+    version = '1.0.0'
     description = 'Logistics Express — shipment tracking via Kdniao API with 600+ carriers'
     author = 'VeroRun'
 
