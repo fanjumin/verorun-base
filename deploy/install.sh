@@ -652,7 +652,8 @@ Restart=always
 RestartSec=5
 KillSignal=SIGTERM
 TimeoutStopSec=30
-# 启动健康检查：30 秒内 /health 不返回 200 → systemd 认为启动失败
+TimeoutStartSec=300
+# 启动健康检查：/health 不返回 200 → systemd 认为启动失败（最多等待 TimeoutStartSec）
 ExecStartPost=${APP_HOME}/deploy/health_check.sh ${port}
 StandardOutput=append:${LOG_DIR}/${name}.log
 StandardError=append:${LOG_DIR}/${name}.log
