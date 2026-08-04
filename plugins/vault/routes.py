@@ -50,7 +50,9 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, render_template, send_file, request
 
 vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault',
-                     template_folder='templates')
+                     template_folder='templates',
+                     static_folder='static',
+                     static_url_path='/plugins/vault/static')
 
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
