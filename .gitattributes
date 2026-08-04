@@ -1,0 +1,60 @@
+# ============================================================
+# VeroRun .gitattributes — 控制 git archive 导出行为
+# 
+# 用于 sync-to-base.yml 中通过 git archive 生成 verorun-base
+# 规则支持：目录级、文件级、通配符三种粒度
+# ============================================================
+
+# ── 插件源码（整个目录不导出） ──
+plugins export-ignore
+
+# ── 文档 ──
+docs export-ignore
+文档 export-ignore
+
+# ── 测试 ──
+tests export-ignore
+
+# ── 开发脚本 ──
+scripts export-ignore
+prompts export-ignore
+
+# ── AI 工具配置 ──
+.trae export-ignore
+
+# ── CI 配置（verorun-base 不需要 CI） ──
+.github export-ignore
+
+# ── 缓存文件 ──
+__pycache__ export-ignore
+*.pyc export-ignore
+*.pyo export-ignore
+
+# ── 临时文件 ──
+临时文件 export-ignore
+.cache export-ignore
+
+# ── 运行时数据库文件（不应进入代码仓库） ──
+*.db export-ignore
+*.db-shm export-ignore
+*.db-wal export-ignore
+
+# ── 编译产物 ──
+*.pyd export-ignore
+*.so export-ignore
+*.dll export-ignore
+*.exe export-ignore
+
+# ── 日志文件 ──
+*.log export-ignore
+
+# ── 文件级排除：API Key 分发（仅 verorun-code 需要） ──
+auth-center/services/unified_auth_service.py export-ignore
+
+# ── 文件级排除：授权服务（仅 verorun-code 需要） ──
+auth-center/services/license_service.py export-ignore
+
+# ── 部署工具（verorun-base 不需要） ──
+deploy/caddy export-ignore
+tools export-ignore
+tmp export-ignore
