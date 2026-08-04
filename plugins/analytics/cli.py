@@ -229,14 +229,14 @@ def cmd_seed_workflows():
         conn.close()
 
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(0)
 
     cmd = sys.argv[1]
     commands = {
-        ')init': cmd_init,
+        'init': cmd_init,
         'process': cmd_process,
         'daemon': cmd_daemon,
         'report': cmd_report,

@@ -930,9 +930,10 @@ def get_event_report(conn, days: int = 7) -> dict:
 def cleanup_old_logs(conn, retention_days: int = 30):
     """清理过期原始日志"""
     cutoff = int(time.time()) - retention_days * 86400
-    conn.execute("DELETE FROM analytics_logs WHERE timestamp < %s", (cutoff,))
-    conn.execute("DELETE FROM analytics_visitor_sessions WHERE end_time < %s", (cutoff,))
+    cur1 = conn.execute("DELETE FROM analytics_logs WHERE timestamp < %s", (cutoff,))
+    cur2 = conn.execute("DELETE FROM analytics_visitor_sessions WHERE end_time < %s", (cutoff,))
     conn.commit()
+    return cur1.rowcount + cur2.rowcount
 
 
 def get_privacy_config(conn, key: str = None) -> dict:

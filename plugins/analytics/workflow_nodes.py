@@ -322,6 +322,7 @@ def create_daily_report_workflow(conn) -> int:
 
     from orchestrator import models as om
     wf_id = om.create_workflow(
+        conn=conn,
         name=_("📊 Daily Analysis Report"),
         description="每天自动生成分析报告并 AI 解读",
         definition=definition,

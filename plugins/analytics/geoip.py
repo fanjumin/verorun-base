@@ -76,7 +76,7 @@ def _detect_server_location() -> bool:
     try:
         import json
         from urllib.request import urlopen
-        resp = urlopen('http://ip-api.com/json/?fields=countryCode', timeout=5)
+        resp = urlopen('https://ip-api.com/json/?fields=countryCode', timeout=5)
         data = json.loads(resp.read().decode())
         cc = (data.get('countryCode') or '').upper()
         _IS_INTL = (cc != 'CN')
@@ -315,7 +315,7 @@ def _ipapi_lookup(ip: str) -> dict:
         return IPAPI_CACHE[ip]['data']
 
     try:
-        url = f'http://ip-api.com/json/{ip}?fields=countryCode,city'
+        url = f'https://ip-api.com/json/{ip}?fields=countryCode,city'
         resp = urlopen(url, timeout=3)
         data = json.loads(resp.read().decode())
         if data.get('status') == 'success':

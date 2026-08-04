@@ -161,13 +161,13 @@ def _simple_parse(ua: str) -> dict:
         os_name = 'Windows 7'
     elif 'mac os x' in ua_lower:
         m = re.search(r'mac os x ([\d_]+)', ua_lower)
-        os_name = f'Mac OS X {m.group(1).replace("_(", ").")}' if m else 'Mac OS X'
+        os_name = f'Mac OS X {m.group(1).replace("_", ".")}' if m else 'Mac OS X'
     elif 'android' in ua_lower:
         m = re.search(r'android ([\d.]+)', ua_lower)
         os_name = f'Android {m.group(1)}' if m else 'Android'
     elif 'iphone' in ua_lower or 'ipad' in ua_lower:
         m = re.search(r'os ([\d_]+)', ua_lower)
-        os_name = f'iOS {m.group(1).replace("_(", ").")}' if m else 'iOS'
+        os_name = f'iOS {m.group(1).replace("_", ".")}' if m else 'iOS'
     elif 'linux' in ua_lower:
         os_name = 'Linux'
 

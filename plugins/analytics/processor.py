@@ -362,17 +362,19 @@ class AnalyticsProcessor:
 
             # 写入通知（集成到现有通知系统）
             try:
-                conn = am.get_db()
-                conn.execute(
+                from plugins._base.db import get_raw_connection
+                raw = get_raw_connection()
+                raw.autocommit = True
+                cur = raw.cursor()
+                cur.execute(
                     "INSERT INTO notifications (user_id, title, content, type, created_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (1, f'🚨 Statistical analysis alert: {alert["name"]}', msg,
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (1, f'Statistical analysis alert: {alert["name"]}', msg,
                      'alert', int(time.time()))
                 )
-                conn.commit()
-                conn.close()
-            except:
-                pass
+                cur.close()
+            except Exception as e:
+                print(f'[Analytics Alert] Notification write failed: {e}')
 
     def _cleanup_logs(self, conn, today_str: str):
         """清理过期日志"""

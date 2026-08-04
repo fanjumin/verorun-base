@@ -24,6 +24,7 @@ import re
 import os
 import sys
 import sqlite3
+import psycopg2
 import fnmatch
 from datetime import datetime
 
@@ -63,8 +64,8 @@ def _db_write(func):
         for attempt in range(_DB_RETRIES):
             try:
                 return func(*args, **kwargs)
-            except sqlite3.OperationalError as e:
-                if 'database is locked' in str(e) and attempt < _DB_RETRIES - 1:
+            except (psycopg2.OperationalError, psycopg2.errors.SerializationFailure) as e:
+                if attempt < _DB_RETRIES - 1:
                     time.sleep(_DB_RETRY_DELAY * (attempt + 1))
                     continue
                 raise
