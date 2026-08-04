@@ -820,6 +820,7 @@ body {
         </div>
         <div id="ip2regionStatus" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
         <button onclick="downloadIp2region()" id="ip2regionBtn" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit">{{ _('Download ip2region Database') }}</button>
+        <div id="ip2regionDownloadStatus" style="margin-top:6px;font-size:12px;min-height:18px"></div>
       </div>
 
       <!-- MaxMind -->
@@ -845,6 +846,7 @@ body {
           <button type="button" id="geoipSaveBtn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('Save') }}</button>
           <button type="button" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoLite2 Database') }}</button>
         </form>
+        <div id="geoipDownloadStatus" style="margin-top:8px;font-size:12px;min-height:18px"></div>
       </div>
     </div>
   </div>
@@ -1969,6 +1971,8 @@ function downloadIp2region() {
   var btn = document.getElementById('ip2regionBtn');
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
+  var statusEl = document.getElementById('ip2regionDownloadStatus');
+  if (statusEl) statusEl.innerHTML = '';
   showProgress('ip2regionBtn');
   var xhr = new XMLHttpRequest();
   xhr.open('POST', SETTINGS_BASE + '/settings/geoip/download-ip2region');
@@ -1982,22 +1986,23 @@ function downloadIp2region() {
       var res = JSON.parse(xhr.responseText);
       if (res.success) {
         btn.textContent = '{{ _('Update ip2region') }}';
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">&#x2705; {{ _('Downloaded') }} ' + (res.size_mb||'?') + ' MB</span>';
         loadGeoipStatus();
-        showToast('{{ _('ip2region downloaded successfully') }}', 'success');
       } else {
         btn.textContent = '{{ _('Download ip2region Database') }}';
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">&#x26A0; ' + (res.error || 'Unknown error') + '</span>';
         showToast(res.error || 'Unknown error', 'error');
       }
     } catch(e) {
       btn.textContent = '{{ _('Download ip2region Database') }}';
-      showToast('Parse error: ' + e.message, 'error');
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Parse error: ' + e.message + '</span>';
     }
   };
   xhr.onerror = function() {
     btn.disabled = false;
     hideProgress('ip2regionBtn');
     btn.textContent = '{{ _('Download ip2region Database') }}';
-    showToast('{{ _('Network error — check console') }}', 'error');
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Network error</span>';
   };
   xhr.send();
 }
@@ -2056,6 +2061,8 @@ document.getElementById('geoipDownloadBtn').addEventListener('click', function()
   var btn = document.getElementById('geoipDownloadBtn');
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
+  var statusEl = document.getElementById('geoipDownloadStatus');
+  if (statusEl) statusEl.innerHTML = '';
   showProgress('geoipDownloadBtn');
   var xhr = new XMLHttpRequest();
   xhr.open('POST', SETTINGS_BASE + '/settings/geoip/download');
@@ -2070,22 +2077,23 @@ document.getElementById('geoipDownloadBtn').addEventListener('click', function()
       var res = JSON.parse(xhr.responseText);
       if (res.success) {
         btn.textContent = '{{ _('Update GeoLite2') }}';
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">&#x2705; {{ _('Downloaded') }} ' + (res.size_mb||'?') + ' MB</span>';
         loadGeoipStatus();
-        showToast('{{ _('GeoLite2 downloaded successfully') }} (' + (res.size_mb||'?') + ' MB)', 'success');
       } else {
         btn.textContent = '{{ _('Download GeoLite2 Database') }}';
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">&#x26A0; ' + (res.error || 'Unknown error') + '</span>';
         showToast(res.error || 'Unknown error', 'error');
       }
     } catch(e) {
       btn.textContent = '{{ _('Download GeoLite2 Database') }}';
-      showToast('Parse error: ' + e.message, 'error');
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Parse error: ' + e.message + '</span>';
     }
   };
   xhr.onerror = function() {
     btn.disabled = false;
     hideProgress('geoipDownloadBtn');
     btn.textContent = '{{ _('Download GeoLite2 Database') }}';
-    showToast('{{ _('Network error — check console') }}', 'error');
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Network error</span>';
   };
   xhr.send(JSON.stringify({account_id: accountId, license_key: key}));
 });
