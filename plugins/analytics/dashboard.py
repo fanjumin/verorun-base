@@ -398,23 +398,28 @@ def api_privacy_update():
 
 @analytics_bp.route('/settings/geoip/status', methods=['GET'])
 def api_geoip_status():
-    """获取 GeoIP 数据库安装状态"""
+    """获取 GeoIP 数据库安装状态 + 已保存的 MaxMind 凭证"""
     status = get_geoip_status()
+
+    # 附加已保存的 MaxMind 凭证（用于前端预填）
+    pm = _get_pm()
+    if pm:
+        cfg = pm.get_config('analytics') or {}
+        status['maxmind_account_id'] = cfg.get('maxmind_account_id', '')
+        status['maxmind_license_key'] = cfg.get('maxmind_license_key', '')
+
     return jsonify({'success': True, 'data': status})
 
 
 @analytics_bp.route('/settings/geoip/download', methods=['POST'])
 def api_geoip_download():
-    """下载/更新 GeoLite2 数据库（需要 Account ID + License Key）"""
+    """下载/更新 GeoLite2 数据库"""
     data = request.get_json(silent=True) or {}
-    account_id = (data.get('account_id') or '').strip()
     license_key = (data.get('license_key') or '').strip()
     if not license_key:
         return jsonify({'success': False, 'error': _t('license_key required')}), 400
-    if not account_id:
-        return jsonify({'success': False, 'error': _t('account_id required')}), 400
 
-    result = download_geolite2_auto(license_key, account_id)
+    result = download_geolite2_auto(license_key, data.get('account_id', ''))
     return jsonify(result)
 
 
@@ -557,12 +562,14 @@ def api_report_text():
 
 # ─── PluginManager 标准化配置 ─────────────────────────────────────────
 
-_ANALYTICS_CONFIG_KEYS = ['sample_rate', 'geoip_enabled', 'service_name']
+_ANALYTICS_CONFIG_KEYS = ['sample_rate', 'geoip_enabled', 'service_name', 'maxmind_account_id', 'maxmind_license_key']
 
 _ANALYTICS_CONFIG_DEFAULTS = {
     'sample_rate': 1.0,
     'geoip_enabled': True,
     'service_name': 'admin',
+    'maxmind_account_id': '',
+    'maxmind_license_key': '',
 }
 
 

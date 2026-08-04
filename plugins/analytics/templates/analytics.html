@@ -817,7 +817,8 @@ body {
             <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">License Key</label>
             <input name="license_key" type="text" placeholder="MaxMind License Key" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
           </div>
-          <button type="submit" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoLite2 Database') }}</button>
+          <button type="button" id="geoipSaveBtn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('Save') }}</button>
+          <button type="button" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoLite2 Database') }}</button>
         </form>
       </div>
     </div>
@@ -1899,6 +1900,16 @@ function loadGeoipStatus() {
     } else {
       mmEl.innerHTML = '<span style="color:var(--rose);font-weight:600">&#x26A0; {{ _('Not installed') }}</span>';
     }
+
+    // 预填已保存的凭证
+    if (d.maxmind_account_id !== undefined) {
+      var aEl = document.querySelector('#geoipForm [name="account_id"]');
+      if (aEl) aEl.value = d.maxmind_account_id || '';
+    }
+    if (d.maxmind_license_key !== undefined) {
+      var kEl = document.querySelector('#geoipForm [name="license_key"]');
+      if (kEl) kEl.value = d.maxmind_license_key || '';
+    }
   });
 }
 
@@ -1938,17 +1949,45 @@ function _authHeaders() {
   return h;
 }
 
-document.getElementById('geoipForm').addEventListener('submit', function(e){
-  e.preventDefault();
-  var btn = document.getElementById('geoipDownloadBtn');
+// ── Save MaxMind credentials ──
+document.getElementById('geoipSaveBtn').addEventListener('click', function(){
   var accountIdEl = document.querySelector('#geoipForm [name="account_id"]');
   var keyEl = document.querySelector('#geoipForm [name="license_key"]');
   var accountId = accountIdEl ? accountIdEl.value.trim() : '';
   var key = keyEl ? keyEl.value.trim() : '';
-  if (!accountId || !key) {
-    showToast('{{ _('Account ID and License Key are required') }}', 'error');
+  var btn = document.getElementById('geoipSaveBtn');
+  btn.textContent = '{{ _('Saving...') }}';
+  btn.disabled = true;
+  fetch(SETTINGS_BASE + '/settings', {
+    method: 'POST',
+    headers: _authHeaders(),
+    body: JSON.stringify({maxmind_account_id: accountId, maxmind_license_key: key}),
+  }).then(function(r){ return r.json(); }).then(function(res){
+    btn.textContent = '{{ _('Save') }}';
+    btn.disabled = false;
+    if (res.success) {
+      showToast('{{ _('Credentials saved') }}', 'success');
+    } else {
+      showToast('Error: ' + (res.error || res.warning || 'Unknown error'), 'error');
+    }
+  }).catch(function(err){
+    btn.textContent = '{{ _('Save') }}';
+    btn.disabled = false;
+    showToast('Network error: ' + err.message, 'error');
+  });
+});
+
+// ── Download GeoLite2 database ──
+document.getElementById('geoipDownloadBtn').addEventListener('click', function(){
+  var accountIdEl = document.querySelector('#geoipForm [name="account_id"]');
+  var keyEl = document.querySelector('#geoipForm [name="license_key"]');
+  var accountId = accountIdEl ? accountIdEl.value.trim() : '';
+  var key = keyEl ? keyEl.value.trim() : '';
+  if (!key) {
+    showToast('{{ _('License Key is required to download') }}', 'error');
     return;
   }
+  var btn = document.getElementById('geoipDownloadBtn');
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
   fetch(SETTINGS_BASE + '/settings/geoip/download', {
