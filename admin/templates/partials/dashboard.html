@@ -1,5 +1,38 @@
-﻿// ── Dashboard CSS injection ──
-(function(){var s=document.createElement('style');s.textContent='.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.chart-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px}.chart-box .chart-title{font-size:13px;color:var(--dim);margin-bottom:8px}.chart-empty{display:flex;align-items:center;justify-content:center;height:240px;color:var(--dim);font-size:13px}.svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}.svc-dot.on{background:#52c41a;box-shadow:0 0 6px #52c41a}.svc-dot.off{background:#ef4444}.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}.metric-card .metric-label{font-size:12px;color:var(--dim)}.metric-card .metric-value{font-size:22px;font-weight:600}.metric-card .metric-value.b{color:var(--accent)}.metric-card .metric-value.g{color:var(--green)}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.g3,.g2{grid-template-columns:1fr}}';document.head.appendChild(s)})();
+// ── Dashboard CSS injection ──
+(function(){var s=document.createElement('style');s.textContent=
+  '.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}'+
+  '.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}'+
+  '.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}'+
+  '.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}'+
+  '.dash-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color .2s,box-shadow .2s;position:relative}'+
+  '.dash-card:hover{border-color:var(--accent);box-shadow:0 0 12px rgba(0,245,255,0.08)}'+
+  '.dash-card .card-nav-icon{position:absolute;top:8px;right:10px;font-size:12px;color:var(--dim);opacity:0;transition:opacity .2s}'+
+  '.dash-card:hover .card-nav-icon{opacity:1}'+
+  '.dash-card .card-title{font-size:13px;color:var(--dim);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}'+
+  '.dash-card .card-title .refresh-badge{font-size:10px;color:var(--accent);opacity:0.6;cursor:pointer;padding:2px 6px;border-radius:3px;transition:opacity .2s}'+
+  '.dash-card .card-title .refresh-badge:hover{opacity:1}'+
+  '.chart-empty{display:flex;align-items:center;justify-content:center;height:240px;color:var(--dim);font-size:13px}'+
+  '.svc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}'+
+  '.svc-dot.on{background:#52c41a;box-shadow:0 0 6px #52c41a}'+
+  '.svc-dot.off{background:#ef4444}'+
+  '.kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:border-color .2s,box-shadow .2s;position:relative}'+
+  '.kpi-card:hover{border-color:var(--accent);box-shadow:0 0 12px rgba(0,245,255,0.08)}'+
+  '.kpi-card .kpi-label{font-size:12px;color:var(--dim)}'+
+  '.kpi-card .kpi-value{font-size:22px;font-weight:600}'+
+  '.kpi-card .kpi-value.c{color:var(--accent)}'+
+  '.kpi-card .kpi-value.g{color:var(--green)}'+
+  '.kpi-card .kpi-value.r{color:#ef4444}'+
+  '.kpi-card .kpi-sub{font-size:11px;color:var(--dim);margin-top:2px}'+
+  '@keyframes skeleton-pulse{0%{opacity:0.3}50%{opacity:0.6}100%{opacity:0.3}}'+
+  '.skeleton-block{background:var(--border);border-radius:4px;animation:skeleton-pulse 1.5s ease-in-out infinite}'+
+  '@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}'+
+  '@keyframes alert-pulse{0%,100%{border-color:transparent}50%{border-color:#ef4444}}'+
+  '.dash-card.alert{border-color:#ef4444;animation:alert-pulse 2s infinite}'+
+  '@media(max-width:1400px){.g5{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(2,1fr)}}'+
+  '@media(max-width:900px){.g5,.g4,.g3{grid-template-columns:repeat(2,1fr)}}'+
+  '@media(max-width:600px){.g5,.g4,.g3,.g2{grid-template-columns:1fr}}'+
+  '@media(min-width:1920px){.dash-card{padding:18px}.card-title{font-size:14px}.kpi-card .kpi-value{font-size:28px}}';
+document.head.appendChild(s)})();
 
 function tf(n){
   if(!n) return '0';
@@ -8,115 +41,214 @@ function tf(n){
   return n.toString();
 }
 
+// ── Navigation helpers ──
+function _nav(section){go(section);}
+function _navPlugin(key,url){goPlugin(key,url);}
+function _navStop(e){if(e)e.stopPropagation();}
+
+// ── Main render ──
 function _render_dashboard(ds){
   document.getElementById("pt").textContent="{{ _('Overview') }}";
   var h="";
 
-  // ── Row 1: 3-column core metrics ──
-  h+='<div class="g3" style="margin-bottom:12px">';
-  h+='<div class="chart-box"><div class="chart-title">{{ _('Users') }}</div><div id="chartUsers" style="width:100%;height:240px"></div></div>';
-  h+='<div class="chart-box"><div class="chart-title">{{ _('Monthly Revenue') }}</div><div id="chartRevenue" style="width:100%;height:240px"></div></div>';
-  h+='<div class="chart-box"><div class="chart-title">{{ _('Subscriptions') }}</div><div id="chartSubs" style="width:100%;height:240px"></div></div>';
-  h+='</div>';
+  // ════════════════════════════════════════════════════════════════
+  // Tier 1: Critical KPI Cards (5-column)
+  // ════════════════════════════════════════════════════════════════
+  h+='<div class="g5" style="margin-bottom:16px">';
 
-  // ── Row 2: 2-column usage ──
-  h+='<div class="g2" style="margin-bottom:12px">';
-  h+='<div class="chart-box"><div class="chart-title">{{ _('API & Agent Usage') }}</div><div id="chartUsage" style="width:100%;height:240px"></div></div>';
-  h+='<div class="chart-box"><div class="chart-title">Token {{ _('Spend') }} <span style="font-size:10px;color:var(--dim)">'+tf(ds.today_tokens||0)+'</span></div><div id="chartTokens" style="width:100%;height:240px"></div></div>';
-  h+='</div>';
-
-  // ── Row 3: 2-column status ──
-  h+='<div class="g2" style="margin-bottom:12px">';
-  h+=_svcCard(ds.services);
-  // Today Traffic (conditional)
-  if(ds.today_pv !== undefined && ds.today_uv !== undefined){
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Today Traffic') }}</div><div class="gr">';
-    h+='<div class="metric-card"><div class="metric-label">PV</div><div class="metric-value b">'+(ds.today_pv||0)+'</div></div>';
-    h+='<div class="metric-card"><div class="metric-label">UV</div><div class="metric-value g">'+(ds.today_uv||0)+'</div></div>';
-    h+='<div class="metric-card"><div class="metric-label">{{ _('Online Now') }}</div><div class="metric-value g">'+(ds.online_now||0)+'</div></div>';
-    h+='</div></div>';
+  // --- System Health ---
+  var allAlive=ds.services?ds.services.every(function(s){return s.alive}):false;
+  var anyDown=ds.services?ds.services.some(function(s){return !s.alive}):false;
+  h+='<div class="kpi-card" onclick="_navPlugin(\'health\',\'/admin/health/\')">';
+  h+='<div class="kpi-label">{{ _('System Health') }}</div>';
+  if(ds.health_score!==undefined && ds.health_score!==null){
+    var hc=ds.health_score>=90?'g':(ds.health_score>=70?'c':'r');
+    h+='<div class="kpi-value '+hc+'">'+ds.health_score+'</div>';
+    h+='<div class="kpi-sub"><span class="svc-dot on" style="margin-right:4px"></span>'+ds.health_passed+'{{ _(' passed') }}</div>';
   }else{
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Today Traffic') }}</div><div class="chart-empty">{{ _('Analytics plugin not enabled') }}</div></div>';
+    h+='<div class="kpi-value c">--</div>';
+    h+='<div class="kpi-sub">'+(allAlive?'{{ _('All services up') }}':'{{ _('Check services') }}')+'</div>';
   }
+  h+='<div class="card-nav-icon">↗</div></div>';
+
+  // --- Revenue ---
+  h+='<div class="kpi-card" onclick="_nav(\'sub_stats\')">';
+  h+='<div class="kpi-label">{{ _('Monthly Revenue') }}</div>';
+  h+='<div class="kpi-value c">\u00a5'+tf(ds.monthly_revenue||0)+'</div>';
+  h+='<div class="kpi-sub">'+ds.active_subscriptions+' {{ _('active subs') }}</div>';
+  h+='<div class="card-nav-icon">↗</div></div>';
+
+  // --- Active Users ---
+  var tun=ds.today_new_users||0;
+  h+='<div class="kpi-card" onclick="_nav(\'customers\')">';
+  h+='<div class="kpi-label">{{ _('Users') }}</div>';
+  h+='<div class="kpi-value c">'+tf(ds.total_users||0)+'</div>';
+  h+='<div class="kpi-sub">'+ds.active_users+' {{ _('active') }}'+(tun>0?' <span style="color:#52c41a">+'+tun+' {{ _('today') }}</span>':'')+'</div>';
+  h+='<div class="card-nav-icon">↗</div></div>';
+
+  // --- Online Now ---
+  h+='<div class="kpi-card" onclick="_navPlugin(\'analytics\',\'/admin/analytics/\')">';
+  h+='<div class="kpi-label">{{ _('Online Now') }}</div>';
+  if(ds.online_now!==undefined && ds.online_now!==null){
+    h+='<div class="kpi-value g">'+ds.online_now+'</div>';
+  }else{
+    h+='<div class="kpi-value c">--</div>';
+  }
+  h+='<div class="kpi-sub">'+(ds.today_pv||0)+' PV / '+(ds.today_uv||0)+' UV</div>';
+  h+='<div class="card-nav-icon">↗</div></div>';
+
+  // --- Pending Alerts ---
+  var alertTotal=(ds.pending_posts||0)+(ds.pending_reviews||0)+(ds.pending_contacts||0)+(ds.today_failed_tasks||0)+(ds.open_tickets||0)+(ds.urgent_tickets||0)+(ds.pending_feedback||0)+(ds.pending_shipments||0);
+  h+='<div class="kpi-card'+(alertTotal>0?'':'')+'" onclick="_nav(\'tickets\')">';
+  h+='<div class="kpi-label">{{ _('Pending Alerts') }}</div>';
+  h+='<div class="kpi-value '+(alertTotal>0?'r':'g')+'">'+alertTotal+'</div>';
+  h+='<div class="kpi-sub">'+(alertTotal>0?((ds.open_tickets||0)+' {{ _('tickets') }}, '+(ds.pending_contacts||0)+' {{ _('msgs') }}'):'{{ _('All clear') }}')+'</div>';
+  h+='<div class="card-nav-icon">↗</div></div>';
+
+  h+='</div>'; // end Tier 1
+
+  // ════════════════════════════════════════════════════════════════
+  // Tier 2: Operational Charts
+  // ════════════════════════════════════════════════════════════════
+  h+='<div style="display:grid;grid-template-columns:1fr 380px;gap:16px;margin-bottom:16px">';
+
+  // --- Left: charts ---
+  h+='<div style="display:flex;flex-direction:column;gap:16px">';
+
+  // Row 2a: API & Agent + Token Spend (2-column)
+  h+='<div class="g2">';
+  h+='<div class="dash-card" onclick="_nav(\'ai_hub\')"><div class="card-title">{{ _('API & Agent Usage') }}<span class="card-nav-icon">↗</span></div><div id="chartUsage" style="width:100%;height:240px"></div></div>';
+  h+='<div class="dash-card" onclick="_nav(\'token_monitoring\')"><div class="card-title">Token {{ _('Spend') }} <span style="font-size:10px;color:var(--dim)">'+tf(ds.today_tokens||0)+' {{ _('today') }}</span><span class="card-nav-icon">↗</span></div><div id="chartTokens" style="width:100%;height:240px"></div></div>';
   h+='</div>';
 
-  // ── Row 3.5: Health Score (conditional, health_check plugin) ──
-  if(ds.health_score !== undefined){
-    h+='<div class="g2" style="margin-bottom:12px">';
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Health Score') }}</div>'+
-      '<div style="display:flex;align-items:center;gap:16px;padding:12px 0">'+
-      '<div id="healthScoreChart" style="width:110px;height:110px;flex-shrink:0"></div>'+
-      '<div style="display:flex;flex-direction:column;gap:6px;font-size:13px">'+
-      '<span>✅ {{ _('Passed') }}: <b>'+ds.health_passed+'</b></span>'+
-      '<span>⚠️ {{ _('Warnings') }}: <b>'+(ds.health_warnings||0)+'</b></span>'+
-      '<span>❌ {{ _('Errors') }}: <b style="color:#ef4444">'+(ds.health_errors||0)+'</b></span>'+
-      (ds.unread_alerts>0?'<span style="color:#ef4444">🔔 {{ _('Alerts') }}: <b>'+ds.unread_alerts+'</b></span>':'')+
-      '</div></div></div>';
-    // Health trend (mini sparkline)
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Health Trend') }} <span style="font-size:10px;color:var(--dim)">7{{ _('d') }}</span></div><div id="healthTrendChart" style="width:100%;height:160px"></div></div>';
-    h+='</div>';
+  // Row 2b: Traffic Trend 7d
+  if(ds.trend_30d!==undefined && ds.trend_30d!==null){
+    h+='<div class="dash-card" onclick="_navPlugin(\'analytics\',\'/admin/analytics/\')"><div class="card-title">{{ _('Traffic Trend') }} <span style="font-size:10px;color:var(--dim)">7{{ _('d') }}</span><span class="card-nav-icon">↗</span></div><div id="trendChart" style="width:100%;height:240px"></div></div>';
+  }else{
+    h+='<div class="dash-card"><div class="card-title">{{ _('Traffic Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="flex-direction:column;gap:8px"><div>{{ _('Analytics plugin not enabled') }}</div><a href="javascript:void(0)" onclick="_navStop(event);_nav(\'plugins\')" style="color:var(--accent);text-decoration:none;font-size:12px">{{ _('Enable Plugin') }}</a></div></div>';
   }
 
-  // ── Row 4: 2-column content ──
-  h+='<div class="g2" style="margin-bottom:12px">';
-  h+='<div class="chart-box"><div class="chart-title">{{ _('Pending Items') }}</div><div id="chartPending" style="width:100%;height:240px"></div></div>';
-  // Popular pages (conditional)
+  // Row 2c: Content Pipeline
+  h+='<div class="dash-card" onclick="_nav(\'all_content\')"><div class="card-title">{{ _('Content Pipeline') }}<span class="card-nav-icon">↗</span></div><div id="chartContentPipeline" style="width:100%;height:200px"></div></div>';
+
+  h+='</div>'; // end Left
+
+  // --- Right: Quick Actions + Subscriptions ---
+  h+='<div style="display:flex;flex-direction:column;gap:16px">';
+
+  // Quick Actions (pending items summary)
+  h+='<div class="dash-card" style="flex:1" onclick="_nav(\'tickets\')"><div class="card-title">{{ _('Quick Actions') }}<span class="card-nav-icon">↗</span></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:8px;font-size:13px">';
+  var actions=[
+    {v:ds.pending_posts||0, label:'{{ _('Pending Posts') }}', nav:'posts', c:'#4a9eff'},
+    {v:ds.pending_reviews||0, label:'{{ _('Pending Reviews') }}', nav:'posts', c:'#a020f0'},
+    {v:ds.pending_contacts||0, label:'{{ _('Unread Messages') }}', nav:'tickets', c:'#f6c243'},
+    {v:ds.open_tickets||0, label:'{{ _('Open Tickets') }}', nav:'tickets', c:'#ff7a00'},
+    {v:ds.today_failed_tasks||0, label:'{{ _('Failed Tasks') }}', nav:'automation', c:'#ef4444'},
+    {v:ds.pending_shipments||0, label:'{{ _('Pending Shipments') }}', nav:'shop_orders', c:'#ff6b6b'}
+  ];
+  var hasActions=false;
+  for(var i=0;i<actions.length;i++){
+    var a=actions[i];
+    if(a.v>0){hasActions=true;}
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;border:1px solid var(--border);cursor:pointer" onclick="_navStop(event);_nav(\''+a.nav+'\')">'+
+      '<span>'+a.label+'</span>'+
+      '<span style="font-weight:600;color:'+a.c+'">'+a.v+'</span></div>';
+  }
+  if(!hasActions){
+    h+='<div style="text-align:center;color:var(--dim);padding:20px">{{ _('All clear') }}</div>';
+  }
+  h+='</div></div>';
+
+  // Subscriptions
+  h+='<div class="dash-card" style="flex:1" onclick="_nav(\'subscriptions\')"><div class="card-title">{{ _('Subscriptions') }}<span class="card-nav-icon">↗</span></div><div id="chartSubs" style="width:100%;height:180px"></div></div>';
+
+  h+='</div>'; // end Right
+  h+='</div>'; // end Tier 2
+
+  // ════════════════════════════════════════════════════════════════
+  // Tier 3: Reference Data (4-column)
+  // ════════════════════════════════════════════════════════════════
+  h+='<div class="g4" style="margin-bottom:16px">';
+
+  // Revenue Trend 30d
+  if(ds.revenue_trend_30d && ds.revenue_trend_30d.length){
+    h+='<div class="dash-card" onclick="_nav(\'sub_stats\')"><div class="card-title">{{ _('Revenue Trend') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span><span class="card-nav-icon">↗</span></div><div id="revenueChart" style="width:100%;height:240px"></div></div>';
+  }else{
+    h+='<div class="dash-card"><div class="card-title">{{ _('Revenue Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="height:240px">{{ _('No Data') }}</div></div>';
+  }
+
+  // Popular Pages
   if(ds.top_pages && ds.top_pages.length){
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Popular Pages') }}</div><div id="chartPages" style="width:100%;height:240px"></div></div>';
+    h+='<div class="dash-card" onclick="_navPlugin(\'analytics\',\'/admin/analytics/\')"><div class="card-title">{{ _('Popular Pages') }}<span class="card-nav-icon">↗</span></div><div id="chartPages" style="width:100%;height:240px"></div></div>';
   }else{
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Popular Pages') }}</div><div class="chart-empty">No Data</div></div>';
+    h+='<div class="dash-card"><div class="card-title">{{ _('Popular Pages') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="flex-direction:column;gap:8px;height:240px"><div>{{ _('No Data') }}</div><a href="javascript:void(0)" onclick="_navStop(event);_nav(\'plugins\')" style="color:var(--accent);text-decoration:none;font-size:12px">{{ _('Enable Analytics Plugin') }}</a></div></div>';
   }
-  h+='</div>';
 
-  // ── Row 5: 2-column tables ──
-  h+='<div class="g2" style="margin-bottom:12px">';
-  // Recent registrations
-  h+='<div class="chart-box"><div class="chart-title">{{ _('Recent Registrations') }}</div><table style="font-size:12px;margin-top:8px;width:100%">';
-  h+='<tr><th>ID</th><th>{{ _('Nickname') }}</th><th>{{ _('Phone') }}</th><th>{{ _('Time') }}</th></tr>';
-  if(ds.recent_users && ds.recent_users.length){
-    ds.recent_users.forEach(function(u){h+='<tr><td>'+u.id+'</td><td>'+esc(u.nickname||'-')+'</td><td>'+(u.phone||'-')+'</td><td>'+u.created_at+'</td></tr>'});
+  // Health Trend
+  if(ds.health_score!==undefined && ds.health_score!==null){
+    h+='<div class="dash-card" onclick="_navPlugin(\'health\',\'/admin/health/\')"><div class="card-title">{{ _('Health Trend') }} <span style="font-size:10px;color:var(--dim)">7{{ _('d') }}</span><span class="card-nav-icon">↗</span></div><div id="healthTrendChart" style="width:100%;height:200px"></div></div>';
   }else{
-    h+='<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:24px">No data</td></tr>';
+    h+='<div class="dash-card"><div class="card-title">{{ _('Health Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="flex-direction:column;gap:8px;height:200px"><div>{{ _('Health Check plugin not enabled') }}</div><a href="javascript:void(0)" onclick="_navStop(event);_nav(\'plugins\')" style="color:var(--accent);text-decoration:none;font-size:12px">{{ _('Enable Plugin') }}</a></div></div>';
+  }
+
+  // Recent Registrations
+  h+='<div class="dash-card" onclick="_nav(\'customers\')"><div class="card-title">{{ _('Recent Registrations') }}<span class="card-nav-icon">↗</span></div>';
+  h+='<table style="font-size:12px;width:100%">';
+  h+='<tr><th style="text-align:left;padding:4px 6px;color:var(--dim);font-weight:400">ID</th><th style="text-align:left;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Name') }}</th><th style="text-align:right;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Time') }}</th></tr>';
+  if(ds.recent_users && ds.recent_users.length){
+    ds.recent_users.forEach(function(u){
+      h+='<tr><td style="padding:3px 6px">'+u.id+'</td><td style="padding:3px 6px">'+esc(u.nickname||'-')+'</td><td style="padding:3px 6px;text-align:right;font-size:11px;color:var(--dim)">'+(u.created_at||'').substr(5)+'</td></tr>';
+    });
+  }else{
+    h+='<tr><td colspan="3" style="text-align:center;color:var(--dim);padding:20px">{{ _('No data') }}</td></tr>';
   }
   h+='</table></div>';
-  // Recent orders
-  h+='<div class="chart-box"><div class="chart-title">{{ _('Recent Orders') }}</div><table style="font-size:12px;margin-top:8px;width:100%">';
-  h+='<tr><th>ID</th><th>{{ _('Plan') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th></tr>';
+
+  h+='</div>'; // end Tier 3
+
+  // ════════════════════════════════════════════════════════════════
+  // Service Status + Recent Orders (Bottom 2-column)
+  // ════════════════════════════════════════════════════════════════
+  h+='<div class="g2" style="margin-bottom:16px">';
+
+  // Service Status
+  h+=_svcCard(ds.services);
+
+  // Recent Orders
+  h+='<div class="dash-card" onclick="_nav(\'sub_orders\')"><div class="card-title">{{ _('Recent Orders') }}<span class="card-nav-icon">↗</span></div>';
+  h+='<table style="font-size:12px;width:100%">';
+  h+='<tr><th style="text-align:left;padding:4px 6px;color:var(--dim);font-weight:400">ID</th><th style="text-align:left;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Plan') }}</th><th style="text-align:right;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Amount') }}</th><th style="text-align:right;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Status') }}</th></tr>';
   if(ds.recent_orders && ds.recent_orders.length){
     ds.recent_orders.forEach(function(o){
       var st=o.status==='paid'?'<span class="bdg on">{{ _('Paid') }}</span>':(o.status==='pending'?'<span class="bdg off">{{ _('Unpaid') }}</span>':esc(o.status));
-      h+='<tr><td>'+o.id+'</td><td>'+esc(o.item_desc||'-')+'</td><td>\u00a5'+(o.amount||0)+'</td><td>'+st+'</td></tr>';
+      h+='<tr><td style="padding:3px 6px">'+o.id+'</td><td style="padding:3px 6px">'+esc(o.item_desc||'-')+'</td><td style="padding:3px 6px;text-align:right">\u00a5'+(o.amount||0)+'</td><td style="padding:3px 6px;text-align:right">'+st+'</td></tr>';
     });
   }else{
-    h+='<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:24px">No data</td></tr>';
+    h+='<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:20px">{{ _('No data') }}</td></tr>';
   }
   h+='</table></div>';
-  h+='</div>';
 
-  // ── Row 6: Data Trends (conditional, from Section V) ──
-  if(ds.trend_30d !== undefined){
-    h+='<div class="g2" style="margin-bottom:12px">';
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Data Trends') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div><div id="trendChart" style="width:100%;height:280px"></div></div>';
-    h+='<div class="chart-box"><div class="chart-title">{{ _('Revenue Trend') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span></div><div id="revenueChart" style="width:100%;height:280px"></div></div>';
-    h+='</div>';
-  }
+  h+='</div>'; // end Bottom row
 
   document.getElementById("mc").innerHTML=h;
   _initCharts(ds);
 }
 
 function _svcCard(svcs){
-  var h='<div class="chart-box"><div class="chart-title">{{ _('Service Status') }}</div>'+
+  var h='<div class="dash-card" onclick="_navPlugin(\'health\',\'/admin/health/\')"><div class="card-title">{{ _('Service Status') }}<span class="card-nav-icon">↗</span></div>'+
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 0">';
-  svcs.forEach(function(s){
-    var alive=s.alive;
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:8px;border:1px solid '+(alive?'rgba(82,196,26,0.3)':'rgba(239,68,68,0.3)')+';background:var(--bg-card)">'+
-      '<span class="svc-dot '+(alive?'on':'off')+'" style="width:10px;height:10px;animation:'+(alive?'pulse 2s infinite':'none')+'"></span>'+
-      '<div style="display:flex;flex-direction:column">'+
-      '<span style="font-size:13px;font-weight:500">'+s.name+'</span>'+
-      '<span style="font-size:10px;color:var(--dim)">:'+s.port+'</span>'+
-      '</div></div>';
-  });
+  if(svcs){
+    svcs.forEach(function(s){
+      var alive=s.alive;
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:10px;border-radius:8px;border:1px solid '+(alive?'rgba(82,196,26,0.3)':'rgba(239,68,68,0.3)')+';background:var(--bg-card)">'+
+        '<span class="svc-dot '+(alive?'on':'off')+'" style="width:10px;height:10px;animation:'+(alive?'pulse 2s infinite':'none')+'"></span>'+
+        '<div style="display:flex;flex-direction:column">'+
+        '<span style="font-size:13px;font-weight:500">'+s.name+'</span>'+
+        '<span style="font-size:10px;color:var(--dim)">:'+s.port+'</span>'+
+        '</div></div>';
+    });
+  }
   h+='</div></div>';
   return h;
 }
@@ -127,93 +259,13 @@ function _initCharts(ds){
     return;
   }
 
-  // ── Chart 1: User donut ──
-  var el1=document.getElementById('chartUsers');
-  if(el1){
-    var c1=echarts.init(el1);
-    var tu=ds.total_users||0, au=ds.active_users||0, tn=ds.today_new_users||0;
-    if(tu===0){
-      c1.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
-    }else{
-      c1.setOption({
-        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
-        legend:{bottom:0,textStyle:{color:'var(--dim)',fontSize:10},itemWidth:8,itemHeight:8},
-        series:[{
-          type:'pie',radius:['55%','75%'],center:['50%','45%'],avoidLabelOverlap:false,
-          label:{show:false},emphasis:{scale:false},
-          itemStyle:{borderColor:'var(--bg-card)',borderWidth:2},
-          data:[
-            {value:au,name:'{{ _('Active') }}',itemStyle:{color:'#52c41a'}},
-            {value:tu-au,name:'{{ _('Inactive') }}',itemStyle:{color:'rgba(255,255,255,0.12)'}}
-          ]
-        }],
-        graphic:[
-          {type:'text',left:'center',top:'38%',style:{text:tu.toString(),fontSize:22,fontWeight:'bold',fill:'var(--text)',textAlign:'center'}},
-          {type:'text',left:'center',top:'52%',style:{text:(tn>0?'+'+tn:'0')+' Today',fontSize:10,fill:tn>0?'#52c41a':'var(--dim)',textAlign:'center'}}
-        ]
-      });
-    }
-    window.addEventListener('resize',function(){c1.resize()});
-  }
-
-  // ── Chart 2: Revenue gauge ──
-  var el2=document.getElementById('chartRevenue');
-  if(el2){
-    var c2=echarts.init(el2);
-    var mr=ds.monthly_revenue||0;
-    var gaugeMax=Math.max(30000,Math.ceil(mr/10000)*10000);
-    c2.setOption({
-      series:[{
-        type:'gauge',startAngle:210,endAngle:-30,center:['50%','58%'],radius:'90%',
-        min:0,max:gaugeMax,splitNumber:10,
-        axisLine:{lineStyle:{width:20,color:[[0.4,'#52c41a'],[0.7,'#f6c243'],[1,'#ef4444']]}},
-        pointer:{length:'70%',width:6,itemStyle:{color:'var(--text)'}},
-        axisTick:{distance:-20,length:6,lineStyle:{width:1,color:'var(--dim)'}},
-        splitLine:{distance:-26,length:14,lineStyle:{width:2,color:'var(--dim)'}},
-        axisLabel:{distance:-8,fontSize:10,color:'var(--dim)',formatter:function(v){return (v>=1000?'\u00a5'+(v/1000).toFixed(0)+'k':'\u00a5'+v)}},
-        detail:{valueAnimation:true,formatter:'\u00a5{value}',fontSize:16,fontWeight:'bold',color:'var(--text)',offsetCenter:[0,'60%']},
-        data:[{value:mr,name:'{{ _('Revenue') }}'}]
-      }]
-    });
-    window.addEventListener('resize',function(){c2.resize()});
-  }
-
-  // ── Chart 3: Subscription donut ──
-  var el3=document.getElementById('chartSubs');
-  if(el3){
-    var c3=echarts.init(el3);
-    var as=ds.active_subscriptions||0, to=ds.total_orders||0;
-    if(to===0){
-      c3.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
-    }else{
-      c3.setOption({
-        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
-        legend:{bottom:0,textStyle:{color:'var(--dim)',fontSize:10},itemWidth:8,itemHeight:8},
-        series:[{
-          type:'pie',radius:['55%','75%'],center:['50%','45%'],avoidLabelOverlap:false,
-          label:{show:false},emphasis:{scale:false},
-          itemStyle:{borderColor:'var(--bg-card)',borderWidth:2},
-          data:[
-            {value:as,name:'{{ _('Active') }}',itemStyle:{color:'#00f5ff'}},
-            {value:to-as,name:'{{ _('Other') }}',itemStyle:{color:'rgba(255,255,255,0.12)'}}
-          ]
-        }],
-        graphic:[
-          {type:'text',left:'center',top:'38%',style:{text:as.toString(),fontSize:22,fontWeight:'bold',fill:'var(--text)',textAlign:'center'}},
-          {type:'text',left:'center',top:'52%',style:{text:'Active',fontSize:10,fill:'var(--dim)',textAlign:'center'}}
-        ]
-      });
-    }
-    window.addEventListener('resize',function(){c3.resize()});
-  }
-
-  // ── Chart 4: API + Agent grouped bar ──
+  // ── API & Agent Usage bar ──
   var el4=document.getElementById('chartUsage');
   if(el4){
     var c4=echarts.init(el4);
     var tc=ds.today_calls||0, ttc=ds.total_calls||0, ag=ds.active_agents||0, tag=ds.total_agents||0;
     if(tc+ttc+ag+tag===0){
-      c4.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+      c4.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       c4.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
@@ -230,13 +282,13 @@ function _initCharts(ds){
     window.addEventListener('resize',function(){c4.resize()});
   }
 
-  // ── Chart 5: Token ranking horizontal bar ──
+  // ── Token Spend bar ──
   var el5=document.getElementById('chartTokens');
   if(el5){
     var c5=echarts.init(el5);
     var ta=ds.top_token_agents||[];
     if(ta.length===0){
-      c5.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+      c5.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       var names=[],vals=[];
       ta.slice().reverse().forEach(function(a){names.push(a.agent_name||'Agent#'+a.agent_id);vals.push(a.total||0)});
@@ -251,64 +303,38 @@ function _initCharts(ds){
     window.addEventListener('resize',function(){c5.resize()});
   }
 
-  // ── Chart 6: Pending stacked bar ──
-  var el6=document.getElementById('chartPending');
-  if(el6){
-    var c6=echarts.init(el6);
-    var pp=ds.pending_posts||0, pr=ds.pending_reviews||0, pc=ds.pending_contacts||0, ft=ds.today_failed_tasks||0;
-    var ot=ds.open_tickets||0, pf=ds.pending_feedback||0, ps=ds.pending_shipments||0;
-    if(pp+pr+pc+ft+ot+pf+ps===0){
-      c6.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'All Clear',fontSize:14,fill:'#52c41a'}}]});
+  // ── Content Pipeline stacked bar ──
+  var elCp=document.getElementById('chartContentPipeline');
+  if(elCp){
+    var ccp=echarts.init(elCp);
+    var pp=ds.published_posts||0, dp=ds.draft_posts||0, pr=ds.pending_reviews||0, pc=ds.pending_comments||0;
+    if(pp+dp+pr+pc===0){
+      ccp.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Content Yet') }}',fontSize:14,fill:'var(--dim)'}}]});
     }else{
-      c6.setOption({
+      ccp.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
-        legend:{data:['{{ _('Posts') }}','{{ _('Reviews') }}','{{ _('Messages') }}','{{ _('Failed') }}','{{ _('Open Tickets') }}','{{ _('Feedback') }}','{{ _('Shipments') }}'],textStyle:{color:'var(--dim)',fontSize:10},bottom:0},
+        legend:{data:['{{ _('Published') }}','{{ _('Draft') }}','{{ _('Review') }}','{{ _('Comments') }}'],textStyle:{color:'var(--dim)',fontSize:10},bottom:0},
         grid:{left:40,right:10,bottom:35,top:10},
-        xAxis:{type:'category',data:['{{ _('Pending') }}'],axisLabel:{fontSize:11,color:'var(--dim)'}},
+        xAxis:{type:'category',data:['{{ _('Content') }}'],axisLabel:{fontSize:11,color:'var(--dim)'}},
         yAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
         series:[
-          {name:'{{ _('Posts') }}',type:'bar',stack:'total',data:[pp],itemStyle:{color:'#4a9eff'},barMaxWidth:60},
-          {name:'{{ _('Reviews') }}',type:'bar',stack:'total',data:[pr],itemStyle:{color:'#a020f0'},barMaxWidth:60},
-          {name:'{{ _('Messages') }}',type:'bar',stack:'total',data:[pc],itemStyle:{color:'#f6c243'},barMaxWidth:60},
-          {name:'{{ _('Failed') }}',type:'bar',stack:'total',data:[ft],itemStyle:{color:'#ef4444'},barMaxWidth:60},
-          {name:'{{ _('Open Tickets') }}',type:'bar',stack:'total',data:[ot],itemStyle:{color:'#ff7a00'},barMaxWidth:60},
-          {name:'{{ _('Feedback') }}',type:'bar',stack:'total',data:[pf],itemStyle:{color:'#00c853'},barMaxWidth:60},
-          {name:'{{ _('Shipments') }}',type:'bar',stack:'total',data:[ps],itemStyle:{color:'#ff6b6b'},barMaxWidth:60}
+          {name:'{{ _('Published') }}',type:'bar',stack:'total',data:[pp],itemStyle:{color:'#52c41a'},barMaxWidth:60},
+          {name:'{{ _('Draft') }}',type:'bar',stack:'total',data:[dp],itemStyle:{color:'#4a9eff'},barMaxWidth:60},
+          {name:'{{ _('Review') }}',type:'bar',stack:'total',data:[pr],itemStyle:{color:'#a020f0'},barMaxWidth:60},
+          {name:'{{ _('Comments') }}',type:'bar',stack:'total',data:[pc],itemStyle:{color:'#f6c243'},barMaxWidth:60}
         ]
       });
     }
-    window.addEventListener('resize',function(){c6.resize()});
+    window.addEventListener('resize',function(){ccp.resize()});
   }
 
-  // ── Chart 7: Popular pages horizontal bar ──
-  var el7=document.getElementById('chartPages');
-  if(el7){
-    var c7=echarts.init(el7);
-    var tp=ds.top_pages||[];
-    if(tp.length===0){
-      c7.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
-    }else{
-      var pnames=[],pvals=[];
-      tp.slice().reverse().forEach(function(p){pnames.push(p.path);pvals.push(p.pv||0)});
-      c7.setOption({
-        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+'<br/>PV: '+p[0].value}},
-        grid:{left:100,right:20,bottom:20,top:10},
-        xAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
-        yAxis:{type:'category',data:pnames,axisLabel:{fontSize:10,color:'var(--dim)'},axisLine:{show:false},axisTick:{show:false}},
-        series:[{type:'bar',data:pvals,itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:0,colorStops:[{offset:0,color:'#4a9eff'},{offset:1,color:'#00f5ff'}]},borderRadius:[0,4,4,0]},barMaxWidth:20}]
-      });
-    }
-    window.addEventListener('resize',function(){c7.resize()});
-  }
-
-  // ── Data Trends (conditional charts) ──
-  // trendChart: 30-day PV/UV line
+  // ── Traffic Trend line ──
   var trendEl=document.getElementById('trendChart');
   if(trendEl){
     var chart=echarts.init(trendEl);
     var hasTrend=ds.trend_30d&&ds.trend_30d.length;
     if(!hasTrend){
-      chart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+      chart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       var dates=ds.trend_30d.map(function(d){return d.date.substr(5)});
       chart.setOption({
@@ -329,13 +355,14 @@ function _initCharts(ds){
     }
     window.addEventListener('resize',function(){chart.resize()});
   }
-  // revenueChart: 30-day revenue trend
+
+  // ── Revenue Trend bar ──
   var revEl=document.getElementById('revenueChart');
   if(revEl){
     var rchart=echarts.init(revEl);
     var hasRev=ds.revenue_trend_30d&&ds.revenue_trend_30d.length;
     if(!hasRev){
-      rchart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+      rchart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       var rdates=ds.revenue_trend_30d.map(function(d){return d.date.substr(5)});
       rchart.setOption({
@@ -353,42 +380,63 @@ function _initCharts(ds){
     window.addEventListener('resize',function(){rchart.resize()});
   }
 
-  // ── Health Score Ring (conditional, health_check plugin) ──
-  var hsEl=document.getElementById('healthScoreChart');
-  if(hsEl){
-    var hschart=echarts.init(hsEl);
-    var hsv=ds.health_score||0;
-    hschart.setOption({
-      series:[{
-        type:'gauge',center:['50%','50%'],radius:'90%',
-        startAngle:225,endAngle:-45,
-        min:0,max:100,
-        splitNumber:0,
-        axisLine:{
-          lineStyle:{width:12,color:[[hsv/100,hsv>=90?'#52c41a':(hsv>=70?'#f6c243':'#ef4444')],[1,'rgba(255,255,255,0.08)']]}
-        },
-        axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},
-        pointer:{show:false},
-        anchor:{show:false},
-        detail:{
-          offsetCenter:[0,'40%'],fontSize:18,fontWeight:700,
-          color:hsv>=90?'#52c41a':(hsv>=70?'#f6c243':'#ef4444'),
-          formatter:'{value}'
-        },
-        title:{offsetCenter:[0,'65%'],fontSize:10,color:'var(--dim)',show:true},
-        data:[{value:hsv,name:'Score'}]
-      }]
-    });
-    window.addEventListener('resize',function(){hschart.resize()});
+  // ── Popular Pages bar ──
+  var el7=document.getElementById('chartPages');
+  if(el7){
+    var c7=echarts.init(el7);
+    var tp=ds.top_pages||[];
+    if(tp.length===0){
+      c7.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
+    }else{
+      var pnames=[],pvals=[];
+      tp.slice().reverse().forEach(function(p){pnames.push(p.path);pvals.push(p.pv||0)});
+      c7.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+'<br/>PV: '+p[0].value}},
+        grid:{left:100,right:20,bottom:20,top:10},
+        xAxis:{type:'value',splitLine:{lineStyle:{color:'var(--border)',type:'dashed'}},axisLabel:{fontSize:10}},
+        yAxis:{type:'category',data:pnames,axisLabel:{fontSize:10,color:'var(--dim)'},axisLine:{show:false},axisTick:{show:false}},
+        series:[{type:'bar',data:pvals,itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:0,colorStops:[{offset:0,color:'#4a9eff'},{offset:1,color:'#00f5ff'}]},borderRadius:[0,4,4,0]},barMaxWidth:20}]
+      });
+    }
+    window.addEventListener('resize',function(){c7.resize()});
   }
 
-  // ── Health Trend (conditional, health_check plugin) ──
+  // ── Subscription donut ──
+  var el3=document.getElementById('chartSubs');
+  if(el3){
+    var c3=echarts.init(el3);
+    var as=ds.active_subscriptions||0, to=ds.total_orders||0;
+    if(to===0 && as===0){
+      c3.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
+    }else{
+      c3.setOption({
+        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+        legend:{bottom:0,textStyle:{color:'var(--dim)',fontSize:10},itemWidth:8,itemHeight:8},
+        series:[{
+          type:'pie',radius:['55%','75%'],center:['50%','45%'],avoidLabelOverlap:false,
+          label:{show:false},emphasis:{scale:false},
+          itemStyle:{borderColor:'var(--bg-card)',borderWidth:2},
+          data:[
+            {value:as,name:'{{ _('Active') }}',itemStyle:{color:'#00f5ff'}},
+            {value:Math.max(0,to-as),name:'{{ _('Other') }}',itemStyle:{color:'rgba(255,255,255,0.12)'}}
+          ]
+        }],
+        graphic:[
+          {type:'text',left:'center',top:'38%',style:{text:as.toString(),fontSize:18,fontWeight:'bold',fill:'var(--text)',textAlign:'center'}},
+          {type:'text',left:'center',top:'55%',style:{text:'{{ _('Active') }}',fontSize:10,fill:'var(--dim)',textAlign:'center'}}
+        ]
+      });
+    }
+    window.addEventListener('resize',function(){c3.resize()});
+  }
+
+  // ── Health Trend line ──
   var htEl=document.getElementById('healthTrendChart');
   if(htEl){
     var htchart=echarts.init(htEl);
     var htData=ds.health_trend_7d||[];
     if(!htData.length){
-      htchart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'No Data',fontSize:14,fill:'var(--dim)'}}]});
+      htchart.setOption({graphic:[{type:'text',left:'center',top:'center',style:{text:'{{ _('No Data') }}',fontSize:14,fill:'var(--dim)'}}]});
     }else{
       var hdates=htData.map(function(d){return (d.date||'').substr(5)});
       htchart.setOption({
@@ -408,6 +456,123 @@ function _initCharts(ds){
   }
 }
 
+// ── Big Screen Mode ──
+var _bigScreenTimer=null;
+var _bigScreenClockTimer=null;
+var _bigScreenActive=false;
+
+function _updateBigScreenClock(){
+  var el=document.getElementById('bigscreen-clock');
+  if(!el) return;
+  var now=new Date();
+  var h=now.getHours().toString().padStart(2,'0');
+  var m=now.getMinutes().toString().padStart(2,'0');
+  var s=now.getSeconds().toString().padStart(2,'0');
+  el.textContent=h+':'+m+':'+s;
+}
+
+function _refreshDashboardData(){
+  fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      _render_dashboard(d.data);
+    }
+  }).catch(function(){});
+}
+
+function _enterBigScreen(){
+  _bigScreenActive=true;
+  var btn=document.getElementById('btnBigscreen');
+  if(btn){btn.textContent='{{ _('Exit') }}'}
+  var clock=document.getElementById('bigscreen-clock');
+  if(clock){clock.style.display='inline'}
+  document.body.classList.add('bigscreen');
+  // Collapse sidebar nodes
+  document.querySelectorAll('.sidebar .ng-body').forEach(function(el){el.classList.add('collapsed')});
+  // Start clock
+  _updateBigScreenClock();
+  if(_bigScreenClockTimer) clearInterval(_bigScreenClockTimer);
+  _bigScreenClockTimer=setInterval(_updateBigScreenClock,1000);
+  // Start auto-refresh (10s cycle)
+  if(_bigScreenTimer) clearInterval(_bigScreenTimer);
+  _bigScreenTimer=setInterval(_refreshDashboardData,10000);
+  // Resize all charts after DOM settles
+  setTimeout(function(){
+    if(typeof echarts!=='undefined'){
+      document.querySelectorAll('#mc .dash-card [id^=chart],#mc .dash-card [id^=health]').forEach(function(el){
+        var instance=echarts.getInstanceByDom(el);
+        if(instance) instance.resize();
+      });
+    }
+  },500);
+}
+
+function _exitBigScreen(){
+  _bigScreenActive=false;
+  var btn=document.getElementById('btnBigscreen');
+  if(btn){btn.textContent='{{ _('Big Screen') }}'}
+  var clock=document.getElementById('bigscreen-clock');
+  if(clock){clock.style.display='none'}
+  document.body.classList.remove('bigscreen');
+  // Restore sidebar nodes
+  document.querySelectorAll('.sidebar .ng-body.collapsed').forEach(function(el){el.classList.remove('collapsed')});
+  // Stop auto-refresh
+  if(_bigScreenTimer){clearInterval(_bigScreenTimer);_bigScreenTimer=null;}
+  if(_bigScreenClockTimer){clearInterval(_bigScreenClockTimer);_bigScreenClockTimer=null;}
+  // Resize all charts after DOM settles
+  setTimeout(function(){
+    if(typeof echarts!=='undefined'){
+      document.querySelectorAll('#mc .dash-card [id^=chart],#mc .dash-card [id^=health]').forEach(function(el){
+        var instance=echarts.getInstanceByDom(el);
+        if(instance) instance.resize();
+      });
+    }
+  },500);
+}
+
+function toggleBigScreen(){
+  if(_bigScreenActive){
+    // Exit big screen
+    if(document.fullscreenElement){
+      document.exitFullscreen().catch(function(){});
+    }else{
+      _exitBigScreen();
+    }
+  }else{
+    // Enter big screen
+    var el=document.documentElement;
+    if(el.requestFullscreen){
+      el.requestFullscreen().catch(function(){
+        // Fallback: just apply CSS class if fullscreen API fails
+        _enterBigScreen();
+      });
+    }else if(el.webkitRequestFullscreen){
+      el.webkitRequestFullscreen();
+    }else if(el.msRequestFullscreen){
+      el.msRequestFullscreen();
+    }else{
+      // Browser doesn't support Fullscreen API
+      _enterBigScreen();
+    }
+  }
+}
+
+// Listen for fullscreen change events
+document.addEventListener('fullscreenchange',function(){
+  if(document.fullscreenElement){
+    _enterBigScreen();
+  }else{
+    _exitBigScreen();
+  }
+});
+document.addEventListener('webkitfullscreenchange',function(){
+  if(document.webkitFullscreenElement){
+    _enterBigScreen();
+  }else{
+    _exitBigScreen();
+  }
+});
+
+// ── Dashboard loader ──
 window.l_dashboard=function(){
   document.getElementById("pt").textContent="{{ _('Overview') }}";
   fetch("/admin/dashboard",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
