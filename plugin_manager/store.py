@@ -2,21 +2,26 @@
 """
 Plugin Manager — 商店客户端
 =============================
-连接远程插件商店 API，本地缓存插件目录。
-远程 API 未就绪时使用内置 Mock 数据。
-
-SPI 模式: store.py 与 license.py 共享 _call_remote() 通信层。
+从 GitHub Raw 拉取 store_catalog.json，本地缓存插件目录。
 """
 
+import os
 import json
 import threading
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 
 from .models_store import (
     StorePlugin, init_license_store_tables, get_registry_db,
 )
-from .license import _call_remote
+
+# Store catalog URL (configurable via environment variable)
+STORE_CATALOG_URL = os.environ.get(
+    'VERORUN_STORE_CATALOG_URL',
+    'https://raw.githubusercontent.com/fanjumin/verorun-store/main/store_catalog.json'
+)
 
 
 class StoreAPIClient:
@@ -26,6 +31,25 @@ class StoreAPIClient:
         self._cache_lock = threading.Lock()
         init_license_store_tables()
 
+    # ── 缓存获取 ──────────────────────────────────────────────────
+
+    def _fetch_catalog(self) -> dict:
+        """Fetch store_catalog.json from GitHub Raw.
+
+        Returns:
+            {'plugins': [...], 'version': '...', 'updated_at': '...'}
+            Empty dict on failure.
+        """
+        try:
+            req = Request(STORE_CATALOG_URL, headers={
+                'User-Agent': 'VeroRun-PluginManager/1.0',
+            })
+            with urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode())
+        except Exception as e:
+            print(f'[StoreAPIClient] fetch catalog failed: {e}')
+            return {}
+
     # ── 搜索/列表 ──────────────────────────────────────────────────
 
     def search(self, query: str = '', category: str = '',
@@ -33,24 +57,8 @@ class StoreAPIClient:
                page_size: int = 20, sort_by: str = 'downloads') -> dict:
         """搜索商店插件
 
-        先尝试远程 API，失败后从本地缓存查询。
+        从本地缓存查询（缓存由 sync_all() 定期刷新）。
         """
-        remote = _call_remote('GET', '/plugins/search', {
-            'query': query,
-            'category': category,
-            'price_type': price_type,
-            'page': page,
-            'page_size': page_size,
-        })
-
-        if remote.get('success') and remote.get('data', {}).get('plugins'):
-            plugins_data = remote['data']['plugins']
-            # 同步到本地缓存
-            for pdata in plugins_data:
-                self._upsert_cache(pdata)
-            return remote['data']
-
-        # 降级：本地缓存
         return self._search_local(query, category, price_type, page, page_size, sort_by)
 
     def list_by_category(self, category: str = '') -> List[dict]:
@@ -69,15 +77,7 @@ class StoreAPIClient:
                 return [StorePlugin.from_row(dict(r)).to_dict() for r in rows]
 
     def get_detail(self, identifier: str) -> Optional[dict]:
-        """获取插件详情（含评分聚合数据）"""
-        # 尝试远程
-        remote = _call_remote('GET', f'/plugins/{identifier}')
-        if remote.get('success') and remote.get('data'):
-            pdata = remote['data']
-            self._upsert_cache(pdata)
-            return pdata
-
-        # 降级：本地缓存
+        """获取插件详情（从本地缓存）"""
         with get_registry_db() as conn:
             row = conn.execute(
                 'SELECT * FROM store_plugins WHERE identifier=%s',
@@ -85,7 +85,6 @@ class StoreAPIClient:
             ).fetchone()
             if row:
                 plugin = StorePlugin.from_row(dict(row)).to_dict()
-                # 附加评分统计
                 plugin['_reviews'] = self._get_review_summary(identifier, conn)
                 return plugin
         return None
@@ -108,7 +107,7 @@ class StoreAPIClient:
     # ── 下载 ────────────────────────────────────────────────────────
 
     def get_download_url(self, identifier: str, app_version: str = '') -> Optional[str]:
-        """获取插件下载地址（含版本兼容校验）
+        """获取插件下载地址（从本地缓存，含版本兼容校验）
 
         Args:
             identifier: 插件标识符
@@ -117,16 +116,6 @@ class StoreAPIClient:
         Returns:
             下载 URL，或 None（不兼容时返回 None）
         """
-        remote = _call_remote('GET', f'/plugins/{identifier}/download')
-        if remote.get('success') and remote.get('data', {}).get('download_url'):
-            data = remote['data']
-            # 版本兼容校验
-            if app_version and data.get('min_app_version'):
-                if not self._version_compatible(app_version, data['min_app_version']):
-                    return None
-            return data['download_url']
-
-        # 本地缓存
         with get_registry_db() as conn:
             row = conn.execute(
                 'SELECT download_url, min_app_version FROM store_plugins WHERE identifier=%s',
@@ -134,7 +123,6 @@ class StoreAPIClient:
             ).fetchone()
             if not row or not row['download_url']:
                 return None
-            # 版本校验
             if app_version and row['min_app_version']:
                 if not self._version_compatible(app_version, row['min_app_version']):
                     return None
@@ -268,16 +256,16 @@ class StoreAPIClient:
                 conn.commit()
 
     def sync_all(self) -> int:
-        """从远程同步全部插件目录
+        """从 GitHub Raw 同步全部插件目录到本地缓存
 
         Returns:
             同步的插件数量
         """
-        remote = _call_remote('GET', '/plugins', {'page_size': 200})
-        if not remote.get('success'):
+        catalog = self._fetch_catalog()
+        if not catalog:
             return 0
 
-        plugins_data = remote.get('data', {}).get('plugins', [])
+        plugins_data = catalog.get('plugins', [])
         for pdata in plugins_data:
             self._upsert_cache(pdata)
         return len(plugins_data)

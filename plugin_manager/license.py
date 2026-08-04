@@ -179,7 +179,7 @@ def _call_remote(method: str, path: str, data: dict = None) -> dict:
 
 
 def _mock_remote(method: str, path: str, data: dict = None) -> dict:
-    """Mock 远程 API，用于本地开发测试"""
+    """Mock 远程 API，用于本地开发测试（仅 License 操作）"""
     if 'validate' in path and data:
         return {
             'success': True,
@@ -202,33 +202,6 @@ def _mock_remote(method: str, path: str, data: dict = None) -> dict:
                     (datetime.now() + timedelta(days=365)).isoformat(),
                     get_site_id(),
                 ),
-            }
-        }
-    if 'list' in path or 'search' in path:
-        return {
-            'success': True,
-            'data': {
-                'plugins': [
-                    {
-                        'identifier': 'coupons',
-                        'name': '智能优惠券引擎',
-                        'version': '0.1.0',
-                        'price_type': 'free',
-                        'price_amount': 0,
-                        'description': '场景券/AI推荐/订阅联动',
-                        'category': 'marketing',
-                    },
-                    {
-                        'identifier': 'ali_api',
-                        'name': '1688 供应链采集',
-                        'version': '0.2.1',
-                        'price_type': 'onetime',
-                        'price_amount': 29900,
-                        'description': '商品搜索、AI 优化、本地商城发布',
-                        'category': 'supply-chain',
-                    },
-                ],
-                'total': 2,
             }
         }
     return {'success': True, 'data': {}}

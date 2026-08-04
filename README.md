@@ -50,7 +50,7 @@ VeroRun integrates multi-vendor AI engines (8 providers), e-commerce operations,
 | 8083 | `platform.*` `/auth/` `/subscribe` | User console & subscription | Platform dashboard, subscription management |
 | 8084 | `admin.*` `/admin/` | Admin panel | Plugin management, plugin store, agent matrix, automation, CMS, shop |
 | 8085 | — | Health Service (v2.0) | Independent Flask service: liveness/readiness probes + guardian status API, monitored by VeroGuard |
-| 8090 | — | Captcha service | Independent puzzle captcha service with behavioral analysis |
+| — | — | Captcha service | Proxied via main site (8081) — puzzle captcha with behavioral analysis |
 | — | — | VeroGuard Guardian | Unified daemon: health watchdog + integrity verification + heartbeat reporting |
 
 **systemd service names:** `verorun-main` (8081), `verorun-auth` (8083), `verorun-admin` (8084), `verorun-health` (8085), `verorun-guardian` (VeroGuard)
@@ -224,7 +224,7 @@ python scripts\dev_start.py
 - **License Integration** — Probe survival check integrated into license validation for multi-layered protection
 
 ### Captcha Service
-- **Independent Service** — Dedicated captcha service on port 8090, proxied via main site (8081) for unified entry
+- **Integrated Service** — Captcha proxied via main site (8081) for unified entry, no separate port
 - **Puzzle Captcha** — Dynamic puzzle-style CAPTCHA with random background images and shapes (circle, triangle, square, diamond, ellipse)
 - **Behavioral Analysis** — Trajectory analysis: duration, velocity curve, acceleration changes. Outputs human_score (0 to 1) and risk_level (low/medium/high)
 - **HMAC-SHA256 Tokens** — Signed challenge tokens with coordinates, image ID, puzzle dimensions, and expiration
@@ -645,7 +645,7 @@ VeroRunSystem/
 │   ├── app.py              # Flask app: /health (liveness), /ready (readiness), /api/guardian/status
 │   ├── runner.py           # Standalone runner (Waitress WSGI)
 │   └── requirements.txt    # Dependencies (Flask, Waitress, psycopg2)
-├── captcha-service/        # Independent puzzle captcha service (port 8090, proxied via 8081)
+├── captcha-service/        # Puzzle captcha service (proxied via 8081)
 │   └── captcha/            # Behavior analysis, generator, security (HMAC tokens), store (Redis)
 ├── health_guardian/        # systemd unit files for legacy health watchdog
 ├── providers/              # Pluggable provider abstractions (payment, SMS, logistics, social)
