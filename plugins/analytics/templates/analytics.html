@@ -805,10 +805,14 @@ body {
           <span style="font-size:11px;background:rgba(160,32,240,0.12);color:var(--purple);padding:2px 8px;border-radius:4px">{{ _('Free Registration Required') }}</span>
         </div>
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">
-          {{ _('Register at') }} <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank" style="color:var(--blue)">maxmind.com/en/geolite2/signup</a> — {{ _('no credit card required. After registration, generate a license key and paste it below.') }}
+          {{ _('Register at') }} <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank" style="color:var(--blue)">maxmind.com/en/geolite2/signup</a> — {{ _('no credit card required. After registration, copy your Account ID and generate a license key, then paste both below.') }}
         </div>
         <div id="geolite2Status" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
         <form id="geoipForm" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:150px">
+            <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">Account ID</label>
+            <input name="account_id" type="text" placeholder="MaxMind Account ID" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
+          </div>
           <div style="flex:1;min-width:200px">
             <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">License Key</label>
             <input name="license_key" type="text" placeholder="MaxMind License Key" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
@@ -1937,14 +1941,20 @@ function _authHeaders() {
 document.getElementById('geoipForm').addEventListener('submit', function(e){
   e.preventDefault();
   var btn = document.getElementById('geoipDownloadBtn');
-  var key = this.license_key.value.trim();
-  if (!key) return;
+  var accountIdEl = document.querySelector('#geoipForm [name="account_id"]');
+  var keyEl = document.querySelector('#geoipForm [name="license_key"]');
+  var accountId = accountIdEl ? accountIdEl.value.trim() : '';
+  var key = keyEl ? keyEl.value.trim() : '';
+  if (!accountId || !key) {
+    showToast('{{ _('Account ID and License Key are required') }}', 'error');
+    return;
+  }
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
   fetch(SETTINGS_BASE + '/settings/geoip/download', {
     method: 'POST',
     headers: _authHeaders(),
-    body: JSON.stringify({license_key: key}),
+    body: JSON.stringify({account_id: accountId, license_key: key}),
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.disabled = false;
     if (res.success) {
@@ -1978,7 +1988,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
 var _MARKET = 'cn';  // 默认值，启动后异步更新
 
 function detectMarket() {
-  fetch(SETTINGS_BASE + '/api/v1/geo/market', {headers: _authHeaders()})
+  return fetch(SETTINGS_BASE + '/api/v1/geo/market', {headers: _authHeaders()})
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.success && res.data) {
@@ -2067,9 +2077,11 @@ function startAutoRefresh() {
 // ═══════════════════════════════════════════════════════════════════════════
 // 初始化
 // ═══════════════════════════════════════════════════════════════════════════
-detectMarket();       // 异步检测客户端 IP 市场
-refreshAll();
-startAutoRefresh();
+// 先检测市场，完成后再加载数据和启动自动刷新（避免竞态条件）
+detectMarket().then(function() {
+  refreshAll();
+  startAutoRefresh();
+});
 </script>
 </body>
 </html>

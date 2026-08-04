@@ -333,15 +333,16 @@ def _ipapi_lookup(ip: str) -> dict:
 
 # ─── 维护工具 ──────────────────────────────────────────────────────────────────
 
-def download_geolite2_auto(license_key: str) -> dict:
+def download_geolite2_auto(license_key: str, account_id: str = '') -> dict:
     """
     自动下载 GeoLite2-City.mmdb 到 analytics/data/ 目录。
-    使用 MaxMind 新版 API: license_key 作为 URL 查询参数。
+    使用 MaxMind HTTP Basic Auth: account_id 为用户名，license_key 为密码。
 
     返回: {'success': True, 'path': '...', 'size_mb': 12.3}
          或 {'success': False, 'error': '...'}
     调用: from analytics.geoip import download_geolite2_auto
     """
+    import base64
     import tarfile
     import tempfile
     import shutil
@@ -350,20 +351,23 @@ def download_geolite2_auto(license_key: str) -> dict:
     os.makedirs(target_dir, exist_ok=True)
     target_path = os.path.join(target_dir, 'GeoLite2-City.mmdb')
 
+    # HTTP Basic Auth: account_id:license_key → Base64
+    credentials = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
     url = (
-        'https://download.maxmind.com/app/geoip_download'
-        f'?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
+        'https://download.maxmind.com/geoip/databases/GeoLite2-City/download'
+        '?suffix=tar.gz'
     )
 
     try:
         req = Request(url)
+        req.add_header('Authorization', f'Basic {credentials}')
         resp = urlopen(req, timeout=120)
         if resp.status != 200:
             return {
                 'success': False,
                 'error': (
                     f'HTTP {resp.status}: '
-                    'License key may be invalid, or key not yet activated '
+                    'Account ID or License Key may be invalid, or key not yet activated '
                     '(wait up to 30 minutes after creation).'
                 ),
             }
