@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout verorun-code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set tag variables
         id: vars
@@ -37,23 +39,11 @@ jobs:
             ! -name '.gitignore' \
             -exec rm -rf {} +
 
-      - name: Copy base files from verorun-code
+      - name: Export base files from verorun-code
         run: |
-          # 排除：插件源码、文档、测试、开发工具、CI
-          rsync -av \
-            --exclude='plugins/' \
-            --exclude='文档/' \
-            --exclude='docs/' \
-            --exclude='tests/' \
-            --exclude='scripts/' \
-            --exclude='prompts/' \
-            --exclude='.trae/' \
-            --exclude='.github/' \
-            --exclude='.git/' \
-            --exclude='__pycache__/' \
-            --exclude='*.pyc' \
-            --exclude='临时文件/' \
-            ./ /tmp/base/
+          # 使用 git archive 替代 rsync
+          # .gitattributes 中的 export-ignore 控制哪些文件不导出
+          git archive --format=tar "${{ steps.vars.outputs.tag }}" | tar -xC /tmp/base/
 
       - name: Commit and push to verorun-base
         run: |

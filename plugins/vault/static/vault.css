@@ -1,0 +1,262 @@
+/* ══════════════════════════════════════════════════════════════
+   Vault 2.0 — Plugin Styles
+   Uses VeroRun design-system.css variables exclusively.
+   No hardcoded color values.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Dashboard Layout ── */
+.vault-dashboard {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── Status Bar ── */
+.vault-status-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.status-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-en);
+  font-weight: 600;
+}
+
+.status-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-en);
+}
+
+.status-value.score { color: var(--blue); }
+
+/* ── Action Bar ── */
+.vault-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+/* ── Buttons (extending system .btn) ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font-en);
+  text-decoration: none;
+  transition: all 0.2s var(--ease-out);
+}
+
+.btn-primary {
+  background: var(--indigo);
+  color: #fff;
+}
+.btn-primary:hover { background: #4f46e5; }
+.btn-primary:disabled { background: #4338ca; opacity: 0.5; cursor: not-allowed; }
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.btn-danger {
+  background: var(--rose);
+  color: #fff;
+}
+.btn-danger:hover { background: #e11d48; }
+
+.btn-sm { padding: 4px 12px; font-size: 0.78rem; }
+.btn-icon { font-size: 1rem; font-weight: 700; }
+
+/* ── Card ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.card-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  font-family: var(--font-en);
+}
+
+.card-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Search Input ── */
+.search-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: var(--font-en);
+  width: 200px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--blue); }
+.search-input::placeholder { color: var(--text-muted); }
+
+/* ── Table ── */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+th {
+  background: var(--bg);
+  color: var(--blue);
+  font-family: var(--font-en);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--border-light);
+}
+
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+.actions-col {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: var(--font-en);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-success { background: rgba(0,255,159,0.1); color: var(--green); }
+.badge-failed  { background: rgba(244,63,94,0.1);  color: var(--rose); }
+.badge-running { background: rgba(0,245,255,0.1);  color: var(--blue); }
+.badge-pending { background: rgba(245,158,11,0.1); color: var(--gold); }
+
+/* ── Progress Bar ── */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: var(--gradient-neon);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Toast Notifications ── */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: var(--font-en);
+  z-index: var(--z-toast);
+  animation: vaultSlideIn 0.3s var(--ease-out);
+  box-shadow: var(--shadow-md);
+}
+
+.toast-success { background: var(--green); color: #000; }
+.toast-error   { background: var(--rose); }
+.toast-info    { background: var(--indigo); }
+.toast-warning { background: var(--gold); color: #000; }
+
+@keyframes vaultSlideIn {
+  from { transform: translateX(100px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .vault-dashboard { padding: 16px; }
+  .vault-status-bar { grid-template-columns: 1fr; }
+  .card-header { flex-direction: column; align-items: flex-start; }
+  .search-input { width: 100%; }
+}

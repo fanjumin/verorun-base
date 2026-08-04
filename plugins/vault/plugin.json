@@ -1,20 +1,31 @@
 {
     "name": "Vault",
     "identifier": "vault",
-    "version": "1.0.0",
-    "description": "Data vault — database backup, file archive, remote storage (S3/OSS)",
+    "version": "2.0.0",
+    "description": "Data vault — full/incremental backup, AES-256-GCM encryption, scheduled backups, audit logging, multi-target storage",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "category": "system",
     "icon": "vault",
-    "tags": ["backup", "storage", "system"],
-    "dependencies": {},
+    "tags": ["backup", "storage", "system", "encryption", "scheduler"],
+    "dependencies": {
+        "python": ["croniter", "cryptography", "paramiko", "requests"]
+    },
     "enabled": true,
     "config": {
         "backup_dir": "data/vault",
         "keep_days": 30,
         "include_files": true,
         "include_config": true,
+        "encryption": {
+            "enabled": false,
+            "algorithm": "aes256-gcm",
+            "key_source": "env"
+        },
+        "compression": {
+            "algorithm": "gzip",
+            "level": 6
+        },
         "storage": {
             "type": "local",
             "s3_bucket": "",
@@ -29,18 +40,44 @@
         "schedule": {
             "enabled": false,
             "interval_hours": 24
+        },
+        "notifications": {
+            "email": {
+                "enabled": false,
+                "smtp_host": "",
+                "smtp_port": 465,
+                "smtp_user": "",
+                "smtp_password": "",
+                "recipients": []
+            },
+            "webhook": {
+                "enabled": false,
+                "url": "",
+                "headers": {}
+            },
+            "feishu": {
+                "enabled": false,
+                "webhook_url": ""
+            },
+            "dingtalk": {
+                "enabled": false,
+                "webhook_url": ""
+            }
         }
     },
     "permissions": [
         "vault.read",
         "vault.write",
-        "vault.download"
+        "vault.download",
+        "vault.admin"
     ],
     "hooks": {
         "provides": [
             "vault/create_backup",
             "vault/list_backups",
-            "vault/delete_backup"
+            "vault/delete_backup",
+            "vault/health_check",
+            "vault/audit_log"
         ],
         "listens": []
     },
@@ -58,8 +95,11 @@
             "keep_days": { "type": "integer", "default": 30, "minimum": 1 },
             "include_files": { "type": "boolean", "default": true },
             "include_config": { "type": "boolean", "default": true },
+            "encryption": { "type": "object" },
+            "compression": { "type": "object" },
             "storage": { "type": "object" },
-            "schedule": { "type": "object" }
+            "schedule": { "type": "object" },
+            "notifications": { "type": "object" }
         }
     }
 }

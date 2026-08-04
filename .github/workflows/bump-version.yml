@@ -1,0 +1,64 @@
+name: Bump Version & Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: '版本号递增类型'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: 'patch'
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bump version
+        id: bump
+        run: |
+          # 读取当前版本
+          CURRENT=$(cat VERSION)
+          MAJOR=$(echo $CURRENT | cut -d. -f1)
+          MINOR=$(echo $CURRENT | cut -d. -f2)
+          PATCH=$(echo $CURRENT | cut -d. -f3)
+
+          # 递增
+          case "${{ inputs.bump_type }}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+          # 写入 VERSION 文件
+          echo "$NEW_VERSION" > VERSION
+
+      - name: Commit & Tag
+        run: |
+          git config user.name  "VeroRun CI"
+          git config user.email "ci@verorun.com"
+          git add VERSION
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
+          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
+          git push origin master --tags
