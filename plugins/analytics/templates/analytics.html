@@ -1325,8 +1325,10 @@ var _CITY_PROVINCE = {
 function loadChinaCities(skipMap) {
   api('/geo/china-cities?days=30').then(function(res){
     if (!res.success || !res.data.length) {
+      var titleEl = document.getElementById('mapTitle');
+      if (titleEl) titleEl.textContent = _MARKET === 'cn' ? '{{ _('🇨🇳 China Access Map') }}' : '{{ _('🌍 World Access Map') }}';
       document.getElementById('chinaMapChart').innerHTML =
-        '<div class="empty-state" style="padding:40px 20px"><div class="icon">🇨🇳</div>' +
+        '<div class="empty-state" style="padding:40px 20px"><div class="icon">&#x1F1E8;&#x1F1F3;</div>' +
         '<div class="text">{{ _('No geographic data yet') }}</div>' +
         '<div class="text" style="font-size:12px;color:var(--text-dim);margin-top:8px;max-width:400px;margin-left:auto;margin-right:auto">{{ _('Go to the Settings tab to set up GeoIP databases — ip2region (free, no registration) for Chinese IPs or MaxMind GeoLite2 for international coverage.') }}</div></div>';
       document.getElementById('chinaCityContent').innerHTML = '';
@@ -1465,6 +1467,8 @@ function _flagEmoji(cc) {
 function loadWorldMap() {
   api('/geo?days=30').then(function(res){
     if (!res.success || !res.data.length) {
+      var titleEl = document.getElementById('mapTitle');
+      if (titleEl) titleEl.textContent = '{{ _('🌍 World Access Map') }}';
       document.getElementById('chinaMapChart').innerHTML =
         '<div class="empty-state" style="padding:40px 20px"><div class="icon">🌍</div>' +
         '<div class="text">{{ _('No geographic data yet') }}</div>' +
@@ -1945,7 +1949,6 @@ function _authHeaders() {
     if (c) tk = c[1];
   }
   if (tk) h['Authorization'] = 'Bearer ' + tk;
-  h['Content-Type'] = 'application/json';
   return h;
 }
 
@@ -1958,9 +1961,11 @@ document.getElementById('geoipSaveBtn').addEventListener('click', function(){
   var btn = document.getElementById('geoipSaveBtn');
   btn.textContent = '{{ _('Saving...') }}';
   btn.disabled = true;
+  var hdrs = _authHeaders();
+  hdrs['Content-Type'] = 'application/json';
   fetch(SETTINGS_BASE + '/settings', {
     method: 'POST',
-    headers: _authHeaders(),
+    headers: hdrs,
     body: JSON.stringify({maxmind_account_id: accountId, maxmind_license_key: key}),
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.textContent = '{{ _('Save') }}';
@@ -1990,9 +1995,11 @@ document.getElementById('geoipDownloadBtn').addEventListener('click', function()
   var btn = document.getElementById('geoipDownloadBtn');
   btn.textContent = '{{ _('Downloading...') }}';
   btn.disabled = true;
+  var hdrs2 = _authHeaders();
+  hdrs2['Content-Type'] = 'application/json';
   fetch(SETTINGS_BASE + '/settings/geoip/download', {
     method: 'POST',
-    headers: _authHeaders(),
+    headers: hdrs2,
     body: JSON.stringify({account_id: accountId, license_key: key}),
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.disabled = false;
@@ -2063,9 +2070,11 @@ document.getElementById('pluginSettingsForm').addEventListener('submit', functio
     geoip_enabled: document.getElementById('cfgGeoipEnabled').value === 'true',
     service_name: document.getElementById('cfgServiceName').value.trim() || 'admin'
   };
+  var hdrs3 = _authHeaders();
+  hdrs3['Content-Type'] = 'application/json';
   fetch(SETTINGS_BASE + '/settings', {
     method: 'POST',
-    headers: _authHeaders(),
+    headers: hdrs3,
     body: JSON.stringify(data),
   }).then(function(r){ return r.json(); }).then(function(res){
     btn.textContent = '{{ _('Save Settings') }}';

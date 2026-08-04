@@ -52,6 +52,16 @@
                 "type": "string",
                 "default": "admin",
                 "description": "Service name label for analytics logs"
+            },
+            "maxmind_account_id": {
+                "type": "string",
+                "default": "",
+                "description": "MaxMind Account ID for GeoLite2 download"
+            },
+            "maxmind_license_key": {
+                "type": "string",
+                "default": "",
+                "description": "MaxMind License Key for GeoLite2 download"
             }
         }
     }
