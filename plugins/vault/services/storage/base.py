@@ -81,22 +81,34 @@ class StorageRouter:
             print(f'[Vault] Failed to load storage adapters: {e}')
 
     def _create_adapter(self, storage_type: str, config: dict) -> BaseStorageAdapter:
-        """Factory: create adapter instance by storage type."""
+        """Factory: create adapter instance by storage type. Returns None if not available."""
         if storage_type == 's3':
-            from .s3 import S3Adapter
-            return S3Adapter(config)
+            try:
+                from .s3 import S3Adapter
+                return S3Adapter(config)
+            except ImportError:
+                print('[Vault] S3 adapter not available (boto3 required)')
         elif storage_type == 'oss':
-            from .oss import OSSAdapter
-            return OSSAdapter(config)
+            try:
+                from .oss import OSSAdapter
+                return OSSAdapter(config)
+            except ImportError:
+                print('[Vault] OSS adapter not available (oss2 required)')
         elif storage_type == 'sftp':
-            from .sftp import SFTPAdapter
-            return SFTPAdapter(config)
+            try:
+                from .sftp import SFTPAdapter
+                return SFTPAdapter(config)
+            except ImportError:
+                print('[Vault] SFTP adapter not available (paramiko required)')
         elif storage_type == 'local':
-            from .local import LocalAdapter
-            return LocalAdapter(config)
+            try:
+                from .local import LocalAdapter
+                return LocalAdapter(config)
+            except ImportError:
+                print('[Vault] Local adapter not available')
         else:
             print(f'[Vault] Unknown storage type: {storage_type}')
-            return None
+        return None
 
     def upload_to_all(self, file_path: str, object_name: str) -> list:
         """Upload to all enabled storage targets."""

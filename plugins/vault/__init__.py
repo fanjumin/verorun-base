@@ -14,8 +14,8 @@ from plugin_manager.base import BasePlugin
 
 class VaultPlugin(BasePlugin):
     name = 'vault'
-    version = '1.0.0'
-    description = 'Data vault — database backup, file archive, remote storage (S3/OSS)'
+    version = '2.0.0'
+    description = 'Data vault — full/incremental backup, AES-256-GCM encryption, scheduled backups, audit logging, multi-target storage'
     author = 'VeroRun'
 
     def on_install(self, registry):
@@ -67,7 +67,7 @@ class VaultPlugin(BasePlugin):
                     'method': 'POST',
                     'headers': {
                         'Content-Type': 'application/json',
-                        'X-Internal-Secret': os.environ.get('HEALTH_SECRET', 'vault-internal'),
+                        'X-Internal-Secret': os.environ.get('HEALTH_SECRET', '') or None,
                     },
                     'body': {'trigger_type': 'scheduled'},
                 }, ensure_ascii=False)
@@ -82,7 +82,7 @@ class VaultPlugin(BasePlugin):
                     name,
                     'Daily database and files backup at 03:00 UTC',
                     'cron',
-                    '0 0 3 * * *',
+                    '0 3 * * *',
                     '',
                     0,
                     target_config,

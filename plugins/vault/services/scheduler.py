@@ -8,7 +8,7 @@ Manages backup schedules, computes next run times, and triggers backup jobs.
 import subprocess
 import os
 import glob as _glob
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from croniter import croniter
 from plugins._base.db import get_raw_connection
 
@@ -45,28 +45,34 @@ class VaultScheduler:
 
     def compute_next_run(self, cron_expr: str,
                          backup_window: dict = None) -> datetime:
-        """Compute next execution time, respecting backup window."""
+        """Compute next execution time, respecting backup window. Max 100 iterations."""
         base_time = datetime.utcnow()
         cron = croniter(cron_expr, base_time)
-        next_run = cron.get_next(datetime)
+        max_iterations = 100
 
-        if backup_window:
+        for _ in range(max_iterations):
+            next_run = cron.get_next(datetime)
+
+            if not backup_window:
+                return next_run
+
             window_start = self._parse_time(backup_window.get('start', '00:00'))
             window_end = self._parse_time(backup_window.get('end', '23:59'))
-            if not (window_start <= next_run.time() <= window_end):
-                next_run = next_run.replace(
-                    hour=window_start.hour,
-                    minute=window_start.minute,
-                    second=0, microsecond=0,
-                )
-                if next_run <= base_time:
-                    next_run = cron.get_next(datetime)
-                    next_run = next_run.replace(
-                        hour=window_start.hour,
-                        minute=window_start.minute,
-                    )
 
-        return next_run
+            if window_start <= next_run.time() <= window_end:
+                return next_run
+
+            # Adjust to window start
+            next_run = next_run.replace(
+                hour=window_start.hour, minute=window_start.minute,
+                second=0, microsecond=0,
+            )
+            if next_run > base_time:
+                return next_run
+
+        # Max iterations reached, return raw cron value
+        print(f'[Vault] compute_next_run: max iterations reached for {cron_expr}')
+        return cron.get_next(datetime)
 
     def execute_schedule(self, schedule: dict) -> dict:
         """Execute a schedule: run pre-hook → backup → post-hook → cleanup → update status."""
@@ -104,7 +110,7 @@ class VaultScheduler:
         return result
 
     def run_all_due(self) -> list:
-        """Execute all due schedules, return result list."""
+        """Execute all due schedules, return result list. Failed schedules get backoff."""
         due = self.get_due_schedules()
         results = []
         for sched in due:
@@ -117,7 +123,26 @@ class VaultScheduler:
                     'success': False,
                     'error': str(e),
                 })
+                # Update next_run_at with 5-minute backoff to prevent retry storm
+                try:
+                    self._update_schedule_status_with_backoff(sched['id'], minutes=5)
+                except Exception:
+                    pass
         return results
+
+    def _update_schedule_status_with_backoff(self, schedule_id: int, minutes: int = 5):
+        """Update next_run_at with backoff delay after failure."""
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        next_run = datetime.utcnow() + timedelta(minutes=minutes)
+        cur.execute("""
+            UPDATE vault_schedules
+            SET last_run_at = %s, next_run_at = %s
+            WHERE id = %s
+        """, (datetime.utcnow(), next_run, schedule_id))
+        conn.commit()
+        cur.close()
+        conn.close()
 
     def _run_hook(self, hook_command: str) -> dict:
         try:
@@ -135,7 +160,7 @@ class VaultScheduler:
             return {'success': False, 'error': str(e)}
 
     def _cleanup_old_backups(self, retention_days: int, retention_count: int):
-        """Remove old backups based on retention policy."""
+        """Remove old backups based on retention policy (by count and/or age)."""
         if not retention_days and not retention_count:
             return
         backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -146,19 +171,24 @@ class VaultScheduler:
             _glob.glob(os.path.join(backup_dir, 'vault_*.tar.gz')),
             key=os.path.getmtime, reverse=True,
         )
+
+        keep_count = retention_count or len(archives)
         cutoff_time = (datetime.utcnow().timestamp() - retention_days * 86400
                        if retention_days else 0)
-        for archive in archives:
-            if retention_count and archives.index(archive) < retention_count:
+
+        for i, archive in enumerate(archives):
+            # Keep newest N
+            if i < keep_count:
                 continue
+            # Keep within retention days
             if retention_days and os.path.getmtime(archive) >= cutoff_time:
                 continue
-            if retention_days or retention_count:
-                try:
-                    os.remove(archive)
-                    print(f'[Vault] Cleaned up: {os.path.basename(archive)}')
-                except OSError as e:
-                    print(f'[Vault] Cleanup failed for {archive}: {e}')
+            # Delete
+            try:
+                os.remove(archive)
+                print(f'[Vault] Cleaned up: {os.path.basename(archive)}')
+            except OSError as e:
+                print(f'[Vault] Cleanup failed for {archive}: {e}')
 
     def _update_schedule_status(self, schedule_id: int):
         conn = get_raw_connection()

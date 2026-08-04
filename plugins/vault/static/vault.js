@@ -25,6 +25,9 @@
 
   // ── API helper ──
   function api(url, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers['X-Internal-Secret'] = 'vault-internal';
     return fetch(url, opts).then(function (r) {
       if (!r.ok) {
         return r.json().then(function (d) {
@@ -144,8 +147,10 @@
   // ── Delete backup ──
   function deleteBackup(label) {
     if (!confirm('Delete backup ' + label + '? This cannot be undone.')) return;
-    api('/admin/vault/api/backup/delete/' + encodeURIComponent(label) + '?confirm=yes', {
+    api('/admin/vault/api/backup/delete/' + encodeURIComponent(label), {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: true }),
     })
       .then(function (data) {
         toast('Backup deleted', 'success');

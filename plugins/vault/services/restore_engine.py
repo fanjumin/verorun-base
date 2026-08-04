@@ -12,8 +12,8 @@ import subprocess
 import shutil
 from datetime import datetime
 from typing import Dict, Optional
+from .utils import get_pg_env, BASE_DIR
 
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
 BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
 
 
@@ -87,7 +87,7 @@ class RestoreEngine:
             return {'step': 'database', 'success': True, 'dry_run': True,
                     'file': os.path.basename(sql_file), 'size_mb': round(size_mb, 1)}
 
-        env = self._get_pg_env()
+        env = get_pg_env()
         target_db = target_db or env.get('PG_DB', 'verorun')
 
         try:
@@ -158,13 +158,4 @@ class RestoreEngine:
 
     def _get_pg_env(self) -> Dict[str, str]:
         """Read .env for PostgreSQL connection info."""
-        env = {}
-        env_path = os.path.join(BASE_DIR, '.env')
-        if os.path.exists(env_path):
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        k, v = line.split('=', 1)
-                        env[k.strip()] = v.strip().strip('"').strip("'")
-        return env
+        return get_pg_env()

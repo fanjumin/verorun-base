@@ -47,7 +47,8 @@ import json
 import glob
 import shutil
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify, render_template, send_file, request
+from functools import wraps
+from flask import Blueprint, jsonify, render_template, send_file, request, session, redirect
 
 vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault',
                      template_folder='templates',
@@ -56,6 +57,25 @@ vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault',
 
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
+
+
+# ══════════════════════════════════════════════════════════════
+# Auth Decorator
+# ══════════════════════════════════════════════════════════════
+
+def _require_vault_auth(f):
+    """Decorator: require user login for API access. Redirects to login if not authenticated."""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        user = session.get('user')
+        if not user:
+            # If accessed via iframe, redirect to login
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+               request.content_type == 'application/json':
+                return jsonify({'success': False, 'error': 'Authentication required'}), 401
+            return redirect('/admin/login')
+        return f(*args, **kwargs)
+    return wrapped
 
 
 def _get_backup_dir():
@@ -307,12 +327,13 @@ def api_health_check():
         if len(failed) > 3:
             score -= 15
 
-        # Next schedule (try to get from DB)
+        # Next schedule (check vault_schedules first, then cron_jobs)
         next_schedule = None
         try:
             from plugins._base.db import get_raw_connection
             conn = get_raw_connection()
             cur = conn.cursor()
+            # Check vault_schedules table
             cur.execute("""
                 SELECT MIN(next_run_at) FROM vault_schedules
                 WHERE enabled = TRUE AND next_run_at > NOW()
@@ -320,6 +341,15 @@ def api_health_check():
             row = cur.fetchone()
             if row and row[0]:
                 next_schedule = row[0].strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                # Fallback: check cron_jobs table
+                cur.execute("""
+                    SELECT MIN(next_run_at) FROM cron_jobs
+                    WHERE name LIKE 'Vault%' AND is_active = 1
+                """)
+                row = cur.fetchone()
+                if row and row[0]:
+                    next_schedule = row[0].strftime('%Y-%m-%d %H:%M:%S')
             cur.close()
             conn.close()
         except Exception:
@@ -432,13 +462,35 @@ def api_restore():
 # ══════════════════════════════════════════════════════════════
 
 def _handle_backup_create():
-    """Internal handler for backup creation."""
+    """Internal handler for backup creation with compress → encrypt → upload → notify pipeline."""
     try:
         from .services.backup_engine import create_full_backup
         result = create_full_backup()
 
-        # Upload to remote storage if configured
         if result.get('archive') and result.get('success'):
+            archive_path = result['archive']
+
+            # 1. Compress
+            try:
+                from .services.compressor import VaultCompressor
+                compressor = VaultCompressor(algorithm='gzip', level=6)
+                archive_path = compressor.compress(archive_path)
+                result['compressed_size_mb'] = round(os.path.getsize(archive_path) / (1024**2), 1)
+            except Exception as e:
+                print(f'[Vault] Compression skipped: {e}')
+
+            # 2. Encrypt (if configured)
+            try:
+                from .services.encryptor import VaultEncryptor
+                encryptor = VaultEncryptor()
+                archive_path = encryptor.encrypt_stream(archive_path)
+                result['encrypted'] = True
+            except ValueError:
+                pass  # encryption not configured
+            except Exception as e:
+                print(f'[Vault] Encryption skipped: {e}')
+
+            # 3. Upload to remote storage
             try:
                 from .services.uploader import upload_backup
                 upload_result = upload_backup(result['archive'],
@@ -447,7 +499,48 @@ def _handle_backup_create():
             except Exception as e:
                 result['remote'] = {'uploaded': False, 'error': str(e)}
 
-        # Audit log (non-blocking, best-effort)
+            # 4. Notify
+            try:
+                from .services.notifier import VaultNotifier
+                notifier = VaultNotifier()
+                event = 'backup.success' if result.get('success') else 'backup.failed'
+                notifier.send(
+                    event=event,
+                    message='Backup %s (%s MB)' % (result['label'], result.get('size_mb', 0)),
+                    level='info' if result.get('success') else 'error',
+                    details=result,
+                )
+            except Exception:
+                pass
+
+        # Write to vault_backups table
+        try:
+            from plugins._base.db import get_raw_connection
+            conn = get_raw_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO vault_backups
+                    (label, backup_type, status, size_bytes, checksum_sha256,
+                     content_summary, started_at, completed_at, created_by)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                result['label'],
+                result.get('backup_type', 'full'),
+                'success' if result.get('success') else 'failed',
+                int(result.get('size_mb', 0) * 1024 * 1024),
+                result.get('checksum_sha256'),
+                json.dumps({'files': len(result.get('files', []))}),
+                datetime.utcnow(),
+                datetime.utcnow(),
+                session.get('user', {}).get('username', 'system'),
+            ))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f'[Vault] Failed to write backup record to DB: {e}')
+
+        # Audit log
         try:
             from .services.audit import log_audit
             log_audit(
@@ -477,14 +570,14 @@ def _handle_backup_download(label):
 
 
 def _handle_backup_delete(label):
-    """Internal handler for backup deletion."""
-    confirm = request.args.get('confirm', '')
-    if confirm != 'yes':
+    """Internal handler for backup deletion. Confirmation via POST body."""
+    data = request.get_json(silent=True) or {}
+    if not data.get('confirm'):
         return jsonify({
             'success': False,
             'error': 'Confirmation required',
             'confirm_required': True,
-            'message': f'Are you sure you want to delete backup "{label}"? This action cannot be undone.',
+            'message': 'Are you sure you want to delete backup "%s"? This action cannot be undone.' % label,
         }), 400
 
     filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')

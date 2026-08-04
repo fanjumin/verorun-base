@@ -10,15 +10,14 @@ Supports:
 """
 
 import os
+import json
 import subprocess
 import tarfile
 import hashlib
 import shutil
 from datetime import datetime
 from typing import Optional, Dict, List
-
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
-BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
+from .utils import get_pg_env, BASE_DIR, BACKUP_DIR
 
 
 class BackupEngine:
@@ -62,7 +61,15 @@ class BackupEngine:
             else:
                 errors.append('database dump failed')
 
-        # ── 2. File archive ──
+        # ── 2. Config export ──
+        if not scope or scope.get('include_config', True):
+            config_result = self._dump_config(work_dir, label)
+            if config_result:
+                files.append(config_result)
+            else:
+                errors.append('config export failed')
+
+        # ── 3. File archive ──
         if not scope or scope.get('include_files', True):
             file_result = self._archive_files(work_dir, label, scope)
             if file_result:
@@ -100,7 +107,7 @@ class BackupEngine:
     # ── Full backup ──
     def _dump_full(self, work_dir: str, label: str, scope: Dict) -> Optional[Dict]:
         """pg_dump complete database export."""
-        env = self._get_pg_env()
+        env = get_pg_env()
         out_file = os.path.join(work_dir, f'{label}_db.sql')
         tables = scope.get('tables') if scope else None
         try:
@@ -211,16 +218,57 @@ class BackupEngine:
 
     def _get_pg_env(self) -> Dict[str, str]:
         """Read .env for PostgreSQL connection info."""
-        env = {}
+        return get_pg_env()
+
+    @staticmethod
+    def _redact_env(env_path: str) -> str:
+        """Read .env file, redact sensitive fields."""
+        sensitive_keys = {'PG_PASSWORD', 'JWT_SECRET', 'FLASK_SECRET_KEY',
+                          'DASHSCOPE_TEXT_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY',
+                          'PLUGIN_LICENSE_SECRET', 'CAPTCHA_SECRET_KEY',
+                          'DEV_ACCOUNTS_ENCRYPTION_KEY', 'LICENSE_SERVER_SECRET'}
+        lines = []
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if '=' in line and not line.startswith('#'):
+                    k = line.split('=', 1)[0]
+                    if k in sensitive_keys:
+                        lines.append(f'{k}=***REDACTED***')
+                    else:
+                        lines.append(line)
+                else:
+                    lines.append(line)
+        return '\n'.join(lines)
+
+    def _dump_config(self, work_dir: str, label: str) -> Optional[Dict]:
+        """Export system config table + redacted .env to JSON."""
+        out_file = os.path.join(work_dir, f'{label}_config.json')
+        try:
+            from plugins._base.db import get_raw_connection
+            conn = get_raw_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT key, value FROM system_config ORDER BY key")
+            rows = cur.fetchall()
+            config_data = {row[0]: row[1] for row in rows}
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f'[Vault] system_config export failed: {e}')
+            config_data = {}
+
         env_path = os.path.join(BASE_DIR, '.env')
         if os.path.exists(env_path):
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        k, v = line.split('=', 1)
-                        env[k.strip()] = v.strip().strip('"').strip("'")
-        return env
+            config_data['_.env._contents'] = self._redact_env(env_path)
+
+        try:
+            with open(out_file, 'w', encoding='utf-8') as f:
+                json.dump(config_data, f, ensure_ascii=False, indent=2)
+            print(f'[Vault] Config exported: {out_file}')
+            return {'type': 'config', 'path': out_file, 'name': os.path.basename(out_file)}
+        except Exception as e:
+            print(f'[Vault] Config export error: {e}')
+            return None
 
     def _get_backup_time(self, label: str) -> float:
         """Get creation timestamp of a backup."""

@@ -55,8 +55,8 @@
   margin-bottom: 24px;
 }
 
-/* ── Buttons (extending system .btn) ── */
-.btn {
+/* ── Buttons (scope to vault-dashboard to avoid system conflicts) ── */
+.vault-dashboard .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -71,30 +71,30 @@
   transition: all 0.2s var(--ease-out);
 }
 
-.btn-primary {
+.vault-dashboard .btn-primary {
   background: var(--indigo);
   color: #fff;
 }
-.btn-primary:hover { background: #4f46e5; }
-.btn-primary:disabled { background: #4338ca; opacity: 0.5; cursor: not-allowed; }
+.vault-dashboard .btn-primary:hover { background: #4f46e5; }
+.vault-dashboard .btn-primary:disabled { background: #4338ca; opacity: 0.5; cursor: not-allowed; }
 
-.btn-outline {
+.vault-dashboard .btn-outline {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
 }
-.btn-outline:hover {
+.vault-dashboard .btn-outline:hover {
   border-color: var(--blue);
   color: var(--blue);
 }
 
-.btn-danger {
+.vault-dashboard .btn-danger {
   background: var(--rose);
   color: #fff;
 }
-.btn-danger:hover { background: #e11d48; }
+.vault-dashboard .btn-danger:hover { background: #e11d48; }
 
-.btn-sm { padding: 4px 12px; font-size: 0.78rem; }
+.vault-dashboard .btn-sm { padding: 4px 12px; font-size: 0.78rem; }
 .btn-icon { font-size: 1rem; font-weight: 700; }
 
 /* ── Card ── */
