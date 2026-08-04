@@ -861,6 +861,7 @@ body {
 // ═══════════════════════════════════════════════════════════════════════════
 function showToast(msg, type) {
   type = type || 'info';
+  console.log('[Toast]', type, msg);
   var colors = {
     error:   { bg: 'rgba(244,63,94,0.15)', border: 'rgba(244,63,94,0.4)', color: '#f43f5e' },
     success: { bg: 'rgba(0,255,159,0.12)', border: 'rgba(0,255,159,0.3)', color: '#00ff9f' },
@@ -874,11 +875,13 @@ function showToast(msg, type) {
     'transform:translateX(-50%);transition:opacity 0.3s ease;opacity:0;' +
     'background:' + c.bg + ';border:1px solid ' + c.border + ';color:' + c.color + ';';
   el.textContent = msg;
-  // If inside iframe, append to top window for guaranteed visibility
+  // Try parent window first (for iframe), fall back to own body
   var target = document.body;
   try {
-    if (window.top !== window && window.top.document) { target = window.top.document.body; }
-  } catch(e) {}
+    if (window.top !== window && window.top.document && window.top.document.body) {
+      target = window.top.document.body;
+    }
+  } catch(e) { console.log('[Toast] top window not accessible, using own body'); }
   target.appendChild(el);
   requestAnimationFrame(function(){ el.style.opacity = '1'; });
   setTimeout(function(){
@@ -1972,6 +1975,7 @@ function downloadIp2region() {
   var hdrs = _authHeaders();
   for (var k in hdrs) xhr.setRequestHeader(k, hdrs[k]);
   xhr.onload = function() {
+    console.log('[GeoIP Download] status=' + xhr.status + ' body=' + xhr.responseText.substring(0,200));
     btn.disabled = false;
     hideProgress('ip2regionBtn');
     try {
@@ -2059,6 +2063,7 @@ document.getElementById('geoipDownloadBtn').addEventListener('click', function()
   hdrs_dl['Content-Type'] = 'application/json';
   for (var k in hdrs_dl) xhr.setRequestHeader(k, hdrs_dl[k]);
   xhr.onload = function() {
+    console.log('[GeoLite2 Download] status=' + xhr.status + ' body=' + xhr.responseText.substring(0,200));
     btn.disabled = false;
     hideProgress('geoipDownloadBtn');
     try {
@@ -2108,7 +2113,10 @@ function showProgress(containerId) {
   wrap.className = 'progress-bar-wrap';
   wrap.id = containerId + '-progress';
   wrap.innerHTML = '<div class="progress-bar-inner"></div>';
-  el.parentNode.insertBefore(wrap, el.nextSibling);
+  // If inside a form, insert after the form (not inside flex layout)
+  var form = el.closest('form');
+  var anchor = form || el;
+  anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
 }
 
 function hideProgress(containerId) {
@@ -2203,24 +2211,25 @@ document.getElementById('pluginSettingsForm').addEventListener('submit', functio
 // 刷新全部
 // ═══════════════════════════════════════════════════════════════════════════
 function refreshAll() {
+  // Batch 1: critical data (realtime + trend)
   loadRealtime();
   loadTrend();
-  loadHourly();
-  loadPages();
-  loadSources();
-  // 地图视图：auto → 跟随市场；可手动切换
-  var showWorld = (_MAP_VIEW === 'world') || (_MAP_VIEW === 'auto' && _MARKET !== 'cn');
-  if (showWorld) {
-    loadWorldCities();
-    loadWorldMap();
-    toggleCountrySection(true);
-  } else {
-    loadChinaCities(false);
-  }
-  loadGeo();
-  loadDevices();
-  loadEvents();
-  loadAlerts();
+  // Batch 2: secondary data (staggered to avoid browser connection limits)
+  setTimeout(function(){ loadHourly(); loadPages(); }, 150);
+  setTimeout(function(){ loadSources(); loadGeo(); }, 300);
+  // Batch 3: map data (heavy)
+  setTimeout(function(){
+    var showWorld = (_MAP_VIEW === 'world') || (_MAP_VIEW === 'auto' && _MARKET !== 'cn');
+    if (showWorld) {
+      loadWorldCities();
+      loadWorldMap();
+      toggleCountrySection(true);
+    } else {
+      loadChinaCities(false);
+    }
+  }, 450);
+  // Batch 4: devices, events, alerts
+  setTimeout(function(){ loadDevices(); loadEvents(); loadAlerts(); }, 600);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
