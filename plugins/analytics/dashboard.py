@@ -62,9 +62,9 @@ def check_auth():
     if not payload or not payload.get('is_admin'):
         if request.is_json or path.startswith('/admin/analytics/api/'):
             return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
-        # 页面请求 → 不重定向，token 通过 URL ?token= 传递，API 层自行鉴权
-        # 避免 iframe 重定向到 /login 导致空白
-        return None
+        # Direct access without admin token → redirect to login
+        from flask import redirect
+        return redirect('/admin/login')
     return None
 
 

@@ -65,6 +65,10 @@ body {
   border-color: var(--border-glow);
   box-shadow: 0 0 30px rgba(0,245,255,0.06);
 }
+.glass-card button, .glass-card input, .glass-card select, .glass-card a, .glass-card [onclick] {
+  position: relative;
+  z-index: 1;
+}
 .glass-card .label {
   font-size: 12px;
   color: var(--text-dim);
