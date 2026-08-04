@@ -228,3 +228,105 @@ class VaultScheduler:
                 'retention_count', 'storage_targets', 'backup_window',
                 'pre_hook', 'post_hook', 'enabled', 'last_run_at', 'next_run_at']
         return dict(zip(cols, row))
+
+    # ── CRUD Methods ──
+
+    def create_schedule(self, name: str, cron_expr: str, backup_type: str = 'full',
+                        retention_days: int = None, retention_count: int = None,
+                        storage_targets: list = None, backup_window: dict = None,
+                        pre_hook: str = None, post_hook: str = None) -> dict:
+        """Create a new backup schedule. Returns the created schedule dict."""
+        import json as _json
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        next_run = self.compute_next_run(cron_expr, backup_window)
+        cur.execute("""
+            INSERT INTO vault_schedules
+                (name, cron_expression, backup_type, retention_days, retention_count,
+                 storage_targets, backup_window, pre_hook, post_hook, enabled,
+                 next_run_at, created_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,%s,NOW())
+            RETURNING id
+        """, (
+            name, cron_expr, backup_type,
+            retention_days, retention_count,
+            _json.dumps(storage_targets or []),
+            _json.dumps(backup_window) if backup_window else None,
+            pre_hook, post_hook, next_run,
+        ))
+        row_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Return the created schedule
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM vault_schedules WHERE id = %s", (row_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return self._row_to_dict(row) if row else {'id': row_id}
+
+    def update_schedule(self, schedule_id: int, **kwargs) -> dict:
+        """Update a schedule. Supported fields: name, cron_expression, backup_type,
+        retention_days, retention_count, enabled, backup_window, pre_hook, post_hook."""
+        import json as _json
+        conn = get_raw_connection()
+        cur = conn.cursor()
+
+        allowed = ['name', 'cron_expression', 'backup_type', 'retention_days',
+                   'retention_count', 'enabled', 'backup_window', 'pre_hook', 'post_hook']
+        updates = []
+        params = []
+        for key in allowed:
+            if key in kwargs:
+                val = kwargs[key]
+                if key in ('backup_window',) and isinstance(val, dict):
+                    val = _json.dumps(val)
+                updates.append(f"{key} = %s")
+                params.append(val)
+
+        if 'cron_expression' in kwargs:
+            window = kwargs.get('backup_window')
+            if window and isinstance(window, str):
+                window = _json.loads(window)
+            next_run = self.compute_next_run(kwargs['cron_expression'], window)
+            updates.append("next_run_at = %s")
+            params.append(next_run)
+
+        if not updates:
+            return {'success': False, 'error': 'No valid fields to update'}
+
+        params.append(schedule_id)
+        cur.execute(
+            f"UPDATE vault_schedules SET {', '.join(updates)} WHERE id = %s",
+            params,
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {'success': True, 'id': schedule_id}
+
+    def delete_schedule(self, schedule_id: int) -> dict:
+        """Delete a schedule."""
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM vault_schedules WHERE id = %s", (schedule_id,))
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {'success': deleted > 0, 'deleted': deleted}
+
+    def toggle_schedule(self, schedule_id: int, enabled: bool) -> dict:
+        """Enable or disable a schedule."""
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE vault_schedules SET enabled = %s WHERE id = %s",
+            (enabled, schedule_id),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {'success': True, 'id': schedule_id, 'enabled': enabled}

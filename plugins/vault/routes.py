@@ -443,7 +443,7 @@ def api_audit_logs():
 
 
 # ══════════════════════════════════════════════════════════════
-# Schedule API (Phase 1 read-only; CRUD in Phase 2)
+# Schedule API (CRUD)
 # ══════════════════════════════════════════════════════════════
 
 @vault_bp.route('/api/schedule/list', methods=['GET'])
@@ -454,12 +454,180 @@ def api_list_schedules():
         from .services.scheduler import VaultScheduler
         scheduler = VaultScheduler()
         schedules = scheduler.get_all_schedules()
-        # Convert datetime objects
         for s in schedules:
             for key in ('last_run_at', 'next_run_at', 'created_at'):
                 if isinstance(s.get(key), datetime):
                     s[key] = s[key].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify({'success': True, 'schedules': schedules})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/schedule/create', methods=['POST'])
+@_require_vault_auth
+def api_create_schedule():
+    """Create a new backup schedule."""
+    try:
+        data = request.get_json(silent=True) or {}
+        name = data.get('name', '').strip()
+        cron_expr = data.get('cron_expression', '').strip()
+        if not name or not cron_expr:
+            return jsonify({'success': False, 'error': 'name and cron_expression are required'}), 400
+
+        from .services.scheduler import VaultScheduler
+        scheduler = VaultScheduler()
+        result = scheduler.create_schedule(
+            name=name,
+            cron_expr=cron_expr,
+            backup_type=data.get('backup_type', 'full'),
+            retention_days=data.get('retention_days'),
+            retention_count=data.get('retention_count'),
+            storage_targets=data.get('storage_targets'),
+            backup_window=data.get('backup_window'),
+            pre_hook=data.get('pre_hook'),
+            post_hook=data.get('post_hook'),
+        )
+
+        try:
+            from .services.audit import log_audit
+            log_audit('schedule.create', 'schedule', str(result.get('id', '')), {'name': name})
+        except Exception:
+            pass
+
+        return jsonify({'success': True, 'schedule': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/schedule/<int:schedule_id>', methods=['PUT', 'DELETE'])
+@_require_vault_auth
+def api_schedule_crud(schedule_id):
+    """Update or delete a schedule."""
+    try:
+        from .services.scheduler import VaultScheduler
+        scheduler = VaultScheduler()
+
+        if request.method == 'DELETE':
+            result = scheduler.delete_schedule(schedule_id)
+            try:
+                from .services.audit import log_audit
+                log_audit('schedule.delete', 'schedule', str(schedule_id))
+            except Exception:
+                pass
+            return jsonify(result)
+
+        # PUT
+        data = request.get_json(silent=True) or {}
+        result = scheduler.update_schedule(schedule_id, **data)
+        try:
+            from .services.audit import log_audit
+            log_audit('schedule.update', 'schedule', str(schedule_id))
+        except Exception:
+            pass
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/schedule/<int:schedule_id>/toggle', methods=['POST'])
+@_require_vault_auth
+def api_toggle_schedule(schedule_id):
+    """Enable or disable a schedule."""
+    try:
+        data = request.get_json(silent=True) or {}
+        enabled = data.get('enabled', True)
+
+        from .services.scheduler import VaultScheduler
+        scheduler = VaultScheduler()
+        result = scheduler.toggle_schedule(schedule_id, enabled)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# Storage API (CRUD)
+# ══════════════════════════════════════════════════════════════
+
+@vault_bp.route('/api/storage/list', methods=['GET'])
+@_require_vault_auth
+def api_list_storage():
+    """List all storage targets."""
+    try:
+        from .services.storage.base import StorageRouter
+        router = StorageRouter()
+        targets = router.list_targets()
+        return jsonify({'success': True, 'targets': targets})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/storage/create', methods=['POST'])
+@_require_vault_auth
+def api_create_storage():
+    """Create a new storage target."""
+    try:
+        data = request.get_json(silent=True) or {}
+        name = data.get('name', '').strip()
+        stype = data.get('storage_type', '').strip()
+        config = data.get('config', {})
+        if not name or not stype:
+            return jsonify({'success': False, 'error': 'name and storage_type are required'}), 400
+
+        from .services.storage.base import StorageRouter
+        router = StorageRouter()
+        result = router.create_target(
+            name=name,
+            storage_type=stype,
+            config=config,
+            is_default=data.get('is_default', False),
+        )
+
+        try:
+            from .services.audit import log_audit
+            log_audit('storage.create', 'storage', str(result.get('id', '')), {'name': name, 'type': stype})
+        except Exception:
+            pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/storage/<int:target_id>', methods=['PUT', 'DELETE'])
+@_require_vault_auth
+def api_storage_crud(target_id):
+    """Update or delete a storage target."""
+    try:
+        from .services.storage.base import StorageRouter
+        router = StorageRouter()
+
+        if request.method == 'DELETE':
+            result = router.delete_target(target_id)
+            try:
+                from .services.audit import log_audit
+                log_audit('storage.delete', 'storage', str(target_id))
+            except Exception:
+                pass
+            return jsonify(result)
+
+        # PUT
+        data = request.get_json(silent=True) or {}
+        result = router.update_target(target_id, **data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/storage/<int:target_id>/test', methods=['POST'])
+@_require_vault_auth
+def api_test_storage(target_id):
+    """Test connection for a storage target."""
+    try:
+        from .services.storage.base import StorageRouter
+        router = StorageRouter()
+        result = router.test_target(target_id)
+        return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

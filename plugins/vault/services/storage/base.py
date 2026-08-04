@@ -137,3 +137,127 @@ class StorageRouter:
         for target_id, adapter in self._adapters.items():
             results[target_id] = adapter.test_connection()
         return results
+
+    # ── CRUD Methods ──
+
+    def list_targets(self) -> list:
+        """List all storage targets from database."""
+        from plugins._base.db import get_raw_connection
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, name, storage_type, config, is_default, enabled,
+                   last_test_at, last_test_ok, created_at
+            FROM vault_storage_targets
+            ORDER BY created_at DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        cols = ['id', 'name', 'storage_type', 'config', 'is_default',
+                'enabled', 'last_test_at', 'last_test_ok', 'created_at']
+        results = []
+        for row in rows:
+            d = dict(zip(cols, row))
+            if isinstance(d.get('config'), str):
+                d['config'] = json.loads(d['config'])
+            for ts_key in ('last_test_at', 'created_at'):
+                if hasattr(d.get(ts_key), 'strftime'):
+                    d[ts_key] = d[ts_key].strftime('%Y-%m-%d %H:%M:%S')
+            results.append(d)
+        return results
+
+    def create_target(self, name: str, storage_type: str,
+                      config: dict, is_default: bool = False) -> dict:
+        """Create a new storage target. Returns the created target dict."""
+        from plugins._base.db import get_raw_connection
+        conn = get_raw_connection()
+        cur = conn.cursor()
+
+        if is_default:
+            cur.execute(
+                "UPDATE vault_storage_targets SET is_default = FALSE WHERE is_default = TRUE"
+            )
+
+        cur.execute("""
+            INSERT INTO vault_storage_targets
+                (name, storage_type, config, is_default, enabled, created_at)
+            VALUES (%s,%s,%s,%s,TRUE,NOW())
+            RETURNING id
+        """, (name, storage_type, json.dumps(config), is_default))
+        row_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Reload adapters to include new target
+        self._load_adapters()
+        return {'success': True, 'id': row_id, 'name': name}
+
+    def update_target(self, target_id: int, **kwargs) -> dict:
+        """Update a storage target."""
+        from plugins._base.db import get_raw_connection
+        import json as _json
+        conn = get_raw_connection()
+        cur = conn.cursor()
+
+        allowed = ['name', 'storage_type', 'config', 'is_default', 'enabled']
+        updates = []
+        params = []
+        for key in allowed:
+            if key in kwargs:
+                val = kwargs[key]
+                if key == 'config' and isinstance(val, dict):
+                    val = _json.dumps(val)
+                updates.append(f"{key} = %s")
+                params.append(val)
+
+        if not updates:
+            return {'success': False, 'error': 'No valid fields to update'}
+
+        params.append(target_id)
+        cur.execute(
+            f"UPDATE vault_storage_targets SET {', '.join(updates)} WHERE id = %s",
+            params,
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        self._load_adapters()
+        return {'success': True, 'id': target_id}
+
+    def delete_target(self, target_id: int) -> dict:
+        """Delete a storage target."""
+        from plugins._base.db import get_raw_connection
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM vault_storage_targets WHERE id = %s", (target_id,))
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        self._load_adapters()
+        return {'success': deleted > 0, 'deleted': deleted}
+
+    def test_target(self, target_id: int) -> dict:
+        """Test connection for a specific target."""
+        from plugins._base.db import get_raw_connection
+        adapter = self._adapters.get(target_id)
+        if not adapter:
+            return {'ok': False, 'error': 'Target not found or not loaded'}
+
+        result = adapter.test_connection()
+        try:
+            conn = get_raw_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE vault_storage_targets
+                SET last_test_at = NOW(), last_test_ok = %s
+                WHERE id = %s
+            """, (result.get('ok', False), target_id))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+        return result

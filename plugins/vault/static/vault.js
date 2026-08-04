@@ -456,21 +456,49 @@
       backup_type: document.getElementById('schedType').value,
       retention_days: parseInt(document.getElementById('schedRetDays').value) || null,
       retention_count: parseInt(document.getElementById('schedRetCount').value) || null,
-      enabled: true,
     };
-    // Placeholder: schedule CRUD API not yet available
-    // When backend routes are added, change this to actual API call
-    toast('Schedule management coming soon', 'info');
-    hideScheduleForm();
+
+    var isNew = !id;
+    var url = isNew ? '/admin/vault/api/schedule/create' : '/admin/vault/api/schedule/' + id;
+    var method = isNew ? 'POST' : 'PUT';
+
+    api(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function (data) {
+      if (data.success) {
+        toast(isNew ? 'Schedule created' : 'Schedule updated', 'success');
+        hideScheduleForm();
+        loadSchedules();
+      } else {
+        toast('Save failed: ' + (data.error || 'unknown'), 'error');
+      }
+    }).catch(function (e) { toast('Save error: ' + e.message, 'error'); });
   }
 
   window.vaultToggleSchedule = function (id, enable) {
-    toast('Schedule management coming soon', 'info');
+    api('/admin/vault/api/schedule/' + id + '/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enable }),
+    }).then(function (data) {
+      if (data.success) {
+        toast('Schedule ' + (enable ? 'enabled' : 'disabled'), 'success');
+        loadSchedules();
+      } else {
+        toast('Toggle failed: ' + (data.error || 'unknown'), 'error');
+      }
+    }).catch(function (e) { toast('Toggle error: ' + e.message, 'error'); });
   };
 
   window.vaultDeleteSchedule = function (id) {
     if (!confirm('Delete this schedule?')) return;
-    toast('Schedule management coming soon', 'info');
+    api('/admin/vault/api/schedule/' + id, { method: 'DELETE' })
+      .then(function (data) {
+        if (data.success) { toast('Schedule deleted', 'success'); loadSchedules(); }
+        else { toast('Delete failed: ' + (data.error || 'unknown'), 'error'); }
+      }).catch(function (e) { toast('Delete error: ' + e.message, 'error'); });
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -487,17 +515,26 @@
   }
 
   function loadStorageTargets() {
-    api('/admin/vault/api/backup/list?per_page=1')
-      .then(function () {
-        // Storage targets endpoint not yet available, show placeholder
+    api('/admin/vault/api/storage/list')
+      .then(function (data) {
         var tbody = document.getElementById('storageTableBody');
         if (!tbody) return;
-        tbody.innerHTML =
-          '<tr><td colspan="5" class="empty-state">No storage targets configured. Click "Add Target" to configure one.</td></tr>';
-      }).catch(function () {
-        var tbody = document.getElementById('storageTableBody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No storage targets configured</td></tr>';
-      });
+        if (!data.targets || data.targets.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No storage targets configured</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.targets.map(function (t) {
+          return '<tr>' +
+            '<td><strong>' + escHtml(t.name) + '</strong></td>' +
+            '<td><span class="badge badge-pending">' + escHtml(t.storage_type) + '</span></td>' +
+            '<td><span class="badge ' + (t.enabled ? 'badge-success' : 'badge-failed') + '">' + (t.enabled ? 'Active' : 'Disabled') + '</span></td>' +
+            '<td>' + (t.last_test_at || '--') + (t.last_test_ok ? ' <span class="badge badge-success">OK</span>' : '') + '</td>' +
+            '<td class="actions-col">' +
+            '<button class="btn btn-outline btn-sm" onclick="vaultTestStorage(' + t.id + ')">Test</button> ' +
+            '<button class="btn btn-danger btn-sm" onclick="vaultDeleteStorage(' + t.id + ')">Delete</button>' +
+            '</td></tr>';
+        }).join('');
+      }).catch(function (e) { toast('Failed to load storage targets: ' + e.message, 'error'); });
   }
 
   function showStorageForm(target) {
@@ -563,14 +600,100 @@
 
   function saveStorageTarget(e) {
     e.preventDefault();
-    // Placeholder: storage CRUD API not yet available
-    toast('Storage management coming soon', 'info');
-    hideStorageForm();
+    var id = document.getElementById('storageId').value;
+    var stype = document.getElementById('storageType').value;
+    var config = {};
+
+    if (stype === 'local') {
+      config = { path: document.getElementById('stLocalPath') ? document.getElementById('stLocalPath').value : '/backups' };
+    } else if (stype === 's3') {
+      config = {
+        bucket: document.getElementById('stS3Bucket') ? document.getElementById('stS3Bucket').value : '',
+        region: document.getElementById('stS3Region') ? document.getElementById('stS3Region').value : '',
+        access_key: document.getElementById('stS3Key') ? document.getElementById('stS3Key').value : '',
+        secret_key: document.getElementById('stS3Secret') ? document.getElementById('stS3Secret').value : '',
+        endpoint: document.getElementById('stS3Endpoint') ? document.getElementById('stS3Endpoint').value : '',
+      };
+    } else if (stype === 'oss') {
+      config = {
+        bucket: document.getElementById('stOssBucket') ? document.getElementById('stOssBucket').value : '',
+        endpoint: document.getElementById('stOssEndpoint') ? document.getElementById('stOssEndpoint').value : '',
+        access_key: document.getElementById('stOssKey') ? document.getElementById('stOssKey').value : '',
+        secret_key: document.getElementById('stOssSecret') ? document.getElementById('stOssSecret').value : '',
+      };
+    } else if (stype === 'sftp') {
+      config = {
+        host: document.getElementById('stSftpHost') ? document.getElementById('stSftpHost').value : '',
+        port: parseInt(document.getElementById('stSftpPort') ? document.getElementById('stSftpPort').value : '22'),
+        username: document.getElementById('stSftpUser') ? document.getElementById('stSftpUser').value : '',
+        password: document.getElementById('stSftpPass') ? document.getElementById('stSftpPass').value : '',
+        remote_path: document.getElementById('stSftpPath') ? document.getElementById('stSftpPath').value : '/backups',
+      };
+    }
+
+    var payload = {
+      name: document.getElementById('storageName').value,
+      storage_type: stype,
+      config: config,
+    };
+
+    var isNew = !id;
+    var url = isNew ? '/admin/vault/api/storage/create' : '/admin/vault/api/storage/' + id;
+    var method = isNew ? 'POST' : 'PUT';
+
+    api(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function (data) {
+      if (data.success) {
+        toast(isNew ? 'Storage target created' : 'Storage target updated', 'success');
+        hideStorageForm();
+        loadStorageTargets();
+      } else {
+        toast('Save failed: ' + (data.error || 'unknown'), 'error');
+      }
+    }).catch(function (e) { toast('Save error: ' + e.message, 'error'); });
   }
 
   function testStorageConnection() {
-    toast('Storage management coming soon', 'info');
+    var id = document.getElementById('storageId').value;
+    if (!id) return;
+
+    api('/admin/vault/api/storage/' + id + '/test', { method: 'POST' })
+      .then(function (data) {
+        var el = document.getElementById('testResult');
+        if (!el) return;
+        if (data.ok) {
+          el.textContent = 'Connection OK';
+          el.className = 'form-test-result success';
+        } else {
+          el.textContent = 'Connection failed: ' + (data.error || 'unknown');
+          el.className = 'form-test-result error';
+        }
+      }).catch(function (e) { toast('Test error: ' + e.message, 'error'); });
   }
+
+  window.vaultTestStorage = function (id) {
+    api('/admin/vault/api/storage/' + id + '/test', { method: 'POST' })
+      .then(function (data) {
+        if (data.ok) {
+          toast('Connection OK', 'success');
+        } else {
+          toast('Connection failed: ' + (data.error || 'unknown'), 'error');
+        }
+        loadStorageTargets();
+      }).catch(function (e) { toast('Test error: ' + e.message, 'error'); });
+  };
+
+  window.vaultDeleteStorage = function (id) {
+    if (!confirm('Delete this storage target?')) return;
+    api('/admin/vault/api/storage/' + id, { method: 'DELETE' })
+      .then(function (data) {
+        if (data.success) { toast('Storage target deleted', 'success'); loadStorageTargets(); }
+        else { toast('Delete failed: ' + (data.error || 'unknown'), 'error'); }
+      }).catch(function (e) { toast('Delete error: ' + e.message, 'error'); });
+  };
 
   // ══════════════════════════════════════════════════════════════
   // AUDIT LOG
@@ -664,6 +787,8 @@
   window.vaultSetRestoreLabel = window.vaultSetRestoreLabel;
   window.vaultToggleSchedule = window.vaultToggleSchedule;
   window.vaultDeleteSchedule = window.vaultDeleteSchedule;
+  window.vaultTestStorage = window.vaultTestStorage;
+  window.vaultDeleteStorage = window.vaultDeleteStorage;
 
   // ══════════════════════════════════════════════════════════════
   // INIT — Route to page-specific init
