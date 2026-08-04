@@ -15,6 +15,10 @@ stdlib_dir = sysconfig.get_path('stdlib')
 if stdlib_dir in sys.path:
     sys.path.remove(stdlib_dir)
 sys.path.insert(0, stdlib_dir)
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from services.deployment_config import deploy
 from services.brand_service import get_brand_settings
 from services.notification_service import get_unread_count, mark_read

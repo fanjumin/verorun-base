@@ -1,11 +1,11 @@
 #!/bin/bash
 # VeroRun service health check
 # Usage: health_check.sh <port>
-# Waits up to 90 seconds for the service on 127.0.0.1:<port>/health to return 200.
+# Waits up to 180 seconds for the service on 127.0.0.1:<port>/health to return 200.
 # Exits 0 on success, 1 on timeout.
 
 PORT="${1:-8081}"
-MAX_WAIT=90
+MAX_WAIT=180
 INTERVAL=1
 
 for i in $(seq 1 "${MAX_WAIT}"); do

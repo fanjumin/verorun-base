@@ -11,6 +11,9 @@ import sys, os, re, secrets, time as _time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
 from werkzeug.middleware.proxy_fix import ProxyFix
 from models import init_db, init_shop_db, get_db
