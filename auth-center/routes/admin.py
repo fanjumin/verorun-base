@@ -20,8 +20,8 @@ _dashboard_svc = DashboardService()
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-# Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
-_dash_cache = {'data': None, 'ts': 0, 'ttl': 30}
+# Dashboard 内存缓存（请求合并，5s TTL 让 per-widget 缓存主导刷新策略）
+_dash_cache = {'data': None, 'ts': 0, 'ttl': 5}
 # 通用 GET 请求内存缓存（5 秒 TTL），消除重复点击同一模块的等待感
 _get_cache = {}
 
