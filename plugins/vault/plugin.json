@@ -9,7 +9,13 @@
     "icon": "vault",
     "tags": ["backup", "storage", "system", "encryption", "scheduler"],
     "dependencies": {
-        "python": ["croniter", "cryptography", "paramiko", "requests"]
+        "python": ["croniter", "cryptography", "paramiko", "requests"],
+        "python_optional": {
+            "boto3": "S3 storage adapter",
+            "oss2": "Alibaba Cloud OSS adapter",
+            "azure-storage-blob": "Azure Blob Storage adapter",
+            "google-cloud-storage": "Google Cloud Storage adapter"
+        }
     },
     "enabled": true,
     "config": {

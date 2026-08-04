@@ -94,12 +94,30 @@ class StorageRouter:
                 return OSSAdapter(config)
             except ImportError:
                 print('[Vault] OSS adapter not available (oss2 required)')
+        elif storage_type == 'azure':
+            try:
+                from .azure import AzureAdapter
+                return AzureAdapter(config)
+            except ImportError:
+                print('[Vault] Azure adapter not available (azure-storage-blob required)')
+        elif storage_type == 'gcs':
+            try:
+                from .gcs import GCSAdapter
+                return GCSAdapter(config)
+            except ImportError:
+                print('[Vault] GCS adapter not available (google-cloud-storage required)')
         elif storage_type == 'sftp':
             try:
                 from .sftp import SFTPAdapter
                 return SFTPAdapter(config)
             except ImportError:
                 print('[Vault] SFTP adapter not available (paramiko required)')
+        elif storage_type == 'webdav':
+            try:
+                from .webdav import WebDAVAdapter
+                return WebDAVAdapter(config)
+            except ImportError:
+                print('[Vault] WebDAV adapter not available (requests required)')
         elif storage_type == 'local':
             try:
                 from .local import LocalAdapter

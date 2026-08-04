@@ -594,6 +594,23 @@
         '<div class="form-group"><label>Password</label><input type="password" class="form-input" id="stSftpPass"></div>' +
         '</div>' +
         '<div class="form-group"><label>Remote Path</label><input type="text" class="form-input" id="stSftpPath" placeholder="/backups"></div>';
+    } else if (stype === 'azure') {
+      fields =
+        '<div class="form-group"><label>Connection String</label><input type="text" class="form-input" id="stAzureConnStr" placeholder="DefaultEndpointsProtocol=https;AccountName=..."></div>' +
+        '<div class="form-group"><label>Container Name</label><input type="text" class="form-input" id="stAzureContainer" placeholder="verorun-backups"></div>';
+    } else if (stype === 'gcs') {
+      fields =
+        '<div class="form-group"><label>Bucket Name</label><input type="text" class="form-input" id="stGcsBucket" placeholder="verorun-backups"></div>' +
+        '<div class="form-group"><label>Credentials Path (JSON)</label><input type="text" class="form-input" id="stGcsCreds" placeholder="/path/to/service-account.json"></div>' +
+        '<div class="form-group"><label>Project ID</label><input type="text" class="form-input" id="stGcsProject" placeholder="my-project"></div>';
+    } else if (stype === 'webdav') {
+      fields =
+        '<div class="form-group"><label>WebDAV URL</label><input type="text" class="form-input" id="stDavUrl" placeholder="https://nextcloud.example.com/remote.php/dav/files/user"></div>' +
+        '<div class="form-row">' +
+        '<div class="form-group"><label>Username</label><input type="text" class="form-input" id="stDavUser"></div>' +
+        '<div class="form-group"><label>Password</label><input type="password" class="form-input" id="stDavPass"></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Remote Path</label><input type="text" class="form-input" id="stDavPath" placeholder="/backups"></div>';
     }
     container.innerHTML = fields;
   }
@@ -628,6 +645,24 @@
         username: document.getElementById('stSftpUser') ? document.getElementById('stSftpUser').value : '',
         password: document.getElementById('stSftpPass') ? document.getElementById('stSftpPass').value : '',
         remote_path: document.getElementById('stSftpPath') ? document.getElementById('stSftpPath').value : '/backups',
+      };
+    } else if (stype === 'azure') {
+      config = {
+        connection_string: document.getElementById('stAzureConnStr') ? document.getElementById('stAzureConnStr').value : '',
+        container: document.getElementById('stAzureContainer') ? document.getElementById('stAzureContainer').value : 'verorun-backups',
+      };
+    } else if (stype === 'gcs') {
+      config = {
+        bucket: document.getElementById('stGcsBucket') ? document.getElementById('stGcsBucket').value : '',
+        credentials_path: document.getElementById('stGcsCreds') ? document.getElementById('stGcsCreds').value : '',
+        project: document.getElementById('stGcsProject') ? document.getElementById('stGcsProject').value : '',
+      };
+    } else if (stype === 'webdav') {
+      config = {
+        url: document.getElementById('stDavUrl') ? document.getElementById('stDavUrl').value : '',
+        username: document.getElementById('stDavUser') ? document.getElementById('stDavUser').value : '',
+        password: document.getElementById('stDavPass') ? document.getElementById('stDavPass').value : '',
+        remote_path: document.getElementById('stDavPath') ? document.getElementById('stDavPath').value : '/backups',
       };
     }
 
