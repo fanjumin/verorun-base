@@ -215,8 +215,11 @@ def migrate_alert_schema():
 
 DEFAULT_CHECKS = [
     # (check_key, name, category, description, config, severity, sort)
-    ('core_api',       'Core API Check',        'system',    'Health endpoint check for all subsites (Site/Platform/Admin)', '{"timeout":5,"endpoints":["/health"]}', 'warning', 10),
-    ('database',       'Database Connection',   'system',    'SQLite/PostgreSQL connection status',  '{"timeout":3}',                                    'critical', 20),
+    ('core_api',       'Core API Check',        'system',    'Health endpoint check for all subsites (Site/Platform/Admin/Health)', '{"timeout":5,"endpoints":["/health"]}', 'warning', 10),
+    # ── VeroGuard ──
+    ('veroguard',      'VeroGuard Guardian',    'system',    'VeroGuard daemon running status, self-protect, and heartbeat health',
+     '{"guardian_status_url":"http://127.0.0.1:8085/api/guardian/status","timeout":5}', 'critical', 15),
+    ('database',       'Database Connection',   'system',    'PostgreSQL connection status, table count, and schema size',  '{"timeout":3}',                                    'critical', 20),
     ('redis',          'Redis Cache',           'system',    'Redis cache service connection status', '{"timeout":3}',                                    'warning', 25),
     ('server_resources','Server Resources',     'system',    'CPU/Memory/Disk usage monitoring',     '{"cpu_threshold":90,"mem_threshold":85,"disk_threshold":85,"timeout":10}', 'warning', 30),
     ('external_apis',  'External Dependencies', 'external',  'Stock quotes/AI API/Payment dependencies', '{"timeout":10,"endpoints":["https://httpbin.org/get"]}', 'warning', 40),
@@ -233,6 +236,14 @@ DEFAULT_CHECKS = [
     ('discovery_endpoints', 'Endpoint Discovery',         'system',   'Discover Flask endpoints and detect route changes',               '{}', 'info', 6),
     ('discovery_tables',    'Database Table Discovery',   'database', 'Auto-discover database tables, row counts, and column changes',    '{}', 'info', 7),
     ('discovery_plugins',   'Plugin Discovery',           'system',   'Auto-discover plugins and their health check registration status', '{}', 'info', 8),
+    # ── Internal Link Check ──
+    ('internal_links',  'Internal Link Check',  'cms',  'Scan all internal links for broken, redirected, or problematic URLs',
+     '{"max_urls":50,"timeout":5,"check_redirects":true}', 'warning', 42),
+    # ── P1: AI & Plugin Store ──
+    ('ai_gateway',     'AI Gateway',            'system',    'AI budget gate status, token usage, and provider model availability',
+     '{"timeout":10}', 'warning', 32),
+    ('plugin_store',   'Plugin Store & License','external',  'Plugin store connectivity and license service availability',
+     '{"timeout":10}', 'warning', 45),
 ]
 
 

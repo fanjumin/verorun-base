@@ -1232,29 +1232,30 @@ def api_internal_run():
 @health_bp.route('/api/guardian-log')
 def api_guardian_log():
     """
-    Read Health Guardian log file.
-    Guardian 是一个独立看门狗进程，定时检查各服务端口健康状态，
-    并在累积失败达到阈值后执行阶梯恢复（restart → rollback）。
-    本端点仅读取其日志文件用于前端展示。
+    Read Health Guardian / VeroGuard log file.
+    优先读取 VeroGuard 日志，回退到旧版 health-guardian 日志。
     """
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
 
-    log_file = os.environ.get('GUARDIAN_LOG_FILE', '/var/log/health-guardian.log')
+    log_files = [
+        os.environ.get('VEROGUARD_LOG_FILE', '/var/log/verorun-guardian.log'),
+        os.environ.get('GUARDIAN_LOG_FILE', '/var/log/health-guardian.log'),
+    ]
     lines = min(request.args.get('lines', 50, type=int), 200)
 
-    if not os.path.exists(log_file):
-        return jsonify({'success': True, 'data': [], 'total': 0,
-                        'message': _t('Guardian log file not found')})
+    for log_file in log_files:
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, 'r') as f:
+                    content = f.read()
+                all_lines = content.splitlines()
+                total = len(all_lines)
+                tail = all_lines[-lines:] if total > lines else all_lines
+                return jsonify({'success': True, 'data': tail, 'total': total, 'source': log_file})
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 500
 
-    try:
-        with open(log_file, 'r') as f:
-            content = f.read()
-        all_lines = content.splitlines()
-        total = len(all_lines)
-        tail = all_lines[-lines:] if total > lines else all_lines
-
-        return jsonify({'success': True, 'data': tail, 'total': total})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+    return jsonify({'success': True, 'data': [], 'total': 0,
+                    'message': _t('No guardian log file found')})

@@ -47,7 +47,7 @@ SCHEDULES = [
         'description': _t('Quick health scan every 5 minutes: system-level checks only'),
         'frequency': 'interval',
         'interval_seconds': 300,
-        'checks': ['core_api', 'database', 'redis', 'server_resources'],
+        'checks': ['core_api', 'database', 'redis', 'server_resources', 'veroguard'],
         'trigger_info': 'cron:quick',
     },
     {
@@ -60,6 +60,8 @@ SCHEDULES = [
             'external_apis', 'workflow_engine', 'error_logs',
             'discovery_modules', 'discovery_endpoints',
             'discovery_tables', 'discovery_plugins',
+            'agent_matrix', 'content_factory', 'ssl_cert',
+            'internal_links', 'ai_gateway', 'plugin_store',
         ],
         'trigger_info': 'cron:standard',
     },

@@ -286,6 +286,7 @@ class CoreAPIHealthCheck(BaseHealthCheck):
             'Main Site': ('http://127.0.0.1:8081', 8081),
             deploy.server_name('platform'): ('http://127.0.0.1:8083', 8083),
             f'{deploy.server_name("agent")} (admin)': ('http://127.0.0.1:8084', 8084),
+            'Health Service': ('http://127.0.0.1:8085', 8085),
         }
         results = {}
         all_ok = True
@@ -1552,6 +1553,183 @@ class InternalLinkChecker(BaseHealthCheck):
                 conn.close()
             except Exception:
                 pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VeroGuard Guardian Check
+# ═══════════════════════════════════════════════════════════════════════════
+# Monitors the verorun-guardian systemd daemon via the Health Service
+# /api/guardian/status endpoint (port 8085). Returns critical if guardian
+# is not running, since it is the last line of defense for service recovery.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@register('veroguard')
+class VeroGuardHealthCheck(BaseHealthCheck):
+    check_key = 'veroguard'
+    name = 'VeroGuard Guardian'
+    category = 'system'
+    severity = 'critical'
+    description = 'VeroGuard daemon running status, self-protect, and heartbeat health'
+    sort_order = 15
+    config_defaults = {
+        'guardian_status_url': 'http://127.0.0.1:8085/api/guardian/status',
+        'timeout': 5,
+    }
+    config_schema = {
+        'type': 'object',
+        'properties': {
+            'guardian_status_url': {'type': 'string', 'description': 'Guardian status endpoint URL'},
+            'timeout': {'type': 'integer', 'default': 5, 'description': 'Timeout (seconds)'},
+        }
+    }
+
+    def check(self) -> CheckResult:
+        start = time.time()
+        url = self.config.get('guardian_status_url', 'http://127.0.0.1:8085/api/guardian/status')
+        code, elapsed, body = self._http_get(url, self.config.get('timeout', 5))
+
+        if code == 200:
+            try:
+                data = json.loads(body)
+                detail = data.get('data', {})
+                return CheckResult('passed', elapsed,
+                    'VeroGuard running', detail)
+            except json.JSONDecodeError:
+                return CheckResult('passed', elapsed, 'VeroGuard running (HTTP 200)')
+        elif code == 503:
+            return CheckResult('error', elapsed,
+                'VeroGuard not running or status file missing',
+                {'http_status': 503})
+        elif code == 0:
+            return CheckResult('error', elapsed,
+                'Health Service (8085) unreachable — cannot check VeroGuard',
+                {'error': 'connection_failed'})
+        else:
+            return CheckResult('warning', elapsed,
+                f'VeroGuard status unknown (HTTP {code})')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AI Gateway Check
+# ═══════════════════════════════════════════════════════════════════════════
+# Checks AI infrastructure health: budget gate status, token usage today,
+# and provider model configuration. Gracefully degrades if agent_matrix is
+# not installed (returns 'passed' with note).
+# ═══════════════════════════════════════════════════════════════════════════
+
+@register('ai_gateway')
+class AIGatewayHealthCheck(BaseHealthCheck):
+    check_key = 'ai_gateway'
+    name = 'AI Gateway'
+    category = 'system'
+    severity = 'warning'
+    description = 'AI budget gate status, token usage, and provider model availability'
+    sort_order = 32
+    config_defaults = {'timeout': 10}
+
+    def check(self) -> CheckResult:
+        start = time.time()
+        detail = {}
+        warnings = []
+
+        # 1. Check AI budget gate
+        try:
+            from agent_matrix.engine import check_ai_budget
+            allowed, reason = check_ai_budget(scene='health_check')
+            detail['budget_gate'] = {'allowed': allowed, 'reason': reason}
+            if not allowed:
+                warnings.append(f'AI budget gate blocked: {reason}')
+        except ImportError:
+            detail['budget_gate'] = 'agent_matrix not installed'
+        except Exception as e:
+            detail['budget_gate_error'] = str(e)
+
+        # 2. Check token usage today
+        try:
+            from models import get_db as main_db
+            with main_db() as conn:
+                today = datetime.now().strftime('%Y-%m-%d')
+                usage = conn.execute(
+                    "SELECT COALESCE(SUM(total_tokens), 0) as total "
+                    "FROM agent_token_daily WHERE stat_date=%s",
+                    (today,)
+                ).fetchone()
+                if usage:
+                    detail['tokens_today'] = usage['total']
+        except Exception:
+            pass
+
+        # 3. Check provider_models table has configured models
+        try:
+            from models import get_db as main_db
+            with main_db() as conn:
+                tables = [t['tablename'] for t in conn.execute(
+                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'"
+                ).fetchall()]
+                if 'provider_models' in tables:
+                    count = conn.execute(
+                        'SELECT COUNT(*) as c FROM provider_models WHERE is_active=1'
+                    ).fetchone()['c']
+                    detail['active_models'] = count
+                    if count == 0:
+                        warnings.append('No active AI provider models configured')
+        except Exception:
+            pass
+
+        elapsed = int((time.time() - start) * 1000)
+        if warnings:
+            return CheckResult('warning', elapsed, '; '.join(warnings), detail)
+        return CheckResult('passed', elapsed, 'AI Gateway operational', detail)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Plugin Store & License Check
+# ═══════════════════════════════════════════════════════════════════════════
+# Pings the plugin store and license service APIs. Uses plugin_manager.region
+# for region-aware API base URL resolution.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@register('plugin_store')
+class PluginStoreHealthCheck(BaseHealthCheck):
+    check_key = 'plugin_store'
+    name = 'Plugin Store & License'
+    category = 'external'
+    severity = 'warning'
+    description = 'Plugin store connectivity and license service availability'
+    sort_order = 45
+    config_defaults = {'timeout': 10}
+
+    def check(self) -> CheckResult:
+        start = time.time()
+        detail = {}
+        warnings = []
+        timeout = self.config.get('timeout', 10)
+
+        # Resolve API base URL (region-aware)
+        try:
+            from plugin_manager.region import get_api_base
+            api_base = get_api_base()
+        except (ImportError, Exception):
+            api_base = os.environ.get('VERORUN_API_URL', 'https://api.verorun.com/v1')
+
+        # 1. Plugin store ping
+        store_url = f'{api_base}/store/ping'
+        code1, elapsed1, _ = self._http_get(store_url, timeout)
+        detail['store'] = {'url': store_url, 'code': code1, 'ms': elapsed1}
+        if code1 != 200:
+            warnings.append(f'Plugin store unreachable (HTTP {code1})')
+
+        # 2. License service ping
+        license_url = f'{api_base}/license/ping'
+        code2, elapsed2, _ = self._http_get(license_url, timeout)
+        detail['license'] = {'url': license_url, 'code': code2, 'ms': elapsed2}
+        if code2 != 200:
+            warnings.append(f'License service unreachable (HTTP {code2})')
+
+        elapsed = int((time.time() - start) * 1000)
+        if warnings:
+            return CheckResult('warning', elapsed, '; '.join(warnings), detail)
+        return CheckResult('passed', elapsed, 'Plugin store & license service OK', detail)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
