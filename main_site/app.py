@@ -35,7 +35,7 @@ except ImportError:
     init_deployment_tables = None
     print('[Platform] ⚠️ deployment_api 未找到，跳过独立部署功能')
 
-from models import get_db, init_shop_db
+from models import get_db
 
 # 移除 auth-center sys.path
 _auth_center_norm = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
@@ -46,7 +46,6 @@ if _platform_dir not in sys.path:
 sys.modules.pop('routes', None)
 
 from routes.api_v1 import api_v1_bp
-from routes.shop_public import shop_public_bp
 from routes.mini_program import mini_program_bp
 
 from flask import (Flask, request, jsonify, render_template,
@@ -58,12 +57,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
-
-# 初始化商城独立数据库
-try:
-    init_shop_db()
-except Exception as e:
-    print(f'[Platform] init_shop_db warning: {e}')
 
 
 @app.context_processor
@@ -107,6 +100,7 @@ import jinja2
 app.jinja_loader = jinja2.ChoiceLoader([
     app.jinja_loader,
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..')),
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'shop', 'templates')),
 ])
 
 # ── PluginManager ──
@@ -123,7 +117,6 @@ register_auth(app, exclude_blueprints=['admin', 'cms_admin'])
 app.register_blueprint(sub_bp, name='platform_subscription')
 app.register_blueprint(api_v1_bp)
 app.register_blueprint(douyin_mp_bp)
-app.register_blueprint(shop_public_bp)
 app.register_blueprint(mini_program_bp)
 # 独立部署API — 仅主服务器模式注册
 if _HAS_DEPLOY_API:

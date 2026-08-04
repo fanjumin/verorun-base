@@ -132,6 +132,11 @@ def get_table_columns(conn, table: str) -> list[str]:
 
 
 def init_shop_db():
+    """
+    [DEPRECATED] Shop tables are now initialized by ShopPlugin (plugins/shop/).
+    This function is kept for backward compatibility with existing code that
+    imports it from auth-center/models. New code should use ShopPlugin.on_enable().
+    """
     """Create shop tables in shop schema."""
     with get_db() as conn:
         cur = conn.cursor()

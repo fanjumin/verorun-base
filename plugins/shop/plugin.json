@@ -1,0 +1,27 @@
+{
+    "name": "Shop",
+    "identifier": "shop",
+    "version": "1.0.0",
+    "category": "shop",
+    "tags": ["shop", "mall", "products", "orders", "ecommerce"],
+    "icon": "shop",
+    "description": "Shop/Mall — Product management, categories, orders, cart, checkout",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+    "dependencies": {},
+    "enabled": true,
+    "permissions": ["shop.manage"],
+    "hooks": {
+        "provides": ["shop/products", "shop/orders", "shop/categories"],
+        "listens": []
+    },
+    "menu": {
+        "group": "Business Center",
+        "items": [
+            {"key": "shop_categories", "icon": "shop_cat", "label": "Categories"},
+            {"key": "shop_products", "icon": "shop", "label": "Products"},
+            {"key": "shop_orders", "icon": "sub_orders", "label": "Shop Orders"},
+            {"key": "shop_purchases", "icon": "subscriptions", "label": "Purchases"}
+        ]
+    }
+}

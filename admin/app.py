@@ -16,7 +16,7 @@ load_dotenv()
 
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
 from werkzeug.middleware.proxy_fix import ProxyFix
-from models import init_db, init_shop_db, get_db
+from models import init_db, get_db
 from services.deployment_config import DeployConfig, deploy
 from routes.auth import auth_bp
 from routes.admin import admin_bp
@@ -28,12 +28,10 @@ from routes.footer_admin import footer_bp
 from routes.header_admin import header_bp
 from routes.comments import comments_bp
 from routes.theme_admin import theme_bp
-from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
 from models.cms import init_cms_tables
 from routes.douyin_miniprogram import douyin_mp_bp
-from routes.shop_admin import shop_bp
 from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
 from routes.deployment_api import deploy_bp, init_deployment_tables
@@ -109,6 +107,7 @@ app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'health_check', 'templates')),
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'analytics', 'templates')),
     jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'templates')),
+    jinja2.FileSystemLoader(os.path.join(os.path.dirname(__file__), '..', 'plugins', 'shop', 'templates', 'admin')),
 ])
 
 app.config['TEMPLATES_AUTO_RELOAD'] = False
@@ -118,11 +117,6 @@ import tempfile, os as _os
 _cache_dir = _os.path.join(tempfile.gettempdir(), 'jinja2_cache')
 _os.makedirs(_cache_dir, exist_ok=True)
 app.jinja_env.bytecode_cache = jinja2.FileSystemBytecodeCache(_cache_dir, '%s.cache')
-
-try:
-    init_shop_db()
-except Exception as e:
-    print(f'[DB] init_shop_db warning: {e}')
 
 try:
     init_db()
@@ -143,7 +137,6 @@ app.register_blueprint(header_bp)
 app.register_blueprint(comments_bp)
 app.register_blueprint(theme_bp)
 app.register_blueprint(douyin_mp_bp)  # Douyin Mini-Program API
-app.register_blueprint(shop_bp)        # 商城管理
 app.register_blueprint(sub_bp)
 app.register_blueprint(cleaner_bp)     # 数据清洗智能体
 app.register_blueprint(knowledge_bp)   # 知识库管理后台
@@ -245,6 +238,8 @@ except Exception as e:
 PLATFORM_STATIC = os.path.join(os.path.dirname(__file__), '..', 'platform', 'static')
 ADMIN_STATIC = os.path.join(os.path.dirname(__file__), 'static')
 ADS_STATIC = os.path.join(os.path.dirname(__file__), '..', 'plugins', 'ads', 'static')
+_SHOP_PRODUCTS_STATIC = os.path.join(os.path.dirname(__file__), '..', 'plugins', 'shop', 'static', 'products')
+os.makedirs(_SHOP_PRODUCTS_STATIC, exist_ok=True)
 BRAND_STATIC = os.path.join(os.path.dirname(__file__), '..', 'static', 'brand')
 
 # ══ 独立部署：订阅过期锁定（客户端模式，仅锁定后台管理页面） ══
@@ -852,14 +847,12 @@ def ads_static_files(filename):
     return send_from_directory(ADS_STATIC, filename)
 
 
-# 商品图片（上传到 platform/static/products/）
-_PIMG_DIR = os.path.join(PLATFORM_STATIC, 'products')
-os.makedirs(_PIMG_DIR, exist_ok=True)
+@app.route('/shop/static/products/<path:filename>')
+def shop_product_images(filename):
+    """商品图片 — 从插件静态目录提供"""
+    return send_from_directory(_SHOP_PRODUCTS_STATIC, filename)
 
 
-@app.route('/pimg/<path:filename>')
-def pimg(filename):
-    return send_from_directory(_PIMG_DIR, filename)
 
 
 # ══ 主题系统: Jinja2 模板覆盖 + theme.css 注入 ══
