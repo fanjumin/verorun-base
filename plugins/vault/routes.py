@@ -51,12 +51,19 @@ from functools import wraps
 from flask import Blueprint, jsonify, render_template, send_file, request, session, redirect
 
 vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault',
-                     template_folder='templates',
-                     static_folder='static',
-                     static_url_path='/admin/vault/static')
+                     template_folder='templates')
 
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
+
+
+# Static file routes (explicit, more reliable than Blueprint static_url_path)
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+
+@vault_bp.route('/static/<path:filename>')
+def vault_static(filename):
+    """Serve vault static files (CSS, JS)."""
+    return send_file(os.path.join(STATIC_DIR, filename))
 
 
 # ══════════════════════════════════════════════════════════════
