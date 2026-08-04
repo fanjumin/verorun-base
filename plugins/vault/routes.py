@@ -64,15 +64,25 @@ BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
 # ══════════════════════════════════════════════════════════════
 
 def _require_vault_auth(f):
-    """Decorator: require user login for API access. Redirects to login if not authenticated."""
+    """Decorator: require user login for API access.
+    
+    Authenticates via JWT sso_token (cookie or query param) — 
+    matching the admin app's auth mechanism.
+    """
     @wraps(f)
     def wrapped(*args, **kwargs):
-        user = session.get('user')
-        if not user:
-            # If accessed via iframe, redirect to login
+        token = request.args.get('token') or request.cookies.get('sso_token')
+        if not token:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
                request.content_type == 'application/json':
                 return jsonify({'success': False, 'error': 'Authentication required'}), 401
+            return redirect('/admin/login')
+        try:
+            from services.jwt_service import validate_token
+            payload = validate_token(token)
+            if not payload or not payload.get('is_admin'):
+                raise ValueError('Invalid admin token')
+        except Exception:
             return redirect('/admin/login')
         return f(*args, **kwargs)
     return wrapped
