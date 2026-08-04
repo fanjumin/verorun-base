@@ -121,19 +121,9 @@ function goPlugin(key,embedUrl){
   // iframe 加载：通过 postMessage 传递 Token，避免 URL 参数泄露
   var ifr=document.createElement('iframe');
   ifr.style.cssText='width:100%;height:calc(100vh - 70px);border:none;background:#050508';
-  ifr.src=embedUrl;
+  ifr.src=embedUrl + (embedUrl.indexOf('?')>=0?'&':'?') + 'token=' + encodeURIComponent(T||'');
   document.getElementById("mc").innerHTML='';
   document.getElementById("mc").appendChild(ifr);
-  // Token via postMessage (handle both absolute and relative URLs)
-  ifr.addEventListener('load', function() {
-    var targetOrigin;
-    try {
-      targetOrigin = new URL(embedUrl).origin;
-    } catch(e) {
-      targetOrigin = window.location.origin;
-    }
-    ifr.contentWindow.postMessage({type:'sso_token',token:T||''}, targetOrigin);
-  });
 }
 
 // ── Plugin Bridges: 插件内联渲染函数 ──
