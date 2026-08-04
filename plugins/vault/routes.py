@@ -633,6 +633,105 @@ def api_test_storage(target_id):
 
 
 # ══════════════════════════════════════════════════════════════
+# Compliance API
+# ══════════════════════════════════════════════════════════════
+
+@vault_bp.route('/api/compliance/report', methods=['GET'])
+@_require_vault_auth
+def api_compliance_report():
+    """Generate compliance report."""
+    try:
+        from .services.compliance import ComplianceReporter
+        report = ComplianceReporter.generate_report()
+        return jsonify({'success': True, 'report': report})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# Rotation & Tiering API
+# ══════════════════════════════════════════════════════════════
+
+@vault_bp.route('/api/storage/rotate', methods=['POST'])
+@_require_vault_auth
+def api_rotate_upload():
+    """Trigger 3-2-1 rotation upload for latest backup."""
+    try:
+        import os as _os, glob as _glob
+        base_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', '..')
+        backup_dir = _os.path.join(base_dir, 'data', 'vault')
+        archives = sorted(_glob.glob(_os.path.join(backup_dir, 'vault_*.tar.gz')),
+                          key=_os.path.getmtime, reverse=True)
+        if not archives:
+            return jsonify({'success': False, 'error': 'No backups to rotate'}), 400
+
+        from .services.storage.base import StorageRouter
+        router = StorageRouter()
+        latest = archives[0]
+        obj_name = _os.path.basename(latest)
+        result = router.rotate_upload(latest, obj_name)
+        return jsonify({'success': True, 'rotation': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/storage/tier/report', methods=['GET'])
+@_require_vault_auth
+def api_tier_report():
+    """Get storage tier distribution report."""
+    try:
+        from .services.storage.base import StorageRouter
+        router = StorageRouter()
+        return jsonify({'success': True, 'tiers': router.tier_report()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# Signature & Verification API
+# ══════════════════════════════════════════════════════════════
+
+@vault_bp.route('/api/backup/sign/<label>', methods=['POST'])
+@_require_vault_auth
+def api_sign_backup(label):
+    """Sign a backup with HMAC-SHA256 for tamper-proofing."""
+    try:
+        secret = os.environ.get('VAULT_SIGNING_KEY', '')
+        if not secret:
+            return jsonify({'success': False, 'error': 'VAULT_SIGNING_KEY not set'}), 400
+
+        filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+        if not os.path.isfile(filepath):
+            return jsonify({'success': False, 'error': 'Backup not found'}), 404
+
+        from .services.validator import VaultValidator
+        sig_path = VaultValidator.sign_file(filepath, secret)
+        return jsonify({'success': True, 'signature': os.path.basename(sig_path)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@vault_bp.route('/api/backup/verify/<label>', methods=['GET'])
+@_require_vault_auth
+def api_verify_backup(label):
+    """Verify a backup's integrity and signature."""
+    try:
+        secret = os.environ.get('VAULT_SIGNING_KEY', '')
+        if not secret:
+            return jsonify({'success': False, 'error': 'VAULT_SIGNING_KEY not set'}), 400
+
+        filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+        if not os.path.isfile(filepath):
+            return jsonify({'success': False, 'error': 'Backup not found'}), 404
+
+        from .services.validator import VaultValidator
+        result = VaultValidator.verify_file(filepath, secret)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
 # Restore API
 # ══════════════════════════════════════════════════════════════
 
@@ -666,10 +765,12 @@ def api_restore():
 
         scope = data.get('scope', {})
         target_db = data.get('target_db')
+        target_host = data.get('target_host')
 
         from .services.restore_engine import RestoreEngine
         engine = RestoreEngine()
-        result = engine.restore(label, scope=scope or None, target_db=target_db)
+        result = engine.restore(label, scope=scope or None, target_db=target_db,
+                                target_host=target_host)
 
         # Audit log
         try:

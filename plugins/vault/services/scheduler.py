@@ -114,16 +114,30 @@ class VaultScheduler:
         due = self.get_due_schedules()
         results = []
         for sched in due:
-            try:
-                result = self.execute_schedule(sched)
-                results.append(result)
-            except Exception as e:
-                results.append({
-                    'schedule_id': sched['id'],
-                    'success': False,
-                    'error': str(e),
-                })
-                # Update next_run_at with 5-minute backoff to prevent retry storm
+            max_retries = sched.get('max_retries', 3)
+            retry_delay = sched.get('retry_delay', 60)
+            result = None
+            for attempt in range(max_retries):
+                try:
+                    result = self.execute_schedule(sched)
+                    results.append(result)
+                    if result['success']:
+                        break
+                except Exception as e:
+                    result = {
+                        'schedule_id': sched['id'],
+                        'success': False,
+                        'error': str(e),
+                    }
+                    if attempt < max_retries - 1:
+                        print(f'[Vault] Schedule {sched["id"]} attempt {attempt+1} failed, retrying in {retry_delay}s...')
+                        __import__('time').sleep(retry_delay)
+                if not result['success'] and attempt == max_retries - 1:
+                    results.append(result)
+                elif not result['success']:
+                    continue
+            # If all retries failed, apply backoff
+            if result and not result['success']:
                 try:
                     self._update_schedule_status_with_backoff(sched['id'], minutes=5)
                 except Exception:

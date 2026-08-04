@@ -21,7 +21,8 @@ class RestoreEngine:
     """Backup restore engine."""
 
     def restore(self, backup_label: str, scope: Dict = None,
-                target_db: str = None, dry_run: bool = False) -> Dict:
+                target_db: str = None, target_host: str = None,
+                dry_run: bool = False) -> Dict:
         """
         Execute a restore operation.
 
@@ -29,6 +30,7 @@ class RestoreEngine:
             backup_label: backup label to restore from
             scope: selective restore scope {'tables': ['users'], 'files': ['plugins/vault'], 'plugins': ['vault']}
             target_db: target database name (defaults to .env PG_DB)
+            target_host: target PostgreSQL host for cross-environment restore
             dry_run: preview mode, do not actually execute
 
         Returns:
@@ -49,7 +51,7 @@ class RestoreEngine:
             # 1. Database restore
             if not scope or scope.get('restore_db', True):
                 db_result = self._restore_database(content_dir, backup_label,
-                                                   scope, target_db, dry_run)
+                                                   scope, target_db, target_host, dry_run)
                 steps.append(db_result)
 
             # 2. File restore
@@ -71,7 +73,8 @@ class RestoreEngine:
             shutil.rmtree(work_dir, ignore_errors=True)
 
     def _restore_database(self, content_dir: str, label: str,
-                          scope: Dict, target_db: str, dry_run: bool) -> Dict:
+                          scope: Dict, target_db: str, target_host: str,
+                          dry_run: bool) -> Dict:
         """Restore database from SQL dump."""
         sql_file = None
         for f in os.listdir(content_dir):
@@ -93,8 +96,9 @@ class RestoreEngine:
         try:
             env_override = os.environ.copy()
             env_override['PGPASSWORD'] = env.get('PG_PASSWORD', '')
+            pg_host = target_host or env.get('PG_HOST', 'localhost')
             cmd = [
-                'psql', '-h', env.get('PG_HOST', 'localhost'),
+                'psql', '-h', pg_host,
                 '-p', env.get('PG_PORT', '5432'),
                 '-U', env.get('PG_USER', 'verorun'),
                 '-d', target_db, '-f', sql_file,

@@ -25,7 +25,21 @@ class BackupEngine:
 
     def __init__(self, backup_root: str = None):
         self.backup_root = backup_root or BACKUP_DIR
+        self.bandwidth_limit_bytes = None  # bytes/sec, None = unlimited
         os.makedirs(self.backup_root, exist_ok=True)
+
+    def set_bandwidth_limit(self, limit_kb: int = None):
+        """Set upload/download bandwidth limit in KB/s. None = unlimited."""
+        self.bandwidth_limit_bytes = limit_kb * 1024 if limit_kb else None
+
+    def _apply_bandwidth(self, file_path: str, operation_start: float, size: int):
+        """Throttle to respect bandwidth limit after file operation."""
+        if not self.bandwidth_limit_bytes:
+            return
+        elapsed = time.time() - operation_start
+        expected = size / self.bandwidth_limit_bytes
+        if expected > elapsed:
+            time.sleep(expected - elapsed)
 
     def create_backup(self, backup_type: str = 'full',
                       base_label: str = None,

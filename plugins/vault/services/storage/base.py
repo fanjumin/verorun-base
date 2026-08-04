@@ -279,3 +279,107 @@ class StorageRouter:
         except Exception:
             pass
         return result
+
+    # ── Rotation: 3-2-1 Strategy ──
+
+    def rotate_upload(self, file_path: str, object_name: str) -> dict:
+        """
+        Upload to targets following 3-2-1 rotation:
+        - Primary: first enabled target (usually local)
+        - Secondary: next enabled target (different media, e.g. S3)
+        - Offsite: last enabled target (e.g. SFTP to remote server)
+        """
+        results = {'primary': None, 'secondary': None, 'offsite': None}
+        enabled_ids = sorted(self._adapters.keys())
+        if not enabled_ids:
+            return results
+
+        stages = [('primary', enabled_ids[0]), ('secondary', enabled_ids[1] if len(enabled_ids) > 1 else None),
+                  ('offsite', enabled_ids[2] if len(enabled_ids) > 2 else None)]
+        for stage, tid in stages:
+            if tid is None:
+                continue
+            adapter = self._adapters[tid]
+            try:
+                ok = adapter.upload(file_path, object_name)
+                results[stage] = {'target_id': tid, 'target_name': adapter.name, 'uploaded': ok}
+            except Exception as e:
+                results[stage] = {'target_id': tid, 'target_name': adapter.name, 'uploaded': False, 'error': str(e)}
+        return results
+
+    # ── Storage Tiering ──
+
+    def tier_cleanup(self, hot_days: int = 7, warm_days: int = 30):
+        """
+        Apply storage tiering:
+        - hot (0-7 days): keep on all targets
+        - warm (7-30 days): keep on 1 primary target only
+        - cold (>30 days): delete from all but archive target
+        """
+        import os as _os
+        import glob as _glob
+        from datetime import datetime
+
+        from plugins._base.db import get_raw_connection
+        base_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                  '..', '..', '..')
+        backup_dir = _os.path.join(base_dir, 'data', 'vault')
+        archives = sorted(
+            _glob.glob(_os.path.join(backup_dir, 'vault_*.tar.gz')),
+            key=_os.path.getmtime,
+        )
+        now = datetime.utcnow().timestamp()
+        removed = 0
+
+        # Find archive-tier target (optional)
+        conn = get_raw_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, config FROM vault_storage_targets
+            WHERE enabled = TRUE AND config::text LIKE '%"tier":"archive"%'
+            LIMIT 1
+        """)
+        archive_row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        for archive in archives:
+            age_days = (now - _os.path.getmtime(archive)) / 86400
+            if age_days > warm_days:
+                # Cold tier: delete locally, keep only on archive target
+                # Note: actual remote deletion handled separately
+                if archive_row:
+                    continue  # keep if archive target exists
+                _os.remove(archive)
+                removed += 1
+
+        return {'removed': removed, 'tier_applied': True}
+
+    def tier_report(self) -> dict:
+        """Report on storage tier distribution (hot/warm/cold counts)."""
+        import os as _os
+        import glob as _glob
+        from datetime import datetime
+
+        base_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                  '..', '..', '..')
+        backup_dir = _os.path.join(base_dir, 'data', 'vault')
+        now = datetime.utcnow().timestamp()
+        hot = warm = cold = 0
+        total_size = 0
+
+        for f in _glob.glob(_os.path.join(backup_dir, 'vault_*.tar.gz')):
+            age = (now - _os.path.getmtime(f)) / 86400
+            sz = _os.path.getsize(f)
+            total_size += sz
+            if age <= 7:
+                hot += 1
+            elif age <= 30:
+                warm += 1
+            else:
+                cold += 1
+
+        return {
+            'hot': hot, 'warm': warm, 'cold': cold,
+            'total_size_mb': round(total_size / (1024 * 1024), 1),
+        }
