@@ -3,7 +3,7 @@
 Shop Plugin — Database initialization
 ======================================
 All 11 shop tables in the `shop` PostgreSQL schema.
-Extracted from auth-center/models/database.py for plugin decoupling.
+Exact copy of auth-center/models/database.py init_shop_db().
 """
 import os
 import sys
@@ -43,102 +43,126 @@ def init_shop_db():
             )
         """)
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_shop_products_active ON shop.products(is_active)"
+            "CREATE INDEX IF NOT EXISTS idx_products_type ON shop.products(product_type)"
         )
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_shop_products_category ON shop.products(category_id)"
+            "CREATE INDEX IF NOT EXISTS idx_products_active ON shop.products(is_active)"
         )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shop.categories (
                 id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name        TEXT NOT NULL,
-                slug        TEXT NOT NULL,
+                slug        TEXT UNIQUE,
                 parent_id   BIGINT DEFAULT 0,
+                level       BIGINT DEFAULT 0,
+                icon        TEXT DEFAULT '',
                 sort_order  BIGINT DEFAULT 0,
                 is_active   BIGINT DEFAULT 1,
-                created_at  TIMESTAMP DEFAULT NOW()
-            )
-        """)
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS shop.carts (
-                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                user_id     BIGINT NOT NULL,
-                product_id  BIGINT NOT NULL,
-                sku_code    TEXT DEFAULT '',
-                quantity    BIGINT NOT NULL DEFAULT 1,
                 created_at  TIMESTAMP DEFAULT NOW(),
                 updated_at  TIMESTAMP DEFAULT NOW()
             )
         """)
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_cart_user ON shop.carts(user_id)"
+            "CREATE INDEX IF NOT EXISTS idx_cat_parent ON shop.categories(parent_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cat_level ON shop.categories(level)"
+        )
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop.carts (
+                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id         BIGINT NOT NULL,
+                product_id      BIGINT NOT NULL,
+                sku_id          BIGINT DEFAULT 0,
+                quantity        BIGINT DEFAULT 1,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, product_id)
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_carts_user ON shop.carts(user_id)"
         )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shop.user_purchases (
                 id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 user_id         BIGINT NOT NULL,
-                order_no        TEXT NOT NULL UNIQUE,
-                status          TEXT NOT NULL DEFAULT 'pending',
-                payment_method  TEXT DEFAULT '',
-                total_amount    DOUBLE PRECISION NOT NULL DEFAULT 0,
-                discount_amount DOUBLE PRECISION DEFAULT 0,
-                shipping_fee    DOUBLE PRECISION DEFAULT 0,
-                shipping_info   TEXT DEFAULT '{}',
-                note            TEXT DEFAULT '',
-                created_at      TIMESTAMP DEFAULT NOW(),
-                updated_at      TIMESTAMP DEFAULT NOW(),
-                paid_at         TIMESTAMP,
-                shipped_at      TIMESTAMP,
-                confirmed_at    TIMESTAMP
+                product_id      BIGINT NOT NULL,
+                order_id        TEXT DEFAULT '',
+                purchase_type   TEXT NOT NULL DEFAULT 'once',
+                expire_at       TIMESTAMP,
+                status          TEXT DEFAULT 'active',
+                created_at      TIMESTAMP DEFAULT NOW()
             )
         """)
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_purchase_user ON shop.user_purchases(user_id)"
+            "CREATE INDEX IF NOT EXISTS idx_up_user ON shop.user_purchases(user_id)"
         )
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_purchase_status ON shop.user_purchases(status)"
+            "CREATE INDEX IF NOT EXISTS idx_up_status ON shop.user_purchases(status)"
         )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shop.order_items (
                 id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                purchase_id     BIGINT NOT NULL,
+                order_id        TEXT NOT NULL,
+                user_id         BIGINT NOT NULL,
                 product_id      BIGINT NOT NULL,
-                product_title   TEXT DEFAULT '',
-                sku_code        TEXT DEFAULT '',
-                spec_path       TEXT DEFAULT '{}',
-                price           DOUBLE PRECISION NOT NULL DEFAULT 0,
-                quantity        BIGINT NOT NULL DEFAULT 1,
-                created_at      TIMESTAMP DEFAULT NOW()
+                product_title   TEXT NOT NULL DEFAULT '',
+                quantity        BIGINT DEFAULT 1,
+                unit_price      DOUBLE PRECISION NOT NULL DEFAULT 0,
+                subtotal        DOUBLE PRECISION NOT NULL DEFAULT 0,
+                coupon_id       BIGINT DEFAULT NULL,
+                discount        DOUBLE PRECISION DEFAULT 0,
+                status          TEXT DEFAULT 'pending',
+                created_at      TIMESTAMP DEFAULT NOW(),
+                paid_at         TIMESTAMP,
+                idempotency_key TEXT DEFAULT '',
+                payment_method  TEXT DEFAULT '',
+                payment_trade_no TEXT DEFAULT '',
+                tracking_company TEXT DEFAULT '',
+                tracking_number  TEXT DEFAULT '',
+                shipping_status  TEXT DEFAULT '',
+                shipped_at       TIMESTAMP,
+                completed_at     TIMESTAMP,
+                refund_reason    TEXT DEFAULT '',
+                refund_requested_at TIMESTAMP,
+                refunded_at      TIMESTAMP,
+                user_deleted     BIGINT DEFAULT 0
             )
         """)
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_oi_purchase ON shop.order_items(purchase_id)"
+            "CREATE INDEX IF NOT EXISTS idx_oi_order ON shop.order_items(order_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_oi_user ON shop.order_items(user_id)"
+        )
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_oi_idempotency ON shop.order_items(idempotency_key) WHERE idempotency_key != ''"
         )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shop.order_shipping (
                 id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                purchase_id     BIGINT NOT NULL,
-                carrier         TEXT DEFAULT '',
-                tracking_no     TEXT DEFAULT '',
-                status          TEXT DEFAULT 'pending',
-                created_at      TIMESTAMP DEFAULT NOW(),
-                updated_at      TIMESTAMP DEFAULT NOW()
+                order_item_id   BIGINT NOT NULL,
+                tracking_company TEXT DEFAULT '',
+                tracking_number  TEXT DEFAULT '',
+                shipping_status  TEXT DEFAULT '',
+                shipped_at       TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT NOW()
             )
         """)
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_os_purchase ON shop.order_shipping(purchase_id)"
+            "CREATE INDEX IF NOT EXISTS idx_os_orderitem ON shop.order_shipping(order_item_id)"
         )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shop.product_specs (
                 id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 product_id  BIGINT NOT NULL,
-                name        TEXT NOT NULL,
+                spec_name   TEXT NOT NULL,
                 sort_order  BIGINT DEFAULT 0,
                 created_at  TIMESTAMP DEFAULT NOW()
             )
@@ -151,7 +175,7 @@ def init_shop_db():
             CREATE TABLE IF NOT EXISTS shop.product_spec_values (
                 id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 spec_id     BIGINT NOT NULL,
-                value       TEXT NOT NULL,
+                spec_value  TEXT NOT NULL,
                 sort_order  BIGINT DEFAULT 0,
                 created_at  TIMESTAMP DEFAULT NOW()
             )
