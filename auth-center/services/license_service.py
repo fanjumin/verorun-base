@@ -161,7 +161,7 @@ class LicenseService:
                 'days_remaining': 0,
                 'status': 'unknown',
                 'cached_at': datetime.fromtimestamp(cached_at).isoformat() if cached_at else '',
-                'message': '未配置部署码，请联系管理员',
+                'message': _('未配置部署码，请联系管理员'),
                 'needs_refresh': False,
             }
 

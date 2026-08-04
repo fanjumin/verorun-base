@@ -2,6 +2,9 @@
 """Token Service — 设计令牌业务逻辑"""
 
 import json, copy
+
+from i18n import _
+
 from site_builder.site_settings.models import DEFAULT_TOKENS, get_tokens, save_tokens
 
 
@@ -54,53 +57,53 @@ def get_token_schema():
     """返回令牌的 JSON Schema 描述（供 LLM 使用）"""
     return {
         "brand": {
-            "site_name": "品牌/网站名称",
-            "slogan": "品牌口号（10字以内）",
-            "industry": "行业分类",
-            "brand_story": "品牌故事（200字）",
-            "logo_url": "Logo 图片 URL",
-            "favicon_url": "Favicon URL",
-            "company_name": "公司全称",
-            "contact_email": "联系邮箱",
+            "site_name": _("品牌/网站名称"),
+            "slogan": _("品牌口号（10字以内）"),
+            "industry": _("行业分类"),
+            "brand_story": _("品牌故事（200字）"),
+            "logo_url": _("Logo 图片 URL"),
+            "favicon_url": _("Favicon URL"),
+            "company_name": _("公司全称"),
+            "contact_email": _("联系邮箱"),
         },
         "colors": {
-            "primary": "主色调（hex）",
-            "secondary": "辅色调（hex）",
-            "accent": "强调色（hex）",
-            "background": "背景色（hex）",
-            "surface": "卡片/面板背景色（hex）",
-            "text_primary": "主文字色（hex）",
-            "text_secondary": "次要文字色（hex）",
-            "border": "边框色（hex）",
+            "primary": _("主色调（hex）"),
+            "secondary": _("辅色调（hex）"),
+            "accent": _("强调色（hex）"),
+            "background": _("背景色（hex）"),
+            "surface": _("卡片/面板背景色（hex）"),
+            "text_primary": _("主文字色（hex）"),
+            "text_secondary": _("次要文字色（hex）"),
+            "border": _("边框色（hex）"),
         },
         "typography": {
-            "heading_font": "标题字体（CSS font-family）",
-            "body_font": "正文字体（CSS font-family）",
-            "font_scale": "字体缩放比例（0.8~1.5）",
-            "h1_size": "H1 字号",
-            "h2_size": "H2 字号",
-            "body_size": "正文 字号",
-            "line_height": "行高",
+            "heading_font": _("标题字体（CSS font-family）"),
+            "body_font": _("正文字体（CSS font-family）"),
+            "font_scale": _("字体缩放比例（0.8~1.5）"),
+            "h1_size": _("H1 字号"),
+            "h2_size": _("H2 字号"),
+            "body_size": _("正文 字号"),
+            "line_height": _("行高"),
         },
         "navigation": {
             "items": [
                 {
-                    "title": "导航名称",
-                    "url": "链接地址",
-                    "icon": "图标（可选）",
-                    "target": "_self 或 _blank",
-                    "children": [{"title": "子菜单名", "url": "子链接"}],
+                    "title": _("导航名称"),
+                    "url": _("链接地址"),
+                    "icon": _("图标（可选）"),
+                    "target": _("_self 或 _blank"),
+                    "children": [{"title": _("子菜单名"), "url": _("子链接")}],
                 }
             ],
         },
         "footer": {
-            "sections": [{"name": "分组名称", "links": [{"title": "链接名", "url": "链接"}]}],
-            "articles": [{"title": "文档标题", "url": "文档链接"}],
-            "copyright": "版权信息",
-            "icp_number": "ICP 备案号",
+            "sections": [{"name": _("分组名称"), "links": [{"title": _("链接名"), "url": _("链接")}]}],
+            "articles": [{"title": _("文档标题"), "url": _("文档链接")}],
+            "copyright": _("版权信息"),
+            "icp_number": _("ICP 备案号"),
         },
-        "spacing": {"xs": "4px", "sm": "8px", "md": "16px", "lg": "32px", "xl": "64px"},
-        "border_radius": {"sm": "4px", "md": "8px", "lg": "12px", "full": "9999px"},
-        "shadows": {"sm": "小阴影", "md": "中阴影", "lg": "大阴影"},
-        "seo": {"title": "SEO 标题", "description": "SEO 描述"},
+        "spacing": {"xs": _("4px"), "sm": _("8px"), "md": _("16px"), "lg": _("32px"), "xl": _("64px")},
+        "border_radius": {"sm": _("4px"), "md": _("8px"), "lg": _("12px"), "full": _("9999px")},
+        "shadows": {"sm": _("小阴影"), "md": _("中阴影"), "lg": _("大阴影")},
+        "seo": {"title": _("SEO 标题"), "description": _("SEO 描述")},
     }

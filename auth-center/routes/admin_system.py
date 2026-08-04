@@ -125,7 +125,7 @@ def agent_matrix_test(aid):
     data = request.get_json(force=True) or {}
     query = data.get('query', chr(39)+chr(39))
     if not query:
-        return jsonify({'success': False, 'error': '请先输入测试消息（不能为空）'}), 400
+        return jsonify({'success': False, 'error': _('请先输入测试消息（不能为空）')}), 400
     with get_db() as conn:
         row = conn.execute('SELECT * FROM agents WHERE id=%s', (aid,)).fetchone()
     if not row:
