@@ -1,5 +1,169 @@
 # 修改记录
 
+## v0.48.0 — 2026-08-05
+
+### Changes
+
+- Version bump from v0.47.2
+- feat(analytics): 世界地图点击缩放（GeoJSON 国家质心计算 + 返回按钮），移除 World/China 切换统一世界地图，/static/ 免登录（world.json 可在 iframe 加载），版本升级 1.3.0
+- feat(vault): 升级 2.1.1 — seed 默认 administrator、插件标准引用 v1.3
+- feat(plugins): 商店版本发现 — check_updates 对比逻辑 + has_update 徽标
+- docs: 双仓库（verorun-code 私有 / verorun-base 公开）双分发模式文档化 — README、deploy/README、GUIDE 统一仓库路径、安装方式与版本号；供应商数量更新为 9（新增 KIMI）
+- chore: 删除失效的 scripts/dev_start.py（引用不存在的 site/platform/captcha-service 入口）
+
+## v0.47.2 — 2026-08-05
+
+### Changes
+
+- fix(analytics): GeoLite2 绝对数据路径修复 + CDN 下载后 init_geoip
+- feat(analytics): GeoLite2 CDN 镜像下载（jsDelivr，免费免 MaxMind 账号）+ 新 API URL + Basic Auth + 手动 .mmdb 上传；地图标题精简；版本升级 1.4.0；iframe 内复用 admin toast
+- fix(vault): 插件表隔离到独立 vault schema（插件标准 v1.2）、幂等迁移、全宽 dashboard、restore/drill 长超时 Nginx location
+- feat(admin): Dashboard 收入数据合并（subscription/order 表）+ Revenue Trend 卡片可点击
+- fix: agent_token_daily ON CONFLICT upsert 列名歧义修复
+- refactor: design-system.css 拆分为插件专用 variables + 主站 landing.css，消除 10 处 CSS 类冲突；.glass-card::before pointer-events 修复
+- ci: verorun-base 同步时更新源指向自身仓库
+
+## v0.47.0 — 2026-08-05
+
+### Changes
+
+- feat(vault): 备份插件 2.1 — S3/OSS/Azure Blob/GCS/WebDAV 存储适配器、Schedule/Storage CRUD API、恢复执行 + PITR 演练、ECharts 趋势、智能告警、带宽限制/重试/轮转/分层存储、跨环境恢复、合规报告、HMAC 签名、5 个专属页面模板
+- feat: Shop 商城模块从核心解耦为独立插件
+- feat(admin): Dashboard 重构 — 3 层响应式栅格（KPI/运营/参考）、大屏模式、DashboardService 组件级缓存、一键导航、骨架屏、widget 独立刷新；修复订阅 No Data、token spend 查询、插件优雅降级
+- fix(admin): 插件菜单点击无响应（3 个根因）；插件 iframe 通过 query param 传递 JWT token
+- feat(i18n): 80+ 硬编码中文字符串包装进 16 个插件
+- fix(deploy): admin/main_site 入口 load_dotenv()；健康检查超时 180s + systemd TimeoutStartSec=300
+- fix(analytics): 下载进度条、China/World 地图切换、toast 可见性、代码审查修复（P0-P3）、401 下载修复
+- refactor: 7 个插件内联 CSS :root 统一到 design-system.css（含兼容别名）；新增插件中英文 README
+- chore(ali_api): 升级 2.0.1，移除旧 zh-CN README
+
+## v0.46.2 — 2026-08-04
+
+### Changes
+
+- feat(vault): 备份插件 2.0.0 — 数据备份/上传/恢复引擎
+- feat(health): 1.4.0 — 新增 3 个检查器（veroguard / ai_gateway / plugin_store），移除 8090 引用
+- feat: .gitattributes 控制 verorun-base 导出范围（双仓库分发）
+- feat(deploy): install.sh SSH key 认证 + verorun-code 部署指南
+- feat(plugins): 插件发布管道 + 商店目录（GitHub Raw）
+- fix(analytics): Settings 保存、IP 市场检测、下载修复、自定义弹窗
+
+## v0.46.1 — 2026-08-03
+
+### Changes
+
+- fix(ci): release 上传 contents:write 权限、patchelf 安装、Nuitka 直接调用、完整性 manifest 生成、cryptography 依赖
+
+## v0.46.0 — 2026-08-03
+
+### Changes
+
+- feat: CI 工作流（build-binaries / bump-version / sync-to-base）+ verorun-base 初始化文件 + VeroRun Base EULA v1.0
+- feat(analytics): 1.2.0 — GeoIP 自动下载、双 GeoIP 配置指南（ip2region 免费 + MaxMind Basic Auth）、市场检测重构、动态地图标题
+- fix(install.sh): pip 超时 120s / PyPI 镜像、printf 替换 heredoc（CRLF 管道兼容）、服务就绪轮询 60s
+
+## v0.45.1 — 2026-08-02
+
+### Changes
+
+- fix(admin): 更新状态文件移到 /run/verorun/（systemd RuntimeDirectory）— 修复 Update Now 按钮 root 权限 500 错误
+
+## v0.45.0 — 2026-08-02
+
+### Changes
+
+- feat: 双区域 API 路由（cn/global）+ 插件商店下载管道
+
+## v0.44.3 — 2026-08-02
+
+### Changes
+
+- fix(admin): 插件与 i18n 菜单默认折叠；health __main__ 语法错误修复
+
+## v0.44.2 — 2026-08-02
+
+### Changes
+
+- fix(admin): check-update 对比 commit hash 而非仅 tag
+- fix(install.sh): 从脚本位置自动检测 APP_HOME
+- fix: seed_default_agents 处理 UNIQUE(name, role_type) 冲突
+
+## v0.44.0 — 2026-08-02
+
+### Changes
+
+- feat: 邮件注册为默认注册方式 — /auth/email/register、login-methods 邮件注册方法、register.html 动态 Email/Phone 切换
+- feat(i18n): 登录/注册翻译补齐 + 移除硬编码 ICP
+- fix: 根目录 login.js 与 main_site 同步（登录页崩溃根因）、/register 路由
+
+## v0.43.6 — 2026-08-02
+
+### Changes
+
+- fix(install.sh): sudo exec 恢复 APP_USER/APP_HOME/VENV_DIR 环境变量（自更新后路径错误）
+- fix: do_update 自动恢复本地修改的已跟踪文件；health_check.sh 可执行权限
+
+## v0.43.5 — 2026-08-02
+
+### Changes
+
+- feat: 统一插件商店目录 — 异步商店同步、Installed/Store 双视图、下载+安装流程、i18n
+
+## v0.43.4 — 2026-08-02
+
+### Changes
+
+- fix: 在线更新子进程分离 + install.sh 写最终状态（存活 admin 重启）
+
+## v0.43.3 — 2026-08-02
+
+### Changes
+
+- fix: 登录页静态资源版本号 cache-busting；health_service 恢复纳入 + root 路由；install.sh sudo env
+
+## v0.43.2 — 2026-08-02
+
+### Changes
+
+- fix: 健康检查提取为独立脚本 deploy/health_check.sh（修复 systemd ExecStartPost 引号错误）
+- refactor: Agent 角色更名 shop→business、steward→finance
+
+## v0.43.1 — 2026-08-02
+
+### Changes
+
+- fix: 在线更新输出流式写入日志 + 实时状态 — /admin/api/update-status 轮询、5s 进度刷新
+- fix(install.sh): git fetch 失败显式退出
+
+## v0.43.0 — 2026-08-02
+
+### Changes
+
+- feat: 动态插件化登录/注册 UI — GET /auth/login-methods，SMS/OAuth 插件动态注册登录方式，登录页完全动态渲染，全部 i18n 化
+
+## v0.42.2 — 2026-08-01
+
+### Changes
+
+- fix: 各插件 PostgreSQL 占位符 ? → %s（ali_api 9 处、social_push 2 处、revenue strftime→to_char）；i18n advisory lock 使用确定性 md5
+- feat: 新增 KIMI + 智谱（Zhipu）供应商；移除 Azure TTS（仅保留 Edge-TTS）；供应商下拉动态加载 + 15 个新模型 + agent matrix 种子配置
+- fix: pin pydantic<3 解决 openai>=2.52 依赖冲突；install.sh 自动检测 GitHub 连通性 + ghproxy 回退
+
+## v0.42.1 — 2026-08-01
+
+### Changes
+
+- feat: VeroGuard Phase 1-5 完成 — 完整性校验（SHA256 manifest）、设备指纹、运行时探测、加密心跳（AES/HMAC/TLS）、远程命令（6 种）、self_protect 双进程、Nuitka 编译 + install.sh 集成 + DB 迁移
+- fix: 重启死锁 5 层防御（advisory lock + post_fork + graceful shutdown + health check + pre-flight）
+- fix: Vault 插件 Blueprint url_prefix 与 embed_url 不匹配
+
+## v0.42.0 — 2026-08-01
+
+### Changes
+
+- feat: VeroGuard 统一守护进程 Phase 1 骨架 + PROBE_SECRET
+- fix: Admin 504 — i18n 死锁 + HealthCheck SQL 占位符；install.sh 自更新保留 APP_HOME
+
 ## v0.41.0 — 2026-08-01
 
 ### Changes
