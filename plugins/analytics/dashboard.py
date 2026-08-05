@@ -23,7 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from . import models as am
 from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
-from .geoip import get_market, download_geolite2_auto, download_ip2region_auto, get_geoip_status, detect_client_market
+from .geoip import get_market, download_geolite2_auto, download_ip2region_auto, get_geoip_status, detect_client_market, install_geolite2_file
 from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
@@ -413,13 +413,39 @@ def api_geoip_status():
 
 @analytics_bp.route('/settings/geoip/download', methods=['POST'])
 def api_geoip_download():
-    """下载/更新 GeoLite2 数据库"""
+    """下载/更新 MaxMind 数据库（GeoLite2 免费版 或 GeoIP2 付费版）"""
     data = request.get_json(silent=True) or {}
     license_key = (data.get('license_key') or '').strip()
+    account_id = (data.get('account_id') or '').strip()
+    edition = (data.get('edition') or 'GeoLite2-City').strip()
     if not license_key:
         return jsonify({'success': False, 'error': _t('license_key required')}), 400
 
-    result = download_geolite2_auto(license_key, data.get('account_id', ''))
+    result = download_geolite2_auto(license_key, account_id, edition)
+    return jsonify(result)
+
+
+@analytics_bp.route('/settings/geoip/upload', methods=['POST'])
+def api_geoip_upload():
+    """手动上传 .mmdb 文件"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': _t('No file uploaded')}), 400
+
+    f = request.files['file']
+    if not f.filename or not f.filename.endswith('.mmdb'):
+        return jsonify({'success': False, 'error': _t('Only .mmdb files allowed')}), 400
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.mmdb', delete=False) as tmp:
+        f.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        result = install_geolite2_file(tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
     return jsonify(result)
 
 

@@ -813,6 +813,13 @@ body {
         </div>
         <div id="geolite2Status" style="margin-bottom:12px"><div class="loading" style="padding:4px 0"><div class="spinner"></div></div></div>
         <form id="geoipForm" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="min-width:150px">
+            <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">{{ _('Edition') }}</label>
+            <select name="edition" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
+              <option value="GeoLite2-City">{{ _('GeoLite2-City (Free)') }}</option>
+              <option value="GeoIP2-City">{{ _('GeoIP2-City (Paid)') }}</option>
+            </select>
+          </div>
           <div style="flex:1;min-width:150px">
             <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px">Account ID</label>
             <input name="account_id" type="text" placeholder="MaxMind Account ID" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
@@ -822,9 +829,12 @@ body {
             <input name="license_key" type="text" placeholder="MaxMind License Key" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace">
           </div>
           <button type="button" id="geoipSaveBtn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('Save') }}</button>
-          <button type="button" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download GeoLite2 Database') }}</button>
+          <button type="button" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download Database') }}</button>
+          <button type="button" id="geoipUploadBtn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('Upload .mmdb') }}</button>
+          <input type="file" id="geoipFileInput" accept=".mmdb" style="display:none">
         </form>
         <div id="geoipDownloadStatus" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:8px">{{ _('If auto-download fails (e.g. HTTP 451), download the .mmdb file manually from your MaxMind account and use the Upload button.') }}</div>
       </div>
     </div>
   </div>
@@ -2030,8 +2040,10 @@ document.getElementById('geoipSaveBtn').addEventListener('click', function(){
 document.getElementById('geoipDownloadBtn').addEventListener('click', function(){
   var accountIdEl = document.querySelector('#geoipForm [name="account_id"]');
   var keyEl = document.querySelector('#geoipForm [name="license_key"]');
+  var editionEl = document.querySelector('#geoipForm [name="edition"]');
   var accountId = accountIdEl ? accountIdEl.value.trim() : '';
   var key = keyEl ? keyEl.value.trim() : '';
+  var edition = editionEl ? editionEl.value.trim() : 'GeoLite2-City';
   if (!key) {
     showToast('{{ _('License Key is required to download') }}', 'error');
     return;
@@ -2054,26 +2066,77 @@ document.getElementById('geoipDownloadBtn').addEventListener('click', function()
     try {
       var res = JSON.parse(xhr.responseText);
       if (res.success) {
-        btn.textContent = '{{ _('Update GeoLite2') }}';
+        btn.textContent = '{{ _('Update Database') }}';
         if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">&#x2705; {{ _('Downloaded') }} ' + (res.size_mb||'?') + ' MB</span>';
         loadGeoipStatus();
       } else {
-        btn.textContent = '{{ _('Download GeoLite2 Database') }}';
+        btn.textContent = '{{ _('Download Database') }}';
         if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">&#x26A0; ' + (res.error || 'Unknown error') + '</span>';
         showToast(res.error || 'Unknown error', 'error');
       }
     } catch(e) {
-      btn.textContent = '{{ _('Download GeoLite2 Database') }}';
+      btn.textContent = '{{ _('Download Database') }}';
       if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Parse error: ' + e.message + '</span>';
     }
   };
   xhr.onerror = function() {
     btn.disabled = false;
     hideProgress('geoipDownloadBtn');
-    btn.textContent = '{{ _('Download GeoLite2 Database') }}';
+    btn.textContent = '{{ _('Download Database') }}';
     if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Network error</span>';
   };
-  xhr.send(JSON.stringify({account_id: accountId, license_key: key}));
+  xhr.send(JSON.stringify({account_id: accountId, license_key: key, edition: edition}));
+});
+
+// ── Upload .mmdb file ──
+document.getElementById('geoipUploadBtn').addEventListener('click', function(){
+  document.getElementById('geoipFileInput').click();
+});
+document.getElementById('geoipFileInput').addEventListener('change', function(){
+  var file = this.files[0];
+  if (!file) return;
+  if (!file.name.endsWith('.mmdb')) {
+    showToast('{{ _('Only .mmdb files allowed') }}', 'error');
+    return;
+  }
+  var btn = document.getElementById('geoipUploadBtn');
+  btn.textContent = '{{ _('Uploading...') }}';
+  btn.disabled = true;
+  var statusEl = document.getElementById('geoipDownloadStatus');
+  if (statusEl) statusEl.innerHTML = '';
+  showProgress('geoipUploadBtn');
+
+  var formData = new FormData();
+  formData.append('file', file);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', SETTINGS_BASE + '/settings/geoip/upload');
+  var hdrs_ul = _authHeaders();
+  for (var k in hdrs_ul) xhr.setRequestHeader(k, hdrs_ul[k]);
+  xhr.onload = function() {
+    btn.disabled = false;
+    hideProgress('geoipUploadBtn');
+    btn.textContent = '{{ _('Upload .mmdb') }}';
+    try {
+      var res = JSON.parse(xhr.responseText);
+      if (res.success) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">&#x2705; {{ _('Uploaded') }} ' + (res.size_mb||'?') + ' MB</span>';
+        loadGeoipStatus();
+      } else {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">&#x26A0; ' + (res.error || 'Unknown error') + '</span>';
+        showToast(res.error || 'Unknown error', 'error');
+      }
+    } catch(e) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Parse error: ' + e.message + '</span>';
+    }
+  };
+  xhr.onerror = function() {
+    btn.disabled = false;
+    hideProgress('geoipUploadBtn');
+    btn.textContent = '{{ _('Upload .mmdb') }}';
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Network error</span>';
+  };
+  xhr.send(formData);
 });
 
 // 切换到 Settings tab 时加载 GeoIP 状态和设置

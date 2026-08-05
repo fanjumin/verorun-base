@@ -27,3 +27,14 @@ Settings: Settings
 No geographic data yet: No geographic data yet
 Go to the Settings tab to set up GeoIP databases — ip2region (free, no registration) for Chinese IPs or MaxMind GeoLite2 for international coverage.: Go to the Settings tab to set up GeoIP databases — ip2region (free, no registration) for Chinese IPs or MaxMind GeoLite2 for international coverage.
 Go to the Settings tab to set up GeoIP databases — MaxMind GeoLite2 (free registration) for international coverage or ip2region for Chinese IPs.: Go to the Settings tab to set up GeoIP databases — MaxMind GeoLite2 (free registration) for international coverage or ip2region for Chinese IPs.
+Edition: Edition
+GeoLite2-City (Free): Geolite2-City (Free)
+GeoIP2-City (Paid): GeoIP2-City (Paid)
+Download Database: Download Database
+Update Database: Update Database
+Upload .mmdb: Upload .mmdb
+Uploaded: Uploaded
+Uploading...: Uploading...
+Only .mmdb files allowed: Only .mmdb files allowed
+No file uploaded: No file uploaded
+If auto-download fails (e.g. HTTP 451), download the .mmdb file manually from your MaxMind account and use the Upload button.: If auto-download fails (e.g. HTTP 451), download the .mmdb file manually from your MaxMind account and use the Upload button.

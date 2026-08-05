@@ -24,7 +24,8 @@ import os
 import sys
 import time
 import json
-from urllib.request import urlopen, Request
+import base64
+from urllib.request import urlopen, Request, HTTPError
 from urllib.parse import urlencode
 
 # ─── 配置 ──────────────────────────────────────────────────────────────────────
@@ -333,10 +334,15 @@ def _ipapi_lookup(ip: str) -> dict:
 
 # ─── 维护工具 ──────────────────────────────────────────────────────────────────
 
-def download_geolite2_auto(license_key: str, account_id: str = '') -> dict:
+def download_geolite2_auto(license_key: str, account_id: str = '', edition: str = 'GeoLite2-City') -> dict:
     """
-    自动下载 GeoLite2-City.mmdb 到 analytics/data/ 目录。
-    使用 MaxMind 新版 API: license_key 作为 URL 查询参数。
+    自动从 MaxMind 下载数据库到 analytics/data/ 目录。
+    2024+ 新版 API 要求 Basic Auth（account_id:license_key）。
+
+    参数:
+      license_key — MaxMind License Key
+      account_id  — MaxMind Account ID（新版必须）
+      edition     — 'GeoLite2-City'（免费，默认）或 'GeoIP2-City'（付费）
 
     返回: {'success': True, 'path': '...', 'size_mb': 12.3}
          或 {'success': False, 'error': '...'}
@@ -347,25 +353,28 @@ def download_geolite2_auto(license_key: str, account_id: str = '') -> dict:
 
     target_dir = os.path.join(os.path.dirname(__file__), 'data')
     os.makedirs(target_dir, exist_ok=True)
-    target_path = os.path.join(target_dir, 'GeoLite2-City.mmdb')
+    mmdb_name = edition + '.mmdb'
+    target_path = os.path.join(target_dir, mmdb_name)
 
+    # 新版 URL（2024+）
     url = (
-        'https://download.maxmind.com/app/geoip_download'
-        f'?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
+        'https://download.maxmind.com/geoip/databases'
+        f'/{edition}/download?suffix=tar.gz'
     )
 
     try:
         req = Request(url)
+
+        # Basic Auth: account_id:license_key
+        if account_id:
+            credentials = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
+            req.add_header('Authorization', f'Basic {credentials}')
+        elif license_key:
+            # 兼容旧版：仅有 license_key 时用 query param（部分版本仍支持）
+            url_with_key = url + f'&license_key={license_key}'
+            req = Request(url_with_key)
+
         resp = urlopen(req, timeout=120)
-        if resp.status != 200:
-            return {
-                'success': False,
-                'error': (
-                    f'HTTP {resp.status}: '
-                    'License key may be invalid, or key not yet activated '
-                    '(wait up to 30 minutes after creation).'
-                ),
-            }
 
         # 写入临时文件
         with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as tmp:
@@ -376,13 +385,13 @@ def download_geolite2_auto(license_key: str, account_id: str = '') -> dict:
             with tarfile.open(tmp_path, 'r:gz') as tar:
                 mmdb_member = None
                 for member in tar.getmembers():
-                    if member.name.endswith('GeoLite2-City.mmdb'):
+                    if member.name.endswith('.mmdb'):
                         mmdb_member = member
                         break
                 if not mmdb_member:
                     return {
                         'success': False,
-                        'error': 'GeoLite2-City.mmdb not found in downloaded archive',
+                        'error': f'{edition}.mmdb not found in downloaded archive',
                     }
 
                 extracted = tar.extractfile(mmdb_member)
@@ -402,9 +411,68 @@ def download_geolite2_auto(license_key: str, account_id: str = '') -> dict:
         if target_path not in GEOIP_DB_CANDIDATES:
             GEOIP_DB_CANDIDATES.insert(0, target_path)
 
-        print(f'[Analytics] ✅ GeoLite2-City.mmdb downloaded ({size_mb} MB) → {target_path}')
+        print(f'[Analytics] ✅ {mmdb_name} downloaded ({size_mb} MB) → {target_path}')
         return {'success': True, 'path': target_path, 'size_mb': size_mb}
 
+    except HTTPError as e:
+        if e.code == 451:
+            return {
+                'success': False,
+                'error': (
+                    f'HTTP 451: MaxMind requires signing the Data Processing Agreement (DPA). '
+                    f'Please log in to maxmind.com → Account → Data Processing Agreements → sign the DPA. '
+                    f'Alternatively, download {mmdb_name} manually from your MaxMind account and upload it below.'
+                ),
+            }
+        if e.code == 401:
+            return {
+                'success': False,
+                'error': (
+                    f'HTTP 401: Authentication failed. '
+                    f'Verify your Account ID and License Key. '
+                    f'Note: MaxMind now requires both Account ID and License Key with Basic Auth.'
+                ),
+            }
+        return {'success': False, 'error': f'HTTP {e.code}: {str(e)}'}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def install_geolite2_file(source_path: str) -> dict:
+    """
+    手动安装 .mmdb 文件到 analytics/data/ 目录。
+    用户在 MaxMind 官网下载后通过后台手动上传。
+
+    返回: {'success': True, 'path': '...', 'size_mb': 12.3}
+         或 {'success': False, 'error': '...'}
+    """
+    import shutil
+
+    if not os.path.exists(source_path):
+        return {'success': False, 'error': f'File not found: {source_path}'}
+
+    if not source_path.endswith('.mmdb'):
+        return {'success': False, 'error': 'Only .mmdb files are supported'}
+
+    target_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(target_dir, exist_ok=True)
+    basename = os.path.basename(source_path)
+    target_path = os.path.join(target_dir, basename)
+
+    try:
+        shutil.copy2(source_path, target_path)
+        size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
+
+        # 重置 reader
+        global _geoip_reader
+        _geoip_reader = None
+
+        # 确保路径在探测列表中
+        if target_path not in GEOIP_DB_CANDIDATES:
+            GEOIP_DB_CANDIDATES.insert(0, target_path)
+
+        print(f'[Analytics] ✅ {basename} installed ({size_mb} MB) → {target_path}')
+        return {'success': True, 'path': target_path, 'size_mb': size_mb}
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
