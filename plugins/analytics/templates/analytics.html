@@ -1602,6 +1602,7 @@ function renderWorldMap(data) {
   fetch('/admin/analytics/static/world.json')
     .then(function(r){ return r.json(); })
     .then(function(geoJson){
+      _worldGeoJson = geoJson;
       echarts.registerMap('world', geoJson);
       charts.chinaMap = echarts.init(dom);
       var option = {
@@ -1639,13 +1640,25 @@ function renderWorldMap(data) {
         }]
       };
       charts.chinaMap.setOption(option);
-      // Click country → show back button
+      // Click country → zoom in
       charts.chinaMap.off('click');
       charts.chinaMap.on('click', function(params){
-        if (params.name) {
-          var backBtn = document.getElementById('mapBackBtn');
-          if (backBtn) backBtn.style.display = '';
+        if (!params.name || !_worldGeoJson) return;
+        var f = _worldGeoJson.features.find(function(x){ return x.properties.name === params.name; });
+        if (!f) return;
+        // Compute centroid from all coordinates
+        var lons=[], lats=[];
+        function walk(coords){
+          if (typeof coords[0]==='number') { lons.push(coords[0]); lats.push(coords[1]); return; }
+          coords.forEach(function(c){ walk(c); });
         }
+        walk(f.geometry.coordinates);
+        if (!lons.length) return;
+        var cx = lons.reduce(function(a,b){return a+b;},0)/lons.length;
+        var cy = lats.reduce(function(a,b){return a+b;},0)/lats.length;
+        charts.chinaMap.setOption({series:[{center:[cx,cy], zoom:6}]});
+        var backBtn = document.getElementById('mapBackBtn');
+        if (backBtn) backBtn.style.display = '';
       });
     })
     .catch(function(){
@@ -2207,6 +2220,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
 // 动态市场检测（根据客户端 IP 判断 cn / intl）
 // ═══════════════════════════════════════════════════════════════════════════
 var _MARKET = 'cn';  // 默认值，启动后异步更新
+var _worldGeoJson = null;  // 世界地图 GeoJSON 缓存
 
 function showProgress(containerId) {
   var el = document.getElementById(containerId);
@@ -2228,7 +2242,7 @@ function hideProgress(containerId) {
 
 function resetWorldZoom() {
   if (charts.chinaMap) {
-    charts.chinaMap.dispatchAction({type:'restore'});
+    charts.chinaMap.setOption({series:[{center:null, zoom:1}]});
     var backBtn = document.getElementById('mapBackBtn');
     if (backBtn) backBtn.style.display = 'none';
   }
