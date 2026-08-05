@@ -859,7 +859,16 @@ class PluginManager:
                 inst = getattr(pinfo, 'instance', None)
                 if inst and hasattr(inst, 'get_menu'):
                     menu_cfg = inst.get_menu()
-            if menu_cfg:
+            if not menu_cfg:
+                continue
+            # Support items array for sub-menus (e.g., shop plugin with 4 items)
+            if 'items' in menu_cfg:
+                group = menu_cfg.get('group', 'Plugins')
+                for item in menu_cfg['items']:
+                    item['group'] = group
+                    item['_plugin_id'] = pid
+                    menus.append(item)
+            else:
                 menu_cfg['_plugin_id'] = pid
                 menus.append(menu_cfg)
         return menus

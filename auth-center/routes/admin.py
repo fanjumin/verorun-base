@@ -13,13 +13,15 @@ from flask import Blueprint, request, jsonify
 from i18n import _
 from models import get_db
 from plugin_manager.hooks import get_hook_registry
+from services.dashboard_service import DashboardService
+
+# Create a single instance for the application
+_dashboard_svc = DashboardService()
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-# Dashboard 内存缓存（避免 SQLite 锁竞争导致 60s+ 超时）
-_dash_cache = {'data': None, 'ts': 0, 'ttl': 30}
-# 各查询组独立缓存（按 key 单独刷新，不互相影响）
-_query_cache = {}
+# Dashboard 内存缓存（请求合并，5s TTL 让 per-widget 缓存主导刷新策略）
+_dash_cache = {'data': None, 'ts': 0, 'ttl': 5}
 # 通用 GET 请求内存缓存（5 秒 TTL），消除重复点击同一模块的等待感
 _get_cache = {}
 
@@ -84,191 +86,9 @@ def admin_logout():
     return jsonify({'success': True})
 
 
-def _qcached(key, ttl=10):
-    """查询级缓存装饰器（防重复计算，只缓存非 None/非 [] 的结果）"""
-    def deco(fn):
-        def wrapper(*a, **kw):
-            now = time.time()
-            entry = _query_cache.get(key)
-            if entry and (now - entry['ts']) < ttl:
-                return entry['val']
-            val = fn(*a, **kw)
-            if val is not None and val != []:
-                _query_cache[key] = {'val': val, 'ts': now}
-            return val
-        return wrapper
-    return deco
-
-def _build_dashboard_data(conn):
-    """执行所有 Dashboard SQL 查询，返回 data dict（可以被 API 和模板预渲染共用）"""
-    data = {
-        'monthly_revenue': 0,
-        'pending_posts': 0,
-        'pending_contacts': 0,
-        'total_users': 0,
-        'active_users': 0,
-        'today_new_users': 0,
-        'total_agents': 0,
-        'active_agents': 0,
-        'today_calls': 0,
-        'total_calls': 0,
-        'active_subscriptions': 0,
-        'total_orders': 0,
-        'pending_reviews': 0,
-        'today_failed_tasks': 0,
-        'total_products': 0,
-        'pending_shipments': 0,
-        'published_posts': 0,
-        'draft_posts': 0,
-        'open_tickets': 0,
-        'urgent_tickets': 0,
-        'pending_feedback': 0,
-        'trend_30d': [],
-        'revenue_trend_30d': [],
-    }
-    _query_cache_ctx = {}
-
-    def _safe(sql, params=()):
-        try: return conn.execute(sql, params).fetchone()
-        except:
-            try: conn._conn.rollback()
-            except: pass
-            return None
-
-    def _safe_all(sql, params=()):
-        try: return conn.execute(sql, params).fetchall()
-        except:
-            try: conn._conn.rollback()
-            except: pass
-            return []
-
-    def _qcached(key, ttl=10):
-        def deco(fn):
-            def wrapper(*a, **kw):
-                now = time.time()
-                entry = _query_cache_ctx.get(key)
-                if entry and (now - entry['ts']) < ttl:
-                    return entry['val']
-                val = fn(*a, **kw)
-                if val is not None and val != []:
-                    _query_cache_ctx[key] = {'val': val, 'ts': now}
-                return val
-            return wrapper
-        return deco
-
-    # --- Core metrics ---
-    try:
-        u = conn.execute("SELECT COUNT(*) as c, COALESCE(SUM(active),0) as a, COALESCE(SUM(CASE WHEN created_at>=CURRENT_DATE THEN 1 ELSE 0 END),0) as n FROM users").fetchone()
-        data['total_users'] = u['c']; data['active_users'] = u['a']; data['today_new_users'] = u['n']
-    except: pass
-    try:
-        ta = conn.execute('SELECT COUNT(*) as c FROM agent_matrix').fetchone()
-        data['total_agents'] = ta['c'] if ta else 0
-        aa = conn.execute("SELECT COUNT(*) as c FROM agent_matrix WHERE is_active=1").fetchone()
-        data['active_agents'] = aa['c'] if aa else 0
-    except: pass
-    try:
-        today = _safe("SELECT COUNT(*) as c FROM agent_token_logs WHERE date(created_at)=CURRENT_DATE")
-        data['today_calls'] = today['c'] if today else 0
-        total = _safe('SELECT COUNT(*) as c FROM agent_token_logs')
-        data['total_calls'] = total['c'] if total else 0
-    except: pass
-    try:
-        sub = _safe("SELECT COUNT(*) as c FROM subscriptions WHERE status='active'")
-        data['active_subscriptions'] = sub['c'] if sub else 0
-    except: pass
-    try:
-        data['total_orders'] = conn.execute('SELECT COUNT(*) as c FROM billing_orders').fetchone()['c']
-        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).strftime('%Y-%m-%d')
-        mr = conn.execute("SELECT COALESCE(SUM(amount),0) as c FROM billing_orders WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,)).fetchone()
-        data['monthly_revenue'] = round(mr['c'], 2) if mr else 0
-    except: pass
-    # --- Action items ---
-    try:
-        data['pending_posts'] = conn.execute("SELECT COUNT(*) as c FROM agent_experiences WHERE status='pending' OR is_published=0").fetchone()['c']
-    except: pass
-    try:
-        data['pending_reviews'] = (_safe("SELECT COUNT(*) as c FROM processed_contents WHERE status='review'") or {'c':0})['c']
-    except: pass
-    try:
-        data['pending_contacts'] = conn.execute("SELECT COUNT(*) as c FROM contact_messages WHERE status='unread'").fetchone()['c']
-    except: pass
-    try:
-        data['today_failed_tasks'] = (_safe("SELECT COUNT(*) as c FROM execution_logs WHERE status='failed' AND created_at>=CURRENT_DATE") or {'c':0})['c']
-    except: pass
-    # --- P0 missing data ---
-    try:
-        data['total_products'] = conn.execute("SELECT COUNT(*) as c FROM shop.products").fetchone()['c']
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    try:
-        data['pending_shipments'] = conn.execute("SELECT COUNT(*) as c FROM shop.order_items WHERE shipping_status='pending'").fetchone()['c']
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    try:
-        r = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE is_published=true").fetchone()
-        data['published_posts'] = r['c'] if r else 0
-        r = conn.execute("SELECT COUNT(*) as c FROM cms_posts WHERE is_published=false").fetchone()
-        data['draft_posts'] = r['c'] if r else 0
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    try:
-        data['open_tickets'] = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE status='open'").fetchone()['c']
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    try:
-        data['urgent_tickets'] = conn.execute("SELECT COUNT(*) as c FROM user_tickets WHERE status='open' AND priority='high'").fetchone()['c']
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    try:
-        data['pending_feedback'] = conn.execute("SELECT COUNT(*) as c FROM user_feedback WHERE status='pending'").fetchone()['c']
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    # --- Recent data ---
-    try:
-        data['recent_users'] = [dict(r) for r in conn.execute(
-            "SELECT id, COALESCE(display_name, username, '') as nickname, phone, created_at FROM users ORDER BY created_at DESC LIMIT 5").fetchall()]
-    except:
-        try: conn._conn.rollback()
-        except: pass
-    try:
-        data['recent_orders'] = [dict(r) for r in conn.execute(
-            "SELECT id, user_id, item_desc, amount, status, paid_at FROM billing_orders ORDER BY created_at DESC LIMIT 5").fetchall()]
-    except:
-        try: conn._conn.rollback()
-        except: pass
-
-    # --- Service health (outside DB) ---
-    import socket
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    services = [('Main',8081),('Platform',8083),('Admin',8084)]
-    data['services'] = []
-    def _check_service(name, port):
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.15)
-            result = s.connect_ex(('127.0.0.1', port))
-            s.close()
-            return {'name': name, 'port': port, 'alive': result == 0}
-        except: return {'name': name, 'port': port, 'alive': False}
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        futures = {ex.submit(_check_service, n, p): (n, p) for n, p in services}
-        for f in as_completed(futures):
-            data['services'].append(f.result())
-
-    # --- 收集所有已激活插件注入的仪表盘数据 ---
-    data = get_hook_registry().apply_filters('dashboard.data', data, conn=conn)
-
-    return data
-
 @admin_bp.route('/dashboard', methods=['GET'])
 def dashboard():
+    """Full dashboard data - uses DashboardService for modular querying."""
     admin, err = _require_admin()
     if err:
         return err
@@ -278,15 +98,62 @@ def dashboard():
         return jsonify({"success": True, "data": _dash_cache['data']})
 
     try:
-        with get_db() as conn:
-            data = _build_dashboard_data(conn)
+        # Use the new DashboardService for data retrieval
+        data = _dashboard_svc.get_full_dashboard_data()
+        
         if not any(k in data for k in ('total_users','total_agents','active_subscriptions')):
             raise Exception('Core metrics all failed')
+            
         _dash_cache['data'] = data
         _dash_cache['ts'] = time.time()
         return jsonify({"success": True, "data": data})
     except Exception as e:
         import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin_bp.route('/dashboard/widget/<name>', methods=['GET'])
+def dashboard_widget(name):
+    """Get data for a specific dashboard widget."""
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    try:
+        result = _dashboard_svc.get_widget_data(name)
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin_bp.route('/dashboard/realtime', methods=['GET'])
+def dashboard_realtime():
+    """Get real-time metrics (online users, PV, UV, health)."""
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    try:
+        data = _dashboard_svc.get_realtime_data()
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin_bp.route('/dashboard/summary', methods=['GET'])
+def dashboard_summary():
+    """Get lightweight summary for admin header bar."""
+    admin, err = _require_admin()
+    if err:
+        return err
+
+    try:
+        data = _dashboard_svc.get_summary_data()
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -9,6 +9,8 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+from i18n import _
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
@@ -25,7 +27,7 @@ MODULE_POLICIES = {
         'price_month_fen': 19900,
         'price_year_fen': 199900,
         'name': 'Site Builder Pro',
-        'desc': 'LLM 一键生成多页面品牌官网',
+        'desc': _('LLM 一键生成多页面品牌官网'),
     },
     'content_factory': {
         'pattern': 'interactive',
@@ -37,7 +39,7 @@ MODULE_POLICIES = {
         'price_month_fen': 9900,
         'price_year_fen': 99000,
         'name': 'Content Factory',
-        'desc': 'AI 内容工厂，批量生成文章',
+        'desc': _('AI 内容工厂，批量生成文章'),
     },
     'cms': {
         'pattern': 'interactive',
@@ -49,7 +51,7 @@ MODULE_POLICIES = {
         'price_month_fen': 9900,
         'price_year_fen': 99000,
         'name': 'AI CMS',
-        'desc': '智能内容管理，对话生成+编辑+发布',
+        'desc': _('智能内容管理，对话生成+编辑+发布'),
     },
     'commerce_plus': {
         'pattern': 'interactive',
@@ -61,7 +63,7 @@ MODULE_POLICIES = {
         'price_month_fen': 19900,
         'price_year_fen': 199900,
         'name': 'Commerce Plus',
-        'desc': '1688 供应链采集 + 电商商城',
+        'desc': _('1688 供应链采集 + 电商商城'),
     },
     'service_hub': {
         'pattern': 'interactive',
@@ -73,7 +75,7 @@ MODULE_POLICIES = {
         'price_month_fen': 9900,
         'price_year_fen': 99000,
         'name': 'Service Hub',
-        'desc': '智能客服 + FAQ + 工单系统',
+        'desc': _('智能客服 + FAQ + 工单系统'),
     },
     'workflow': {
         'pattern': 'continuous',
@@ -85,7 +87,7 @@ MODULE_POLICIES = {
         'price_month_fen': 14900,
         'price_year_fen': 149900,
         'name': 'Workflow Engine',
-        'desc': '自动化工作流 + 定时任务',
+        'desc': _('自动化工作流 + 定时任务'),
     },
     'social_push': {
         'pattern': 'publish',
@@ -97,7 +99,7 @@ MODULE_POLICIES = {
         'price_month_fen': 4900,
         'price_year_fen': 49000,
         'name': 'Social Media Suite',
-        'desc': '多平台一键内容分发',
+        'desc': _('多平台一键内容分发'),
     },
     'mini_app': {
         'pattern': 'one_shot',
@@ -109,7 +111,7 @@ MODULE_POLICIES = {
         'price_month_fen': 29900,
         'price_year_fen': 299900,
         'name': 'Mini-App Generator',
-        'desc': '抖音/微信小程序源码生成',
+        'desc': _('抖音/微信小程序源码生成'),
     },
 }
 

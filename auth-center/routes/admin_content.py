@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Auto-generated split from admin.py"""
-from .admin import admin_bp, _require_admin, _log, _cached_get, _qcached
+from .admin import admin_bp, _require_admin, _log, _cached_get
 from i18n import _
 from datetime import datetime, timedelta
 from flask import Response, jsonify, request
