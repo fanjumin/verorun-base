@@ -4,11 +4,11 @@
 
 VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, site builder, mini-program generation, and a plugin-based extension system with full lifecycle management, store, payment, license activation, and subscription support.
 
-> **Version:** 0.48.0
+> **Version:** 0.49.0
 > **Code Repository (private):** https://github.com/fanjumin/verorun-code
 > **Base Repository (open download):** https://github.com/fanjumin/verorun-base
 
-[![Version](https://img.shields.io/badge/version-0.48.0-blue)](https://github.com/fanjumin/verorun-code/releases)
+[![Version](https://img.shields.io/badge/version-0.49.0-blue)](https://github.com/fanjumin/verorun-code/releases)
 [![Python](https://img.shields.io/badge/python-3.11+-green)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-EULA-blue)](LICENSE)
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791)](https://www.postgresql.org/)
@@ -228,6 +228,8 @@ Local URLs: `http://localhost:8081/` (official site / unified login), `http://lo
 
 ### Plugin Store & License System
 - **Plugin Store** — Browse, search, and install plugins from the remote store with local cache fallback
+- **Store UX Redesign (v0.49)** — Card thumbnails (icon_url), unified "Details" button (no direct install), detail modal with README tab + Markdown rendering + install/purchase buttons. Aligned with VS Code Marketplace / Chrome Web Store patterns
+- **Self-Developed Plugin Upload (v0.49)** — Admin can upload custom .zip plugins via `POST /admin/plugins/upload`. Auto-install + enable + activate. Marked as `source='upload'`, permanently exempt from store payment / license system
 - **Version Discovery** — `check_updates` compares installed vs. store versions and shows a `has_update` badge in the admin store view
 - **Plugin Downloader** — Secure download with SHA256 integrity verification, Zip Slip protection, 200MB size limit, 120s timeout. Supports `.zip`, `.tar.gz`, `.tgz`
 - **Version Compatibility** — Semver-based minimum app version check before install, preventing incompatible plugin deployments
@@ -238,6 +240,7 @@ Local URLs: `http://localhost:8081/` (official site / unified login), `http://lo
 - **Coupon System** — Percentage and fixed-amount discounts, per-plugin applicability, expiration support
 - **Review & Rating** — Purchase-verified review system with 5-star ratings, admin reply, and aggregated store scores
 - **Store Admin** — Full CRUD for store plugin listings, toggle enable/disable, manage reviews
+- **Plugin Standard v1.4** — Complete specification with model policy, agent registration, CI publishing pipeline, and store display guidelines
 
 ### Dual-Region Compliance Routing
 - **Region Router** (`region.py`) — Unified regional routing module. All remote service URLs are dynamically resolved based on `VERORUN_REGION` environment variable (`cn` or `global`)
@@ -507,14 +510,17 @@ UNKNOWN -> INSTALLED -> ENABLED -> ACTIVE -> DISABLED -> UNINSTALLED
 
 | Feature | Description |
 |---------|-------------|
-| Browse & Search | Remote store API with local cache fallback, category filtering, sorting (downloads/rating/newest/price) |
+| Browse & Search | Card grid with thumbnails, category filtering, price/sort (downloads/rating/newest/price). UX aligned with VS Code Marketplace / Chrome Web Store |
+| Store UX (v0.49) | Card thumbnails (icon_url), unified "Details" button (no direct install), detail modal with README tab + Markdown rendering |
 | Install | One-click download + extract + install with SHA256 integrity check and Zip Slip protection |
 | Version Check | Semver minimum app version validation before install, dedicated compatibility endpoint |
+| Version Discovery | `check_updates` compares installed vs. store versions, shows `has_update` badge with latest version |
+| Self-Upload (v0.49) | Admin zip upload: auto-install + enable + activate, `source='upload'` permanently exempt from payment/license |
 | Purchase | Integrated payment flow: Alipay QR code, order tracking, webhook callback, auto license activation |
 | Coupons | Percentage and fixed-amount discounts applied at checkout |
 | Reviews | 5-star rating system, purchase-verified reviews, admin reply, aggregated store scores |
 | Subscriptions | Monthly/yearly auto-renewal, cancel (immediate or end-of-period), manual renewal |
-| Admin CRUD | Full store plugin listing management, toggle enable/disable |
+| Admin CRUD | Full store plugin listing management, toggle enable/disable, manage reviews |
 
 ### License System
 

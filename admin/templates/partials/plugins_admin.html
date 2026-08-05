@@ -62,7 +62,10 @@ window.__I18N_PLUGINS__ = {
   "Scan Now": "{{ _('Scan Now') }}",
   "Refresh Store": "{{ _('Refresh Store') }}",
   "Refreshing": "{{ _('Refreshing') }}...",
-  "Upgrade available": "{{ _('Upgrade available') }}"
+  "Upgrade available": "{{ _('Upgrade available') }}",
+  "Upload Plugin": "{{ _('Upload Plugin') }}",
+  "Uploading": "{{ _('Uploading') }}...",
+  "Custom": "{{ _('Custom') }}"
 };
 function _(key){return window.__I18N_PLUGINS__[key]||key;}
 
@@ -94,6 +97,7 @@ function _renderPluginUI(mc){
   h+='<div style="display:flex;gap:8px">';
   if(_pluginTab==='installed'){
     h+='<button class="btn bp" onclick="scanPlugins()">'+_('Discover')+'</button>';
+    h+='<button class="btn bo" onclick="pluginUpload()">&#x1F4E4; '+_('Upload Plugin')+'</button>';
   }else{
     h+='<button class="btn bp" onclick="refreshStore()">'+_('Refresh Store')+'</button>';
   }
@@ -139,7 +143,9 @@ function _renderInstalledTab(plugins){
     var st=statusMap[p.status]||esc(p.status);
     var s=p.status;
     h+='<tr onclick="togglePluginDetail(\''+escAttr(p.identifier)+'\')" style="cursor:pointer">';
-    h+='<td style="padding:10px 12px;font-weight:600">'+esc(p.name||p.identifier)+'</td>';
+    h+='<td style="padding:10px 12px;font-weight:600">'+esc(p.name||p.identifier)+
+      (p.source==='upload'?' <span class="bdg" style="background:rgba(139,91,240,.12);color:#8b5bf0;font-size:10px">'+_('Custom')+'</span>':'')+
+      '</td>';
     var vHtml='v'+esc(p.version);
     if(p.has_update){
       /* 版本发现：商店有更高版本时显示升级徽标 */
@@ -366,4 +372,39 @@ function pluginUninstall(id){
 function togglePluginDetail(id){
   var el=document.getElementById('detail-'+id);
   if(el) el.style.display=el.style.display==='none'?'':'none';
+}
+
+/* ★ v1.4: 用户上传自研插件 */
+function pluginUpload(){
+  /* 动态创建隐藏 file input，触发系统文件选择器 */
+  var inp=document.createElement('input');
+  inp.type='file';
+  inp.accept='.zip';
+  inp.style.display='none';
+  document.body.appendChild(inp);
+  inp.click();
+  inp.onchange=function(){
+    var file=inp.files[0];
+    document.body.removeChild(inp);
+    if(!file)return;
+    if(!file.name.toLowerCase().endsWith('.zip')){
+      showToast('Only .zip files are accepted','error');
+      return;
+    }
+    /* ★ P6: 上传前确认 — 提醒自研插件代码执行风险 */
+    if(!confirm('Upload and install custom plugin from "'+file.name+'"?\n\nCustom plugins run with full server privileges. Only upload from trusted sources.'))return;
+    var act=document.getElementById('pluginActionForm');
+    act.innerHTML='<div class="lo"><div class="s"></div>'+_('Uploading')+' ('+esc(file.name)+')</div>';
+    var fd=new FormData();
+    fd.append('file',file);
+    fetch('/admin/plugins/upload',{method:'POST',headers:{'Authorization':'Bearer '+T},body:fd})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.success){
+        showToast(_('Installed')+' '+esc(d.data.name||d.data.identifier),_('Success'));
+        renderPluginPage();
+      }else{
+        act.innerHTML='<div class="em">'+esc(d.error||_('Install failed'))+'</div>';
+      }
+    }).catch(function(){act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
+  };
 }

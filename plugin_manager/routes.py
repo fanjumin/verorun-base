@@ -440,8 +440,9 @@ def store_admin_save():
                 identifier, name, description, version, author,
                 author_url, icon_url, price_type, price_amount,
                 price_interval, trial_days, download_url, package_hash,
-                file_size, category, tags, screenshots, readme_url, enabled
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
+                file_size, category, tags, screenshots, readme_url,
+                min_app_version, depends_on, enabled
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT(identifier) DO UPDATE SET
                 name=excluded.name,
                 description=excluded.description,
@@ -460,6 +461,8 @@ def store_admin_save():
                 tags=excluded.tags,
                 screenshots=excluded.screenshots,
                 readme_url=excluded.readme_url,
+                min_app_version=excluded.min_app_version,
+                depends_on=excluded.depends_on,
                 enabled=excluded.enabled,
                 updated_at=NOW()
         """, (
@@ -481,6 +484,9 @@ def store_admin_save():
             json.dumps(data.get('tags', [])),
             json.dumps(data.get('screenshots', [])),
             data.get('readme_url', ''),
+            data.get('min_app_version', '0.10.0'),
+            json.dumps(data.get('depends_on', {})),
+            int(data.get('enabled', 1)),
         ))
         conn.commit()
 
@@ -684,6 +690,171 @@ def store_check_compatibility(identifier: str):
         'compatible': compatible,
         'plugin_version': detail.get('version', ''),
     })
+
+
+# ====================================================================
+# ★ v1.4 用户上传自研插件
+# ====================================================================
+
+@bp.route('/upload', methods=['POST'])
+def upload_plugin():
+    """用户上传自研插件 zip 包 → 校验 → 安装。
+
+    Multipart form: file=<plugin.zip>
+    要求 zip 根目录含 plugin.json（identifier/name/version 必填）。
+    上传的插件 source='upload'，不接入商店付费 / License 系统。
+    """
+    import os as _os
+    import zipfile as _zipfile
+    import tempfile as _tempfile
+    import time as _time
+    from collections import defaultdict
+
+    # ★ P2: 简单 rate limiting（每 token 每分钟最多 5 次上传）
+    _now = _time.time()
+    _token = request.headers.get('Authorization', '')
+    _rl_key = 'upload_plugins'
+    if not hasattr(upload_plugin, '_rl'):
+        upload_plugin._rl = defaultdict(list)
+    _windows = upload_plugin._rl[_token]
+    _windows[:] = [t for t in _windows if _now - t < 60]
+    if len(_windows) >= 5:
+        return _json_result(False, error='Too many uploads. Please wait.', code=429)
+    _windows.append(_now)
+
+    mgr = _get_manager()
+    if not mgr:
+        return _json_result(False, error='PluginManager not initialized', code=503)
+
+    # 1. 检查文件
+    if 'file' not in request.files:
+        return _json_result(False, error='No file uploaded', code=400)
+
+    file = request.files['file']
+    if not file.filename or not file.filename.lower().endswith('.zip'):
+        return _json_result(False, error='Only .zip files are accepted', code=400)
+
+    # ★ P1: 文件大小限制 50MB
+    file.seek(0, 2)  # SEEK_END
+    _file_size = file.tell()
+    file.seek(0)
+    _max_size = 50 * 1024 * 1024
+    if _file_size > _max_size:
+        return _json_result(False, error=f'File too large ({_file_size / 1024 / 1024:.1f}MB). Max 50MB.', code=400)
+
+    # ★ P3: 校验 zip magic bytes
+    _magic = file.read(4)
+    file.seek(0)
+    if _magic != b'PK\x03\x04':
+        return _json_result(False, error='Invalid zip file (bad magic bytes)', code=400)
+
+    tmp_path = None
+    extract_dir = None
+
+    try:
+        # 2. 保存上传文件到临时目录
+        fd, tmp_path = _tempfile.mkstemp(suffix='.upload.zip')
+        _os.close(fd)
+        file.save(tmp_path)
+
+        # 3. 读取 zip 内的 plugin.json
+        with _zipfile.ZipFile(tmp_path, 'r') as zf:
+            # 安全路径检查
+            json_entry = None
+            for name in zf.namelist():
+                cleaned = _os.path.normpath(name).replace('\\', '/')
+                if cleaned.endswith('/plugin.json') or cleaned == 'plugin.json':
+                    json_entry = name
+                    break
+
+            if json_entry is None:
+                return _json_result(False, error='plugin.json not found in zip root', code=400)
+
+            json_raw = zf.read(json_entry).decode('utf-8')
+
+        # 4. 解析 plugin.json
+        plugin_meta = json.loads(json_raw)
+        identifier = (plugin_meta.get('identifier') or '').strip().lower()
+        name = (plugin_meta.get('name') or '').strip()
+        version = (plugin_meta.get('version') or '').strip()
+
+        # 基本校验
+        if not identifier:
+            return _json_result(False, error='plugin.json missing required field: identifier', code=400)
+        if not name:
+            return _json_result(False, error='plugin.json missing required field: name', code=400)
+        if not version:
+            return _json_result(False, error='plugin.json missing required field: version', code=400)
+
+        # identifier 合法字符
+        import re as _re
+        if not _re.match(r'^[a-z0-9_]+$', identifier):
+            return _json_result(False, error=f'Invalid identifier: "{identifier}". Use only lowercase letters, digits, underscores.', code=400)
+
+        # ★ P7: 校验 min_app_version 兼容性
+        min_app_ver = (plugin_meta.get('min_app_version') or '').strip()
+        if min_app_ver:
+            app_version = getattr(mgr.app, 'version', '')
+            if app_version:
+                from .store import StoreAPIClient
+                if not StoreAPIClient._version_compatible(app_version, min_app_ver):
+                    return _json_result(False, error=f'Plugin requires min_app_version={min_app_ver}, but current version is {app_version}', code=400)
+
+        # 5. 检查插件目录是否已存在
+        plugins_root = getattr(mgr, '_plugins_root', _os.path.join(_os.path.dirname(__file__), '..', 'plugins'))
+        plugins_root = _os.path.abspath(plugins_root)
+        dest_dir = _os.path.join(plugins_root, identifier)
+
+        if _os.path.exists(dest_dir):
+            return _json_result(False, error=f'Plugin directory already exists: {identifier}. Remove it first or choose a different identifier.', code=409)
+
+        # 6. 安全解压
+        from .downloader import _extract_archive
+        _os.makedirs(dest_dir, exist_ok=True)
+        _extract_archive(tmp_path, dest_dir)
+
+        # 7. 扫描安装
+        discovered = mgr._discovery.discover_one(identifier)
+        if discovered is None:
+            # 回滚：删除已解压的目录
+            import shutil as _shutil
+            _shutil.rmtree(dest_dir, ignore_errors=True)
+            return _json_result(False, error=f'Failed to discover plugin: {identifier}. Check plugin.json structure.', code=500)
+
+        # 8. 标记为 upload 来源 + 安装
+        discovered.source = 'upload'
+        mgr.install(discovered.identifier)
+        mgr.enable(discovered.identifier)
+        mgr.activate(discovered.identifier)
+
+        # 重新读取确认最终状态
+        installed = mgr.get(identifier)
+        result = _info_to_dict(installed) if installed else {'identifier': identifier, 'name': name, 'version': version}
+        result['source'] = 'upload'
+
+        return _json_result(True, data=result)
+
+    except json.JSONDecodeError:
+        return _json_result(False, error='plugin.json is not valid JSON', code=400)
+    except ValueError as e:
+        return _json_result(False, error=f'Invalid archive: {e!s}', code=400)
+    except Exception as e:
+        # 出错时尝试清理解压目录
+        if identifier:
+            try:
+                dest = _os.path.join(plugins_root, identifier)
+                if _os.path.exists(dest):
+                    import shutil as _shutil
+                    _shutil.rmtree(dest, ignore_errors=True)
+            except Exception:
+                pass
+        return _json_result(False, error=f'Upload failed: {e!s}', code=500)
+    finally:
+        if tmp_path and _os.path.exists(tmp_path):
+            try:
+                _os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 # ====================================================================

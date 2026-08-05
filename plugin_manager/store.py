@@ -212,7 +212,10 @@ class StoreAPIClient:
                         price_interval, trial_days, download_url, package_hash,
                         file_size, category, tags, min_app_version, depends_on,
                         screenshots, readme_url, downloads, rating, review_count, enabled
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
+                    -- ★ ON CONFLICT: 仅更新商店侧管理的字段。author/author_url/icon_url/trial_days/
+                    --    min_app_version/depends_on/screenshots/readme_url 不在更新列表中，
+                    --    以防止缓存同步覆盖 Store Admin 手动录入的内容。
                     ON CONFLICT(identifier) DO UPDATE SET
                         name=excluded.name,
                         description=excluded.description,
