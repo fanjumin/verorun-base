@@ -14,7 +14,7 @@ from plugin_manager.base import BasePlugin
 
 class VaultPlugin(BasePlugin):
     name = 'vault'
-    version = '2.0.0'
+    version = '2.1.1'
     description = 'Data vault — full/incremental backup, AES-256-GCM encryption, scheduled backups, audit logging, multi-target storage'
     author = 'VeroRun'
 

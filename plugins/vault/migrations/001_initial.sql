@@ -3,7 +3,7 @@
 -- Creates backup tracking, scheduling, audit, and storage tables.
 -- ══════════════════════════════════════════════════════════════
 
--- Schema isolation (plugin-standard v1.2 §9.1): every plugin uses its
+-- Schema isolation (plugin-standard v1.3 §9.1): every plugin uses its
 -- own schema; system tables remain reachable via the trailing 'public'.
 CREATE SCHEMA IF NOT EXISTS vault;
 SET search_path TO vault, public;

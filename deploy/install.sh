@@ -410,7 +410,7 @@ do_seed() {
     fi
 
     if [ -z "${VR_ADMIN_USERNAME}" ]; then
-        echo -e "${INFO} No admin credentials provided — username will be auto-generated"
+        echo -e "${INFO} No admin credentials provided — username defaults to 'administrator'"
     fi
 
     local _seed_args=""

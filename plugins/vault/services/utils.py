@@ -17,7 +17,7 @@ _SCHEMA_ENSURED = False
 def get_vault_conn():
     """Return a raw psycopg2 connection pinned to the vault schema.
 
-    Follows plugin-standard v1.2 §9.1 (single DB, per-plugin schema):
+    Follows plugin-standard v1.3 §9.1 (single DB, per-plugin schema):
     plugin tables live in the `vault` schema; unqualified system tables
     (public) still resolve through the trailing 'public'.
     """
