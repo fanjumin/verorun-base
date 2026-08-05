@@ -853,6 +853,14 @@ body {
 function showToast(msg, type) {
   type = type || 'info';
   console.log('[Toast]', type, msg);
+  // Unified: use the admin shell's system toast (bottom-center) when embedded
+  try {
+    if (window.top !== window && window.top.showToast) {
+      window.top.showToast(msg, type === 'info' ? '' : type);
+      return;
+    }
+  } catch(e) { console.log('[Toast] top window not accessible, using own body'); }
+  // Standalone fallback (page opened directly): keep local implementation
   var colors = {
     error:   { bg: 'rgba(244,63,94,0.15)', border: 'rgba(244,63,94,0.4)', color: '#f43f5e' },
     success: { bg: 'rgba(0,255,159,0.12)', border: 'rgba(0,255,159,0.3)', color: '#00ff9f' },
