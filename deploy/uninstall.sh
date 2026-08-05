@@ -9,7 +9,7 @@
 set -euo pipefail
 
 APP_USER="verorun"
-APP_HOME="/home/${APP_USER}/verorun-workspace"
+APP_HOME="/home/${APP_USER}/verorun"
 LOG_DIR="/var/log/verorun"
 SERVICE_DIR="/etc/systemd/system"
 
@@ -80,6 +80,6 @@ echo -e "${OK} VeroRun fully uninstalled."
 echo ""
 echo -e "${INFO} System packages (python3, nginx, postgresql, git) are NOT removed."
 echo -e "${INFO} Server is clean. Ready for fresh install:"
-echo -e "${INFO}   git clone https://github.com/fanjumin/VeroRunSystem.git"
-echo -e "${INFO}   cd VeroRunSystem"
+echo -e "${INFO}   git clone https://github.com/fanjumin/verorun-base.git"
+echo -e "${INFO}   cd verorun-base"
 echo -e "${INFO}   sudo bash deploy/install.sh install your-domain.com"

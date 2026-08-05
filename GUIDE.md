@@ -3,13 +3,14 @@
 ## Table of Contents
 
 1. [System Requirements](#system-requirements)
-2. [One-Click Deployment](#one-click-deployment)
-3. [Manual Installation](#manual-installation)
-4. [Configuration](#configuration)
-5. [Service Management](#service-management)
-6. [SSL Certificate](#ssl-certificate)
-7. [Upgrading](#upgrading)
-8. [Troubleshooting](#troubleshooting)
+2. [Selecting a Distribution](#selecting-a-distribution)
+3. [One-Click Deployment](#one-click-deployment)
+4. [Manual Installation](#manual-installation)
+5. [Configuration](#configuration)
+6. [Service Management](#service-management)
+7. [SSL Certificate](#ssl-certificate)
+8. [Upgrading](#upgrading)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -18,42 +19,54 @@
 | Requirement | Minimum |
 |-------------|---------|
 | OS | Ubuntu 22.04 / 24.04 (x86_64) |
-| CPU | 2 cores |
-| RAM | 2 GB |
-| Disk | 10 GB free |
+| CPU | 1 vCPU (2 recommended) |
+| RAM | 2 GB (4 GB recommended) |
+| Disk | 20 GB free |
 | Python | 3.10+ |
 | Ports | 80, 443 (open in firewall/security group) |
 
 ---
 
+## Selecting a Distribution
+
+| Distribution | Repository | When to use |
+|--------------|-----------|-------------|
+| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. |
+| `verorun-code` | `https://github.com/fanjumin/verorun-code` (private) | Official site / enterprise customization; requires SSH access. |
+
+`verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow.
+
+---
+
 ## One-Click Deployment
 
-The bootstrap script installs everything from scratch on a fresh Ubuntu VPS.
+`deploy/install.sh` installs everything from scratch on a fresh Ubuntu VPS: PostgreSQL, Python venv, `.env` with auto-generated secrets, 5 systemd services, and Nginx.
+
+**`verorun-base` (public):**
 
 ```bash
-# Clone the repository
-git clone https://github.com/fanjumin/VeroRunSystem.git /tmp/verorun
-cd /tmp/verorun
-
-# Run the deployment script
-sudo bash deploy/bootstrap.sh your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
+
+**`verorun-code` (private):**
+
+```bash
+git clone git@github.com:fanjumin/verorun-code.git /tmp/verorun
+cd /tmp/verorun
+sudo bash deploy/install.sh install your-domain.com
+```
+
+For China deployments add `--region=cn`.
 
 ### What the script does
 
-1. Installs system dependencies (Python, Nginx, Redis, Certbot, Node.js, PM2)
-2. Creates a `www-data` system user and application directory at `/var/www/verorun`
-3. Clones the repository and installs Python dependencies
-4. Generates a `.env` configuration file with random JWT/Flask secret keys
+1. Installs system dependencies (Python 3, Nginx, Git, build tools, PostgreSQL)
+2. Creates the `verorun` system user and application directory at `/home/verorun/verorun`
+3. Clones the repository (HTTPS for `verorun-base`, SSH deploy key for `verorun-code`) and installs Python dependencies
+4. Generates a `.env` configuration file with auto-generated secrets (`JWT_SECRET`, `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `PROBE_SECRET`, ...)
 5. Configures Nginx with proper reverse proxy rules for all subdomains
-6. Requests SSL certificates via Let's Encrypt (requires DNS to be configured)
-7. Starts all services via PM2 with systemd auto-restart
-
-### Custom Installation Path
-
-```bash
-sudo bash deploy/bootstrap.sh your-domain.com /opt/my-app
-```
+6. Writes and starts 5 systemd services (main / auth / admin / health / guardian)
+7. Optionally seeds initial data (`install.sh seed`)
 
 ---
 
@@ -64,55 +77,45 @@ sudo bash deploy/bootstrap.sh your-domain.com /opt/my-app
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip python3-dev \
-    nginx redis-server certbot python3-certbot-nginx git curl
+    nginx git curl wget build-essential libpq-dev libssl-dev postgresql postgresql-client
 ```
 
-### 2. Install Node.js & PM2
+### 2. Clone & Setup
+
+**`verorun-base` (public):**
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-sudo apt install -y nodejs
-sudo npm install -g pm2
+sudo git clone -b master https://github.com/fanjumin/verorun-base.git /home/verorun/verorun
 ```
 
-### 3. Clone & Setup
+**`verorun-code` (private):**
 
 ```bash
-git clone https://github.com/fanjumin/VeroRunSystem.git /var/www/verorun
-cd /var/www/verorun
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+sudo git clone -b master git@github.com:fanjumin/verorun-code.git /home/verorun/verorun
 ```
 
-### 4. Configure Environment
+Then:
 
 ```bash
-cp .env.example .env
-# Edit .env with your settings:
-#   JWT_SECRET       — generate a random 64-char hex string
-#   FLASK_SECRET_KEY — generate a random 64-char hex string
-#   DEPLOY_DOMAIN    — your domain name
-#   API keys         — fill in your AI provider keys
+sudo chown -R verorun:verorun /home/verorun/verorun
+cd /home/verorun/verorun
+sudo -u verorun python3 -m venv venv
+sudo -u verorun venv/bin/pip install --upgrade pip
+sudo -u verorun venv/bin/pip install -r requirements.txt
 ```
 
-### 5. Configure Nginx
+### 3. Configure Environment
 
-Copy the configuration template from `deploy/nginx/` to `/etc/nginx/sites-available/`,
-replace `__DOMAIN__` and `__APP_ROOT__` placeholders, then enable:
+`install.sh` generates `.env` automatically. For manual setup, see the `.env` template and variable list in [deploy/README.md](deploy/README.md#manual-step-by-step-installation).
 
-```bash
-sudo ln -s /etc/nginx/sites-available/verorun.conf /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
+### 4. Configure Nginx
 
-### 6. Start Services
+Run `sudo bash deploy/install.sh configure-domain your-domain.com` to write the Nginx configuration, or use the template in `deploy/nginx/`.
+
+### 5. Start Services
 
 ```bash
-pm2 start ecosystem.config.js
-pm2 save
-sudo env PATH=$PATH pm2 startup systemd -u www-data --hp /home/www-data
+sudo bash deploy/install.sh restart
 ```
 
 ---
@@ -125,42 +128,42 @@ sudo env PATH=$PATH pm2 startup systemd -u www-data --hp /home/www-data
 |----------|----------|-------------|
 | `DEPLOY_MARKET` | Yes | Market code (`cn` for China) |
 | `DEPLOY_DOMAIN` | Yes | Primary domain name |
-| `DB_PATH` | Yes | SQLite database path |
+| `VERORUN_REGION` | Yes | API region routing (`cn` / `global`) |
+| `PG_HOST` / `PG_PORT` | Yes | PostgreSQL host / port |
+| `PG_DB` / `PG_USER` / `PG_PASSWORD` | Yes | PostgreSQL database / user / password |
 | `JWT_SECRET` | Yes | JWT signing secret (64-char random hex) |
 | `FLASK_SECRET_KEY` | Yes | Flask session secret (64-char random hex) |
-| `APP_MODE` | Yes | Operation mode (`main`) |
-| `PG_HOST` | No | PostgreSQL host (optional) |
-| `PG_PORT` | No | PostgreSQL port |
-| `PG_DB` | No | PostgreSQL database name |
-| `PG_USER` | No | PostgreSQL username |
-| `PG_PASSWORD` | No | PostgreSQL password |
+| `PLUGIN_LICENSE_SECRET` | Yes | Plugin license HMAC secret |
+| `CAPTCHA_SECRET_KEY` | Yes | Captcha HMAC token secret |
+| `PROBE_SECRET` | Yes | VeroGuard probe secret |
 | `DASHSCOPE_TEXT_KEY` | No | DashScope API key |
 | `OPENAI_API_KEY` | No | OpenAI API key |
 | `DEEPSEEK_API_KEY` | No | DeepSeek API key |
+
+All secrets are auto-generated by `install.sh` on first install.
 
 ---
 
 ## Service Management
 
-All services are managed via PM2:
+All services are managed via systemd:
 
 ```bash
-pm2 status          # View all processes
-pm2 logs            # View logs (all)
-pm2 logs verorun-admin  # View specific service logs
-pm2 restart all     # Restart all services
-pm2 stop all        # Stop all services
-pm2 start all       # Start all services
+sudo systemctl status verorun-main   # View status of a service
+sudo systemctl restart verorun-main  # Restart a single service
+sudo bash deploy/install.sh restart  # Restart all services + Nginx
+sudo bash deploy/install.sh health   # Check all services and show HTTP status
 ```
 
 ### Running Services
 
-| PM2 Name | Port | Description |
-|----------|------|-------------|
-| `verorun-main` | 8081 | Main site backend |
-| `verorun-platform` | 8083 | Platform & auth |
-| `verorun-admin` | 8084 | Admin panel |
-| `verorun-health` | — | Health guardian (watchdog) |
+| systemd Name | Port | Description |
+|--------------|------|-------------|
+| `verorun-main` | 8081 | Main site backend / auth center (`auth_server`) |
+| `verorun-auth` | 8083 | Platform user console & subscription (`main_site`) |
+| `verorun-admin` | 8084 | Admin panel (`admin`) |
+| `verorun-health` | 8085 | Health service (`health_service`) |
+| `verorun-guardian` | — | VeroGuard unified guardian daemon |
 
 ---
 
@@ -168,13 +171,12 @@ pm2 start all       # Start all services
 
 ### Initial Setup
 
-The bootstrap script automatically requests SSL certificates. For manual setup:
-
 ```bash
+sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com \
     -d www.your-domain.com \
     -d platform.your-domain.com \
-    -d admin.your-domain.com
+    -d agent.your-domain.com
 ```
 
 ### Auto-Renewal
@@ -189,15 +191,13 @@ sudo systemctl status certbot.timer
 
 ## Upgrading
 
-To upgrade to the latest version:
+Use the install script (recommended):
 
 ```bash
-cd /var/www/verorun
-git pull origin master
-source venv/bin/activate
-pip install -r requirements.txt
-pm2 restart all
+sudo bash deploy/install.sh update
 ```
+
+Or upgrade from the admin panel's **One-Click Update** (version check + git pull + pip install + service restart, with live progress).
 
 ---
 
@@ -206,13 +206,13 @@ pm2 restart all
 ### Service not starting
 
 ```bash
-pm2 logs verorun-main --lines 50
+sudo journalctl -u verorun-main -n 50 --no-pager
 ```
 
 Common causes:
-- `.env` file missing or misconfigured
+- `.env` file missing or misconfigured → run `install.sh update` to fill missing keys
 - Port already in use: `sudo lsof -i :8081`
-- Python dependency missing: `pip install -r requirements.txt`
+- Python dependency missing → `install.sh update` re-installs dependencies
 
 ### Nginx configuration error
 
@@ -229,10 +229,10 @@ sudo tail -f /var/log/nginx/error.log
 
 ### Database issues
 
-SQLite databases are stored in `data/`. If you encounter corruption:
+PostgreSQL is used in production (`verorun` database). Check the service is running:
 
 ```bash
-sqlite3 data/default.db "PRAGMA integrity_check;"
+systemctl status postgresql
 ```
 
 ---

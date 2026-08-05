@@ -50,7 +50,7 @@ PROJECT_DIR     = os.getenv('GUARDIAN_PROJECT_DIR',
 LOG_FILE        = os.getenv('GUARDIAN_LOG_FILE',
                     '/var/log/health-guardian.log')
 GITHUB_RAW_BASE = os.getenv('GUARDIAN_GITHUB_RAW',
-                    'https://raw.githubusercontent.com/fanjumin/VeroRunSystem')
+                    'https://raw.githubusercontent.com/fanjumin/verorun-base')
 
 # 各端点 → systemd service 名称映射
 SERVICE_MAP = {

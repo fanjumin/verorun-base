@@ -76,4 +76,4 @@ echo "  git add VERSION CHANGELOG.md"
 echo "  git commit -m \"chore: bump version to ${NEW}\""
 echo "  git push && git push origin v${NEW}"
 echo
-echo "  Server: cd ~/verorun-workspace && sudo bash deploy/install.sh update"
+echo "  Server: cd ~/verorun && sudo bash deploy/install.sh update"

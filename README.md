@@ -2,15 +2,15 @@
 
 **Multi-Agent AI Operating System** — A full-stack SaaS website builder and business management platform powered by a 9-role Agent collaboration matrix with unified LLM gateway, workflow automation, plugin ecosystem with store and license management, dual-region compliance routing, and unified guardian daemon for health monitoring and copyright protection.
 
-VeroRun integrates multi-vendor AI engines (8 providers), e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, site builder, mini-program generation, and a plugin-based extension system with full lifecycle management, store, payment, license activation, and subscription support.
+VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, site builder, mini-program generation, and a plugin-based extension system with full lifecycle management, store, payment, license activation, and subscription support.
 
-> **Version:** 0.45.0
-> **Repository:** https://github.com/fanjumin/VeroRunSystem
+> **Version:** 0.48.0
+> **Code Repository (private):** https://github.com/fanjumin/verorun-code
+> **Base Repository (open download):** https://github.com/fanjumin/verorun-base
 
-[![CI](https://github.com/fanjumin/VeroRunSystem/actions/workflows/ci.yml/badge.svg)](https://github.com/fanjumin/VeroRunSystem/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.45.0-blue)](https://github.com/fanjumin/VeroRunSystem/releases)
+[![Version](https://img.shields.io/badge/version-0.48.0-blue)](https://github.com/fanjumin/verorun-code/releases)
 [![Python](https://img.shields.io/badge/python-3.11+-green)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
+[![License](https://img.shields.io/badge/license-EULA-blue)](LICENSE)
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/docker-supported-2496ED)](https://www.docker.com/)
 
@@ -50,7 +50,7 @@ VeroRun integrates multi-vendor AI engines (8 providers), e-commerce operations,
 | 8083 | `platform.*` `/auth/` `/subscribe` | User console & subscription | Platform dashboard, subscription management |
 | 8084 | `admin.*` `/admin/` | Admin panel | Plugin management, plugin store, agent matrix, automation, CMS, shop |
 | 8085 | — | Health Service (v2.0) | Independent Flask service: liveness/readiness probes + guardian status API, monitored by VeroGuard |
-| — | — | Captcha service | Proxied via main site (8081) — puzzle captcha with behavioral analysis |
+| — | — | Captcha service | Embedded in admin (8084), proxied via main site (8081) — puzzle captcha with behavioral analysis |
 | — | — | VeroGuard Guardian | Unified daemon: health watchdog + integrity verification + heartbeat reporting |
 
 **systemd service names:** `verorun-main` (8081), `verorun-auth` (8083), `verorun-admin` (8084), `verorun-health` (8085), `verorun-guardian` (VeroGuard)
@@ -72,21 +72,49 @@ VeroRun integrates multi-vendor AI engines (8 providers), e-commerce operations,
 
 ---
 
+## Repositories & Distribution
+
+VeroRun ships as **two repositories** with **two distribution modes**:
+
+| | `verorun-code` | `verorun-base` |
+|---|---|---|
+| **Type** | Private repository | Public repository |
+| **Usage** | Official site, enterprise customization | Standard enterprise package, open download |
+| **URL** | `https://github.com/fanjumin/verorun-code` | `https://github.com/fanjumin/verorun-base` |
+| **Content** | Full source (all built-in plugins, license & unified auth) | Streamlined core export (plugins installed from store) |
+| **Install** | SSH deploy key + `install.sh` | One-line `curl \| bash` or HTTPS `git clone` |
+
+`verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow, using `git archive` plus the `.gitattributes` export rules.
+
 ## Quick Start
 
-### One-Click Deploy (Ubuntu 22.04/24.04)
+### Deploy `verorun-base` (public, open download)
+
+One-command install on a fresh Ubuntu 22.04/24.04 server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh | sudo bash -s -- install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
 
 Or via git clone:
 
 ```bash
-git clone https://github.com/fanjumin/VeroRunSystem.git
-cd VeroRunSystem
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
 sudo bash deploy/install.sh install your-domain.com
 ```
+
+### Deploy `verorun-code` (private, official / enterprise customization)
+
+Access requires SSH access to the private repository:
+
+```bash
+git clone git@github.com:fanjumin/verorun-code.git
+cd verorun-code
+sudo bash deploy/install.sh install your-domain.com
+```
+
+`install.sh` uses SSH deploy-key authentication for the private `verorun-code` repository and HTTPS for the public `verorun-base` repository. The `GIT_REPO` variable is set automatically per distribution, so `update` always pulls from the correct source.
 
 #### Region Selection
 
@@ -98,7 +126,7 @@ sudo bash deploy/install.sh install your-domain.com --region=cn
 
 Supported values: `cn` (China mainland, routes to `api.verorun.cn`) or `global` (default, routes to `api.verorun.com`).
 
-The install script provisions PostgreSQL, creates the `verorun` system user, sets up a Python virtual environment, generates `.env` with auto-generated secrets (including `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `DEV_ACCOUNTS_ENCRYPTION_KEY`, `LICENSE_SERVER_SECRET`, `PROBE_SECRET`), creates systemd services, configures Nginx, and optionally seeds initial data.
+The install script provisions PostgreSQL, creates the `verorun` system user, sets up a Python virtual environment, generates `.env` with auto-generated secrets (including `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `DEV_ACCOUNTS_ENCRYPTION_KEY`, `LICENSE_SERVER_SECRET`, `PROBE_SECRET`), creates systemd services (main / auth / admin / health / guardian), configures Nginx, and optionally seeds initial data.
 
 For detailed instructions, see [deploy/README.md](deploy/README.md).
 
@@ -125,27 +153,33 @@ The Docker image bundles all services (Nginx, app, Supervisor) into a single con
 
 ### Local Development
 
-**Linux/macOS:**
+Install dependencies and configure `.env` (a `.env.example` template is not shipped; see [deploy/README.md](deploy/README.md) for the required variables), then run each service directly in its own terminal:
+
+**Terminal 1 — Main site / Auth (8081):**
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # configure your keys
-python scripts/dev_start.py
+python auth_server.py
 ```
 
-**Windows:**
+**Terminal 2 — User console (8083):**
 
-```powershell
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-python scripts\dev_start.py
+```bash
+python main_site/app.py
 ```
 
-`scripts/dev_start.py` launches all 4 services (captcha, main site, platform, admin) with one command, runs health checks, and prints local URLs and test credentials.
+**Terminal 3 — Admin panel (8084):**
+
+```bash
+python admin/app.py
+```
+
+**Terminal 4 — Health service (8085):**
+
+```bash
+python health_service/app.py
+```
+
+Local URLs: `http://localhost:8081/` (official site / unified login), `http://localhost:8083/` (user console), `http://localhost:8084/admin/login` (admin panel).
 
 ---
 
@@ -176,7 +210,7 @@ python scripts\dev_start.py
 - **System Agents** — Configurable automation agents for cron-triggered tasks
 
 ### E-Commerce
-- **Full E-Commerce** — Shopping cart, orders, product management, categories
+- **Full E-Commerce** — Shopping cart, orders, product management, categories (decoupled into the standalone `shop` plugin)
 - **Payment Gateways** — Stripe, PayPal, Alipay, WeChat Pay with pluggable provider abstraction
 - **Logistics** — Shipping management via Shippo integration
 - **Coupons** — Coupon engine with AI-powered recommendations
@@ -194,6 +228,7 @@ python scripts\dev_start.py
 
 ### Plugin Store & License System
 - **Plugin Store** — Browse, search, and install plugins from the remote store with local cache fallback
+- **Version Discovery** — `check_updates` compares installed vs. store versions and shows a `has_update` badge in the admin store view
 - **Plugin Downloader** — Secure download with SHA256 integrity verification, Zip Slip protection, 200MB size limit, 120s timeout. Supports `.zip`, `.tar.gz`, `.tgz`
 - **Version Compatibility** — Semver-based minimum app version check before install, preventing incompatible plugin deployments
 - **License Engine** — Online validation + offline token dual-channel verification. RSA-2048 signed offline tokens with 72-hour grace period. Free plugins bypass license checks
@@ -232,9 +267,17 @@ python scripts\dev_start.py
 - **Rate Limiting** — IP-based: 5 failures per 5-minute window, risk threshold 0.7
 
 ### Analytics & Monitoring
-- **Analytics** — Built-in visitor tracking, geo-IP (IP2Region), UA parsing, traffic dashboards with China/world map
-- **Health Monitoring** — Automated health checks with tiered recovery (restart, rollback), webhook alerts, AI auto-fix, and daily snapshots (via health_check plugin)
+- **Analytics** — Built-in visitor tracking, UA parsing, traffic dashboards with world map. GeoIP via dual engines: free **IP2Region** (no registration, Gitee mirror) or **MaxMind GeoLite2** (auto-download from jsDelivr CDN mirror, HTTP Basic Auth, or manual `.mmdb` upload). Click-to-zoom world map, automatic market detection, download progress bars
+- **Health Monitoring** — Automated health checks with tiered recovery (restart, rollback), webhook alerts, AI auto-fix, and daily snapshots (via health_check plugin, v1.4.0+ adds veroguard / AI gateway / plugin store checkers)
 - **System Logs** — Centralized logging with filtering and search
+
+### Data Backup & Restore (Vault)
+- **Multi-Provider Storage** — Plug-and-play storage adapters: S3, Alibaba OSS, Azure Blob, GCS, WebDAV, SFTP, Local
+- **Backup Scheduling** — Schedule CRUD API with rotation, retention tiers, and bandwidth limits
+- **Restore & Drill** — Restore execution wizard, point-in-time recovery (PITR) drill, cross-environment restore
+- **Compliance** — Automated compliance reports, audit trail, HMAC-signed backup verification
+- **Monitoring** — ECharts trend charts, smart alerts, retry with backoff
+- **Dedicated Schema** — Plugin tables isolated in a dedicated `vault` schema with idempotent migrations
 
 ### Security & Access Control
 - **JWT SSO** — Single sign-on across all subdomains with HttpOnly cookies
@@ -254,13 +297,15 @@ python scripts\dev_start.py
 - **License System** — Client-mode subscription expiry lock with renewal page redirect, enhanced with VeroGuard probe survival verification
 - **Feature Gates** — Three-tier feature gating (free/paid/premium), daily call limits, plugin quantity limits, watermark control
 - **Module Policy Engine** — Per-module trial/paid policies with automated trial expiration and refund window scanning
-- **Multi-Language (i18n)** — YAML-based internationalization with database seeding (zh-CN, en)
+- **Multi-Language (i18n)** — YAML-based internationalization with database seeding (zh-CN, en); 80+ hardcoded strings wrapped with `_()` across 16 plugins
 - **Brand System** — Unified brand settings (name, logo, favicon, social links) shared across all 4 services
 - **Knowledge Base (RAG)** — Knowledge management with role-based permission control and scheduled maintenance
-- **TTS Service** — Text-to-speech via Azure TTS (400+ neural voices, 140+ languages) and Edge TTS (free, no API key)
+- **TTS Service** — Text-to-speech via Microsoft Edge TTS (free, no API key), with scenario voice presets and streaming byte output
 - **Feature Flags** — Feature gate service for gradual rollout
 - **Invoice Service** — Automated PDF invoice generation with Chinese/Western font support
-- **One-Click Update** — Admin panel version check and update via git pull + pip install + service restart
+- **One-Click Update** — Admin panel version check and update via git pull + pip install + service restart, with live progress streaming (`/admin/api/update-status` polling + log output)
+- **Admin Dashboard** — 3-tier responsive widget grid (KPI / operational / reference), big-screen mode (Fullscreen API, 10s auto-refresh, clock), `DashboardService` per-widget caching, one-click navigation from every widget, revenue trend merged from subscription/order tables
+- **Dynamic Login UI** — Plugin-driven login/register pages via `/auth/login-methods`; SMS and OAuth plugins register their login methods dynamically; email registration is the default signup method
 - **Static Site Generation** — `staticgen.py` for exporting sites as static HTML
 - **Deployment Config** — Centralized environment variable management for domains, email, brand, market, language, currency
 - **Notification Service** — Unified notification dispatch with template variable substitution, 10/minute rate limit
@@ -487,13 +532,13 @@ UNKNOWN -> INSTALLED -> ENABLED -> ACTIVE -> DISABLED -> UNINSTALLED
 
 ## Plugins
 
-25 built-in plugins with full lifecycle management (6-state: Unknown, Installed, Enabled, Active, Disabled, Uninstalled) via the Plugin Manager:
+26 built-in plugins with full lifecycle management (6-state: Unknown, Installed, Enabled, Active, Disabled, Uninstalled) via the Plugin Manager:
 
 | Plugin | Category | Description |
 |--------|----------|-------------|
 | `ads` | Marketing | Ad placement and management with AI tools |
 | `ali_api` | E-Commerce | Alibaba/1688 product sourcing, image search, AI review |
-| `analytics` | Analytics | Visitor tracking, geo-IP, traffic dashboards, China/world map, workflow nodes |
+| `analytics` | Analytics | Visitor tracking, dual-engine GeoIP (IP2Region / MaxMind GeoLite2 CDN), world map with click-to-zoom, market detection, workflow nodes |
 | `captcha_embedded` | Security | Embedded captcha configuration |
 | `chatbot` | AI | AI customer service chatbot with multi-channel support and stats |
 | `content_factory` | Content | RSS aggregation, AI content processing, skill pushing |
@@ -502,18 +547,19 @@ UNKNOWN -> INSTALLED -> ENABLED -> ACTIVE -> DISABLED -> UNINSTALLED
 | `dev_accounts` | Dev | Developer account management with encrypted credentials |
 | `email` | Communication | Email service integration with template support |
 | `enterprise_verify` | Security | Enterprise identity verification workflow with admin and user routes |
-| `health_check` | Monitoring | Automated health checks, alerts, AI auto-fix, metrics, scheduled snapshots |
+| `health_check` | Monitoring | Automated health checks (veroguard / AI gateway / plugin store checkers), alerts, AI auto-fix, metrics, scheduled snapshots |
 | `im_gateway` | Communication | Unified IM (Feishu, DingTalk, WeCom, Telegram, LINE, QQ) with adapter architecture |
 | `logistics` | E-Commerce | Shipping and logistics management |
 | `oauth_config` | Auth | Multi-platform OAuth (WeChat, Alipay, Douyin, Google, GitHub, Facebook, Telegram) |
 | `order_notify` | E-Commerce | Order notification dispatch |
 | `payment` | E-Commerce | Payment gateway configuration (Stripe, PayPal, Alipay, WeChat) |
 | `reviews` | E-Commerce | Product review system |
+| `shop` | E-Commerce | Standalone shop module: products, orders, cart (decoupled from core) |
 | `site_domains` | Site | Custom domain management |
 | `sms` | Communication | SMS service (Aliyun, Twilio) with country code support |
 | `social_push` | Marketing | Social media push (Twitter, LinkedIn, Reddit, Telegram Channel) |
 | `subscription` | Billing | Subscription plans, billing, scheduling, integrated payment gateways |
-| `vault` | Utility | Data backup and upload service |
+| `vault` | Utility | Multi-provider data backup (S3/OSS/Azure/GCS/WebDAV), schedules, restore drill, compliance reports |
 | `verification` | Security | Identity verification service |
 | `wishlist` | E-Commerce | User wishlist |
 
@@ -557,7 +603,7 @@ See [sdks/README.md](sdks/README.md) for usage details.
 ## Directory Structure
 
 ```
-VeroRunSystem/
+verorun-code/
 ├── admin/                  # Admin panel (port 8084)
 │   ├── routes/             # Admin route blueprints
 │   ├── static/             # CSS, JS, editor, workflow, libs (Chart.js, ECharts, Quill, React Flow)
@@ -625,7 +671,7 @@ VeroRunSystem/
 │   ├── exceptions.py       # Custom exception hierarchy (8 exception types)
 │   ├── logger.py           # Per-plugin independent logging (rotation: 5MB x 3)
 │   └── base.py             # Plugin system base classes
-├── plugins/                # 25 built-in plugins (each with models, routes, templates, i18n, plugin.json)
+├── plugins/                # 26 built-in plugins (each with models, routes, templates, i18n, plugin.json)
 ├── veroguard/              # VeroGuard unified guardian daemon
 │   ├── guardian.py         # Main entry point - multi-channel scheduling loop
 │   ├── config.py           # All parameters via environment variables, region-aware remote URL
@@ -645,7 +691,7 @@ VeroRunSystem/
 │   ├── app.py              # Flask app: /health (liveness), /ready (readiness), /api/guardian/status
 │   ├── runner.py           # Standalone runner (Waitress WSGI)
 │   └── requirements.txt    # Dependencies (Flask, Waitress, psycopg2)
-├── captcha-service/        # Puzzle captcha service (proxied via 8081)
+├── captcha-service/        # Puzzle captcha core (embedded in admin 8084, proxied via 8081)
 │   └── captcha/            # Behavior analysis, generator, security (HMAC tokens), store (Redis)
 ├── health_guardian/        # systemd unit files for legacy health watchdog
 ├── providers/              # Pluggable provider abstractions (payment, SMS, logistics, social)
@@ -654,7 +700,6 @@ VeroRunSystem/
 ├── prompts/                # AI coding rules & system prompts (12 rule files)
 ├── deploy/                 # Deployment scripts, Nginx config, Gunicorn config, seed data
 ├── nginx-domains/          # Per-domain Nginx site configs
-├── scripts/                # Dev utilities (dev_start.py)
 ├── data/                   # SQLite databases (development)
 ├── images/                 # Static images (badges, icons)
 ├── shared/                 # Shared utilities (logging)
@@ -690,4 +735,6 @@ VeroRunSystem/
 
 ## License
 
-Copyright (c) 2026 Fan Jumin. See [LICENSE](LICENSE) for details.
+VeroRun Base is distributed under the [VeroRun Base EULA v1.0](LICENSE). Copyright (c) 2024-2026 VeroRun AI. All rights reserved.
+
+Commercial production deployment requires a valid commercial license from VeroRun AI. `verorun-code` deployments (official / enterprise customization) are governed by their own private distribution terms.

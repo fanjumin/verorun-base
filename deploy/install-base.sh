@@ -15,7 +15,7 @@ set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
-: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
+: "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -47,49 +47,6 @@ _pip_install() {
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
-
-# ── Git SSH auth setup ───────────────────────────────────────────────
-
-ensure_git_auth() {
-    local ssh_key="/root/.ssh/id_ed25519"
-
-    # Generate SSH key for root if not exists
-    if [ ! -f "${ssh_key}" ]; then
-        echo -e "${INFO} Generating SSH deploy key for git operations..."
-        mkdir -p /root/.ssh
-        ssh-keygen -t ed25519 -N "" -f "${ssh_key}" -C "verorun-deploy-$(hostname)" >/dev/null 2>&1
-        chmod 600 "${ssh_key}"
-        chmod 644 "${ssh_key}.pub"
-        echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${YELLOW}║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║${NC}"
-        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
-        echo -e "${YELLOW}║  URL: https://github.com/fanjumin/verorun-code/settings/keys/new${NC}"
-        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
-        cat "${ssh_key}.pub" | while read -r line; do
-            echo -e "${GREEN}║  ${line}${NC}"
-        done
-        echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
-        echo -e "${WARN} After adding the key, re-run this script to continue."
-        exit 0
-    fi
-
-    # Ensure github.com in known_hosts
-    if [ ! -f /root/.ssh/known_hosts ] || ! grep -q '^github\.com' /root/.ssh/known_hosts 2>/dev/null; then
-        echo -e "${INFO} Adding github.com to known_hosts..."
-        ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
-    fi
-
-    # Switch existing HTTPS remote to SSH
-    if [ -d "${APP_HOME}/.git" ]; then
-        local current_url
-        current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
-        if echo "${current_url}" | grep -q '^https://'; then
-            echo -e "${INFO} Switching git remote to SSH..."
-            git -C "${APP_HOME}" remote set-url origin "${GIT_REPO}"
-            done_step "Git remote switched to SSH"
-        fi
-    fi
-}
 
 # ── Mode / Domain detection ──────────────────────────────────────────
 
@@ -168,8 +125,6 @@ do_install() {
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
-
-    ensure_git_auth
 
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
@@ -279,8 +234,6 @@ do_update() {
         done_step "Skipped (no .git directory)"
     fi
 
-    ensure_git_auth
-
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
         echo -e "${WARN} .git missing — re-cloning repository"
@@ -350,11 +303,17 @@ do_update() {
     done_step "Nginx config updated"
 
     step "Pre-flight check"
-    # 验证数据库可连接
+    # 验证数据库可连接（直接 psycopg2 连接，不依赖 plugins 包）
     if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
-from plugins._base.db import get_raw_connection
-c = get_raw_connection()
-c.close()
+import os, psycopg2
+conn = psycopg2.connect(
+    host=os.getenv('PG_HOST', 'localhost'),
+    port=os.getenv('PG_PORT', '5432'),
+    dbname=os.getenv('PG_DB', 'verorun'),
+    user=os.getenv('PG_USER', 'verorun'),
+    password=os.getenv('PG_PASSWORD', ''),
+)
+conn.close()
 print('DB OK')
 \""; then
         echo -e "${FAIL} Database not accessible — aborting update"
@@ -545,10 +504,8 @@ generate_env() {
     JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    PLUGIN_LICENSE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     CAPTCHA_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     DEV_ACCOUNTS_ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > "${env_file}" << ENVEOF
@@ -567,10 +524,8 @@ ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
 
 # Phase 1 — Security hardening keys (2026-07-28)
-PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
 CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
 DEV_ACCOUNTS_ENCRYPTION_KEY=${DEV_ACCOUNTS_ENCRYPTION_KEY}
-LICENSE_SERVER_SECRET=${LICENSE_SERVER_SECRET}
 
 # VeroGuard — 守护进程加密通信密钥（官方端与客户端需一致）
 PROBE_SECRET=${PROBE_SECRET}
@@ -597,7 +552,7 @@ update_env() {
 
     # Fill missing Phase 1 keys
     local missing=()
-    for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET; do
+    for key in CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY PROBE_SECRET; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
             local val
             val=$(python3 -c "import secrets; print(secrets.token_hex(32))")

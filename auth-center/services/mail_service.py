@@ -6,9 +6,13 @@
 独立数据库 email.db，配置通过环境变量。
 此文件保留向后兼容，所有导入重定向到插件。
 """
-from plugins.email.services import (
-    send_email,
-    send_contact_email,
-    get_smtp_config,
-    CONFIG_DEFS,
-)
+try:
+    from plugins.email.services import (
+        send_email,
+        send_contact_email,
+        get_smtp_config,
+        CONFIG_DEFS,
+    )
+except ImportError:
+    # verorun-base 精简版无 plugins 目录
+    CONFIG_DEFS = []
