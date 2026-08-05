@@ -21,6 +21,17 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache pip & Nuitka
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/Nuitka
+            ~/.ccache
+          key: ${{ runner.os }}-build-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
@@ -30,11 +41,10 @@ jobs:
 
       - name: Generate integrity manifest
         run: |
-          PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
           python3 veroguard/tools/build_manifest.py \
             --project-dir . \
             --output veroguard/data/manifest.json.enc \
-            --secret "$PROBE_SECRET"
+            --secret "${{ secrets.PROBE_ENCRYPTION_KEY }}"
 
       - name: Build VeroGuard (Nuitka)
         run: |
@@ -49,8 +59,6 @@ jobs:
             --output-dir=veroguard/dist \
             --output-filename=verorun-guardian.bin \
             --assume-yes-for-downloads \
-            --show-progress \
-            --show-scons \
             veroguard/guardian.py
 
       - name: Verify binary

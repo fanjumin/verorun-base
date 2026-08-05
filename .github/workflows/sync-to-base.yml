@@ -49,8 +49,12 @@ jobs:
         run: |
           cd /tmp/base
           # base 使用精简版 install.sh：公开仓库（HTTPS，免 SSH key）+ 无私有授权密钥
-          rm deploy/install.sh
-          mv deploy/install-base.sh deploy/install.sh
+          rm -f deploy/install.sh
+          if [ -f deploy/install-base.sh ]; then
+            mv deploy/install-base.sh deploy/install.sh
+          else
+            echo "install-base.sh not found, skipping"
+          fi
 
       - name: Commit and push to verorun-base
         run: |
@@ -60,6 +64,11 @@ jobs:
             echo "No changes to sync"
           else
             git commit -m "${{ steps.vars.outputs.msg }}"
-            git tag "${{ steps.vars.outputs.tag }}"
-            git push origin master --tags
+            if git rev-parse "${{ steps.vars.outputs.tag }}" >/dev/null 2>&1; then
+              echo "Tag already exists in verorun-base, skipping tag creation"
+              git push origin master
+            else
+              git tag "${{ steps.vars.outputs.tag }}"
+              git push origin master --tags
+            fi
           fi
