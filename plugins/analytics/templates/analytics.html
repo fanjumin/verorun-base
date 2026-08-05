@@ -664,6 +664,7 @@ body {
         <div class="label" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
           <span id="mapTitle">{% if geo_market == 'cn' %}{{ _('🇨🇳 China') }}{% else %}{{ _('🌍 World') }}{% endif %}</span>
           <button onclick="toggleMapView()" id="mapToggleBtn" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:2px 10px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:inherit">{% if geo_market == 'cn' %}🌍 {{ _('World') }}{% else %}🇨🇳 {{ _('China') }}{% endif %}</button>
+          <button onclick="resetWorldZoom()" id="mapBackBtn" style="display:none;background:rgba(0,245,255,0.1);border:1px solid var(--border-glow);border-radius:6px;padding:2px 10px;color:var(--blue);font-size:11px;cursor:pointer;font-family:inherit">↩ {{ _('Back to World') }}</button>
         </div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
       </div>
@@ -1625,7 +1626,7 @@ function renderWorldMap(data) {
           calculable: true
         },
         series: [{
-          type: 'map', map: 'world', roam: false,
+          type: 'map', map: 'world', roam: true, scaleLimit: {min:1, max:20},
           label: {
             show: true, color: '#6b7280', fontSize: 8,
             formatter: function(p){ return mapData.some(function(d){return d.name===p.name}) ? p.name : ''; }
@@ -1641,6 +1642,14 @@ function renderWorldMap(data) {
         }]
       };
       charts.chinaMap.setOption(option);
+      // Click country → show back button
+      charts.chinaMap.off('click');
+      charts.chinaMap.on('click', function(params){
+        if (params.name) {
+          var backBtn = document.getElementById('mapBackBtn');
+          if (backBtn) backBtn.style.display = '';
+        }
+      });
     })
     .catch(function(){
       dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('World map loading failed (network issue). See table below for data.') }}</div></div>';
@@ -2221,6 +2230,14 @@ function hideProgress(containerId) {
   if (el) el.parentNode.removeChild(el);
 }
 
+function resetWorldZoom() {
+  if (charts.chinaMap) {
+    charts.chinaMap.dispatchAction({type:'restore'});
+    var backBtn = document.getElementById('mapBackBtn');
+    if (backBtn) backBtn.style.display = 'none';
+  }
+}
+
 function toggleMapView() {
   var btn = document.getElementById('mapToggleBtn');
   if (_MAP_VIEW === 'auto') {
@@ -2233,12 +2250,14 @@ function toggleMapView() {
   // Update button text
   if (_MAP_VIEW === 'world') {
     if (btn) btn.innerHTML = '&#x1F1E8;&#x1F1F3; {{ _('China') }}';
+    var backBtn = document.getElementById('mapBackBtn'); if (backBtn) backBtn.style.display = 'none';
     document.getElementById('mapTitle').textContent = '{{ _('🌍 World') }}';
     if (charts.chinaMap) charts.chinaMap.dispose();
     loadWorldMap();
     loadWorldCities();
     toggleCountrySection(true);
   } else {
+    var backBtn2 = document.getElementById('mapBackBtn'); if (backBtn2) backBtn2.style.display = 'none';
     if (btn) btn.innerHTML = '&#x1F30D; {{ _('World') }}';
     document.getElementById('mapTitle').textContent = '{{ _('🇨🇳 China') }}';
     if (charts.chinaMap) charts.chinaMap.dispose();
