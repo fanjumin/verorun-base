@@ -77,6 +77,11 @@ sudo -u postgres psql -c "DROP DATABASE IF EXISTS verorun" 2>/dev/null || true
 sudo -u postgres psql -c "DROP ROLE IF EXISTS verorun" 2>/dev/null || true
 done_step "PostgreSQL database & role dropped"
 
+# 5. Residual config files (sudoers + guardian env)
+step "Config files"
+rm -f /etc/default/verorun-guardian /etc/sudoers.d/verorun
+done_step "Config files removed"
+
 step "Done"
 echo -e "${OK} VeroRun fully uninstalled."
 echo ""

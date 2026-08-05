@@ -51,6 +51,11 @@ fail_step() { echo -e "${FAIL} $1"; }
 # ── Git SSH auth setup ───────────────────────────────────────────────
 
 ensure_git_auth() {
+    # Skip SSH setup if using HTTPS repo (e.g. public base mirror)
+    if echo "${GIT_REPO}" | grep -q '^https://'; then
+        return 0
+    fi
+
     local ssh_key="/root/.ssh/id_ed25519"
 
     # Generate SSH key for root if not exists

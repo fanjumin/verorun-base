@@ -45,6 +45,7 @@ echo -e "${OK} VERSION -> ${NEW}"
 # ── 2. Prepend CHANGELOG entry ────────────────────────────────────────
 TODAY="$(date +%Y-%m-%d)"
 TMP_FILE="$(mktemp)"
+trap 'rm -f "${TMP_FILE}"' EXIT
 {
     echo "# 修改记录"
     echo
@@ -55,7 +56,9 @@ TMP_FILE="$(mktemp)"
     echo "- Version bump from v${OLD}"
     echo
     # Keep all existing entries (skip title line and following blank line)
-    tail -n +3 CHANGELOG.md
+    if [ -f CHANGELOG.md ]; then
+        tail -n +3 CHANGELOG.md
+    fi
 } > "${TMP_FILE}"
 mv "${TMP_FILE}" CHANGELOG.md
 echo -e "${OK} CHANGELOG.md -> v${NEW} entry prepended"
