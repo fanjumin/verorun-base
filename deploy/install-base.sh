@@ -202,7 +202,7 @@ do_update() {
     local _status_file="/run/verorun/update_status.json"
     mkdir -p /run/verorun 2>/dev/null || true
     chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
-    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > /run/verorun/update_status.json' EXIT
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > '"${_status_file}" EXIT
 
     # Self-update tracking: md5 of currently-running install.sh
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
