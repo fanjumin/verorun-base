@@ -23,7 +23,7 @@ from plugin_manager.hooks import get_hook_registry
 
 class AnalyticsPlugin(BasePlugin):
     name = 'analytics'
-    version = '1.3.0'
+    version = '1.4.0'
     description = 'Analytics Middleware & Dashboard — Server-side Cookieless Analytics'
     author = 'VeroRun'
 
