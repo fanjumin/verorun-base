@@ -1,7 +1,7 @@
 {
     "name": "Analytics",
     "identifier": "analytics",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Analytics Middleware & Dashboard — Server-side Cookieless Analytics",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
