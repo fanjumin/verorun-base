@@ -16,6 +16,7 @@ from urllib.error import URLError
 from .models_store import (
     StorePlugin, init_license_store_tables, get_registry_db,
 )
+from .discovery import parse_version
 
 # Store catalog URL (configurable via environment variable)
 STORE_CATALOG_URL = os.environ.get(
@@ -269,6 +270,71 @@ class StoreAPIClient:
         for pdata in plugins_data:
             self._upsert_cache(pdata)
         return len(plugins_data)
+
+    def check_updates(self, local_versions: dict) -> dict:
+        """对比本地已安装版本与商店目录版本，返回各插件的更新状态。
+
+        Args:
+            local_versions: {identifier: installed_version}，
+                            如 {'ads': '1.0.0'}（来源：plugin_registry）
+
+        Returns:
+            {identifier: {installed, latest, has_update, min_app_version}}
+            仅包含"本地已安装 且 商店目录上架"的插件。
+        """
+        print(f'[StoreAPIClient] check_updates: 收到本地已安装插件 {len(local_versions)} 个: {local_versions}')
+        if not local_versions:
+            print('[StoreAPIClient] check_updates: local_versions 为空，无可对比项，直接返回空结果')
+            return {}
+
+        # 读取商店目录（本地缓存表 store_plugins，仅 enabled=1 上架项）
+        try:
+            with get_registry_db() as conn:
+                rows = conn.execute(
+                    'SELECT identifier, version, min_app_version FROM store_plugins WHERE enabled=1'
+                ).fetchall()
+        except Exception as e:
+            print(f'[StoreAPIClient] check_updates: 查询 store_plugins 失败: {e}，返回空结果')
+            return {}
+        print(f'[StoreAPIClient] check_updates: 商店目录上架插件 {len(rows)} 条')
+
+        result = {}
+        matched = 0
+        skipped = 0
+        for r in rows:
+            identifier = r['identifier']
+            latest = r['version']
+            installed = local_versions.get(identifier)
+            if installed is None:
+                skipped += 1
+                print(f'[StoreAPIClient] check_updates: 跳过 {identifier} — 本地未安装（商店 v{latest}）')
+                continue
+            matched += 1
+
+            # 解析版本号；任一非法版本退化为字符串比较
+            latest_ver = parse_version(latest)
+            installed_ver = parse_version(installed)
+            if latest_ver is None or installed_ver is None:
+                print(f'[StoreAPIClient] check_updates: ⚠️ {identifier} 版本号无法解析 '
+                      f'(installed={installed!r}, latest={latest!r})，退化为字符串比较')
+                has_update = latest != installed
+            else:
+                has_update = latest_ver > installed_ver
+
+            print(f'[StoreAPIClient] check_updates: {identifier} '
+                  f'installed={installed} latest={latest} has_update={has_update} '
+                  f'min_app_version={r["min_app_version"]}')
+            result[identifier] = {
+                'installed': installed,
+                'latest': latest,
+                'has_update': has_update,
+                'min_app_version': r['min_app_version'],
+            }
+
+        updatable = sum(1 for v in result.values() if v['has_update'])
+        print(f'[StoreAPIClient] check_updates: 完成 — 匹配 {matched} 个已安装插件，跳过 {skipped} 个未安装，'
+              f'其中可更新 {updatable} 个')
+        return result
 
 
 # ── 模块级单例 ──────────────────────────────────────────────────────

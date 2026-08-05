@@ -1,4 +1,4 @@
-﻿window.MARKET=window.MARKET||'{{ MARKET|default('cn') }}';
+window.MARKET=window.MARKET||'{{ MARKET|default('cn') }}';
 window.l_plugins_store=function(){
   document.getElementById("pt").textContent="{{ _('Plugin Store') }}";
   renderStoreList();
@@ -32,17 +32,25 @@ function renderStoreList(){
       var priceSymbol = window.MARKET === 'intl' ? '$' : '¥';
       var priceLabel=p.price_type==='free'?'{{ _('Free') }}': priceSymbol+(p.price_amount/100).toFixed(2)+(p.price_interval==='year'?'/yr':p.price_interval==='month'?'/mo':'');
       var priceClass=p.price_type==='free'?'on':'';
+      var vHtml='v'+esc(p.version);
+      if(p.has_update){
+        /* 版本发现：商店有更高版本时显示升级徽标 */
+        vHtml+=' <span class="bdg" style="background:rgba(63,185,80,.15);color:#3fb950">&#x1F504; v'+esc(p.latest_version||p.version)+' {{ _('Upgrade available') }}</span>';
+      }
       h+='<div class="cd" style="display:flex;flex-direction:column">';
-      h+='<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(p.name)+' <span style="font-size:11px;color:var(--dim)">v'+esc(p.version)+'</span></div>';
+      h+='<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(p.name)+' <span style="font-size:11px;color:var(--dim)">'+vHtml+'</span></div>';
       h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:1">'+esc(p.description||'')+'</div>';
       var avgRating=(p._reviews&&p._reviews.average)||p.rating||0;
       var reviewTotal=(p._reviews&&p._reviews.total)||p.review_count||0;
       h+='<div style="margin-top:4px;margin-bottom:4px">'+renderStars(avgRating,reviewTotal)+'</div>';
       h+='<div style="display:flex;align-items:center;justify-content:space-between">';
       h+='<span class="bdg '+priceClass+'">'+priceLabel+'</span>';
-      h+='<div style="display:flex;gap:4px">';
+      h+='<div style="display:flex;gap:4px;align-items:center">';
       h+='<button class="btn bo bs" onclick="showPluginDetail(\''+escAttr(p.identifier)+'\')">{{ _('Details') }}</button>';
-      if(p.price_type==='free'){
+      if(p.installed){
+        /* 版本发现：已安装插件显示安装状态 */
+        h+='<span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff">{{ _('Installed') }}</span>';
+      }else if(p.price_type==='free'){
         h+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
       }else{
         h+='<button class="btn bp bs" data-pid="'+escAttr(p.identifier)+'" data-name="'+escAttr(p.name)+'" data-amount="'+(p.price_amount||0)+'" data-ptype="'+escAttr(p.price_type)+'" data-pinterval="'+escAttr(p.price_interval||'onetime')+'" onclick="showPurchaseDialog(this)">{{ _('Purchase') }}</button>';
@@ -344,10 +352,17 @@ function showPluginDetail(pid){
     var priceLabel=p.price_type==='free'?'{{ _('Free') }}':ps+(p.price_amount/100).toFixed(2)+(p.price_interval==='year'?'/yr':p.price_interval==='month'?'/mo':'');
     var priceClass=p.price_type==='free'?'on':'';
 
+    var vHtml='v'+esc(p.version);
+    if(p.has_update){
+      /* 版本发现：商店有更高版本时显示升级徽标 */
+      vHtml+=' <span class="bdg" style="background:rgba(63,185,80,.15);color:#3fb950">&#x1F504; v'+esc(p.latest_version||p.version)+' {{ _('Upgrade available') }}</span>';
+    }
     box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'+
-      '<div><div style="font-size:18px;font-weight:600">'+esc(p.name)+' <span style="font-size:12px;color:var(--dim)">v'+esc(p.version)+'</span></div>'+
+      '<div><div style="font-size:18px;font-weight:600">'+esc(p.name)+' <span style="font-size:12px;color:var(--dim)">'+vHtml+'</span></div>'+
       '<div style="margin-top:4px">'+renderStars(avgRating,reviewTotal)+'</div>'+
-      '<div style="margin-top:4px"><span class="bdg '+priceClass+'">'+priceLabel+'</span> <span class="bdg off">'+esc(p.category||'')+'</span></div></div>'+
+      '<div style="margin-top:4px"><span class="bdg '+priceClass+'">'+priceLabel+'</span> <span class="bdg off">'+esc(p.category||'')+'</span>'+
+      (p.installed?' <span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff">{{ _('Installed') }}</span>':'')+
+      '</div></div>'+
       '<button class="btn bo bs" onclick="closePluginDetail()">{{ _('Close') }}</button></div>';
 
     var tabsHtml='<div class="tab-bar mt" style="margin-bottom:16px;display:flex;gap:0;border-bottom:1px solid var(--bd)">'+
