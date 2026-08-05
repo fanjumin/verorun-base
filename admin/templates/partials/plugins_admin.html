@@ -61,7 +61,8 @@ window.__I18N_PLUGINS__ = {
   "Discover": "{{ _('Discover') }}",
   "Scan Now": "{{ _('Scan Now') }}",
   "Refresh Store": "{{ _('Refresh Store') }}",
-  "Refreshing": "{{ _('Refreshing') }}..."
+  "Refreshing": "{{ _('Refreshing') }}...",
+  "Upgrade available": "{{ _('Upgrade available') }}"
 };
 function _(key){return window.__I18N_PLUGINS__[key]||key;}
 
@@ -139,7 +140,12 @@ function _renderInstalledTab(plugins){
     var s=p.status;
     h+='<tr onclick="togglePluginDetail(\''+escAttr(p.identifier)+'\')" style="cursor:pointer">';
     h+='<td style="padding:10px 12px;font-weight:600">'+esc(p.name||p.identifier)+'</td>';
-    h+='<td style="padding:10px 12px;color:var(--dim)">v'+esc(p.version)+'</td>';
+    var vHtml='v'+esc(p.version);
+    if(p.has_update){
+      /* 版本发现：商店有更高版本时显示升级徽标 */
+      vHtml+=' <span class="bdg" style="background:rgba(63,185,80,.15);color:#3fb950">&#x1F504; v'+esc(p.latest_version||p.version)+' '+_('Upgrade available')+'</span>';
+    }
+    h+='<td style="padding:10px 12px;color:var(--dim)">'+vHtml+'</td>';
     h+='<td style="padding:10px 12px;color:var(--dim)">'+esc(p.author||'-')+'</td>';
     h+='<td style="padding:10px 12px;text-align:center">'+st+'</td>';
     h+='<td style="padding:10px 12px;text-align:center;display:flex;gap:4px;flex-wrap:wrap;justify-content:center" onclick="event.stopPropagation()">';
