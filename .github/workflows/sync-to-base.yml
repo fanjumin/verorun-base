@@ -45,6 +45,13 @@ jobs:
           # .gitattributes 中的 export-ignore 控制哪些文件不导出
           git archive --format=tar "${{ steps.vars.outputs.tag }}" | tar -xC /tmp/base/
 
+      - name: Point base updates to verorun-base repo
+        run: |
+          cd /tmp/base
+          # base 客户更新源指向 verorun-base（公开仓库，免 SSH key）
+          sed -i 's#git@github.com:fanjumin/verorun-code.git#https://github.com/fanjumin/verorun-base.git#' deploy/install.sh
+          sed -i 's#https://github.com/fanjumin/verorun-code/settings/keys/new#https://github.com/fanjumin/verorun-base#' deploy/install.sh
+
       - name: Commit and push to verorun-base
         run: |
           cd /tmp/base
