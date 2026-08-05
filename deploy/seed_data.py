@@ -11,11 +11,12 @@ Usage:
 import os, sys, hashlib, secrets, json, argparse
 
 # ── Admin credentials ─────────────────────────────────────────────────
-# Username is randomly generated on each seed run to prevent guessing.
-# It prints at install time; save it or check deploy output.
+# 默认超级管理员用户名 administrator；未显式提供密码时随机生成 10 位密码。
+# 凭据在安装输出打印一次，请用户立即保存。
 import secrets as _secrets
-ADMIN_USERNAME = os.environ.get("VR_ADMIN_USERNAME", "adm_" + _secrets.token_hex(8))
-ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD", "XSNNTg.9vmFy")
+ADMIN_USERNAME = os.environ.get("VR_ADMIN_USERNAME", "administrator")
+# 未显式提供密码时随机生成 10 位密码（安装输出打印一次，请用户立即保存）
+ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD") or _secrets.token_urlsafe(8)[:10]
 ADMIN_DISPLAY  = "Administrator"
 
 # ── Seed data ─────────────────────────────────────────────────────────

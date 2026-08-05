@@ -13,6 +13,7 @@ Plugin Manager — 插件管理器核心类
 import os
 import sys
 import json
+import time
 import importlib
 import importlib.util
 import threading
@@ -72,6 +73,8 @@ class PluginManager:
         # License & 商店
         self._license_mgr: Optional[LicenseManager] = None
         self._store_client: Optional[StoreAPIClient] = None
+        # 商店目录最近一次同步时间戳（懒刷新 TTL 依据）
+        self._last_store_sync_ts = 0.0
 
         if app is not None:
             self.init_app(app)
@@ -110,6 +113,7 @@ class PluginManager:
         def _sync_store_catalog():
             try:
                 count = store_client.sync_all()
+                self._last_store_sync_ts = time.time()
                 print(f'[PluginManager] Store catalog synced: {count} plugins')
             except Exception as e:
                 print(f'[PluginManager] Store sync failed: {e}')
@@ -643,19 +647,38 @@ class PluginManager:
 
         Returns:
             {
-                'local': [PluginInfo dict],      # 已安装插件
+                'local': [PluginInfo dict],      # 已安装插件（含 has_update/latest_version 版本发现标记）
                 'store': [StorePlugin dict],     # 商店中未安装的插件
                 'total_local': int,
                 'total_store': int,
             }
         """
         from .models_store import get_registry_db as _get_store_db
+
+        # 懒刷新商店目录（距上次同步超过 TTL 时异步重新拉取，不阻塞请求）
+        try:
+            self.ensure_store_synced()
+        except Exception as e:
+            print(f'[PluginManager] get_unified_list ensure_store_synced failed: {e}')
+
         local_ids = set(self._cache.keys())
         local = [p.to_dict() for p in self._cache.values()]
         for p in local:
             if isinstance(p.get('status'), PluginStatus):
                 p['status'] = p['status'].value
             p['_source'] = 'local'
+
+        # ── 版本发现：本地已安装版本 vs 商店目录版本 ──────────
+        try:
+            local_versions = {p['identifier']: str(p.get('version') or '0.0.0') for p in local}
+            updates = self._store_client.check_updates(local_versions) if self._store_client else {}
+        except Exception as e:
+            print(f'[PluginManager] get_unified_list check_updates failed: {e}')
+            updates = {}
+        for p in local:
+            u = updates.get(p['identifier'])
+            p['has_update'] = bool(u and u.get('has_update'))
+            p['latest_version'] = (u or {}).get('latest') or p.get('version')
 
         store_plugins = []
         try:
@@ -685,6 +708,37 @@ class PluginManager:
             'total_local': len(local),
             'total_store': len(store_plugins),
         }
+
+    def ensure_store_synced(self, ttl: int = 300) -> bool:
+        """懒刷新商店目录：距上次同步超过 TTL 秒时，异步触发重新同步。
+
+        不阻塞当前请求；当前请求继续使用既有数据，下次请求即拿到最新目录。
+        失败时重置时间戳，允许下一次请求立即重试。
+
+        Args:
+            ttl: 刷新间隔秒数（默认 300 = 5 分钟）
+
+        Returns:
+            True（始终返回，不抛错；内部异常已捕获）
+        """
+        if self._store_client is None:
+            return False
+        now = time.time()
+        if now - self._last_store_sync_ts <= ttl:
+            return True
+        self._last_store_sync_ts = now  # 先占位，避免并发请求重复触发
+
+        def _do_sync():
+            try:
+                count = self._store_client.sync_all()
+                self._last_store_sync_ts = time.time()
+                print(f'[PluginManager] Store catalog lazy-synced: {count} plugins')
+            except Exception as e:
+                self._last_store_sync_ts = 0.0  # 失败则下次请求重试
+                print(f'[PluginManager] Store lazy sync failed: {e}')
+
+        threading.Thread(target=_do_sync, daemon=True).start()
+        return True
 
     def is_enabled(self, identifier: str) -> bool:
         info = self._cache.get(identifier)

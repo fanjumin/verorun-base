@@ -521,6 +521,35 @@ def store_admin_toggle(identifier: str):
 
 # ── 18. 浏览商店 ─────────────────────────────────────────
 
+def _annotate_store_plugins(mgr, plugins: list) -> None:
+    """为商店插件批量注入 installed / has_update / latest_version 标记
+
+    就地修改 plugins 中的 dict；内部异常已捕获，不影响原有响应。
+    """
+    if not plugins:
+        return
+
+    # 收集本地已安装版本映射（仅针对当前页插件，避免全量查询）
+    local_versions = {}
+    for p in plugins:
+        info = mgr.get_info(p.get('identifier', ''))
+        if info:
+            local_versions[p['identifier']] = info.version
+
+    updates = {}
+    if local_versions and mgr.store_client:
+        try:
+            updates = mgr.store_client.check_updates(local_versions)
+        except Exception as e:
+            print(f'[routes] _annotate_store_plugins check_updates failed: {e}')
+
+    for p in plugins:
+        p['installed'] = p.get('identifier') in local_versions
+        u = updates.get(p.get('identifier'))
+        p['has_update'] = bool(u and u.get('has_update'))
+        p['latest_version'] = (u or {}).get('latest') or p.get('version')
+
+
 @bp.route('/store/browse', methods=['GET'])
 def store_browse():
     """浏览商店插件列表"""
@@ -536,6 +565,11 @@ def store_browse():
     page_size = int(request.args.get('page_size', 20))
 
     data = mgr.store_client.search(query, category, price_type, page, page_size, sort_by)
+    # 版本发现：标记已安装 / 可升级状态
+    try:
+        _annotate_store_plugins(mgr, data.get('plugins', []))
+    except Exception as e:
+        print(f'[routes] store_browse annotate failed: {e}')
     return _json_result(True, data=data)
 
 
@@ -551,6 +585,11 @@ def store_detail(identifier: str):
     detail = mgr.store_client.get_detail(identifier)
     if not detail:
         return _json_result(False, error=f'Plugin "{identifier}" not found in store', code=404)
+    # 版本发现：标记已安装 / 可升级状态
+    try:
+        _annotate_store_plugins(mgr, [detail])
+    except Exception as e:
+        print(f'[routes] store_detail annotate failed: {e}')
     return _json_result(True, data=detail)
 
 
