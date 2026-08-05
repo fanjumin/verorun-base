@@ -38,6 +38,7 @@ from .ua_parser import parse_ua
 # 排除规则（从隐私配置读取，启动时也设默认值）
 EXCLUDE_PATHS = [
     '/static/*', '/favicon.ico', '/robots.txt', '/health',
+    '/admin/analytics/*',  # 排除仪表盘自引用请求
 ]
 EXCLUDE_PATH_REGEX = None
 
