@@ -24,8 +24,8 @@ class VaultNotifier:
         """Load enabled notification channels from plugin config."""
         channels = []
         try:
-            from plugins._base.db import get_raw_connection
-            conn = get_raw_connection()
+            from .utils import get_vault_conn
+            conn = get_vault_conn()
             cur = conn.cursor()
             cur.execute(
                 "SELECT config FROM plugin_registry WHERE identifier = 'vault'"
@@ -285,8 +285,8 @@ class VaultNotifier:
     def _check_consecutive_failures() -> list:
         """Check for 3+ consecutive backup failures in vault_backups table."""
         try:
-            from plugins._base.db import get_raw_connection
-            conn = get_raw_connection()
+            from .utils import get_vault_conn
+            conn = get_vault_conn()
             cur = conn.cursor()
             cur.execute("""
                 SELECT status FROM vault_backups
@@ -319,8 +319,8 @@ class VaultNotifier:
     def _check_size_anomaly() -> list:
         """Check for backup size anomaly (>50% change from average)."""
         try:
-            from plugins._base.db import get_raw_connection
-            conn = get_raw_connection()
+            from .utils import get_vault_conn
+            conn = get_vault_conn()
             cur = conn.cursor()
             cur.execute("""
                 SELECT size_bytes FROM vault_backups

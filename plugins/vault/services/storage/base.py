@@ -57,8 +57,8 @@ class StorageRouter:
     def _load_adapters(self):
         """Load all enabled storage targets from database."""
         try:
-            from plugins._base.db import get_raw_connection
-            conn = get_raw_connection()
+            from ..utils import get_vault_conn
+            conn = get_vault_conn()
             cur = conn.cursor()
             cur.execute("""
                 SELECT id, name, storage_type, config
@@ -160,8 +160,8 @@ class StorageRouter:
 
     def list_targets(self) -> list:
         """List all storage targets from database."""
-        from plugins._base.db import get_raw_connection
-        conn = get_raw_connection()
+        from ..utils import get_vault_conn
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT id, name, storage_type, config, is_default, enabled,
@@ -188,8 +188,8 @@ class StorageRouter:
     def create_target(self, name: str, storage_type: str,
                       config: dict, is_default: bool = False) -> dict:
         """Create a new storage target. Returns the created target dict."""
-        from plugins._base.db import get_raw_connection
-        conn = get_raw_connection()
+        from ..utils import get_vault_conn
+        conn = get_vault_conn()
         cur = conn.cursor()
 
         if is_default:
@@ -214,9 +214,9 @@ class StorageRouter:
 
     def update_target(self, target_id: int, **kwargs) -> dict:
         """Update a storage target."""
-        from plugins._base.db import get_raw_connection
+        from ..utils import get_vault_conn
         import json as _json
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
 
         allowed = ['name', 'storage_type', 'config', 'is_default', 'enabled']
@@ -246,8 +246,8 @@ class StorageRouter:
 
     def delete_target(self, target_id: int) -> dict:
         """Delete a storage target."""
-        from plugins._base.db import get_raw_connection
-        conn = get_raw_connection()
+        from ..utils import get_vault_conn
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("DELETE FROM vault_storage_targets WHERE id = %s", (target_id,))
         deleted = cur.rowcount
@@ -259,14 +259,14 @@ class StorageRouter:
 
     def test_target(self, target_id: int) -> dict:
         """Test connection for a specific target."""
-        from plugins._base.db import get_raw_connection
+        from ..utils import get_vault_conn
         adapter = self._adapters.get(target_id)
         if not adapter:
             return {'ok': False, 'error': 'Target not found or not loaded'}
 
         result = adapter.test_connection()
         try:
-            conn = get_raw_connection()
+            conn = get_vault_conn()
             cur = conn.cursor()
             cur.execute("""
                 UPDATE vault_storage_targets
@@ -320,7 +320,7 @@ class StorageRouter:
         import glob as _glob
         from datetime import datetime
 
-        from plugins._base.db import get_raw_connection
+        from ..utils import get_vault_conn
         base_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
                                   '..', '..', '..')
         backup_dir = _os.path.join(base_dir, 'data', 'vault')
@@ -332,7 +332,7 @@ class StorageRouter:
         removed = 0
 
         # Find archive-tier target (optional)
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT id, config FROM vault_storage_targets

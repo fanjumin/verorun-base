@@ -126,8 +126,8 @@ class ComplianceReporter:
     @staticmethod
     def _check_retention() -> dict:
         """Check retention policy compliance."""
-        from plugins._base.db import get_raw_connection
-        conn = get_raw_connection()
+        from .utils import get_vault_conn
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT COUNT(*) FROM vault_schedules
@@ -174,8 +174,8 @@ class ComplianceReporter:
     @staticmethod
     def _check_restore_drill() -> dict:
         """Check restore drill history."""
-        from plugins._base.db import get_raw_connection
-        conn = get_raw_connection()
+        from .utils import get_vault_conn
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT created_at FROM vault_audit_log

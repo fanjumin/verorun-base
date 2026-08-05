@@ -375,8 +375,8 @@ def api_health_check():
         # Next schedule (check vault_schedules first, then cron_jobs)
         next_schedule = None
         try:
-            from plugins._base.db import get_raw_connection
-            conn = get_raw_connection()
+            from .services.utils import get_vault_conn
+            conn = get_vault_conn()
             cur = conn.cursor()
             # Check vault_schedules table
             cur.execute("""
@@ -866,8 +866,8 @@ def api_restore_drill():
 def api_trend():
     """Return backup size trend data for dashboard charts."""
     try:
-        from plugins._base.db import get_raw_connection
-        conn = get_raw_connection()
+        from .services.utils import get_vault_conn
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT label, backup_type, size_bytes, status,
@@ -966,8 +966,8 @@ def _handle_backup_create():
 
         # Write to vault_backups table
         try:
-            from plugins._base.db import get_raw_connection
-            conn = get_raw_connection()
+            from .services.utils import get_vault_conn
+            conn = get_vault_conn()
             cur = conn.cursor()
             cur.execute("""
                 INSERT INTO vault_backups

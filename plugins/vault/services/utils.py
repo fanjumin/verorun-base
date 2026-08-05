@@ -14,18 +14,32 @@ BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
 _SCHEMA_ENSURED = False
 
 
+def get_vault_conn():
+    """Return a raw psycopg2 connection pinned to the vault schema.
+
+    Follows plugin-standard v1.2 §9.1 (single DB, per-plugin schema):
+    plugin tables live in the `vault` schema; unqualified system tables
+    (public) still resolve through the trailing 'public'.
+    """
+    from plugins._base.db import get_raw_connection
+    conn = get_raw_connection()
+    cur = conn.cursor()
+    cur.execute('SET search_path TO vault, public')
+    cur.close()
+    return conn
+
+
 def ensure_schema():
     """Idempotently apply vault migrations so all vault_* tables exist.
 
     Safe to call on every request: the migration SQL only uses
-    CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS, and a module
-    flag short-circuits after the first successful run per process.
+    CREATE SCHEMA / CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS,
+    and a module flag short-circuits after the first successful run per process.
     """
     global _SCHEMA_ENSURED
     if _SCHEMA_ENSURED:
         return True
     try:
-        from plugins._base.db import get_raw_connection
         migration_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), '..', 'migrations', '001_initial.sql')
         if not os.path.exists(migration_path):
@@ -33,7 +47,7 @@ def ensure_schema():
             return False
         with open(migration_path, 'r', encoding='utf-8') as f:
             sql = f.read()
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         try:
             cur = conn.cursor()
             cur.execute(sql)

@@ -7,7 +7,7 @@ All operations are automatically recorded and tamper-evident.
 
 from datetime import datetime
 from flask import request
-from plugins._base.db import get_raw_connection
+from .utils import get_vault_conn
 
 
 def log_audit(action: str, resource_type: str, resource_id: str,
@@ -40,7 +40,7 @@ def log_audit(action: str, resource_type: str, resource_id: str,
     except Exception:
         pass
 
-    conn = get_raw_connection()
+    conn = get_vault_conn()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO vault_audit_log (action, resource_type, resource_id,
@@ -75,7 +75,7 @@ def get_audit_logs(action: str = None, resource_type: str = None,
     Returns:
         List of audit log dicts
     """
-    conn = get_raw_connection()
+    conn = get_vault_conn()
     cur = conn.cursor()
 
     conditions = []

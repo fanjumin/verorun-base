@@ -10,7 +10,7 @@ import os
 import glob as _glob
 from datetime import datetime, time, timedelta
 from croniter import croniter
-from plugins._base.db import get_raw_connection
+from .utils import get_vault_conn
 
 
 class VaultScheduler:
@@ -21,7 +21,7 @@ class VaultScheduler:
 
     def get_all_schedules(self) -> list:
         """Get all enabled schedules."""
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("""
             SELECT id, name, cron_expression, backup_type, retention_days,
@@ -146,7 +146,7 @@ class VaultScheduler:
 
     def _update_schedule_status_with_backoff(self, schedule_id: int, minutes: int = 5):
         """Update next_run_at with backoff delay after failure."""
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         next_run = datetime.utcnow() + timedelta(minutes=minutes)
         cur.execute("""
@@ -205,7 +205,7 @@ class VaultScheduler:
                 print(f'[Vault] Cleanup failed for {archive}: {e}')
 
     def _update_schedule_status(self, schedule_id: int):
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         now = datetime.utcnow()
         cron_expr = self._get_schedule_cron(schedule_id)
@@ -220,7 +220,7 @@ class VaultScheduler:
         conn.close()
 
     def _get_schedule_cron(self, schedule_id: int) -> str:
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute(
             "SELECT cron_expression FROM vault_schedules WHERE id = %s",
@@ -251,7 +251,7 @@ class VaultScheduler:
                         pre_hook: str = None, post_hook: str = None) -> dict:
         """Create a new backup schedule. Returns the created schedule dict."""
         import json as _json
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         next_run = self.compute_next_run(cron_expr, backup_window)
         cur.execute("""
@@ -285,7 +285,7 @@ class VaultScheduler:
         """Update a schedule. Supported fields: name, cron_expression, backup_type,
         retention_days, retention_count, enabled, backup_window, pre_hook, post_hook."""
         import json as _json
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
 
         allowed = ['name', 'cron_expression', 'backup_type', 'retention_days',
@@ -323,7 +323,7 @@ class VaultScheduler:
 
     def delete_schedule(self, schedule_id: int) -> dict:
         """Delete a schedule."""
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute("DELETE FROM vault_schedules WHERE id = %s", (schedule_id,))
         deleted = cur.rowcount
@@ -334,7 +334,7 @@ class VaultScheduler:
 
     def toggle_schedule(self, schedule_id: int, enabled: bool) -> dict:
         """Enable or disable a schedule."""
-        conn = get_raw_connection()
+        conn = get_vault_conn()
         cur = conn.cursor()
         cur.execute(
             "UPDATE vault_schedules SET enabled = %s WHERE id = %s",
