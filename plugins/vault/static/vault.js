@@ -32,11 +32,45 @@
 
   // ── Toast ──
   function toast(msg, type) {
+    type = type || 'info';
+    // Embedded in admin shell → reuse the system toast for a unified style
+    try {
+      if (window.top !== window && window.top.showToast) {
+        window.top.showToast(msg, type === 'warning' ? 'error' : type);
+        return;
+      }
+    } catch (e) { /* cross-origin guard */ }
+    // Standalone fallback (page opened directly): system-styled local toast
     var el = document.createElement('div');
-    el.className = 'toast toast-' + (type || 'info');
+    el.className = 'toast toast-' + type;
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(function () { el.remove(); }, 4000);
+  }
+
+  // Styled confirmation modal (aligned with admin shell .modal-overlay/.modal-box)
+  function vaultConfirm(title, message, confirmLabel, onConfirm) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+      '<div class="modal-box" onclick="event.stopPropagation()">' +
+      '<h3>' + escHtml(title) + '</h3>' +
+      '<div class="modal-message">' + escHtml(message) + '</div>' +
+      '<div class="modal-actions">' +
+      '<button class="btn btn-outline btn-sm" id="vaultConfirmCancel">Cancel</button>' +
+      '<button class="btn btn-danger btn-sm" id="vaultConfirmOk">' + escHtml(confirmLabel || 'OK') + '</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('vaultConfirmCancel').addEventListener('click', function () {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
+    document.getElementById('vaultConfirmOk').addEventListener('click', function () {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      onConfirm();
+    });
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
   }
 
   // ── API helper ──
@@ -145,22 +179,24 @@
   }
 
   function deleteBackup(label) {
-    if (!confirm('Delete backup ' + label + '? This cannot be undone.')) return;
-    api('/admin/vault/api/backup/delete/' + encodeURIComponent(label), {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ confirm: true }),
-    }).then(function () { toast('Backup deleted', 'success'); loadBackups(); loadHealth(); })
-      .catch(function (e) { toast('Delete failed: ' + e.message, 'error'); });
+    vaultConfirm('Delete Backup', 'Delete backup ' + label + '? This cannot be undone.', 'Delete', function () {
+      api('/admin/vault/api/backup/delete/' + encodeURIComponent(label), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      }).then(function () { toast('Backup deleted', 'success'); loadBackups(); loadHealth(); })
+        .catch(function (e) { toast('Delete failed: ' + e.message, 'error'); });
+    });
   }
 
   function cleanupBackups() {
-    if (!confirm('Delete backups older than retention period?')) return;
-    api('/admin/vault/api/cleanup', { method: 'DELETE' })
-      .then(function (data) {
-        if (data.success) { toast('Cleaned up ' + data.deleted + ' old backup(s)', 'success'); loadBackups(); loadHealth(); }
-        else { toast('Cleanup failed: ' + (data.error || 'unknown'), 'error'); }
-      }).catch(function (e) { toast('Cleanup error: ' + e.message, 'error'); });
+    vaultConfirm('Cleanup Backups', 'Delete backups older than retention period?', 'Cleanup', function () {
+      api('/admin/vault/api/cleanup', { method: 'DELETE' })
+        .then(function (data) {
+          if (data.success) { toast('Cleaned up ' + data.deleted + ' old backup(s)', 'success'); loadBackups(); loadHealth(); }
+          else { toast('Cleanup failed: ' + (data.error || 'unknown'), 'error'); }
+        }).catch(function (e) { toast('Cleanup error: ' + e.message, 'error'); });
+    });
   }
 
   // ── ECharts: Trend & Storage Charts ──
@@ -221,39 +257,41 @@
   // ── Drill: Restore Drill ──
 
   function runDrill() {
-    if (!confirm('Run a restore drill? This will restore the latest backup to a sandbox database, verify it, and clean up. No production data will be affected.')) return;
-    var btn = document.getElementById('btnDrill');
-    if (btn) { btn.disabled = true; btn.textContent = 'Drilling...'; }
+    vaultConfirm('Restore Drill', 'Run a restore drill? This will restore the latest backup to a sandbox database, verify it, and clean up. No production data will be affected.', 'Run Drill', function () {
+      var btn = document.getElementById('btnDrill');
+      if (btn) { btn.disabled = true; btn.textContent = 'Drilling...'; }
 
-    api('/admin/vault/api/restore/drill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    }).then(function (data) {
-      if (data.verified) {
-        toast('Drill passed: backup is valid and restorable', 'success');
-      } else {
-        toast('Drill failed: ' + (data.report || data.error || 'verification failed'), 'error');
-      }
-    }).catch(function (e) { toast('Drill error: ' + e.message, 'error'); })
-      .finally(function () { if (btn) { btn.disabled = false; btn.textContent = 'Drill'; } });
+      api('/admin/vault/api/restore/drill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then(function (data) {
+        if (data.verified) {
+          toast('Drill passed: backup is valid and restorable', 'success');
+        } else {
+          toast('Drill failed: ' + (data.report || data.error || 'verification failed'), 'error');
+        }
+      }).catch(function (e) { toast('Drill error: ' + e.message, 'error'); })
+        .finally(function () { if (btn) { btn.disabled = false; btn.textContent = 'Drill'; } });
+    });
   }
 
   // ── PITR (available from Restore page) ──
 
   function runPitr(targetTime) {
-    if (!confirm('Run Point-in-Time Recovery to ' + targetTime + '? This will create a sandbox database.')) return;
-    api('/admin/vault/api/restore/pitr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_time: targetTime }),
-    }).then(function (data) {
-      if (data.success) {
-        toast('PITR completed. Sandbox database: ' + data.sandbox_db, 'success');
-      } else {
-        toast('PITR failed: ' + (data.error || 'unknown'), 'error');
-      }
-    }).catch(function (e) { toast('PITR error: ' + e.message, 'error'); });
+    vaultConfirm('Point-in-Time Recovery', 'Run Point-in-Time Recovery to ' + targetTime + '? This will create a sandbox database.', 'Run PITR', function () {
+      api('/admin/vault/api/restore/pitr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_time: targetTime }),
+      }).then(function (data) {
+        if (data.success) {
+          toast('PITR completed. Sandbox database: ' + data.sandbox_db, 'success');
+        } else {
+          toast('PITR failed: ' + (data.error || 'unknown'), 'error');
+        }
+      }).catch(function (e) { toast('PITR error: ' + e.message, 'error'); });
+    });
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -493,12 +531,13 @@
   };
 
   window.vaultDeleteSchedule = function (id) {
-    if (!confirm('Delete this schedule?')) return;
-    api('/admin/vault/api/schedule/' + id, { method: 'DELETE' })
-      .then(function (data) {
-        if (data.success) { toast('Schedule deleted', 'success'); loadSchedules(); }
-        else { toast('Delete failed: ' + (data.error || 'unknown'), 'error'); }
-      }).catch(function (e) { toast('Delete error: ' + e.message, 'error'); });
+    vaultConfirm('Delete Schedule', 'Delete this schedule?', 'Delete', function () {
+      api('/admin/vault/api/schedule/' + id, { method: 'DELETE' })
+        .then(function (data) {
+          if (data.success) { toast('Schedule deleted', 'success'); loadSchedules(); }
+          else { toast('Delete failed: ' + (data.error || 'unknown'), 'error'); }
+        }).catch(function (e) { toast('Delete error: ' + e.message, 'error'); });
+    });
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -722,12 +761,13 @@
   };
 
   window.vaultDeleteStorage = function (id) {
-    if (!confirm('Delete this storage target?')) return;
-    api('/admin/vault/api/storage/' + id, { method: 'DELETE' })
-      .then(function (data) {
-        if (data.success) { toast('Storage target deleted', 'success'); loadStorageTargets(); }
-        else { toast('Delete failed: ' + (data.error || 'unknown'), 'error'); }
-      }).catch(function (e) { toast('Delete error: ' + e.message, 'error'); });
+    vaultConfirm('Delete Storage Target', 'Delete this storage target?', 'Delete', function () {
+      api('/admin/vault/api/storage/' + id, { method: 'DELETE' })
+        .then(function (data) {
+          if (data.success) { toast('Storage target deleted', 'success'); loadStorageTargets(); }
+          else { toast('Delete failed: ' + (data.error || 'unknown'), 'error'); }
+        }).catch(function (e) { toast('Delete error: ' + e.message, 'error'); });
+    });
   };
 
   // ══════════════════════════════════════════════════════════════

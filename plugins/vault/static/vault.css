@@ -7,8 +7,7 @@
 /* ── Dashboard Layout ── */
 .vault-dashboard {
   padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Status Bar ── */
@@ -228,29 +227,97 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   transition: width 0.4s ease;
 }
 
-/* ── Toast Notifications ── */
+/* ── Toast Notifications (aligned with admin shell #adminToast) ── */
 .toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 12px 20px;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  color: var(--text);
+  padding: 10px 20px;
   border-radius: var(--radius-sm);
-  color: #fff;
   font-size: 0.85rem;
   font-family: var(--font-en);
   z-index: var(--z-toast);
-  animation: vaultSlideIn 0.3s var(--ease-out);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow-md);
 }
 
-.toast-success { background: var(--green); color: #000; }
-.toast-error   { background: var(--rose); }
-.toast-info    { background: var(--indigo); }
-.toast-warning { background: var(--gold); color: #000; }
+.toast-success { color: var(--green); border-color: var(--green); }
+.toast-error   { color: var(--rose); border-color: var(--rose); }
+.toast-info    { color: var(--blue); border-color: var(--blue); }
+.toast-warning { color: var(--gold); border-color: var(--gold); }
 
-@keyframes vaultSlideIn {
-  from { transform: translateX(100px); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+/* ── Confirmation Modal (aligned with admin shell .modal-box) ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: vaultFadeIn 0.2s var(--ease-out);
+}
+
+.modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 480px;
+  max-width: 92vw;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-box h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-en);
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.modal-box .modal-message {
+  font-size: 0.875rem;
+  color: var(--dim);
+  line-height: 1.6;
+  margin-bottom: 20px;
+  white-space: pre-line;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-box .btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-family: var(--font-en);
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+.modal-box .btn:hover { background: rgba(255,255,255,0.06); }
+
+.modal-box .btn-danger {
+  background: var(--rose);
+  border: 1px solid var(--rose);
+  color: #fff;
+}
+
+.modal-box .btn-danger:hover { background: #e11d48; }
+
+@keyframes vaultFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ── Page Header ── */
