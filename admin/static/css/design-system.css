@@ -69,33 +69,6 @@
   --z-nav:        100;
   --z-modal:      200;
   --z-toast:      300;
-
-  /* ── Plugin Compatibility Aliases ── */
-  /* Maps legacy plugin variable names to the unified design system */
-  --bg-glass-hover: rgba(20,20,40,0.85);
-  --border-glow:    rgba(0,245,255,0.15);
-  --gradient-gold:  var(--gradient-fire);
-  --gradient-rose:  linear-gradient(135deg, #f43f5e, #ec4899);
-  --glow-accent:    rgba(0,245,255,0.12);
-  --surface-hover:  rgba(36,40,54,0.85);
-  --primary-hover:  #4f46e5;
-  /* Legacy name → system name mappings */
-  --card:           var(--bg-card);
-  --card2:          var(--bg-elevated);
-  --dim:            var(--text-dim);
-  --accent:         var(--indigo);
-  --red:            var(--rose);
-  --yellow:         var(--gold);
-  --glass:          var(--bg-glass);
-  --muted:          var(--text-muted);
-  --accent2:        var(--violet);
-  --accent3:        var(--green);
-  --surface:        var(--bg-elevated);
-  --text-secondary: var(--text-dim);
-  --primary:        var(--indigo);
-  --success:        var(--green);
-  --danger:         var(--rose);
-  --text-bright:    var(--text-high);
 }
 
 /* ── Reset & Base ── */
@@ -416,6 +389,7 @@ body{
   content:'';position:absolute;inset:0;
   background:linear-gradient(135deg, rgba(99,102,241,0.04) 0%, transparent 60%);
   opacity:0;transition:opacity .4s;
+  pointer-events:none;
 }
 .glass-card:hover{
   border-color:var(--border-accent);
