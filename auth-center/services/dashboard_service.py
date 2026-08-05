@@ -191,19 +191,43 @@ class DashboardService:
                 data['total_orders'] = row.get('c', 0) if row else 0
 
                 thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+                # 近30天收入（三表合并，与 /admin/revenue/dashboard 口径一致）
+                revenue = 0.0
                 row = self._safe_execute(conn,
                     "SELECT COALESCE(SUM(amount),0) as c FROM billing_orders "
                     "WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,))
-                data['monthly_revenue'] = round(row.get('c', 0), 2) if row else 0
+                revenue += float(row.get('c', 0)) if row else 0
+                row = self._safe_execute(conn,
+                    "SELECT COALESCE(SUM(amount_fen)/100.0,0) as c FROM subscription_orders "
+                    "WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,))
+                revenue += float(row.get('c', 0)) if row else 0
+                row = self._safe_execute(conn,
+                    "SELECT COALESCE(SUM(subtotal),0) as c FROM order_items "
+                    "WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,))
+                revenue += float(row.get('c', 0)) if row else 0
+                data['monthly_revenue'] = round(revenue, 2)
 
                 data['recent_orders'] = self._safe_execute_all(conn,
                     "SELECT id, user_id, item_desc, amount, status, paid_at "
                     "FROM billing_orders ORDER BY created_at DESC LIMIT 5")
 
-                data['revenue_trend_30d'] = self._safe_execute_all(conn,
+                # 近30天每日收入趋势（三表合并，按日期累加）
+                trend_map: Dict[str, float] = {}
+                trend_sqls = [
                     "SELECT date(paid_at) as date, SUM(amount) as revenue "
-                    "FROM billing_orders WHERE status='paid' AND paid_at>=%s "
-                    "GROUP BY date(paid_at) ORDER BY date", (thirty_days_ago,))
+                    "FROM billing_orders WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
+                    "SELECT date(paid_at) as date, COALESCE(SUM(amount_fen)/100.0,0) as revenue "
+                    "FROM subscription_orders WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
+                    "SELECT date(paid_at) as date, COALESCE(SUM(subtotal),0) as revenue "
+                    "FROM order_items WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
+                ]
+                for sql in trend_sqls:
+                    for r in self._safe_execute_all(conn, sql, (thirty_days_ago,)):
+                        trend_map[r['date']] = trend_map.get(r['date'], 0.0) + float(r['revenue'] or 0)
+                data['revenue_trend_30d'] = [
+                    {'date': d, 'revenue': round(v, 2)} for d, v in sorted(trend_map.items())
+                ]
         except:
             pass
 
