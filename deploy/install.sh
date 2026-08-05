@@ -15,7 +15,7 @@ set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
-: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
+: "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -63,7 +63,7 @@ ensure_git_auth() {
         echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${YELLOW}║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║${NC}"
         echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
-        echo -e "${YELLOW}║  URL: https://github.com/fanjumin/verorun-code/settings/keys/new${NC}"
+        echo -e "${YELLOW}║  URL: https://github.com/fanjumin/verorun-base${NC}"
         echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
         cat "${ssh_key}.pub" | while read -r line; do
             echo -e "${GREEN}║  ${line}${NC}"
