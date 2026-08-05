@@ -698,6 +698,8 @@ Wants=verorun-health.service verorun-main.service verorun-admin.service verorun-
 
 [Service]
 Type=simple
+# Guardian runs as root to access system integrity checks (file hashes,
+# process monitoring, and systemd journal) that require elevated privileges.
 User=root
 WorkingDirectory=GDEVDIR
 EnvironmentFile=-/etc/default/verorun-guardian

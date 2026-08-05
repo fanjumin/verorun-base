@@ -8,7 +8,7 @@
 # ==========================================================================
 set -euo pipefail
 
-APP_USER="verorun"
+APP_USER="${SUDO_USER:-$(whoami)}"
 APP_HOME="/home/${APP_USER}/verorun"
 LOG_DIR="/var/log/verorun"
 SERVICE_DIR="/etc/systemd/system"
@@ -39,7 +39,7 @@ fi
 
 # 1. systemd services (reverse of write_systemd_services + restart_services)
 step "systemd services"
-for svc in verorun-admin verorun-auth verorun-main; do
+for svc in verorun-admin verorun-auth verorun-main verorun-health verorun-guardian; do
     systemctl stop "${svc}" 2>/dev/null || true
     systemctl disable "${svc}" 2>/dev/null || true
     echo "  stop/disable: ${svc}"
