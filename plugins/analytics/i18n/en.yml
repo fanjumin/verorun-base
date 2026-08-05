@@ -4,7 +4,8 @@ event_name required: 缺少 event_name 参数
 unknown type: Unknown type
 license_key required: License key required
 account_id required: Account ID required
-🌍 World Access Map: 🌍 World Access Map
+🇨🇳 China: 🇨🇳 China
+🌍 World: 🌍 World
 GeoIP Database Setup: GeoIP Database Setup
 GeoIP databases are required to show geographic distribution on the Region tab. Choose the one that matches your user base.: GeoIP databases are required to show geographic distribution on the Region tab. Choose the one that matches your user base.
 ip2region: ip2region

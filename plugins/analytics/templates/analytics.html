@@ -662,7 +662,7 @@ body {
     <div class="dashboard-grid" style="margin-bottom:16px">
       <div class="glass-card" style="grid-column: 1 / -1;">
         <div class="label" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
-          <span id="mapTitle">{% if geo_market == 'cn' %}{{ _('🇨🇳 China Access Map') }}{% else %}{{ _('🌍 World Access Map') }}{% endif %}</span>
+          <span id="mapTitle">{% if geo_market == 'cn' %}{{ _('🇨🇳 China') }}{% else %}{{ _('🌍 World') }}{% endif %}</span>
           <button onclick="toggleMapView()" id="mapToggleBtn" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:2px 10px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:inherit">{% if geo_market == 'cn' %}🌍 {{ _('World') }}{% else %}🇨🇳 {{ _('China') }}{% endif %}</button>
         </div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
@@ -1364,7 +1364,7 @@ function loadChinaCities(skipMap) {
   api('/geo/china-cities?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       var titleEl = document.getElementById('mapTitle');
-      if (titleEl) titleEl.textContent = _MARKET === 'cn' ? '{{ _('🇨🇳 China Access Map') }}' : '{{ _('🌍 World Access Map') }}';
+      if (titleEl) titleEl.textContent = _MARKET === 'cn' ? '{{ _('🇨🇳 China') }}' : '{{ _('🌍 World') }}';
       document.getElementById('chinaMapChart').innerHTML =
         '<div class="empty-state" style="padding:40px 20px"><div class="icon">&#x1F1E8;&#x1F1F3;</div>' +
         '<div class="text">{{ _('No geographic data yet') }}</div>' +
@@ -1401,7 +1401,7 @@ function loadChinaCities(skipMap) {
 // ECharts 中国地图（省份热力图）
 function renderChinaMap(provinces) {
   var titleEl = document.getElementById('mapTitle');
-  if (titleEl) titleEl.textContent = '{{ _('🇨🇳 China Access Map') }}';
+  if (titleEl) titleEl.textContent = '{{ _('🇨🇳 China') }}';
   var dom = document.getElementById('chinaMapChart');
   if (charts.chinaMap) charts.chinaMap.dispose();
 
@@ -1507,7 +1507,7 @@ function loadWorldMap() {
   api('/geo?days=30').then(function(res){
     if (!res.success || !res.data.length) {
       var titleEl = document.getElementById('mapTitle');
-      if (titleEl) titleEl.textContent = '{{ _('🌍 World Access Map') }}';
+      if (titleEl) titleEl.textContent = '{{ _('🌍 World') }}';
       document.getElementById('chinaMapChart').innerHTML =
         '<div class="empty-state" style="padding:40px 20px"><div class="icon">🌍</div>' +
         '<div class="text">{{ _('No geographic data yet') }}</div>' +
@@ -1583,7 +1583,7 @@ function renderWorldCityTable(cities) {
 
 function renderWorldMap(data) {
   var titleEl = document.getElementById('mapTitle');
-  if (titleEl) titleEl.textContent = '{{ _('🌍 World Access Map') }}';
+  if (titleEl) titleEl.textContent = '{{ _('🌍 World') }}';
   var dom = document.getElementById('chinaMapChart');
   if (charts.chinaMap) charts.chinaMap.dispose();
   var pvMax = 0, mapData = [];
@@ -2225,14 +2225,14 @@ function toggleMapView() {
   // Update button text
   if (_MAP_VIEW === 'world') {
     if (btn) btn.innerHTML = '&#x1F1E8;&#x1F1F3; {{ _('China') }}';
-    document.getElementById('mapTitle').textContent = '{{ _('🌍 World Access Map') }}';
+    document.getElementById('mapTitle').textContent = '{{ _('🌍 World') }}';
     if (charts.chinaMap) charts.chinaMap.dispose();
     loadWorldMap();
     loadWorldCities();
     toggleCountrySection(true);
   } else {
     if (btn) btn.innerHTML = '&#x1F30D; {{ _('World') }}';
-    document.getElementById('mapTitle').textContent = '{{ _('🇨🇳 China Access Map') }}';
+    document.getElementById('mapTitle').textContent = '{{ _('🇨🇳 China') }}';
     if (charts.chinaMap) charts.chinaMap.dispose();
     loadChinaCities(false);
   }
