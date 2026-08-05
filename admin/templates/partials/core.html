@@ -113,15 +113,24 @@ function go(s){
 function goPlugin(key,embedUrl){
   document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
   var el=document.getElementById("n-"+key);if(el)el.classList.add("sel");
+  // 先显示 loading 指示器
+  document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}</div>';
   if(!embedUrl){
-    // 无 embed_url 时回退调用 window['l_' + key]()（inline 渲染插件）
-    if(typeof window["l_"+key]=="function"){window["l_"+key]();return}
-    document.getElementById("mc").innerHTML='<div class="em">Plugin embed URL not configured</div>';return
+    // 无 embed_url 时，带重试机制调用 inline 渲染函数
+    var _tries=0;
+    (function _try(){_tries++;
+      if(typeof window["l_"+key]=="function"){window["l_"+key]();return}
+      if(_tries<10)setTimeout(_try,100);
+      else document.getElementById("mc").innerHTML='<div class="em">{{ _('Plugin render function') }} l_'+esc(key)+'() {{ _('not found') }}. {{ _('Try refreshing the page') }}.</div>';
+    })();
+    return
   }
   // iframe 加载：通过 postMessage 传递 Token，避免 URL 参数泄露
   var ifr=document.createElement('iframe');
   ifr.style.cssText='width:100%;height:calc(100vh - 70px);border:none;background:#050508';
   ifr.src=embedUrl + (embedUrl.indexOf('?')>=0?'&':'?') + 'token=' + encodeURIComponent(T||'');
+  // iframe 加载失败时显示错误信息
+  ifr.onerror=function(){document.getElementById("mc").innerHTML='<div class="em">{{ _('Plugin page failed to load.') }}</div>';};
   document.getElementById("mc").innerHTML='';
   document.getElementById("mc").appendChild(ifr);
 }
