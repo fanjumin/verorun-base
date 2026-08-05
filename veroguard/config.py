@@ -33,7 +33,7 @@ PROJECT_DIR     = os.getenv('GUARDIAN_PROJECT_DIR',
 LOG_FILE        = os.getenv('GUARDIAN_LOG_FILE',
                     '/var/log/verorun-guardian.log')
 GITHUB_RAW_BASE = os.getenv('GUARDIAN_GITHUB_RAW',
-                    'https://raw.githubusercontent.com/fanjumin/VeroRunSystem')
+                    'https://raw.githubusercontent.com/fanjumin/verorun-base')
 
 # ── 回滚文件列表（修正点 6：扩展覆盖守护进程自身） ──
 FILES_TO_ROLLBACK = [

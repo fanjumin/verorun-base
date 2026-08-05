@@ -37,23 +37,32 @@ function renderStoreList(){
         /* 版本发现：商店有更高版本时显示升级徽标 */
         vHtml+=' <span class="bdg" style="background:rgba(63,185,80,.15);color:#3fb950">&#x1F504; v'+esc(p.latest_version||p.version)+' {{ _('Upgrade available') }}</span>';
       }
+      /* ★ 改动1：卡片缩略图 — icon_url 或分类占位符 */
+      var iconHtml='';
+      if(p.icon_url){
+        iconHtml='<div style="width:100%;height:120px;overflow:hidden;border-radius:6px 6px 0 0;margin:-1rem -1rem 0.5rem -1rem;width:calc(100% + 2rem)">'+
+          '<img src="'+escAttr(p.icon_url)+'" style="width:100%;height:100%;object-fit:cover" '+
+          'onerror="this.parentElement.innerHTML=\'<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--bg-secondary)\\'>&#39;+_categoryEmoji(p.category)+&#39;</div>\'"'+
+          '></div>';
+      }else{
+        iconHtml='<div style="width:100%;height:120px;display:flex;align-items:center;justify-content:center;'+
+          'font-size:2.5rem;background:var(--bg-secondary);border-radius:6px 6px 0 0;margin:-1rem -1rem 0.5rem -1rem;width:calc(100% + 2rem)">'+
+          _categoryEmoji(p.category)+'</div>';
+      }
       h+='<div class="cd" style="display:flex;flex-direction:column">';
+      h+=iconHtml;
       h+='<div style="font-size:15px;font-weight:600;margin-bottom:4px">'+esc(p.name)+' <span style="font-size:11px;color:var(--dim)">'+vHtml+'</span></div>';
-      h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:1">'+esc(p.description||'')+'</div>';
+      h+='<div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+esc(p.description||'')+'</div>';
       var avgRating=(p._reviews&&p._reviews.average)||p.rating||0;
       var reviewTotal=(p._reviews&&p._reviews.total)||p.review_count||0;
       h+='<div style="margin-top:4px;margin-bottom:4px">'+renderStars(avgRating,reviewTotal)+'</div>';
       h+='<div style="display:flex;align-items:center;justify-content:space-between">';
       h+='<span class="bdg '+priceClass+'">'+priceLabel+'</span>';
       h+='<div style="display:flex;gap:4px;align-items:center">';
+      /* ★ 改动2：卡片统一为详情按钮，移除 Install/Purchase */
       h+='<button class="btn bo bs" onclick="showPluginDetail(\''+escAttr(p.identifier)+'\')">{{ _('Details') }}</button>';
       if(p.installed){
-        /* 版本发现：已安装插件显示安装状态 */
         h+='<span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff">{{ _('Installed') }}</span>';
-      }else if(p.price_type==='free'){
-        h+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
-      }else{
-        h+='<button class="btn bp bs" data-pid="'+escAttr(p.identifier)+'" data-name="'+escAttr(p.name)+'" data-amount="'+(p.price_amount||0)+'" data-ptype="'+escAttr(p.price_type)+'" data-pinterval="'+escAttr(p.price_interval||'onetime')+'" onclick="showPurchaseDialog(this)">{{ _('Purchase') }}</button>';
       }
       h+='</div></div></div>';
     });
@@ -331,6 +340,24 @@ function renderStars(rating, count){
   return '<span style="color:#f0c040;font-size:14px;letter-spacing:1px">'+s+'</span>';
 }
 
+/* ★ 插件商店改造：分类 emoji 占位符 */
+function _categoryEmoji(category){
+  var map={
+    'marketing':'📣',
+    'supply-chain':'📦',
+    'supply_chain':'📦',
+    'content':'📝',
+    'tool':'🔧',
+    'ai_agent':'🤖',
+    'system':'⚙️',
+    'knowledge':'📚',
+    'social':'📱',
+    'shop':'🛒',
+    'other':'🧩'
+  };
+  return map[category]||'🧩';
+}
+
 /* ── Plugin Detail Modal ── */
 var detailModal=null;
 function showPluginDetail(pid){
@@ -357,17 +384,33 @@ function showPluginDetail(pid){
       /* 版本发现：商店有更高版本时显示升级徽标 */
       vHtml+=' <span class="bdg" style="background:rgba(63,185,80,.15);color:#3fb950">&#x1F504; v'+esc(p.latest_version||p.version)+' {{ _('Upgrade available') }}</span>';
     }
+
+    /* ★ 改动1(详情页)：详情弹窗也展示缩略图 */
+    var detailIconHtml='';
+    if(p.icon_url){
+      detailIconHtml='<img src="'+escAttr(p.icon_url)+'" style="width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid var(--bd)">';
+    }else{
+      detailIconHtml='<div style="width:64px;height:64px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--bg-secondary)">'+_categoryEmoji(p.category)+'</div>';
+    }
+
     box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'+
+      '<div style="display:flex;gap:12px;align-items:flex-start">'+
+      detailIconHtml+
       '<div><div style="font-size:18px;font-weight:600">'+esc(p.name)+' <span style="font-size:12px;color:var(--dim)">'+vHtml+'</span></div>'+
       '<div style="margin-top:4px">'+renderStars(avgRating,reviewTotal)+'</div>'+
       '<div style="margin-top:4px"><span class="bdg '+priceClass+'">'+priceLabel+'</span> <span class="bdg off">'+esc(p.category||'')+'</span>'+
       (p.installed?' <span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff">{{ _('Installed') }}</span>':'')+
-      '</div></div>'+
+      '</div></div></div>'+
       '<button class="btn bo bs" onclick="closePluginDetail()">{{ _('Close') }}</button></div>';
 
+    /* ★ 改动3：标签栏增加 README 标签页 */
+    var hasReadme = p.readme_url && p.readme_url.length > 0;
     var tabsHtml='<div class="tab-bar mt" style="margin-bottom:16px;display:flex;gap:0;border-bottom:1px solid var(--bd)">'+
-      '<div class="tab-item active" data-tab="desc" onclick="switchDetailTab(this,\'desc\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid var(--accent);font-size:13px">{{ _('Description') }}</div>'+
-      '<div class="tab-item" data-tab="reviews" onclick="switchDetailTab(this,\'reviews\');loadReviews(\''+escAttr(pid)+'\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;font-size:13px">{{ _('Reviews') }} ('+reviewTotal+')</div>'+
+      '<div class="tab-item active" data-tab="desc" onclick="switchDetailTab(this,\'desc\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid var(--accent);font-size:13px">{{ _('Description') }}</div>';
+    if(hasReadme){
+      tabsHtml+='<div class="tab-item" data-tab="readme" onclick="switchDetailTab(this,\'readme\');loadReadme(\''+escAttr(p.readme_url)+'\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;font-size:13px">{{ _('README') }}</div>';
+    }
+    tabsHtml+='<div class="tab-item" data-tab="reviews" onclick="switchDetailTab(this,\'reviews\');loadReviews(\''+escAttr(pid)+'\')" style="padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;font-size:13px">{{ _('Reviews') }} ('+reviewTotal+')</div>'+
       '</div>';
     box.innerHTML+=tabsHtml;
 
@@ -377,12 +420,35 @@ function showPluginDetail(pid){
       (p.screenshots&&p.screenshots.length>0?'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+p.screenshots.map(function(s){return '<img src="'+escAttr(s)+'" style="max-width:100%;border-radius:6px;max-height:200px">'}).join('')+'</div>':'')+
       '</div>';
 
+    /* ★ 改动3：README tab content (默认隐藏) */
+    if(hasReadme){
+      box.innerHTML+='<div id="detailTabReadme" class="detail-tab-content" style="display:none;font-size:13px">'+
+        '<div class="lo"><div class="s"></div>{{ _('Loading README') }}...</div></div>';
+    }
+
     // Reviews tab (hidden by default)
     box.innerHTML+='<div id="detailTabReviews" class="detail-tab-content" style="display:none;font-size:13px"><div class="lo"><div class="s"></div></div></div>';
+
+    /* ★ 改动4：详情弹窗底部安装/购买按钮 */
+    var actionHtml='<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:8px">';
+    if(p.installed){
+      actionHtml+='<span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff;padding:6px 16px">✅ {{ _('Installed') }}</span>';
+    }else if(p.has_update){
+      actionHtml+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">🔄 {{ _('Upgrade') }}</button>';
+    }else if(p.price_type==='free'){
+      actionHtml+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
+    }else{
+      /* 付费：先关闭弹窗再打开购买流程，避免弹窗上下文冲突 */
+      actionHtml+='<button class="btn bp bs" data-pid="'+escAttr(p.identifier)+'" data-name="'+escAttr(p.name)+'" data-amount="'+(p.price_amount||0)+'" data-ptype="'+escAttr(p.price_type)+'" data-pinterval="'+escAttr(p.price_interval||'onetime')+'" onclick="var b=this;closePluginDetail();setTimeout(function(){showPurchaseDialog(b)},100)">{{ _('Purchase') }}</button>';
+    }
+    actionHtml+='</div>';
+    box.innerHTML+=actionHtml;
 
   }).catch(function(){box.innerHTML='<div class="em">{{ _('Network error') }}</div>'});
 }
 function closePluginDetail(){
+  /* ★ P9: 清理支付轮询定时器 */
+  if(purchasePollTimer){clearInterval(purchasePollTimer);purchasePollTimer=null}
   if(detailModal){detailModal.remove();detailModal=null}
 }
 function switchDetailTab(el, tab){
@@ -573,10 +639,10 @@ function _renderStoreForm(container, title, p){
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Price Type') }}</label><select class="in" id="sai_price_type" style="width:100%" onchange="document.getElementById(\'sai_price_interval_row\').style.display=this.value===\'sub\'?\'\':\'none\'"><option value="free"'+(p.price_type==='free'?' selected':'')+'>{{ _('Free') }}</option><option value="onetime"'+(p.price_type==='onetime'?' selected':'')+'>{{ _('One-time') }}</option><option value="sub"'+(p.price_type==='sub'?' selected':'')+'>{{ _('Subscription') }}</option></select></div>'+
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Price') }} ({{ _('cents') }})</label><input class="in" id="sai_price" type="number" value="'+(p.price_amount||0)+'" style="width:100%"></div>'+
     '<div id="sai_price_interval_row" style="display:'+(p.price_type==='sub'?'':'none')+'"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Interval') }}</label><select class="in" id="sai_interval" style="width:100%"><option value="month"'+(p.price_interval==='month'?' selected':'')+'>{{ _('Monthly') }}</option><option value="year"'+(p.price_interval==='year'?' selected':'')+'>{{ _('Yearly') }}</option></select></div>'+
-    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Icon URL') }}</label><input class="in" id="sai_icon" value="'+escAttr(p.icon_url||'')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Icon URL') }} <span style="font-size:10px;color:var(--dim)">{{ _('Recommended: 280x120px, shown on store card') }}</span></label><input class="in" id="sai_icon" value="'+escAttr(p.icon_url||'')+'" placeholder="https://example.com/icon.png" style="width:100%"></div>'+
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Download URL') }}</label><input class="in" id="sai_download" value="'+escAttr(p.download_url||'')+'" style="width:100%"></div>'+
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Author') }}</label><input class="in" id="sai_author" value="'+escAttr(p.author||'')+'" style="width:100%"></div>'+
-    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Readme URL') }}</label><input class="in" id="sai_readme" value="'+escAttr(p.readme_url||'')+'" style="width:100%"></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Readme URL') }} <span style="font-size:10px;color:var(--dim)">{{ _('Markdown file URL, shown in detail page') }}</span></label><input class="in" id="sai_readme" value="'+escAttr(p.readme_url||'')+'" placeholder="https://example.com/README.md" style="width:100%"></div>'+
     '</div>'+
     '<div style="display:flex;gap:12px;margin-top:12px">'+
     '<button class="btn bp" onclick="saveStorePlugin()">💾 {{ _('Save') }}</button>'+
@@ -598,6 +664,8 @@ function saveStorePlugin(){
   d.author=document.getElementById("sai_author").value.trim();
   d.readme_url=document.getElementById("sai_readme").value.trim();
   if(!d.identifier||!d.name){showToast("{{ _('Identifier and Name are required') }}","error");return}
+  /* ★ P8: 校验 identifier 格式 */
+  if(!/^[a-z0-9_]+$/.test(d.identifier)){showToast("{{ _('Identifier must contain only lowercase letters, digits, underscores') }}","error");return}
   var result=document.getElementById("storeAdminResult");
   result.innerHTML='<div class="lo"><div class="s"></div></div>';
   fetch("/admin/plugins/store/admin",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify(d)}).then(function(r){return r.json()}).then(function(rsp){
@@ -621,4 +689,69 @@ function deleteStorePlugin(identifier){
     if(d.success){showToast("{{ _('Deleted') }}","success");renderStoreAdminList()}
     else{showToast(d.error||"{{ _('Delete failed') }}","error")}
   }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+
+/* ★ 插件商店改造：异步加载 README 内容 */
+function loadReadme(readmeUrl){
+  var tab=document.getElementById('detailTabReadme');
+  if(!tab)return;
+  fetch(readmeUrl).then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.text();
+  }).then(function(text){
+    var html=_simpleMarkdown(text);
+    tab.innerHTML='<div style="max-height:400px;overflow-y:auto;padding-right:8px">'+html+'</div>';
+  }).catch(function(e){
+    tab.innerHTML='<div style="padding:20px;text-align:center;color:var(--dim)">'+
+      '{{ _('README load failed') }}: '+esc(e.message)+'<br>'+
+      '<a href="'+escAttr(readmeUrl)+'" target="_blank" style="color:var(--accent)">{{ _('Open in new tab') }}</a>'+
+      '</div>';
+  });
+}
+
+/* ★ 插件商店改造：简易 Markdown → HTML 转换 */
+function _simpleMarkdown(md){
+  /* 先转义 HTML，保留 Markdown 语法符号（# * - ` 等不受 esc 影响） */
+  var html=esc(md);
+
+  /* 提取代码块，防止内部语法被误渲染 */
+  var codeBlocks=[];
+  html=html.replace(/```([\s\S]*?)```/g,function(m,c){
+    codeBlocks.push('<pre style="background:var(--bg-secondary);padding:10px;border-radius:4px;overflow-x:auto;margin:8px 0;font-size:0.8rem"><code>'+c+'</code></pre>');
+    return '\x00CODE'+ (codeBlocks.length-1) +'\x00';
+  });
+
+  /* 图片（必须在链接之前处理） */
+  html=html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,'<img src="$2" alt="$1" style="max-width:100%;border-radius:6px;margin:8px 0">');
+  /* 链接 */
+  html=html.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" style="color:var(--accent)">$1</a>');
+  /* 粗体 */
+  html=html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  /* 斜体 */
+  html=html.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
+  /* 删除线 */
+  html=html.replace(/~~(.+?)~~/g,'<del>$1</del>');
+  /* 标题 */
+  html=html.replace(/^### (.+)$/gm,'<h4 style="margin:12px 0 4px">$1</h4>');
+  html=html.replace(/^## (.+)$/gm,'<h3 style="margin:16px 0 6px">$1</h3>');
+  html=html.replace(/^# (.+)$/gm,'<h2 style="margin:20px 0 8px;font-size:1.1rem">$1</h2>');
+  /* 引用 */
+  html=html.replace(/^&gt; (.+)$/gm,'<blockquote style="border-left:3px solid var(--accent);margin:8px 0;padding:4px 12px;color:var(--dim)">$1</blockquote>');
+  /* 无序列表（- 和 *） */
+  html=html.replace(/^[\-\*] (.+)$/gm,'<li style="margin-left:1.5rem;list-style:disc">$1</li>');
+  /* 有序列表 */
+  html=html.replace(/^\d+\. (.+)$/gm,'<li style="margin-left:1.5rem;list-style:decimal">$1</li>');
+  /* 行内代码 */
+  html=html.replace(/`([^`]+)`/g,'<code style="background:var(--bg-secondary);padding:0.1em 0.3em;border-radius:3px;font-size:0.85em">$1</code>');
+  /* 分隔线 */
+  html=html.replace(/^(---|\*\*\*|___)$/gm,'<hr style="border:none;border-top:1px solid var(--bd);margin:16px 0">');
+
+  /* 段落合并 */
+  html=html.replace(/\n\n/g,'</p><p style="margin:8px 0">');
+  html=html.replace(/\n/g,'<br>');
+
+  /* 还原代码块 */
+  html=html.replace(/\x00CODE(\d+)\x00/g,function(m,i){return codeBlocks[parseInt(i)];});
+
+  return '<div style="line-height:1.7"><p style="margin:8px 0">'+html+'</p></div>';
 }

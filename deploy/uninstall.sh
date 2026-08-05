@@ -8,8 +8,8 @@
 # ==========================================================================
 set -euo pipefail
 
-APP_USER="verorun"
-APP_HOME="/home/${APP_USER}/verorun-workspace"
+APP_USER="${SUDO_USER:-$(whoami)}"
+APP_HOME="/home/${APP_USER}/verorun"
 LOG_DIR="/var/log/verorun"
 SERVICE_DIR="/etc/systemd/system"
 
@@ -39,7 +39,7 @@ fi
 
 # 1. systemd services (reverse of write_systemd_services + restart_services)
 step "systemd services"
-for svc in verorun-admin verorun-auth verorun-main; do
+for svc in verorun-admin verorun-auth verorun-main verorun-health verorun-guardian; do
     systemctl stop "${svc}" 2>/dev/null || true
     systemctl disable "${svc}" 2>/dev/null || true
     echo "  stop/disable: ${svc}"
@@ -66,7 +66,9 @@ if id "${APP_USER}" &>/dev/null; then
 else
     echo "  user ${APP_USER} not found"
 fi
-rm -rf "${APP_HOME}" "${LOG_DIR}" 2>/dev/null || true
+rm -rf "${LOG_DIR}" 2>/dev/null || true
+# ── Note: APP_HOME is already removed by `userdel -r` above; kept as safety net ──
+rm -rf "${APP_HOME}" 2>/dev/null || true
 done_step "User & directories cleaned"
 
 # 4. PostgreSQL (reverse of CREATE ROLE + CREATE DATABASE)
@@ -75,11 +77,16 @@ sudo -u postgres psql -c "DROP DATABASE IF EXISTS verorun" 2>/dev/null || true
 sudo -u postgres psql -c "DROP ROLE IF EXISTS verorun" 2>/dev/null || true
 done_step "PostgreSQL database & role dropped"
 
+# 5. Residual config files (sudoers + guardian env)
+step "Config files"
+rm -f /etc/default/verorun-guardian /etc/sudoers.d/verorun
+done_step "Config files removed"
+
 step "Done"
 echo -e "${OK} VeroRun fully uninstalled."
 echo ""
 echo -e "${INFO} System packages (python3, nginx, postgresql, git) are NOT removed."
 echo -e "${INFO} Server is clean. Ready for fresh install:"
-echo -e "${INFO}   git clone https://github.com/fanjumin/VeroRunSystem.git"
-echo -e "${INFO}   cd VeroRunSystem"
+echo -e "${INFO}   git clone https://github.com/fanjumin/verorun-base.git"
+echo -e "${INFO}   cd verorun-base"
 echo -e "${INFO}   sudo bash deploy/install.sh install your-domain.com"

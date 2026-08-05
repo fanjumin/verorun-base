@@ -146,6 +146,9 @@ class PluginInfo:
     # 错误信息
     last_error: str = ''
 
+    # ★ v1.4 插件来源：store(官方商店) / upload(用户上传自研)
+    source: str = 'store'
+
     def to_dict(self) -> dict:
         """序列化为 dict（用于 API 响应）"""
         result = asdict(self)
@@ -211,6 +214,9 @@ CREATE TABLE IF NOT EXISTS plugin_registry (
     -- 最后一次错误信息
     last_error      TEXT DEFAULT ''
 );
+
+/* ★ v1.4 新增插件来源列 */
+ALTER TABLE plugin_registry ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'store';
 
 CREATE INDEX IF NOT EXISTS idx_plugin_registry_status
     ON plugin_registry(status);

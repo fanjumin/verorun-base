@@ -412,8 +412,16 @@ class LicenseManager:
     # ── 检查是否付费（供 PluginManager 集成） ─────────────────────────
 
     def is_paid_plugin(self, plugin_id: str) -> bool:
-        """检查插件是否是付费插件（在 store_plugins 中查 price_type）"""
+        """检查插件是否是付费插件。用户上传的自研插件始终免费。"""
         with get_registry_db() as conn:
+            # ★ v1.4: 用户上传的自研插件不接入付费体系
+            row = conn.execute(
+                'SELECT source FROM plugin_registry WHERE identifier = %s',
+                (plugin_id,)
+            ).fetchone()
+            if row and row.get('source') == 'upload':
+                return False
+
             row = conn.execute(
                 'SELECT price_type FROM store_plugins WHERE identifier = %s',
                 (plugin_id,)
