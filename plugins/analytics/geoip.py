@@ -34,10 +34,10 @@ from urllib.parse import urlencode
 IP2REGION_DB = os.path.join(os.path.dirname(__file__), 'data', 'ip2region_v4.xdb')
 
 # GeoLite2 数据库路径（自动探测）
+_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 GEOIP_DB_CANDIDATES = [
+    os.path.join(_DATA_DIR, 'GeoLite2-City.mmdb'),
     '/usr/share/GeoIP/GeoLite2-City.mmdb',
-    './data/GeoLite2-City.mmdb',
-    '../data/GeoLite2-City.mmdb',
 ]
 
 # ip-api 缓存（避免限流）
@@ -512,6 +512,9 @@ def download_geolite2_cdn() -> dict:
         # 确保路径在探测列表中
         if target_path not in GEOIP_DB_CANDIDATES:
             GEOIP_DB_CANDIDATES.insert(0, target_path)
+
+        # 立即重新加载 GeoIP reader
+        init_geoip()
 
         print(f'[Analytics] ✅ GeoLite2-City.mmdb downloaded from CDN ({size_mb} MB) → {target_path}')
         return {'success': True, 'path': target_path, 'size_mb': size_mb}
