@@ -130,6 +130,9 @@ def _init_ip2region() -> bool:
     if not os.path.exists(IP2REGION_DB):
         print(f'[Analytics] ℹ️ ip2region database not found: {IP2REGION_DB}')
         return False
+    if not os.access(IP2REGION_DB, os.R_OK):
+        print(f'[Analytics] ⚠️ ip2region database not readable (bad permissions): {IP2REGION_DB}')
+        return False
     try:
         sys.path.insert(0, os.path.dirname(__file__))
         from ip2region import util
