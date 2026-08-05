@@ -66,6 +66,16 @@ def vault_static(filename):
     return send_file(os.path.join(STATIC_DIR, filename))
 
 
+@vault_bp.before_request
+def _vault_ensure_schema():
+    """Idempotently ensure vault_* tables exist before handling any vault request."""
+    try:
+        from .services.utils import ensure_schema
+        ensure_schema()
+    except Exception as e:
+        print('[Vault] schema ensure skipped on request: %s' % e)
+
+
 # ══════════════════════════════════════════════════════════════
 # Auth Decorator
 # ══════════════════════════════════════════════════════════════

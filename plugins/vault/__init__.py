@@ -26,11 +26,18 @@ class VaultPlugin(BasePlugin):
         return True
 
     def on_enable(self, registry):
-        """启用时初始化备份目录 + 注册定时备份"""
+        """启用时初始化备份目录 + 注册定时备份 + 确保数据表存在"""
         import os as _os
         _backup_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', '..', 'data', 'vault')
         _os.makedirs(_backup_dir, exist_ok=True)
         print('[Vault] Backup directory ready')
+
+        # Ensure vault_* tables exist (idempotent migration, no-op if already applied)
+        try:
+            from .services.utils import ensure_schema
+            ensure_schema()
+        except Exception as e:
+            print('[Vault] on_enable schema ensure skipped: %s' % e)
 
         # Register scheduled backup with orchestrator
         self._seed_schedule()
