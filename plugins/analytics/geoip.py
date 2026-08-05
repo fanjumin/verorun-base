@@ -248,56 +248,34 @@ def geoip_lookup(ip: str) -> dict:
     if not ip or ip == '127.0.0.1' or ip == '0.0.0.x' or ip.startswith('192.168.'):
         return {'country': '', 'city': ''}
 
-    # 1. 国际部署优先使用 MaxMind，国内部署优先 ip2region
-    if _detect_server_location():
-        # 国际：MaxMind（国际 IP 精准）→ ip2region → ip-api
-        if _geoip_reader:
-            try:
-                response = _geoip_reader.city(ip)
-                mm_city = response.city.name or ''
-                mm_country = response.country.iso_code or ''
-                if mm_country:
-                    return {'country': mm_country, 'city': mm_city}
-            except:
-                pass
-        result = _ip2region_lookup(ip)
-        if result.get('country'):
-            return result
-    else:
-        # 国内：ip2region（中国 IP 精准）→ MaxMind → ip-api
-        result = _ip2region_lookup(ip)
-        if result.get('city'):
-            return result
-        if result.get('country') and not _geoip_reader:
-            return result
+    # 1. 始终优先 ip2region（中国 IP 城市级精准，国际 IP 给国家码）
+    result = _ip2region_lookup(ip)
+    if result.get('city'):
+        return result  # 有城市数据，直接返回
+    if result.get('country') and not _geoip_reader:
+        return result  # ip2region 有国家码 + 没有 MaxMind → 直接返回
 
-        # 2. 本地 MaxMind
+    # 2. MaxMind 补充（国际 IP 城市数据）
     if _geoip_reader:
         try:
             response = _geoip_reader.city(ip)
             mm_city = response.city.name or ''
             mm_country = response.country.iso_code or ''
-            # 如果 ip2region 给了 country 但没 city，MaxMind 补 city
-            # ⚠️ 必须验证 country 一致性：ip2region 的 CN + MaxMind 的 Frankfurt = 错误
-            if result.get('country') and not result.get('city') and mm_city:
-                # 若 MaxMind country 与 ip2region 一致，用 ip2region country
-                if mm_country and mm_country == result.get('country'):
-                    return {'country': result.get('country'), 'city': mm_city}
-                # 若不一致（如 CN + Frankfurt），以 MaxMind 为准
-                if mm_country:
-                    return {'country': mm_country, 'city': mm_city}
-                # MaxMind 无 country 时才回退 ip2region country（罕见）
-                return {'country': result.get('country'), 'city': mm_city}
             if mm_country:
+                # 若 ip2region 已给 country，用 MaxMind 补 city
+                if result.get('country'):
+                    if mm_country == result.get('country'):
+                        return {'country': result.get('country'), 'city': mm_city or result.get('city', '')}
+                    return {'country': mm_country, 'city': mm_city}
                 return {'country': mm_country, 'city': mm_city}
         except:
             pass
 
-    # ip2region 至少给了 country（即使没 city）
+    # 3. ip2region 至少给了 country
     if result.get('country'):
         return result
 
-    # 3. 回退到 ip-api
+    # 4. 回退到 ip-api
     return _ipapi_lookup(ip)
 
 

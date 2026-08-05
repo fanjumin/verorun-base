@@ -661,7 +661,10 @@ body {
     <!-- 主视图：中国城市 -->
     <div class="dashboard-grid" style="margin-bottom:16px">
       <div class="glass-card" style="grid-column: 1 / -1;">
-        <div class="label" style="margin-bottom:12px" id="mapTitle">{{ _('🌍 World Access Map') }}</div>
+        <div class="label" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+          <span id="mapTitle">{{ _('🌍 World Access Map') }}</span>
+          <button onclick="resetWorldZoom()" id="mapBackBtn" style="display:none;background:rgba(0,245,255,0.1);border:1px solid var(--border-glow);border-radius:6px;padding:2px 10px;color:var(--blue);font-size:11px;cursor:pointer;font-family:inherit">↩ {{ _('Back to World') }}</button>
+        </div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
       </div>
     </div>
@@ -1636,6 +1639,14 @@ function renderWorldMap(data) {
         }]
       };
       charts.chinaMap.setOption(option);
+      // Click country → show back button
+      charts.chinaMap.off('click');
+      charts.chinaMap.on('click', function(params){
+        if (params.name) {
+          var backBtn = document.getElementById('mapBackBtn');
+          if (backBtn) backBtn.style.display = '';
+        }
+      });
     })
     .catch(function(){
       dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('World map loading failed (network issue). See table below for data.') }}</div></div>';
@@ -2213,6 +2224,14 @@ function showProgress(containerId) {
 function hideProgress(containerId) {
   var el = document.getElementById(containerId + '-progress');
   if (el) el.parentNode.removeChild(el);
+}
+
+function resetWorldZoom() {
+  if (charts.chinaMap) {
+    charts.chinaMap.dispatchAction({type:'restore'});
+    var backBtn = document.getElementById('mapBackBtn');
+    if (backBtn) backBtn.style.display = 'none';
+  }
 }
 
 function detectMarket() {
