@@ -661,11 +661,7 @@ body {
     <!-- 主视图：中国城市 -->
     <div class="dashboard-grid" style="margin-bottom:16px">
       <div class="glass-card" style="grid-column: 1 / -1;">
-        <div class="label" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
-          <span id="mapTitle">{% if geo_market == 'cn' %}{{ _('🇨🇳 China') }}{% else %}{{ _('🌍 World') }}{% endif %}</span>
-          <button onclick="toggleMapView()" id="mapToggleBtn" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:2px 10px;color:var(--text-dim);font-size:11px;cursor:pointer;font-family:inherit">{% if geo_market == 'cn' %}🌍 {{ _('World') }}{% else %}🇨🇳 {{ _('China') }}{% endif %}</button>
-          <button onclick="resetWorldZoom()" id="mapBackBtn" style="display:none;background:rgba(0,245,255,0.1);border:1px solid var(--border-glow);border-radius:6px;padding:2px 10px;color:var(--blue);font-size:11px;cursor:pointer;font-family:inherit">↩ {{ _('Back to World') }}</button>
-        </div>
+        <div class="label" style="margin-bottom:12px" id="mapTitle">{{ _('🌍 World Access Map') }}</div>
         <div class="chart-container" style="height:420px"><div id="chinaMapChart" style="width:100%;height:100%"></div></div>
       </div>
     </div>
@@ -1591,8 +1587,6 @@ function renderWorldCityTable(cities) {
 }
 
 function renderWorldMap(data) {
-  var titleEl = document.getElementById('mapTitle');
-  if (titleEl) titleEl.textContent = '{{ _('🌍 World') }}';
   var dom = document.getElementById('chinaMapChart');
   if (charts.chinaMap) charts.chinaMap.dispose();
   var pvMax = 0, mapData = [];
@@ -1642,14 +1636,6 @@ function renderWorldMap(data) {
         }]
       };
       charts.chinaMap.setOption(option);
-      // Click country → show back button
-      charts.chinaMap.off('click');
-      charts.chinaMap.on('click', function(params){
-        if (params.name) {
-          var backBtn = document.getElementById('mapBackBtn');
-          if (backBtn) backBtn.style.display = '';
-        }
-      });
     })
     .catch(function(){
       dom.innerHTML = '<div class="empty-state" style="padding:60px 0"><div class="text" style="color:var(--rose)">{{ _('World map loading failed (network issue). See table below for data.') }}</div></div>';
@@ -2210,7 +2196,6 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
 // 动态市场检测（根据客户端 IP 判断 cn / intl）
 // ═══════════════════════════════════════════════════════════════════════════
 var _MARKET = 'cn';  // 默认值，启动后异步更新
-var _MAP_VIEW = 'auto';  // 'auto' | 'china' | 'world' — 地图视图切换
 
 function showProgress(containerId) {
   var el = document.getElementById(containerId);
@@ -2228,41 +2213,6 @@ function showProgress(containerId) {
 function hideProgress(containerId) {
   var el = document.getElementById(containerId + '-progress');
   if (el) el.parentNode.removeChild(el);
-}
-
-function resetWorldZoom() {
-  if (charts.chinaMap) {
-    charts.chinaMap.dispatchAction({type:'restore'});
-    var backBtn = document.getElementById('mapBackBtn');
-    if (backBtn) backBtn.style.display = 'none';
-  }
-}
-
-function toggleMapView() {
-  var btn = document.getElementById('mapToggleBtn');
-  if (_MAP_VIEW === 'auto') {
-    _MAP_VIEW = (_MARKET === 'cn') ? 'world' : 'china';
-  } else if (_MAP_VIEW === 'china') {
-    _MAP_VIEW = 'world';
-  } else {
-    _MAP_VIEW = 'china';
-  }
-  // Update button text
-  if (_MAP_VIEW === 'world') {
-    if (btn) btn.innerHTML = '&#x1F1E8;&#x1F1F3; {{ _('China') }}';
-    var backBtn = document.getElementById('mapBackBtn'); if (backBtn) backBtn.style.display = 'none';
-    document.getElementById('mapTitle').textContent = '{{ _('🌍 World') }}';
-    if (charts.chinaMap) charts.chinaMap.dispose();
-    loadWorldMap();
-    loadWorldCities();
-    toggleCountrySection(true);
-  } else {
-    var backBtn2 = document.getElementById('mapBackBtn'); if (backBtn2) backBtn2.style.display = 'none';
-    if (btn) btn.innerHTML = '&#x1F30D; {{ _('World') }}';
-    document.getElementById('mapTitle').textContent = '{{ _('🇨🇳 China') }}';
-    if (charts.chinaMap) charts.chinaMap.dispose();
-    loadChinaCities(false);
-  }
 }
 
 function detectMarket() {
@@ -2335,14 +2285,9 @@ function refreshAll() {
   setTimeout(function(){ loadSources(); loadGeo(); }, 300);
   // Batch 3: map data (heavy)
   setTimeout(function(){
-    var showWorld = (_MAP_VIEW === 'world') || (_MAP_VIEW === 'auto' && _MARKET !== 'cn');
-    if (showWorld) {
-      loadWorldCities();
-      loadWorldMap();
-      toggleCountrySection(true);
-    } else {
-      loadChinaCities(false);
-    }
+    loadWorldCities();
+    loadWorldMap();
+    toggleCountrySection(true);
   }, 450);
   // Batch 4: devices, events, alerts
   setTimeout(function(){ loadDevices(); loadEvents(); loadAlerts(); }, 600);
