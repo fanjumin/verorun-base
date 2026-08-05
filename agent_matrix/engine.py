@@ -688,10 +688,10 @@ def _write_usage_logs(agent_id, agent_name, model_name, provider,
                  prompt_tokens, completion_tokens, total_tokens, call_count, updated_at)
                 VALUES (%s, %s, CURRENT_DATE::text, %s, %s, %s, 1, NOW())
                 ON CONFLICT(agent_id, stat_date) DO UPDATE SET
-                    prompt_tokens      = prompt_tokens + excluded.prompt_tokens,
-                    completion_tokens  = completion_tokens + excluded.completion_tokens,
-                    total_tokens       = total_tokens + excluded.total_tokens,
-                    call_count         = call_count + 1,
+                    prompt_tokens      = agent_token_daily.prompt_tokens + excluded.prompt_tokens,
+                    completion_tokens  = agent_token_daily.completion_tokens + excluded.completion_tokens,
+                    total_tokens       = agent_token_daily.total_tokens + excluded.total_tokens,
+                    call_count         = agent_token_daily.call_count + 1,
                     updated_at         = NOW()
             """, (agent_id, agent_name, prompt_tokens, completion_tokens, total_tokens))
             conn.commit()
