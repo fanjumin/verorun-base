@@ -1150,8 +1150,8 @@ class PluginManager:
                     min_app_version, path, metadata, status, config,
                     dependencies, provides_hooks, listens_hooks,
                     permissions, settings_schema, installed_at,
-                    updated_at, last_error
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    updated_at, last_error, source
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(identifier) DO UPDATE SET
                     name=excluded.name,
                     version=excluded.version,
@@ -1168,7 +1168,8 @@ class PluginManager:
                     permissions=excluded.permissions,
                     settings_schema=excluded.settings_schema,
                     updated_at=excluded.updated_at,
-                    last_error=excluded.last_error
+                    last_error=excluded.last_error,
+                    source=excluded.source
             """, (
                 info.identifier, info.name, info.version,
                 info.author, info.description,
@@ -1184,6 +1185,7 @@ class PluginManager:
                 info.installed_at or datetime.now().isoformat(),
                 info.updated_at or datetime.now().isoformat(),
                 info.last_error,
+                getattr(info, 'source', 'store'),
             ))
             conn.commit()
 
@@ -1220,4 +1222,5 @@ class PluginManager:
             installed_at=row.get('installed_at'),
             updated_at=row.get('updated_at'),
             last_error=row.get('last_error', ''),
+            source=row.get('source', 'store'),
         )

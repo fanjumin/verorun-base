@@ -25,7 +25,6 @@ import os
 import hashlib
 import functools
 import yaml
-from plugins._base.db import get_raw_connection
 
 _market = os.environ.get('DEPLOY_MARKET', 'cn')
 DEPLOY_LANG = os.environ.get('DEPLOY_LANG', 'en')
@@ -72,7 +71,7 @@ def _get_db():
         'user': os.environ.get('PG_USER', 'verorun'),
         'password': os.environ.get('PG_PASSWORD', ''),
     }
-    conn = get_raw_connection()
+    conn = psycopg2.connect(**PG_CONFIG)
     conn.autocommit = False
 
     class _Wrapper:

@@ -16,7 +16,7 @@ import os, sys, hashlib, secrets, json, argparse
 import secrets as _secrets
 ADMIN_USERNAME = os.environ.get("VR_ADMIN_USERNAME", "administrator")
 # 未显式提供密码时随机生成 10 位密码（安装输出打印一次，请用户立即保存）
-ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD") or _secrets.token_urlsafe(8)[:10]
+ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD") or _secrets.token_urlsafe(8)
 ADMIN_DISPLAY  = "Administrator"
 
 # ── Seed data ─────────────────────────────────────────────────────────

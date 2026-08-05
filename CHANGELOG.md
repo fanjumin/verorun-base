@@ -1,5 +1,17 @@
 # 修改记录
 
+## v0.49.0 — 2026-08-05
+
+### Changes
+
+- Version bump from v0.48.0
+- feat(plugins): 插件商店 UX 改造 — 卡片缩略图 + 移除直接安装按钮 + 详情弹窗 README + 安装按钮 + 标准文档 v1.4
+- feat(plugins): 自研插件上传功能 — upload API + 前端上传按钮 + Custom 徽标 + source 字段 + License 豁免
+- fix(plugins): 修复 store_admin_save 与 _upsert_cache SQL 参数计数缺陷
+- fix(plugins): store_admin_save enabled 参数化 + 增加 min_app_version/depends_on 字段支持
+- chore(plugins): 上传端点增加文件大小限制、rate limiting、magic bytes 校验、min_app_version 兼容检查
+- docs(plugins): plugin-standard v1.3 → v1.4 — 新增 §14 商店展示规范 + 展示字段规范
+
 ## v0.48.0 — 2026-08-05
 
 ### Changes

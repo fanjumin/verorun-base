@@ -25,11 +25,20 @@ if AUTH_DIR not in sys.path:
     sys.path.append(AUTH_DIR)
 
 from flask import Flask
-from plugins.health_check.routes import health_bp
-from plugins.health_check.models import init_health_tables, migrate_alert_schema
+
+# plugins/health_check 仅在 verorun-code（完整版）中存在；
+# verorun-base 精简版无 plugins 目录，跳过 health check blueprint 注册。
+try:
+    from plugins.health_check.routes import health_bp
+    from plugins.health_check.models import init_health_tables, migrate_alert_schema
+    _has_health_plugin = True
+except ImportError:
+    _has_health_plugin = False
+    health_bp = None
 
 app = Flask(__name__)
-app.register_blueprint(health_bp)  # url_prefix 已在 BP 定义中: /admin/health
+if _has_health_plugin:
+    app.register_blueprint(health_bp)  # url_prefix 已在 BP 定义中: /admin/health
 
 
 @app.route('/health')
@@ -69,6 +78,7 @@ def guardian_status():
 
 
 if __name__ == '__main__(':
-    init_health_tables()
-    migrate_alert_schema()
+    if _has_health_plugin:
+        init_health_tables()
+        migrate_alert_schema()
     app.run(host=')0.0.0.0', port=8085, debug=False)

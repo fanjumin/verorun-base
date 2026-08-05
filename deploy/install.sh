@@ -3,7 +3,7 @@
 # VeroRun — One-command deploy script (v2.1)
 # ==========================================================================
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/install.sh | sudo bash   # fresh install
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash   # fresh install (public base)
 #   sudo bash deploy/install.sh update           # update code, deps, and restart
 #   sudo bash deploy/install.sh restart          # restart services only
 #   sudo bash deploy/install.sh health           # health check
@@ -47,49 +47,6 @@ _pip_install() {
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
-
-# ── Git SSH auth setup ───────────────────────────────────────────────
-
-ensure_git_auth() {
-    local ssh_key="/root/.ssh/id_ed25519"
-
-    # Generate SSH key for root if not exists
-    if [ ! -f "${ssh_key}" ]; then
-        echo -e "${INFO} Generating SSH deploy key for git operations..."
-        mkdir -p /root/.ssh
-        ssh-keygen -t ed25519 -N "" -f "${ssh_key}" -C "verorun-deploy-$(hostname)" >/dev/null 2>&1
-        chmod 600 "${ssh_key}"
-        chmod 644 "${ssh_key}.pub"
-        echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${YELLOW}║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║${NC}"
-        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
-        echo -e "${YELLOW}║  URL: https://github.com/fanjumin/verorun-base${NC}"
-        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
-        cat "${ssh_key}.pub" | while read -r line; do
-            echo -e "${GREEN}║  ${line}${NC}"
-        done
-        echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
-        echo -e "${WARN} After adding the key, re-run this script to continue."
-        exit 0
-    fi
-
-    # Ensure github.com in known_hosts
-    if [ ! -f /root/.ssh/known_hosts ] || ! grep -q '^github\.com' /root/.ssh/known_hosts 2>/dev/null; then
-        echo -e "${INFO} Adding github.com to known_hosts..."
-        ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
-    fi
-
-    # Switch existing HTTPS remote to SSH
-    if [ -d "${APP_HOME}/.git" ]; then
-        local current_url
-        current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
-        if echo "${current_url}" | grep -q '^https://'; then
-            echo -e "${INFO} Switching git remote to SSH..."
-            git -C "${APP_HOME}" remote set-url origin "${GIT_REPO}"
-            done_step "Git remote switched to SSH"
-        fi
-    fi
-}
 
 # ── Mode / Domain detection ──────────────────────────────────────────
 
@@ -163,13 +120,9 @@ do_install() {
     mkdir -p "${APP_HOME}/.cache/llm" \
              "${APP_HOME}/.cache/sessions" \
              "${APP_HOME}/.cache/agents"
-    # Clean stale __pycache__ before chown (avoids race-condition failures)
-    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
-
-    ensure_git_auth
 
     step "Pull code"
     if [ -d "${APP_HOME}/.git" ]; then
@@ -249,7 +202,7 @@ do_update() {
     local _status_file="/run/verorun/update_status.json"
     mkdir -p /run/verorun 2>/dev/null || true
     chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
-    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > /run/verorun/update_status.json' EXIT
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > '"${_status_file}" EXIT
 
     # Self-update tracking: md5 of currently-running install.sh
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
@@ -270,7 +223,7 @@ do_update() {
     if [ -d "${APP_HOME}/.git" ]; then
         if ! git -C "${APP_HOME}" diff --quiet; then
             echo -e "${WARN} Local modifications detected, restoring to git version..."
-            git -C "${APP_HOME}" checkout -- $(git -C "${APP_HOME}" diff --name-only)
+            git -C "${APP_HOME}" diff --name-only -z | xargs -0 git -C "${APP_HOME}" checkout --
             done_step "Locally modified files restored"
         else
             done_step "No local modifications"
@@ -278,8 +231,6 @@ do_update() {
     else
         done_step "Skipped (no .git directory)"
     fi
-
-    ensure_git_auth
 
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
@@ -295,14 +246,14 @@ do_update() {
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
         if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
-            echo -e "${ERROR} Git fetch failed. Check network connectivity to GitHub."
-            echo -e "${ERROR} Update aborted."
+            echo -e "${FAIL} Git fetch failed. Check network connectivity to GitHub."
+            echo -e "${FAIL} Update aborted."
             exit 1
         fi
         git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
             echo -e "${WARN} Fast-forward merge failed, falling back to reset"
             git reset --hard "origin/${GIT_BRANCH}" || {
-                echo -e "${ERROR} Git reset failed."
+                echo -e "${FAIL} Git reset failed."
                 exit 1
             }
         }
@@ -316,7 +267,7 @@ do_update() {
     script_md5=$(md5sum "${APP_HOME}/deploy/install.sh" | awk '{print $1}')
     if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
         echo -e "${INFO} install.sh updated, re-running with new version..."
-        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" bash "${APP_HOME}/deploy/install.sh" update
+        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" bash "${APP_HOME}/deploy/install.sh" update
         exit
     fi
 
@@ -350,11 +301,17 @@ do_update() {
     done_step "Nginx config updated"
 
     step "Pre-flight check"
-    # 验证数据库可连接
+    # 验证数据库可连接（直接 psycopg2 连接，不依赖 plugins 包）
     if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
-from plugins._base.db import get_raw_connection
-c = get_raw_connection()
-c.close()
+import os, psycopg2
+conn = psycopg2.connect(
+    host=os.getenv('PG_HOST', 'localhost'),
+    port=os.getenv('PG_PORT', '5432'),
+    dbname=os.getenv('PG_DB', 'verorun'),
+    user=os.getenv('PG_USER', 'verorun'),
+    password=os.getenv('PG_PASSWORD', ''),
+)
+conn.close()
 print('DB OK')
 \""; then
         echo -e "${FAIL} Database not accessible — aborting update"
@@ -545,10 +502,8 @@ generate_env() {
     JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    PLUGIN_LICENSE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     CAPTCHA_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     DEV_ACCOUNTS_ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > "${env_file}" << ENVEOF
@@ -567,10 +522,8 @@ ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
 
 # Phase 1 — Security hardening keys (2026-07-28)
-PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
 CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
 DEV_ACCOUNTS_ENCRYPTION_KEY=${DEV_ACCOUNTS_ENCRYPTION_KEY}
-LICENSE_SERVER_SECRET=${LICENSE_SERVER_SECRET}
 
 # VeroGuard — 守护进程加密通信密钥（官方端与客户端需一致）
 PROBE_SECRET=${PROBE_SECRET}
@@ -597,7 +550,7 @@ update_env() {
 
     # Fill missing Phase 1 keys
     local missing=()
-    for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET; do
+    for key in CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY PROBE_SECRET; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
             local val
             val=$(python3 -c "import secrets; print(secrets.token_hex(32))")
@@ -698,6 +651,8 @@ Wants=verorun-health.service verorun-main.service verorun-admin.service verorun-
 
 [Service]
 Type=simple
+# Guardian runs as root to access system integrity checks (file hashes,
+# process monitoring, and systemd journal) that require elevated privileges.
 User=root
 WorkingDirectory=GDEVDIR
 EnvironmentFile=-/etc/default/verorun-guardian
@@ -813,6 +768,9 @@ write_nginx_config() {
 server {
     listen 80;
     server_name ${DOMAIN} www.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # ── Admin ─────────────────────────────────
     location /admin/ {
@@ -856,6 +814,9 @@ server {
 server {
     listen 80;
     server_name platform.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         proxy_pass http://127.0.0.1:8083;
@@ -871,6 +832,9 @@ server {
     listen 80;
     server_name agent.${DOMAIN};
     client_max_body_size 100M;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         proxy_pass http://127.0.0.1:8084;
@@ -938,7 +902,7 @@ health_check() {
 # ==========================================================================
 print_summary() {
     local PUBLIC_IP
-    PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "unknown")
+    PUBLIC_IP=$(curl -s --connect-timeout 5 --max-time 10 ifconfig.me 2>/dev/null || echo "unknown")
 
     echo ""
     echo "  ╔══════════════════════════════════════════════════════════════╗"
