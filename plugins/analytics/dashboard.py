@@ -42,7 +42,7 @@ def init_i18n(t_func):
 
 # ─── 鉴权 ──────────────────────────────────────────────────────────────────────
 
-_AUTH_EXEMPT_PATHS = ['/admin/analytics/api/v1/log', '/admin/analytics/api/v1/event']
+_AUTH_EXEMPT_PATHS = ['/admin/analytics/static/', '/admin/analytics/api/v1/log', '/admin/analytics/api/v1/event']
 
 @analytics_bp.before_request
 def check_auth():
