@@ -831,6 +831,7 @@ body {
           <button type="button" id="geoipSaveBtn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('Save') }}</button>
           <button type="button" id="geoipDownloadBtn" style="background:var(--gradient-primary);border:none;border-radius:8px;padding:8px 16px;color:white;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">{{ _('Download Database') }}</button>
           <button type="button" id="geoipUploadBtn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('Upload .mmdb') }}</button>
+          <button type="button" id="geoipCdnBtn" style="background:transparent;border:1px solid var(--green);border-radius:8px;padding:8px 16px;color:var(--green);font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">{{ _('CDN Download') }}</button>
           <input type="file" id="geoipFileInput" accept=".mmdb" style="display:none">
         </form>
         <div id="geoipDownloadStatus" style="margin-top:8px;font-size:12px;min-height:18px"></div>
@@ -2137,6 +2138,45 @@ document.getElementById('geoipFileInput').addEventListener('change', function(){
     if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Network error</span>';
   };
   xhr.send(formData);
+});
+
+// ── Download from CDN (free, no MaxMind account needed) ──
+document.getElementById('geoipCdnBtn').addEventListener('click', function(){
+  var btn = this;
+  btn.textContent = '{{ _('Downloading...') }}';
+  btn.disabled = true;
+  var statusEl = document.getElementById('geoipDownloadStatus');
+  if (statusEl) statusEl.innerHTML = '';
+  showProgress('geoipCdnBtn');
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', SETTINGS_BASE + '/settings/geoip/download-cdn');
+  var hdrs_cdn = _authHeaders();
+  for (var k in hdrs_cdn) xhr.setRequestHeader(k, hdrs_cdn[k]);
+  xhr.onload = function() {
+    btn.disabled = false;
+    hideProgress('geoipCdnBtn');
+    btn.textContent = '{{ _('CDN Download') }}';
+    try {
+      var res = JSON.parse(xhr.responseText);
+      if (res.success) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">&#x2705; {{ _('Downloaded') }} ' + (res.size_mb||'?') + ' MB (CDN)</span>';
+        loadGeoipStatus();
+      } else {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">&#x26A0; ' + (res.error || 'Unknown error') + '</span>';
+        showToast(res.error || 'Unknown error', 'error');
+      }
+    } catch(e) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Parse error: ' + e.message + '</span>';
+    }
+  };
+  xhr.onerror = function() {
+    btn.disabled = false;
+    hideProgress('geoipCdnBtn');
+    btn.textContent = '{{ _('CDN Download') }}';
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--rose)">Network error</span>';
+  };
+  xhr.send();
 });
 
 // 切换到 Settings tab 时加载 GeoIP 状态和设置

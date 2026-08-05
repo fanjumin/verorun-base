@@ -123,3 +123,4 @@ Uploading...: 上传中...
 Only .mmdb files allowed: 仅支持 .mmdb 文件
 No file uploaded: 未选择文件
 If auto-download fails (e.g. HTTP 451), download the .mmdb file manually from your MaxMind account and use the Upload button.: 如果自动下载失败（例如 HTTP 451），请从 MaxMind 账户手动下载 .mmdb 文件后使用上传按钮安装。
+CDN Download: CDN 下载

@@ -38,3 +38,4 @@ Uploading...: Uploading...
 Only .mmdb files allowed: Only .mmdb files allowed
 No file uploaded: No file uploaded
 If auto-download fails (e.g. HTTP 451), download the .mmdb file manually from your MaxMind account and use the Upload button.: If auto-download fails (e.g. HTTP 451), download the .mmdb file manually from your MaxMind account and use the Upload button.
+CDN Download: CDN Download

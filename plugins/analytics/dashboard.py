@@ -23,7 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from . import models as am
 from .tracker import track_event, create_alert, list_alerts, update_alert, delete_alert
-from .geoip import get_market, download_geolite2_auto, download_ip2region_auto, get_geoip_status, detect_client_market, install_geolite2_file
+from .geoip import get_market, download_geolite2_auto, download_geolite2_cdn, download_ip2region_auto, get_geoip_status, detect_client_market, install_geolite2_file
 from .tracker import generate_report, generate_insight_text
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
@@ -446,6 +446,13 @@ def api_geoip_upload():
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
+    return jsonify(result)
+
+
+@analytics_bp.route('/settings/geoip/download-cdn', methods=['POST'])
+def api_geoip_download_cdn():
+    """从 jsDelivr CDN 免费镜像下载 GeoLite2（无需 MaxMind 账号）"""
+    result = download_geolite2_cdn()
     return jsonify(result)
 
 

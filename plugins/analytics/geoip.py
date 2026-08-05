@@ -477,6 +477,48 @@ def install_geolite2_file(source_path: str) -> dict:
         return {'success': False, 'error': str(e)}
 
 
+def download_geolite2_cdn() -> dict:
+    """
+    从 jsDelivr CDN 免费镜像下载 GeoLite2-City.mmdb（无需注册 MaxMind）。
+    文件每周自动更新两次（周二/周五 UTC 06:00）。
+
+    返回: {'success': True, 'path': '...', 'size_mb': 12.3}
+         或 {'success': False, 'error': '...'}
+    """
+    import shutil
+    import gzip
+
+    target_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(target_dir, exist_ok=True)
+    target_path = os.path.join(target_dir, 'GeoLite2-City.mmdb')
+
+    url = 'https://cdn.jsdelivr.net/npm/geolite2-city/GeoLite2-City.mmdb.gz'
+
+    try:
+        req = Request(url)
+        resp = urlopen(req, timeout=120)
+
+        # CDN 返回的是 .mmdb.gz，需要解压
+        with gzip.GzipFile(fileobj=resp) as gz:
+            with open(target_path, 'wb') as f:
+                shutil.copyfileobj(gz, f)
+
+        size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
+
+        # 重置 reader
+        global _geoip_reader
+        _geoip_reader = None
+
+        # 确保路径在探测列表中
+        if target_path not in GEOIP_DB_CANDIDATES:
+            GEOIP_DB_CANDIDATES.insert(0, target_path)
+
+        print(f'[Analytics] ✅ GeoLite2-City.mmdb downloaded from CDN ({size_mb} MB) → {target_path}')
+        return {'success': True, 'path': target_path, 'size_mb': size_mb}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
 def get_geoip_status() -> dict:
     """返回 GeoIP 数据库安装状态（ip2region + MaxMind）"""
     result = {}
