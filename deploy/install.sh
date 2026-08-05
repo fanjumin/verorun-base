@@ -163,8 +163,6 @@ do_install() {
     mkdir -p "${APP_HOME}/.cache/llm" \
              "${APP_HOME}/.cache/sessions" \
              "${APP_HOME}/.cache/agents"
-    # Clean stale __pycache__ before chown (avoids race-condition failures)
-    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
@@ -249,7 +247,7 @@ do_update() {
     local _status_file="/run/verorun/update_status.json"
     mkdir -p /run/verorun 2>/dev/null || true
     chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
-    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > /run/verorun/update_status.json' EXIT
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > '"${_status_file}" EXIT
 
     # Self-update tracking: md5 of currently-running install.sh
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
@@ -270,7 +268,7 @@ do_update() {
     if [ -d "${APP_HOME}/.git" ]; then
         if ! git -C "${APP_HOME}" diff --quiet; then
             echo -e "${WARN} Local modifications detected, restoring to git version..."
-            git -C "${APP_HOME}" checkout -- $(git -C "${APP_HOME}" diff --name-only)
+            git -C "${APP_HOME}" diff --name-only -z | xargs -0 git -C "${APP_HOME}" checkout --
             done_step "Locally modified files restored"
         else
             done_step "No local modifications"
@@ -295,14 +293,14 @@ do_update() {
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
         if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
-            echo -e "${ERROR} Git fetch failed. Check network connectivity to GitHub."
-            echo -e "${ERROR} Update aborted."
+            echo -e "${FAIL} Git fetch failed. Check network connectivity to GitHub."
+            echo -e "${FAIL} Update aborted."
             exit 1
         fi
         git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
             echo -e "${WARN} Fast-forward merge failed, falling back to reset"
             git reset --hard "origin/${GIT_BRANCH}" || {
-                echo -e "${ERROR} Git reset failed."
+                echo -e "${FAIL} Git reset failed."
                 exit 1
             }
         }
@@ -316,7 +314,7 @@ do_update() {
     script_md5=$(md5sum "${APP_HOME}/deploy/install.sh" | awk '{print $1}')
     if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
         echo -e "${INFO} install.sh updated, re-running with new version..."
-        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" bash "${APP_HOME}/deploy/install.sh" update
+        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" bash "${APP_HOME}/deploy/install.sh" update
         exit
     fi
 
@@ -350,11 +348,17 @@ do_update() {
     done_step "Nginx config updated"
 
     step "Pre-flight check"
-    # 验证数据库可连接
+    # 验证数据库可连接（直接 psycopg2 连接，不依赖 plugins 包）
     if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
-from plugins._base.db import get_raw_connection
-c = get_raw_connection()
-c.close()
+import os, psycopg2
+conn = psycopg2.connect(
+    host=os.getenv('PG_HOST', 'localhost'),
+    port=os.getenv('PG_PORT', '5432'),
+    dbname=os.getenv('PG_DB', 'verorun'),
+    user=os.getenv('PG_USER', 'verorun'),
+    password=os.getenv('PG_PASSWORD', ''),
+)
+conn.close()
 print('DB OK')
 \""; then
         echo -e "${FAIL} Database not accessible — aborting update"
@@ -458,6 +462,7 @@ prompt_admin_creds() {
     done
 
     printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${_user}" "${_pass}" > "${VR_ADMIN_CREDS_FILE}"
+    chmod 600 "${VR_ADMIN_CREDS_FILE}"
     echo -e "${OK} Admin credentials saved"
 }
 
@@ -815,6 +820,9 @@ write_nginx_config() {
 server {
     listen 80;
     server_name ${DOMAIN} www.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # ── Admin ─────────────────────────────────
     location /admin/ {
@@ -858,6 +866,9 @@ server {
 server {
     listen 80;
     server_name platform.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         proxy_pass http://127.0.0.1:8083;
@@ -873,6 +884,9 @@ server {
     listen 80;
     server_name agent.${DOMAIN};
     client_max_body_size 100M;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         proxy_pass http://127.0.0.1:8084;
@@ -940,7 +954,7 @@ health_check() {
 # ==========================================================================
 print_summary() {
     local PUBLIC_IP
-    PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "unknown")
+    PUBLIC_IP=$(curl -s --connect-timeout 5 --max-time 10 ifconfig.me 2>/dev/null || echo "unknown")
 
     echo ""
     echo "  ╔══════════════════════════════════════════════════════════════╗"

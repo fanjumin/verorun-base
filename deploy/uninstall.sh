@@ -66,7 +66,9 @@ if id "${APP_USER}" &>/dev/null; then
 else
     echo "  user ${APP_USER} not found"
 fi
-rm -rf "${APP_HOME}" "${LOG_DIR}" 2>/dev/null || true
+rm -rf "${LOG_DIR}" 2>/dev/null || true
+# ── Note: APP_HOME is already removed by `userdel -r` above; kept as safety net ──
+rm -rf "${APP_HOME}" 2>/dev/null || true
 done_step "User & directories cleaned"
 
 # 4. PostgreSQL (reverse of CREATE ROLE + CREATE DATABASE)

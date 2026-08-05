@@ -120,8 +120,6 @@ do_install() {
     mkdir -p "${APP_HOME}/.cache/llm" \
              "${APP_HOME}/.cache/sessions" \
              "${APP_HOME}/.cache/agents"
-    # Clean stale __pycache__ before chown (avoids race-condition failures)
-    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
@@ -225,7 +223,7 @@ do_update() {
     if [ -d "${APP_HOME}/.git" ]; then
         if ! git -C "${APP_HOME}" diff --quiet; then
             echo -e "${WARN} Local modifications detected, restoring to git version..."
-            git -C "${APP_HOME}" checkout -- $(git -C "${APP_HOME}" diff --name-only)
+            git -C "${APP_HOME}" diff --name-only -z | xargs -0 git -C "${APP_HOME}" checkout --
             done_step "Locally modified files restored"
         else
             done_step "No local modifications"
@@ -248,14 +246,14 @@ do_update() {
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
         if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
-            echo -e "${ERROR} Git fetch failed. Check network connectivity to GitHub."
-            echo -e "${ERROR} Update aborted."
+            echo -e "${FAIL} Git fetch failed. Check network connectivity to GitHub."
+            echo -e "${FAIL} Update aborted."
             exit 1
         fi
         git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
             echo -e "${WARN} Fast-forward merge failed, falling back to reset"
             git reset --hard "origin/${GIT_BRANCH}" || {
-                echo -e "${ERROR} Git reset failed."
+                echo -e "${FAIL} Git reset failed."
                 exit 1
             }
         }
@@ -269,7 +267,7 @@ do_update() {
     script_md5=$(md5sum "${APP_HOME}/deploy/install.sh" | awk '{print $1}')
     if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
         echo -e "${INFO} install.sh updated, re-running with new version..."
-        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" bash "${APP_HOME}/deploy/install.sh" update
+        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" bash "${APP_HOME}/deploy/install.sh" update
         exit
     fi
 
@@ -770,6 +768,9 @@ write_nginx_config() {
 server {
     listen 80;
     server_name ${DOMAIN} www.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # ── Admin ─────────────────────────────────
     location /admin/ {
@@ -813,6 +814,9 @@ server {
 server {
     listen 80;
     server_name platform.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         proxy_pass http://127.0.0.1:8083;
@@ -828,6 +832,9 @@ server {
     listen 80;
     server_name agent.${DOMAIN};
     client_max_body_size 100M;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
         proxy_pass http://127.0.0.1:8084;
@@ -895,7 +902,7 @@ health_check() {
 # ==========================================================================
 print_summary() {
     local PUBLIC_IP
-    PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "unknown")
+    PUBLIC_IP=$(curl -s --connect-timeout 5 --max-time 10 ifconfig.me 2>/dev/null || echo "unknown")
 
     echo ""
     echo "  ╔══════════════════════════════════════════════════════════════╗"
