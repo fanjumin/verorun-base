@@ -175,7 +175,7 @@ function _render_dashboard(ds){
   if(ds.revenue_trend_30d && ds.revenue_trend_30d.length){
     h+='<div class="dash-card" onclick="_nav(\'sub_stats\')"><div class="card-title">{{ _('Revenue Trend') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span><span class="card-nav-icon">↗</span></div><div id="revenueChart" style="width:100%;height:240px"></div></div>';
   }else{
-    h+='<div class="dash-card"><div class="card-title">{{ _('Revenue Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="height:240px">{{ _('No Data') }}</div></div>';
+    h+='<div class="dash-card" onclick="_nav(\'sub_stats\')"><div class="card-title">{{ _('Revenue Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="height:240px">{{ _('No Data') }}</div></div>';
   }
 
   // Popular Pages
