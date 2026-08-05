@@ -2,6 +2,7 @@
  * PuzzleCaptcha v5 — baked rotation, shape border, strong snap.
  */
 (function() {
+  if(typeof window.__==='undefined'){window.__=function(k){return k;};}
   const W=340,H=190,SNAP=55;
   let S={phase:'loading',bgImg:null,hole:null,pieces:[],activeIdx:null,
          dragOffX:0,dragOffY:0,token:'',trail:[],t0:0,API_BASE:''};
@@ -13,9 +14,9 @@
     S.API_BASE=el.dataset.api||location.origin;
     el.innerHTML=`<div class="pc3-root"><div class="pc3-frame">
       <canvas class="pc3-canvas" width="${W}" height="${H}"></canvas>
-      <div class="pc3-loading" id="pc3Load"><div class="pc3-skeleton"><div class="pc3-shimmer"></div></div><span>加载安全验证...</span></div>
+      <div class="pc3-loading" id="pc3Load"><div class="pc3-skeleton"><div class="pc3-shimmer"></div></div><span>'+__('加载安全验证...')+'</span></div>
       <button class="pc3-refresh"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/></svg></button>
-    </div><div class="pc3-hint" id="pc3Hint">选择正确形状拖入缺口</div></div>`;
+    </div><div class="pc3-hint" id="pc3Hint">'+__('选择正确形状拖入缺口')+'</div></div>`;
     root=el.querySelector('.pc3-root');C=el.querySelector('.pc3-canvas');ctx=C.getContext('2d');
     C.addEventListener('mousedown',d);C.addEventListener('mousemove',m);C.addEventListener('mouseup',u);
     C.addEventListener('touchstart',td,{passive:false});C.addEventListener('touchmove',tm,{passive:false});C.addEventListener('touchend',tu);
@@ -54,27 +55,27 @@
     const dist=Math.sqrt((pcx-hcx)**2+(pcy-hcy)**2);
     S.trail.push({t:Date.now()-S.t0,x:Math.round(p.x),y:Math.round(p.y)});
     if(dist<SNAP&&p.isTarget){p.x=h.x;p.y=h.y;S.activeIdx=null;S.phase='verifying';render();await verify();}
-    else{p.x=p._ox;p.y=p._oy;S.activeIdx=null;S.phase='ready';render();root.classList.add('pc3-miss');setTimeout(()=>root.classList.remove('pc3-miss'),500);document.getElementById('pc3Hint').textContent=dist<SNAP?'形状不匹配':'未对准';setTimeout(()=>{if(S.phase==='ready')document.getElementById('pc3Hint').textContent='选择正确形状拖入缺口';},1500);if(dist<SNAP)setTimeout(load,1200);}
+    else{p.x=p._ox;p.y=p._oy;S.activeIdx=null;S.phase='ready';render();root.classList.add('pc3-miss');setTimeout(()=>root.classList.remove('pc3-miss'),500);document.getElementById('pc3Hint').textContent=dist<SNAP?__('形状不匹配'):__('未对准');setTimeout(()=>{if(S.phase==='ready')document.getElementById('pc3Hint').textContent=__('选择正确形状拖入缺口');},1500);if(dist<SNAP)setTimeout(load,1200);}
   }
   function tu(){u();}
 
   async function load(){
-    S.phase='loading';document.getElementById('pc3Load').style.display='flex';document.getElementById('pc3Hint').textContent='加载中...';root.classList.remove('pc3-success','pc3-miss');
+    S.phase='loading';document.getElementById('pc3Load').style.display='flex';document.getElementById('pc3Hint').textContent=__('加载中...');root.classList.remove('pc3-success','pc3-miss');
     try{const res=await fetch(S.API_BASE+'/api/captcha/generate');const d=await res.json();
       S.token=d.token;S.hole=d.hole;S.pieces=d.pieces;S.bgImg=null;
       let total=S.pieces.length+1,loaded=0;
-      function chk(){loaded++;if(loaded===total){S.phase='ready';document.getElementById('pc3Load').style.display='none';document.getElementById('pc3Hint').textContent='选择正确形状拖入缺口';render();}}
+      function chk(){loaded++;if(loaded===total){S.phase='ready';document.getElementById('pc3Load').style.display='none';document.getElementById('pc3Hint').textContent=__('选择正确形状拖入缺口');render();}}
       S.pieces.forEach(p=>{p._ox=p.x;p._oy=p.y;p.img=new Image();p.img.onload=chk;p.img.onerror=chk;p.img.src=p.imgData;});
       const bg=new Image();bg.onload=()=>{S.bgImg=bg;chk();};bg.onerror=chk;bg.src='data:image/png;base64,'+d.background;
-    }catch(e){document.getElementById('pc3Hint').textContent='加载失败';console.error(e);}
+    }catch(e){document.getElementById('pc3Hint').textContent=__('加载失败');console.error(e);}
   }
 
   async function verify(){
     try{const r=await fetch(S.API_BASE+'/api/captcha/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:S.token,drag_distance:0,drag_trace:S.trail})});const d=await r.json();
-      if(d.success){S.phase='success';root.classList.add('pc3-success');document.getElementById('pc3Hint').textContent='✓ 验证通过';
+      if(d.success){S.phase='success';root.classList.add('pc3-success');document.getElementById('pc3Hint').textContent=__('✓ 验证通过');
         document.getElementById('puzzle-captcha').dispatchEvent(new CustomEvent('captcha-success',{bubbles:true,detail:{token:S.token,risk_score:d.risk_score}}));}
-      else{S.phase='ready';root.classList.add('pc3-miss');setTimeout(()=>root.classList.remove('pc3-miss'),500);document.getElementById('pc3Hint').textContent='验证失败';setTimeout(load,1200);}
-    }catch(e){S.phase='ready';document.getElementById('pc3Hint').textContent='网络错误';}
+      else{S.phase='ready';root.classList.add('pc3-miss');setTimeout(()=>root.classList.remove('pc3-miss'),500);document.getElementById('pc3Hint').textContent=__('验证失败');setTimeout(load,1200);}
+    }catch(e){S.phase='ready';document.getElementById('pc3Hint').textContent=__('网络错误');}
   }
 
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',()=>{build();load();}):(build(),load());

@@ -134,6 +134,20 @@ a:hover{text-decoration:underline}
 .ai-tab.active{color:var(--accent);background:rgba(0,245,255,0.12);border-color:var(--accent)}
 .ai-tab-content{border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;min-height:400px;padding:16px}
 .ai-hub-subtitle{font-size:11px;color:var(--dim);padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border)}
+/* ===== Big Screen Mode ===== */
+.bigscreen{background:#000!important}
+.bigscreen .sidebar{display:none!important}
+.bigscreen .main{width:100%!important}
+.bigscreen .top{background:#000!important;border-bottom:1px solid rgba(255,255,255,0.06);padding:8px 32px}
+.bigscreen .con{padding:12px 28px;height:calc(100vh - 48px);overflow:hidden}
+.bigscreen .kpi-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)}
+.bigscreen .dash-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)}
+.bigscreen .kpi-card .kpi-value{font-size:32px}
+.bigscreen .kpi-card .kpi-label{font-size:14px}
+.bigscreen .card-title{font-size:14px}
+@media(min-width:2560px){.bigscreen .kpi-card .kpi-value{font-size:42px}.bigscreen .kpi-card .kpi-label{font-size:16px}.bigscreen .card-title{font-size:16px}}
+@keyframes alert-border-pulse{0%,100%{border-color:rgba(239,68,68,0.3)}50%{border-color:#ef4444}}
+.bigscreen .dash-card.has-alert{animation:alert-border-pulse 2s infinite}
 </style>
 <script src="/admin/static/lib/chart.min.js" defer></script>
 <script src="/admin/static/lib/echarts.min.js" defer></script>
@@ -230,7 +244,7 @@ a:hover{text-decoration:underline}
   </script>
 </div>
 <div class="main">
-  <div class="top"><div class="pt" id="pt">{{ _('Dashboard') }}</div><div><span id="an">-</span> | <a href="/" style="color:var(--dim);font-size:11px">{{ _('Back') }}</a> | <a href="/admin/logout" style="color:#f85149;font-size:11px">{{ _('Logout') }}</a></div></div>
+  <div class="top"><div class="pt" id="pt">{{ _('Dashboard') }}</div><div style="display:flex;align-items:center;gap:12px"><span id="an">-</span><span id="bigscreen-clock" style="font-size:11px;color:var(--dim);display:none"></span><button id="btnBigscreen" onclick="toggleBigScreen()" style="background:transparent;border:1px solid var(--border);color:var(--dim);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'">{{ _('Big Screen') }}</button> | <a href="/" style="color:var(--dim);font-size:11px">{{ _('Back') }}</a> | <a href="/admin/logout" style="color:#f85149;font-size:11px">{{ _('Logout') }}</a></div></div>
   <div class="con" id="mc"><div class="lo"><div class="s"></div>{{ _('Verifying Identity') }}...</div></div>
 </div>
 <div class="toast" id="adminToast"></div>

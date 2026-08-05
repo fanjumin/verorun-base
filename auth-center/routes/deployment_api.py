@@ -39,7 +39,7 @@ def _require_admin():
         token = request.cookies.get('sso_token', '') or request.cookies.get('tm_token', '')
     payload = validate_token(token) if token else None
     if not payload:
-        return None, (jsonify({'success': False, 'error': '请先登录'}), 401)
+        return None, (jsonify({'success': False, 'error': _('请先登录')}), 401)
     if not payload.get('is_admin'):
         return None, (jsonify({'success': False, 'error': _('Requires admin permissions')}), 403)
     return payload, None
@@ -200,7 +200,7 @@ def heartbeat():
             'valid': is_valid,
             'days_remaining': max(days_remaining, 0),
             'status': 'active' if is_valid else 'expired',
-            'message': '订阅有效' if is_valid else '订阅已过期，请续费',
+            'message': _('订阅有效') if is_valid else _('订阅已过期，请续费'),
             'plan_key': d['plan_key'],
         }
     })
