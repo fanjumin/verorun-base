@@ -63,23 +63,14 @@ class LinkedInPushProvider(BaseSocialProvider):
             user_info = json.loads(resp.read().decode())
             user_urn = f"urn:li:person:{user_info.get('sub', '')}"
 
-            post_body = {
-                'author': user_urn,
-                'lifecycleState': 'PUBLISHED',
-                'specificContent': {
-                    'com.linkedin.ugc.ShareContent': {
-                        'shareCommentary': {
-                            'text': f"{title}\n\n{summary or body[:200]}"
-                        },
-                        'shareMediaCategory': 'ARTICLE',
-                    }
-                },
-                'visibility': {
-                    'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'
+            # 有链接 → ARTICLE（附 article 对象）；无链接 → NONE（纯文本动态）
+            share_content = {
+                'shareCommentary': {
+                    'text': f"{title}\n\n{summary or body[:200]}"
                 },
             }
-
             if link_url:
+                share_content['shareMediaCategory'] = 'ARTICLE'
                 article = {
                     'source': link_url,
                     'title': title,
@@ -87,7 +78,20 @@ class LinkedInPushProvider(BaseSocialProvider):
                 }
                 if image_url:
                     article['thumbnail'] = image_url
-                post_body['specificContent']['com.linkedin.ugc.ShareContent']['article'] = article
+                share_content['article'] = article
+            else:
+                share_content['shareMediaCategory'] = 'NONE'
+
+            post_body = {
+                'author': user_urn,
+                'lifecycleState': 'PUBLISHED',
+                'specificContent': {
+                    'com.linkedin.ugc.ShareContent': share_content
+                },
+                'visibility': {
+                    'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'
+                },
+            }
 
             data = json.dumps(post_body).encode()
             req = urllib.request.Request(

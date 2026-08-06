@@ -17,6 +17,8 @@ window.l_social=function(){
   // Show config status（Phase 3：社媒号 与 AI 工具 分区展示）
   fetch("/admin/social/check-config",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
+    socCfAvailable=!!(d.data&&d.data.content_factory_available);
+    document.querySelectorAll("[data-cfbtn]").forEach(function(b){b.disabled=!socCfAvailable;b.style.opacity=socCfAvailable?1:0.4;b.title=socCfAvailable?"":"{{ _('Not Configured') }}"});
     var plat=(d.data.platforms||[]).map(function(p){return p.icon+" "+p.name+(p.configured?"✅":"❌")});
     var ai=(d.data.ai_capabilities||[]).map(function(p){return p.icon+" "+p.name+(p.configured?"✅":"❌")});
     var parts=[];
@@ -57,7 +59,7 @@ function socialEditor(){
   h+='<div class="fl" id="socSummaryRow"><div style="font-size:11px;color:var(--dim);width:60px">{{ _('Summary') }}</div><input class="in" id="socSummary" placeholder="{{ _('Summary') }}（{{ _('Optional') }}）" style="flex:1" value="'+esc(socArticle.summary)+'"></div>';
   h+='<div style="font-size:11px;color:var(--dim);margin:8px 0 4px">{{ _('Body') }}</div>';
   h+='<textarea class="ta" id="socBody" style="min-height:200px;width:100%" placeholder="{{ _('Body Content') }}...">'+esc(socArticle.body_html)+'</textarea>';
-  h+='<div style="margin-top:6px;display:flex;gap:6px"><button class="btn bo bs" onclick="socAiformat()">🤖 AI{{ _('Layout') }}</button><button class="btn bo bs" onclick="socAicover()">🎨 AI{{ _('Add Image') }}</button></div>';
+  h+='<div style="margin-top:6px;display:flex;gap:6px"><button class="btn bo bs" data-cfbtn onclick="socAiformat()">🤖 AI{{ _('Layout') }}</button><button class="btn bo bs" data-cfbtn onclick="socAicover()">🎨 AI{{ _('Add Image') }}</button></div>';
   h+='<div id="socCmsImportList" style="margin-top:8px;display:none"></div>';
   h+='</div>';
 
@@ -71,12 +73,12 @@ function socialImportFromCMS(){
   if(!el){showToast("{{ _('Use this feature in the editor first') }}","error");return}
   if(el.style.display!="none"&&el.innerHTML){el.style.display="none";return}
   el.style.display="block";
-  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }}CMS{{ _('Article') }}...</div>';
+  el.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading') }} CMS {{ _('Article') }}...</div>';
   fetch("/admin/social/import-from-cms",{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data){el.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return}
     var posts=d.data;
-    if(!posts.length){el.innerHTML='<div class="em">{{ _('No Published') }}CMS{{ _('Article') }}</div>';return}
-    var h='<div class="st" style="font-size:12px">{{ _('Select') }}CMS{{ _('Article Import') }}</div><table><tr><th>{{ _('Title') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!posts.length){el.innerHTML='<div class="em">{{ _('No Published') }} CMS {{ _('Article') }}</div>';return}
+    var h='<div class="st" style="font-size:12px">{{ _('Select') }} CMS {{ _('Article Import') }}</div><table><tr><th>{{ _('Title') }}</th><th>{{ _('Categories') }}</th><th>{{ _('Time') }}</th><th>{{ _('Actions') }}</th></tr>';
     posts.forEach(function(p){
       h+='<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-weight:600">'+esc(p.title)+'</td>';
       h+='<td>'+esc(p.category)+'</td>';
@@ -117,6 +119,7 @@ function socAiformat(){
 }
 
 function socAicover(){
+  if(!socCfAvailable){showToast("{{ _('Not Configured') }}","error");return}
   var title=document.getElementById("socTitle").value.trim()||"{{ _('Article Image') }}";
   var p=prompt("{{ _('Image Description') }}（{{ _('Auto Generate if Empty') }}）:",title+" {{ _('Fintech') }} {{ _('Dark Sci-Fi') }}");
   if(p===null)return;
@@ -221,12 +224,18 @@ function socialPublish(){
       var checked=p.configured?"checked":"";
       var disabled=p.configured?"":"disabled";
       h+='<label style="font-size:12px;display:flex;align-items:center;gap:4px;opacity:'+(p.configured?1:0.4)+'">';
-      h+='<input type="checkbox" class="socPlatformCheck" value="'+p.id+'" '+checked+' '+disabled+'>';
+      h+='<input type="checkbox" class="socPlatformCheck" value="'+p.id+'" '+checked+' '+disabled+' onchange="socialToggleSubreddit()">';
       h+=p.icon+' '+p.name;
       if(!p.configured)h+=' <span style="font-size:9px;color:var(--dim)">({{ _('Not Configured') }})</span>';
       h+='</label>';
     });
     h+='</div></div>';
+
+    // Reddit 目标板块输入（仅当选择 Reddit 时显示）
+    h+='<div id="socSubredditRow" style="display:none;margin-top:6px">';
+    h+='<div style="font-size:11px;color:var(--dim)">{{ _('Subreddit') }}</div>';
+    h+='<input class="in" id="socSubreddit" placeholder="r/subreddit" style="margin-top:4px;width:220px">';
+    h+='</div>';
 
     // AI 创作工具 —— 独立信息区，仅显示可用状态，不是发布目标
     if(aiCaps.length){
@@ -273,6 +282,14 @@ function socialPublish(){
   }).catch(function(){document.getElementById("socContent").innerHTML='<div class="em">{{ _('Check Configuration Failed') }}</div>'});
 }
 
+function socialToggleSubreddit(){
+  var row=document.getElementById("socSubredditRow");
+  if(!row)return;
+  var hasReddit=false;
+  document.querySelectorAll(".socPlatformCheck:checked").forEach(function(cb){if(cb.value==="reddit")hasReddit=true});
+  row.style.display=hasReddit?"block":"none";
+}
+
 function socialDoPublish(){
   var te=document.getElementById("socTitle");
   var se=document.getElementById("socSummary");
@@ -299,6 +316,7 @@ function socialDoPublish(){
     cover_image_url:socCoverUrl||"",
     platforms:platforms,
     auto_publish:autoPub,
+    subreddit:document.getElementById("socSubreddit")?document.getElementById("socSubreddit").value.trim():"",
   })}).then(function(r){return r.json()}).then(function(d){
     if(d.success){
       var msgs=d.data.results.map(function(r){return r.platform+": "+(r.message||r.error||r.status)});

@@ -13,13 +13,9 @@ cms_admin 等主系统模块经 plugin_manager 调用。
 """
 
 from i18n import _
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugin_manager.base import BasePlugin
-from .models import init_sp_db, migrate_from_main_db
+from .models import init_sp_db, migrate_from_main_db, get_sp_db
 
 # 模块级 i18n 引用，由 on_enable 注入
 _t = lambda text: text
@@ -33,7 +29,7 @@ def init_i18n(t_fn):
 
 class SocialPushPlugin(BasePlugin):
     name = 'social_push'
-    version = '1.1.0'
+    version = '1.2.0'
     description = 'Social Push — Multi-platform social content publishing'
     author = 'VeroRun'
 
@@ -85,3 +81,21 @@ class SocialPushPlugin(BasePlugin):
             summary=summary, author=author, cover_image_url=cover_image_url,
             auto_publish=auto_publish, admin_id=admin_id,
         )
+
+    def get_dashboard_stats(self) -> dict:
+        """Dashboard 聚合统计（读插件独立库 social_push_logs，幂等）。"""
+        try:
+            conn = get_sp_db()
+            total = conn.execute(
+                "SELECT COUNT(*) AS c FROM social_push_logs"
+            ).fetchone()
+            today = conn.execute(
+                "SELECT COUNT(*) AS c FROM social_push_logs "
+                "WHERE created_at::timestamptz >= CURRENT_DATE"
+            ).fetchone()
+            return {
+                'total_publishes': int(total['c']) if total else 0,
+                'today_publishes': int(today['c']) if today else 0,
+            }
+        except Exception:
+            return {'total_publishes': 0, 'today_publishes': 0}

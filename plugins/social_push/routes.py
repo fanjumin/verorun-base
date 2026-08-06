@@ -20,7 +20,7 @@ _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
 if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 
 from .models import get_sp_db
 
@@ -63,21 +63,17 @@ def _get_main_db():
 
 def _get_market() -> str:
     """Return current market: 'cn' or 'intl'."""
-    try:
-        from providers import get_market
-        return get_market()
-    except Exception:
-        return 'cn'
+    return os.environ.get('DEPLOY_MARKET', 'cn')
 
 
-def _get_international_providers(market: str) -> list:
+def _get_international_providers(market: str, configs: dict = None) -> list:
     """Return international platform list filtered by market.
 
     CN users only see domestic platforms; intl users see all international ones.
     """
     try:
         from .providers import get_provider_info
-        return get_provider_info(market)
+        return get_provider_info(market, configs)
     except Exception:
         return {}
 
@@ -144,7 +140,7 @@ def check_config():
         # Add international platforms if market is 'intl'
         market = _get_market()
         if market == 'intl':
-            intl_providers = _get_international_providers('intl')
+            intl_providers = _get_international_providers('intl', cfg)
             for pid, info in intl_providers.items():
                 platforms.append({
                     'id': pid,
@@ -154,10 +150,18 @@ def check_config():
                     'fields_needed': [] if info.get('configured') else [],
                 })
 
+        # content_factory 插件是否启用（决定前端是否显示 AI 排版/配图按钮）
+        try:
+            _pm = current_app.extensions.get('plugin_manager')
+            content_factory_available = bool(_pm and _pm.is_enabled('content_factory'))
+        except Exception:
+            content_factory_available = True
+
         return jsonify({
             'success': True,
             'data': {
                 'platforms': platforms,
+                'content_factory_available': content_factory_available,
                 'ai_capabilities': [
                     {
                         'id': 'image_gen',
@@ -317,6 +321,7 @@ def publish_content():
     cover_image_url = data.get('cover_image_url', '').strip()
     platforms = data.get('platforms', ['wechat'])  # list of platform ids
     auto_publish = data.get('auto_publish', False)
+    subreddit = data.get('subreddit', '').strip()  # Reddit 目标板块（可选）
 
     if not title or not body:
         return jsonify({'success': False, 'error': _('Title and Body cannot be empty')}), 400
@@ -335,6 +340,7 @@ def publish_content():
             cover_image_url=cover_image_url,
             auto_publish=auto_publish,
             admin_id=admin_id,
+            subreddit=subreddit,
         )
         results.append(result)
 
@@ -359,7 +365,7 @@ def _load_config_for_provider(provider_name: str) -> dict:
         return {}
 
 
-def _publish_via_provider(platform, title, body, summary, cover_image_url, link_url, admin_id):
+def _publish_via_provider(platform, title, body, summary, cover_image_url, link_url, admin_id, **kwargs):
     """Publish via an international provider adapter. Returns standard result dict."""
     try:
         from .providers import get_provider
@@ -371,7 +377,7 @@ def _publish_via_provider(platform, title, body, summary, cover_image_url, link_
         result = provider.publish(
             title=title, body=body, summary=summary,
             image_url=cover_image_url, link_url=link_url,
-            config=config,
+            config=config, **kwargs,
         )
 
         # Log the result to social_push_logs
@@ -405,7 +411,7 @@ def _publish_via_provider(platform, title, body, summary, cover_image_url, link_
 
 
 def _publish_to_platform(platform, title, body, body_html, summary, author,
-                         cover_image_url, auto_publish, admin_id):
+                         cover_image_url, auto_publish, admin_id, **kwargs):
     """Publish to a single platform. Returns {platform, status, media_id, message, error}."""
     if platform == 'wechat':
         return _publish_wechat(title, body_html, summary, author, cover_image_url, auto_publish, admin_id)
@@ -414,7 +420,7 @@ def _publish_to_platform(platform, title, body, body_html, summary, author,
     elif platform == 'toutiao':
         return _publish_toutiao(title, body_html, summary, cover_image_url, admin_id)
     elif platform in ('twitter', 'linkedin', 'reddit', 'telegram'):
-        return _publish_via_provider(platform, title, body, summary, cover_image_url, '', admin_id)
+        return _publish_via_provider(platform, title, body, summary, cover_image_url, '', admin_id, **kwargs)
     else:
         return {'platform': platform, 'status': 'failed', 'error': f'Unsupported platform: {platform}'}
 
@@ -527,7 +533,7 @@ def _publish_toutiao(title, body_html, summary, cover_image_url, admin_id):
             )
             conn.commit()
         _log(admin_id, 'social_publish', 'social', result.get('id', ''), f'Toutiao: {title}')
-        return {'platform': 'toutiao', 'status': 'published', 'media_id': result.get('id', ''), 'message': _('Published on Toutiao"')}
+        return {'platform': 'toutiao', 'status': 'published', 'media_id': result.get('id', ''), 'message': _('Published on Toutiao')}
     except Exception as e:
         logger.exception('Toutiao publish failed')
         with get_sp_db() as conn:

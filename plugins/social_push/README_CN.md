@@ -103,12 +103,13 @@ Social Push（社媒发布）是 VeroRun 平台的多平台社交媒体内容发
 
 ```
 social_push/
-+-- README.md                    # 插件文档
++-- README.md                    # 插件文档（英文）
++-- README_CN.md                 # 插件文档（中文）
 +-- plugin.json                  # 插件元数据配置
 +-- __init__.py                  # 插件入口，注册蓝图和 Hook
 +-- models.py                    # 数据模型（独立库连接、表创建、主库迁移）
 +-- routes.py                    # 管理端 API 路由（配置检测、AI 生成、发布、历史等）
-+-- social_push.db               # 独立数据库文件（保留用于迁移）
++-- social_push.db               # 旧版 SQLite 文件（当前版本使用 PG schema social_push）
 +-- providers/
 |   +-- __init__.py              # Provider 注册与工厂函数
 |   +-- base.py                  # Provider 抽象基类
@@ -135,13 +136,12 @@ social_push/
 ### 安装步骤
 
 1. 将 `social_push` 目录放置于 `plugins/` 下
-2. 确保 `plugin.json` 中 `enabled` 为 `true`
-3. 重启应用，插件将自动：
+2. 重启应用，插件将自动注册并在启动时：
    - 创建 PostgreSQL schema `social_push`
    - 初始化 `social_push_logs` 表
    - 从主库幂等迁移历史发布记录
-4. 在管理后台 "Publishing" > "Social Push" 中配置各平台参数
-5. 使用 `check-config` 端点验证各平台配置状态
+3. 在管理后台 "Publishing" > "Social Push" 中配置各平台参数
+4. 使用 `check-config` 端点验证各平台配置状态
 
 ### 环境变量
 
@@ -257,7 +257,6 @@ social_push/
 | `auth-center.services.weibo_service` | 微博发布（`publish_weibo`） |
 | `auth-center.services.toutiao_service` | 头条发布（`publish_article`） |
 | `auth-center.services.ai_content_generator` | 公共 AI 服务（`generate_article`、`generate_image`、`generate_cover_image`） |
-| `auth-center.providers` | 市场感知（`get_market`） |
 
 ### 外部依赖
 
@@ -315,3 +314,35 @@ class FacebookProvider(BaseSocialProvider):
 ## 许可证
 
 本插件为 VeroRun 平台的一部分，遵循平台统一的许可证协议。
+
+## 变更日志
+
+### v1.2.0 (2026-08-06)
+
+审计修复完成（19 项问题全部清零）：
+
+**阻塞级**
+- Reddit 发布链路打通：发布表单的 subreddit 板块透传至 Reddit Provider
+- `_get_international_providers()` 签名与调用处对齐，Provider 配置正确传入，`is_configured()` 判定准确
+- 版本号统一为 1.2.0（`plugin.json` / `__init__.py`）
+
+**高危**
+- LinkedIn `shareMediaCategory` 根据是否提供链接自动切换 `ARTICLE` / `NONE`
+- tweepy 响应改为 `resp.data.id` 访问（替代 `resp.data['id']`）
+- 移除外部 `get_market` 依赖，市场信息直接读取 `DEPLOY_MARKET` 环境变量
+- `category` 规范化为 v1.4 标准枚举（`social`）
+
+**中危**
+- `settings_schema` 完整声明（20 个配置项，合法 JSON Schema）
+- 数据库连接改为线程安全（`threading.local`）
+- `created_at` 迁移为 `TIMESTAMPTZ`，历史 TEXT 列幂等 ALTER
+- 管理页增加 `content_factory` 可用性检测（未启用时 AI 按钮禁用）
+- 补充 "Import from CMS" 中英翻译键
+- v1.4 商店规范：声明 `dashboard.stats` 并实现 `get_dashboard_stats()`
+
+**低危**
+- 今日头条成功提示引号错误修复
+- 移除插件入口的 `sys.path` 污染
+- 删除 `plugin.json` 中非标准 `enabled` 字段
+- Telegram 有图片链接时改用 `sendPhoto` 发送
+- 修复少量 i18n 字符串空格问题

@@ -6,6 +6,7 @@ Each platform is registered with its provider class and market availability.
 Market filtering ensures CN users only see domestic platforms while
 international users see all available platforms.
 """
+from typing import Optional
 from .base import BaseSocialProvider
 from .twitter import TwitterPushProvider
 from .linkedin import LinkedInPushProvider
@@ -30,10 +31,10 @@ _PROVIDER_MARKET = {
 }
 
 
-def get_provider(provider_name: str) -> BaseSocialProvider:
+def get_provider(provider_name: str, config: Optional[dict] = None) -> BaseSocialProvider:
     """Return a provider instance by name, or None if unknown."""
     cls = _PROVIDERS.get(provider_name)
-    return cls() if cls else None
+    return cls(config) if cls else None
 
 
 def list_providers(market: str = '') -> list:
@@ -56,17 +57,19 @@ def list_providers(market: str = '') -> list:
     return result
 
 
-def get_provider_info(market: str = '') -> dict:
+def get_provider_info(market: str = '', configs: dict = None) -> dict:
     """Return provider metadata dict keyed by provider_id.
 
     Each item: {provider_id: {'name': str, 'icon': str, 'configured': bool}}
 
     Args:
         market: 'cn', 'intl', or '' (empty = return all)
+        configs: system_config dict subset; passed to providers so their
+                 is_configured() can reflect real credential status.
     """
     info = {}
     for pid in list_providers(market):
-        provider = get_provider(pid)
+        provider = get_provider(pid, configs)
         if provider is None:
             continue
         info[pid] = {

@@ -77,7 +77,7 @@ class TwitterPushProvider(BaseSocialProvider):
                 text = (title or '')[:remaining] + ' ' + link_url
 
             resp = client.create_tweet(text=text)
-            tweet_id = resp.data['id'] if resp.data else ''
+            tweet_id = str(resp.data.id) if resp.data else ''
 
             return {
                 'success': True,

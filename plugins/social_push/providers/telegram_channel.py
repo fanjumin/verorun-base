@@ -56,14 +56,24 @@ class TelegramChannelPushProvider(BaseSocialProvider):
         try:
             # Build message text with optional markdown formatting
             text = self._build_message(title, body, summary, link_url)
-            api_url = f'{API_BASE}{self._bot_token}/sendMessage'
 
-            payload = {
-                'chat_id': self._channel,
-                'text': text,
-                'parse_mode': 'HTML',
-                'disable_web_page_preview': False,
-            }
+            if image_url:
+                # 有配图 → sendPhoto（caption 上限 1024 字符）
+                api_url = f'{API_BASE}{self._bot_token}/sendPhoto'
+                payload = {
+                    'chat_id': self._channel,
+                    'photo': image_url,
+                    'caption': text[:1024],
+                    'parse_mode': 'HTML',
+                }
+            else:
+                api_url = f'{API_BASE}{self._bot_token}/sendMessage'
+                payload = {
+                    'chat_id': self._channel,
+                    'text': text,
+                    'parse_mode': 'HTML',
+                    'disable_web_page_preview': False,
+                }
 
             data = json.dumps(payload).encode('utf-8')
             req = urllib.request.Request(

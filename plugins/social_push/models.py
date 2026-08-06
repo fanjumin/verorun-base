@@ -4,25 +4,26 @@
 独立数据库 social_push.db，存放社媒发布日志表 social_push_logs。
 从主库迁移而来，表结构保持一致。
 """
-import psycopg2
-import os
+import threading
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
 
-_sp_conn = None
+# 每线程独立连接，避免多线程共享全局 cursor 造成数据竞争
+_local = threading.local()
 
 
 def get_sp_db():
-    """获取 Social Push 插件独立数据库连接"""
-    global _sp_conn
-    if _sp_conn is None:
+    """获取 Social Push 插件独立数据库连接（线程局部，非全局共享）"""
+    conn = getattr(_local, 'conn', None)
+    if conn is None:
         raw = get_raw_connection()
         raw.autocommit = False
-        _sp_conn = PgConnection(raw)
-        _sp_conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")
-        _sp_conn.execute("SET search_path TO social_push")
-        _sp_conn.commit()
-    return _sp_conn
+        conn = PgConnection(raw)
+        conn.execute("CREATE SCHEMA IF NOT EXISTS social_push")
+        conn.execute("SET search_path TO social_push")
+        conn.commit()
+        _local.conn = conn
+    return _local.conn
 
 
 def init_sp_db():
@@ -47,10 +48,20 @@ def init_sp_db():
             push_time       TEXT,
             admin_id        BIGINT,
             error_msg       TEXT DEFAULT '',
-            created_at      TEXT DEFAULT (NOW())
+            created_at      TIMESTAMPTZ DEFAULT NOW()
         )
     """)
     conn.commit()
+
+    # 幂等迁移：历史 TEXT 列一次性转 TIMESTAMPTZ；已是 TIMESTAMPTZ 时为无操作
+    try:
+        conn.execute(
+            "ALTER TABLE social_push_logs ALTER COLUMN created_at TYPE TIMESTAMPTZ "
+            "USING created_at::timestamptz"
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
 
 
 def migrate_from_main_db():
