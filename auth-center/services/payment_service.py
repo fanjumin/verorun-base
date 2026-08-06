@@ -83,7 +83,7 @@ def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 
     now = datetime.now().isoformat()
     with get_db() as conn:
         items = conn.execute(
-            'SELECT * FROM order_items WHERE order_id=? AND status="pending"',
+            'SELECT * FROM order_items WHERE order_id=%s AND status=\'pending\'',
             (order_id,)
         ).fetchall()
         if not items:
@@ -97,7 +97,7 @@ def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 
             )
             # 创建购买记录
             existing = conn.execute(
-                'SELECT id FROM user_purchases WHERE user_id=? AND product_id=? AND order_id=?',
+                'SELECT id FROM user_purchases WHERE user_id=%s AND product_id=%s AND order_id=%s',
                 (item['user_id'], item['product_id'], order_id)
             ).fetchone()
             if not existing:
