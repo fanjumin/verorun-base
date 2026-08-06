@@ -4,7 +4,7 @@
 
 Analytics is VeroRun's server-side cookie-less analytics middleware plugin, providing complete website traffic data collection, storage, aggregation, and visualization. The plugin uses a cookie-less lightweight tracking approach to deliver PV/UV statistics, visitor session identification, page-level behavior analysis, geolocation resolution, and trend analysis without relying on client-side cookies.
 
-Version: **1.5.0**
+Version: **1.5.2**
 
 ## Features
 
@@ -141,7 +141,7 @@ The following parameters are configured in `plugin.json`:
 ```json
 {
   "name": "analytics",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "database": {
     "type": "postgresql",
     "schema": "analytics"
@@ -212,6 +212,15 @@ The following parameters are configured in `plugin.json`:
 - **Embedded URL**: `/admin/analytics/`
 
 ## Changelog
+
+### v1.5.2 (2026-08-06)
+
+**Bug fix: analytics dashboard self-polling counted as PV**
+
+The dashboard's own `/admin/analytics/api/v1/*` polling endpoints were being recorded as page views (~1300 requests/hour while the dashboard is open), inflating PV/sessions.
+
+- Added `/admin/analytics/*` to the default `exclude_paths` so the dashboard's own API traffic is no longer tracked.
+- If the database already has a privacy config row, update `analytics_privacy_config.exclude_paths` manually and restart the service (existing rows are not overwritten on re-init).
 
 ### v1.5.1 (2026-08-06)
 

@@ -26,7 +26,7 @@ logger = logging.getLogger('analytics')
 
 class AnalyticsPlugin(BasePlugin):
     name = 'analytics'
-    version = '1.5.1'
+    version = '1.5.2'
     description = 'Analytics Middleware & Dashboard — Server-side Cookieless Analytics'
     author = 'VeroRun'
 

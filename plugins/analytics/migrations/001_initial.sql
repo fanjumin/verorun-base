@@ -237,6 +237,6 @@ INSERT INTO analytics_privacy_config (key, value, updated_at) VALUES
     ('track_bots', 'true', 0),
     ('exclude_internal_ips', 'true', 0),
     ('internal_ip_ranges', '["127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"]', 0),
-    ('exclude_paths', '["/static/*","/favicon.ico","/robots.txt","/health","/admin/automation/*"]', 0),
+    ('exclude_paths', '["/static/*","/favicon.ico","/robots.txt","/health","/admin/automation/*","/admin/analytics/*"]', 0),
     ('anonymize_query_params', '["token","password","key","secret","auth"]', 0)
     ON CONFLICT(key) DO NOTHING;

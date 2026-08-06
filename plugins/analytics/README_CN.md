@@ -4,7 +4,7 @@
 
 Analytics 是 VeroRun 的服务端无 Cookie 分析中间件插件，提供完整的网站访问数据采集、存储、聚合与可视化能力。插件通过无 Cookie 的轻量级追踪方式，在不依赖客户端 Cookie 的前提下实现 PV/UV 统计、访问者会话识别、页面级行为分析、地理位置解析以及趋势分析等功能。
 
-版本：**1.5.1**
+版本：**1.5.2**
 
 ## 功能特性
 
@@ -142,7 +142,7 @@ python -m plugins.analytics.migrate_analytics
 ```json
 {
   "name": "analytics",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "database": {
     "type": "postgresql",
     "schema": "analytics"
@@ -211,6 +211,29 @@ python -m plugins.analytics.migrate_analytics
 
 - **菜单组**：`Monitoring & Data`
 - **嵌入 URL**：`/admin/analytics/`
+
+## 更新日志
+
+### v1.5.2 (2026-08-06)
+
+**Bug 修复：仪表盘自轮询被计为 PV**
+
+仪表盘自身的 `/admin/analytics/api/v1/*` 轮询接口会被记录为页面浏览（仪表盘打开时约每小时 1300 次），拉高 PV/会话数。
+
+- 默认 `exclude_paths` 增加 `/admin/analytics/*`，仪表盘自身 API 流量不再被统计。
+- 若数据库已有隐私配置行，需手动更新 `analytics_privacy_config.exclude_paths` 并重启服务（重新初始化不会覆盖已有行）。
+
+### v1.5.1 (2026-08-06)
+
+**Bug 修复：聚合数据虚高**
+
+修复了一个关键 bug：后台聚合线程每 60 秒会把整个当前小时的统计重复叠加一次，导致 PV、会话数等指标被放大约 50~60 倍。
+
+- `upsert_hourly` / `upsert_page_stat` / `upsert_source` / `upsert_geo` / `upsert_device` 由**累加语义**改为**覆盖语义**：每次运行全量重算整个统计窗口，重复运行收敛到真实值。
+- 页面/来源/地理/设备统计改为在**日级聚合**中全量重算（整日重算 + 覆盖），不再在小时级重复累加。
+- `AnalyticsProcessor._aggregate_daily()` 增加可选 `date_str` 参数，支持历史日期重算。
+
+> **升级提示**：v1.5.1 之前积累的统计为虚高数据。升级后请清空聚合表（`analytics_hourly_stats`、`analytics_daily_stats`、`analytics_page_stats`、`analytics_source_stats`、`analytics_geo_stats`、`analytics_device_stats`），从零开始积累真实数据。原始日志保留不受影响。
 
 ## 许可证
 
