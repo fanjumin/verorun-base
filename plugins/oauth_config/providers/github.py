@@ -50,7 +50,7 @@ class GitHubOAuthProvider(BaseOAuthProvider):
             headers={'Accept': 'application/json'},
         )
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             result = json.loads(resp.read().decode())
             if 'access_token' in result:
                 return result
@@ -66,7 +66,7 @@ class GitHubOAuthProvider(BaseOAuthProvider):
         # Fetch user profile
         req = urllib.request.Request(self.USERINFO_URL, headers=headers)
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             user = json.loads(resp.read().decode())
         except Exception as e:
             return {'error': str(e)}
@@ -75,7 +75,7 @@ class GitHubOAuthProvider(BaseOAuthProvider):
         email = ''
         try:
             req2 = urllib.request.Request(self.EMAILS_URL, headers=headers)
-            resp2 = urllib.request.urlopen(req2, timeout=15)
+            resp2 = urllib.request.urlopen(req2, timeout=10)
             emails = json.loads(resp2.read().decode())
             primary = next((e for e in emails if e.get('primary')), None)
             if primary:

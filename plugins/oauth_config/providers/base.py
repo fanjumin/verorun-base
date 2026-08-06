@@ -91,7 +91,7 @@ class BaseOAuthProvider(ABC):
         encoded = urllib.parse.urlencode(data).encode()
         req = urllib.request.Request(url, data=encoded, headers=headers or {})
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             return json.loads(resp.read().decode())
         except Exception as e:
             return {'error': str(e)}
@@ -100,7 +100,7 @@ class BaseOAuthProvider(ABC):
         """GET and parse JSON response."""
         req = urllib.request.Request(url, headers=headers or {})
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             return json.loads(resp.read().decode())
         except Exception as e:
             return {'error': str(e)}

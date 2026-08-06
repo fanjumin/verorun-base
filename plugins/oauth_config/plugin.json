@@ -1,7 +1,7 @@
 {
     "name": "OAuth Login Config",
     "identifier": "oauth_config",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "category": "System",
     "tags": ["oauth", "login", "sso", "douyin", "wechat", "alipay", "google", "github", "facebook", "telegram"],
     "icon": "social_media",
@@ -11,9 +11,13 @@
     "dependencies": {},
     "enabled": true,
     "config": {},
+    "agents": [],
     "permissions": [
-        "oauth_config.read",
-        "oauth_config.write"
+        "api:read",
+        "api:write",
+        "network:request",
+        "admin:access",
+        "user:profile"
     ],
     "hooks": {
         "provides": [
@@ -22,6 +26,9 @@
             "oauth/callback"
         ],
         "listens": []
+    },
+    "dashboard": {
+        "stats": []
     },
     "admin_url": "#oauth",
     "menu": {
@@ -32,6 +39,17 @@
     },
     "settings_schema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+            "max_providers_per_site": {
+                "type": "integer",
+                "default": 2,
+                "description": "Maximum number of active OAuth providers per site domain"
+            },
+            "session_ttl_hours": {
+                "type": "integer",
+                "default": 168,
+                "description": "SSO session TTL in hours (default 168 = 7 days)"
+            }
+        }
     }
 }

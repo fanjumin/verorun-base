@@ -10,10 +10,6 @@ from datetime import datetime
 
 from flask import Blueprint, request, jsonify
 
-# ── 首次导入时自动初始化独立数据库（不依赖插件生命周期）──
-from plugins.oauth_config.models import init_oauth_tables
-init_oauth_tables()
-
 oauth_cfg_bp = Blueprint('oauth_config', __name__, url_prefix='/admin/oauth')
 
 VALID_PROVIDERS = ['douyin', 'wechat', 'alipay', 'google', 'telegram']

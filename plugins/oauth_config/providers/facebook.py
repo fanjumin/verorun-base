@@ -46,7 +46,7 @@ class FacebookOAuthProvider(BaseOAuthProvider):
         })
         req = urllib.request.Request(f'{self.TOKEN_URL}?{params}')
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             result = json.loads(resp.read().decode())
             if 'access_token' in result:
                 return result
@@ -61,7 +61,7 @@ class FacebookOAuthProvider(BaseOAuthProvider):
         })
         req = urllib.request.Request(f'{self.USERINFO_URL}?{params}')
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             info = json.loads(resp.read().decode())
             picture_url = ''
             pic_data = info.get('picture', {}).get('data', {})

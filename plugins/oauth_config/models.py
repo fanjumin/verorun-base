@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """OAuth Plugin — 独立数据库模型
 
-oauth_providers 表迁移至插件独立数据库 oauth.db，与主库完全解耦。
+oauth_providers 表在插件独立 Schema oauth_config 中，与主库完全解耦。
 """
-import os
-import sys
 import psycopg2
 from contextlib import contextmanager
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
 
-
-_PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
-_DB_PATH = os.path.join(_DATA_DIR, 'oauth.db')
-os.makedirs(_DATA_DIR, exist_ok=True)
+# §10.5 standard logging — safe: __init__.py defines _plugin_log at module level, no circular import
+from plugins.oauth_config import _plugin_log
 
 
 @contextmanager
@@ -33,7 +28,6 @@ def get_db():
 
 def init_oauth_tables():
     """创建 oauth_providers 表（幂等）"""
-    os.makedirs(_DATA_DIR, exist_ok=True)
     with get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS oauth_providers (
@@ -49,4 +43,4 @@ def init_oauth_tables():
             )
         """)
         conn.commit()
-    print(f'[OAuthPlugin] ✅ Schema oauth_config is ready')
+    _plugin_log('[OAuthPlugin] Schema oauth_config is ready')

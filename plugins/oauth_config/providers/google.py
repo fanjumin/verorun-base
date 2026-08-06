@@ -69,7 +69,7 @@ class GoogleOAuthProvider(BaseOAuthProvider):
             headers={'Accept': 'application/json'},
         )
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             result = json.loads(resp.read().decode())
             if 'access_token' in result:
                 return result
@@ -83,7 +83,7 @@ class GoogleOAuthProvider(BaseOAuthProvider):
             headers={'Authorization': f'Bearer {access_token}'},
         )
         try:
-            resp = urllib.request.urlopen(req, timeout=15)
+            resp = urllib.request.urlopen(req, timeout=10)
             info = json.loads(resp.read().decode())
             return {
                 'open_id': info.get('sub', ''),

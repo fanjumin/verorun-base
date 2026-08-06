@@ -14,6 +14,15 @@ ALIPAY_PRIVATE_KEY = os.environ.get('ALIPAY_PRIVATE_KEY', '')
 ALIPAY_GATEWAY = 'https://openapi.alipay.com/gateway.do'
 
 
+def _log(msg):
+    """Log to plugin logger channel (§10.5)."""
+    try:
+        from plugins.oauth_config import _plugin_log
+        _plugin_log(msg)
+    except Exception:
+        pass  # silently ignore logging failures to avoid breaking OAuth flow
+
+
 def _get_config(site_domain=None, provider='alipay'):
     """获取站点 OAuth 配置，按优先级：DB oauth_providers > 环境变量"""
     # 1. 从 DB 按域名查 oauth_providers
@@ -113,14 +122,14 @@ def _api_call(method: str, biz_content: dict, app_id: str, private_key: str) -> 
     req = urllib.request.Request(ALIPAY_GATEWAY, data=data_bytes)
     req.add_header('Content-Type', 'application/x-www-form-urlencoded')
     req.add_header('Accept-Encoding', 'identity')
-    resp = urllib.request.urlopen(req, timeout=15)
+    resp = urllib.request.urlopen(req, timeout=10)
     raw = resp.read()
     content_encoding = resp.headers.get('Content-Encoding', '')
     if content_encoding and 'gzip' in content_encoding:
         import gzip as _gz
         raw = _gz.decompress(raw)
     import sys as _sys
-    print(f'[alipay _api_call] response body[:200]={raw[:200]}')
+    _log(f'[alipay _api_call] response body[:200]={raw[:200]}')
     _sys.stdout.flush()
     try:
         text = raw.decode('utf-8')
@@ -190,7 +199,7 @@ def get_access_token(code, site_domain=None):
 
         req = urllib.request.Request(ALIPAY_GATEWAY, data=data_bytes)
         req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-        resp = urllib.request.urlopen(req, timeout=15)
+        resp = urllib.request.urlopen(req, timeout=10)
         raw = resp.read()
         text = raw.decode('utf-8', errors='replace')
         result = json.loads(text)
@@ -202,13 +211,13 @@ def get_access_token(code, site_domain=None):
             sub = error_resp.get('sub_msg', '')
             msg = error_resp.get('msg', '')
             err_msg = sub or msg or _('Alipay API Error')
-            print(f'[alipay get_access_token error_response] {err_msg}')
+            _log(f'[alipay get_access_token error_response] {err_msg}')
             import sys as _sys; _sys.stdout.flush()
             return {'error': err_msg}
 
         if token_resp.get('code') != '10000' and 'access_token' not in token_resp:
             err_msg = token_resp.get('sub_msg', token_resp.get('msg', _('Alipay API Error')))
-            print(f'[alipay get_access_token token_error] {err_msg}')
+            _log(f'[alipay get_access_token token_error] {err_msg}')
             import sys as _sys; _sys.stdout.flush()
             return {'error': err_msg}
 
@@ -222,7 +231,7 @@ def get_access_token(code, site_domain=None):
         import traceback as _tb
         _tb.print_exc()
         err_msg = f'{e} | TB: {_tb.format_exc()[:200]}'
-        print(f'[alipay get_access_token EXCEPTION] {err_msg}')
+        _log(f'[alipay get_access_token EXCEPTION] {err_msg}')
         return {'error': str(e)}
 
 
@@ -262,7 +271,7 @@ def get_user_info(access_token, site_domain=None):
         ).encode('utf-8')
 
         req = urllib.request.Request(ALIPAY_GATEWAY, data=data_bytes)
-        resp = urllib.request.urlopen(req, timeout=15)
+        resp = urllib.request.urlopen(req, timeout=10)
         body = json.loads(resp.read().decode('utf-8'))
 
         user_data = body.get('alipay_user_info_share_response', {})
@@ -279,5 +288,5 @@ def get_user_info(access_token, site_domain=None):
     except Exception as e:
         import traceback as _tb
         _tb.print_exc()
-        print(f'[alipay get_user_info EXCEPTION] {e}')
+        _log(f'[alipay get_user_info EXCEPTION] {e}')
         return {'error': str(e)}

@@ -28,18 +28,53 @@ def init_i18n(t_fn):
     global _t
     _t = t_fn
 
+def _plugin_log(msg, level='info'):
+    """Log to plugin-specific logger channel (§10.5)."""
+    try:
+        from plugins._base.logging import get_plugin_logger
+        logger = get_plugin_logger('oauth_config')
+        getattr(logger, level)(msg)
+    except Exception:
+        print(f'[OauthConfigPlugin] {msg}')
+
 class OauthConfigPlugin(_BASE_CLS):
     name = 'oauth_config'
-    version = '1.1.0'
+    # NOTE: version is managed solely by plugin.json (§13.1)
     description = _('OAuth 第三方登录 — 完整的登录/回调/配置管理插件')
     author = 'VeroRun'
+
+    # ── §4 Agent registration ──
+    def register_agents(self):
+        """Register agents into the Agent Matrix.
+        Returns empty list because this is a pure functional plugin with no AI Agents.
+        """
+        return []
+
+    # ── §2.3 Dashboard stats ──
+    def get_dashboard_stats(self):
+        """Return dashboard statistics. Pure login plugin — no metrics exposed."""
+        return []
+
+    # ── §10.6 Schema version & migration ──
+    def get_schema_version(self):
+        """Return current schema version for migration tracking."""
+        return 1
+
+    def migrate(self, from_version, to_version):
+        """Run schema migrations between versions.
+        Currently placeholder — no pending migrations.
+        """
+        if from_version >= to_version:
+            return True
+        _plugin_log(f'[OauthConfigPlugin] No migrations needed (v{from_version} → v{to_version})')
+        return True
 
     def on_enable(self, registry):
         init_i18n(self.t)
         # 自动初始化插件独立数据库
         from .models import init_oauth_tables
         init_oauth_tables()
-        print(_('[OauthConfigPlugin] ✅ OAuth login & configuration plugin enabled'))
+        _plugin_log('[OauthConfigPlugin] OAuth login & configuration plugin enabled')
         return True
 
     def register_routes(self):
@@ -50,7 +85,20 @@ class OauthConfigPlugin(_BASE_CLS):
         return [oauth_cfg_bp]
 
     def on_disable(self, registry):
-        print(_('[OauthConfigPlugin] ⚠️ OAuth plugin disabled'))
+        _plugin_log('[OauthConfigPlugin] OAuth plugin disabled', 'warning')
+        return True
+
+    # ── §12.5 Uninstall cleanup ──
+    def on_uninstall(self):
+        """Clean up oauth_config schema data on plugin uninstall (§12.5 卸载零残留)."""
+        try:
+            from .models import get_db
+            with get_db() as conn:
+                conn.execute('DROP TABLE IF EXISTS oauth_providers')
+                conn.commit()
+            _plugin_log('[OauthConfigPlugin] oauth_providers table dropped (uninstall)')
+        except Exception as e:
+            _plugin_log(f'[OauthConfigPlugin] on_uninstall cleanup failed: {e}', 'error')
         return True
 
     # ── Login method registration (dynamic UI) ──

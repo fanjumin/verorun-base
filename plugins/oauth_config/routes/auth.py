@@ -5,14 +5,7 @@
 提供了一组独立的 Blueprint，由 AuthServer 注册。
 """
 from i18n import _
-import sys, os, urllib.parse, hashlib, hmac, time
-
-_plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_project_dir = os.path.dirname(os.path.dirname(_plugin_dir))
-_auth_dir = os.path.join(_project_dir, 'auth-center')
-for p in (_auth_dir, _project_dir):
-    if p not in sys.path:
-        sys.path.insert(0, p)
+import os, urllib.parse, time
 
 from flask import Blueprint, request, jsonify, make_response, redirect as flask_redirect, url_for
 from models import get_db, now_iso
@@ -26,6 +19,19 @@ PROVIDER_NAMES = {
     'google': 'Google', 'github': 'GitHub', 'facebook': 'Facebook',
     'telegram': 'Telegram',
 }
+
+# Whitelist for provider-specific id_field values (prevents SQL injection via f-string field names)
+ID_FIELD_WHITELIST = {
+    'douyin_open_id', 'wechat_open_id', 'alipay_open_id',
+    'google_open_id', 'github_open_id', 'facebook_open_id',
+    'telegram_open_id', 'alipay_user_id',
+}
+
+def _safe_id_field(id_field):
+    """Validate id_field is in the whitelist (prevents SQL injection via f-string field names)."""
+    if id_field not in ID_FIELD_WHITELIST:
+        raise ValueError(f'Invalid id_field: {id_field} - must be one of {sorted(ID_FIELD_WHITELIST)}')
+    return id_field
 
 def _get_site_domain():
     host = request.headers.get('Host', '')
@@ -136,23 +142,23 @@ def oauth_callback(provider):
         open_id = user_info.get('open_id', '')
         nickname = user_info.get('nickname', '')
         avatar = user_info.get('avatar', '')
-        id_field = 'telegram_open_id'
+        id_field = _safe_id_field('telegram_open_id')
         display_name = nickname or f'Telegram user {open_id[-4:]}'
         now = now_iso()
         with get_db() as conn:
-            cur = conn.execute(f'SELECT * FROM users WHERE {id_field}=?', (open_id,))
+            cur = conn.execute(f'SELECT * FROM public.users WHERE {id_field}=?', (open_id,))
             user_row = cur.fetchone()
             if user_row:
                 user = dict(user_row)
-                conn.execute('UPDATE users SET last_login=?, display_name=? WHERE id=?',
+                conn.execute('UPDATE public.users SET last_login=?, display_name=? WHERE id=?',
                              (now, display_name or user.get('display_name', ''), user['id']))
             else:
                 cur = conn.execute(
-                    f'INSERT INTO users ({id_field}, display_name, avatar_url, last_login) VALUES (?,?,?,?) RETURNING id',
+                    f'INSERT INTO public.users ({id_field}, display_name, avatar_url, last_login) VALUES (?,?,?,?) RETURNING id',
                     (open_id, display_name, avatar, now))
                 user_id = cur.fetchone()['id']
                 conn.execute(
-                    'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+                    'INSERT INTO public.app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                     (user_id, 'trademind', 'free'))
                 user = {'id': user_id, id_field: open_id, 'display_name': display_name}
             conn.commit()
@@ -180,23 +186,23 @@ def oauth_callback(provider):
         nickname = user_info.get('nickname', '')
         avatar = user_info.get('avatar', '')
         email = user_info.get('email', '')
-        id_field = f'{provider}_open_id'
+        id_field = _safe_id_field(f'{provider}_open_id')
         display_name = nickname or email or f'{provider} user {open_id[-4:]}'
         now = now_iso()
         with get_db() as conn:
-            cur = conn.execute(f'SELECT * FROM users WHERE {id_field}=?', (open_id,))
+            cur = conn.execute(f'SELECT * FROM public.users WHERE {id_field}=?', (open_id,))
             user_row = cur.fetchone()
             if user_row:
                 user = dict(user_row)
-                conn.execute('UPDATE users SET last_login=?, display_name=? WHERE id=?',
+                conn.execute('UPDATE public.users SET last_login=?, display_name=? WHERE id=?',
                              (now, display_name or user.get('display_name', ''), user['id']))
             else:
                 cur = conn.execute(
-                    f'INSERT INTO users ({id_field}, display_name, email, avatar_url, last_login) VALUES (?,?,?,?,?)',
+                    f'INSERT INTO public.users ({id_field}, display_name, email, avatar_url, last_login) VALUES (?,?,?,?,?) RETURNING id',
                     (open_id, display_name, email, avatar, now))
-                user_id = cur.lastrowid
+                user_id = cur.fetchone()['id']
                 conn.execute(
-                    'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+                    'INSERT INTO public.app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                     (user_id, 'trademind', 'free'))
                 user = {'id': user_id, id_field: open_id, 'display_name': display_name}
             conn.commit()
@@ -273,25 +279,25 @@ def oauth_callback(provider):
         open_id = token.get('openid', '')
         nickname = token.get('nickname', '')
         avatar = token.get('avatar', '')
-        id_field = f'{provider}_open_id'
+        id_field = _safe_id_field(f'{provider}_open_id')
 
     # Find or create user
     now = now_iso()
     with get_db() as conn:
-        cur = conn.execute(f'SELECT * FROM users WHERE {id_field}=?', (open_id,))
+        cur = conn.execute(f'SELECT * FROM public.users WHERE {id_field}=?', (open_id,))
         user_row = cur.fetchone()
         if user_row:
             user = dict(user_row)
-            conn.execute('UPDATE users SET last_login=?, display_name=? WHERE id=?',
+            conn.execute('UPDATE public.users SET last_login=?, display_name=? WHERE id=?',
                          (now, nickname or user.get('display_name', ''), user['id']))
         else:
             display_name = nickname or f'{provider} User_{open_id[-4:]}'
             cur = conn.execute(
-                f'INSERT INTO users ({id_field}, display_name, last_login) VALUES (?,?,?)',
+                f'INSERT INTO public.users ({id_field}, display_name, last_login) VALUES (?,?,?) RETURNING id',
                 (open_id, display_name, now))
-            user_id = cur.lastrowid
+            user_id = cur.fetchone()['id']
             conn.execute(
-                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+                'INSERT INTO public.app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, id_field: open_id, 'display_name': display_name}
         conn.commit()
@@ -338,16 +344,16 @@ def wechat_callback():
     access_token = wx.get('access_token', '')
     now = now_iso()
     with get_db() as conn:
-        cur = conn.execute('SELECT * FROM users WHERE wechat_openid=?', (openid,))
+        cur = conn.execute('SELECT * FROM public.users WHERE wechat_openid=?', (openid,))
         user = cur.fetchone()
         if user:
             user = dict(user)
-            conn.execute('UPDATE users SET last_login=? WHERE id=?', (now, user['id']))
+            conn.execute('UPDATE public.users SET last_login=? WHERE id=?', (now, user['id']))
             if access_token and user.get('wechat_unionid'):
                 try:
                     info = get_user_info(openid, access_token)
                     if 'nickname' in info and info['nickname']:
-                        conn.execute('UPDATE users SET wechat_nickname=?, avatar_url=? WHERE id=?',
+                        conn.execute('UPDATE public.users SET wechat_nickname=?, avatar_url=? WHERE id=?',
                                      (info['nickname'], info.get('avatar', ''), user['id']))
                 except:
                     pass
@@ -364,12 +370,12 @@ def wechat_callback():
             except:
                 pass
             cur = conn.execute(
-                'INSERT INTO users (wechat_openid, wechat_unionid, wechat_nickname, avatar_url, last_login) '
+                'INSERT INTO public.users (wechat_openid, wechat_unionid, wechat_nickname, avatar_url, last_login) '
                 'VALUES (?,?,?,?,?) RETURNING id',
                 (openid, unionid, nickname, avatar, now))
             user_id = cur.fetchone()['id']
             conn.execute(
-                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+                'INSERT INTO public.app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'wechat_openid': openid, 'wechat_nickname': nickname}
         conn.commit()
@@ -429,20 +435,20 @@ def douyin_callback():
     
     now = now_iso()
     with get_db() as conn:
-        cur = conn.execute('SELECT * FROM users WHERE douyin_open_id=?', (open_id,))
+        cur = conn.execute('SELECT * FROM public.users WHERE douyin_open_id=?', (open_id,))
         user = cur.fetchone()
         if user:
             user = dict(user)
-            conn.execute('UPDATE users SET last_login=?, douyin_nickname=?, douyin_avatar=? WHERE id=?',
+            conn.execute('UPDATE public.users SET last_login=?, douyin_nickname=?, douyin_avatar=? WHERE id=?',
                          (now, nickname, avatar, user['id']))
         else:
             cur = conn.execute(
-                'INSERT INTO users (douyin_open_id, douyin_nickname, douyin_avatar, display_name, last_login) '
-                'VALUES (?,?,?,?,?)',
+                'INSERT INTO public.users (douyin_open_id, douyin_nickname, douyin_avatar, display_name, last_login) '
+                'VALUES (?,?,?,?,?) RETURNING id',
                 (open_id, nickname, avatar, nickname or '', now))
-            user_id = cur.lastrowid
+            user_id = cur.fetchone()['id']
             conn.execute(
-                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+            'INSERT INTO public.app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
                 (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'douyin_open_id': open_id, 'douyin_nickname': nickname}
         conn.commit()
@@ -473,19 +479,19 @@ def wechat_login():
     openid = wx['openid']
     now = now_iso()
     with get_db() as conn:
-        cur = conn.execute('SELECT * FROM users WHERE wechat_openid=?', (openid,))
+        cur = conn.execute('SELECT * FROM public.users WHERE wechat_openid=?', (openid,))
         user = cur.fetchone()
         if user:
             user = dict(user)
-            conn.execute('UPDATE users SET last_login=? WHERE id=?', (now, user['id']))
+            conn.execute('UPDATE public.users SET last_login=? WHERE id=?', (now, user['id']))
         else:
             cur = conn.execute(
-                'INSERT INTO users (wechat_openid, wechat_unionid, last_login) VALUES (?,?,?) RETURNING id',
+                'INSERT INTO public.users (wechat_openid, wechat_unionid, last_login) VALUES (?,?,?) RETURNING id',
                 (openid, wx.get('unionid', ''), now))
             user_id = cur.fetchone()['id']
             conn.execute(
-                'INSERT INTO app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
-                (user_id, 'trademind', 'free'))
+                'INSERT INTO public.app_authorizations (user_id, app_name, tier) VALUES (%s,%s,%s) ON CONFLICT (user_id, app_name) DO NOTHING',
+                    (user_id, 'trademind', 'free'))
             user = {'id': user_id, 'wechat_openid': openid}
         conn.commit()
     token = create_token(user['id'], app_name='trademind')
