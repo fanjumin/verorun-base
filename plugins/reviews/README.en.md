@@ -4,13 +4,13 @@
 
 The **reviews** plugin provides a product review and rating system for the VeroRun platform. It allows verified purchasers to rate products, write reviews, and upload photos. The plugin enforces that only customers who have completed a purchase can leave a review, ensuring authenticity and trustworthiness.
 
-The plugin manages its own independent SQLite database (`reviews.db`) while performing cross-reads from the main VeroRun database for user and product information. Routes are defined inline within the `__init__.py` module as a Blueprint.
+The plugin stores review data in the dedicated PostgreSQL `reviews` schema of the VeroRun main database, while performing cross-reads from the `public` schema for user and product information. Routes are defined in a dedicated `routes.py` module as a Blueprint.
 
 | Property    | Value                |
 |-------------|----------------------|
 | Identifier  | `reviews`            |
-| Version     | 1.0.0                |
-| Database    | `reviews.db`         |
+| Version     | 1.1.0                |
+| Database    | `reviews` schema     |
 | Menu Group  | None (no admin menu) |
 
 ---
@@ -22,27 +22,28 @@ The plugin manages its own independent SQLite database (`reviews.db`) while perf
 - **Photo Upload** -- Users can attach photos to their reviews for richer feedback.
 - **Verified Purchase Enforcement** -- Only customers who have completed an order can leave a review.
 - **Admin Reply** -- Administrators can reply to reviews directly from the admin panel.
-- **Cross-Database Reads** -- Reads user and product information from the main VeroRun database while storing review data in `reviews.db`.
-- **Order Completion Hook** -- Automatically prompts users to leave a review after order completion.
+- **Cross-Database Reads** -- Reads user and product information from the main VeroRun database while storing review data in the `reviews` schema.
+- **Order Paid Hook** -- Automatically prompts users to leave a review after order payment.
 
 ---
 
 ## Architecture
 
-The plugin defines all routes inline within the `__init__.py` module as a Blueprint:
+The plugin defines all routes in a dedicated `routes.py` module as a Blueprint:
 
 ```
 reviews/
-  __init__.py    -- Plugin entry point, Blueprint definition, and all routes
-  models.py      -- Data layer (ORM models, reviews table)
+  __init__.py    -- Plugin entry point, event hooks, route registration
+  routes.py      -- Blueprint with all review API endpoints
+  models.py      -- Data layer (PostgreSQL `reviews` schema)
 ```
 
 **Data Flow:**
-1. A user completes an order (triggers `order/completed` hook).
+1. A user's order is paid (triggers `order.paid` hook).
 2. The user navigates to the product page and submits a review.
 3. The plugin verifies the user is a verified purchaser.
-4. The review is stored in `reviews.db`.
-5. Product rating averages are computed from `reviews.db`.
+4. The review is stored in the `reviews` schema.
+5. Product rating averages are computed from the `reviews` schema.
 6. Admin can view all reviews and reply via the admin panel.
 7. The `review/validate` hook allows other plugins to check review eligibility.
 
@@ -53,7 +54,9 @@ reviews/
 ```
 plugins/reviews/
   __init__.py
+  routes.py
   models.py
+  i18n/
   README.en.md
 ```
 
@@ -64,7 +67,7 @@ plugins/reviews/
 1. Ensure the `reviews/` directory is present under `plugins/`.
 2. The plugin is auto-discovered by the VeroRun plugin loader.
 3. Verify activation in the admin panel under **Plugins**.
-4. The database `reviews.db` is automatically initialized on first load.
+4. The `reviews` schema is automatically created on install.
 
 No additional dependencies are required beyond the core VeroRun platform.
 
@@ -88,7 +91,7 @@ This plugin does not have explicit configuration keys. All settings are managed 
 
 | Hook                | Description                                              |
 |---------------------|----------------------------------------------------------|
-| `order/completed`   | Trigger review prompt after order completion             |
+| `order.paid`        | Trigger review prompt after order payment             |
 
 ### API Endpoints (Public)
 
@@ -113,7 +116,7 @@ This plugin does not have explicit configuration keys. All settings are managed 
 This plugin has no external third-party dependencies. It relies on:
 
 - VeroRun core (hook system, plugin loader, template engine)
-- SQLite (via VeroRun's database abstraction layer)
+- PostgreSQL (via VeroRun's database abstraction layer)
 - Main VeroRun database (cross-reads for user and product data)
 
 ---

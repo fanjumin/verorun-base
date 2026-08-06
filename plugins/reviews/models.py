@@ -1,23 +1,22 @@
 """
-Reviews Plugin — 独立数据库
-============================
-插件自己的 reviews.db，主库只读 users/products/order_items 表。
+Reviews Plugin — PostgreSQL Schema
+==================================
+插件数据存于主库独立 reviews schema，主库 public 只读 users/products/order_items 表。
 """
 
-import os
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
 
 
 class _PgConnection:
-    """psycopg2 connection adapter with sqlite3-compatible interface."""
+    """psycopg2 connection adapter using %s placeholders."""
     def __init__(self, conn):
         self._conn = conn
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
+            cur.execute(sql, params)
         else:
             cur.execute(sql)
         return cur
@@ -25,10 +24,6 @@ class _PgConnection:
         self._conn.commit()
     def close(self):
         self._conn.close()
-
-
-PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(PLUGIN_DIR, 'reviews.db')
 
 
 @contextmanager

@@ -1,26 +1,34 @@
-# Reviews Plugin — English Translation
-
-"评价系统": "Review System"
-"商品评价": "Product Reviews"
-"我的评价": "My Reviews"
-"写评价": "Write a Review"
-"评分": "Rating"
-"评价内容": "Review Content"
-"上传图片": "Upload Images"
-"匿名评价": "Anonymous Review"
-"提交评价": "Submit Review"
-"暂无评价": "No reviews yet"
-"共 %d 条评价": "%d reviews total"
-"好评率": "Positive Rate"
-"中评率": "Neutral Rate"
-"差评率": "Negative Rate"
-"评价成功": "Review submitted successfully"
-"您已评价过该商品": "You have already reviewed this product"
-"请先购买商品再评价": "Please purchase the product first"
-"评价删除成功": "Review deleted successfully"
-"晒图": "Photo Review"
-"有图": "With Images"
-"全部": "All"
-"好评": "Positive"
-"中评": "Neutral"
-"差评": "Negative"
+# English (identity mapping: source = translation)
+Review System: Review System
+Product Reviews: Product Reviews
+My Reviews: My Reviews
+Write a Review: Write a Review
+Rating: Rating
+Review Content: Review Content
+Upload Images: Upload Images
+Anonymous Review: Anonymous Review
+Submit Review: Submit Review
+No reviews yet: No reviews yet
+"%d reviews total": "%d reviews total"
+Positive Rate: Positive Rate
+Neutral Rate: Neutral Rate
+Negative Rate: Negative Rate
+Review successful: Review successful
+You have already reviewed this product: You have already reviewed this product
+Please purchase the product first: Please purchase the product first
+Review deleted successfully: Review deleted successfully
+Photo Review: Photo Review
+With Images: With Images
+All: All
+Positive: Positive
+Neutral: Neutral
+Negative: Negative
+Anonymous***: Anonymous***
+Rating must be between 1-5: Rating must be between 1-5
+Please log in first: Please log in first
+Please write review content: Please write review content
+Please enter a reply: Please enter a reply
+Review does not exist: Review does not exist
+No Permission: No Permission
+Reply successful: Reply successful
+Product Reviews — rate, review, and share photos of purchased products: Product Reviews — rate, review, and share photos of purchased products
