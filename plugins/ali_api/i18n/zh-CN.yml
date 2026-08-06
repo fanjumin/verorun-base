@@ -149,6 +149,22 @@ Breaker threshold: 熔断阈值
 s: 秒
 Fill in AppKey or AppSecret: 请至少填写 AppKey 或 AppSecret
 AppKey is masked; enter full key to update: AppKey 显示为脱敏值，如需修改请完整输入新的 AppKey
+User rate limiting: 用户限流
+Daily remaining: 每日剩余
+Hourly remaining: 每小时剩余
+Concurrency control: 并发控制
+Active requests: 活跃请求
+Current QPS: 当前QPS
+Connected: 已连接
+Not connected: 未连接
+Memory: 内存
+Connections: 连接数
+Using memory cache: 使用内存缓存
+Entries: 条目
+Expired: 过期
+Use Redis: 使用Redis
+Yes: 是
+No: 否
 "Create 1688 purchase order? Verify price and stock.": 确定在 1688 创建采购订单？请确认价格和库存无误。
 "Purchase order submitted to 1688, order# ": "采购单已提交至 1688，订单号:"
 Please enter the product ID: 请输入商品ID

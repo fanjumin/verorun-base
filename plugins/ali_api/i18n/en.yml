@@ -149,6 +149,22 @@ Breaker threshold: Breaker threshold
 s: s
 Fill in AppKey or AppSecret: Fill in AppKey or AppSecret
 AppKey is masked; enter full key to update: AppKey is masked; enter full key to update
+User rate limiting: User rate limiting
+Daily remaining: Daily remaining
+Hourly remaining: Hourly remaining
+Concurrency control: Concurrency control
+Active requests: Active requests
+Current QPS: Current QPS
+Connected: Connected
+Not connected: Not connected
+Memory: Memory
+Connections: Connections
+Using memory cache: Using memory cache
+Entries: Entries
+Expired: Expired
+Use Redis: Use Redis
+Yes: Yes
+No: No
 "Create 1688 purchase order? Verify price and stock.": Create 1688 purchase order? Verify price and stock.
 "Purchase order submitted to 1688, order# ": "Purchase order submitted to 1688, order# "
 Please enter the product ID: Please enter the product ID
