@@ -30,6 +30,13 @@ def init_i18n(t_func):
     global _t
     _t = t_func
 
+try:
+    from plugin_manager.logger import get_plugin_logger
+    _logger = get_plugin_logger('health_check')
+except ImportError:
+    import logging
+    _logger = logging.getLogger('health_check')
+
 
 # ─── Health Check Schedule Definitions ─────────────────────────
 
@@ -92,10 +99,7 @@ def seed_health_schedules():
     try:
         from orchestrator.models import get_db as orch_db
     except ImportError:
-        print(
-            _t('[HealthCheck/Scheduler] orchestrator module not available, '
-              'skipping schedule seeding')
-        )
+        _logger.warning('Orchestrator module not available, skipping schedule seeding')
         return
 
     registered = 0
@@ -160,18 +164,9 @@ def seed_health_schedules():
                 registered += 1
 
         except Exception as e:
-            print(
-                _t('[HealthCheck/Scheduler] Failed to register schedule "{name}": {err}')
-                .format(name=name, err=str(e))
-            )
+            _logger.error('Failed to register schedule "%s": %s', name, str(e))
 
     if registered > 0:
-        print(
-            _t('[HealthCheck/Scheduler] Registered {n} new health check schedules')
-            .format(n=registered)
-        )
+        _logger.info('Registered %d new health check schedules', registered)
     if skipped > 0:
-        print(
-            _t('[HealthCheck/Scheduler] {n} schedules already exist (skipped)')
-            .format(n=skipped)
-        )
+        _logger.info('%d schedules already exist (skipped)', skipped)

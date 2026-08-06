@@ -38,6 +38,13 @@ def init_i18n(t_func):
     global _t
     _t = t_func
 
+try:
+    from plugin_manager.logger import get_plugin_logger
+    _logger = get_plugin_logger('health_check')
+except ImportError:
+    import logging
+    _logger = logging.getLogger('health_check')
+
 from . import models as m
 from .checkers import CheckerRegistry
 from .alerter import evaluate_and_alert
@@ -83,7 +90,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         if check_keys:
             rows = conn.execute(
                 'SELECT * FROM health_checks WHERE is_active=1 AND check_key IN ({})'.format(
-                    ','.join('?' * len(check_keys))
+                    ','.join('%s' for _ in check_keys)
                 ), check_keys
             ).fetchall()
         else:
@@ -94,7 +101,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         total = len(rows)
         # Create check run batch
         cur = conn.execute(
-            "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (?,?,?,'running') RETURNING id",
+            "INSERT INTO check_runs (trigger_type, trigger_info, total_checks, status) VALUES (%s,%s,%s,'running') RETURNING id",
             (trigger_type, trigger_info, total)
         )
         run_id = cur.fetchone()['id']
@@ -161,14 +168,14 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
         for r in results:
             conn.execute(
                 'INSERT INTO check_history (run_id, check_id, check_key, check_name, category, '
-                'status, response_time_ms, message, detail) VALUES (?,?,?,?,?,?,?,?,?)',
+                'status, response_time_ms, message, detail) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                 (run_id, r['check_id'], r['check_key'], r['check_name'], r['category'],
                  r['status'], r['response_time_ms'], r['message'], r['detail'])
             )
         # Update run batch
         conn.execute(
-            'UPDATE check_runs SET passed=?, warnings=?, errors=?, duration_ms=?, '
-            "status='completed', summary=? WHERE id=?",
+            'UPDATE check_runs SET passed=%s, warnings=%s, errors=%s, duration_ms=%s, '
+            "status='completed', summary=%s WHERE id=%s",
             (passed, warnings, errors, total_duration,
              f'✅ {passed} ⚠️ {warnings} ❌ {errors}', run_id)
         )
@@ -178,7 +185,7 @@ def run_health_check(trigger_type='manual', trigger_info='', check_keys=None):
     try:
         evaluate_and_alert(run_id, results)
     except Exception as e:
-        print(f'[HealthCheck] Alert evaluation failed: {e}')
+        _logger.error('Alert evaluation failed: %s', e)
 
     # Update daily trend
     _update_daily_trend()
@@ -196,7 +203,7 @@ def _update_daily_trend():
             "COALESCE(SUM(CASE WHEN status='warning' THEN 1 ELSE 0 END), 0) as warnings, "
             "COALESCE(SUM(CASE WHEN status='error' THEN 1 ELSE 0 END), 0) as errors, "
             "COALESCE(AVG(response_time_ms), 0) as avg_ms "
-            "FROM check_history WHERE date(checked_at)=?",
+            "FROM check_history WHERE date(checked_at)=%s",
             (today,)
         ).fetchone()
 
@@ -682,16 +689,16 @@ def _auto_upgrade_stale_alerts(conn):
     threshold = (datetime.now() - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
     stale = conn.execute(
         "SELECT id, check_key, check_name FROM alert_history "
-        "WHERE alert_level='P3' AND is_read=0 AND created_at <= ?",
+        "WHERE alert_level='P3' AND is_read=0 AND created_at <= %s",
         (threshold,)
     ).fetchall()
 
     for row in stale:
         conn.execute(
-            "UPDATE alert_history SET alert_level='P1' WHERE id=?",
+            "UPDATE alert_history SET alert_level='P1' WHERE id=%s",
             (row['id'],)
         )
-        print(f'[HealthAlert] ⬆️ Auto-upgraded P3→P1: {row["check_key"]} ({row["check_name"]})')
+        _logger.warning('Auto-upgraded P3->P1: %s (%s)', row["check_key"], row["check_name"])
 
 
 @health_bp.route('/api/export')
@@ -717,7 +724,7 @@ def api_export():
 
         run = dict(run)
         items = conn.execute(
-            'SELECT * FROM check_history WHERE run_id=? ORDER BY category, id',
+            'SELECT * FROM check_history WHERE run_id=%s ORDER BY category, id',
             (run['id'],)
         ).fetchall()
         run['items'] = [dict(i) for i in items]
@@ -764,7 +771,7 @@ def api_fix():
     # Read the check_history record for this run from the database
     with m.get_db() as conn:
         history_row = conn.execute(
-            'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
+            'SELECT * FROM check_history WHERE run_id=%s AND check_key=%s',
             (run_id, check_key)
         ).fetchone()
 
@@ -880,8 +887,8 @@ def api_links_report():
 
     with m.get_db() as conn:
         rows = conn.execute(
-            'SELECT * FROM check_history WHERE check_key=? '
-            'ORDER BY run_id DESC LIMIT ?',
+            'SELECT * FROM check_history WHERE check_key=%s '
+            'ORDER BY run_id DESC LIMIT %s',
             (check_key, limit)
         ).fetchall()
 
@@ -940,12 +947,12 @@ def api_ai_analyze():
         with m.get_db() as conn:
             if run_id:
                 row = conn.execute(
-                    'SELECT * FROM check_history WHERE run_id=? AND check_key=?',
+                    'SELECT * FROM check_history WHERE run_id=%s AND check_key=%s',
                     (run_id, check_key)
                 ).fetchone()
             else:
                 row = conn.execute(
-                    'SELECT * FROM check_history WHERE check_key=? ORDER BY id DESC LIMIT 1',
+                    'SELECT * FROM check_history WHERE check_key=%s ORDER BY id DESC LIMIT 1',
                     (check_key,)
                 ).fetchone()
         if not row:
@@ -1119,7 +1126,7 @@ def api_fix_rollback(audit_id):
 
     with m.get_db() as conn:
         row = conn.execute(
-            'SELECT * FROM fix_audit_log WHERE id=? AND status=?',
+            'SELECT * FROM fix_audit_log WHERE id=%s AND status=%s',
             (audit_id, 'applied')
         ).fetchone()
 
@@ -1146,7 +1153,7 @@ def api_fix_rollback(audit_id):
 
             elif action == 'update_url' and undo.get('table') and undo.get('old_value'):
                 conn.execute(
-                    f"UPDATE {undo['table']} SET {undo['field']}=? WHERE id=?",
+                    f"UPDATE {undo['table']} SET {undo['field']}=%s WHERE id=%s",
                     (undo['old_value'], undo['record_id'])
                 )
                 success = True
@@ -1154,26 +1161,26 @@ def api_fix_rollback(audit_id):
             elif action == 'mark_disabled' and undo.get('table') and undo.get('record_id'):
                 if 'old_is_enabled' in undo:
                     conn.execute(
-                        f"UPDATE {undo['table']} SET is_enabled=? WHERE id=?",
+                        f"UPDATE {undo['table']} SET is_enabled=%s WHERE id=%s",
                         (undo['old_is_enabled'], undo['record_id'])
                     )
                 if 'old_is_active' in undo:
                     conn.execute(
-                        f"UPDATE {undo['table']} SET is_active=? WHERE id=?",
+                        f"UPDATE {undo['table']} SET is_active=%s WHERE id=%s",
                         (undo['old_is_active'], undo['record_id'])
                     )
                 success = True
 
             elif action == 'mark_deleted' and undo.get('old_status'):
                 conn.execute(
-                    f"UPDATE {undo['table']} SET status=? WHERE id=?",
+                    f"UPDATE {undo['table']} SET status=%s WHERE id=%s",
                     (undo['old_status'], undo['record_id'])
                 )
                 success = True
 
             elif action == 'clear_field' and undo.get('old_value'):
                 conn.execute(
-                    f"UPDATE {undo['table']} SET {undo['field']}=? WHERE id=?",
+                    f"UPDATE {undo['table']} SET {undo['field']}=%s WHERE id=%s",
                     (undo['old_value'], undo['record_id'])
                 )
                 success = True
@@ -1186,7 +1193,7 @@ def api_fix_rollback(audit_id):
 
             if success:
                 conn.execute(
-                    'UPDATE fix_audit_log SET status=? WHERE id=?',
+                    'UPDATE fix_audit_log SET status=%s WHERE id=%s',
                     ('rolled_back', audit_id)
                 )
                 conn.commit()

@@ -28,6 +28,13 @@ sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
 from .models import get_db
 
+try:
+    from plugin_manager.logger import get_plugin_logger
+    _logger = get_plugin_logger('health_check')
+except ImportError:
+    import logging
+    _logger = logging.getLogger('health_check')
+
 
 # ─── Alert level helpers ──────────────────────────────────────────────────
 
@@ -76,8 +83,8 @@ def _is_in_silence_window(conn, check_key: str) -> bool:
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     row = conn.execute(
         "SELECT id FROM alert_silences WHERE "
-        "(check_key='*' OR check_key=?) "
-        "AND starts_at <= ? AND ends_at >= ? LIMIT 1",
+        "(check_key='*' OR check_key=%s) "
+        "AND starts_at <= %s AND ends_at >= %s LIMIT 1",
         (check_key, now, now)
     ).fetchone()
     return row is not None
@@ -104,7 +111,7 @@ def _check_aggregation(conn, check_key: str, window_seconds: int) -> bool:
 
     since = (datetime.now() - timedelta(seconds=window_seconds)).strftime('%Y-%m-%d %H:%M:%S')
     recent = conn.execute(
-        "SELECT status FROM check_history WHERE check_key=? AND checked_at >= ? "
+        "SELECT status FROM check_history WHERE check_key=%s AND checked_at >= %s "
         "ORDER BY checked_at DESC",
         (check_key, since)
     ).fetchall()
@@ -160,19 +167,19 @@ def evaluate_and_alert(run_id: int, check_results: List[dict]):
 
                 # 3. Check silence window
                 if _is_in_silence_window(conn, key):
-                    print(f'[HealthAlert] 🔇 Silenced: {key} (level={alert_level})')
+                    _logger.info('Silenced: %s (level=%s)', key, alert_level)
                     continue
 
                 # 4. Check cooldown
                 cooldown = rule.get('cooldown_minutes', 60)
                 if _is_in_cooldown(conn, key, cooldown):
-                    print(f'[HealthAlert] ⏳ Cooldown: {key} (level={alert_level})')
+                    _logger.info('Cooldown: %s (level=%s)', key, alert_level)
                     continue
 
                 # 5. Check aggregation window
                 agg_window = rule.get('aggregation_window', 300)
                 if not _check_aggregation(conn, key, agg_window):
-                    print(f'[HealthAlert] 📊 Aggregation not met: {key} (window={agg_window}s)')
+                    _logger.info('Aggregation not met: %s (window=%ss)', key, agg_window)
                     continue
 
                 # 6. Determine notification methods for this level
@@ -192,12 +199,12 @@ def evaluate_and_alert(run_id: int, check_results: List[dict]):
                 conn.execute(
                     'INSERT INTO alert_history '
                     '(alert_config_id, check_key, check_name, run_id, status, alert_level, message, notify_method) '
-                    'VALUES (?,?,?,?,?,?,?,?)',
+                    'VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
                     (rule['id'], key, name, run_id, status, alert_level, message, notify_method_str)
                 )
                 conn.commit()
 
-                print(f'[HealthAlert] {emoji} ALERT [{alert_level}] {key}: {status} (consec={consecutive_fails})')
+                _logger.warning('ALERT [%s] %s: %s (consec=%d)', alert_level, key, status, consecutive_fails)
 
                 # 9. Send notifications (filtered by alert level, not rule config)
                 for method in notify_methods:
@@ -212,7 +219,7 @@ def evaluate_and_alert(run_id: int, check_results: List[dict]):
 def count_consecutive_fails(conn, check_key: str) -> int:
     """Count consecutive failures for a given check key."""
     recent = conn.execute(
-        "SELECT status FROM check_history WHERE check_key=? "
+        "SELECT status FROM check_history WHERE check_key=%s "
         "ORDER BY checked_at DESC LIMIT 10",
         (check_key,)
     ).fetchall()
@@ -263,7 +270,7 @@ def _send_email_alert(message: str, alert_level: str = 'P2'):
                 body_html=html_body,
             )
     except Exception as e:
-        print(f'[HealthAlert] Failed to send email: {e}')
+        _logger.error('Failed to send email: %s', e)
 
 
 def _send_internal_message(message: str, alert_level: str = 'P2'):
@@ -282,13 +289,22 @@ def _send_internal_message(message: str, alert_level: str = 'P2'):
                 )
             conn.commit()
     except Exception as e:
-        print(f'[HealthAlert] Failed to send internal message: {e}')
+        _logger.error('Failed to send internal message: %s', e)
 
 
 def _send_webhook(message: str, webhook_url: str):
     """Send alert via webhook."""
     if not webhook_url:
         return
+    # Block private/internal IPs (§11.3)
+    try:
+        from .checkers import _extract_host_from_url, _is_private_host
+        host = _extract_host_from_url(webhook_url)
+        if host and _is_private_host(host):
+            _logger.warning('Webhook blocked (private IP: %s)', host)
+            return
+    except ImportError:
+        pass  # Gracefully degrade if checkers module not loaded
     try:
         import urllib.request
         data = json.dumps({
@@ -302,4 +318,4 @@ def _send_webhook(message: str, webhook_url: str):
                                      method='POST')
         urllib.request.urlopen(req, timeout=5)
     except Exception as e:
-        print(f'[HealthAlert] Failed to send webhook: {e}')
+        _logger.error('Failed to send webhook: %s', e)

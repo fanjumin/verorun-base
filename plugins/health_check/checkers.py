@@ -25,11 +25,63 @@ def init_i18n(t_func):
 
 import urllib.request
 import urllib.error
+import ipaddress
+import re
 
 # Add project path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center'))
 sys.path.append(os.path.join(BASE_DIR, '..'))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Network Safety — Private IP Detection (§11.3)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_PRIVATE_RANGES = [
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+    ipaddress.ip_network('::1/128'),
+    ipaddress.ip_network('fc00::/7'),
+]
+
+
+def _is_private_host(host: str) -> bool:
+    """Check if a hostname or IP resolves to a private/internal address.
+    
+    Returns True if the host should be blocked (private IP range).
+    Returns False if the host is a public address or cannot be resolved.
+    """
+    import socket as _socket
+    # Strip brackets from IPv6 addresses
+    host = host.strip('[]')
+    try:
+        addr = ipaddress.ip_address(host)
+        return any(addr in net for net in _PRIVATE_RANGES)
+    except ValueError:
+        pass  # Not a literal IP — could be a hostname
+    # Resolve hostname and check all resolved IPs
+    try:
+        ips = _socket.getaddrinfo(host, None)
+        for info in ips:
+            ip_str = info[4][0]
+            try:
+                addr = ipaddress.ip_address(ip_str)
+                if any(addr in net for net in _PRIVATE_RANGES):
+                    return True
+            except ValueError:
+                continue
+    except _socket.gaierror:
+        return False  # Can't resolve — don't block (may be public hostname)
+    return False
+
+
+def _extract_host_from_url(url: str) -> str:
+    """Extract hostname from a URL string."""
+    m = re.match(r'https?://([^/:]+)', url)
+    return m.group(1) if m else ''
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -318,7 +370,7 @@ class DatabaseHealthCheck(BaseHealthCheck):
     name = 'Database Connection'
     category = 'system'
     severity = 'critical'
-    description = 'SQLite database connection status, table count, and file size'
+    description = 'PostgreSQL database connection status, table count, and schema size'
     sort_order = 20
     config_defaults = {'timeout': 3}
     config_schema = {
@@ -338,12 +390,14 @@ class DatabaseHealthCheck(BaseHealthCheck):
                 tables = conn.execute(
                     "SELECT COUNT(*) as c FROM pg_catalog.pg_tables WHERE schemaname='public'"
                 ).fetchone()['c']
-                db_path = os.environ.get('DB_PATH', os.path.join(BASE_DIR, '..', 'data', 'x7k2m9a4.db'))
-                db_size = os.path.getsize(db_path) if os.path.exists(db_path) else 0
+                # Get PostgreSQL database size
+                db_size = conn.execute(
+                    "SELECT pg_database_size(current_database()) as sz"
+                ).fetchone()['sz']
             size_str = f'{db_size/1024/1024:.1f}MB' if db_size > 1024*1024 else f'{db_size/1024:.0f}KB'
             return CheckResult('passed', elapsed,
                                f'Database OK ({tables} tables, {size_str})',
-                               {'tables': tables, 'db_size_bytes': db_size, 'type': 'SQLite'})
+                               {'tables': tables, 'db_size_bytes': db_size, 'type': 'PostgreSQL'})
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             return CheckResult('error', elapsed, f'Database connection failed: {e}', {'error': str(e)})
@@ -582,19 +636,28 @@ class ExternalAPIHealthCheck(BaseHealthCheck):
         timeout = self.config.get('timeout', 10)
 
         for url in endpoints:
+            host = _extract_host_from_url(url)
+            if host and _is_private_host(host):
+                results[host] = {'code': 0, 'ms': 0, 'status': 'blocked', 'reason': 'private_ip'}
+                continue
             code, elapsed, body = self._http_get(url, timeout)
             max_time = max(max_time, elapsed)
-            host = url.split('/')[2] if '//' in url else url
             ok = (code == 200)
-            results[host] = {'code': code, 'ms': elapsed, 'status': 'ok' if ok else 'fail'}
+            results[host or url] = {'code': code, 'ms': elapsed, 'status': 'ok' if ok else 'fail'}
 
         elapsed = int((time.time() - start) * 1000)
-        failed = [f'{k}({v["code"]})' for k, v in results.items() if v['status'] == 'fail']
-        if not failed:
+        failed = [f'{k}({v["code"]})' for k, v in results.items() if v['status'] not in ('ok', 'blocked')]
+        blocked = [k for k, v in results.items() if v.get('reason') == 'private_ip']
+        if not failed and not blocked:
             return CheckResult('passed', max_time,
                                f'All {len(endpoints)} external APIs OK')
+        msg_parts = []
+        if failed:
+            msg_parts.append(f'{len(failed)}/{len(endpoints)} abnormal: {", ".join(failed)}')
+        if blocked:
+            msg_parts.append(f'{len(blocked)} blocked (private IP)')
         return CheckResult('warning', max_time,
-                           f'{len(failed)}/{len(endpoints)} abnormal: {", ".join(failed)}',
+                           '; '.join(msg_parts),
                            {'endpoints': results})
 
 
@@ -895,7 +958,7 @@ class FixSuggestion:
             if suggestion.action == FIX_ACTION_MARK_DELETED:
                 if conn and 'table' in params and 'record_id' in params:
                     conn.execute(
-                        f"UPDATE {params['table']} SET status='deleted' WHERE id=?",
+                        f"UPDATE {params['table']} SET status='deleted' WHERE id=%s",
                         (params['record_id'],)
                     )
                     return True
@@ -903,7 +966,7 @@ class FixSuggestion:
             elif suggestion.action == FIX_ACTION_CLEAR_FIELD:
                 if conn and 'table' in params and 'record_id' in params and 'field' in params:
                     conn.execute(
-                        f"UPDATE {params['table']} SET {params['field']}=? WHERE id=?",
+                        f"UPDATE {params['table']} SET {params['field']}=%s WHERE id=%s",
                         ('', params['record_id'])
                     )
                     return True
@@ -911,7 +974,7 @@ class FixSuggestion:
             elif suggestion.action == FIX_ACTION_DELETE_RECORD:
                 if conn and 'table' in params and 'record_id' in params:
                     conn.execute(
-                        f"DELETE FROM {params['table']} WHERE id=?",
+                        f"DELETE FROM {params['table']} WHERE id=%s",
                         (params['record_id'],)
                     )
                     return True
@@ -920,7 +983,7 @@ class FixSuggestion:
                 if conn and 'table' in params and 'record_id' in params \
                         and 'field' in params and 'new_value' in params:
                     conn.execute(
-                        f"UPDATE {params['table']} SET {params['field']}=? WHERE id=?",
+                        f"UPDATE {params['table']} SET {params['field']}=%s WHERE id=%s",
                         (params['new_value'], params['record_id'])
                     )
                     return True
@@ -930,12 +993,12 @@ class FixSuggestion:
                     # Try is_enabled first, fall back to is_active
                     try:
                         conn.execute(
-                            f"UPDATE {params['table']} SET is_enabled=0 WHERE id=?",
+                            f"UPDATE {params['table']} SET is_enabled=0 WHERE id=%s",
                             (params['record_id'],)
                         )
                     except Exception:
                         conn.execute(
-                            f"UPDATE {params['table']} SET is_active=0 WHERE id=?",
+                            f"UPDATE {params['table']} SET is_active=0 WHERE id=%s",
                             (params['record_id'],)
                         )
                     return True
@@ -1714,17 +1777,27 @@ class PluginStoreHealthCheck(BaseHealthCheck):
 
         # 1. Plugin store ping
         store_url = f'{api_base}/store/ping'
-        code1, elapsed1, _ = self._http_get(store_url, timeout)
-        detail['store'] = {'url': store_url, 'code': code1, 'ms': elapsed1}
-        if code1 != 200:
-            warnings.append(f'Plugin store unreachable (HTTP {code1})')
+        store_host = _extract_host_from_url(store_url)
+        if store_host and _is_private_host(store_host):
+            detail['store'] = {'url': store_url, 'code': 0, 'ms': 0, 'status': 'blocked', 'reason': 'private_ip'}
+            warnings.append(f'Plugin store blocked (private IP: {store_host})')
+        else:
+            code1, elapsed1, _ = self._http_get(store_url, timeout)
+            detail['store'] = {'url': store_url, 'code': code1, 'ms': elapsed1}
+            if code1 != 200:
+                warnings.append(f'Plugin store unreachable (HTTP {code1})')
 
         # 2. License service ping
         license_url = f'{api_base}/license/ping'
-        code2, elapsed2, _ = self._http_get(license_url, timeout)
-        detail['license'] = {'url': license_url, 'code': code2, 'ms': elapsed2}
-        if code2 != 200:
-            warnings.append(f'License service unreachable (HTTP {code2})')
+        license_host = _extract_host_from_url(license_url)
+        if license_host and _is_private_host(license_host):
+            detail['license'] = {'url': license_url, 'code': 0, 'ms': 0, 'status': 'blocked', 'reason': 'private_ip'}
+            warnings.append(f'License service blocked (private IP: {license_host})')
+        else:
+            code2, elapsed2, _ = self._http_get(license_url, timeout)
+            detail['license'] = {'url': license_url, 'code': code2, 'ms': elapsed2}
+            if code2 != 200:
+                warnings.append(f'License service unreachable (HTTP {code2})')
 
         elapsed = int((time.time() - start) * 1000)
         if warnings:

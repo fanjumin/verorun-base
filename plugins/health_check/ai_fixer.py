@@ -16,17 +16,21 @@ Defaults to the 'cleaner_ai' config from system_config.
 """
 
 import json
-import logging
 import os
 import sys
 from typing import Optional
-
-logger = logging.getLogger(__name__)
 
 # Ensure project path is accessible
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center'))
 sys.path.append(os.path.join(BASE_DIR, '..'))
+
+try:
+    from plugin_manager.logger import get_plugin_logger
+    _logger = get_plugin_logger('health_check')
+except ImportError:
+    import logging
+    _logger = logging.getLogger('health_check')
 
 from .checkers import (
     FixSuggestion,
@@ -73,7 +77,7 @@ def _build_aiengine_config() -> dict:
 
         conn.close()
     except Exception as e:
-        logger.warning("Failed to read AIEngine config from DB: %s", e)
+        _logger.warning("Failed to read AIEngine config from DB: %s", e)
 
     # Fallback: if model_name is still empty, query AI Hub for active model
     if not config['model_name']:
@@ -85,7 +89,7 @@ def _build_aiengine_config() -> dict:
             if base_url:
                 config['base_url'] = config['base_url'] or base_url
         except Exception as e:
-            logger.warning("Failed to get active model from AI Hub: %s", e)
+            _logger.warning("Failed to get active model from AI Hub: %s", e)
 
     return config
 
@@ -103,10 +107,10 @@ def _call_llm(system_prompt: str, user_prompt: str,
         from agent_matrix.engine import check_ai_budget
         allowed, reason = check_ai_budget(scene='health_ai_fixer')
         if not allowed:
-            logger.warning("[AIFixer] blocked by AI budget guard: %s", reason)
+            _logger.warning("[AIFixer] blocked by AI budget guard: %s", reason)
             return None
     except Exception as e:
-        logger.warning("[AIFixer] budget guard unavailable, proceeding: %s", e)
+        _logger.warning("[AIFixer] budget guard unavailable, proceeding: %s", e)
 
     engine_config = _build_aiengine_config()
 
@@ -114,14 +118,14 @@ def _call_llm(system_prompt: str, user_prompt: str,
         from agent_matrix.engine import UnifiedLLM
         engine = UnifiedLLM(engine_config)
     except ImportError:
-        logger.error("agent_matrix.engine.UnifiedLLM not available")
+        _logger.error("agent_matrix.engine.UnifiedLLM not available")
         return None
     except Exception as e:
-        logger.error("Failed to initialize UnifiedLLM: %s", e)
+        _logger.error("Failed to initialize UnifiedLLM: %s", e)
         return None
 
     if not engine.is_ready():
-        logger.error("UnifiedLLM not ready (missing API key)")
+        _logger.error("UnifiedLLM not ready (missing API key)")
         return None
 
     try:
@@ -136,7 +140,7 @@ def _call_llm(system_prompt: str, user_prompt: str,
         )
         return resp
     except Exception as e:
-        logger.error("LLM call via UnifiedLLM failed: %s", e)
+        _logger.error("LLM call via UnifiedLLM failed: %s", e)
         return None
 
 
@@ -295,7 +299,7 @@ class AIFixer:
         for sug in suggestions:
             # Auto-exec mode: only whitelist actions
             if auto_exec and sug.action not in WHITELIST_FIX_ACTIONS:
-                print(f'[AIFixer] ⏭ Skipped (not in whitelist): {sug.action}')
+                _logger.info('Skipped (not in whitelist): %s', sug.action)
                 continue
 
             # Build undo_params for rollback
@@ -325,7 +329,7 @@ class AIFixer:
                     conn.execute(
                         'INSERT INTO fix_audit_log '
                         '(run_id, check_key, action, params_json, undo_params_json, status, admin_user) '
-                        'VALUES (?,?,?,?,?,?,?)',
+                        'VALUES (%s,%s,%s,%s,%s,%s,%s)',
                         (run_id, check_key, sug.action,
                          _json.dumps(sug.params, ensure_ascii=False),
                          _json.dumps(undo_params, ensure_ascii=False),
@@ -379,7 +383,7 @@ class AIFixer:
         elif sug.action == 'update_url' and conn and 'table' in params and 'record_id' in params and 'field' in params:
             try:
                 old_val = conn.execute(
-                    f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
+                    f"SELECT {params['field']} FROM {params['table']} WHERE id=%s",
                     (params['record_id'],)
                 ).fetchone()
                 if old_val:
@@ -393,7 +397,7 @@ class AIFixer:
         elif sug.action == 'mark_disabled' and conn and 'table' in params and 'record_id' in params:
             try:
                 old_val = conn.execute(
-                    f"SELECT is_enabled, is_active FROM {params['table']} WHERE id=?",
+                    f"SELECT is_enabled, is_active FROM {params['table']} WHERE id=%s",
                     (params['record_id'],)
                 ).fetchone()
                 if old_val:
@@ -407,7 +411,7 @@ class AIFixer:
         elif sug.action == 'mark_deleted' and conn and 'table' in params and 'record_id' in params:
             try:
                 old_val = conn.execute(
-                    f"SELECT status FROM {params['table']} WHERE id=?",
+                    f"SELECT status FROM {params['table']} WHERE id=%s",
                     (params['record_id'],)
                 ).fetchone()
                 if old_val:
@@ -420,7 +424,7 @@ class AIFixer:
         elif sug.action == 'clear_field' and conn and 'table' in params and 'record_id' in params and 'field' in params:
             try:
                 old_val = conn.execute(
-                    f"SELECT {params['field']} FROM {params['table']} WHERE id=?",
+                    f"SELECT {params['field']} FROM {params['table']} WHERE id=%s",
                     (params['record_id'],)
                 ).fetchone()
                 if old_val:

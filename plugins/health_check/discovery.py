@@ -205,12 +205,6 @@ def scan_tables(db_path: Optional[str] = None) -> List[dict]:
     """
     import psycopg2
 
-    if not db_path:
-        db_path = os.environ.get(
-            'DB_PATH',
-            os.path.join(PROJECT_ROOT, 'data', 'x7k2m9a4.db')
-        )
-
     tables = []
     try:
         conn = get_raw_connection()

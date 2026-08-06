@@ -23,6 +23,13 @@ from collections import defaultdict
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
 
+try:
+    from plugin_manager.logger import get_plugin_logger
+    _logger = get_plugin_logger('health_check')
+except ImportError:
+    import logging
+    _logger = logging.getLogger('health_check')
+
 
 @contextmanager
 def get_db():
@@ -187,7 +194,7 @@ def init_health_tables():
                 created_at      TEXT DEFAULT NOW()
             );
         """)
-        print(f'[HealthCheck] ✅ Database tables initialized')
+        _logger.info('Database tables initialized')
 
     # Idempotent migration: add missing columns from schema updates
     migrate_alert_schema()
@@ -205,7 +212,7 @@ def migrate_alert_schema():
         for table, column, col_def in migrations:
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
-                print(f'[HealthCheck] ✅ Migrated: {table}.{column}')
+                _logger.info('Migrated: %s.%s', table, column)
             except Exception:
                 pass  # Column already exists
         conn.commit()
@@ -260,7 +267,7 @@ def seed_default_checks():
                 (ck, name, cat, desc, cfg, sev, sort)
             )
         conn.commit()
-        print(f'[HealthCheck] ✅ Registered {len(DEFAULT_CHECKS)} default check items')
+        _logger.info('Registered %d default check items', len(DEFAULT_CHECKS))
 
 
 # ─── Query helpers ──────────────────────────────────────────────────────────────
