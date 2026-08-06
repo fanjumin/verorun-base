@@ -1,6 +1,6 @@
--- ali_api 插件 — Schema 基线迁移 v0.0.0 → v2.0.1
+-- ali_api 插件 — Schema 基线迁移 v0.0.0 → v2.1.0
 -- =====================================================
--- 目标: 精确记录 v2.0.1 完整基线 schema，与 models.py create_table() 逐表对齐。
+-- 目标: 精确记录 v2.1.0 完整基线 schema，与 models.py create_table() 逐表对齐。
 -- 说明: 运行时迁移以 models.init_tables()（Python，幂等）为准，
 --       本文件为版本化 SQL 文档，供审计与手动比对。
 -- 执行前提: SET search_path TO ali_api;
