@@ -4,16 +4,16 @@
 
 The **currency_converter** plugin provides multi-currency support for the VeroRun platform. It enables real-time currency conversion, automatic GeoIP-based currency detection, and user currency preferences. The plugin displays prices in the user's preferred currency across the storefront and syncs exchange rates periodically via a scheduled job.
 
-The plugin manages its own independent SQLite database (`currency_converter.db`) and is **disabled by default**. Administrators must explicitly enable it before it becomes active.
+The plugin stores its data in a dedicated PostgreSQL schema (`currency_converter`) on the VeroRun instance (single-database, multi-schema isolation) and is not enabled by default. Administrators must explicitly enable it before it becomes active.
 
-| Property    | Value                    |
-|-------------|--------------------------|
-| Identifier  | `currency_converter`     |
-| Version     | 1.0.0                    |
-| Database    | `currency_converter.db`  |
-| Menu Group  | Business Center          |
-| Embed URL   | `/admin/currency/`       |
-| Default     | Disabled (`enabled: false`)|
+| Property    | Value                                   |
+|-------------|-----------------------------------------|
+| Identifier  | `currency_converter`                    |
+| Version     | 1.1.0                                   |
+| Database    | PostgreSQL schema: `currency_converter` |
+| Menu Group  | Business Center                         |
+| Embed URL   | `/admin/currency/`                      |
+| Default     | Disabled until admin enables             |
 
 ---
 
@@ -46,7 +46,7 @@ currency_converter/
 
 **Data Flow:**
 1. `scheduler.py` periodically fetches latest exchange rates from the provider.
-2. Rates are stored in `currency_converter.db`.
+2. Rates are stored in the `currency_converter` PostgreSQL schema.
 3. `services.py` handles conversion requests using cached rates.
 4. On user login/registration, GeoIP detection suggests a currency.
 5. The frontend widget lets users manually switch currencies.
@@ -63,9 +63,14 @@ plugins/currency_converter/
   routes.py
   services.py
   scheduler.py
+  plugin.json
   static/
     currency_widget.js
-  README.en.md
+  templates/
+    admin_currency.html
+  i18n/
+    en.yml
+    zh-CN.yml
 ```
 
 ---
@@ -74,8 +79,8 @@ plugins/currency_converter/
 
 1. Ensure the `currency_converter/` directory is present under `plugins/`.
 2. The plugin is auto-discovered by the VeroRun plugin loader.
-3. The plugin is **disabled by default**. Enable it in the admin panel under **Plugins**.
-4. The database `currency_converter.db` is automatically initialized on first load.
+3. The plugin is not enabled by default. Enable it in the admin panel under **Plugins**.
+4. The `currency_converter` PostgreSQL schema is initialized automatically when the plugin is enabled.
 5. Configure an exchange rate provider API key in the plugin settings.
 
 ---
@@ -134,14 +139,29 @@ The `register_jobs()` method registers a periodic exchange rate sync job that ru
 This plugin has no external third-party Python dependencies. It relies on:
 
 - VeroRun core (hook system, plugin loader, template engine, job scheduler)
-- SQLite (via VeroRun's database abstraction layer)
+- PostgreSQL (dedicated schema `currency_converter`, via VeroRun's database abstraction layer)
 - External exchange rate API (configurable provider)
 
 ---
 
 ## Permissions
 
-No specific permissions are required. The plugin uses the default authenticated user context.
+The plugin declares the following permissions in `plugin.json`:
+
+| Permission          | Description                                              |
+|---------------------|----------------------------------------------------------|
+| `api:read`          | Read business data                                       |
+| `user:profile`      | Read/write user currency preferences                     |
+| `network:request`   | Make outbound HTTP requests to exchange-rate APIs        |
+
+## Dashboard Stats
+
+The `dashboard.stats` declaration in `plugin.json` exposes the following metrics to the admin dashboard (§2.3):
+
+| Key              | Title          | Type    | Description                                    |
+|------------------|----------------|---------|------------------------------------------------|
+| `currency_rates` | Currency Rates | counter | Number of exchange-rate currencies synced      |
+| `last_sync`      | Last Sync      | gauge   | Unix timestamp (seconds) of the last rate sync |
 
 ---
 

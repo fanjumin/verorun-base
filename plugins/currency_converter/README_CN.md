@@ -2,7 +2,7 @@
 
 ## 概述
 
-Currency Converter（多币种转换）是 VeroRun 的国际化价格展示插件，接管系统价格展示层，根据用户偏好或 GeoIP 自动检测，将价格实时换算为本地货币显示。插件使用独立数据库 `currency_converter.db`，默认**禁用**状态。
+Currency Converter（多币种转换）是 VeroRun 的国际化价格展示插件，接管系统价格展示层，根据用户偏好或 GeoIP 自动检测，将价格实时换算为本地货币显示。插件使用 PostgreSQL 独立 schema（`currency_converter`）存储数据，当前版本 **v1.1.0**，由管理员在后台启用。
 
 ## 功能特性
 
@@ -17,7 +17,7 @@ Currency Converter（多币种转换）是 VeroRun 的国际化价格展示插�
 
 ### 数据库策略
 
-使用**独立数据库** `currency_converter.db`（SQLite），存储汇率缓存、用户偏好等数据。插件完全独立于主库，仅在用户偏好查询时按需读取主库用户信息。
+使用 **PostgreSQL 独立 schema**（`currency_converter`，单库多 Schema 隔离架构，插件标准 §9.1），存储汇率缓存、用户偏好等数据。插件完全独立于主库，仅在用户偏好查询时按需读取主库用户信息。
 
 ### 模块结构
 
@@ -50,7 +50,6 @@ currency_converter/
 | `static/currency_widget.js` | 前端货币切换组件脚本 |
 | `i18n/en.yml` | 英文翻译 |
 | `i18n/zh-CN.yml` | 中文翻译 |
-| `currency_converter.db` | 独立 SQLite 数据库文件 |
 
 ## 安装与启用
 
@@ -60,9 +59,9 @@ currency_converter/
 
 ### 启用
 
-插件**默认禁用**（`enabled: false`）。需在管理后台手动启用。启用时执行：
+插件默认未启用，需在管理后台手动启用。启用时执行：
 
-1. 调用 `init_db()` 初始化独立数据库 `currency_converter.db`
+1. 调用 `init_db()` 初始化 PostgreSQL 独立 schema（`currency_converter`）
 2. 配置服务层（`services.configure()`），设置基础货币、缓存 TTL 等
 3. 从数据库加载已有汇率缓存
 4. 异步执行首次汇率同步（`sync_rates()`）
@@ -87,8 +86,18 @@ currency_converter/
 
 | 权限标识 | 说明 |
 |----------|------|
-| `api:read` | 读取外部 API 数据 |
+| `api:read` | 读取业务数据 |
 | `user:profile` | 读取/写入用户偏好设置 |
+| `network:request` | 发起外部网络请求（汇率 API） |
+
+### Dashboard 统计声明
+
+插件通过 `plugin.json` 的 `dashboard.stats` 声明以下统计指标（插件标准 §2.3），由管理后台 Dashboard 聚合渲染：
+
+| 指标键 | 标题 | 类型 | 说明 |
+|--------|------|------|------|
+| `currency_rates` | Currency Rates | counter | 已同步的汇率币种数 |
+| `last_sync` | Last Sync | gauge | 最近一次同步的 Unix 时间戳（秒） |
 
 ## API 端点
 

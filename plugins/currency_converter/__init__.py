@@ -3,7 +3,7 @@
 Currency Converter Plugin — 多币种展示插件
 ============================================
 启用后接管系统价格展示层，根据用户偏好自动换算币种显示。
-遵循插件标准 v1.1，完全独立于主库。
+遵循插件标准 v1.4，完全独立于主库。
 """
 import os
 import sys
@@ -15,7 +15,7 @@ from plugin_manager.base import BasePlugin
 
 class CurrencyConverterPlugin(BasePlugin):
     name = 'currency_converter'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'Currency Converter — Multi-currency display with real-time exchange rates'
     author = 'VeroRun'
 
@@ -98,10 +98,11 @@ class CurrencyConverterPlugin(BasePlugin):
             ).fetchone()
             return {
                 'currency_rates': count,
-                'last_sync': latest['fetched_at'] if latest else 'never',
+                # gauge 类型要求数值：Unix 时间戳（秒），无数据时为 0
+                'last_sync': latest['fetched_at'].timestamp() if latest else 0,
             }
         except Exception:
-            return {'currency_rates': 0, 'last_sync': 'error'}
+            return {'currency_rates': 0, 'last_sync': 0}
 
     def on_disable(self, registry):
         """禁用时清理内存缓存"""

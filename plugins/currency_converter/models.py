@@ -4,13 +4,9 @@ Currency Converter Plugin Models — PostgreSQL schema: currency_converter
 =========================================================================
 汇率 + 用户币种偏好，完全独立于主库。
 """
-import os
 import psycopg2
 import psycopg2.extras
 from plugins._base.db import get_raw_connection
-
-PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(PLUGIN_DIR, 'currency_converter.db')  # 保留用于迁移
 
 _conn = None
 

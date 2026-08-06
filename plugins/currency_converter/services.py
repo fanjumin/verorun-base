@@ -4,7 +4,7 @@ Currency Converter Services — 汇率抓取 / 内存缓存 / 换算
 ==========================================================
 
 数据流:
-  外部 API ──→ 内存缓存 (TTL) ──→ SQLite 持久化 (兜底)
+  外部 API ──→ 内存缓存 (TTL) ──→ PostgreSQL 持久化 (兜底)
                 ↑
             前端查询 ←── 用户偏好
 """
@@ -123,7 +123,7 @@ async def sync_rates() -> int:
     _RATE_CACHE = rates
     _CACHE_TIME = time.time()
 
-    # 持久化到 SQLite
+    # 持久化到 PostgreSQL
     conn = get_db()
     now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
     for code, rate in rates.items():
@@ -144,7 +144,7 @@ async def sync_rates() -> int:
 # ── 从数据库恢复缓存 ────────────────────────────────────
 
 def _load_rates_from_db() -> bool:
-    """从 SQLite 加载汇率到内存缓存（启动时调用）"""
+    """从 PostgreSQL 加载汇率到内存缓存（启动时调用）"""
     try:
         conn = get_db()
         rows = conn.execute('SELECT currency_code, rate_to_base FROM exchange_rates').fetchall()
@@ -249,7 +249,7 @@ def set_user_preferred_currency(user_id: int, currency: str) -> bool:
         conn = get_db()
         conn.execute('''
             INSERT INTO user_currency_prefs (user_id, preferred_currency, updated_at)
-            VALUES (%s, %s, NOW())
+            VALUES (?, ?, NOW())
             ON CONFLICT(user_id) DO UPDATE SET
                 preferred_currency=excluded.preferred_currency,
                 updated_at=excluded.updated_at
