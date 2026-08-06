@@ -16,7 +16,7 @@ from plugin_manager.base import BasePlugin
 
 class SmsPlugin(BasePlugin):
     name = 'sms'
-    version = '1.1.0'
+    version = '1.1.1'
     description = 'SMS Service — phone verification code sending with Aliyun/Twilio providers'
     author = 'VeroRun'
 
