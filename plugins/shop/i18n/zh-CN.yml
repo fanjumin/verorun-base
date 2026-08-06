@@ -61,3 +61,11 @@ This order has been shipped: 此订单已发货
 Please select a shipping company and enter a tracking number: 请选择快递公司并填写运单号
 Current order status does not allow refund: 当前订单状态不允许退款
 Current order status does not allow marking as completed: 当前订单状态不允许标记为完成
+File content does not match its extension: 文件内容与扩展名不匹配
+Price or stock format is invalid: 价格或库存格式不正确
+Price and stock cannot be negative: 价格与库存不能为负数
+Invalid price format: 价格格式不正确
+Price cannot be negative: 价格不能为负数
+Category name is too long: 分类名称过长
+Quantity is too large: 数量过大
+Insufficient stock: 库存不足

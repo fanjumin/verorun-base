@@ -61,3 +61,11 @@ This order has been shipped: This order has been shipped
 Please select a shipping company and enter a tracking number: Please select a shipping company and enter a tracking number
 Current order status does not allow refund: Current order status does not allow refund
 Current order status does not allow marking as completed: Current order status does not allow marking as completed
+File content does not match its extension: File content does not match its extension
+Price or stock format is invalid: Price or stock format is invalid
+Price and stock cannot be negative: Price and stock cannot be negative
+Invalid price format: Invalid price format
+Price cannot be negative: Price cannot be negative
+Category name is too long: Category name is too long
+Quantity is too large: Quantity is too large
+Insufficient stock: Insufficient stock

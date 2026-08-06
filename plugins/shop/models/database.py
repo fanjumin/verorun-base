@@ -8,10 +8,15 @@ Exact copy of auth-center/models/database.py init_shop_db().
 import os
 import sys
 
-# Ensure auth-center is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center'))
+# Ensure auth-center is importable (仅当目录存在时插入，避免污染 sys.path)
+_AUTH_CENTER = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center')
+if os.path.isdir(_AUTH_CENTER) and _AUTH_CENTER not in sys.path:
+    sys.path.insert(0, _AUTH_CENTER)
 
 from models import get_db
+from plugin_manager.logger import get_plugin_logger
+
+logger = get_plugin_logger('shop')
 
 
 def init_shop_db():
@@ -230,4 +235,4 @@ def init_shop_db():
             )
         """)
         conn.commit()
-    print('[ShopPlugin] shop schema initialized in PostgreSQL')
+    logger.info('[ShopPlugin] shop schema initialized in PostgreSQL')

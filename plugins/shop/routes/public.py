@@ -2,7 +2,7 @@
 """Shop Public — 前端商城API (platform service)"""
 from i18n import _
 import sys, os, json
-from flask import Blueprint, jsonify, request, render_template, make_response, redirect
+from flask import Blueprint, jsonify, request, render_template, make_response, redirect, current_app
 from models import get_db
 from services.jwt_service import validate_token
 from plugin_manager.event_bus import get_event_bus, EventName
@@ -11,7 +11,23 @@ from datetime import datetime
 
 shop_public_bp = Blueprint('shop_public', __name__, url_prefix='/shop')
 
+
+def _get_plugin_instance(name):
+    """获取已启用插件实例，未启用返回 None"""
+    pm = current_app.extensions.get('plugin_manager')
+    if pm and pm.is_enabled(name):
+        return pm.get_instance(name)
+    return None
+
+
+# 单件商品最大购买数量（防止超大数值导致溢出/超卖）
+_MAX_ORDER_QTY = 999
+
+
 # ── 内存限流 ──
+# ⚠️ 已知限制：_RATE_LIMIT 为进程内字典，仅对单进程/单 worker 有效；
+#    在 gunicorn workers>=2 等多进程 WSGI 部署下各进程独立计数，限流会失效。
+#    如需可靠限流，应迁移到 Redis 滑动窗口或 PostgreSQL advisory lock（见审计 P1-2）。
 import time as _time
 _RATE_LIMIT = {}  # key: "user_id:endpoint"  val: [ts1, ts2, ...]
 
@@ -68,59 +84,71 @@ def _require_user():
 @shop_public_bp.route('/', methods=['GET'])
 def shop_page():
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
-    resp = make_response(render_template('public/shop.html', token=token))
-    if token and request.args.get('token'):
+    if request.args.get('token'):
+        # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        resp = make_response(redirect(request.path))
         resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
-    return resp
+        return resp
+    return make_response(render_template('public/shop.html', token=token))
 
 
 @shop_public_bp.route('/<int:pid>', methods=['GET'])
 def shop_detail(pid):
     """商品详情页（普通用户访问）"""
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
-    resp = make_response(render_template('public/shop_detail.html', token=token))
-    if token and request.args.get('token'):
+    if request.args.get('token'):
+        # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        resp = make_response(redirect(request.path))
         resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
-    return resp
+        return resp
+    return make_response(render_template('public/shop_detail.html', token=token))
 
 
 @shop_public_bp.route('/preview/<int:pid>', methods=['GET'])
 def shop_preview(pid):
     """商品预览页（管理员预览，绕过下架检查）"""
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
-    resp = make_response(render_template('public/shop_detail.html', token=token, preview=True))
-    if token and request.args.get('token'):
+    if request.args.get('token'):
+        # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        resp = make_response(redirect(request.path))
         resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
-    return resp
+        return resp
+    return make_response(render_template('public/shop_detail.html', token=token, preview=True))
 
 
 @shop_public_bp.route('/cart', methods=['GET'])
 def cart_page():
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
-    resp = make_response(render_template('public/cart.html', token=token))
-    if token and request.args.get('token'):
+    if request.args.get('token'):
+        # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        resp = make_response(redirect(request.path))
         resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
-    return resp
+        return resp
+    return make_response(render_template('public/cart.html', token=token))
 
 
 @shop_public_bp.route('/pay/<oid>', methods=['GET'])
 def payment_page(oid):
     """支付页 — 展示订单信息，用户点击后调支付宝"""
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
-    resp = make_response(render_template('public/payment.html', order_id=oid, token=token))
-    if token and request.args.get('token'):
+    if request.args.get('token'):
+        # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        resp = make_response(redirect(request.path))
         resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
-    return resp
+        return resp
+    return make_response(render_template('public/payment.html', order_id=oid, token=token))
 
 
 @shop_public_bp.route('/orders', methods=['GET'])
 def orders_page():
     """订单列表页"""
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
-    resp = make_response(render_template('public/orders.html', token=token))
-    if token and request.args.get('token'):
+    if request.args.get('token'):
+        # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        resp = make_response(redirect(request.path))
         resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
-    return resp
+        return resp
+    return make_response(render_template('public/orders.html', token=token))
 
 
 # =============================================
@@ -263,12 +291,14 @@ def api_add_to_cart():
     if not _check_rate_limit(uid, 'cart', max_requests=60, window=60):
         return jsonify({'success': False, 'error': '操作太频繁'}), 429
     data = request.get_json() or {}
-    pid = data.get('product_id')
+    pid = _safe_int(data.get('product_id'), 0)
     qty = _safe_int(data.get('quantity', 1))
-    if not pid:
+    if pid <= 0:
         return jsonify({'success': False, 'error': '缺少商品ID'}), 400
     if qty < 1:
         return jsonify({'success': False, 'error': '数量不能小于1'}), 400
+    if qty > _MAX_ORDER_QTY:
+        return jsonify({'success': False, 'error': _('Quantity is too large')}), 400
 
     with get_db() as conn:
         prod = conn.execute('SELECT id, stock, is_active FROM products WHERE id=%s', (pid,)).fetchone()
@@ -288,8 +318,11 @@ def api_add_to_cart():
                 return jsonify({'success': False, 'error': 'SKU不存在'}), 400
             if sku_info['stock'] < qty:
                 return jsonify({'success': False, 'error': 'SKU库存不足'}), 400
-        elif prod['stock'] is not None and prod['stock'] <= 0:
-            return jsonify({'success': False, 'error': '商品已售罄'}), 400
+        elif prod['stock'] is not None:
+            if prod['stock'] <= 0:
+                return jsonify({'success': False, 'error': '商品已售罄'}), 400
+            if prod['stock'] < qty:
+                return jsonify({'success': False, 'error': _('Insufficient stock')}), 400
 
         existing = conn.execute(
             'SELECT id, quantity FROM carts WHERE user_id=%s AND product_id=%s AND sku_id=%s',
@@ -297,6 +330,8 @@ def api_add_to_cart():
         ).fetchone()
         if existing:
             new_qty = existing['quantity'] + qty
+            if new_qty > _MAX_ORDER_QTY:
+                return jsonify({'success': False, 'error': _('Quantity is too large')}), 400
             conn.execute('UPDATE carts SET quantity=%s WHERE id=%s', (new_qty, existing['id']))
         else:
             conn.execute(
@@ -318,6 +353,8 @@ def api_update_cart():
     qty = _safe_int(data.get('quantity', 1))
     if qty < 1:
         return jsonify({'success': False, 'error': '数量不能小于1'}), 400
+    if qty > _MAX_ORDER_QTY:
+        return jsonify({'success': False, 'error': _('Quantity is too large')}), 400
     with get_db() as conn:
         conn.execute('UPDATE carts SET quantity=%s WHERE id=%s AND user_id=%s', (qty, cid, uid))
         conn.commit()
@@ -465,10 +502,14 @@ def api_checkout():
         else:
             # 从用户传入 — 价格必须从数据库查，不接受客户端价格
             for item in raw_items:
-                pid = item.get('product_id')
+                pid = _safe_int(item.get('product_id'), 0)
                 qty = _safe_int(item.get('quantity', 1))
+                if pid <= 0:
+                    return jsonify({'success': False, 'error': '缺少商品ID'}), 400
                 if qty < 1:
                     return jsonify({'success': False, 'error': '数量不能小于1'}), 400
+                if qty > _MAX_ORDER_QTY:
+                    return jsonify({'success': False, 'error': _('Quantity is too large')}), 400
                 prod = conn.execute(
                     'SELECT id, title, price, stock, is_active FROM products WHERE id=%s', (pid,)
                 ).fetchone()
@@ -528,9 +569,6 @@ def api_checkout():
             # 增加销量 + 扣减库存
             conn.execute('UPDATE products SET sales_count=sales_count+%s, stock=MAX(0,stock-%s) WHERE id=%s',
                          (int(item.get('quantity', 1)), int(item.get('quantity', 1)), item['product_id']))
-        # 优惠券使用计数 — 与订单创建在同一事务中
-        if coupon_id:
-            conn.execute('UPDATE coupons SET used_count=used_count+1 WHERE id=%s', (coupon_id,))
         # 清空购物车
         if not data.get('keep_cart'):
             conn.execute('DELETE FROM carts WHERE user_id=%s', (uid,))
@@ -699,10 +737,8 @@ def track_order_user(oid):
         shipper_code = row['kdniao_code'] or row['tracking_company']
         logistic_code = row['tracking_number']
 
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
     success, data, err_msg = False, {}, '物流插件未启用'
-    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-    _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+    _logistics = _get_plugin_instance('logistics')
     if _logistics:
         success, data, err_msg = _logistics.query_track(shipper_code, logistic_code)
     return jsonify({
@@ -769,14 +805,10 @@ def api_pay_order(oid):
     # ── 支付宝（默认） ──
     try:
         # Try PaymentPlugin first
-        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-        _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+        _payment = _get_plugin_instance('payment')
         if _payment:
             result = _payment.create_shop_payment(oid, total, subject)
         else:
-            _auth_center = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
-            if _auth_center not in sys.path:
-                sys.path.insert(0, _auth_center)
             from services.payment_service import create_shop_payment
             result = create_shop_payment(oid, total, subject)
     except ImportError:
@@ -788,7 +820,6 @@ def api_pay_order(oid):
     if not user_token:
         user_token = request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
 
-    result = create_shop_payment(oid, total, subject)
     resp = jsonify({'success': result.get('success', False), 'data': {'method': 'alipay', **result}})
     if user_token:
         resp.set_cookie('sso_token', user_token, path='/', max_age=604800,
@@ -806,14 +837,8 @@ def api_stub_confirm(oid):
     if err:
         return err
     uid = payload['user_id']
-    # Try PaymentPlugin first
-    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-    _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
-    if _payment:
-        success, msg = _payment.confirm_shop_order(oid)
-    else:
-        from services.payment_service import confirm_shop_order
-        success, msg = confirm_shop_order(oid, f'STUB_{oid}', 'stub')
+
+    # 检查当前状态
     with get_db() as conn:
         row = conn.execute(
             'SELECT status FROM order_items WHERE order_id=%s AND user_id=%s', (oid, uid)
@@ -824,6 +849,15 @@ def api_stub_confirm(oid):
             return jsonify({'success': True, 'message': '订单已支付'})
         if row['status'] != 'pending':
             return jsonify({'success': False, 'error': '订单状态不允许支付'}), 400
+
+    # 尝试 PaymentPlugin，优先走插件
+    _payment = _get_plugin_instance('payment')
+    if _payment:
+        success, msg = _payment.confirm_shop_order(oid)
+        return jsonify({'success': success, 'message': msg})
+
+    # Fallback：未启用支付插件时走 auth-center 服务
+    from services.payment_service import confirm_shop_order
     success, msg = confirm_shop_order(oid, f'STUB_{oid}', 'stub')
     return jsonify({'success': success, 'message': msg})
 
@@ -835,9 +869,7 @@ def api_stub_confirm(oid):
 def api_wechat_notify():
     """微信支付异步通知回调 — 商城订单"""
     from routes.subscription.gateway.wechat import _verify_wechat_sign, _decrypt_wechat_resource
-    # Try PaymentPlugin first
-    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-    _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+    _payment = _get_plugin_instance('payment')
     if _payment:
         confirm_fn = _payment.confirm_shop_order
         verify_fn = _payment.verify_notify
@@ -873,7 +905,7 @@ def api_wechat_notify():
     if not order_id:
         return 'FAIL', 400
 
-    success, msg = confirm_fn(order_id, transaction_id, 'wechat')
+    success, msg = confirm_fn(order_id)
     return 'SUCCESS' if success else 'FAIL', 200 if success else 400
 
 
@@ -884,8 +916,7 @@ def api_wechat_notify():
 def api_pay_notify():
     """支付宝异步通知回调"""
     try:
-        _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-        _payment = _pm.get_instance('payment') if (_pm and _pm.is_enabled('payment')) else None
+        _payment = _get_plugin_instance('payment')
         if _payment:
             verify_fn = _payment.verify_notify
             confirm_fn = _payment.confirm_shop_order
@@ -901,7 +932,7 @@ def api_pay_notify():
         return 'failure'
     if not verify_fn(data):
         return 'failure'
-    success, msg = confirm_fn(order_id, trade_no)
+    success, msg = confirm_fn(order_id)
     return 'success' if success else 'failure'
 
 

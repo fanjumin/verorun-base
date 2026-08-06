@@ -2,12 +2,38 @@
 """Shop Admin — 商城管理 (商品CRUD + 多图上传 + SKU/规格 + 分类 + 订单 + 优惠券)"""
 from i18n import _
 import sys, os, json, time, secrets
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from models import get_db
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
 shop_admin_bp = Blueprint('shop_admin', __name__, url_prefix='/shop')
+
+
+def _get_plugin_instance(name):
+    """获取已启用插件实例，未启用返回 None"""
+    pm = current_app.extensions.get('plugin_manager')
+    if pm and pm.is_enabled(name):
+        return pm.get_instance(name)
+    return None
+
+
+from plugin_manager.logger import get_plugin_logger
+logger = get_plugin_logger('shop')
+
+
+def _detect_image_type(header):
+    """根据文件头魔数识别图片类型，无法识别返回 None"""
+    if header[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'png'
+    if header[:2] == b'\xff\xd8':
+        return 'jpg'
+    if header[:6] in (b'GIF87a', b'GIF89a'):
+        return 'gif'
+    if len(header) >= 12 and header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+        return 'webp'
+    return None
+
 
 # ── 输入长度限制 ──
 _MAX_TITLE = 200
@@ -104,6 +130,14 @@ def upload_image():
     ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     if ext not in _ALLOWED_EXTS:
         return jsonify({'success': False, 'error': f'Unsupported file format: {ext}, supported {_ALLOWED_EXTS}'}), 400
+
+    # 魔数校验：确保文件内容与扩展名一致，防止伪装文件上传
+    header = file.read(12)
+    file.seek(0)
+    detected = _detect_image_type(header)
+    expected = 'jpg' if ext in ('jpg', 'jpeg') else ext
+    if not detected or detected != expected:
+        return jsonify({'success': False, 'error': _('File content does not match its extension')}), 400
 
     # 限流：每秒最多上传2张
     _rl_key = f'upload_img_{payload["user_id"]}'
@@ -303,6 +337,16 @@ def create_product():
         except:
             images = []
 
+    # 价格与库存校验：类型安全 + 非负
+    try:
+        price = float(data.get('price', 0))
+        original_price = float(data.get('original_price', 0))
+        stock = int(data.get('stock', 0))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': _('Price or stock format is invalid')}), 400
+    if price < 0 or original_price < 0 or stock < 0:
+        return jsonify({'success': False, 'error': _('Price and stock cannot be negative')}), 400
+
     with get_db() as conn:
         pid = conn.execute(
             '''INSERT INTO products (title, subtitle, product_type, category,
@@ -315,9 +359,9 @@ def create_product():
                 data.get('product_type', 'service'),
                 data.get('category', ''),
                 int(data.get('category_id', 0)),
-                float(data.get('price', 0)),
-                float(data.get('original_price', 0)),
-                int(data.get('stock', 0)),
+                price,
+                original_price,
+                stock,
                 data.get('thumbnail', ''),
                 data.get('description', ''),
                 json.dumps(data.get('features', []), ensure_ascii=False),
@@ -337,6 +381,16 @@ def update_product(pid):
     data = request.get_json() or {}
     if not data:
         return jsonify({'success': False, 'error': _('No Update Data')}), 400
+
+    # 价格/库存字段预校验：类型安全 + 非负
+    for f in ('price', 'original_price', 'stock'):
+        if f in data:
+            try:
+                v = float(data[f]) if f != 'stock' else int(data[f])
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'error': _('Price or stock format is invalid')}), 400
+            if v < 0:
+                return jsonify({'success': False, 'error': _('Price and stock cannot be negative')}), 400
 
     fields = ['title', 'subtitle', 'product_type', 'category',
               'category_id', 'price', 'original_price', 'stock', 'thumbnail',
@@ -435,11 +489,10 @@ def create_spec(pid):
     if not name:
         return jsonify({'success': False, 'error': _('Specification name cannot be empty')}), 400
     with get_db() as conn:
-        conn.execute(
-            'INSERT INTO product_specs (product_id, spec_name, sort_order) VALUES (%s,%s,%s)',
+        sid = conn.execute(
+            'INSERT INTO product_specs (product_id, spec_name, sort_order) VALUES (%s,%s,%s) RETURNING id',
             (pid, name, int(data.get('sort_order', 0)))
-        )
-        sid = conn.execute('SELECT lastval()').fetchone()['lastval']
+        ).fetchone()['id']
         conn.commit()
     return jsonify({'success': True, 'data': {'id': sid}, 'message': _('Specification has been added')})
 
@@ -486,11 +539,10 @@ def create_spec_value(pid, sid):
     if not value:
         return jsonify({'success': False, 'error': _('Specification value cannot be empty')}), 400
     with get_db() as conn:
-        conn.execute(
-            'INSERT INTO product_spec_values (spec_id, spec_value, sort_order) VALUES (%s,%s,%s)',
+        vid = conn.execute(
+            'INSERT INTO product_spec_values (spec_id, spec_value, sort_order) VALUES (%s,%s,%s) RETURNING id',
             (sid, value, int(data.get('sort_order', 0)))
-        )
-        vid = conn.execute('SELECT lastval()').fetchone()['lastval']
+        ).fetchone()['id']
         conn.commit()
     return jsonify({'success': True, 'data': {'id': vid}, 'message': _('Specification value has been added')})
 
@@ -550,7 +602,12 @@ def generate_skus(pid):
     if err:
         return err
     data = request.get_json() or {}
-    base_price = float(data.get('base_price', 0))
+    try:
+        base_price = float(data.get('base_price', 0))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': _('Invalid price format')}), 400
+    if base_price < 0:
+        return jsonify({'success': False, 'error': _('Price cannot be negative')}), 400
 
     with get_db() as conn:
         # 获取所有规格及其值
@@ -597,11 +654,10 @@ def generate_skus(pid):
             if existing:
                 continue
 
-            conn.execute(
-                'INSERT INTO product_skus (product_id, sku_code, spec_path, price, stock) VALUES (%s,%s,%s,%s,%s)',
+            sku_id = conn.execute(
+                'INSERT INTO product_skus (product_id, sku_code, spec_path, price, stock) VALUES (%s,%s,%s,%s,%s) RETURNING id',
                 (pid, sku_code, json.dumps(spec_path, ensure_ascii=False), base_price, 0)
-            )
-            sku_id = conn.execute('SELECT lastval()').fetchone()['lastval']
+            ).fetchone()['id']
             created_skus.append({'id': sku_id, 'sku_code': sku_code, 'spec_path': spec_path,
                                 'price': base_price, 'stock': 0})
         conn.commit()
@@ -689,6 +745,8 @@ def create_category():
     name = data.get('name', '').strip()
     if not name:
         return jsonify({'success': False, 'error': _('Category name cannot be empty')}), 400
+    if len(name) > _MAX_CATEGORY:
+        return jsonify({'success': False, 'error': _('Category name is too long')}), 400
     parent_id = int(data.get('parent_id', 0))
     level = 0
     if parent_id:
@@ -698,13 +756,14 @@ def create_category():
                 level = parent['level'] + 1
 
     slug = data.get('slug', '').strip() or name.lower().replace(' ', '-')
+    if len(slug) > _MAX_CATEGORY:
+        return jsonify({'success': False, 'error': _('Category name is too long')}), 400
     with get_db() as conn:
         try:
-            conn.execute(
-                'INSERT INTO categories (name, slug, parent_id, level, icon, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s)',
+            cid = conn.execute(
+                'INSERT INTO categories (name, slug, parent_id, level, icon, sort_order, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id',
                 (name, slug, parent_id, level, data.get('icon', ''), int(data.get('sort_order', 0)), 1)
-            )
-            cid = conn.execute('SELECT lastval()').fetchone()['lastval']
+            ).fetchone()['id']
             conn.commit()
         except Exception as e:
             return jsonify({'success': False, 'error': f'Creation failed: {e}'}), 400
@@ -763,6 +822,7 @@ def delete_category(cid):
             return jsonify({'success': False, 'error': _('Cannot delete as there are items in this category')}), 400
         conn.execute('DELETE FROM categories WHERE id=%s', (cid,))
         conn.commit()
+    return jsonify({'success': True, 'message': _('Category Deleted')})
 # =============================================
 # AI 智能优化 — 直接使用 AIEngine，支持 DeepSeek/阿里百炼/硅基流动/OpenAI等
 # =============================================
@@ -1176,7 +1236,7 @@ def ai_batch_optimize():
 
     results = []
     with get_db() as conn:
-        placeholders = ','.join('%s' * len(product_ids))
+        placeholders = ','.join(['%s'] * len(product_ids))
         rows = conn.execute(
             f'SELECT * FROM products WHERE id IN ({placeholders})',
             product_ids
@@ -1256,8 +1316,7 @@ def list_orders():
         d = dict(r)
         d['shipping_status_text'] = ''
         if d.get('shipping_status') == 'shipped':
-            _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-            _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+            _logistics = _get_plugin_instance('logistics')
             if _logistics:
                 d['shipping_status_text'] = _logistics.get_shipping_status_text(d['shipping_status'])
         data.append(d)
@@ -1307,7 +1366,7 @@ def order_detail(oid):
     return jsonify({'success': True, 'data': d})
 
 
-@shop_admin_bp.route('/orders/<int:pid>/confirm', methods=['POST'])
+@shop_admin_bp.route('/orders/<int:oid>/confirm', methods=['POST'])
 def confirm_order(oid):
     """确认订单支付 → 自动触发云服务开通"""
     payload, err = _require_admin()
@@ -1374,10 +1433,10 @@ def refund_order(oid):
 
                 if not refund_result.get('success'):
                     err_msg = refund_result.get('error', 'Gateway refund failed')
-                    print(f'[Shop Refund] Gateway error for order {oid}: {err_msg}')
+                    logger.error(f'[Shop Refund] Gateway error for order {oid}: {err_msg}')
                     # 仍然继续执行数据库退款（线下已处理或 stub 模式）
             except Exception as e:
-                print(f'[Shop Refund] Gateway call failed for order {oid}: {e}')
+                logger.error(f'[Shop Refund] Gateway call failed for order {oid}: {e}')
                 # 继续执行数据库操作
 
         conn.execute('UPDATE products SET sales_count = MAX(0, sales_count - %s) WHERE id=%s',
@@ -1497,8 +1556,7 @@ def track_order(oid):
 
     # 调用物流插件查询
     success, data, err_msg = False, {}, _('Logistics plugin is not enabled')
-    _pm = __import__('flask').current_app.extensions.get('plugin_manager')
-    _logistics = _pm.get_instance('logistics') if (_pm and _pm.is_enabled('logistics')) else None
+    _logistics = _get_plugin_instance('logistics')
     if _logistics:
         success, data, err_msg = _logistics.query_track(shipper_code, logistic_code)
 
