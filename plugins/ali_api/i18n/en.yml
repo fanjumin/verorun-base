@@ -108,3 +108,11 @@ One-click Purchase: One-click Purchase
 Sync Tracking: Sync Tracking
 Order failed: Order failed
 Unknown error: Unknown error
+
+# ── Template strings (source: index.html _() calls) ──
+User Statistics: User Statistics
+Risk Control Status: Risk Control Status
+Cache Status: Cache Status
+Page Number: Page Number
+Items per Page: Items per Page
+Settings: Settings

@@ -154,21 +154,21 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
     <button class="tb-i" data-page="supplier">{{ _('Drop Shipping Orders') }}</button>
     <button class="tb-i" data-page="logs">{{ _('API Logs') }}</button>
     <button class="tb-i" data-page="cache">{{ _('Cache Management') }}</button>
-    <button class="tb-i" data-page="settings">Settings</button>
+    <button class="tb-i" data-page="settings">{{ _('Settings') }}</button>
     <button class="tb-i" data-page="config">{{ _('Configuration Info') }}</button>
   </div>
 
   <!-- dashboard -->
   <div id="dashboard-page" class="page">
     <div class="sg">
-      <div class="cd"><div class="l">{{ _('Total number of products') }}</div><div class="v s1" id="total-items">0</div><div class="dim" style="font-size:11px;margin-top:2px{{ _('>Active: <span id=') | tojson }}active-items">0</span></div></div>
+      <div class="cd"><div class="l">{{ _('Total number of products') }}</div><div class="v s1" id="total-items">0</div><div class="dim" style="font-size:11px;margin-top:2px">{{ _('Active') }}: <span id="active-items">0</span></div></div>
       <div class="cd"><div class="l">{{ _('API Call') }}</div><div class="v s2" id="total-calls">0</div><div class="dim" style="font-size:11px;margin-top:2px">{{ _('Today: ') }}<span id="today-calls">0</span></div></div>
-      <div class="cd"><div class="l{{ _('>User Statistics</div><div class=') | tojson }}v s3" id="total-users">0</div><div class="dim" style="font-size:11px;margin-top:2px">{{ _('API User Count') }}</div></div>
+      <div class="cd"><div class="l">{{ _('User Statistics') }}</div><div class="v s3" id="total-users">0</div><div class="dim" style="font-size:11px;margin-top:2px">{{ _('API User Count') }}</div></div>
       <div class="cd"><div class="l">{{ _('AI Services') }}</div><div class="v s4" id="ai-status">—</div><div class="dim" style="font-size:11px;margin-top:2px" id="ai-provider">{{ _('Detecting...') }}</div></div>
     </div>
     <div class="g2">
-      <div class="cd"><div class="h{{ _('>Risk Control Status</div><div class=') | tojson }}g2" id="rate-limit-stats"><div class="dim" style="font-size:12px">{{ _('Loading...') }}</div></div></div>
-      <div class="cd"><div class="h{{ _('>Cache Status</div><div class=') | tojson }}g2" id="cache-stats"><div class="dim" style="font-size:12px">{{ _('Loading...') }}</div></div></div>
+      <div class="cd"><div class="h">{{ _('Risk Control Status') }}</div><div class="g2" id="rate-limit-stats"><div class="dim" style="font-size:12px">{{ _('Loading...') }}</div></div></div>
+      <div class="cd"><div class="h">{{ _('Cache Status') }}</div><div class="g2" id="cache-stats"><div class="dim" style="font-size:12px">{{ _('Loading...') }}</div></div></div>
     </div>
   </div>
 
@@ -210,8 +210,8 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
         <label for="search-keywords">{{ _('Search Keywords') }}</label>
         <input class="in" id="search-keywords" placeholder={{ _('Example: Smartphone') | tojson }}>
         <div class="r" style="margin-top:8px">
-          <div style="flex:1"><label for="search-page{{ _('>Page Number</label><input class=') | tojson }}in" type="number" id="search-page" value="1" min="1"></div>
-          <div style="flex:1"><label for="search-size{{ _('>Items per Page</label><input class=') | tojson }}in" type="number" id="search-size" value="20" min="1" max="50"></div>
+          <div style="flex:1"><label for="search-page">{{ _('Page Number') }}</label><input class="in" type="number" id="search-page" value="1" min="1"></div>
+          <div style="flex:1"><label for="search-size">{{ _('Items per Page') }}</label><input class="in" type="number" id="search-size" value="20" min="1" max="50"></div>
         </div>
         <button class="btn bp" id="search-collect-btn">{{ _('Search and Collect') }}</button>
         <div id="search-result"></div>
@@ -403,6 +403,7 @@ label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
 
 <script src="/admin/ali-api/static/axios.min.js"></script>
 <script>window.__ = function(k) { return k; };</script>
+<script>window.api = function(url, method, data) { var p = method === 'POST' ? axios.post(url, data) : axios.get(url); return p.then(function(r) { return r.data; }); };</script>
 <script src="/admin/ali-api/static/ali_console.js"></script>
 </body>
 </html>

@@ -108,3 +108,11 @@ One-click Purchase: 一键采购
 Sync Tracking: 同步物流
 Order failed: 下单失败
 Unknown error: 未知错误
+
+# ── 模板字符串（来源：index.html _() 调用）──
+User Statistics: 用户统计
+Risk Control Status: 风控状态
+Cache Status: 缓存状态
+Page Number: 页码
+Items per Page: 每页条数
+Settings: 设置
