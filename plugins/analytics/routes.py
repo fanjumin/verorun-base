@@ -158,6 +158,16 @@ def analytics_page():
     return render_template('analytics.html', geo_market=get_market())
 
 
+@analytics_bp.route('/dashboard.js')
+def analytics_dashboard_js():
+    """渲染仪表盘 JS（模板化：服务端注入 i18n 翻译与 geo_market 变量）"""
+    from flask import make_response
+    resp = make_response(render_template('analytics-dashboard.js', geo_market=get_market()))
+    resp.headers['Content-Type'] = 'application/javascript'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
 # ─── 原始日志采集 API（供其他服务使用） ────────────────────────────────────────
 
 @analytics_bp.route('/api/v1/log', methods=['POST'])
