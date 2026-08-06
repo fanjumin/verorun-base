@@ -5,7 +5,20 @@
 """
 import psycopg2
 import os
+import re
 from psycopg2.extras import RealDictCursor
+
+
+# 匹配单引号字符串字面量（含 '' 转义）或单个 ? 占位符。
+# 仅替换字面量之外的 ?，避免 SQL 字符串内的 ?（如 LIKE 模式）被误替换。
+_PLACEHOLDER_RE = re.compile(r"'(''|[^'])*'|\?")
+
+
+def _replace_placeholders(sql: str) -> str:
+    """将 SQL 中的 ? 占位符替换为 %s，跳过单引号字符串字面量内的 ?。"""
+    def _repl(m):
+        return '%s' if m.group(0) == '?' else m.group(0)
+    return _PLACEHOLDER_RE.sub(_repl, sql)
 
 
 class PgConnection:
@@ -24,7 +37,7 @@ class PgConnection:
     def execute(self, sql, params=None):
         if self._cur is None:
             self._cur = self._conn.cursor(cursor_factory=RealDictCursor)
-        self._cur.execute(sql.replace('?', '%s'), params or ())
+        self._cur.execute(_replace_placeholders(sql), params or ())
         return self._cur
 
     def commit(self):

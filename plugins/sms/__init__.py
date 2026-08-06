@@ -6,22 +6,12 @@ SMS Service Plugin — 短信服务插件（完全独立）
 - 独立数据库：sms.db（不依赖主库）
 - 独立 i18n：插件自带翻译文件
 """
-from i18n import _
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugin_manager.base import BasePlugin
-
-# 模块级 i18n 引用，由 on_enable 注入
-_t = lambda text: text
-
-
-def init_i18n(t_fn):
-    """供插件启用时注入 i18n 翻译函数"""
-    global _t
-    _t = t_fn
 
 
 class SmsPlugin(BasePlugin):
@@ -32,14 +22,16 @@ class SmsPlugin(BasePlugin):
 
     def get_config_value(self, key: str, default=None):
         """优先 PluginManager，回退到 plugin.json 默认值"""
-        try:
-            mgr = getattr(self.app.extensions, 'get', lambda x: None)('plugin_manager')
-            if mgr:
-                pm_cfg = mgr.get_config(self.identifier) or {}
-                if key in pm_cfg:
-                    return pm_cfg[key]
-        except Exception:
-            pass
+        app = getattr(self, 'app', None)
+        if app is not None:
+            try:
+                mgr = getattr(app.extensions, 'get', lambda x: None)('plugin_manager')
+                if mgr:
+                    pm_cfg = mgr.get_config(self.identifier) or {}
+                    if key in pm_cfg:
+                        return pm_cfg[key]
+            except Exception:
+                pass
         return self._config.get(key, default)
 
     def on_install(self, registry):
@@ -53,8 +45,7 @@ class SmsPlugin(BasePlugin):
         """启用时初始化数据库 + i18n（幂等）"""
         from .models import init_sms_db
         init_sms_db()
-        init_i18n(self.t)
-        print(_('[SmsPlugin] ✅ SMS service plugin is enabled (sms.db)'))
+        print(self.t('[SmsPlugin] ✅ SMS service plugin is enabled (sms.db)'))
         return True
 
     def register_routes(self):
@@ -64,7 +55,7 @@ class SmsPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print(_('[SmsPlugin] ⚠️ SMS service plugin is disabled'))
+        print(self.t('[SmsPlugin] ⚠️ SMS service plugin is disabled'))
         return True
 
     # ── 对外接口（供其他模块通过 get_instance('sms') 调用）──

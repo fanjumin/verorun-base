@@ -2,7 +2,7 @@
 """
 SMS Countries — 国际手机号国家数据
 ==================================
-30 个常用国家：国旗 emoji + 区号 + 本地号码验证规则。
+33 个常用国家：国旗 emoji + 区号 + 本地号码验证规则。
 
 验证规则说明：
   - phone_min/phone_max：本地号码位数（不含区号）
@@ -157,18 +157,25 @@ def validate_phone_by_country(phone: str, country: dict) -> str:
     if not phone:
         return 'Phone number cannot be empty'
 
+    has_dial = phone.startswith('+')
     digits = phone.lstrip('+')
     if not digits.isdigit():
         return 'Invalid phone number format'
+
+    # 剥离国家区号，只校验本地号码部分。
+    # 例如 "+8613800138000" → "13800138000"，避免把国家码 86 计入位数/前缀判断。
+    # 仅当号码带 + 前缀时才剥离，防止把本地号码误判为区号。
+    dial_digits = country.get('dial', '').lstrip('+')
+    if has_dial and dial_digits and digits.startswith(dial_digits):
+        digits = digits[len(dial_digits):]
 
     pmin = country.get('phone_min', 7)
     pmax = country.get('phone_max', 15)
     prefix = country.get('phone_prefix', '')
 
     if len(digits) < pmin or len(digits) > pmax:
-        country_dial = country.get('dial', '+')
         expected_len = f"{pmin}" if pmin == pmax else f"{pmin}-{pmax}"
-        return f'Phone number should be {expected_len} digits (including country code {country_dial})'
+        return f'Phone number should be {expected_len} digits'
 
     if prefix and not digits.startswith(prefix):
         return f'Phone number must start with {prefix}'

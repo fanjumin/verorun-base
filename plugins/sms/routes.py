@@ -7,6 +7,7 @@ SMS Plugin Routes — SMS 模板管理 + 发送 API
 from i18n import _
 import sys
 import os
+import psycopg2
 
 _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
 if _auth_dir not in sys.path:
@@ -42,9 +43,9 @@ def sms_templates_list():
     ).fetchall()
     templates = [dict(r) for r in rows]
     categories = {
-        'captcha': {'title': _('Verification code'), 'items': []},
-        'notice':  {'title': _('SMS Notification'), 'items': []},
-        'promo':   {'title': _('SMS Promotion'), 'items': []},
+        'captcha': {'title': _('verification_code'), 'items': []},
+        'notice':  {'title': _('sms_notification'), 'items': []},
+        'promo':   {'title': _('sms_promotion'), 'items': []},
     }
     for t in templates:
         cat = t.get('category', 'promo')
@@ -72,11 +73,15 @@ def sms_template_create():
     conn = get_sms_db()
     row = conn.execute('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM sms_templates').fetchone()
     sort_order = row['n']
-    cur = conn.execute(
-        'INSERT INTO sms_templates (category, name, template_code, note, sort_order) VALUES (?,?,?,?,?) RETURNING id',
-        (category, name, template_code, note, sort_order)
-    )
-    conn.commit()
+    try:
+        cur = conn.execute(
+            'INSERT INTO sms_templates (category, name, template_code, note, sort_order) VALUES (?,?,?,?,?) RETURNING id',
+            (category, name, template_code, note, sort_order)
+        )
+        conn.commit()
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return jsonify({'success': False, 'error': _('Template already exists in this category')}), 409
     tid = cur.fetchone()['id']
     _log(admin['user_id'], 'create_sms_template', 'sms', str(tid), f'{category}/{name}')
     return jsonify({'success': True, 'data': {'id': tid}})
@@ -170,7 +175,10 @@ def sms_test_send():
         phone = country_code + phone.lstrip('+')
 
     from plugins.sms.services import send_sms
-    result = send_sms(phone, code, purpose=purpose)
+    try:
+        result = send_sms(phone, code, purpose=purpose)
+    except Exception as e:
+        result = {'success': False, 'error': str(e)}
     if result.get('success'):
         return jsonify({'success': True, 'data': result})
     return jsonify({'success': False, 'error': result.get('error', _('Send Failed'))}), 400
@@ -211,6 +219,9 @@ def sms_settings_get():
             result[k] = v
         else:
             result[k] = _SMS_DEFAULTS.get(k, '')
+    # 敏感字段脱敏，避免明文返回 AccessKey Secret
+    if result.get('aliyun_sms_secret'):
+        result['aliyun_sms_secret'] = '******'
     return jsonify({'success': True, 'data': result})
 
 

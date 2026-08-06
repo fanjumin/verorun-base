@@ -91,22 +91,31 @@ def send_sms(phone, code, purpose='login'):
     provider = get_sms_provider(phone)
     provider_type = _select_provider_by_phone(phone)
     template = None
+    result = None
 
-    if provider:
-        if provider_type == 'twilio':
-            message = f'Your verification code is: {code}. Valid for 10 minutes.'
-            result = provider.send(phone, message)
-            result['template'] = 'plain_text'
-            template = 'plain_text'
-        elif provider.PROVIDER == 'aliyun':
-            result = _send_aliyun_via_provider(provider, phone, code, purpose)
-            template = TEMPLATE_MAP.get(purpose, DEFAULT_TEMPLATE)
-    else:
-        # Fallback: stub mode
-        print(f"[SMS STUB] To: {phone} | Code: {code}")
-        result = {'success': True, 'provider': 'stub', 'code': code}
+    try:
+        if provider:
+            if provider_type == 'twilio':
+                lang = os.environ.get('DEPLOY_LANG', 'en')
+                if lang and lang.lower().startswith('zh'):
+                    message = f'您的验证码是：{code}，10 分钟内有效。'
+                else:
+                    message = f'Your verification code is: {code}. Valid for 10 minutes.'
+                result = provider.send(phone, message)
+                result['template'] = 'plain_text'
+                template = 'plain_text'
+            elif provider.PROVIDER == 'aliyun':
+                result = _send_aliyun_via_provider(provider, phone, code, purpose)
+                template = TEMPLATE_MAP.get(purpose, DEFAULT_TEMPLATE)
+        else:
+            # Fallback: stub mode
+            print(f"[SMS STUB] To: {phone} | Code: {code}")
+            result = {'success': True, 'provider': 'stub', 'code': code}
+    except Exception as e:
+        print(f"[SmsPlugin] send_sms provider error: {e}")
+        result = {'success': False, 'provider': provider_type, 'error': str(e)}
 
-    # 记录发送日志
+    # 记录发送日志（无论成功失败均记录）
     _log_send(phone, code, purpose, result.get('provider', 'stub'),
               'sent' if result.get('success') else 'failed',
               result.get('error', ''))
@@ -133,28 +142,26 @@ def _log_send(phone, code, purpose, provider, status, error=''):
 
 
 def check_rate_limit(phone, max_per_hour=5):
-    """Check if phone has exceeded SMS rate limit."""
-    import sys
-    _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
-    if _auth_dir not in sys.path:
-        sys.path.insert(0, _auth_dir)
+    """Check if phone has exceeded SMS rate limit.
 
-    from models import get_db, now_iso
+    频率限制表存放在插件自有 schema `sms` 中，遵守数据隔离规范
+    （不再读写主库 public schema）。
+    """
+    conn = get_sms_db()
     hour_bucket = datetime.now().strftime('%Y%m%d_%H')
-    with get_db() as conn:
-        row = conn.execute(
-            'SELECT count FROM sms_rate_limits WHERE phone=? AND hour_bucket=?',
-            (phone, hour_bucket)
-        ).fetchone()
-        if row and row['count'] >= max_per_hour:
-            return False
-        if row:
-            conn.execute('UPDATE sms_rate_limits SET count=count+1 WHERE phone=? AND hour_bucket=?',
-                         (phone, hour_bucket))
-        else:
-            conn.execute('INSERT INTO sms_rate_limits (phone, hour_bucket, count) VALUES (?,?,1)',
-                         (phone, hour_bucket))
-        conn.commit()
+    row = conn.execute(
+        'SELECT count FROM sms_rate_limits WHERE phone=? AND hour_bucket=?',
+        (phone, hour_bucket)
+    ).fetchone()
+    if row and row['count'] >= max_per_hour:
+        return False
+    if row:
+        conn.execute('UPDATE sms_rate_limits SET count=count+1 WHERE phone=? AND hour_bucket=?',
+                     (phone, hour_bucket))
+    else:
+        conn.execute('INSERT INTO sms_rate_limits (phone, hour_bucket, count) VALUES (?,?,1)',
+                     (phone, hour_bucket))
+    conn.commit()
     return True
 
 

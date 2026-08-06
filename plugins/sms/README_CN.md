@@ -13,11 +13,11 @@ SMS Service 是 VeroRun 平台的短信验证码发送服务插件，支持阿�
 - **验证码生成**：使用 `secrets` 模块生成安全随机 6 位数字验证码
 - **模板管理**：支持 captcha（验证码）、notice（通知）、promo（营销）三类短信模板的 CRUD 管理
 - **发送日志**：完整记录每次发送的手机号、验证码、用途、提供商、状态
-- **频率限制**：基于主库 `sms_rate_limits` 表的每小时发送次数限制（默认 5 次/小时）
-- **手机号验证**：支持 60+ 国家/地区的手机号格式验证，自动检测国家代码
+- **频率限制**：基于插件 schema `sms` 中 `sms_rate_limits` 表的每小时发送次数限制（默认 5 次/小时）
+- **手机号验证**：支持 33 个国家/地区的手机号格式验证，自动检测国家代码
 - **国家代码选择**：提供完整的国家列表（含国旗、区号、中英文名称）
 - **动态登录方式**：通过 `get_login_methods` / `get_register_methods` Hook 提供短信认证方式
-- **独立数据库**：使用 PostgreSQL schema `sms`，包含 `sms_templates` 和 `sms_logs` 两张表
+- **独立数据库**：使用 PostgreSQL schema `sms`，包含 `sms_templates`、`sms_logs` 和 `sms_rate_limits` 三张表
 - **数据迁移**：首次启动自动从主库幂等迁移短信模板数据
 
 ## 架构设计
@@ -54,7 +54,7 @@ SMS Service 是 VeroRun 平台的短信验证码发送服务插件，支持阿�
               v                           v
 +------------------------+    +---------------------------+
 |  countries.py          |    |  auth-center providers    |
-|  +-- COUNTRIES (60+ 国)|    |  +-- providers/sms/      |
+|  +-- COUNTRIES (33 国)|    |  +-- providers/sms/      |
 |  +-- find_country()    |    |      aliyun.py           |
 |  +-- detect_country()  |    |      twilio.py           |
 |  +-- validate_phone()  |    |      (复用现有 Provider)  |
@@ -66,6 +66,7 @@ SMS Service 是 VeroRun 平台的短信验证码发送服务插件，支持阿�
 |  PG Schema: sms                                               |
 |  +-- sms_templates      短信模板表                            |
 |  +-- sms_logs           短信发送日志表                        |
+|  +-- sms_rate_limits    发送频率限制表                        |
 +--------------------------------------------------------------+
 ```
 
@@ -88,6 +89,8 @@ sms/
 +-- routes.py                    # 管理端 API 路由（模板、日志、测试发送、配置、国家列表）
 +-- services.py                  # 核心服务（发送、验证码、手机号验证、频率限制、提供商路由）
 +-- countries.py                 # 国家/地区列表与手机号验证规则
++-- migrations/
+|   +-- v1.0.0_to_v1.1.0.sql     # 版本迁移 SQL（§10.6）
 +-- sms.db                       # 独立数据库文件（保留用于迁移）
 +-- i18n/
 |   +-- en.yml                   # 英文国际化
@@ -107,10 +110,9 @@ sms/
 ### 安装步骤
 
 1. 将 `sms` 目录放置于 `plugins/` 下
-2. 确保 `plugin.json` 中 `enabled` 为 `true`
-3. 重启应用，插件将自动：
+2. 重启应用，插件将自动：
    - 创建 PostgreSQL schema `sms`
-   - 初始化 `sms_templates` 和 `sms_logs` 表
+   - 初始化 `sms_templates`、`sms_logs` 和 `sms_rate_limits` 表
    - 从主库幂等迁移短信模板数据
 4. 在管理后台 "Security & Compliance" > "SMS Management" 中配置阿里云参数
 5. 确保 `auth-center` 的 `providers/sms/aliyun.py` 和 `providers/sms/twilio.py` 已正确配置
@@ -181,7 +183,7 @@ sms/
 | 依赖项 | 用途 |
 |--------|------|
 | `plugins._base.db` | 插件基础数据库连接模块 |
-| `auth-center.models` | 主库读取（sms_templates 迁移源、sms_rate_limits 频率限制） |
+| `auth-center.models` | 主库读取（sms_templates 迁移源） |
 | `auth-center.providers.sms.aliyun` | 阿里云短信 Provider |
 | `auth-center.providers.sms.twilio` | Twilio 短信 Provider |
 
