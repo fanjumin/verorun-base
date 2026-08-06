@@ -76,28 +76,44 @@
     wrap.setAttribute('data-ad-id', ad.id);
     wrap.style.marginBottom = '12px';
 
-    var inner = '';
     if (isImage) {
       var style = '';
       if (ad.width) style += 'width:' + ad.width + 'px;max-width:100%;';
       if (ad.height) style += 'height:' + ad.height + 'px;';
-      inner = '<a href="' + (clickUrl || 'javascript:void(0)') + '" target="_blank" rel="nofollow sponsored" class="ad-link">' +
-              '<img src="' + (ad.image_url || '') + '" alt="' + (ad.name || '') + '" style="' + style + '" loading="lazy">' +
-              '</a>';
-    } else {
-      inner = '<div class="ad-code">' + (ad.ad_code || '') + '</div>';
-    }
+      var a = document.createElement('a');
+      a.href = clickUrl || 'javascript:void(0)';
+      a.target = '_blank';
+      a.rel = 'nofollow sponsored';
+      a.className = 'ad-link';
+      var img = document.createElement('img');
+      img.src = ad.image_url || '';
+      img.alt = ad.name || '';
+      img.loading = 'lazy';
+      img.style.cssText = style;
+      a.appendChild(img);
+      wrap.appendChild(a);
 
-    wrap.innerHTML = inner;
-
-    // 绑定点击事件（代码类型广告不二次跳转）
-    if (isImage && clickUrl) {
-      var link = wrap.querySelector('a');
-      if (link) {
-        link.addEventListener('click', function () {
+      // 绑定点击事件（图片类型才二次跳转与埋点）
+      if (clickUrl) {
+        a.addEventListener('click', function () {
           trackClick(ad.id, ad.page, ad.position);
         });
       }
+    } else {
+      // 代码类广告：在 sandbox iframe 中渲染（allow-scripts 但不含 allow-same-origin），
+      // 第三方脚本运行于不透明源中，无法访问父页面 DOM / Cookie，防存储型 XSS 外溢。
+      // 注：部分依赖同源上下文的广告联盟（如 AdSense）可能因此不渲染。
+      var iframe = document.createElement('iframe');
+      iframe.className = 'ad-code';
+      iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox');
+      iframe.setAttribute('loading', 'lazy');
+      iframe.style.border = '0';
+      iframe.style.width = '100%';
+      if (ad.width) iframe.style.width = ad.width + 'px';
+      if (ad.height) iframe.style.height = ad.height + 'px';
+      wrap.appendChild(iframe);
+      // 通过 DOM 属性设置 srcdoc，ad_code 在 iframe 独立文档中解析，不进入父页面
+      iframe.srcdoc = '<!DOCTYPE html><html><head></head><body>' + (ad.ad_code || '') + '</body></html>';
     }
 
     return wrap;
@@ -146,6 +162,7 @@
    */
   function renderAds(selector) {
     var containers = document.querySelectorAll(selector || '[data-ad-position]');
+    if (!containers.length) return;  // 页面无广告位时提前退出，避免无谓扫描
     containers.forEach(renderContainer);
   }
 

@@ -16,8 +16,8 @@ from plugin_manager.base import BasePlugin
 from .models import init_ad_db
 from .routes import ads_bp
 
-# 模块级 i18n 引用，由 on_enable 注入
-_t = lambda text: text
+# 模块级 i18n 引用：默认使用真实翻译函数，on_enable 时再注入插件上下文翻译
+_t = _
 
 
 def init_i18n(t_fn):

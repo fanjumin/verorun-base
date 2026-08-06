@@ -1,3 +1,13 @@
+{#
+  广告管理后台前端（内嵌于父模板，由插件菜单加载）
+  ── 外部全局依赖（由父模板 / 主系统提供，勿在本文件删除）：
+     - esc(str)      : HTML 转义函数
+     - T             : 管理员 Bearer Token（JWT）
+     - showToast(msg): 全局消息提示
+  ── 本文件自持变量：
+     - _currentSiteKey: 站点过滤参数（默认 'default'）
+  ── _pages 映射需与后端页面注册保持同步，新增页面时在此补充
+#}
 window.l_ads=function(){
   document.getElementById("pt").textContent="{{ _('Ad Management') }}";
   document.getElementById("mc").innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';

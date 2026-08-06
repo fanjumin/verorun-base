@@ -3,13 +3,14 @@
 from i18n import _
 import psycopg2
 import psycopg2.extras
-import os
+import hashlib
 import json
+import threading
+from datetime import date
 from plugins._base.db import get_raw_connection
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'ads.db')  # 保留用于迁移
-
-_ads_conn = None
+# 每线程独立连接（解决全局单连接在 gunicorn 多线程下非线程安全 / 连接泄漏问题）
+_local = threading.local()
 
 
 class _PgConnection:
@@ -28,7 +29,7 @@ class _PgConnection:
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
+            cur.execute(sql, params)
         else:
             cur.execute(sql)
         return cur
@@ -40,26 +41,28 @@ class _PgConnection:
 
 def get_ads_db():
     """获取广告插件数据库连接（PG schema: ads）
-    
+
     gunicorn pre-fork 模式下，连接在 master 进程中创建后 fork 到 worker 可能已失效，
-    每次获取时检测存活状态，失效则自动重建。
+    每次获取时检测存活状态，失效则自动重建。连接按线程隔离存储，避免全局共享导致的
+    竞态条件与连接泄漏（psycopg2 连接不支持跨线程共享）。
     """
-    global _ads_conn
-    if _ads_conn is not None and not _ads_conn._is_alive():
+    conn = getattr(_local, 'conn', None)
+    if conn is not None and not conn._is_alive():
         try:
-            _ads_conn.close()
+            conn.close()
         except Exception:
             pass
-        _ads_conn = None
-    if _ads_conn is None:
+        conn = None
+    if conn is None:
         raw = get_raw_connection()
         raw.autocommit = False
         raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS ads")
         raw.commit()
         raw.cursor().execute("SET search_path TO ads")
         raw.commit()
-        _ads_conn = _PgConnection(raw)
-    return _ads_conn
+        conn = _PgConnection(raw)
+        _local.conn = conn
+    return conn
 
 
 def _column_exists(conn, table, column):
@@ -234,12 +237,130 @@ def delete_zone(zone_id):
     conn.commit()
 
 
+# ── 共享 CRUD（路由层 routes.py 与 AI 层 ai_tools.py 复用） ──
+
+class AdNotFound(Exception):
+    """指定的广告不存在"""
+
+
+# 更新字段白名单：动态 SQL 列名只允许来自此硬编码集合，杜绝注入
+_UPDATE_FIELDS = (
+    'name', 'site_key', 'zone_id', 'position', 'page', 'ad_type', 'image_url',
+    'link_url', 'ad_code', 'width', 'height', 'schedule_start', 'schedule_end',
+    'weight', 'freq_cap', 'click_tag', 'utm_source', 'is_active', 'sort_order',
+)
+
+
+def _as_int(v, default=0):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_targeting(data):
+    """解析并校验定向规则 JSON（字符串或 dict 均可）"""
+    rules = data.get('targeting_rules') or data.get('targeting') or {}
+    if isinstance(rules, str):
+        try:
+            rules = json.loads(rules)
+        except (json.JSONDecodeError, TypeError):
+            rules = {}
+    if not isinstance(rules, dict):
+        rules = {}
+    return rules
+
+
+def create_ad_record(data):
+    """创建广告位（routes / ai_tools 共用），返回新 id"""
+    conn = get_ads_db()
+    cur = conn.execute('''INSERT INTO ad_placements
+        (name, site_key, zone_id, position, page, ad_type, image_url, link_url, ad_code,
+         width, height, targeting_rules, schedule_start, schedule_end, weight, freq_cap,
+         click_tag, utm_source, is_active, sort_order)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+        (str(data.get('name') or '').strip(),
+         str(data.get('site_key') or 'default'),
+         _as_int(data.get('zone_id')),
+         str(data.get('position') or 'sidebar'),
+         str(data.get('page') or '*'),
+         str(data.get('ad_type') or 'image'),
+         str(data.get('image_url') or ''),
+         str(data.get('link_url') or ''),
+         str(data.get('ad_code') or ''),
+         _as_int(data.get('width'), 320),
+         _as_int(data.get('height')),
+         json.dumps(_parse_targeting(data), ensure_ascii=False),
+         str(data.get('schedule_start') or ''),
+         str(data.get('schedule_end') or ''),
+         _as_int(data.get('weight'), 1),
+         _as_int(data.get('freq_cap')),
+         str(data.get('click_tag') or ''),
+         str(data.get('utm_source') or ''),
+         _as_int(data.get('is_active'), 1),
+         _as_int(data.get('sort_order'))))
+    conn.commit()
+    return cur.fetchone()['id']
+
+
+def update_ad_record(ad_id, data):
+    """动态更新广告位（列名仅来自 _UPDATE_FIELDS 白名单，只更新传入字段）
+
+    成功返回 True；广告不存在抛 AdNotFound；无更新字段抛 ValueError。
+    """
+    conn = get_ads_db()
+    existing = conn.execute('SELECT id FROM ad_placements WHERE id=%s', (ad_id,)).fetchone()
+    if not existing:
+        raise AdNotFound(ad_id)
+    fields, params = [], []
+    for col in _UPDATE_FIELDS:
+        if col in data:
+            fields.append(f'{col}=%s')
+            params.append(data[col])
+    if 'targeting_rules' in data:
+        t = data['targeting_rules']
+        if isinstance(t, dict):
+            t = json.dumps(t, ensure_ascii=False)
+        fields.append('targeting_rules=%s')
+        params.append(t)
+    if not fields:
+        raise ValueError('no fields to update')
+    fields.append('updated_at=NOW()')
+    params.append(ad_id)
+    conn.execute(f"UPDATE ad_placements SET {', '.join(fields)} WHERE id=%s", params)
+    conn.commit()
+    return True
+
+
+def delete_ad_record(ad_id):
+    """删除广告位并级联清理统计数据与点击明细（同一事务，避免孤立数据）"""
+    conn = get_ads_db()
+    conn.execute('DELETE FROM ad_stats WHERE ad_id=%s', (ad_id,))
+    conn.execute('DELETE FROM ad_clicks WHERE ad_id=%s', (ad_id,))
+    conn.execute('DELETE FROM ad_placements WHERE id=%s', (ad_id,))
+    conn.commit()
+
+
+def count_zone_ads(zone_id):
+    """统计引用指定区域的广告数量（删除区域前检查用）"""
+    conn = get_ads_db()
+    row = conn.execute('SELECT COUNT(*) AS c FROM ad_placements WHERE zone_id=%s', (zone_id,)).fetchone()
+    return row['c'] if row else 0
+
+
 # ── 统计辅助函数 ──
+
+def _hash_ip(ip):
+    """IP 哈希存储：去除明文 PII，同时保留同源刷量识别能力（哈希值相同）"""
+    if not ip:
+        return ''
+    return hashlib.sha256(ip.encode('utf-8')).hexdigest()
+
 
 def record_impression(ad_id):
     """记录一次展示（累计 + 每日）"""
     conn = get_ads_db()
-    today = __import__('datetime').date.today().isoformat()
+    today = date.today().isoformat()
     conn.execute('UPDATE ad_placements SET impressions = impressions + 1, updated_at=NOW() WHERE id=%s', (ad_id,))
     conn.execute('''INSERT INTO ad_stats (ad_id, stat_date, impressions, clicks)
         VALUES (%s, %s, 1, 0)
@@ -251,14 +372,14 @@ def record_impression(ad_id):
 def record_click(ad_id, page='', position='', ip='', user_agent='', referrer=''):
     """记录一次点击（累计 + 每日 + 明细）"""
     conn = get_ads_db()
-    today = __import__('datetime').date.today().isoformat()
+    today = date.today().isoformat()
     conn.execute('UPDATE ad_placements SET clicks = clicks + 1, updated_at=NOW() WHERE id=%s', (ad_id,))
     conn.execute('''INSERT INTO ad_stats (ad_id, stat_date, impressions, clicks)
         VALUES (%s, %s, 0, 1)
         ON CONFLICT(ad_id, stat_date) DO UPDATE SET
             clicks = clicks + 1''', (ad_id, today))
     conn.execute('''INSERT INTO ad_clicks (ad_id, page, position, ip, user_agent, referrer)
-        VALUES (%s, %s, %s, %s, %s, %s)''', (ad_id, page, position, ip, user_agent, referrer))
+        VALUES (%s, %s, %s, %s, %s, %s)''', (ad_id, page, position, _hash_ip(ip), user_agent, referrer))
     conn.commit()
 
 

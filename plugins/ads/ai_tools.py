@@ -28,10 +28,10 @@ def list_ads(site_key=None, position=None, active_only=False):
         where = []
         params = []
         if site_key:
-            where.append('site_key=?')
+            where.append('site_key=%s')
             params.append(site_key)
         if position:
-            where.append('position=?')
+            where.append('position=%s')
             params.append(position)
         if active_only:
             where.append('is_active=1')
@@ -57,9 +57,9 @@ def get_ad(ad_id):
     """获取单个广告详情"""
     try:
         conn = _get_db()
-        row = conn.execute('SELECT * FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
+        row = conn.execute('SELECT * FROM ad_placements WHERE id=%s', (ad_id,)).fetchone()
         if not row:
-            return {'success': False, 'error': _('广告不存在')}
+            return {'success': False, 'error': _('Advertisement does not exist')}
         d = dict(row)
         try:
             d['targeting_rules'] = json.loads(d.get('targeting_rules') or '{}')
@@ -76,112 +76,34 @@ def create_ad(data):
         # 校验必填
         name = (data.get('name') or '').strip()
         if not name:
-            return {'success': False, 'error': _('广告名称不能为空')}
-
-        targeting = data.get('targeting_rules') or {}
-        if isinstance(targeting, str):
-            try:
-                targeting = json.loads(targeting)
-            except (json.JSONDecodeError, TypeError):
-                targeting = {}
-
-        from plugins.ads.models import get_ads_db
-        conn = get_ads_db()
-        cur = conn.execute('''INSERT INTO ad_placements
-            (name, site_key, zone_id, position, page, ad_type, image_url, link_url, ad_code,
-             width, height, targeting_rules, schedule_start, schedule_end, weight, freq_cap,
-             click_tag, utm_source, is_active, sort_order)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id''',
-            (name,
-             data.get('site_key', 'default'),
-             data.get('zone_id', 0),
-             data.get('position', 'sidebar'),
-             data.get('page', '*'),
-             data.get('ad_type', 'image'),
-             data.get('image_url', ''),
-             data.get('link_url', ''),
-             data.get('ad_code', ''),
-             data.get('width', 320),
-             data.get('height', 0),
-             json.dumps(targeting, ensure_ascii=False),
-             data.get('schedule_start', ''),
-             data.get('schedule_end', ''),
-             data.get('weight', 1),
-             data.get('freq_cap', 0),
-             data.get('click_tag', ''),
-             data.get('utm_source', ''),
-             data.get('is_active', 1),
-             data.get('sort_order', 0)))
-        conn.commit()
-        return {'success': True, 'data': {'id': cur.fetchone()['id']}}
+            return {'success': False, 'error': _('Advertisement name cannot be empty')}
+        from plugins.ads.models import create_ad_record
+        ad_id = create_ad_record(data)
+        return {'success': True, 'data': {'id': ad_id}}
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
 
 def update_ad(ad_id, data):
-    """更新广告"""
+    """更新广告（动态字段，列名白名单见 models._UPDATE_FIELDS）"""
     try:
-        from plugins.ads.models import get_ads_db
-        conn = get_ads_db()
-        existing = conn.execute('SELECT id FROM ad_placements WHERE id=?', (ad_id,)).fetchone()
-        if not existing:
-            return {'success': False, 'error': _('广告不存在')}
-
-        # 构建动态更新字段
-        fields = []
-        params = []
-        mapping = {
-            'name': 'name',
-            'site_key': 'site_key',
-            'zone_id': 'zone_id',
-            'position': 'position',
-            'page': 'page',
-            'ad_type': 'ad_type',
-            'image_url': 'image_url',
-            'link_url': 'link_url',
-            'ad_code': 'ad_code',
-            'width': 'width',
-            'height': 'height',
-            'schedule_start': 'schedule_start',
-            'schedule_end': 'schedule_end',
-            'weight': 'weight',
-            'freq_cap': 'freq_cap',
-            'click_tag': 'click_tag',
-            'utm_source': 'utm_source',
-            'is_active': 'is_active',
-            'sort_order': 'sort_order',
-        }
-        for key, col in mapping.items():
-            if key in data:
-                fields.append(f'{col}=?')
-                params.append(data[key])
-
-        if 'targeting_rules' in data:
-            targeting = data['targeting_rules']
-            if isinstance(targeting, dict):
-                targeting = json.dumps(targeting, ensure_ascii=False)
-            fields.append('targeting_rules=?')
-            params.append(targeting)
-
-        if not fields:
-            return {'success': False, 'error': _('没有要更新的字段')}
-
-        fields.append('updated_at=NOW()')
-        params.append(ad_id)
-        conn.execute(f"UPDATE ad_placements SET {', '.join(fields)} WHERE id=%s", params)
-        conn.commit()
+        from plugins.ads.models import update_ad_record, AdNotFound
+        try:
+            update_ad_record(ad_id, data)
+        except AdNotFound:
+            return {'success': False, 'error': _('Advertisement does not exist')}
+        except ValueError:
+            return {'success': False, 'error': _('No fields to update')}
         return {'success': True}
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
 
 def delete_ad(ad_id):
-    """删除广告"""
+    """删除广告（级联清理统计与点击明细）"""
     try:
-        from plugins.ads.models import get_ads_db
-        conn = get_ads_db()
-        conn.execute('DELETE FROM ad_placements WHERE id=?', (ad_id,))
-        conn.commit()
+        from plugins.ads.models import delete_ad_record
+        delete_ad_record(ad_id)
         return {'success': True}
     except Exception as e:
         return {'success': False, 'error': str(e)}
@@ -217,12 +139,12 @@ def analyze_ads(days=7):
         daily = stats.get('daily', [])
 
         lines = [
-            _("=== 广告效果分析（最近 {} 天）===").format(days),
-            _("总展示量: {}").format(total.get('impressions', 0)),
-            _("总点击量: {}").format(total.get('clicks', 0)),
-            _("整体 CTR: {}%").format(total.get('ctr', 0)),
+            _("=== Ad performance analysis (last {} days) ===").format(days),
+            _("Total impressions: {}").format(total.get('impressions', 0)),
+            _("Total clicks: {}").format(total.get('clicks', 0)),
+            _("Overall CTR: {}%").format(total.get('ctr', 0)),
             "",
-            _("按广告效果排序:")
+            _("Sorted by ad performance:")
         ]
 
         # 合并广告与累计数据（用当前累计 impressions/clicks）
@@ -231,24 +153,24 @@ def analyze_ads(days=7):
             imp = a.get('impressions', 0)
             clk = a.get('clicks', 0)
             ctr = round(clk / imp * 100, 2) if imp else 0.0
-            status = _('运行中') if a.get('is_active') else _('已暂停')
-            lines.append(_("{}. [{}] {} | {} | 展示 {} | 点击 {} | CTR {}%").format(
+            status = _('Running') if a.get('is_active') else _('Paused')
+            lines.append(_("{}. [{}] {} | {} | impressions {} | clicks {} | CTR {}%").format(
                 i, status, a.get('name'), a.get('position'), imp, clk, ctr))
 
         # 找出异常：高展示低点击
         low_ctr = [a for a in ads if a.get('impressions', 0) > 100 and (a.get('clicks', 0) / a.get('impressions', 0)) < 0.005]
         if low_ctr:
             lines.append("")
-            lines.append(_("需要优化的广告（展示>100 且 CTR<0.5%）:"))
+            lines.append(_("Ads needing optimization (impressions>100 and CTR<0.5%):"))
             for a in low_ctr:
-                lines.append(_("- {}（{}）: 建议更换素材或调整定向").format(a.get('name'), a.get('position')))
+                lines.append(_("- {} ({}): consider replacing the creative or adjusting targeting").format(a.get('name'), a.get('position')))
 
         # 趋势
         if daily:
             lines.append("")
-            lines.append(_("最近趋势:"))
+            lines.append(_("Recent trends:"))
             for r in daily[-7:]:
-                lines.append(_("- {}: 展示 {}, 点击 {}").format(r['stat_date'], r.get('impressions', 0), r.get('clicks', 0)))
+                lines.append(_("- {}: impressions {}, clicks {}").format(r['stat_date'], r.get('impressions', 0), r.get('clicks', 0)))
 
         return {'success': True, 'data': '\n'.join(lines)}
     except Exception as e:
