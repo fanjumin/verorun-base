@@ -24,6 +24,8 @@ set -euo pipefail
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
+# ── Sparse-checkout 白名单：仅这些目录在服务器检出（cone 模式） ──
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins site_builder agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -189,6 +191,11 @@ do_install() {
         fi
         git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
     fi
+    # 应用 sparse-checkout 白名单（幂等；拉取后立即收窄工作区，仅保留运行时目录）
+    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
+        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+    fi
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
@@ -309,6 +316,11 @@ do_update() {
                 exit 1
             }
         }
+    fi
+    # 应用 sparse-checkout 白名单：老仓库立即移除 .github/CHANGELOG/docs 等非运行时文件
+    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
+        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
     fi
     local after_commit
     after_commit=$(git log --oneline -1)
