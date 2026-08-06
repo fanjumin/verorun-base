@@ -9,7 +9,7 @@ The plugin manages its own independent SQLite database (`ali_api.db`) and includ
 | Property    | Value                    |
 |-------------|--------------------------|
 | Identifier  | `ali_api`                |
-| Version     | 2.0.0                    |
+| Version     | 2.1.0                    |
 | Database    | `ali_api.db`             |
 | Menu Group  | Business Center          |
 | Embed URL   | `/admin/ali-api/`        |
