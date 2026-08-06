@@ -11,7 +11,6 @@
   4. 签名方式：access_token + 排序参数 + access_token
 """
 
-from i18n import _
 import json, time, hmac, hashlib, base64, urllib.request, urllib.parse, os, sys
 
 API_GATEWAY = "https://gw.open.1688.com/openapi"
@@ -256,10 +255,11 @@ def get_store_products(seller_member_id: str, access_token: str,
 
 
 # ===== 命令行测试 =====
-if __name__ == '__main__(':
+if __name__ == '__main__':
+    from ..plugin_i18n import t as _
     import pprint
     
-    APP_KEY = os.environ.get(')ALIBABA_APP_KEY', '')
+    APP_KEY = os.environ.get('ALIBABA_APP_KEY', '')
     APP_SECRET = os.environ.get('ALIBABA_APP_SECRET', '')
     
     if not APP_KEY:

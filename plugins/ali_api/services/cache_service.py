@@ -11,14 +11,18 @@
 
 import json
 import time
-import pickle
+import hashlib
 from typing import Any, Optional, Dict, Tuple
 import logging
-from functools import lru_cache
 
 from ..config import config
 
 logger = logging.getLogger(__name__)
+
+
+def _cache_key_hash(raw: str) -> str:
+    """生成稳定、跨进程一致的缓存键（替代内建 hash()，避免 PYTHONHASHSEED 随机化导致缓存失效）"""
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 class MemoryCache:
     """内存缓存实现"""
@@ -298,14 +302,14 @@ class CacheService:
         """获取API响应缓存"""
         # 生成缓存键
         param_str = json.dumps(params, sort_keys=True)
-        key = f"api:{endpoint}:{hash(param_str)}"
+        key = f"api:{endpoint}:{_cache_key_hash(param_str)}"
         return self.get(key)
     
     def set_api_response(self, endpoint: str, params: Dict[str, Any], response: Any) -> bool:
         """设置API响应缓存"""
         # 生成缓存键
         param_str = json.dumps(params, sort_keys=True)
-        key = f"api:{endpoint}:{hash(param_str)}"
+        key = f"api:{endpoint}:{_cache_key_hash(param_str)}"
         
         # API响应缓存时间较短
         ttl = 300  # 5分钟
@@ -337,9 +341,9 @@ def cached(ttl: int = None, key_prefix: str = ""):
             
             # 添加参数到缓存键
             if args:
-                cache_key += f":{hash(str(args))}"
+                cache_key += f":{_cache_key_hash(str(args))}"
             if kwargs:
-                cache_key += f":{hash(str(sorted(kwargs.items())))}"
+                cache_key += f":{_cache_key_hash(str(sorted(kwargs.items())))}"
             
             # 尝试获取缓存
             found, cached_value = cache_service.get(cache_key)

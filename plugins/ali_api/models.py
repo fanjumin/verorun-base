@@ -18,11 +18,9 @@ from contextlib import contextmanager
 import sys
 import os
 from plugins._base.db import get_raw_connection
+from plugin_manager.logger import get_plugin_logger
 
-# 插件独立数据库路径（保留用于迁移）
-ALI_DB_PATH = os.environ.get(
-    "ALIBABA_DB_PATH", os.path.join(os.path.dirname(__file__), "ali_api.db")
-)
+logger = get_plugin_logger('ali_api')
 
 
 class _PgConnection:
@@ -32,7 +30,7 @@ class _PgConnection:
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
+            cur.execute(sql, params)
         else:
             cur.execute(sql)
         return cur
@@ -317,39 +315,29 @@ class AliApiItem:
     
     @staticmethod
     def migrate_b2b_fields(conn) -> bool:
-        """迁移旧数据，增加 B2B 字段（幂等）"""
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN moq BIGINT DEFAULT 0")
-        except Exception:
-            pass  # 已存在
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN wholesale_price TEXT DEFAULT '[]'")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN is_support_agent BIGINT DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_credit BIGINT DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN shop_level BIGINT DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_name TEXT DEFAULT ''")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN seller_id TEXT DEFAULT ''")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE ali_api_items ADD COLUMN location TEXT DEFAULT ''")
-        except Exception:
-            pass
+        """迁移旧数据，增加 B2B 字段（幂等）
+
+        先通过 information_schema 检查列是否已存在，再执行 ALTER，
+        避免用 try/except 静默吞掉连接错误/权限错误。
+        """
+        existing = {
+            r['column_name'] for r in conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE schemaname = CURRENT_SCHEMA() AND table_name = 'ali_api_items'"
+            ).fetchall()
+        }
+        for col, ddl in [
+            ('moq',              "ALTER TABLE ali_api_items ADD COLUMN moq BIGINT DEFAULT 0"),
+            ('wholesale_price',  "ALTER TABLE ali_api_items ADD COLUMN wholesale_price TEXT DEFAULT '[]'"),
+            ('is_support_agent', "ALTER TABLE ali_api_items ADD COLUMN is_support_agent BIGINT DEFAULT 0"),
+            ('seller_credit',    "ALTER TABLE ali_api_items ADD COLUMN seller_credit BIGINT DEFAULT 0"),
+            ('shop_level',       "ALTER TABLE ali_api_items ADD COLUMN shop_level BIGINT DEFAULT 0"),
+            ('seller_name',      "ALTER TABLE ali_api_items ADD COLUMN seller_name TEXT DEFAULT ''"),
+            ('seller_id',        "ALTER TABLE ali_api_items ADD COLUMN seller_id TEXT DEFAULT ''"),
+            ('location',         "ALTER TABLE ali_api_items ADD COLUMN location TEXT DEFAULT ''"),
+        ]:
+            if col not in existing:
+                conn.execute(ddl)
         conn.commit()
         return True
 
@@ -854,7 +842,7 @@ class AliApiConfig:
                 if table_check:
                     for key in AliApiConfig.SYSTEM_CONFIG_KEYS:
                         row = main_conn.execute(
-                            'SELECT value, description FROM system_config WHERE key = ?', (key,)
+                            'SELECT value, description FROM system_config WHERE key = %s', (key,)
                         ).fetchone()
                         if row and row['value']:
                             rows_map[key] = (row['value'], row['description'] or '')
@@ -874,7 +862,7 @@ class AliApiConfig:
         conn.commit()
 
         if migrated:
-            print(f'[AliApi] √ 已从 system_config 迁移 {migrated} 条配置到 ali_api_config')
+            logger.info(f'[AliApi] √ 已从 system_config 迁移 {migrated} 条配置到 ali_api_config')
         return True
 
 
@@ -1018,12 +1006,106 @@ def migrate_data_from_main_db():
                             f"INSERT INTO {t} ({collist}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
                             [row[c] for c in cols],
                         )
-                    print(f"[AliApi] 迁移遗留数据 {t}: {len(src_rows)} 行 → PG schema ali_api")
+                    logger.info(f"[AliApi] 迁移遗留数据 {t}: {len(src_rows)} 行 → PG schema ali_api")
                 local_conn.commit()
     except ImportError:
         pass  # 脱离主项目，无需迁移
     except Exception as e:
-        print(f"[AliApi] 遗留数据迁移跳过/失败（不影响运行）: {e}")
+        logger.warning(f"[AliApi] 遗留数据迁移跳过/失败（不影响运行）: {e}")
+
+
+class AgentRegistry:
+    """插件本地 Agent 注册表（替代主库 agent_matrix 写入）"""
+
+    @staticmethod
+    def create_table(conn):
+        conn.execute('''CREATE TABLE IF NOT EXISTS agent_registry (
+            id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            name            TEXT NOT NULL,
+            identifier      TEXT DEFAULT '',
+            role_type       TEXT DEFAULT 'sub',
+            description     TEXT DEFAULT '',
+            domain          TEXT DEFAULT 'supply_chain',
+            provider        TEXT DEFAULT '',
+            model_name      TEXT DEFAULT '',
+            system_prompt   TEXT DEFAULT '',
+            capabilities    TEXT DEFAULT '[]',
+            is_active       BIGINT DEFAULT 1,
+            created_at      TIMESTAMPTZ DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ DEFAULT NOW()
+        )''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_ali_agent_registry_id ON agent_registry(identifier)')
+
+
+class SchemaMeta:
+    """Schema 版本跟踪表（§10.6）"""
+
+    @staticmethod
+    def create_table(conn):
+        conn.execute('''CREATE TABLE IF NOT EXISTS schema_meta (
+            key         TEXT PRIMARY KEY,
+            value       TEXT DEFAULT '',
+            updated_at  TIMESTAMPTZ DEFAULT NOW()
+        )''')
+
+
+def upsert_agent(name: str, role_type: str, description: str, domain: str,
+                 provider: str, model_name: str, system_prompt: str,
+                 capabilities: str, is_active: int = 1, identifier: str = ''):
+    """注册或更新本地 Agent（幂等，§4）"""
+    with get_db() as conn:
+        exists = conn.execute(
+            'SELECT id FROM agent_registry WHERE name=%s AND role_type=%s',
+            (name, role_type)
+        ).fetchone()
+        if exists:
+            conn.execute('''
+                UPDATE agent_registry
+                SET description=%s, domain=%s, provider=%s, model_name=%s,
+                    system_prompt=%s, capabilities=%s, is_active=%s,
+                    identifier=%s, updated_at=NOW()
+                WHERE id=%s
+            ''', (description, domain, provider, model_name,
+                  system_prompt, capabilities, is_active, identifier, exists['id']))
+        else:
+            conn.execute('''
+                INSERT INTO agent_registry
+                (name, identifier, role_type, description, domain, provider, model_name,
+                 system_prompt, capabilities, is_active)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ''', (name, identifier, role_type, description, domain, provider, model_name,
+                  system_prompt, capabilities, is_active))
+        conn.commit()
+
+
+def unregister_agents():
+    """注销插件本地注册的所有 Agent（§4.2 禁用/卸载流程）"""
+    with get_db() as conn:
+        conn.execute('DELETE FROM agent_registry')
+        conn.commit()
+
+
+def get_schema_version() -> str:
+    """从 schema_meta 表读取当前 schema 版本（§10.6）"""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM schema_meta WHERE key='schema_version'"
+            ).fetchone()
+            return row['value'] if row else '0.0.0'
+    except Exception:
+        return '0.0.0'
+
+
+def set_schema_version(version: str):
+    """写入当前 schema 版本（§10.6）"""
+    with get_db() as conn:
+        conn.execute('''
+            INSERT INTO schema_meta (key, value, updated_at)
+            VALUES ('schema_version', %s, NOW())
+            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
+        ''', (version,))
+        conn.commit()
 
 
 def init_tables():
@@ -1038,6 +1120,8 @@ def init_tables():
         OAuthState.create_table(conn)
         AliApiConfig.create_table(conn)
         AliPurchaseOrder.create_table(conn)
+        AgentRegistry.create_table(conn)
+        SchemaMeta.create_table(conn)
         conn.commit()
     # 复制主库遗留的 ali_api_* 数据（幂等、非破坏）
     migrate_data_from_main_db()
@@ -1046,8 +1130,8 @@ def init_tables():
         try:
             AliApiConfig.migrate_from_system_config(conn)
         except Exception as e:
-            print(f"[AliApi] 配置迁移跳过: {e}")
-    print("[AliApi] 数据表初始化完成（PG schema ali_api）")
+            logger.warning(f"[AliApi] 配置迁移跳过: {e}")
+    logger.info("[AliApi] 数据表初始化完成（PG schema ali_api）")
 
 if __name__ == "__main__":
     # 测试数据库初始化

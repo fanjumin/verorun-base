@@ -7,7 +7,6 @@
 3. 解析搜索结果
 """
 
-from i18n import _
 import base64
 import logging
 import os
@@ -146,6 +145,7 @@ def _parse_image_search_result(api_response: dict) -> list:
 
 
 if __name__ == '__main__':
+    from ..plugin_i18n import t as _
     print(_("1688 Image Search Service"))
     print(_("Usage: search_by_image_file(path, token)"))
     print("      search_by_image_url(url, token)")

@@ -1,6 +1,110 @@
-商品采集: 商品采集
-AI 优化: AI 优化
-本地发布: 本地发布
-1688 供应链插件: 1688 供应链插件
-AliApiPlugin v0.2.0: AliApiPlugin v0.2.0
-提供 1688 商品采集、AI 智能优化和本地商城发布功能: 提供 1688 商品采集、AI 智能优化和本地商城发布功能
+# 1688 供应链采集插件 — 中文翻译（源键为英文，§12.1）
+Product Sourcing: 商品采集
+AI Optimization: AI 优化
+Local Publishing: 本地发布
+1688 Supply Chain Plugin: 1688 供应链插件
+AliApiPlugin v2.0.1: AliApiPlugin v2.0.1
+1688 product sourcing, AI optimization, and local marketplace publishing: 提供 1688 商品采集、AI 智能优化和本地商城发布功能
+
+# ── 前端界面字符串（来源：static/ali_console.js __() 调用）──
+Unpriced: 未定价
+Active: 活跃
+Inactive: 非活跃
+Draft: 草稿
+Published: 已发布
+Unpublished: 已下架
+Failed: 失败
+Success: 成功
+Please enter Product ID: 请输入商品ID
+Please enter a numeric ID: 请输入数字ID
+Clear cache?: 确定清理缓存？
+Clear failed: 清理失败
+Available: 可用
+Unavailable: 不可用
+Not configured: 未配置
+Configured: 已配置
+Failed to load products: 加载商品失败
+No product data: 暂无商品数据
+Image: 图片
+No image: 无图
+No title: 无标题
+Uncategorized: 未分类
+View: 查看
+AI Title: AI标题
+AI Title Options: AI标题选项
+Publish: 发布
+Previous: 上一页
+Next: 下一页
+Fetch failed: 获取失败
+Load failed: 加载失败
+View failed: 查看失败
+Product ID: 商品ID
+Title: 标题
+Selected title: 已选标题
+Price: 价格
+Original price: 原价
+Category: 类目
+Status: 状态
+Local Product ID: 本地商品ID
+Specs: 规格
+Image list: 图片列表
+No images yet, click the area above to upload: 暂无图片，请点击上方区域上传
+Delete: 删除
+Delete failed: 删除失败
+Collect failed: 采集失败
+From cache: （来自缓存）
+Please enter search keyword: 请输入搜索关键词
+Search failed: 搜索失败
+AI title generation failed: AI生成标题失败
+No valid AI title options: AI未生成有效的标题选项
+Option: 选项
+Recommended: 推荐
+Please select a title: 请选择一个标题
+Professional: 专业型
+Attractive: 吸引力型
+Concise: 简洁型
+Generic: 通用
+Title selected: 标题已选择成功！
+Selection failed: 选择失败
+Please enter stock quantity (default 999): 请输入库存数量（默认999）
+Publish failed: 发布失败
+No logs: 暂无日志
+System: 系统
+User rate limit: 用户限流
+Daily remaining: 每日剩余
+Hourly remaining: 每小时剩余
+Concurrency control: 并发控制
+Active requests: 活跃请求
+Current QPS: 当前QPS
+Connected: 已连接
+Disconnected: 未连接
+Memory: 内存
+Using memory cache: 使用内存缓存
+Entries: 条目
+seconds: 秒
+Memory cache: 内存缓存
+Connections: 连接数
+Expired: 过期
+Using Redis: 使用Redis
+Yes: 是
+No: 否
+Provider: 供应商
+Model: 模型
+User daily limit: 用户日限
+User hourly limit: 用户时限
+Global concurrency: 全局并发
+Global QPS: 全局QPS
+Circuit breaker threshold: 熔断阈值
+Product cache TTL: 商品缓存TTL
+API Gateway URL: API 网关地址
+Save Config: 保存配置
+Saving...: 保存中...
+Saved: 已保存
+Save failed: 保存失败
+Please fill in at least AppKey or AppSecret: 请至少填写 AppKey 或 AppSecret
+Enter 1688 AppSecret: 输入 1688 AppSecret
+No drop-shipping orders: 暂无代发订单
+One-click Purchase: 一键采购
+Sync Tracking: 同步物流
+Order failed: 下单失败
+Unknown error: 未知错误

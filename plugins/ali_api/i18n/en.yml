@@ -1,6 +1,110 @@
-商品采集: Product Sourcing
-AI 优化: AI Optimization
-本地发布: Local Publishing
-1688 供应链插件: 1688 Supply Chain Plugin
-AliApiPlugin v0.2.0: AliApiPlugin v0.2.0
-提供 1688 商品采集、AI 智能优化和本地商城发布功能: 1688 product sourcing, AI optimization, and local marketplace publishing
+# 1688 Supply Chain Plugin — English translations (source keys are English, §12.1)
+Product Sourcing: Product Sourcing
+AI Optimization: AI Optimization
+Local Publishing: Local Publishing
+1688 Supply Chain Plugin: 1688 Supply Chain Plugin
+AliApiPlugin v2.0.1: AliApiPlugin v2.0.1
+1688 product sourcing, AI optimization, and local marketplace publishing: 1688 product sourcing, AI optimization, and local marketplace publishing
+
+# ── Frontend UI strings (source: static/ali_console.js __() calls) ──
+Unpriced: Unpriced
+Active: Active
+Inactive: Inactive
+Draft: Draft
+Published: Published
+Unpublished: Unpublished
+Failed: Failed
+Success: Success
+Please enter Product ID: Please enter Product ID
+Please enter a numeric ID: Please enter a numeric ID
+Clear cache?: Clear cache?
+Clear failed: Clear failed
+Available: Available
+Unavailable: Unavailable
+Not configured: Not configured
+Configured: Configured
+Failed to load products: Failed to load products
+No product data: No product data
+Image: Image
+No image: No image
+No title: No title
+Uncategorized: Uncategorized
+View: View
+AI Title: AI Title
+AI Title Options: AI Title Options
+Publish: Publish
+Previous: Previous
+Next: Next
+Fetch failed: Fetch failed
+Load failed: Load failed
+View failed: View failed
+Product ID: Product ID
+Title: Title
+Selected title: Selected title
+Price: Price
+Original price: Original price
+Category: Category
+Status: Status
+Local Product ID: Local Product ID
+Specs: Specs
+Image list: Image list
+No images yet, click the area above to upload: No images yet, click the area above to upload
+Delete: Delete
+Delete failed: Delete failed
+Collect failed: Collect failed
+From cache: From cache
+Please enter search keyword: Please enter search keyword
+Search failed: Search failed
+AI title generation failed: AI title generation failed
+No valid AI title options: No valid AI title options
+Option: Option
+Recommended: Recommended
+Please select a title: Please select a title
+Professional: Professional
+Attractive: Attractive
+Concise: Concise
+Generic: Generic
+Title selected: Title selected!
+Selection failed: Selection failed
+Please enter stock quantity (default 999): Please enter stock quantity (default 999)
+Publish failed: Publish failed
+No logs: No logs
+System: System
+User rate limit: User rate limit
+Daily remaining: Daily remaining
+Hourly remaining: Hourly remaining
+Concurrency control: Concurrency control
+Active requests: Active requests
+Current QPS: Current QPS
+Connected: Connected
+Disconnected: Disconnected
+Memory: Memory
+Using memory cache: Using memory cache
+Entries: Entries
+seconds: seconds
+Memory cache: Memory cache
+Connections: Connections
+Expired: Expired
+Using Redis: Using Redis
+Yes: Yes
+No: No
+Provider: Provider
+Model: Model
+User daily limit: User daily limit
+User hourly limit: User hourly limit
+Global concurrency: Global concurrency
+Global QPS: Global QPS
+Circuit breaker threshold: Circuit breaker threshold
+Product cache TTL: Product cache TTL
+API Gateway URL: API Gateway URL
+Save Config: Save Config
+Saving...: Saving...
+Saved: Saved
+Save failed: Save failed
+Please fill in at least AppKey or AppSecret: Please fill in at least AppKey or AppSecret
+Enter 1688 AppSecret: Enter 1688 AppSecret
+No drop-shipping orders: No drop-shipping orders
+One-click Purchase: One-click Purchase
+Sync Tracking: Sync Tracking
+Order failed: Order failed
+Unknown error: Unknown error

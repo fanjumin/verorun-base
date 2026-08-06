@@ -8,7 +8,6 @@
 4. 支持分页拉取
 """
 
-from i18n import _
 import logging
 from typing import Dict, Any, Optional, Tuple
 
@@ -134,6 +133,7 @@ def get_reviews(product_id: str, page: int = 1, page_size: int = 20) -> list:
 
 if __name__ == '__main__':
     import pprint
+    from ..plugin_i18n import t as _
     # 测试：仅展示接口
     print(_("1688 Product Review Collection Service"))
     print(_("Usage: fetch_and_store_reviews(product_id, access_token)"))

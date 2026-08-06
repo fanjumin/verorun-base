@@ -9,7 +9,6 @@
 """
 
 import os
-import json
 from typing import Dict, Any, Optional
 
 
@@ -27,7 +26,7 @@ def _get_alibaba_config_from_db() -> Dict[str, str]:
         from .models import get_db
         with get_db() as conn:
             # ① 优先从 ali_api_config 读取（插件独立库）
-            placeholders = ','.join('?' for _ in required_keys)
+            placeholders = ','.join('%s' for _ in required_keys)
             rows = conn.execute(
                 f"SELECT key, value FROM ali_api_config WHERE key IN ({placeholders})",
                 required_keys
@@ -80,6 +79,23 @@ ALIBABA_CONFIG = {
         "order_by": "gmv_desc",  # 按成交额降序
     }
 }
+
+
+def reload_config() -> Dict[str, Any]:
+    """从数据库重新加载 alibaba 配置到内存（配置保存后调用，避免重启服务）。
+
+    原地更新 ALIBABA_CONFIG 字典；由于 config['alibaba'] 引用同一字典对象，
+    其他模块已持有的 config 引用也能立即看到新值。
+    """
+    _cfg = _get_alibaba_config_from_db()
+    ALIBABA_CONFIG['app_key'] = (_cfg.get('alibaba_app_key', '')
+                                 or os.environ.get("ALIBABA_APP_KEY", ""))
+    ALIBABA_CONFIG['app_secret'] = (_cfg.get('alibaba_app_secret', '')
+                                    or os.environ.get("ALIBABA_APP_SECRET", ""))
+    ALIBABA_CONFIG['api_gateway'] = (_cfg.get('alibaba_api_gateway', '')
+                                     or os.environ.get("ALIBABA_API_GATEWAY",
+                                                       "https://gw.open.1688.com/openapi"))
+    return validate_config()
 
 # ===== 风控配置 =====
 RATE_LIMIT_CONFIG = {

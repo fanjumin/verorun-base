@@ -40,6 +40,11 @@ ali_admin_bp = Blueprint('ali_api_admin', __name__, url_prefix='/admin/ali-api',
 
 logger = logging.getLogger(__name__)
 
+# 模块加载时一次性将 auth-center 加入 sys.path（避免每个请求都重复 insert）
+_AUTH_CENTER_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center')
+if _AUTH_CENTER_PATH not in sys.path:
+    sys.path.insert(0, _AUTH_CENTER_PATH)
+
 # ===== 辅助函数 =====
 
 import secrets
@@ -80,7 +85,6 @@ def _require_admin():
     if not token:
         return None
     
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center'))
     from services.jwt_service import validate_token
     payload = validate_token(token)
     if not payload or not payload.get('is_admin'):
@@ -227,6 +231,9 @@ def dashboard():
 def list_items():
     """列出商品"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         page, per_page = _get_pagination_params()
         status = request.args.get('status', 'active')
         keyword = request.args.get('keyword', '')
@@ -241,7 +248,7 @@ def list_items():
             else:
                 # 分页查询
                 items = AliApiItem.list_items(conn, status, per_page, offset)
-                total = conn.execute('SELECT COUNT(*) as count FROM ali_api_items WHERE status = ?', (status,)).fetchone()['count']
+                total = conn.execute('SELECT COUNT(*) as count FROM ali_api_items WHERE status = %s', (status,)).fetchone()['count']
             
             # 格式化数据
             formatted_items = []
@@ -285,6 +292,9 @@ def list_items():
 def get_item(item_id):
     """获取商品详情"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             
@@ -537,6 +547,9 @@ def search_products():
 def ai_optimize_item(item_id):
     """AI优化商品"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         # 检查AI可用性
         if not is_ai_available():
             return _error('AI服务不可用')
@@ -575,11 +588,11 @@ def ai_optimize_item(item_id):
             
             if update_data:
                 # 构建更新SQL
-                set_clause = ', '.join([f"{k} = ?" for k in update_data.keys()])
+                set_clause = ', '.join([f"{k} = %s" for k in update_data.keys()])
                 values = list(update_data.values())
                 values.append(item_id)
                 
-                conn.execute(f"UPDATE ali_api_items SET {set_clause}, updated_at = ? WHERE id = ?", 
+                conn.execute(f"UPDATE ali_api_items SET {set_clause}, updated_at = %s WHERE id = %s", 
                            values + [datetime.now().isoformat(), item_id])
                 conn.commit()
         
@@ -597,6 +610,9 @@ def ai_optimize_item(item_id):
 def generate_ai_titles(item_id):
     """AI生成多版本标题选项"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         # 检查AI可用性
         if not is_ai_available():
             return _error('AI服务不可用')
@@ -640,6 +656,9 @@ def generate_ai_titles(item_id):
 def select_title(item_id):
     """选择AI生成的标题"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         data = request.json
         if not data or 'title' not in data:
             return _error('请提供要选择的标题')
@@ -734,10 +753,7 @@ def publish_product(item_id):
             # 插入到 products 表（使用主项目的数据库连接）
             # 先尝试导入主项目数据库
             try:
-                sys_path_backup = list(sys.path)
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center'))
                 from models import get_db as get_main_db
-                sys.path = sys_path_backup
             except ImportError:
                 return _error('无法连接主数据库，请确认auth-center模块路径正确')
             
@@ -816,6 +832,9 @@ def publish_product(item_id):
 def unpublish_product(item_id):
     """下架已发布的商品"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
@@ -829,7 +848,6 @@ def unpublish_product(item_id):
             # 更新主数据库 products 表
             if target_product_id:
                 try:
-                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'auth-center'))
                     from models import get_db as get_main_db
                     with get_main_db() as main_conn:
                         main_conn.execute(
@@ -854,6 +872,9 @@ def unpublish_product(item_id):
 def list_images(item_id):
     """获取商品的图片列表"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
@@ -944,7 +965,7 @@ def upload_image(item_id):
             # 更新
             now_iso = datetime.now().isoformat()
             conn.execute(
-                'UPDATE ali_api_items SET images = ?, updated_at = ? WHERE id = ?',
+                'UPDATE ali_api_items SET images = %s, updated_at = %s WHERE id = %s',
                 (json.dumps(images, ensure_ascii=False), now_iso, item_id)
             )
             conn.commit()
@@ -964,6 +985,9 @@ def upload_image(item_id):
 def delete_image(item_id, image_index):
     """删除商品图片"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         with get_db() as conn:
             item = AliApiItem.get_by_id(conn, item_id)
             if not item:
@@ -993,7 +1017,7 @@ def delete_image(item_id, image_index):
             # 更新数据库
             now_iso = datetime.now().isoformat()
             conn.execute(
-                'UPDATE ali_api_items SET images = ?, updated_at = ? WHERE id = ?',
+                'UPDATE ali_api_items SET images = %s, updated_at = %s WHERE id = %s',
                 (json.dumps(images, ensure_ascii=False), now_iso, item_id)
             )
             conn.commit()
@@ -1009,6 +1033,9 @@ def delete_image(item_id, image_index):
 def reorder_images(item_id):
     """重新排序图片"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         data = request.json
         if not data or 'order' not in data:
             return _error('请提供图片顺序')
@@ -1036,7 +1063,7 @@ def reorder_images(item_id):
             
             now_iso = datetime.now().isoformat()
             conn.execute(
-                'UPDATE ali_api_items SET images = ?, updated_at = ? WHERE id = ?',
+                'UPDATE ali_api_items SET images = %s, updated_at = %s WHERE id = %s',
                 (json.dumps(reordered, ensure_ascii=False), now_iso, item_id)
             )
             conn.commit()
@@ -1051,6 +1078,9 @@ def reorder_images(item_id):
 def cache_stats():
     """缓存统计"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         cache_service = get_cache_service()
         stats = cache_service.stats()
         return _success(stats)
@@ -1063,6 +1093,9 @@ def cache_stats():
 def clear_cache():
     """清除缓存"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         data = request.json or {}
         cache_type = data.get('type', 'all')  # all, product, api
         
@@ -1100,6 +1133,9 @@ def clear_cache():
 def rate_limit_stats():
     """风控统计"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         rate_manager = get_rate_limit_manager()
         stats = rate_manager.get_stats()
         return _success(stats)
@@ -1111,6 +1147,9 @@ def rate_limit_stats():
 def api_logs():
     """API调用日志"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         page, per_page = _get_pagination_params()
         endpoint = request.args.get('endpoint', '')
         success = request.args.get('success', '')
@@ -1123,11 +1162,11 @@ def api_logs():
             params = []
             
             if endpoint:
-                conditions.append("endpoint LIKE ?")
+                conditions.append("endpoint LIKE %s")
                 params.append(f"%{endpoint}%")
             
             if success.lower() in ['true', 'false']:
-                conditions.append("success = ?")
+                conditions.append("success = %s")
                 params.append(1 if success.lower() == 'true' else 0)
             
             where_clause = " AND ".join(conditions) if conditions else "1=1"
@@ -1137,7 +1176,7 @@ def api_logs():
                 SELECT * FROM ali_api_logs 
                 WHERE {where_clause}
                 ORDER BY created_at DESC 
-                LIMIT ? OFFSET ?
+                LIMIT %s OFFSET %s
             '''
             logs = conn.execute(query, params + [per_page, offset]).fetchall()
             
@@ -1177,6 +1216,9 @@ def api_logs():
 def get_config():
     """获取配置信息（脱敏）"""
     try:
+        admin, err = _require_admin_or_error()
+        if err:
+            return err
         # 从独立库 ali_api_config 实时读取 AppKey/AppSecret（不依赖内存缓存）
         from ..models import get_db
         db_app_key = ''
@@ -1243,7 +1285,17 @@ def save_config():
         conn.commit()
 
     logger.info(f"ali_api 配置已保存 (user_id={admin['user_id']})")
-    return _success(None, '配置保存成功。部分更改需要重启服务后才能生效。')
+
+    # H5：保存后立即热重载内存配置，使 AppKey/AppSecret 无需重启即可生效
+    try:
+        from ..config import reload_config
+        errors = reload_config()
+        if errors:
+            logger.warning(f"ali_api 配置热重载校验告警: {errors}")
+    except Exception as e:
+        logger.error(f"ali_api 配置热重载失败: {e}")
+
+    return _success(None, '配置保存成功。')
 
 # ── GET /admin/ali-api/settings ──
 # PluginManager 标准化配置接口（非敏感配置）

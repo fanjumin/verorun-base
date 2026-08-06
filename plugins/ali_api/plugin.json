@@ -7,15 +7,61 @@
     "min_app_version": "0.10.0",
     "dependencies": {},
     "enabled": true,
+    "category": "supply_chain",
+    "tags": [
+        "电商",
+        "采集",
+        "AI"
+    ],
+    "icon": "package",
+    "readme_url": "README.en.md",
     "admin_url": "",
     "admin_label": "1688 Settings",
     "config": {
         "api_gateway": "https://gw.open.1688.com/openapi"
     },
     "permissions": [
-        "network.request",
-        "shop.product.write"
+        "network:request",
+        "api:write"
     ],
+    "agents": [
+        {
+            "name": "Supply Chain Agent",
+            "identifier": "supply_chain",
+            "role_type": "sub",
+            "domain": "supply_chain",
+            "prompt_file": "agents/supply_chain_prompt.md",
+            "model_policy": {
+                "strategy": "tier",
+                "tier": "standard"
+            },
+            "capabilities": [
+                "product.search",
+                "product.rewrite",
+                "product.publish"
+            ],
+            "enabled_by_default": true
+        }
+    ],
+    "dashboard": {
+        "stats": [
+            {
+                "key": "total_items",
+                "title": "已采集商品",
+                "type": "counter"
+            },
+            {
+                "key": "published_today",
+                "title": "今日发布",
+                "type": "counter"
+            },
+            {
+                "key": "api_calls_24h",
+                "title": "24h API调用",
+                "type": "gauge"
+            }
+        ]
+    },
     "hooks": {
         "provides": [],
         "listens": []
