@@ -4,7 +4,7 @@
 
 Analytics 是 VeroRun 的服务端无 Cookie 分析中间件插件，提供完整的网站访问数据采集、存储、聚合与可视化能力。插件通过无 Cookie 的轻量级追踪方式，在不依赖客户端 Cookie 的前提下实现 PV/UV 统计、访问者会话识别、页面级行为分析、地理位置解析以及趋势分析等功能。
 
-版本：**1.2.0**
+版本：**1.5.1**
 
 ## 功能特性
 
@@ -142,7 +142,7 @@ python -m plugins.analytics.migrate_analytics
 ```json
 {
   "name": "analytics",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "database": {
     "type": "postgresql",
     "schema": "analytics"

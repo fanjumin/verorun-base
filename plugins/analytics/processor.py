@@ -191,85 +191,24 @@ class AnalyticsProcessor:
             'avg_response_time': int(avg_response_time),
         }, svc)
 
-        # 聚合页面统计
-        pages = conn.execute(
-            f"SELECT path, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv, "
-            "ROUND(AVG(response_time), 0) avg_time "
-            f"FROM analytics_logs {where} AND is_bot=0 "
-            "GROUP BY path",
-            params
-        ).fetchall()
-
-        for pg in pages:
-            entries = conn.execute(
-                "SELECT COUNT(*) c FROM analytics_visitor_sessions "
-                "WHERE entry_path=? AND start_time>=? AND start_time<? AND is_bot=0",
-                (pg['path'], start, end)
-            ).fetchone()['c']
-
-            exits = conn.execute(
-                "SELECT COUNT(*) c FROM analytics_visitor_sessions "
-                "WHERE exit_path=? AND start_time>=? AND start_time<? AND is_bot=0",
-                (pg['path'], start, end)
-            ).fetchone()['c']
-
-            am.upsert_page_stat(conn, today_str, pg['path'], {
-                'pv': pg['pv'], 'uv': pg['uv'],
-                'entries': entries, 'exits': exits,
-                'total_time': pg['pv'] * pg['avg_time'] if pg['avg_time'] else 0,
-            })
-
-        # 聚合来源统计
-        sources = conn.execute(
-            f"SELECT referer_domain, MIN(referer) referer, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv "
-            f"FROM analytics_logs {where} AND is_bot=0 AND referer!='' "
-            "GROUP BY referer_domain",
-            params
-        ).fetchall()
-
-        for src in sources:
-            s_type, s_name = am.classify_source(src['referer'])
-            am.upsert_source(conn, today_str, s_type, s_name or 'direct', {
-                'pv': src['pv'], 'uv': src['uv'],
-            })
-
-        # 聚合地理统计
-        geos = conn.execute(
-            f"SELECT country, city, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv "
-            f"FROM analytics_logs {where} AND is_bot=0 AND country!='' "
-            "GROUP BY country, city",
-            params
-        ).fetchall()
-
-        for g in geos:
-            am.upsert_geo(conn, today_str, g['country'], g['city'], {
-                'pv': g['pv'], 'uv': g['uv'],
-            })
-
-        # 聚合设备统计
-        devices = conn.execute(
-            f"SELECT device_type, browser, os_name, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv "
-            f"FROM analytics_logs {where} AND is_bot=0 "
-            "GROUP BY device_type, browser, os_name",
-            params
-        ).fetchall()
-
-        for d in devices:
-            am.upsert_device(conn, today_str, d['device_type'], d['browser'], d['os_name'], {
-                'pv': d['pv'], 'uv': d['uv'],
-            })
+        # 页面/来源/地理/设备统计已移至 _aggregate_daily（日级全量重算 + 覆盖语义），
+        # 避免按小时重复累加导致数据虚高。
 
         # 更新统计数据
         self.stats['processed']['pv'] += pv
         self.stats['processed']['bot'] += bot_count
         self.stats['processed']['error'] += error_count
 
-    def _aggregate_daily(self, conn):
-        """从小时聚合计算每日汇总"""
-        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-        today = datetime.now().strftime('%Y-%m-%d')
+    def _aggregate_daily(self, conn, date_str=None):
+        """从小时聚合计算每日汇总（可指定 date_str 重算历史日期；不指定则处理昨天+今天）"""
+        if date_str:
+            dates = [date_str]
+        else:
+            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            today = datetime.now().strftime('%Y-%m-%d')
+            dates = [yesterday, today]
 
-        for date_str in [yesterday, today]:
+        for date_str in dates:
             rows = conn.execute(
                 "SELECT COALESCE(SUM(pv),0) pv, COALESCE(SUM(uv),0) uv, "
                 "COALESCE(SUM(ipv),0) ipv, COALESCE(SUM(new_visitors),0) nv, "
@@ -349,7 +288,77 @@ class AnalyticsProcessor:
                 'total_sessions': sessions,
             })
 
-        logger.info('Daily aggregation completed [%s]', today)
+            # 日级 页面/来源/地理/设备 统计（全量重算当日 + 覆盖语义）
+            day_where = "WHERE timestamp>=? AND timestamp<? AND is_bot=0"
+            day_params = [day_start, day_end]
+
+            pages = conn.execute(
+                "SELECT path, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv, "
+                "ROUND(AVG(response_time), 0) avg_time "
+                f"FROM analytics_logs {day_where} "
+                "GROUP BY path",
+                day_params
+            ).fetchall()
+
+            for pg in pages:
+                entries = conn.execute(
+                    "SELECT COUNT(*) c FROM analytics_visitor_sessions "
+                    "WHERE entry_path=? AND start_time>=? AND start_time<? AND is_bot=0",
+                    (pg['path'], day_start, day_end)
+                ).fetchone()['c']
+
+                exits = conn.execute(
+                    "SELECT COUNT(*) c FROM analytics_visitor_sessions "
+                    "WHERE exit_path=? AND start_time>=? AND start_time<? AND is_bot=0",
+                    (pg['path'], day_start, day_end)
+                ).fetchone()['c']
+
+                am.upsert_page_stat(conn, date_str, pg['path'], {
+                    'pv': pg['pv'], 'uv': pg['uv'],
+                    'entries': entries, 'exits': exits,
+                    'total_time': pg['pv'] * pg['avg_time'] if pg['avg_time'] else 0,
+                })
+
+            sources = conn.execute(
+                "SELECT referer_domain, MIN(referer) referer, COUNT(*) pv, "
+                "COUNT(DISTINCT visitor_hash) uv "
+                f"FROM analytics_logs {day_where} AND referer!='' "
+                "GROUP BY referer_domain",
+                day_params
+            ).fetchall()
+
+            for src in sources:
+                s_type, s_name = am.classify_source(src['referer'])
+                am.upsert_source(conn, date_str, s_type, s_name or 'direct', {
+                    'pv': src['pv'], 'uv': src['uv'],
+                })
+
+            geos = conn.execute(
+                "SELECT country, city, COUNT(*) pv, COUNT(DISTINCT visitor_hash) uv "
+                f"FROM analytics_logs {day_where} AND country!='' "
+                "GROUP BY country, city",
+                day_params
+            ).fetchall()
+
+            for g in geos:
+                am.upsert_geo(conn, date_str, g['country'], g['city'], {
+                    'pv': g['pv'], 'uv': g['uv'],
+                })
+
+            devices = conn.execute(
+                "SELECT device_type, browser, os_name, COUNT(*) pv, "
+                "COUNT(DISTINCT visitor_hash) uv "
+                f"FROM analytics_logs {day_where} "
+                "GROUP BY device_type, browser, os_name",
+                day_params
+            ).fetchall()
+
+            for d in devices:
+                am.upsert_device(conn, date_str, d['device_type'], d['browser'], d['os_name'], {
+                    'pv': d['pv'], 'uv': d['uv'],
+                })
+
+        logger.info('Daily aggregation completed [%s]', ', '.join(dates))
 
     @staticmethod
     def _get_admin_ids(raw):

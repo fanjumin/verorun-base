@@ -575,23 +575,23 @@ def insert_event(conn, data: dict) -> int:
 # ─── 聚合写入 ──────────────────────────────────────────────────────────────────
 
 def upsert_hourly(conn, date_str: str, hour: int, delta: dict, service: str = ''):
-    """更新或插入小时聚合"""
+    """更新或插入小时聚合（覆盖语义：每次调用全量重算整个小时，避免重复累加导致数据虚高）"""
     conn.execute("""
         INSERT INTO analytics_hourly_stats (date, hour, service_name, pv, uv, ipv,
             new_visitors, bounce_count, total_time, session_count, bot_count,
             error_count, avg_response_time)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(date, hour, service_name) DO UPDATE SET
-            pv = analytics_hourly_stats.pv + %s,
+            pv = %s,
             uv = GREATEST(analytics_hourly_stats.uv, %s),
             ipv = GREATEST(analytics_hourly_stats.ipv, %s),
-            new_visitors = analytics_hourly_stats.new_visitors + %s,
-            bounce_count = analytics_hourly_stats.bounce_count + %s,
-            total_time = analytics_hourly_stats.total_time + %s,
-            session_count = analytics_hourly_stats.session_count + %s,
-            bot_count = analytics_hourly_stats.bot_count + %s,
-            error_count = analytics_hourly_stats.error_count + %s,
-            avg_response_time = (analytics_hourly_stats.avg_response_time + %s) / 2
+            new_visitors = %s,
+            bounce_count = %s,
+            total_time = %s,
+            session_count = %s,
+            bot_count = %s,
+            error_count = %s,
+            avg_response_time = %s
     """, (
         date_str, hour, service,
         delta.get('pv', 0), delta.get('uv', 0), delta.get('ipv', 0),
@@ -644,36 +644,40 @@ def upsert_daily(conn, date_str: str, stats: dict):
 
 
 def upsert_page_stat(conn, date_str: str, path: str, delta: dict):
-    """更新或插入页面统计"""
+    """更新或插入页面统计（覆盖语义：全量重算整个日期）"""
+    pv = delta.get('pv', 0)
+    uv = delta.get('uv', 0)
+    entries = delta.get('entries', 0)
+    exits = delta.get('exits', 0)
+    total_time = delta.get('total_time', 0)
+    avg_time_on_page = round(total_time / pv, 1) if pv else 0.0
+    exit_rate = round(exits * 1.0 / entries, 4) if entries else 0.0
     conn.execute("""
         INSERT INTO analytics_page_stats (date, path, pv, uv, unique_entries,
             unique_exits, avg_time_on_page, exit_rate, total_time)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(date, path) DO UPDATE SET
-            pv = analytics_page_stats.pv + %s, uv = GREATEST(analytics_page_stats.uv, %s),
-            unique_entries = analytics_page_stats.unique_entries + %s,
-            unique_exits = analytics_page_stats.unique_exits + %s,
-            total_time = analytics_page_stats.total_time + %s,
-            avg_time_on_page = CASE WHEN analytics_page_stats.pv > 0 THEN analytics_page_stats.total_time / analytics_page_stats.pv ELSE 0 END,
-            exit_rate = CASE WHEN analytics_page_stats.unique_entries > 0 THEN analytics_page_stats.unique_exits * 1.0 / analytics_page_stats.unique_entries ELSE 0 END
+            pv = %s, uv = GREATEST(analytics_page_stats.uv, %s),
+            unique_entries = %s,
+            unique_exits = %s,
+            avg_time_on_page = %s,
+            exit_rate = %s,
+            total_time = %s
     """, (
         date_str, path,
-        delta.get('pv', 0), delta.get('uv', 0), delta.get('entries', 0),
-        delta.get('exits', 0), 0, 0, delta.get('total_time', 0),
-        delta.get('pv', 0), delta.get('uv', 0),
-        delta.get('entries', 0), delta.get('exits', 0),
-        delta.get('total_time', 0),
+        pv, uv, entries, exits, avg_time_on_page, exit_rate, total_time,
+        pv, uv, entries, exits, avg_time_on_page, exit_rate, total_time,
     ))
     conn.commit()
 
 
 def upsert_source(conn, date_str: str, source_type: str, source_name: str, delta: dict):
-    """更新或插入来源统计"""
+    """更新或插入来源统计（覆盖语义：全量重算整个日期）"""
     conn.execute("""
         INSERT INTO analytics_source_stats (date, source_type, source_name, pv, uv)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT(date, source_type, source_name) DO UPDATE SET
-            pv = analytics_source_stats.pv + %s, uv = GREATEST(analytics_source_stats.uv, %s)
+            pv = %s, uv = GREATEST(analytics_source_stats.uv, %s)
     """, (
         date_str, source_type, source_name,
         delta.get('pv', 0), delta.get('uv', 0),
@@ -683,12 +687,12 @@ def upsert_source(conn, date_str: str, source_type: str, source_name: str, delta
 
 
 def upsert_geo(conn, date_str: str, country: str, city: str, delta: dict):
-    """更新或插入地理统计"""
+    """更新或插入地理统计（覆盖语义：全量重算整个日期）"""
     conn.execute("""
         INSERT INTO analytics_geo_stats (date, country, city, pv, uv)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT(date, country, city) DO UPDATE SET
-            pv = analytics_geo_stats.pv + %s, uv = GREATEST(analytics_geo_stats.uv, %s)
+            pv = %s, uv = GREATEST(analytics_geo_stats.uv, %s)
     """, (
         date_str, country, city,
         delta.get('pv', 0), delta.get('uv', 0),
@@ -698,12 +702,12 @@ def upsert_geo(conn, date_str: str, country: str, city: str, delta: dict):
 
 
 def upsert_device(conn, date_str: str, device_type: str, browser: str, os_name: str, delta: dict):
-    """更新或插入设备统计"""
+    """更新或插入设备统计（覆盖语义：全量重算整个日期）"""
     conn.execute("""
         INSERT INTO analytics_device_stats (date, device_type, browser, os_name, pv, uv)
         VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT(date, device_type, browser, os_name) DO UPDATE SET
-            pv = analytics_device_stats.pv + %s, uv = GREATEST(analytics_device_stats.uv, %s)
+            pv = %s, uv = GREATEST(analytics_device_stats.uv, %s)
     """, (
         date_str, device_type, browser, os_name,
         delta.get('pv', 0), delta.get('uv', 0),

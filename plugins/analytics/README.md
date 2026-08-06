@@ -141,7 +141,7 @@ The following parameters are configured in `plugin.json`:
 ```json
 {
   "name": "analytics",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "database": {
     "type": "postgresql",
     "schema": "analytics"
@@ -210,6 +210,20 @@ The following parameters are configured in `plugin.json`:
 
 - **Menu group**: `Monitoring & Data`
 - **Embedded URL**: `/admin/analytics/`
+
+## Changelog
+
+### v1.5.1 (2026-08-06)
+
+**Bug fix: aggregation inflation**
+
+Fixed a critical bug where the background aggregation thread re-added the entire current hour's statistics every 60 seconds, inflating PV, session counts and other metrics by up to ~50-60x.
+
+- `upsert_hourly`, `upsert_page_stat`, `upsert_source`, `upsert_geo`, `upsert_device` now use **overwrite semantics** instead of additive: each run fully recomputes the aggregation window so repeated runs converge to the true value.
+- Page/source/geo/device statistics are now aggregated at the **daily level** (full-day recompute + overwrite) instead of the hourly pass.
+- `AnalyticsProcessor._aggregate_daily()` accepts an optional `date_str` parameter for historical recomputation.
+
+> **Upgrade note**: statistics accumulated before v1.5.1 are inflated. After upgrading, clear the aggregation tables (`analytics_hourly_stats`, `analytics_daily_stats`, `analytics_page_stats`, `analytics_source_stats`, `analytics_geo_stats`, `analytics_device_stats`) so real data rebuilds going forward. Raw logs are preserved.
 
 ## License
 
