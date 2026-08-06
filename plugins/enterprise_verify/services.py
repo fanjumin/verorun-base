@@ -1,12 +1,68 @@
 #!/usr/bin/env python3
 """Enterprise Verification Plugin — OCR 识别 + AI 自动审核"""
-from i18n import _
-import sys, os, json, re
+import os
+import json
+import re
+from plugin_manager.logger import get_plugin_logger
+from .plugin_i18n import t
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+logger = get_plugin_logger('enterprise_verify')
 
-DEFAULT_OCR_MODEL = 'deepseek-ai/DeepSeek-OCR'
-DEFAULT_AUDIT_MODEL = 'deepseek-ai/DeepSeek-V3'
+# 与 plugin.json agents 声明一致的 model_policy（§3）
+# 解析优先级：explicit → 策略内 provider+model；tier → system_config model_tier_{tier}；
+#             inherit/fallback → 全局默认（§3.4）。
+_OCR_MODEL_POLICY = {
+    'strategy': 'explicit',
+    'provider': 'siliconflow',
+    'model': 'deepseek-ai/DeepSeek-OCR',
+    'allow_user_override': True,
+    'fallback': 'inherit',
+}
+_AUDIT_MODEL_POLICY = {
+    'strategy': 'explicit',
+    'provider': 'siliconflow',
+    'model': 'deepseek-ai/DeepSeek-V3',
+    'allow_user_override': True,
+    'fallback': 'inherit',
+}
+
+_PROMPT_CACHE = {}
+
+
+def _load_prompt(filename: str) -> str:
+    """读取 agents/ 下的提示词文件（带缓存）"""
+    if filename in _PROMPT_CACHE:
+        return _PROMPT_CACHE[filename]
+    path = os.path.join(os.path.dirname(__file__), 'agents', filename)
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            _PROMPT_CACHE[filename] = f.read().strip()
+    except OSError as e:
+        logger.error(f'Failed to load prompt file {path}: {e}')
+        _PROMPT_CACHE[filename] = ''
+    return _PROMPT_CACHE[filename]
+
+
+def _resolve_model_args(model_policy: dict) -> dict:
+    """按 model_policy 解析模型参数，返回 get_gateway().chat() 可用的 kwargs（§3.4）。"""
+    from agent_matrix.engine import _get_system_key
+    strategy = model_policy.get('strategy', 'inherit')
+    # 1. tier：读 system_config model_tier_{tier}（provider_model_id），命中则用之
+    if strategy == 'tier':
+        tier = model_policy.get('tier', 'standard')
+        pm_id = _get_system_key(f'model_tier_{tier}')
+        if pm_id:
+            return {'provider_model_id': pm_id}
+    # 2. explicit：策略内显式 provider+model
+    if strategy == 'explicit':
+        provider = model_policy.get('provider', '')
+        model = model_policy.get('model', '')
+        if provider and model:
+            return {'provider': provider, 'model': model}
+    # 3. inherit / fallback：全局默认（system_config，兜底 PROVIDER_CONFIGS）
+    provider = _get_system_key('ai_text_provider') or 'siliconflow'
+    model = _get_system_key('ai_text_model') or 'deepseek-ai/DeepSeek-V3'
+    return {'provider': provider, 'model': model}
 
 
 def _get_config(key: str, default=''):
@@ -43,16 +99,16 @@ def ocr_business_license(image_base64: str) -> dict:
     """
     api_key = _get_siliconflow_api_key()
     if not api_key:
-        raise RuntimeError(_('SiliconFlow API Key not configured (system_config.siliconflow_api_key)'))
+        raise RuntimeError(t('SiliconFlow API Key not configured (system_config.siliconflow_api_key)'))
 
     if ',' in image_base64:
         image_base64 = image_base64.split(',', 1)[1]
 
     from agent_matrix.engine import get_gateway
     gw = get_gateway()
+    kwargs = _resolve_model_args(_OCR_MODEL_POLICY)
+    prompt = _load_prompt('ocr_prompt.md')
     resp = gw.chat(
-        provider='siliconflow',
-        model=DEFAULT_OCR_MODEL,
         messages=[{
             'role': 'user',
             'content': [
@@ -65,26 +121,14 @@ def ocr_business_license(image_base64: str) -> dict:
                 },
                 {
                     'type': 'text',
-                    'text': (
-                        '<image>\n'
-                        '<|grounding|>Extract all text from this business license image. '
-                        'Return ONLY valid JSON with these exact fields:\n'
-                        '{\n'
-                        '  "company_name": _("Company Name"),\n'
-                        '  "reg_num": _("Unified Social Credit Code (18 digits)"),\n'
-                        '  "legal_person": _("Legal Representative"),\n'
-                        '  "address": _("Registered Address"),\n'
-                        '  "registered_capital": _("Registered Capital"),\n'
-                        '  "business_scope": _("Business Scope")\n'
-                        '}\n'
-                        'Fill empty string for any field not found. MUST output pure JSON.'
-                    ),
+                    'text': prompt,
                 }
             ],
         }],
         temperature=0.1,
         max_tokens=2048,
         module='enterprise_verify',
+        **kwargs,
     )
 
     text = resp.choices[0].message.content.strip()
@@ -115,35 +159,35 @@ def auto_audit(company_name: str, tax_id: str) -> dict:
     返回: {decision: 'approve'|'pending', confidence: float, reason: str}
     """
     if not company_name or not tax_id:
-        return {'decision': 'pending', 'confidence': 0.0, 'reason': _('Company name or tax number is empty')}
+        return {'decision': 'pending', 'confidence': 0.0, 'reason': t('Company name or tax number is empty')}
 
     if not _validate_tax_id(tax_id):
-        return {'decision': 'pending', 'confidence': 0.0, 'reason': _('Incorrect format for Unified Social Credit Code')}
+        return {'decision': 'pending', 'confidence': 0.0, 'reason': t('Incorrect format for Unified Social Credit Code')}
 
     api_key = _get_siliconflow_api_key()
     if api_key:
         try:
             from agent_matrix.engine import get_gateway
             gw = get_gateway()
+            kwargs = _resolve_model_args(_AUDIT_MODEL_POLICY)
+            prompt = (_load_prompt('audit_prompt.md')
+                      .replace('{company_name}', company_name)
+                      .replace('{tax_id}', tax_id))
             resp = gw.chat(
-                provider='siliconflow',
-                model=DEFAULT_AUDIT_MODEL,
-                messages=[
-                    {'role': 'system', 'content': '你是一个企业认证审核助手。判断企业名称和统一社会信用代码是否基本匹配。返回JSON: {"decision": "approve"|"pending", "confidence": 0-1, "reason": "简要说明"}'},
-                    {'role': 'user', 'content': f'企业名称: {company_name}\n统一社会信用代码: {tax_id}\n请判断是否通过:'}
-                ],
+                messages=[{'role': 'user', 'content': prompt}],
                 temperature=0.1,
                 max_tokens=512,
                 response_format={'type': 'json_object'},
                 module='enterprise_verify',
+                **kwargs,
             )
             text = resp.choices[0].message.content.strip()
             result = json.loads(text)
             confidence = result.get('confidence', 0.0)
             if confidence >= 0.8 and result.get('decision') == 'approve':
-                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', _('AI Review Passed'))}
-            return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', _('AI Review Uncertain, Requires Manual Verification'))}
-        except Exception:
-            pass
+                return {'decision': 'approved', 'confidence': confidence, 'reason': result.get('reason', t('AI Review Passed'))}
+            return {'decision': 'pending', 'confidence': confidence, 'reason': result.get('reason', t('AI Review Uncertain, Requires Manual Verification'))}
+        except Exception as e:
+            logger.warning(f'Auto audit failed, falling back to format check: {e}')
 
-    return {'decision': 'approved', 'confidence': 0.85, 'reason': _('Format validated and automatically certified')}
+    return {'decision': 'approved', 'confidence': 0.85, 'reason': t('Format validated and automatically certified')}

@@ -1,10 +1,13 @@
 {
     "name": "Enterprise Verification",
     "identifier": "enterprise_verify",
-    "version": "1.0.0",
-    "category": "Customer Management",
+    "version": "1.1.0",
+    "category": "system",
     "tags": ["verification", "enterprise", "ocr", "kyc", "audit"],
     "icon": "enterprise_verify",
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "",
     "description": "Enterprise Verification — OCR business license recognition + AI auto-audit",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
@@ -18,9 +21,52 @@
         "max_retry": 3
     },
     "permissions": [
-        "enterprise_verify.read",
-        "enterprise_verify.write"
+        "api:read",
+        "api:write",
+        "network:request"
     ],
+    "admin_permissions": ["admin:access"],
+    "agents": [
+        {
+            "name": "Enterprise Verify OCR Agent",
+            "identifier": "enterprise_verify_ocr",
+            "role_type": "sub",
+            "domain": "enterprise_verify",
+            "prompt_file": "agents/ocr_prompt.md",
+            "model_policy": {
+                "strategy": "explicit",
+                "provider": "siliconflow",
+                "model": "deepseek-ai/DeepSeek-OCR",
+                "allow_user_override": true,
+                "fallback": "inherit"
+            },
+            "capabilities": ["enterprise.verify.ocr"],
+            "enabled_by_default": true
+        },
+        {
+            "name": "Enterprise Verify Audit Agent",
+            "identifier": "enterprise_verify_audit",
+            "role_type": "sub",
+            "domain": "enterprise_verify",
+            "prompt_file": "agents/audit_prompt.md",
+            "model_policy": {
+                "strategy": "explicit",
+                "provider": "siliconflow",
+                "model": "deepseek-ai/DeepSeek-V3",
+                "allow_user_override": true,
+                "fallback": "inherit"
+            },
+            "capabilities": ["enterprise.verify.audit"],
+            "enabled_by_default": true
+        }
+    ],
+    "dashboard": {
+        "stats": [
+            {"key": "pending", "title": "待审核", "type": "counter"},
+            {"key": "approved", "title": "已通过", "type": "counter"},
+            {"key": "rejected", "title": "已驳回", "type": "counter"}
+        ]
+    },
     "hooks": {
         "provides": [
             "enterprise_verify/submit",
@@ -40,17 +86,19 @@
         "properties": {
             "siliconflow_api_key": {
                 "type": "string",
-                "label": "SiliconFlow API Key",
+                "title": "SiliconFlow API Key",
                 "default": "",
                 "description": "API Key for DeepSeek-OCR + AI audit"
             },
             "auto_approve": {
                 "type": "boolean",
+                "title": "Auto Approve",
                 "default": false,
                 "description": "Auto-approve high-confidence OCR results"
             },
             "max_retry": {
                 "type": "integer",
+                "title": "Max Retry",
                 "default": 3,
                 "description": "Max OCR retry attempts"
             }
