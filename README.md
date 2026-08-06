@@ -545,7 +545,7 @@ UNKNOWN -> INSTALLED -> ENABLED -> ACTIVE -> DISABLED -> UNINSTALLED
 | `ads` | Marketing | Ad placement and management with AI tools |
 | `ali_api` | E-Commerce | Alibaba/1688 product sourcing, image search, AI review |
 | `analytics` | Analytics | Visitor tracking, dual-engine GeoIP (IP2Region / MaxMind GeoLite2 CDN), world map with click-to-zoom, market detection, workflow nodes |
-| `captcha_embedded` | Security | Embedded captcha configuration |
+| `captcha_embedded` | Security | Self-contained slider captcha — puzzle generation, behavior analysis, HMAC tokens, rate limiting |
 | `chatbot` | AI | AI customer service chatbot with multi-channel support and stats |
 | `content_factory` | Content | RSS aggregation, AI content processing, skill pushing |
 | `coupons` | Marketing | Coupon engine with AI recommendations and scene engine |
