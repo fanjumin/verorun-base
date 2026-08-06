@@ -1,18 +1,16 @@
 """订单通知插件 — 基于事件系统的自动通知"""
 from i18n import _
-import logging
-
 from plugin_manager.base import BasePlugin
 from plugin_manager.event_bus import EventName, get_event_bus
+from plugin_manager.logger import get_plugin_logger
 from .models import get_main_db, init_db, close_db
 
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('order_notify')
 
 
 class OrderNotifyPlugin(BasePlugin):
     name = 'order_notify'
-    version = '1.1.0'
-    description = _('订单通知 — 下单/支付成功/发货/退款时自动发送通知')
+    description = _('Order Notify — Auto send notifications on order created, paid, shipped, refunded')
 
     def on_enable(self, registry) -> bool:
         init_db()
@@ -41,7 +39,6 @@ class OrderNotifyPlugin(BasePlugin):
         """发送站内通知"""
         try:
             from notification_service import send_notification_by_event
-            import inspect
             # 兼容不同导入路径
             send_notification_by_event('system', user_id, {
                 'title': title,
@@ -62,7 +59,7 @@ class OrderNotifyPlugin(BasePlugin):
             self._notify_user(
                 uid,
                 self.t(_('Order has been created')),
-                self.t('您的订单 %s 已创建，金额 ¥%.2f，请尽快完成支付。') % (oid, total),
+                self.t(_('Your order %s has been created (¥%.2f). Please complete payment soon.')) % (oid, total),
                 f'/shop/orders'
             )
 
@@ -75,7 +72,7 @@ class OrderNotifyPlugin(BasePlugin):
             try:
                 with get_main_db() as conn:
                     row = conn.execute(
-                        'SELECT user_id FROM order_items WHERE order_id=? LIMIT 1', (oid,)
+                        'SELECT user_id FROM order_items WHERE order_id=%s LIMIT 1', (oid,)
                     ).fetchone()
                     if row:
                         uid = row['user_id']
@@ -98,7 +95,7 @@ class OrderNotifyPlugin(BasePlugin):
         if uid:
             msg = self.t(_('Your order %s has been shipped!')) % oid
             if company and tracking:
-                msg += self.t('\n快递: %s | 单号: %s') % (company, tracking)
+                msg += self.t(_('\nCourier: %s | Tracking: %s')) % (company, tracking)
             self._notify_user(uid, self.t(_('Shipped')), msg, f'/shop/orders')
 
     def _on_refunded(self, **kw):
@@ -107,10 +104,10 @@ class OrderNotifyPlugin(BasePlugin):
         oid = kw.get('order_id')
         reason = kw.get('reason', '')
         if uid:
-            msg = self.t('您的订单 %s 已收到退款申请') % oid
+            msg = self.t(_('Your refund request for order %s has been received')) % oid
             if reason:
-                msg += self.t('\n原因: %s') % reason
-            self._notify_user(uid, self.t('退款申请已提交'), msg, f'/shop/orders')
+                msg += self.t(_('\nReason: %s')) % reason
+            self._notify_user(uid, self.t(_('Refund Requested')), msg, f'/shop/orders')
 
     def _on_cancelled(self, **kw):
         """取消通知"""
@@ -126,5 +123,5 @@ class OrderNotifyPlugin(BasePlugin):
         oid = kw.get('order_id')
         if uid:
             self._notify_user(uid, self.t(_('Order completed')),
-                              self.t('您的订单 %s 已完成，欢迎再次光临！请给商品评价吧。') % oid,
+                              self.t(_('Your order %s is completed. Welcome back! Please leave a review.')) % oid,
                               f'/shop/orders')

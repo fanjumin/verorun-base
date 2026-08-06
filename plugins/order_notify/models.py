@@ -1,8 +1,4 @@
 """订单通知独立数据库模型"""
-import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import threading
 from flask import g
 
 
@@ -24,18 +20,8 @@ class _PgConnection:
         self._conn.close()
 
 
-DB_DIR = os.path.join(os.path.dirname(__file__), 'data')
-DB_FILE = os.path.join(DB_DIR, 'order_notify.db')
-_local = threading.local()
-
-
-def _ensure_dir():
-    os.makedirs(DB_DIR, exist_ok=True)
-
-
 def get_db():
     """获取本插件的独立数据库连接"""
-    _ensure_dir()
     if 'order_notify_db' not in g:
         from plugins._base.db import get_raw_connection
         g.order_notify_db = get_raw_connection()
@@ -52,7 +38,6 @@ def get_main_db():
 
 def init_db():
     """初始化插件自有表"""
-    _ensure_dir()
     from plugins._base.db import get_raw_connection
     conn = get_raw_connection()
     conn.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
