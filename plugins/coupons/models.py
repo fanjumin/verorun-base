@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from plugins._base.db import get_raw_connection
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(PLUGIN_DIR, 'coupons.db')  # 保留用于迁移
 
 
 class _PgConnection:
@@ -82,6 +81,11 @@ def init_db():
             discount_fen    BIGINT NOT NULL DEFAULT 0,
             created_at      TIMESTAMPTZ DEFAULT NOW()
         )''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS schema_meta (
+            key         TEXT PRIMARY KEY,
+            value       TEXT DEFAULT '',
+            updated_at  TIMESTAMPTZ DEFAULT NOW()
+        )''')
         conn.commit()
 
 
@@ -91,3 +95,26 @@ def get_main_db():
     from models import get_db as main_get_db
     with main_get_db() as conn:
         yield conn
+
+
+def get_schema_version() -> str:
+    """从 schema_meta 表读取当前 schema 版本（§10.6）。"""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM schema_meta WHERE key='schema_version'"
+            ).fetchone()
+            return row['value'] if row else '0.0.0'
+    except Exception:
+        return '0.0.0'
+
+
+def set_schema_version(version: str):
+    """写入当前 schema 版本（§10.6）。"""
+    with get_db() as conn:
+        conn.execute('''
+            INSERT INTO schema_meta (key, value, updated_at)
+            VALUES ('schema_version', ?, NOW())
+            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
+        ''', (version,))
+        conn.commit()

@@ -1,5 +1,4 @@
-<!-- AI 优惠券推荐组件 — 嵌入结算页 -->
-<script>
+// AI 优惠券推荐组件 — 嵌入结算页（裸 JS partial，§12.11 禁止 <script> 标签）
 /**
  * 在结算页显示 AI 优惠券推荐。
  * 调用方式:
@@ -50,4 +49,3 @@ window.applyCouponRecommend=function(code){
   if(btn)btn.click();
   showToast("✅ {{ _('Coupon applied: ') }}"+code,"success");
 };
-</script>

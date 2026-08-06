@@ -176,9 +176,9 @@ def admin_distribute():
     user_ids = data.get('user_ids', [])
     all_users = data.get('all_users', False)
     if not coupon_id:
-        return jsonify({'success': False, 'error': _t('请指定优惠券ID')}), 400
+        return jsonify({'success': False, 'error': _t('Please specify coupon ID')}), 400
     if not user_ids and not all_users:
-        return jsonify({'success': False, 'error': _t('请指定用户')}), 400
+        return jsonify({'success': False, 'error': _t('Please specify users')}), 400
     if all_users:
         with _get_main_db() as conn:
             rows = conn.execute('SELECT id FROM users WHERE active=1').fetchall()
@@ -221,7 +221,7 @@ def api_validate():
     product_id = data.get('product_id')
     scene = data.get('scene', '')
     if not code:
-        return jsonify({'success': False, 'error': _t('请输入优惠码')}), 400
+        return jsonify({'success': False, 'error': _t('Please enter a coupon code')}), 400
     result = _engine.validate(code, amount, user_id=uid, quantity=quantity,
                               product_id=product_id, scene=scene or None)
     if not result['valid']:

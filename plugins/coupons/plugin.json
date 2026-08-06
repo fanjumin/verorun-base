@@ -1,7 +1,10 @@
 {
     "name": "智能优惠券引擎",
     "identifier": "coupons",
-    "version": "1.0.0",
+    "version": "1.1.0",
+    "category": "shop",
+    "icon": "coupons",
+    "tags": ["coupon", "discount", "promotion", "shop"],
     "description": "智能优惠券引擎 — 场景券/AI推荐/订阅联动",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
@@ -11,16 +14,22 @@
     "permissions": [
         "order.read",
         "order.write",
-        "user.read"
+        "user.read",
+        "admin:access"
     ],
     "hooks": {
         "provides": [
             "coupon/validate",
             "coupon/apply"
         ],
-        "listens": [
-            "order/paid",
-            "order/cancelled"
+        "listens": []
+    },
+    "dashboard": {
+        "stats": [
+            { "key": "total_coupons", "title": "总优惠券", "type": "counter" },
+            { "key": "active_coupons", "title": "活跃券", "type": "counter" },
+            { "key": "total_used", "title": "总使用次数", "type": "counter" },
+            { "key": "total_discount", "title": "总节省金额", "type": "counter" }
         ]
     },
     "settings_schema": {
