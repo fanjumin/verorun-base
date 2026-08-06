@@ -116,3 +116,41 @@ Cache Status: Cache Status
 Page Number: Page Number
 Items per Page: Items per Page
 Settings: Settings
+No products: No products
+Failed to fetch: Failed to fetch
+Local product ID: Local product ID
+Specifications: Specifications
+AI title options: AI title options
+Failed to load: Failed to load
+" images":  images
+No images, click above to upload: No images, click above to upload
+"Delete image #": Delete image #
+'"?:': "?"
+"File ": File 
+" exceeds 5MB limit":  exceeds 5MB limit
+" format not supported":  format not supported
+"Upload ": Upload 
+" failed":  failed
+"(from cache)": (from cache)
+Collected: Collected
+Collection failed: Collection failed
+Enter search keywords: Enter search keywords
+"Search success: found ": "Search success: found "
+" products":  products
+Preview: Preview
+Generate AI title options?: Generate AI title options?
+Normal: Normal
+Title selected!: Title selected!
+Enter stock quantity (default 999): Enter stock quantity (default 999)
+"Publish to local store? Stock: ": "Publish to local store? Stock: "
+"Published! Local ID: ": "Published! Local ID: "
+Configured, enter new value to overwrite: Configured, enter new value to overwrite
+Breaker threshold: Breaker threshold
+s: s
+Fill in AppKey or AppSecret: Fill in AppKey or AppSecret
+AppKey is masked; enter full key to update: AppKey is masked; enter full key to update
+"Create 1688 purchase order? Verify price and stock.": Create 1688 purchase order? Verify price and stock.
+"Purchase order submitted to 1688, order# ": "Purchase order submitted to 1688, order# "
+Please enter the product ID: Please enter the product ID
+Confirm cache clear?: Confirm cache clear?
+Cleanup failed: Cleanup failed

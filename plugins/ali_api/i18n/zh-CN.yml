@@ -116,3 +116,41 @@ Cache Status: 缓存状态
 Page Number: 页码
 Items per Page: 每页条数
 Settings: 设置
+No products: 暂无商品数据
+Failed to fetch: 获取失败
+Local product ID: 本地商品ID
+Specifications: 规格
+AI title options: AI标题选项
+Failed to load: 加载失败
+" images": 张图片
+No images, click above to upload: 暂无图片，请点击上方区域上传
+"Delete image #": 确定要删除第
+'"?:': 张图片吗？
+"File ": 文件 
+" exceeds 5MB limit": 超过 5MB 限制
+" format not supported": 格式不支持
+"Upload ": 上传 
+" failed": 失败
+"(from cache)": （来自缓存）
+Collected: 采集成功
+Collection failed: 采集失败
+Enter search keywords: 请输入搜索关键词
+"Search success: found ": 搜索成功！共找到
+" products": 个商品
+Preview: 结果预览
+Generate AI title options?: 确定要使用AI生成多版本标题选项吗？
+Normal: 通用
+Title selected!: 标题已选择成功！
+Enter stock quantity (default 999): 请输入库存数量（默认999）
+"Publish to local store? Stock: ": "确定要将商品发布到本地商城吗？库存:"
+"Published! Local ID: ": "发布成功！本地商品ID:"
+Configured, enter new value to overwrite: 已配置，输入新值以覆盖
+Breaker threshold: 熔断阈值
+s: 秒
+Fill in AppKey or AppSecret: 请至少填写 AppKey 或 AppSecret
+AppKey is masked; enter full key to update: AppKey 显示为脱敏值，如需修改请完整输入新的 AppKey
+"Create 1688 purchase order? Verify price and stock.": 确定在 1688 创建采购订单？请确认价格和库存无误。
+"Purchase order submitted to 1688, order# ": "采购单已提交至 1688，订单号:"
+Please enter the product ID: 请输入商品ID
+Confirm cache clear?: 确定清理缓存？
+Cleanup failed: 清理失败
