@@ -2347,6 +2347,8 @@ avg_response_time (Average response ms): avg_response_time (Average response ms)
 'Refunding': 'Refunding'
 'Region': 'Region'
 'Region and address required': 'Region and address required'
+'analytics.ai_prompt': "You are a professional data analyst. Based on the following website statistics, provide a concise operational insight (within 150 words), highlighting key trends and recommendations:\n\n{text}\n\nOutput format:\n📊 Operational Insights\nKey Findings:\nRecommendations:"
+'analytics.ai_system_prompt': 'You are a senior data operations analyst, skilled at extracting actionable insights from data.'
 'Register Now': 'Register Now'
 'Register Smart Finance Platform': 'Register Smart Finance Platform'
 'Register on Platform': 'Register on Platform'

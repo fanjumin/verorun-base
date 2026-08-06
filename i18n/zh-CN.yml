@@ -2715,3 +2715,5 @@ avg_response_time (Average response ms): avg_response_time (平均响应ms)
 'Strong': '强'
 'Perfect': '完美'
 'Please confirm username availability': '请确认用户名可用性'
+'analytics.ai_prompt': "你是一个专业的数据分析师。请根据以下网站统计数据，输出一段简洁的运营洞察（150字内），指出关键趋势和建议：\n\n{text}\n\n请输出格式：\n📊 运营洞察\n关键发现：\n建议："
+'analytics.ai_system_prompt': '你是一个资深数据运营分析师，擅长从数据中提取 actionable insights。'
