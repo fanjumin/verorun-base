@@ -20,10 +20,8 @@ from plugin_manager.base import BasePlugin
 
 
 class SiteDomainsPlugin(BasePlugin):
-    name = 'site_domains'
-    version = '1.0.0'
-    description = _('Site Domains — 子域名 & Nginx 配置管理')
-    author = 'VeroRun'
+    # 元数据（name/version/description/author）以 plugin.json 为唯一真源（§13.1），
+    # 不再在类中重复声明，避免与 plugin.json 版本号冲突。
 
     def on_enable(self, registry):
         """启用（无独立库，不建表）"""

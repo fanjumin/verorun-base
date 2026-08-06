@@ -4,7 +4,7 @@
 
 Site Domains 是 VeroRun 的子域名管理与 Web 服务器配置生成插件。插件管理多站点域名绑定关系，并能自动生成 Nginx 和 Caddy 的服务器配置文件。同时注册 Caddy 的 On-Demand TLS 证书校验端点，实现自动化 HTTPS 证书管理。
 
-版本：**0.1.0**
+版本：**1.1.0**
 
 ## 功能特性
 
