@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ad Management Plugin — AI 可调用工具封装 (v0.2.0)
+"""Ad Management Plugin — AI 可调用工具封装 (v1.1.0)
 
 为 Agent Matrix / chat_tool 提供广告管理能力的内部封装。
 所有函数返回 dict {'success': bool, 'data': any, 'error': str|None}，

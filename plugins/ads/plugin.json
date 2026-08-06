@@ -19,7 +19,8 @@
     },
     "permissions": [
         "api:read",
-        "api:write"
+        "api:write",
+        "admin:access"
     ],
     "hooks": {
         "provides": [
@@ -43,6 +44,31 @@
             "model_name": "qwen-turbo",
             "system_prompt": "You are the ad management agent. Use the ads AI tools to list/create/update/delete ad placements, manage zones, query statistics, analyze performance, and generate render snippets.",
             "is_active": 1
+        }
+    ],
+    "agents": [
+        {
+            "name": "Ad Optimizer",
+            "identifier": "ad_optimizer",
+            "role_type": "sub",
+            "domain": "advertising",
+            "prompt_file": "agents/ad_optimizer_prompt.md",
+            "model_policy": {
+                "strategy": "tier",
+                "tier": "cheap",
+                "allow_user_override": true,
+                "fallback": "inherit"
+            },
+            "capabilities": [
+                "ads.list",
+                "ads.create",
+                "ads.update",
+                "ads.delete",
+                "ads.stats",
+                "ads.analyze",
+                "ads.snippet"
+            ],
+            "enabled_by_default": true
         }
     ],
     "dashboard": {

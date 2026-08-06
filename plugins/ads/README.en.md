@@ -160,10 +160,11 @@ This plugin does not listen to any external hooks.
 
 ## Permissions
 
-| Permission  | Description                          |
-|-------------|--------------------------------------|
-| `ads.read`  | View ad placements and statistics    |
-| `ads.write` | Create, update, and delete ad placements |
+| Permission     | Description                                     |
+|----------------|-------------------------------------------------|
+| `api:read`     | View ad placements and statistics               |
+| `api:write`    | Create, update, and delete ad placements        |
+| `admin:access` | Access the plugin admin panel (admin dashboard) |
 
 > Note: Access to the admin routes is enforced through the main system's admin authentication (`_require_admin`).
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ad Management Plugin — 广告管理 API 路由 (v0.2.0)"""
+"""Ad Management Plugin — 广告管理 API 路由 (v1.1.0)"""
 from i18n import _
 import sys, os, json
 import time as _time
@@ -361,6 +361,11 @@ def public_ads():
     zone_id = request.args.get('zone_id', type=int)
     limit = request.args.get('limit', 50, type=int)
     limit = max(1, min(limit, 200))
+
+    # 公开端点限流（IP 维度），防高频拉取压垮数据库
+    client = request.remote_addr or 'unknown'
+    if not _rate_limit(f'ads_public:{client}', 30):
+        return jsonify({'success': False, 'error': _('Too many requests')}), 429
 
     from plugins.ads.models import get_ads_db
     conn = get_ads_db()
