@@ -53,6 +53,14 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_dev_accounts_platform
                 ON dev_accounts(platform)
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_meta (
+                key        TEXT PRIMARY KEY,
+                value      TEXT DEFAULT '',
+                updated_at TEXT DEFAULT NOW()
+            )
+        """)
+        conn.commit()
 
 
 def get_all(platform: str = None) -> list:
@@ -142,7 +150,10 @@ def update(account_id: int, **kwargs) -> bool:
     for key, value in kwargs.items():
         if key in field_map:
             col_name, encrypted = field_map[key]
-            if encrypted and value:
+            if encrypted:
+                # 敏感字段留空表示不修改，避免编辑时误清空已存凭证
+                if not value:
+                    continue
                 value = encrypt(value)
             elif key == 'extra_config' and isinstance(value, dict):
                 value = json.dumps(value)
@@ -257,3 +268,27 @@ def get_account_stats() -> dict:
         'total_accounts': total['count'] if total else 0,
         'active_accounts': active['count'] if active else 0,
     }
+
+
+def set_schema_version(version: str):
+    """Record current schema version in schema_meta (标准 §10.6)."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO schema_meta (key, value, updated_at) "
+            "VALUES ('schema_version', ?, NOW()) "
+            "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()",
+            (version,)
+        )
+        conn.commit()
+
+
+def get_schema_version() -> str:
+    """Read current schema version from schema_meta."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM schema_meta WHERE key='schema_version'"
+            ).fetchone()
+            return row['value'] if row else '0.0.0'
+    except Exception:
+        return '0.0.0'

@@ -1,0 +1,198 @@
+window.l_dev_accounts=function(){
+  document.getElementById("pt").textContent="{{ _('Developer Accounts') }}";
+  var mc=document.getElementById("mc");
+  mc.innerHTML='<div class="lo"><div class="s"></div>{{ _('Loading...') }}...</div>';
+  loadAccounts();
+
+  function loadAccounts(){
+    var url="/admin/dev-accounts/";
+    if(daPlatform){url+="?platform="+encodeURIComponent(daPlatform);}
+    fetch(url,{headers:{"Authorization":"Bearer "+T}})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        if(!d.success){mc.innerHTML='<div class="em">{{ _('Load failed') }}</div>';return;}
+        renderAccounts(d.data);
+      }).catch(function(){mc.innerHTML='<div class="em">{{ _('Connection Failed') }}</div>';});
+  }
+
+  function renderAccounts(items){
+    var h='';
+    // Platform filter + add button
+    h+='<div class="cd" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
+    h+='<span style="font-size:13px;font-weight:600">{{ _('Platform') }}</span>';
+    h+='<button class="btn '+(daPlatform===""?'bp':'bo')+'" onclick="daFilter(\'\')">{{ _('All') }}</button>';
+    var platforms=["douyin","toutiao","wechat","telegram","line"];
+    platforms.forEach(function(p){
+      h+='<button class="btn '+(daPlatform===p?'bp':'bo')+'" onclick="daFilter(\''+p+'\')">'+p+'</button>';
+    });
+    h+='<div style="flex:1"></div>';
+    h+='<button class="btn bp" onclick="daShowAdd()">+ {{ _('Add Account') }}</button>';
+    h+='</div>';
+
+    // Account list table
+    h+='<div class="cd"><table><tr><th>{{ _('Platform') }}</th><th>{{ _('Account Name') }}</th><th>{{ _('App ID') }}</th><th>{{ _('Status') }}</th><th>{{ _('Updated') }}</th><th>{{ _('Actions') }}</th></tr>';
+    if(!items.length){h+='<tr><td colspan="6" class="em">{{ _('No accounts') }}</td></tr>';}
+    else{items.forEach(function(m){
+      var statusHtml=(m.is_active===1)?'<span class="bdg on">{{ _('Active') }}</span>':'<span class="bdg off">{{ _('Disabled') }}</span>';
+      var actions='<div style="display:flex;gap:4px">';
+      actions+='<button class="btn bo bs" onclick="daShowEdit('+m.id+')">{{ _('Edit') }}</button>';
+      actions+='<button class="btn bo bs" onclick="daTest('+m.id+',\''+escAttr(m.account_name)+'\',this)">{{ _('Test') }}</button>';
+      actions+='<button class="btn bo bs" style="color:#f85149" onclick="daDelete('+m.id+',\''+escAttr(m.account_name)+'\')">{{ _('Delete') }}</button>';
+      actions+='</div>';
+      h+='<tr>';
+      h+='<td><code style="color:var(--accent);font-size:12px">'+esc(m.platform)+'</code></td>';
+      h+='<td style="color:var(--text)">'+esc(m.account_name)+'</td>';
+      h+='<td>'+esc(m.app_id||'-')+'</td>';
+      h+='<td>'+statusHtml+'</td>';
+      h+='<td style="color:var(--dim);font-size:12px">'+esc(m.updated_at||'-')+'</td>';
+      h+='<td>'+actions+'</td></tr>';
+    })}
+    h+='</table></div>';
+    mc.innerHTML=h;
+  }
+};
+
+// 全局筛选状态（供筛选按钮重渲染使用）
+var daPlatform="";
+function daFilter(p){daPlatform=p||"";l_dev_accounts();}
+
+// 表单字段 HTML（mode: add | edit）
+function daFieldsHtml(mode,m){
+  m=m||{};
+  var platforms=["douyin","toutiao","wechat","telegram","line"];
+  var ps='<select class="sl" id="damPlatform" style="width:100%">';
+  platforms.forEach(function(p){
+    var sel=(m.platform===p)?' selected':'';
+    ps+='<option value="'+p+'"'+sel+'>'+p+'</option>';
+  });
+  ps+='</select>';
+
+  function field(id,label,value,ph,type){
+    type=type||'text';
+    return '<div style="margin-bottom:10px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">'+label+'</label>'+
+      '<input class="in" id="'+id+'" type="'+type+'" value="'+escAttr(value||'')+'" placeholder="'+ph+'" style="width:100%"></div>';
+  }
+  var blank="{{ _('Leave blank to keep unchanged') }}";
+  var h='';
+  h+='<div style="margin-bottom:10px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Platform') }} *</label>'+ps+'</div>';
+  h+=field("damName","{{ _('Account Name') }} *",m.account_name,"my_account","text");
+  h+=field("damAppId","{{ _('App ID') }}",m.app_id,"App ID","text");
+  h+=field("damAppSecret","{{ _('App Secret') }}",m.app_secret,blank,"password");
+  h+=field("damBotToken","{{ _('Bot Token') }}",m.bot_token,blank,"password");
+  h+=field("damChannelId","{{ _('Channel ID') }}",m.channel_id,"Channel ID","text");
+  h+=field("damChannelSecret","{{ _('Channel Secret') }}",m.channel_secret,blank,"password");
+  h+=field("damAccessToken","{{ _('Access Token') }}",m.access_token,blank,"password");
+  h+='<div style="margin-bottom:10px"><label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">{{ _('Status') }}</label>';
+  h+='<select class="sl" id="damActive" style="width:100%">';
+  h+='<option value="1"'+(m.is_active===1?' selected':'')+'>> {{ _('Active') }}</option>';
+  h+='<option value="0"'+(m.is_active===0?' selected':'')+'>> {{ _('Disabled') }}</option>';
+  h+='</select></div>';
+  return h;
+}
+
+// 收集表单数据；敏感字段留空则不提交（保持原值）
+function daCollectBody(){
+  var platform=document.getElementById("damPlatform").value;
+  var name=document.getElementById("damName").value.trim();
+  var isActive=parseInt(document.getElementById("damActive").value);
+  if(!name){showToast("{{ _('Account name cannot be empty') }}","error");return null;}
+  var body={platform:platform,account_name:name,is_active:isActive};
+  var map={
+    app_id:document.getElementById("damAppId").value.trim(),
+    app_secret:document.getElementById("damAppSecret").value.trim(),
+    bot_token:document.getElementById("damBotToken").value.trim(),
+    channel_id:document.getElementById("damChannelId").value.trim(),
+    channel_secret:document.getElementById("damChannelSecret").value.trim(),
+    access_token:document.getElementById("damAccessToken").value.trim()
+  };
+  var sensitive=["app_secret","bot_token","channel_secret","access_token"];
+  for(var k in map){
+    if(!map[k] && sensitive.indexOf(k)>=0){continue;}
+    body[k]=map[k];
+  }
+  return body;
+}
+
+function daShowAdd(){
+  var h='<div class="modal" id="damModal" onclick="if(event.target===this)daCloseModal()"><div class="modal-c" style="max-width:520px">';
+  h+='<h3 style="margin-bottom:16px">+ {{ _('Add Account') }}</h3>';
+  h+=daFieldsHtml("add");
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">';
+  h+='<button class="btn bo" onclick="daCloseModal()">{{ _('Cancel') }}</button>';
+  h+='<button class="btn bp" onclick="daConfirmAdd()">{{ _('Create') }}</button></div></div></div>';
+  document.body.insertAdjacentHTML("beforeend",h);
+  setTimeout(function(){var e=document.getElementById("damName");if(e)e.focus();},100);
+}
+
+function daConfirmAdd(){
+  var body=daCollectBody();
+  if(!body)return;
+  fetch("/admin/dev-accounts/",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){daCloseModal();showToast("{{ _('Created') }}","success");l_dev_accounts();}
+    else{showToast(d.error||"{{ _('Create Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Create Failed') }}","error")});
+}
+
+function daShowEdit(id){
+  fetch("/admin/dev-accounts/"+id,{headers:{"Authorization":"Bearer "+T}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(!d.success){showToast(d.error||"{{ _('Load failed') }}","error");return;}
+      var m=d.data;
+      var h='<div class="modal" id="damModal" onclick="if(event.target===this)daCloseModal()"><div class="modal-c" style="max-width:520px">';
+      h+='<h3 style="margin-bottom:16px">{{ _('Edit Account') }}: <code style="color:var(--accent)">'+esc(m.account_name)+'</code></h3>';
+      h+=daFieldsHtml("edit",m);
+      h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">';
+      h+='<button class="btn bo" onclick="daCloseModal()">{{ _('Cancel') }}</button>';
+      h+='<button class="btn bp" onclick="daConfirmEdit('+id+')">{{ _('Save') }}</button></div></div></div>';
+      document.body.insertAdjacentHTML("beforeend",h);
+    }).catch(function(){showToast("{{ _('Load failed') }}","error")});
+}
+
+function daConfirmEdit(id){
+  var body=daCollectBody();
+  if(!body)return;
+  fetch("/admin/dev-accounts/"+id,{
+    method:"PUT",
+    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){daCloseModal();showToast("{{ _('Saved') }}","success");l_dev_accounts();}
+    else{showToast(d.error||"{{ _('Save Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Save Failed') }}","error")});
+}
+
+function daDelete(id,name){
+  if(!confirm("{{ _('Delete') }} "+esc(name)+"？{{ _('This action cannot be undone') }}"))return;
+  fetch("/admin/dev-accounts/"+id,{
+    method:"DELETE",
+    headers:{"Authorization":"Bearer "+T}
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast("{{ _('Deleted') }}","success");l_dev_accounts();}
+    else{showToast(d.error||"{{ _('Delete Failed') }}","error")}
+  }).catch(function(){showToast("{{ _('Delete Failed') }}","error")});
+}
+
+function daTest(id,name,btn){
+  if(btn){btn.disabled=true;btn.textContent="{{ _('Testing...') }}";}
+  fetch("/admin/dev-accounts/"+id+"/test",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+T}
+  }).then(function(r){return r.json()}).then(function(d){
+    if(btn){btn.disabled=false;btn.textContent="{{ _('Test') }}";}
+    if(d.success){showToast(d.message||"{{ _('Connected') }}","success");}
+    else{showToast(d.error||"{{ _('Test Failed') }}","error")}
+  }).catch(function(){
+    if(btn){btn.disabled=false;btn.textContent="{{ _('Test') }}";}
+    showToast("{{ _('Test Failed') }}","error");
+  });
+}
+
+function daCloseModal(){
+  var el=document.getElementById("damModal");
+  if(el){el.remove();}
+}

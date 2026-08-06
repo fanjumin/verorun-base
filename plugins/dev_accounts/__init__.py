@@ -8,10 +8,6 @@
     迁移会破坏核心链路。连接统一走 plugins/_base/db.py（见 models.py get_db()）。
 """
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from plugin_manager.base import BasePlugin
 
 
@@ -28,9 +24,34 @@ class DevAccountsPlugin(BasePlugin):
         self.app.register_blueprint(dev_accounts_bp)
 
     def on_install(self, registry=None) -> bool:
-        from .models import init_db
+        from .models import init_db, set_schema_version
         init_db()
+        try:
+            set_schema_version(self.version)
+        except Exception:
+            self.log('dev_accounts: failed to record schema version', level='warning')
         return True
+
+    def get_schema_version(self) -> str:
+        """Read current schema version (标准 §10.6)."""
+        try:
+            from .models import get_schema_version as _get_version
+            return _get_version()
+        except Exception:
+            return '0.0.0'
+
+    def migrate(self, from_version: str, to_version: str) -> bool:
+        """Run schema migrations (标准 §10.6).
+
+        当前无破坏性迁移：幂等建表并更新 schema 版本记录。
+        """
+        try:
+            from .models import init_db, set_schema_version
+            init_db()
+            set_schema_version(to_version)
+            return True
+        except Exception:
+            return False
 
     def on_uninstall(self, registry=None) -> bool:
         """卸载处理：逻辑解耦模式，保留数据不删表。

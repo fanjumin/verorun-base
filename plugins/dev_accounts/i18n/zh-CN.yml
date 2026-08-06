@@ -23,3 +23,43 @@ WeChat: 微信
 Telegram: Telegram
 LINE: LINE
 Toutiao: 头条
+
+# ── 管理模板（templates/admin_devaccounts.html）──
+Loading...: 加载中...
+Load failed: 加载失败
+Connection Failed: 连接失败
+Platform: 平台
+All: 全部
+Add Account: 添加账号
+Account Name: 账号名称
+App ID: App ID
+Status: 状态
+Updated: 更新时间
+Actions: 操作
+No accounts: 暂无账号
+Active: 启用
+Disabled: 停用
+Edit: 编辑
+Test: 测试
+Delete: 删除
+Leave blank to keep unchanged: 留空则不修改
+App Secret: App 密钥
+Bot Token: Bot Token
+Channel ID: 渠道 ID
+Channel Secret: 渠道密钥
+Access Token: 访问令牌
+Account name cannot be empty: 账号名称不能为空
+Cancel: 取消
+Create: 创建
+Created: 已创建
+Create Failed: 创建失败
+Edit Account: 编辑账号
+Save: 保存
+Saved: 已保存
+Save Failed: 保存失败
+This action cannot be undone: 此操作不可撤销
+Deleted: 已删除
+Delete Failed: 删除失败
+Testing...: 测试中...
+Connected: 连接成功
+Test Failed: 测试失败

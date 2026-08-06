@@ -564,6 +564,24 @@ SELECT config FROM plugin_registry WHERE identifier = 'my_plugin';
 
 **管理端入口**：插件通过 `plugin.json` 的 `admin_url` 字段声明管理页面入口。插件管理列表（`plugins_admin.html`）据此显示 🔗 Manage 链接跳转到插件自有管理页或 admin SPA。插件配置不再通过 PluginManager 内联加载，由插件自有页面独立承载。
 
+**管理菜单（`menu` 扩展字段）**：`PluginManager` 消费 `plugin.json` 顶层 `menu` 对象，向 admin SPA 注入插件管理菜单项（`PluginManager.get_plugin_menus()` 读取 `metadata['menu']`）。该字段为系统实际使用但未写入早期规范的扩展字段，结构如下：
+
+```json
+"menu": {
+  "group": "System",
+  "key": "dev_accounts",
+  "icon": "key",
+  "label": "Developer Accounts"
+}
+```
+
+- `group` — 菜单分组名（如 `System`、`Security & Compliance`）
+- `key` — 唯一标识，admin SPA 通过 `window["l_" + key]()` 调用插件页面渲染函数
+- `icon` — 菜单图标名称
+- `label` — 菜单显示名（可配合 i18n 翻译）
+
+约定：`menu.key` 必须与插件模板中定义的 `window.l_<key>` 渲染函数一致，否则点击菜单无页面响应。可选 `url` 字段仅作展示用途，不参与导航（导航由 admin SPA 的 `goPlugin()` 依据 `embed_url` 决定；无 `embed_url` 时走内联 `l_<key>()` 渲染）。
+
 ### 10.4 依赖管理
 
 #### 声明方式

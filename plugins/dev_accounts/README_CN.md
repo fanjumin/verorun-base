@@ -62,6 +62,8 @@ dev_accounts/
 │   └── en.yml
 ├── migrations/          # 版本迁移 SQL
 │   └── v1.0.0.sql
+├── templates/           # 管理后台前端页面（admin SPA 加载）
+│   └── admin_devaccounts.html
 └── plugin.json          # 插件元数据配置
 ```
 

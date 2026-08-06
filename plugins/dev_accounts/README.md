@@ -43,6 +43,14 @@ Moving to an isolated schema would break those core paths. Data access uses the 
 | `created_at` | Text | Creation time |
 | `updated_at` | Text | Last update time |
 
+### Table: schema_meta (Schema version tracking, standard §10.6)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `key` | Text (PK) | Metadata key (currently only `schema_version`) |
+| `value` | Text | Value (plugin version, e.g. `1.1.0`) |
+| `updated_at` | Text | Last update time |
+
 ### Encryption
 
 Sensitive fields are encrypted with `cryptography.fernet` (**AES-128-CBC + HMAC-SHA256**, not AES-256-GCM). The key is derived from the `DEV_ACCOUNTS_ENCRYPTION_KEY` environment variable via SHA-256 into the Fernet key format. The cipher is initialized lazily on the first `encrypt` / `decrypt` call.
@@ -90,6 +98,14 @@ export DEV_ACCOUNTS_ENCRYPTION_KEY='<Fernet key>'
 The plugin has **no plugin-level config** (`config` is empty in `plugin.json`). The only external configuration is the `DEV_ACCOUNTS_ENCRYPTION_KEY` environment variable (see above).
 
 ## API Endpoints
+
+### Admin dashboard
+
+| Menu item | Description |
+|-----------|-------------|
+| `Developer Accounts` | Management page loaded by the admin SPA from `templates/admin_devaccounts.html` (menu `key` maps to the `window.l_dev_accounts` render function) |
+
+The page provides platform filtering, account list, create/edit modal (leave sensitive credentials blank to keep them unchanged), delete, and connection test.
 
 ### Admin API
 
