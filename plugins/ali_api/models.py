@@ -323,7 +323,7 @@ class AliApiItem:
         existing = {
             r['column_name'] for r in conn.execute(
                 "SELECT column_name FROM information_schema.columns "
-                "WHERE schemaname = CURRENT_SCHEMA() AND table_name = 'ali_api_items'"
+                "WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'ali_api_items'"
             ).fetchall()
         }
         for col, ddl in [

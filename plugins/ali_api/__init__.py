@@ -34,8 +34,15 @@ class AliApiPlugin(BasePlugin):
             return False
 
     def on_enable(self, registry):
-        """插件启用时: 热加载配置 + 注册 Agent + 设置 i18n 桥接 + 注册订单监听"""
+        """插件启用时: 幂等建表 + 热加载配置 + 注册 Agent + 设置 i18n 桥接 + 注册订单监听"""
         set_plugin(self)
+        # §10.6: 幂等补齐 schema（CREATE TABLE IF NOT EXISTS）。
+        # 已部署环境升级后自动补上新增表/列（迁移 SQL 仅为文档基线）。
+        try:
+            from .models import init_tables
+            init_tables()
+        except Exception as e:
+            logger.warning(f'[AliApi] init_tables warning: {e}')
         # §10.3: 启动时从数据库热加载配置，避免模块导入时的陈旧值
         try:
             from .config import reload_config
