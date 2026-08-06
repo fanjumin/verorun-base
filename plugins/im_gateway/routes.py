@@ -81,7 +81,7 @@ def get_channel(channel):
     conn = get_im_db()
     row = conn.execute(
         'SELECT id, channel, config_json, is_enabled, created_at, updated_at '
-        'FROM channel_configs WHERE channel=?',
+        'FROM channel_configs WHERE channel=%s',
         (channel,)
     ).fetchone()
     if not row:
@@ -114,7 +114,7 @@ def update_channel(channel):
 
     conn = get_im_db()
     existing = conn.execute(
-        'SELECT config_json FROM channel_configs WHERE channel=?', (channel,)
+        'SELECT config_json FROM channel_configs WHERE channel=%s', (channel,)
     ).fetchone()
     old_cfg = json.loads(existing['config_json']) if existing else {}
 
@@ -125,8 +125,12 @@ def update_channel(channel):
         merged[k] = v
 
     conn.execute(
-        """INSERT OR REPLACE INTO channel_configs (channel, config_json, is_enabled)
-           VALUES (?, ?, ?)""",
+        """INSERT INTO channel_configs (channel, config_json, is_enabled)
+           VALUES (%s, %s, %s)
+           ON CONFLICT (channel) DO UPDATE SET
+               config_json=EXCLUDED.config_json,
+               is_enabled=EXCLUDED.is_enabled,
+               updated_at=NOW()""",
         (channel, json.dumps(merged, ensure_ascii=False), is_enabled)
     )
     conn.commit()

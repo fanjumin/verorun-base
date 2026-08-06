@@ -4,13 +4,9 @@
 独立数据库 im_gateway.db，存放频道配置表 channel_configs。
 从主库迁移而来（feishu/wecom/qq/dingtalk），主库结构保持一致。
 """
-import psycopg2
 import os
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
-
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'im_gateway.db')
 
 _im_conn = None
 

@@ -15,7 +15,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugin_manager.base import BasePlugin
+from plugin_manager.logger import get_plugin_logger
 from .models import init_im_db, migrate_from_main_db
+
+logger = get_plugin_logger('im_gateway')
 
 # 模块级 i18n 引用，由 on_enable 注入
 _t = lambda text: text
@@ -29,7 +32,7 @@ def init_i18n(t_fn):
 
 class ImGatewayPlugin(BasePlugin):
     name = 'im_gateway'
-    version = '1.1.0'
+    version = '1.2.0'
     description = 'IM Gateway — Unified instant-messaging channel gateway'
     author = 'VeroRun'
 
@@ -39,16 +42,16 @@ class ImGatewayPlugin(BasePlugin):
         try:
             n = migrate_from_main_db()
             if n:
-                print(f'[ImGatewayPlugin] ✅ Migrated {n} channel configurations from main database')
+                logger.info(f'Migrated {n} channel configurations from main database')
         except Exception as e:
-            print(f'[ImGatewayPlugin] ⚠️ Channel configuration migration warning: {e}')
+            logger.warning(f'Channel configuration migration warning: {e}')
         return True
 
     def on_enable(self, registry):
         """启用时初始化数据库 + i18n（幂等）"""
         init_im_db()
         init_i18n(self.t)
-        print(_('[ImGatewayPlugin] ✅ IM gateway plugin enabled'))
+        logger.info('IM gateway plugin enabled')
         return True
 
     def register_routes(self):
@@ -58,7 +61,7 @@ class ImGatewayPlugin(BasePlugin):
 
     def on_disable(self, registry):
         """禁用时清理"""
-        print(_('[ImGatewayPlugin] ⚠️ IM gateway plugin disabled'))
+        logger.warning('IM gateway plugin disabled')
         return True
 
     # ── 对外接口：供主系统（媒体库）调用推送 ──
