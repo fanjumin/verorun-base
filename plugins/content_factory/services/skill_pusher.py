@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — Skill Pusher: 将加工内容导出为 Hermes/OpenClaw SKILL.md"""
 from i18n import _
-import json, re, logging
+import json, re
 from datetime import datetime
 from typing import Optional
 from plugins.content_factory.models import get_cf_db
+from plugin_manager.logger import get_plugin_logger
 
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('content_factory')
 
 
 def generate_skill_md(processed: dict, raw_source_url: str = '') -> str:
@@ -88,7 +89,7 @@ def push_to_skill(processed_id: int, admin_id: int = 1,
         conn.execute(
             """UPDATE skill_pushes SET skill_content=?, title=?, description=?,
                skill_version=?, status='pushed', push_count=push_count+1,
-               last_pushed_at=NOW() WHERE id=%s""",
+               last_pushed_at=NOW() WHERE id=?""",
             (skill_content, pc['title'], pc['summary'] or '',
              datetime.now().strftime('%Y%m%d'), existing['id'])
         )
@@ -98,7 +99,7 @@ def push_to_skill(processed_id: int, admin_id: int = 1,
             """INSERT INTO skill_pushes (processed_id, title, description,
                skill_name, skill_category, skill_content, target_agent,
                push_count, last_pushed_at, created_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,1,NOW(),%s) RETURNING id""",
+               VALUES (?,?,?,?,?,?,?,1,NOW(),?) RETURNING id""",
             (processed_id, pc['title'], pc['summary'] or '',
              skill_name, category, skill_content, target_agent, admin_id)
         )

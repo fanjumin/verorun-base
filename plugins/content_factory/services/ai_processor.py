@@ -1,36 +1,67 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — AI 内容加工 (Qwen 提取+分析+改写)"""
 from i18n import _
-import json, logging
+import json
 from typing import Optional
 from plugins.content_factory.models import get_cf_db
+from plugin_manager.logger import get_plugin_logger
 
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('content_factory')
+
+# 插件声明的 model_policy（与 plugin.json agents[0].model_policy 保持一致）。
+# 解析优先级：tier → system_config model_tier_{tier}（provider_model_id）；
+#             explicit → 政策内 provider+model；inherit/fallback → 全局默认（§3.4）。
+_DEFAULT_MODEL_POLICY = {
+    'strategy': 'tier',
+    'tier': 'standard',
+    'allow_user_override': True,
+    'fallback': 'inherit',
+}
+
+
+def _resolve_model_args(model_policy: dict) -> dict:
+    """按 model_policy 三层策略解析模型参数，返回 get_gateway().chat() 可用的 kwargs。"""
+    from agent_matrix.engine import _get_system_key  # noqa: F401
+    strategy = model_policy.get('strategy', 'inherit')
+    # 1. tier：读 system_config model_tier_{tier}（provider_model_id），命中则用之
+    if strategy == 'tier':
+        tier = model_policy.get('tier', 'standard')
+        pm_id = _get_system_key(f'model_tier_{tier}')
+        if pm_id:
+            return {'provider_model_id': pm_id}
+    # 2. explicit：政策内显式 provider+model
+    if strategy == 'explicit':
+        provider = model_policy.get('provider', '')
+        model = model_policy.get('model', '')
+        if provider and model:
+            return {'provider': provider, 'model': model}
+    # 3. inherit / fallback：全局默认（system_config，PROVIDER_CONFIGS 兜底）
+    provider = _get_system_key('ai_text_provider') or 'siliconflow'
+    model = _get_system_key('ai_text_model') or 'deepseek-ai/DeepSeek-V3'
+    return {'provider': provider, 'model': model}
 
 
 def _call_qwen(prompt: str, max_tokens: int = 4096) -> Optional[str]:
-    """Call AI via UnifiedLLM. Provider and model from system_config, not hardcoded."""
-    from agent_matrix.engine import get_gateway, _get_system_key
-    provider = _get_system_key('ai_text_provider') or 'siliconflow'
-    model = _get_system_key('ai_text_model') or 'deepseek-ai/DeepSeek-V3'
+    """Call AI via UnifiedLLM. 模型选择遵循 model_policy（§3），档位未命中时降级全局默认。"""
+    from agent_matrix.engine import get_gateway
     gw = get_gateway()
+    kwargs = _resolve_model_args(_DEFAULT_MODEL_POLICY)
     return gw.chat(
-        provider=provider,
-        model=model,
         messages=[{'role': 'user', 'content': prompt}],
         temperature=0.7,
         max_tokens=max_tokens,
         module='content_factory',
+        **kwargs,
     )
 
 
 PROCESS_PROMPT = """请处理以下原始内容，输出JSON：
 
 {{
-  "title": _("Optimized Title (Concise and powerful, within 20 characters)"),
-  "summary": _("One-sentence summary (within 50 characters)"),
-  "body": _("Reformat the main text with Markdown. Leave a blank line between paragraphs, use '-' for lists, and bold numbers and percentages with **. Do not use ```."),
-  "keywords": [_("Keyword 1"), _("Keyword 2"), _("Keyword 3")],
+  "title": "Optimized Title (Concise and powerful, within 20 characters)",
+  "summary": "One-sentence summary (within 50 characters)",
+  "body": "Reformat the main text with Markdown. Leave a blank line between paragraphs, use '-' for lists, and bold numbers and percentages with **. Do not use ```.",
+  "keywords": ["Keyword 1", "Keyword 2", "Keyword 3"],
   "risk_level": "low / normal / high / critical"
 }}
 
@@ -89,7 +120,7 @@ def process_raw_content(raw_id: int, admin_id: int = 1) -> dict:
             if cleaned.endswith('```'): cleaned = cleaned.rsplit('```', 1)[0]
             data = json.loads(cleaned.strip())
         except:
-            conn.execute(_("UPDATE raw_contents SET status='failed', error_msg='JSON parsing failed' WHERE id=?"), (raw_id,))
+            conn.execute("UPDATE raw_contents SET status='failed', error_msg='JSON parsing failed' WHERE id=?", (raw_id,))
             conn.commit()
             return {'success': False, 'error': f'AI output format error: {result_text[:200]}', 'raw_output': result_text}
 

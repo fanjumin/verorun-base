@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — 采集管理器主入口"""
 from i18n import _
-import importlib, json, logging
+import importlib, json
 from typing import Optional
 from plugins.content_factory.models import get_cf_db
 from .base_collector import BaseCollector
+from plugin_manager.logger import get_plugin_logger
 
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('content_factory')
 
 COLLECTOR_MAP = {
     'rss': 'collectors.rss_collector.RSSCollector',
@@ -54,7 +55,7 @@ def run_collection(source_id: int, source_type: str = None,
 
     cur = conn.execute(
         """INSERT INTO content_tasks (source_id, task_type, trigger_type, status, started_at, created_by)
-           VALUES (%s, 'crawl', 'manual', 'running', NOW(), %s) RETURNING id""",
+           VALUES (?, 'crawl', 'manual', 'running', NOW(), ?) RETURNING id""",
         (source_id, kwargs.get('admin_id', 1))
     )
     conn.commit()
@@ -73,12 +74,12 @@ def run_collection(source_id: int, source_type: str = None,
         log = str(e)
 
     conn.execute(
-        """UPDATE content_tasks SET status=%s, finished_at=NOW(),
-           total_items=%s, done_items=%s, log_text=%s WHERE id=%s""",
+        """UPDATE content_tasks SET status=?, finished_at=NOW(),
+           total_items=?, done_items=?, log_text=? WHERE id=?""",
         (status, inserted + skipped, inserted, log, task_id)
     )
     if status == 'completed':
-        conn.execute("UPDATE content_sources SET last_crawled_at=NOW() WHERE id=%s", (source_id,))
+        conn.execute("UPDATE content_sources SET last_crawled_at=NOW() WHERE id=?", (source_id,))
     conn.commit()
 
     return {'success': status == 'completed', 'total': inserted + skipped,

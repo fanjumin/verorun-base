@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — 23 API 路由"""
 from i18n import _
-import sys, os, json, logging
+import sys, os, json
 
 _auth_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
 if _auth_dir not in sys.path:
     sys.path.insert(0, _auth_dir)
 
 from flask import Blueprint, request, jsonify
+from plugin_manager.logger import get_plugin_logger
 
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('content_factory')
 cf_bp = Blueprint('content_factory', __name__, url_prefix='/admin/content-factory')
 
 
@@ -772,7 +773,6 @@ def list_schedules():
         "FROM content_sources WHERE is_active = 1 AND crawl_interval > 0 "
         "ORDER BY name"
     ).fetchall()
-    conn.close()
     return jsonify({
         'success': True,
         'data': [dict(r) for r in rows]
@@ -792,7 +792,6 @@ def cron_status():
         "ORDER BY t.id DESC LIMIT ?",
         [50]
     ).fetchall()
-    conn.close()
     return jsonify({
         'success': True,
         'data': [dict(r) for r in rows]

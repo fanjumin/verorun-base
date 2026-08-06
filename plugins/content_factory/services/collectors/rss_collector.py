@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Content Factory Plugin — RSS/Atom 通用采集器"""
+import ipaddress
+import re
+import socket
 from datetime import datetime
 from typing import List
+from urllib.parse import urlparse
 from i18n import _
 from plugins.content_factory.services.base_collector import BaseCollector, CollectResult
 
@@ -9,6 +13,34 @@ try:
     import feedparser
 except ImportError:
     feedparser = None
+
+# §11.3: 禁止访问内网/保留 IP 段（防 SSRF）
+_BLOCKED_RANGES = (
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+    ipaddress.ip_network('169.254.0.0/16'),
+    ipaddress.ip_network('0.0.0.0/8'),
+)
+
+
+def _is_safe_url(url: str) -> bool:
+    """校验 RSS 源 URL 不指向内网/保留 IP，防止 SSRF。"""
+    try:
+        host = urlparse(url).hostname
+        if not host:
+            return False
+        infos = socket.getaddrinfo(host, None)
+        if not infos:
+            return False
+        for info in infos:
+            addr = ipaddress.ip_address(info[4][0])
+            if any(addr in net for net in _BLOCKED_RANGES):
+                return False
+    except Exception:
+        return False
+    return True
 
 
 class RSSCollector(BaseCollector):
@@ -22,6 +54,8 @@ class RSSCollector(BaseCollector):
         url = kwargs.get('url') or self.config.get('url', '')
         if not url:
             return []
+        if not _is_safe_url(url):
+            raise ValueError(_("RSS source URL blocked by security policy (intranet/reserved IP)"))
 
         feed = feedparser.parse(url, agent=self._random_ua())
         if not feed.entries:
