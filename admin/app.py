@@ -998,7 +998,7 @@ def admin_check_update():
             cwd=_project_root, capture_output=True, text=True, timeout=15
         )
         if r.returncode == 0:
-            tags = re.findall(r'refs/tags/v?(\d+\.\d+\.\d+)', r.stdout)
+            tags = re.findall(r'refs/tags/v(\d+\.\d+\.\d+)$', r.stdout, re.M)
             if tags:
                 tags.sort(key=lambda v: [int(x) for x in v.split('.')])
                 latest_tag_ver = tags[-1]

@@ -16,6 +16,14 @@ jobs:
       - name: Checkout verorun-code
         uses: actions/checkout@v4
 
+      - name: Guard — only main app version tags (vX.Y.Z)
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if ! echo "${TAG}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Skipping build: ${TAG} is not a main app version tag"
+            exit 0
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

@@ -859,7 +859,7 @@ tail.html 统一闭合。插件模板**绝不能自带 `<script>...</script>`**�
 
 ### 13.3 发布侧：tag 命名（Phase C 预留）
 
-- 插件发布 tag 命名：`plugin/<identifier>/v<X.Y.Z>`（如 `plugin/ads/v1.1.0`）。
+- 插件发布 tag 命名：`<identifier>-v<X.Y.Z>`（如 `ads-v1.1.0`）。
 - 触发 `plugin-release.yml` 流水线：打包 `plugins/<id>/` → `<id>-vX.Y.Z.zip` + SHA256 →
 - 上传 verorun-store Release → 更新 `store_catalog.json` 对应条目。
 - ★v1.4：从 `plugin.json` 提取 `icon_url`、`screenshots`、`readme_url` 并写入
