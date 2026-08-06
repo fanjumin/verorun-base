@@ -93,10 +93,9 @@ email/
 +-- README.md                    # 插件文档
 +-- plugin.json                  # 插件元数据配置
 +-- __init__.py                  # 插件入口，注册蓝图和 Hook
-+-- models.py                    # 数据模型（独立库连接、email_sent 表创建）
++-- models.py                    # 数据模型（PG schema: email 连接、email_sent 表创建）
 +-- routes.py                    # 管理端 API 路由（收件箱、发送、联系人、附件等）
 +-- services.py                  # 邮件服务核心逻辑（SMTP/IMAP、MIME 编解码、附件处理）
-+-- email.db                     # 独立数据库文件（保留用于迁移）
 +-- i18n/
 |   +-- en.yml                   # 英文国际化
 |   +-- zh-CN.yml                # 中文国际化

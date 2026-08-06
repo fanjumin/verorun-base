@@ -3,7 +3,7 @@
 Email Service Plugin — 邮件服务插件（完全独立）
 ================================================
 统一的邮件服务：SMTP 发信 + IMAP 收信 + 附件 + 已发送记录。
-- 独立数据库：email.db（不依赖主库）
+- 独立数据库：PG schema `email`（不依赖主库）
 - 独立配置：环境变量 + plugin.json 默认值（不依赖 system_config）
 - 独立 i18n：插件自带翻译文件
 """
@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from plugin_manager.base import BasePlugin
+from plugin_manager.base import BasePlugin, clear_plugin_yaml_cache
 
 # 模块级 i18n 引用，由 on_enable 注入
 _t = lambda text: text
@@ -33,7 +33,7 @@ class EmailPlugin(BasePlugin):
     author = 'VeroRun'
 
     def on_install(self, registry):
-        """安装时初始化独立 email.db"""
+        """安装时初始化独立 PG schema: email"""
         from .models import init_email_db
         init_email_db()
         return True
@@ -43,7 +43,7 @@ class EmailPlugin(BasePlugin):
         from .models import init_email_db
         init_email_db()
         init_i18n(self.t)
-        print(_('[EmailPlugin] ✅ Email service plugin enabled (email.db)'))
+        print(_('[EmailPlugin] ✅ Email service plugin enabled (PG schema: email)'))
         return True
 
     def register_routes(self):
@@ -54,4 +54,23 @@ class EmailPlugin(BasePlugin):
     def on_disable(self, registry):
         """禁用时清理"""
         print(_('[EmailPlugin] ⚠️ Email service plugin disabled'))
+        return True
+
+    def on_uninstall(self, registry=None):
+        """卸载时清理独立 PG schema（§4.2/§12.5 零残留）
+
+        注意：PluginManager.uninstall() 以无参方式调用本方法，
+        故签名必须使用 registry=None 默认值，避免 TypeError 被静默吞掉。
+        """
+        try:
+            from plugins._base.db import get_raw_connection
+            conn = get_raw_connection()
+            cur = conn.cursor()
+            cur.execute("DROP SCHEMA IF EXISTS email CASCADE")
+            conn.commit()
+            conn.close()
+            clear_plugin_yaml_cache('email')
+            print(_('[EmailPlugin] ✅ PG schema email dropped on uninstall'))
+        except Exception as e:
+            print(_('[EmailPlugin] ⚠️ Uninstall cleanup warning: {}').format(e))
         return True

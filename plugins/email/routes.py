@@ -2,7 +2,7 @@
 """
 Email Plugin Routes — 邮件管理 API 路由
 ========================================
-完全独立，使用插件 email.db + 主库 contact_messages 的 Python 级合并。
+完全独立，使用插件 PG schema: email + 主库 contact_messages 的 Python 级合并。
 """
 
 from i18n import _
@@ -111,7 +111,7 @@ def admin_email_contacts():
         return err
     contacts = {}
 
-    # 1. 从 email.db 读取已发送邮件中的联系人
+    # 1. 从独立 PG schema (email) 读取已发送邮件中的联系人
     from plugins.email.services import get_sent_emails
     sent = get_sent_emails(page=1, per_page=999)
     for item in sent.get('items', []):

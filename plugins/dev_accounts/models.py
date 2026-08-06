@@ -2,15 +2,57 @@
 """Developer Accounts — data access layer"""
 
 import json
-import sys
-import os
+from contextlib import contextmanager
+from urllib.error import URLError
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
-from models import get_db
+from plugins._base.db import PgConnection, get_raw_connection
 from .crypto import encrypt, decrypt, mask
 
 
 SENSITIVE_FIELDS = ['app_secret', 'bot_token', 'channel_secret', 'access_token']
+
+
+@contextmanager
+def get_db():
+    """PostgreSQL connection (public schema).
+
+    dev_accounts 表保留在主库 public schema（逻辑解耦，见 __init__.py 模块注释），
+    因此这里显式 SET search_path TO public，与 main_site / site_builder 共享读取一致。
+    """
+    conn = get_raw_connection()
+    conn.autocommit = False
+    try:
+        wrapped = PgConnection(conn)
+        wrapped.execute("SET search_path TO public")
+        yield wrapped
+    finally:
+        conn.close()
+
+
+def init_db():
+    """Create dev_accounts table if it doesn't exist (PostgreSQL)."""
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dev_accounts (
+                id               SERIAL PRIMARY KEY,
+                platform         TEXT NOT NULL,
+                account_name     TEXT NOT NULL,
+                app_id           TEXT DEFAULT '',
+                app_secret       TEXT DEFAULT '',
+                bot_token        TEXT DEFAULT '',
+                channel_id       TEXT DEFAULT '',
+                channel_secret   TEXT DEFAULT '',
+                access_token     TEXT DEFAULT '',
+                extra_config     TEXT DEFAULT '{}',
+                is_active        INTEGER DEFAULT 1,
+                created_at       TEXT DEFAULT NOW(),
+                updated_at       TEXT DEFAULT NOW()
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_dev_accounts_platform
+                ON dev_accounts(platform)
+        """)
 
 
 def get_all(platform: str = None) -> list:
@@ -51,13 +93,11 @@ def get_by_platform(platform: str, active_only: bool = True) -> dict | None:
                 "SELECT * FROM dev_accounts WHERE platform=? LIMIT 1",
                 (platform,)
             ).fetchone()
-    return dict(row) if row else None
+    return _sanitize(dict(row)) if row else None
 
 
 def create(platform: str, account_name: str, **kwargs) -> int:
     """Create a new developer account. Returns the new row ID."""
-    from .crypto import encrypt
-
     with get_db() as conn:
         cursor = conn.execute(
             """INSERT INTO dev_accounts
@@ -145,8 +185,12 @@ def test_connection(account_id: int) -> dict:
             return {'success': True, 'message': f'{platform} connection test not implemented (requires SDK). Verify credentials manually.'}
         else:
             return {'success': False, 'error': f'Unknown platform: {platform}'}
+    except URLError:
+        return {'success': False, 'error': 'Connection test failed: cannot reach platform API. Check network connectivity.'}
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        import logging
+        logging.getLogger('dev_accounts').warning('Connection test failed for account %s: %s', account_id, e)
+        return {'success': False, 'error': 'Connection test failed due to an unexpected error.'}
 
 
 def _test_telegram(account: dict) -> dict:
@@ -163,8 +207,12 @@ def _test_telegram(account: dict) -> dict:
         if resp.get('ok'):
             return {'success': True, 'message': f"Connected as @{resp['result'].get('username', 'unknown')}"}
         return {'success': False, 'error': resp.get('description', 'Unknown error')}
+    except URLError:
+        return {'success': False, 'error': 'Connection test failed: cannot reach Telegram API. Check network connectivity.'}
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        import logging
+        logging.getLogger('dev_accounts').warning('Telegram connection test error: %s', e)
+        return {'success': False, 'error': 'Connection test failed due to an unexpected error.'}
 
 
 def _test_line(account: dict) -> dict:
@@ -182,8 +230,12 @@ def _test_line(account: dict) -> dict:
         if 'userId' in resp:
             return {'success': True, 'message': f"Connected as {resp.get('displayName', 'unknown')}"}
         return {'success': False, 'error': resp.get('message', 'Unknown error')}
+    except URLError:
+        return {'success': False, 'error': 'Connection test failed: cannot reach LINE API. Check network connectivity.'}
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        import logging
+        logging.getLogger('dev_accounts').warning('LINE connection test error: %s', e)
+        return {'success': False, 'error': 'Connection test failed due to an unexpected error.'}
 
 
 def _sanitize(account: dict) -> dict:
@@ -192,3 +244,16 @@ def _sanitize(account: dict) -> dict:
         if field in account and account[field]:
             account[field] = mask(account[field])
     return account
+
+
+def get_account_stats() -> dict:
+    """Return account statistics for Dashboard (P2-7)."""
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) AS count FROM dev_accounts").fetchone()
+        active = conn.execute(
+            "SELECT COUNT(*) AS count FROM dev_accounts WHERE is_active=1"
+        ).fetchone()
+    return {
+        'total_accounts': total['count'] if total else 0,
+        'active_accounts': active['count'] if active else 0,
+    }

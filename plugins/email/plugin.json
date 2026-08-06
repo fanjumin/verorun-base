@@ -1,8 +1,8 @@
 {
     "name": "Email Service",
     "identifier": "email",
-    "version": "1.0.0",
-    "category": "Communication",
+    "version": "1.1.0",
+    "category": "system",
     "tags": ["email", "smtp", "imap", "notification"],
     "icon": "email",
     "description": "Email Service — SMTP/IMAP email client with inbox, compose, attachments, and contact management",
@@ -22,9 +22,9 @@
         "imap_port": 993
     },
     "permissions": [
-        "email.send",
-        "email.read",
-        "email.manage"
+        "network:request",
+        "api:read",
+        "api:write"
     ],
     "hooks": {
         "provides": [

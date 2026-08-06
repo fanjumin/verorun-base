@@ -1,16 +1,52 @@
 {
     "name": "Developer Accounts",
     "identifier": "dev_accounts",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Manage developer accounts for social media platforms (Douyin, WeChat, Telegram, LINE)",
     "author": "VeroRun",
-    "category": "admin",
-    "permissions": ["admin"],
-    "admin": {
-        "menu": {
-            "title": "Developer Accounts",
-            "icon": "key",
-            "url": "/admin/dev-accounts"
-        }
+    "min_app_version": "0.10.0",
+
+    "category": "system",
+    "icon": "key",
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "",
+    "tags": ["developer", "account", "credentials", "douyin", "wechat", "telegram", "line"],
+
+    "dependencies": {},
+
+    "admin_url": "/admin/dev-accounts",
+    "admin_label": "Developer Accounts",
+
+    "config": {},
+
+    "permissions": [
+        "admin:access",
+        "network:request"
+    ],
+
+    "hooks": {
+        "provides": [],
+        "listens": []
+    },
+
+    "dashboard": {
+        "stats": [
+            {"key": "total_accounts", "title": "Total Accounts", "type": "counter"},
+            {"key": "active_accounts", "title": "Active Accounts", "type": "counter"}
+        ]
+    },
+
+    "menu": {
+        "group": "System",
+        "key": "dev_accounts",
+        "icon": "key",
+        "label": "Developer Accounts",
+        "url": "/admin/dev-accounts"
+    },
+
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
     }
 }

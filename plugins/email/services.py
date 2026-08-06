@@ -3,7 +3,7 @@
 Email Service — 统一邮件服务（SMTP 发信 + IMAP 收信 + 附件）
 ==============================================================
 合并原 email_client.py 和 mail_service.py，提供统一的邮件接口。
-完全独立于主库，使用独立 email.db + 环境变量配置。
+完全独立于主库，使用独立 PG schema: email + 环境变量配置。
 
 配置来源优先级：环境变量 → plugin.json 默认值
 
@@ -455,11 +455,11 @@ def send_email(to_addr, subject, body_text, body_html=None, cc=None, reply_to=No
                 server.login(cfg['smtp_user'], cfg['smtp_pass'])
                 server.sendmail(cfg['smtp_from'], to_addr, msg.as_string())
 
-        # Record to plugin's independent email.db
+        # Record to plugin's independent PG schema (email)
         from .models import get_email_db
         db = get_email_db()
         db.execute(
-            "INSERT INTO email_sent (from_addr, to_addr, subject, body_text, body_html) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO email_sent (from_addr, to_addr, subject, body_text, body_html) VALUES (%s, %s, %s, %s, %s)",
             (cfg['smtp_from'], ", ".join(to_addr), subject, body_text, body_html)
         )
         db.commit()
@@ -479,13 +479,13 @@ def send_email(to_addr, subject, body_text, body_html=None, cc=None, reply_to=No
 
 
 def get_sent_emails(page=1, per_page=20):
-    """从独立 email.db 查询已发送邮件列表"""
+    """从独立 PG schema (email) 查询已发送邮件列表"""
     from .models import get_email_db
     db = get_email_db()
     count = db.execute("SELECT COUNT(*) FROM email_sent").fetchone()['count']
     offset = (page - 1) * per_page
     rows = db.execute(
-        "SELECT * FROM email_sent ORDER BY sent_at DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM email_sent ORDER BY sent_at DESC LIMIT %s OFFSET %s",
         (per_page, offset)
     ).fetchall()
     items = [dict(r) for r in rows]

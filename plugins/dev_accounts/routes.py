@@ -29,9 +29,9 @@ def _require_admin():
 
 @dev_accounts_bp.route('/', methods=['GET'])
 def list_accounts():
+    """List all developer accounts."""
     err = _require_admin()
     if err: return err
-    """List all developer accounts."""
     platform = request.args.get('platform', None)
     try:
         from .models import get_all
@@ -43,9 +43,9 @@ def list_accounts():
 
 @dev_accounts_bp.route('/<int:account_id>', methods=['GET'])
 def get_account(account_id):
+    """Get a single developer account."""
     err = _require_admin()
     if err: return err
-    """Get a single developer account."""
     try:
         from .models import get_by_id
         account = get_by_id(account_id)
@@ -58,9 +58,9 @@ def get_account(account_id):
 
 @dev_accounts_bp.route('/', methods=['POST'])
 def create_account():
+    """Create a new developer account."""
     err = _require_admin()
     if err: return err
-    """Create a new developer account."""
     data = request.get_json(force=True, silent=True) or {}
     platform = data.get('platform', '')
     account_name = data.get('account_name', '')
@@ -93,9 +93,9 @@ def create_account():
 
 @dev_accounts_bp.route('/<int:account_id>', methods=['PUT'])
 def update_account(account_id):
+    """Update an existing developer account."""
     err = _require_admin()
     if err: return err
-    """Update an existing developer account."""
     data = request.get_json(force=True, silent=True) or {}
     if not data:
         return _err('No data provided', 400)
@@ -112,9 +112,9 @@ def update_account(account_id):
 
 @dev_accounts_bp.route('/<int:account_id>', methods=['DELETE'])
 def delete_account(account_id):
+    """Delete a developer account."""
     err = _require_admin()
     if err: return err
-    """Delete a developer account."""
     try:
         from .models import delete
         delete(account_id)
@@ -125,9 +125,9 @@ def delete_account(account_id):
 
 @dev_accounts_bp.route('/<int:account_id>/test', methods=['POST'])
 def test_account(account_id):
+    """Test connection for a developer account."""
     err = _require_admin()
     if err: return err
-    """Test connection for a developer account."""
     try:
         from .models import test_connection
         result = test_connection(account_id)

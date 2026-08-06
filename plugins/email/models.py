@@ -8,10 +8,7 @@ Email Plugin Models — PostgreSQL schema: email
 from i18n import _
 import psycopg2
 import psycopg2.extras
-import os
 from plugins._base.db import get_raw_connection
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'email.db')  # 保留用于迁移
 
 _email_conn = None
 
@@ -23,7 +20,7 @@ class _PgConnection:
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
+            cur.execute(sql, params)
         else:
             cur.execute(sql)
         return cur
