@@ -42,7 +42,7 @@ function renderStoreList(){
       if(p.icon_url){
         iconHtml='<div style="width:100%;height:120px;overflow:hidden;border-radius:6px 6px 0 0;margin:-1rem -1rem 0.5rem -1rem;width:calc(100% + 2rem)">'+
           '<img src="'+escAttr(p.icon_url)+'" style="width:100%;height:100%;object-fit:cover" '+
-          'onerror="this.parentElement.innerHTML=\'<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--bg-secondary)\\'>&#39;+_categoryEmoji(p.category)+&#39;</div>\'"'+
+          'onerror="this.parentElement.innerHTML=\'<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--bg-secondary)&quot;>\'+_categoryEmoji(p.category)+\'</div>\'"'+
           '></div>';
       }else{
         iconHtml='<div style="width:100%;height:120px;display:flex;align-items:center;justify-content:center;'+
