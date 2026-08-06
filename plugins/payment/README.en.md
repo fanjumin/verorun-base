@@ -9,7 +9,7 @@ The plugin manages its own independent PostgreSQL schema `payment` with tables f
 | Property    | Value                |
 |-------------|----------------------|
 | Identifier  | `payment`            |
-| Version     | 1.0.0                |
+| Version     | 1.1.0                |
 | Database    | PG schema `payment`  |
 | Menu Group  | Business Center      |
 | Menu Key    | `payment`            |

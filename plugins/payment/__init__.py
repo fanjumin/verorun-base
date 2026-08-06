@@ -18,7 +18,7 @@ from plugin_manager.base import BasePlugin
 
 class PaymentPlugin(BasePlugin):
     name = 'payment'
-    version = '1.0.0'
+    version = '1.1.0'
     description = 'Payment Gateway — Alipay/WeChat/Stripe/PayPal configuration management'
     author = 'VeroRun'
 
