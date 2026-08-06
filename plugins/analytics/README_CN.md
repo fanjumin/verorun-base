@@ -23,7 +23,7 @@ Analytics 是 VeroRun 的服务端无 Cookie 分析中间件插件，提供完�
 
 ### 数据库策略
 
-插件使用**独立数据库**，实际部署中使用 PostgreSQL 的 `analytics` schema 进行数据存储。本地开发环境使用 SQLite 文件 `data/analytics.db`。
+插件使用**独立数据库**，使用 PostgreSQL 的 `analytics` schema 进行数据存储。
 
 ### 模块结构
 
@@ -66,17 +66,17 @@ Analytics 是 VeroRun 的服务端无 Cookie 分析中间件插件，提供完�
 
 | 表名 | 用途 |
 |------|------|
-| `analytics_pageviews` | 原始页面浏览记录 |
-| `analytics_visitors` | 访问者标识与会话信息 |
-| `analytics_sessions` | 访问者会话聚合 |
-| `analytics_pages` | 页面维度统计 |
-| `analytics_referrers` | 来源统计 |
-| `analytics_devices` | 设备类型统计 |
-| `analytics_browsers` | 浏览器类型统计 |
-| `analytics_os` | 操作系统统计 |
-| `analytics_locations` | 地理位置统计 |
-| `analytics_hourly` | 按小时聚合趋势 |
-| `analytics_daily` | 按天聚合趋势 |
+| `analytics_logs` | 原始访问日志 |
+| `analytics_visitor_sessions` | 访客会话聚合 |
+| `analytics_hourly_stats` | 按小时聚合统计 |
+| `analytics_daily_stats` | 按天聚合统计 |
+| `analytics_page_stats` | 页面维度统计 |
+| `analytics_source_stats` | 来源维度统计 |
+| `analytics_geo_stats` | 地理位置统计 |
+| `analytics_device_stats` | 设备/浏览器/OS 统计 |
+| `analytics_events` | 自定义事件记录 |
+| `analytics_alerts` | 告警记录 |
+| `analytics_privacy_config` | 隐私配置 |
 
 ## 目录结构
 
@@ -89,13 +89,12 @@ analytics/
 ├── tracker.py               # 事件追踪器，记录原始行为数据
 ├── geoip.py                 # IP 地理位置解析（基于 ip2region）
 ├── ua_parser.py             # User-Agent 解析器
-├── dashboard.py             # 仪表盘数据注入（dashboard.data filter）
+├── routes.py                # 仪表盘 Blueprint 路由（register_routes）
 ├── cli.py                   # 命令行工具（CLI 命令）
 ├── workflow_nodes.py        # Workflow 引擎集成节点
 ├── migrate_analytics.py     # 数据库迁移脚本
 ├── plugin.json              # 插件元数据配置
 ├── data/
-│   ├── analytics.db         # 本地开发 SQLite 数据库
 │   └── ip2region_v4.xdb     # ip2region IP 地理位置数据库
 ├── ip2region/
 │   ├── __init__.py
@@ -104,7 +103,10 @@ analytics/
 ├── i18n/
 │   ├── en.yml               # 英文国际化
 │   └── zh-CN.yml            # 中文国际化
+├── migrations/
+│   └── 001_initial.sql      # 数据库版本迁移（初始 schema）
 ├── static/
+│   ├── js/                  # 前端本地化依赖（echarts/chart.js/tsparticles）与仪表盘 JS
 │   ├── china.json           # 中国地图数据
 │   └── world.json           # 世界地图数据
 └── templates/
@@ -140,7 +142,7 @@ python -m plugins.analytics.migrate_analytics
 ```json
 {
   "name": "analytics",
-  "version": "1.2.0",
+  "version": "1.5.0",
   "database": {
     "type": "postgresql",
     "schema": "analytics"

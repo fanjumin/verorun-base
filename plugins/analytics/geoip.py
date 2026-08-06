@@ -25,8 +25,12 @@ import sys
 import time
 import json
 import base64
+import logging
+import threading
 from urllib.request import urlopen, Request, HTTPError
 from urllib.parse import urlencode
+
+logger = logging.getLogger('analytics.geoip')
 
 # ─── 配置 ──────────────────────────────────────────────────────────────────────
 
@@ -43,13 +47,46 @@ GEOIP_DB_CANDIDATES = [
 # ip-api 缓存（避免限流）
 IPAPI_CACHE = {}
 IPAPI_CACHE_TTL = 3600  # 1 小时缓存
+IPAPI_CACHE_MAX = 10000  # 最大缓存条目数（防内存无限增长）
 
 _geoip_reader = None
 _ip2region_searcher = None
 
+# 全局 GeoIP 状态锁：下载/重置与查询并发时防止读到半初始化状态
+_geoip_lock = threading.Lock()
+
 # 自动检测：启动时查服务器公网 IP，判断是否境外
 # 不再依赖 DEPLOY_MARKET 环境变量
 _IS_INTL = None  # None = 尚未检测，False = 境内，True = 境外
+
+
+def _verify_mmdb(path: str) -> bool:
+    """校验 .mmdb 文件头（MaxMind magic bytes: 0xAB 0xCD 0xEF "MaxMind.com"）"""
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(16)
+        if not head.startswith(b'\xab\xcd\xef'):
+            return False
+        return b'MaxMind.com' in head
+    except Exception:
+        return False
+
+
+def _verify_xdb(path: str) -> bool:
+    """校验 ip2region .xdb 文件头（前 8 字节 indexStartPtr / 8-16 字节 indexEndPtr）"""
+    try:
+        size = os.path.getsize(path)
+        # 最小结构: 256 字节头 + 262144 字节向量索引，实际 xdb 约 11MB
+        if size < 256 + 262144:
+            return False
+        with open(path, 'rb') as f:
+            start = int.from_bytes(f.read(8), 'big')
+            end = int.from_bytes(f.read(8), 'big')
+        if not (256 <= start < end < size):
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def _detect_server_location() -> bool:
@@ -59,18 +96,22 @@ def _detect_server_location() -> bool:
     首次调用后缓存结果。
     """
     global _IS_INTL
-    if _IS_INTL is not None:
-        return _IS_INTL
+    with _geoip_lock:
+        cached = _IS_INTL
+    if cached is not None:
+        return cached
 
     # 1. 优先读取环境变量（部署时常量，零延迟，可靠）
     market_env = os.environ.get('DEPLOY_MARKET', '').lower()
     if market_env in ('intl', 'international', 'global'):
-        _IS_INTL = True
-        print(f'[Analytics] Market set via DEPLOY_MARKET={market_env} → intl')
+        with _geoip_lock:
+            _IS_INTL = True
+        logger.info('Market set via DEPLOY_MARKET=%s → intl', market_env)
         return _IS_INTL
     if market_env in ('cn', 'china'):
-        _IS_INTL = False
-        print(f'[Analytics] Market set via DEPLOY_MARKET={market_env} → cn')
+        with _geoip_lock:
+            _IS_INTL = False
+        logger.info('Market set via DEPLOY_MARKET=%s → cn', market_env)
         return _IS_INTL
 
     # 2. 回退到 ip-api 自动检测（仅启动时一次）
@@ -80,11 +121,14 @@ def _detect_server_location() -> bool:
         resp = urlopen('https://ip-api.com/json/?fields=countryCode', timeout=5)
         data = json.loads(resp.read().decode())
         cc = (data.get('countryCode') or '').upper()
-        _IS_INTL = (cc != 'CN')
-        print(f'[Analytics] Market auto-detected via ip-api: {"intl" if _IS_INTL else "cn"}')
+        detected = (cc != 'CN')
+        with _geoip_lock:
+            _IS_INTL = detected
+        logger.info('Market auto-detected via ip-api: %s', 'intl' if detected else 'cn')
     except Exception:
-        _IS_INTL = False  # 默认国内
-        print('[Analytics] Market detection failed, defaulting to cn')
+        with _geoip_lock:
+            _IS_INTL = False  # 默认国内
+        logger.warning('Market auto-detection via ip-api failed, defaulting to cn', exc_info=True)
     return _IS_INTL
 
 
@@ -117,7 +161,7 @@ def detect_client_market(ip: str) -> str:
         if api_result.get('country'):
             return 'cn' if api_result['country'] == 'CN' else 'intl'
     except Exception:
-        pass
+        logger.warning('ip-api fallback lookup failed for client market', exc_info=True)
 
     return get_market()  # 最终回退到服务器市场
 
@@ -128,21 +172,23 @@ def _init_ip2region() -> bool:
     """初始化 ip2region（优先于 MaxMind）"""
     global _ip2region_searcher
     if not os.path.exists(IP2REGION_DB):
-        print(f'[Analytics] ℹ️ ip2region database not found: {IP2REGION_DB}')
+        logger.info('ip2region database not found: %s', IP2REGION_DB)
         return False
     if not os.access(IP2REGION_DB, os.R_OK):
-        print(f'[Analytics] ⚠️ ip2region database not readable (bad permissions): {IP2REGION_DB}')
+        logger.warning('ip2region database not readable (bad permissions): %s', IP2REGION_DB)
         return False
     try:
         sys.path.insert(0, os.path.dirname(__file__))
         from ip2region import util
         from ip2region.searcher import new_with_buffer
         with open(IP2REGION_DB, 'rb') as f:
-            _ip2region_searcher = new_with_buffer(util.IPv4, f.read())
-        print(f'[Analytics] ✅ ip2region loaded: {IP2REGION_DB}')
+            searcher = new_with_buffer(util.IPv4, f.read())
+        with _geoip_lock:
+            _ip2region_searcher = searcher
+        logger.info('ip2region loaded: %s', IP2REGION_DB)
         return True
     except Exception as e:
-        print(f'[Analytics] ⚠️ ip2region loading failed: {e}')
+        logger.warning('ip2region loading failed: %s', e, exc_info=True)
         return False
 
 
@@ -151,11 +197,12 @@ def _ip2region_lookup(ip: str) -> dict:
     ip2region 查询，解析 _("Country|Region|Province|City|ISP") 格式
     返回: {'country': _('China'), 'city': _('Nanjing')}
     """
-    global _ip2region_searcher
-    if not _ip2region_searcher:
+    with _geoip_lock:
+        searcher = _ip2region_searcher
+    if not searcher:
         return {}
     try:
-        result = _ip2region_searcher.search(ip)
+        result = searcher.search(ip)
         if not result:
             return {}
         # 格式: "国家|省份|城市|ISP|备用"
@@ -169,6 +216,7 @@ def _ip2region_lookup(ip: str) -> dict:
             return {'country': cc, 'city': city}
         return {}
     except Exception:
+        logger.warning('ip2region lookup failed for %r', ip, exc_info=True)
         return {}
 
 
@@ -222,23 +270,27 @@ def init_geoip():
 
     # 初始化 ip2region（优先级最高）
     _init_ip2region()
+    with _geoip_lock:
+        has_ip2r = _ip2region_searcher is not None
 
     # 初始化 MaxMind
     db_path = _find_db()
     if not db_path:
-        if not _ip2region_searcher:
-            print(f'[Analytics] ℹ️ GeoIP databases not found, using ip-api as fallback')
+        if not has_ip2r:
+            logger.info('GeoIP databases not found, using ip-api as fallback')
         else:
-            print(f'[Analytics] ℹ️ GeoLite2 database not found, ip2region + ip-api available')
-        return _ip2region_searcher is not None
+            logger.info('GeoLite2 database not found, ip2region + ip-api available')
+        return has_ip2r
     try:
         import geoip2.database
-        _geoip_reader = geoip2.database.Reader(db_path)
-        print(f'[Analytics] ✅ GeoIP loaded: {db_path}')
+        reader = geoip2.database.Reader(db_path)
+        with _geoip_lock:
+            _geoip_reader = reader
+        logger.info('GeoIP loaded: %s', db_path)
         return True
     except Exception as e:
-        print(f'[Analytics] ⚠️ GeoIP loading failed: {e}')
-        return _ip2region_searcher is not None
+        logger.warning('GeoIP loading failed: %s', e, exc_info=True)
+        return has_ip2r
 
 
 def geoip_lookup(ip: str) -> dict:
@@ -247,7 +299,8 @@ def geoip_lookup(ip: str) -> dict:
     返回: {'country': 'CN', 'city': _('Nanjing')}
     失败返回空 dict
     """
-    global _geoip_reader, _ip2region_searcher
+    with _geoip_lock:
+        reader = _geoip_reader
     if not ip or ip == '127.0.0.1' or ip == '0.0.0.x' or ip.startswith('192.168.'):
         return {'country': '', 'city': ''}
 
@@ -255,13 +308,13 @@ def geoip_lookup(ip: str) -> dict:
     result = _ip2region_lookup(ip)
     if result.get('city'):
         return result  # 有城市数据，直接返回
-    if result.get('country') and not _geoip_reader:
+    if result.get('country') and not reader:
         return result  # ip2region 有国家码 + 没有 MaxMind → 直接返回
 
     # 2. MaxMind 补充（国际 IP 城市数据）
-    if _geoip_reader:
+    if reader:
         try:
-            response = _geoip_reader.city(ip)
+            response = reader.city(ip)
             mm_city = response.city.name or ''
             mm_country = response.country.iso_code or ''
             if mm_country:
@@ -271,8 +324,8 @@ def geoip_lookup(ip: str) -> dict:
                         return {'country': result.get('country'), 'city': mm_city or result.get('city', '')}
                     return {'country': mm_country, 'city': mm_city}
                 return {'country': mm_country, 'city': mm_city}
-        except:
-            pass
+        except Exception:
+            logger.warning('MaxMind lookup failed for %r', ip, exc_info=True)
 
     # 3. ip2region 至少给了 country
     if result.get('country'):
@@ -291,6 +344,11 @@ def _ipapi_lookup(ip: str) -> dict:
     expired = [k for k, v in IPAPI_CACHE.items() if now - v['ts'] > IPAPI_CACHE_TTL]
     for k in expired:
         del IPAPI_CACHE[k]
+    # 大小上限保护：超过上限时清理最早插入的键
+    if len(IPAPI_CACHE) > IPAPI_CACHE_MAX:
+        overflow = len(IPAPI_CACHE) - IPAPI_CACHE_MAX
+        for k in list(IPAPI_CACHE.keys())[:overflow]:
+            del IPAPI_CACHE[k]
 
     # 缓存命中
     if ip in IPAPI_CACHE:
@@ -308,7 +366,7 @@ def _ipapi_lookup(ip: str) -> dict:
             IPAPI_CACHE[ip] = {'ts': now, 'data': result}
             return result
     except Exception as e:
-        pass
+        logger.warning('ip-api lookup failed for %r: %s', ip, e)
 
     return {'country': '', 'city': ''}
 
@@ -382,17 +440,28 @@ def download_geolite2_auto(license_key: str, account_id: str = '', edition: str 
         finally:
             os.unlink(tmp_path)
 
+        # 完整性校验：检查 MaxMind magic bytes，防止下载到损坏/伪造文件
+        if not _verify_mmdb(target_path):
+            try:
+                os.unlink(target_path)
+            except OSError:
+                pass
+            return {
+                'success': False,
+                'error': f'{mmdb_name} integrity check failed (invalid MaxMind file header)',
+            }
+
         size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
 
         # 重置 reader，下次 geoip_lookup 自动重新加载
-        global _geoip_reader
-        _geoip_reader = None
+        with _geoip_lock:
+            _geoip_reader = None
 
         # 确保路径在探测列表中
         if target_path not in GEOIP_DB_CANDIDATES:
             GEOIP_DB_CANDIDATES.insert(0, target_path)
 
-        print(f'[Analytics] ✅ {mmdb_name} downloaded ({size_mb} MB) → {target_path}')
+        logger.info('%s downloaded (%.1f MB) → %s', mmdb_name, size_mb, target_path)
         return {'success': True, 'path': target_path, 'size_mb': size_mb}
 
     except HTTPError as e:
@@ -442,17 +511,29 @@ def install_geolite2_file(source_path: str) -> dict:
 
     try:
         shutil.copy2(source_path, target_path)
+
+        # 完整性校验：检查 MaxMind magic bytes，防止上传损坏/伪造文件
+        if not _verify_mmdb(target_path):
+            try:
+                os.unlink(target_path)
+            except OSError:
+                pass
+            return {
+                'success': False,
+                'error': f'{basename} integrity check failed (invalid MaxMind file header)',
+            }
+
         size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
 
         # 重置 reader
-        global _geoip_reader
-        _geoip_reader = None
+        with _geoip_lock:
+            _geoip_reader = None
 
         # 确保路径在探测列表中
         if target_path not in GEOIP_DB_CANDIDATES:
             GEOIP_DB_CANDIDATES.insert(0, target_path)
 
-        print(f'[Analytics] ✅ {basename} installed ({size_mb} MB) → {target_path}')
+        logger.info('%s installed (%.1f MB) → %s', basename, size_mb, target_path)
         return {'success': True, 'path': target_path, 'size_mb': size_mb}
     except Exception as e:
         return {'success': False, 'error': str(e)}
@@ -484,11 +565,22 @@ def download_geolite2_cdn() -> dict:
             with open(target_path, 'wb') as f:
                 shutil.copyfileobj(gz, f)
 
+        # 完整性校验：检查 MaxMind magic bytes，防止下载到损坏/伪造文件
+        if not _verify_mmdb(target_path):
+            try:
+                os.unlink(target_path)
+            except OSError:
+                pass
+            return {
+                'success': False,
+                'error': 'GeoLite2-City.mmdb integrity check failed (invalid MaxMind file header)',
+            }
+
         size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
 
         # 重置 reader
-        global _geoip_reader
-        _geoip_reader = None
+        with _geoip_lock:
+            _geoip_reader = None
 
         # 确保路径在探测列表中
         if target_path not in GEOIP_DB_CANDIDATES:
@@ -497,7 +589,7 @@ def download_geolite2_cdn() -> dict:
         # 立即重新加载 GeoIP reader
         init_geoip()
 
-        print(f'[Analytics] ✅ GeoLite2-City.mmdb downloaded from CDN ({size_mb} MB) → {target_path}')
+        logger.info('GeoLite2-City.mmdb downloaded from CDN (%.1f MB) → %s', size_mb, target_path)
         return {'success': True, 'path': target_path, 'size_mb': size_mb}
 
     except Exception as e:
@@ -550,11 +642,15 @@ def download_ip2region_auto() -> dict:
     target_path = os.path.join(target_dir, 'ip2region_v4.xdb')
 
     # GitHub / Gitee 镜像（国内优先 Gitee，境外优先 GitHub）
+    # 可用环境变量 IP2REGION_MIRROR 追加自定义镜像（如自建代理）
     urls = [
         'https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region.xdb',
         'https://gitee.com/mirrors/ip2region/raw/master/data/ip2region.xdb',
         'https://ghproxy.com/https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region.xdb',
     ]
+    extra_mirror = os.environ.get('IP2REGION_MIRROR', '')
+    if extra_mirror:
+        urls.insert(0, extra_mirror)
 
     last_error = ''
     for url in urls:
@@ -564,13 +660,22 @@ def download_ip2region_auto() -> dict:
                 with open(target_path, 'wb') as f:
                     shutil.copyfileobj(resp, f)
 
+                # 完整性校验：检查 xdb 头部索引指针，防止下载到损坏/伪造文件
+                if not _verify_xdb(target_path):
+                    try:
+                        os.unlink(target_path)
+                    except OSError:
+                        pass
+                    last_error = f'Invalid xdb header from {url}'
+                    continue
+
                 size_mb = round(os.path.getsize(target_path) / (1024 * 1024), 1)
 
                 # 重置 searcher，下次 geoip_lookup 自动重新加载
-                global _ip2region_searcher
-                _ip2region_searcher = None
+                with _geoip_lock:
+                    _ip2region_searcher = None
 
-                print(f'[Analytics] ✅ ip2region.xdb downloaded ({size_mb} MB) → {target_path}')
+                logger.info('ip2region.xdb downloaded (%.1f MB) → %s', size_mb, target_path)
                 return {'success': True, 'path': target_path, 'size_mb': size_mb}
             else:
                 last_error = f'HTTP {resp.status} from {url}'

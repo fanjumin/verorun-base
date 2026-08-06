@@ -21,11 +21,14 @@ import os
 import sys
 import json
 import time
+import logging
 from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from .tracker import generate_report, generate_insight_text
 from . import models as am
+
+logger = logging.getLogger('analytics.workflow_nodes')
 
 
 def handle_analytics_report(node_def: dict, input_data: dict) -> dict:
@@ -230,32 +233,60 @@ def handle_analytics_cleanup(node_def: dict, input_data: dict) -> dict:
 
 # ─── AI 解读 ──────────────────────────────────────────────────────────────────
 
+def _resolve_llm_config() -> dict:
+    """解析 AI 解读的 LLM 配置：环境变量 > 平台 provider_models 默认配置 > 内置默认值"""
+    cfg = {
+        'provider': os.environ.get('ANALYTICS_LLM_PROVIDER', ''),
+        'model': os.environ.get('ANALYTICS_LLM_MODEL', ''),
+        'temperature': float(os.environ.get('ANALYTICS_LLM_TEMPERATURE', '0.5')),
+        'max_tokens': int(os.environ.get('ANALYTICS_LLM_MAX_TOKENS', '1024')),
+    }
+    if cfg['provider'] and cfg['model']:
+        return cfg
+
+    # 回退：平台 provider_models 中第一个启用的模型
+    try:
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                """SELECT p.slug AS provider, pm.model_name AS model
+                   FROM provider_models pm
+                   JOIN providers p ON p.id = pm.provider_id
+                   WHERE pm.is_active = 1 AND p.is_active = 1
+                   ORDER BY pm.sort_order, pm.id
+                   LIMIT 1"""
+            ).fetchone()
+        if row:
+            cfg['provider'] = cfg['provider'] or row['provider']
+            cfg['model'] = cfg['model'] or row['model']
+    except Exception:
+        pass
+
+    # 最终回退到内置默认值
+    cfg['provider'] = cfg['provider'] or 'dashscope'
+    cfg['model'] = cfg['model'] or 'qwen-turbo'
+    return cfg
+
+
 def _ai_interpret(report: dict, text: str) -> str:
     """
     使用 UnifiedLLM 对统计数据进行专业解读
     复用平台已有的 provider_models 配置
     """
-    import urllib.request
-    prompt = f"""你是一个专业的数据分析师。请根据以下网站统计数据，输出一段简洁的运营洞察（150字内），指出关键趋势和建议：
-
-{text}
-
-请输出格式：
-📊 运营洞察
-关键发现：
-建议："""
+    prompt = _('analytics.ai_prompt', text=text)
     try:
         from agent_matrix.engine import get_gateway
         gw = get_gateway()
+        cfg = _resolve_llm_config()
         resp = gw.chat(
-            provider='dashscope',
-            model='qwen-turbo',
+            provider=cfg['provider'],
+            model=cfg['model'],
             messages=[
-                {'role': 'system', 'content': '你是一个资深数据运营分析师，擅长从数据中提取 actionable insights。'},
+                {'role': 'system', 'content': _('analytics.ai_system_prompt')},
                 {'role': 'user', 'content': prompt}
             ],
-            temperature=0.5,
-            max_tokens=1024,
+            temperature=cfg['temperature'],
+            max_tokens=cfg['max_tokens'],
             module='analytics',
         )
         return resp.choices[0].message.content.strip()
@@ -280,7 +311,7 @@ def register_analytics_handlers(engine):
     engine.register_node_handler('analytics_event', handle_analytics_event)
     engine.register_node_handler('analytics_cleanup', handle_analytics_cleanup)
 
-    print(f'[Analytics Workflow] ✅ Registered 6 custom node processors')
+    logger.info('Registered 6 custom node processors')
 
 
 # ─── 快捷方式（创建预设工作流） ────────────────────────────────────────────────

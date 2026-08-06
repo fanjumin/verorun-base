@@ -194,12 +194,13 @@ def update_alert(alert_id: int, **kwargs) -> bool:
     set_clause = ', '.join(f'{k}=?' for k in updates)
     conn = am.get_db()
     try:
-        conn.execute(
+        cur = conn.execute(
             f"UPDATE analytics_alerts SET {set_clause} WHERE id=?",
             list(updates.values()) + [alert_id]
         )
         conn.commit()
-        return conn.execute("SELECT changes()").fetchone()['changes'] > 0
+        # SQLite 的 changes() 在 PG 中不存在，改用 cursor.rowcount（PG 兼容）
+        return cur.rowcount > 0
     finally:
         conn.close()
 
@@ -269,12 +270,13 @@ def generate_insight_text(report: dict) -> str:
     """
     lines = []
     s = report['summary']
-    lines.append(f"📊 Statistics Analysis Report ({report['period']})")
+    lines.append(_("📊 Statistics Analysis Report ({period})").format(period=report['period']))
     lines.append(f"━━━━━━━━━━━━━━━━━━")
-    lines.append(f"Total Views (PV): {s['total_pv']}")
-    lines.append(f"Unique Visitors (UV): {s['total_uv']}")
-    lines.append(f"Total Sessions: {s['total_sessions']}")
-    lines.append(f"Daily PV: {s['avg_daily_pv']}  |  Daily UV: {s['avg_daily_uv']}")
+    lines.append(_("Total Views (PV): {pv}").format(pv=s['total_pv']))
+    lines.append(_("Unique Visitors (UV): {uv}").format(uv=s['total_uv']))
+    lines.append(_("Total Sessions: {sessions}").format(sessions=s['total_sessions']))
+    lines.append(_("Daily PV: {daily_pv}  |  Daily UV: {daily_uv}").format(
+        daily_pv=s['avg_daily_pv'], daily_uv=s['avg_daily_uv']))
     lines.append("")
 
     # 趋势
@@ -283,23 +285,25 @@ def generate_insight_text(report: dict) -> str:
         first = report['trend'][0] if report['trend'] else {}
         if last and first:
             pv_change = ((last['pv'] - first['pv']) / max(first['pv'], 1)) * 100
-            lines.append(f"📈 Traffic Change: {pv_change:+.1f}%")
-            lines.append(f"  Bounce Rate: {last.get('bounce_rate', 0):.1f}%")
-            lines.append(f"  Average Session Duration: {last.get('avg_duration', 0):.0f}s")
+            lines.append(_("📈 Traffic Change: {pct:+.1f}%").format(pct=pv_change))
+            lines.append(_("  Bounce Rate: {rate:.1f}%").format(rate=last.get('bounce_rate', 0)))
+            lines.append(_("  Average Session Duration: {secs:.0f}s").format(secs=last.get('avg_duration', 0)))
     lines.append("")
 
     # 热门来源
     if report['sources']:
         lines.append(_("🔗 Top Sources:"))
         for src in report['sources'][:5]:
-            lines.append(f"  • {src['source_name']}: {src['pv']} PV ({src.get('pct', 0):.1f}%)")
+            lines.append(_("  • {name}: {pv} PV ({pct:.1f}%)").format(
+                name=src['source_name'], pv=src['pv'], pct=src.get('pct', 0)))
     lines.append("")
 
     # 热门页面
     if report['hot_pages']:
         lines.append(_("📄 Popular Pages:"))
         for pg in report['hot_pages'][:5]:
-            lines.append(f"  • {pg['path']}: {pg['pv']} PV / {pg['uv']} UV")
+            lines.append(_("  • {path}: {pv} PV / {uv} UV").format(
+                path=pg['path'], pv=pg['pv'], uv=pg['uv']))
     lines.append("")
 
     return '\n'.join(lines)

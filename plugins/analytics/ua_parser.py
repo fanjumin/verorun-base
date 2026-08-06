@@ -9,7 +9,6 @@ analytics/ua_parser.py — User-Agent 解析
   pip install ua-parser user-agents
 """
 
-from i18n import _
 import re
 
 # 尝试导入 ua-parser
@@ -31,15 +30,15 @@ TABLET_PATTERNS = [
     'silk', 'kindle', 'sch-i', 'gt-p',
 ]
 
+# BOT_PATTERNS — 全模块唯一真源（models.is_bot 也从这里导入）
+# 匹配时统一对 UA 做小写化，因此这里全部使用小写形式。
 BOT_PATTERNS = [
     'bot', 'crawler', 'spider', 'scrape', 'headless',
-    'python-requests', 'curl', 'wget', 'googlebot',
-    'bingbot', 'baiduspider', 'slack', 'discordbot',
-]
-
-DESKTOP_OS = [
-    'windows nt', 'mac os x', 'linux x86', 'ubuntu',
-    'fedora', 'debian', 'centos', 'freebsd',
+    'python-requests', 'python-urllib', 'curl', 'wget',
+    'go-http-client', 'okhttp', 'apache-httpclient', 'java/',
+    'ahrefs', 'semrush', 'baiduspider', 'googlebot', 'bingbot',
+    'twitterbot', 'facebookexternalhit', 'slack', 'discordbot',
+    'telegrambot', 'yisouspider', 'bytespider', 'sogou', '360spider',
 ]
 
 
@@ -95,7 +94,7 @@ def parse_ua(ua_string: str) -> dict:
                 'device_type': device_type,
                 'is_bot': False,
             }
-        except:
+        except Exception:
             pass
 
     # 回退：正则启发式

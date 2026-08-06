@@ -48,7 +48,7 @@ def cmd_process():
     print(f'  Processed Batches: {stats["total_batches"]}')
     print(f'  PV: {stats["processed"]["pv"]}')
     print(f'  Bot: {stats["processed"]["bot"]}')
-    print(f'  错误: {stats["processed"]["error"]}')
+    print(_('  Errors: {n}').format(n=stats["processed"]["error"]))
 
 
 def cmd_daemon():
@@ -60,11 +60,12 @@ def cmd_daemon():
 
     def handler(sig, frame):
         nonlocal running
-        print('\n[Analytics Daemon] 正在停止...')
+        print(_('\n[Analytics Daemon] Stopping...'))
         running = False
 
     signal.signal(signal.SIGINT, handler)
-    signal.signal(signal.SIGTERM, handler)
+    if hasattr(signal, 'SIGTERM'):  # Windows 平台无 SIGTERM 信号
+        signal.signal(signal.SIGTERM, handler)
 
     print(f'[Analytics Daemon] 🚀 Started (interval {interval}s)')
     while running:
@@ -111,11 +112,11 @@ def cmd_stats():
 
         today = datetime.now().strftime('%Y-%m-%d')
         today_pv = conn.execute(
-            "SELECT COUNT(*) c FROM analytics_logs WHERE date(timestamp,'unixepoch')=? AND is_bot=0",
+            "SELECT COUNT(*) c FROM analytics_logs WHERE to_timestamp(timestamp)::date=%s AND is_bot=0",
             (today,)
         ).fetchone()['c']
         today_uv = conn.execute(
-            "SELECT COUNT(DISTINCT visitor_hash) c FROM analytics_logs WHERE date(timestamp,'unixepoch')=? AND is_bot=0",
+            "SELECT COUNT(DISTINCT visitor_hash) c FROM analytics_logs WHERE to_timestamp(timestamp)::date=%s AND is_bot=0",
             (today,)
         ).fetchone()['c']
 
@@ -125,7 +126,7 @@ def cmd_stats():
         ).fetchone()['size']
 
         print('═' * 45)
-        print(f'  📊 分析系统状态')
+        print(_('  📊 Analytics System Status'))
         print('═' * 45)
         print(f'  Raw Logs:     {total_logs:,} items')
         print(f'  Hourly Aggregation:     {total_hourly:,} items')
@@ -146,7 +147,7 @@ def cmd_stats():
 def cmd_add_alert():
     """交互式添加告警规则"""
     import readline  # 增强输入体验
-    print(_('\n=== 添加分析告警规则 ==='))
+    print(_('\n=== Add Analytics Alert Rule ==='))
     print()
 
     name = input(_('Alert name: ')).strip()
@@ -154,7 +155,7 @@ def cmd_add_alert():
         print(_('❌ Name Cannot Be Empty'))
         return
 
-    print(_('\n指标选项:'))
+    print(_('\nMetric options:'))
     metrics = [_('UV (Unique Visitors)'), _('PV (Page Views)'), _('bounce_rate (Bounce rate %)'),
                _('Error rate (%)'), _('avg_response_time (Average response ms)')]
     for i, m in enumerate(metrics, 1):
@@ -163,7 +164,7 @@ def cmd_add_alert():
     metric_map = ['', 'uv', 'pv', 'bounce_rate', 'error_rate', 'avg_response_time']
     metric = metric_map[metric_idx]
 
-    print(_('\n操作符:'))
+    print(_('\nOperators:'))
     print(_('  1. > (Greater than)'))
     print(_('  2. < (Less than)'))
     print(_('  3. >= (Greater than or equal to)'))
@@ -174,7 +175,7 @@ def cmd_add_alert():
 
     threshold = float(input(_('Threshold: ')).strip())
 
-    print(_('\n时间窗口:'))
+    print(_('\nTime window:'))
     print(_('  1. 1h (1 hour)'))
     print(_('  2. 24h (24 hours)'))
     print(_('  3. 7d (7 days)'))
@@ -183,7 +184,7 @@ def cmd_add_alert():
     time_window = tw_map[tw_idx]
 
     alert_id = create_alert(name, metric, operator, threshold, time_window)
-    print(_('\n✅ 告警规则已创建 (ID: {})').format(alert_id))
+    print(_('\n✅ Alert rule created (ID: {})').format(alert_id))
 
 
 def cmd_seed_workflows():
@@ -200,17 +201,19 @@ def cmd_seed_workflows():
     try:
         daily_id = create_daily_report_workflow(conn)
         weekly_id = create_weekly_report_workflow(conn)
-        print(f'✅ Predefined Workflow Created:')
-        print(_('  📊 每日分析报告 (ID: {})').format(daily_id))
-        print(_('  📊 每周运营报告 (ID: {})').format(weekly_id))
+        print(_('✅ Predefined Workflow Created:'))
+        print(_('  📊 Daily Analysis Report (ID: {})').format(daily_id))
+        print(_('  📊 Weekly Operations Report (ID: {})').format(weekly_id))
 
-        # 创建工作流绑定的 Cron 任务
+        # 创建工作流绑定的 Cron 任务（cron 表达式可用环境变量覆盖，默认每日 8:00 / 每周一 9:00）
+        daily_cron = os.environ.get('ANALYTICS_CRON_DAILY', '0 8 * * *')
+        weekly_cron = os.environ.get('ANALYTICS_CRON_WEEKLY', '0 9 * * 1')
         from orchestrator import models as om
         om.create_cron_job(conn, {
             'name': _('Daily Analysis Report'),
             'target_type': 'workflow',
             'target_id': daily_id,
-            'cron_expression': '0 8 * * *',
+            'cron_expression': daily_cron,
             'is_active': 1,
             'priority': 3,
             'timeout': 300,
@@ -219,12 +222,12 @@ def cmd_seed_workflows():
             'name': _('Weekly Operations Report'),
             'target_type': 'workflow',
             'target_id': weekly_id,
-            'cron_expression': '0 9 * * 1',
+            'cron_expression': weekly_cron,
             'is_active': 1,
             'priority': 3,
             'timeout': 300,
         })
-        print(f'  ⏰ Cron Job Bound (Daily 8:00 / Weekly Monday 9:00)')
+        print(_('  ⏰ Cron Job Bound (Daily 8:00 / Weekly Monday 9:00)'))
     finally:
         conn.close()
 

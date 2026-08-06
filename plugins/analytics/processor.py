@@ -16,10 +16,13 @@ from i18n import _
 import time
 import os
 import sys
+import logging
 from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from . import models as am
+
+logger = logging.getLogger('analytics.processor')
 
 
 class AnalyticsProcessor:
@@ -81,9 +84,7 @@ class AnalyticsProcessor:
             self.stats['total_batches'] += 1
 
         except Exception as e:
-            print(f'[Analytics Processor] ❌ {e}')
-            import traceback
-            traceback.print_exc()
+            logger.error('Processor run failed: %s', e, exc_info=True)
         finally:
             conn.close()
 
@@ -317,23 +318,23 @@ class AnalyticsProcessor:
                 if returning_visitors < 0:
                     returning_visitors = 0
 
-            # 最高同时在线（5分钟窗口）
+            # 最高同时在线（5分钟窗口）— 单条窗口查询，替代 288 次循环
             peak_concurrent = 0
             peak_time = ''
-            for h in range(24):
-                h_s = day_start + h * 3600
-                h_e = h_s + 3600
-                for m in range(0, 60, 5):
-                    w_s = h_s + m * 60
-                    w_e = w_s + 300
-                    cnt = conn.execute(
-                        "SELECT COUNT(DISTINCT visitor_hash) c FROM analytics_logs "
-                        "WHERE timestamp>=? AND timestamp<? AND is_bot=0",
-                        (w_s, w_e)
-                    ).fetchone()['c']
-                    if cnt > peak_concurrent:
-                        peak_concurrent = cnt
-                        peak_time = f'{h:02d}:{m:02d}'
+            try:
+                row = conn.execute(
+                    "SELECT gs.ws AS window_start, COUNT(DISTINCT lg.visitor_hash) AS cnt "
+                    "FROM generate_series(%s, %s, 300) gs(ws) "
+                    "LEFT JOIN analytics_logs lg "
+                    "  ON lg.timestamp >= gs.ws AND lg.timestamp < gs.ws + 300 AND lg.is_bot = 0 "
+                    "GROUP BY gs.ws ORDER BY cnt DESC, gs.ws ASC LIMIT 1",
+                    (day_start, day_end - 1)
+                ).fetchone()
+                if row and row['cnt']:
+                    peak_concurrent = int(row['cnt'])
+                    peak_time = datetime.fromtimestamp(int(row['window_start'])).strftime('%H:%M')
+            except Exception as e:
+                logger.warning('Peak concurrent query failed: %s', e, exc_info=True)
 
             am.upsert_daily(conn, date_str, {
                 'pv': rows['pv'], 'uv': daily_uv, 'ipv': daily_ipv,
@@ -348,40 +349,60 @@ class AnalyticsProcessor:
                 'total_sessions': sessions,
             })
 
-        print(f'[Analytics] ✅ Daily aggregation completed [{today}]')
+        logger.info('Daily aggregation completed [%s]', today)
+
+    @staticmethod
+    def _get_admin_ids(raw):
+        """查询所有启用的管理员用户（users 表: is_admin=1 AND active=1），
+        查不到时回退到 user_id=1，避免告警无人接收。"""
+        ids = []
+        try:
+            cur = raw.cursor()
+            cur.execute("SELECT id FROM users WHERE is_admin=1 AND active=1")
+            ids = [row[0] for row in cur.fetchall()]
+            cur.close()
+        except Exception as e:
+            logger.warning('Failed to query admin users: %s', e, exc_info=True)
+        return ids or [1]
 
     def _handle_alerts(self, triggered: list):
         """处理触发的告警"""
         for alert in triggered:
-            msg = (_("🚨 告警触发: {}\n").format(alert["name"]) +
-                   _("指标: {}\n").format(alert["metric"]) +
-                   "Current value: {} ".format(alert["current_value"]) +
-                   _("(阈值: {} {})\n").format(alert["operator"], alert["threshold"]) +
-                   "Time Window: {}".format(alert["time_window"]))
-            print(f'[Analytics Alert] {msg}')
+            msg = _("🚨 Alert triggered: {name}\n"
+                    "Metric: {metric}\n"
+                    "Current value: {value} (threshold: {op} {threshold})\n"
+                    "Time Window: {window}").format(
+                        name=alert["name"],
+                        metric=alert["metric"],
+                        value=alert["current_value"],
+                        op=alert["operator"],
+                        threshold=alert["threshold"],
+                        window=alert["time_window"])
+            logger.info('Alert: %s', msg)
 
-            # 写入通知（集成到现有通知系统）
+            # 写入通知（集成到现有通知系统，发往所有启用状态的管理员）
             try:
                 from plugins._base.db import get_raw_connection
                 raw = get_raw_connection()
                 raw.autocommit = True
+                title = _("Statistical analysis alert: {name}").format(name=alert["name"])
                 cur = raw.cursor()
-                cur.execute(
-                    "INSERT INTO notifications (user_id, title, content, type, created_at) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (1, f'Statistical analysis alert: {alert["name"]}', msg,
-                     'alert', int(time.time()))
-                )
+                for uid in self._get_admin_ids(raw):
+                    cur.execute(
+                        "INSERT INTO notifications (user_id, title, content, type, created_at) "
+                        "VALUES (%s, %s, %s, %s, %s)",
+                        (uid, title, msg, 'alert', int(time.time()))
+                    )
                 cur.close()
             except Exception as e:
-                print(f'[Analytics Alert] Notification write failed: {e}')
+                logger.warning('Notification write failed: %s', e, exc_info=True)
 
     def _cleanup_logs(self, conn, today_str: str):
         """清理过期日志"""
         config = am.get_privacy_config(conn)
         retention = int(config.get('log_retention_days', 30))
         deleted = am.cleanup_old_logs(conn, retention)
-        print(f'[Analytics] 🧹 Cleaned {deleted} expired raw logs (kept {retention} days)')
+        logger.info('Cleaned %s expired raw logs (kept %s days)', deleted, retention)
 
 
 # ─── 快捷函数 ──────────────────────────────────────────────────────────────────
@@ -398,21 +419,21 @@ def run_forever(interval: int = 60):
     适合在后台线程或独立进程中运行
     """
     import signal
-    import sys
 
     processor = AnalyticsProcessor()
-    print(f'[Analytics Processor] 🚀 Started aggregation loop (interval {interval}s)')
-    print(_('[Analytics Processor] Press Ctrl+C to stop'))
+    logger.info('Started aggregation loop (interval %ss)', interval)
+    logger.info('Press Ctrl+C to stop')
 
     running = True
 
     def _signal_handler(sig, frame):
         nonlocal running
-        print(_('\n[Analytics Processor] 正在停止...'))
+        logger.info('Stopping...')
         running = False
 
     signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
+    if hasattr(signal, 'SIGTERM'):  # Windows 平台无 SIGTERM 信号
+        signal.signal(signal.SIGTERM, _signal_handler)
 
     while running:
         try:
@@ -421,10 +442,10 @@ def run_forever(interval: int = 60):
         except KeyboardInterrupt:
             break
         except Exception as e:
-            print(f'[Analytics Processor] ⚠️ {e}')
+            logger.warning('%s', e, exc_info=True)
             time.sleep(interval)
 
-    print(_('[Analytics Processor] ✅ Stopped'))
+    logger.info('Stopped')
 
 
 if __name__ == '__main__':

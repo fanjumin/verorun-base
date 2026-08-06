@@ -18,6 +18,7 @@ analytics/models.py — Analytics 数据库 Schema + 完整 CRUD
 
 from i18n import _
 import os
+import logging
 import psycopg2
 import psycopg2.extras
 import sys
@@ -29,23 +30,43 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
 from services.deployment_config import deploy
 from plugins._base.db import get_raw_connection
+from .ua_parser import BOT_PATTERNS  # BOT_PATTERNS 唯一真源（ua_parser.py）
 
-# ─── 数据库路径（PG schema）─────────────────────────────────────────────────────
+logger = logging.getLogger('analytics.models')
+
+# ─── 数据库（PG schema）─────────────────────────────────────────────────────
 
 # analytics 使用 PG schema analytics，不依赖主库
 _ANALYTICS_DB = None
 
-def resolve_db_path():
-    """按优先级确定 analytics 独立数据库路径（插件目录内，用于迁移参考）"""
-    global _ANALYTICS_DB
-    if _ANALYTICS_DB:
-        return _ANALYTICS_DB
-    base = os.path.dirname(os.path.abspath(__file__))
-    db_dir = os.path.join(base, 'data')
-    os.makedirs(db_dir, exist_ok=True)
-    db_path = os.path.join(db_dir, 'analytics.db')
-    _ANALYTICS_DB = db_path
-    return db_path
+
+def _to_pg_sql(sql: str) -> str:
+    """将 SQLite 的 ? 占位符转换为 PG 的 %s，跳过字符串/标识符字面量内的 ?"""
+    out = []
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        if ch in ('"', "'"):
+            quote = ch
+            j = i + 1
+            while j < n:
+                if sql[j] == '\\':
+                    j += 2
+                    continue
+                if sql[j] == quote:
+                    j += 1
+                    break
+                j += 1
+            out.append(sql[i:j])
+            i = j
+        elif ch == '?':
+            out.append('%s')
+            i += 1
+        else:
+            out.append(ch)
+            i += 1
+    return ''.join(out)
 
 
 class _PgConnection:
@@ -55,12 +76,15 @@ class _PgConnection:
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
+            cur.execute(_to_pg_sql(sql), params)
         else:
             cur.execute(sql)
         return cur
     def commit(self):
         self._conn.commit()
+    def rollback(self):
+        """公开回滚接口（替代外部直接访问私有 _conn）"""
+        self._conn.rollback()
     def close(self):
         self._conn.close()
 
@@ -316,35 +340,48 @@ def get_db():
         return _get_db()
     raw = get_raw_connection()
     raw.autocommit = False
-    raw.cursor().execute("CREATE SCHEMA IF NOT EXISTS analytics")
+    with raw.cursor() as cur:  # 上下文管理器自动关闭游标，避免游标泄漏
+        cur.execute("CREATE SCHEMA IF NOT EXISTS analytics")
     raw.commit()
-    raw.cursor().execute("SET search_path TO analytics")
+    with raw.cursor() as cur:
+        cur.execute("SET search_path TO analytics")
     raw.commit()
     return _PgConnection(raw)
 
 
 # ─── 初始化 ─────────────────────────────────────────────────────────────────────
 
+def _load_schema_sql() -> str:
+    """优先从 migrations/001_initial.sql 加载 schema，缺失时回退内置 SCHEMA_SQL"""
+    migration_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), 'migrations', '001_initial.sql')
+    try:
+        if os.path.exists(migration_path):
+            with open(migration_path, 'r', encoding='utf-8') as f:
+                return f.read()
+    except Exception as e:
+        logger.warning('Failed to read migration file %s: %s', migration_path, e, exc_info=True)
+    return SCHEMA_SQL
+
+
 def init_analytics_tables(db_path=None):
-    """创建所有分析表（幂等）"""
+    """创建所有分析表（幂等，schema 唯一真源为 migrations/001_initial.sql）"""
     global _ANALYTICS_DB
     if db_path:
         _ANALYTICS_DB = db_path
     conn = get_db()
-    for stmt in SCHEMA_SQL.split(';'):
+    for stmt in _load_schema_sql().split(';'):
         s = stmt.strip()
         if s:
             try:
                 conn.execute(s)
             except Exception as e:
-                print(f'[Analytics] ⚠️ Schema error: {e}')
+                logger.warning('Schema error: %s', e, exc_info=True)
     conn.commit()
-    print(f'[Analytics] ✅ PG schema analytics initialized (11 tables)')
+    logger.info('PG schema analytics initialized (11 tables)')
 
 
 # ─── 哈希与匿名化工具 ──────────────────────────────────────────────────────────
-
-_os = os  # 保持对 os 别名的向后兼容
 
 def hash_ip(ip: str) -> str:
     """IP 匿名化: 保留前三段，最后一段替换为 'x'"""
@@ -405,17 +442,8 @@ def ip_in_ranges(ip: str, ranges: list) -> bool:
         return False
     return False
 
-BOT_PATTERNS = [
-    'bot', 'crawler', 'spider', 'scrape', 'python-requests',
-    'curl/', 'wget', 'Go-http-client', 'ahrefs', 'semrush',
-    'baiduspider', 'googlebot', 'bingbot', 'twitterbot',
-    'facebookexternalhit', 'slack', 'Discordbot', 'TelegramBot',
-    'python-urllib', 'Java/', 'okhttp', 'Apache-HttpClient',
-    'YisouSpider', 'Bytespider', 'Sogou', '360Spider',
-]
-
 def is_bot(ua: str) -> bool:
-    """检测是否是爬虫/搜索引擎"""
+    """检测是否是爬虫/搜索引擎（BOT_PATTERNS 定义于 ua_parser.py）"""
     if not ua:
         return True
     ua_lower = ua.lower()
@@ -821,21 +849,23 @@ def get_city_distribution(conn, days: int = 30, country: str = ''):
 
 
 # 拼音城市名 → 中文映射（ip2region未覆盖时的回退）
+# 注意：键为拼音标识符（不翻译，保证与 API 返回的城市名匹配）；
+# 值直接硬编码中文，不调用 _() —— 否则 i18n 表若翻译拼音键会导致"键=值同时被翻译"而映射失效
 _PINYIN_CITY_MAP = {
-    'Beijing': _('Beijing'), 'Shanghai': _('Shanghai'), 'Guangzhou': _('Guangzhou'), 'Shenzhen': _('Shenzhen'),
-    'Hangzhou': _('Hangzhou'), 'Nanjing': _('Nanjing'), 'Chengdu': _('Chengdu'), 'Wuhan': _('Wuhan'),
-    'Tianjin': _('Tianjin'), 'Chongqing': _('Chongqing'), "Xi'an": _("Xi'an"), 'Xian': _('Xian'),
-    'Suzhou': _('Suzhou'), 'Changsha': _('Changsha'), 'Zhengzhou': _('Zhengzhou'), 'Qingdao': _('Qingdao'),
-    'Dalian': _('Dalian'), 'Xiamen': _('Xiamen'), 'Fuzhou': _('Fuzhou'), 'Hefei': _('Hefei'),
-    'Jinan': _('Jinan'), 'Shenyang': _('Shenyang'), 'Kunming': _('Kunming'), 'Harbin': _('Harbin'),
-    'Changchun': _('Changchun'), 'Taiyuan': _('Taiyuan'), 'Guiyang': _('Guiyang'), 'Nanning': _('Nanning'),
-    'Shijiazhuang': _('Shijiazhuang'), 'Nanchang': _('Nanchang'), 'Lanzhou': _('Lanzhou'), 'Urumqi': _('Urumqi'),
-    'Foshan': _('Foshan'), 'Dongguan': _('Dongguan'), 'Wuxi': _('Wuxi'), 'Ningbo': _('Ningbo'),
-    'Wenzhou': _('Wenzhou'), 'Zhuhai': _('Zhuhai'), 'Haikou': _('Haikou'), 'Sanya': _('Sanya'),
+    'Beijing': '北京', 'Shanghai': '上海', 'Guangzhou': '广州', 'Shenzhen': '深圳',
+    'Hangzhou': '杭州', 'Nanjing': '南京', 'Chengdu': '成都', 'Wuhan': '武汉',
+    'Tianjin': '天津', 'Chongqing': '重庆', "Xi'an": '西安', 'Xian': '西安',
+    'Suzhou': '苏州', 'Changsha': '长沙', 'Zhengzhou': '郑州', 'Qingdao': '青岛',
+    'Dalian': '大连', 'Xiamen': '厦门', 'Fuzhou': '福州', 'Hefei': '合肥',
+    'Jinan': '济南', 'Shenyang': '沈阳', 'Kunming': '昆明', 'Harbin': '哈尔滨',
+    'Changchun': '长春', 'Taiyuan': '太原', 'Guiyang': '贵阳', 'Nanning': '南宁',
+    'Shijiazhuang': '石家庄', 'Nanchang': '南昌', 'Lanzhou': '兰州', 'Urumqi': '乌鲁木齐',
+    'Foshan': '佛山', 'Dongguan': '东莞', 'Wuxi': '无锡', 'Ningbo': '宁波',
+    'Wenzhou': '温州', 'Zhuhai': '珠海', 'Haikou': '海口', 'Sanya': '三亚',
 }
 
 def _to_chinese_city(name: str) -> str:
-    """拼音城市名转中文（在映射表中则转换，否则原样返回）"""
+    """拼音城市名转中文（查表，找不到原样返回）"""
     return _PINYIN_CITY_MAP.get(name, name)
 
 
@@ -1007,7 +1037,7 @@ def check_alerts(conn) -> list:
                 )
                 conn.commit()
         except Exception as e:
-            print(f'[Analytics] ⚠️ Alert check failed [{alert["name"]}]: {e}')
+            logger.warning('Alert check failed [%s]: %s', alert['name'], e, exc_info=True)
     return triggered
 
 

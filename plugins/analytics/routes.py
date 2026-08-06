@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
-analytics/dashboard.py — 分析仪表盘 Flask Blueprint
+analytics/routes.py — 分析仪表盘 Flask Blueprint
 
 提供:
   - 管理后台页面: /admin/analytics
   - REST API: /admin/analytics/api/*
 
 集成方式:
-  from analytics.dashboard import analytics_bp
+  from analytics.routes import analytics_bp
   app.register_blueprint(analytics_bp)
 """
 
 import os
 import sys
+import csv
+import io
 import json
 import time
+import threading
 from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, render_template, Response, g, current_app
@@ -31,8 +34,9 @@ analytics_bp = Blueprint('analytics', __name__, url_prefix='/admin/analytics',
                          static_folder='static',
                          static_url_path='/admin/analytics/static')
 
-# i18n 桥接 — 由插件注入
-_t = lambda s: s
+# i18n 桥接 — 默认绑定真实 i18n._，插件注入时可覆盖（init_i18n）
+from i18n import _ as _i18n
+_t = _i18n
 
 
 def init_i18n(t_func):
@@ -40,7 +44,74 @@ def init_i18n(t_func):
     _t = t_func
 
 
+# ─── 客户端 IP 解析（可信代理校验，与 middleware 一致） ───────────────────────
+
+_TRUSTED_PROXIES = ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
+
+
+def _get_client_ip():
+    """仅当直连方为可信代理时才采信 X-Forwarded-For，防止伪造"""
+    remote = request.remote_addr or ''
+    if not remote:
+        return ''
+    try:
+        import ipaddress
+        ip_obj = ipaddress.ip_address(remote)
+        trusted = any(ip_obj in ipaddress.ip_network(r, strict=False) for r in _TRUSTED_PROXIES)
+    except Exception:
+        trusted = False
+    if trusted:
+        forwarded = request.headers.get('X-Forwarded-For', '')
+        if forwarded:
+            return forwarded.split(',')[0].strip()
+    return remote
+
+
+# ─── 进程内 IP 限流（无第三方依赖，滑动窗口） ─────────────────────────────────
+
+_RATE_LIMIT_WINDOW = 60          # 窗口（秒）
+_RATE_LIMIT_MAX = 600            # 每窗口最大请求数（0 = 关闭限流）
+_RATE_LIMITS = {}                # (scope, ip) -> [timestamps]
+_RATE_LIMIT_LOCK = threading.Lock()
+
+
+def _rate_limited(scope: str, ip: str) -> bool:
+    """滑动窗口限流：True = 放行，False = 已超限（429）"""
+    if _RATE_LIMIT_MAX <= 0:
+        return True
+    key = (scope, ip or 'unknown')
+    now = time.time()
+    with _RATE_LIMIT_LOCK:
+        q = _RATE_LIMITS.setdefault(key, [])
+        # 移除窗口外的旧时间戳
+        cutoff = now - _RATE_LIMIT_WINDOW
+        while q and q[0] < cutoff:
+            q.pop(0)
+        if len(q) >= _RATE_LIMIT_MAX:
+            return False
+        q.append(now)
+        # 防止内存无限增长（按 scope 分组清理最旧 2000 个键）
+        if len(_RATE_LIMITS) > 10000:
+            stale = [k for k in _RATE_LIMITS if len(_RATE_LIMITS[k]) == 0]
+            for k in stale[:2000]:
+                del _RATE_LIMITS[k]
+    return True
+
+
 # ─── 鉴权 ──────────────────────────────────────────────────────────────────────
+
+# 采集 API（/api/v1/log、/api/v1/event）免管理员鉴权，但可用可选 service token 加固：
+# 设置环境变量 ANALYTICS_WRITE_TOKEN 后，采集请求必须携带 X-Analytics-Token 头；
+# 未配置时保持现状（兼容既有调用方）。
+_ANALYTICS_WRITE_TOKEN = os.environ.get('ANALYTICS_WRITE_TOKEN', '')
+
+
+def _check_write_token() -> bool:
+    """校验采集 API 的 service token（未配置时放行）"""
+    if not _ANALYTICS_WRITE_TOKEN:
+        return True
+    return request.headers.get('X-Analytics-Token', '') == _ANALYTICS_WRITE_TOKEN
+
 
 _AUTH_EXEMPT_PATHS = ['/admin/analytics/static/', '/admin/analytics/api/v1/log', '/admin/analytics/api/v1/event']
 
@@ -103,6 +174,11 @@ def api_log():
         ...
     }
     """
+    if not _check_write_token():
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
+    if not _rate_limited('api_log', _get_client_ip()):
+        return jsonify({'success': False, 'error': _t('Too many requests')}), 429
+
     data = request.get_json(silent=True) or {}
     if not data.get('path'):
         return jsonify({'success': False, 'error': _t('path required')}), 400
@@ -151,6 +227,11 @@ def api_event():
         "metadata": {...}
     }
     """
+    if not _check_write_token():
+        return jsonify({'success': False, 'error': _t('Unauthorized')}), 401
+    if not _rate_limited('api_event', _get_client_ip()):
+        return jsonify({'success': False, 'error': _t('Too many requests')}), 429
+
     data = request.get_json(silent=True) or {}
     if not data.get('event_name'):
         return jsonify({'success': False, 'error': _t('event_name required')}), 400
@@ -269,11 +350,9 @@ def api_china_cities():
 @analytics_bp.route('/api/v1/geo/market')
 def api_geo_market():
     """根据客户端 IP 判断市场：'cn' 或 'intl'"""
-    client_ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+    client_ip = _get_client_ip()
     if not client_ip:
         client_ip = request.headers.get('X-Real-IP', '')
-    if not client_ip:
-        client_ip = request.remote_addr or ''
     market = detect_client_market(client_ip)
     return jsonify({'success': True, 'data': {'market': market}})
 
@@ -381,13 +460,24 @@ def api_privacy_get():
         conn.close()
 
 
+# 隐私配置允许写入的 key 白名单（防止任意键写入）
+_ANALYTICS_PRIVACY_KEYS = [
+    'ip_anonymization', 'geo_analysis_enabled', 'ua_parsing_enabled',
+    'log_retention_days', 'aggregation_retention_days', 'track_bots',
+    'exclude_internal_ips', 'internal_ip_ranges', 'exclude_paths',
+    'anonymize_query_params',
+]
+
+
 @analytics_bp.route('/api/v1/privacy', methods=['PUT'])
 def api_privacy_update():
-    """更新隐私配置"""
+    """更新隐私配置（仅允许白名单 key）"""
     data = request.get_json(silent=True) or {}
     conn = am.get_db()
     try:
         for key, value in data.items():
+            if key not in _ANALYTICS_PRIVACY_KEYS:
+                continue
             am.update_privacy_config(conn, key, str(value))
         return jsonify({'success': True})
     finally:
@@ -495,21 +585,15 @@ def api_self_stats():
             "SELECT MIN(timestamp) ts FROM analytics_logs"
         ).fetchone()['ts'] or 0
 
-        # 数据库大小 — 兼容 SQLite 和 PostgreSQL
+        # 数据库大小（PG 环境，直接查询 pg_database_size）
         db_size = 0
         try:
             row = conn.execute(
-                "SELECT page_count * page_size AS size FROM pragma_page_count, pragma_page_size"
+                "SELECT pg_database_size(current_database()) AS size"
             ).fetchone()
             db_size = row['size'] if row else 0
         except Exception:
-            try:
-                row = conn.execute(
-                    "SELECT pg_database_size(current_database()) AS size"
-                ).fetchone()
-                db_size = row['size'] if row else 0
-            except Exception:
-                db_size = 0
+            db_size = 0
 
         return jsonify({'success': True, 'data': {
             'total_logs': total_logs,
@@ -529,9 +613,20 @@ def api_self_stats():
 
 # ─── 导出 API ──────────────────────────────────────────────────────────────────
 
+def _safe_csv_row(fields):
+    """转义 CSV 字段，并对 Excel 公式注入/公式前缀（=+-@）与危险控制字符（\\t\\r\\n）前缀单引号"""
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+    writer.writerow([
+        f"'{f}" if isinstance(f, str) and f.startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else f
+        for f in fields
+    ])
+    return output.getvalue().rstrip('\r\n')
+
+
 @analytics_bp.route('/api/v1/export')
 def api_export():
-    """导出统计数据为 CSV"""
+    """导出统计数据为 CSV（防 CSV 注入）"""
     report_type = request.args.get('type', 'trend')  # trend / pages / sources / geo
     days = request.args.get('days', 30, type=int)
     conn = am.get_db()
@@ -539,27 +634,27 @@ def api_export():
     try:
         if report_type == 'trend':
             data = am.get_trend(conn, days)
-            csv = "date,pv,uv,sessions,bounce_rate,avg_duration\n"
+            csv = _safe_csv_row(['date', 'pv', 'uv', 'sessions', 'bounce_rate', 'avg_duration']) + '\n'
             for r in data:
-                csv += f"{r['date']},{r['pv']},{r['uv']},{r['sessions']},{r['bounce_rate']},{r['avg_duration']}\n"
+                csv += _safe_csv_row([r['date'], r['pv'], r['uv'], r['sessions'], r['bounce_rate'], r['avg_duration']]) + '\n'
 
         elif report_type == 'pages':
             data = am.get_page_rank(conn, days, 100)
-            csv = "path,pv,uv,avg_response_time_ms\n"
+            csv = _safe_csv_row(['path', 'pv', 'uv', 'avg_response_time_ms']) + '\n'
             for r in data:
-                csv += f"{r['path']},{r['pv']},{r['uv']},{r['avg_time']}\n"
+                csv += _safe_csv_row([r['path'], r['pv'], r['uv'], r['avg_time']]) + '\n'
 
         elif report_type == 'sources':
             data = am.get_source_analysis(conn, days)
-            csv = "source_type,source_name,pv,uv,percentage\n"
+            csv = _safe_csv_row(['source_type', 'source_name', 'pv', 'uv', 'percentage']) + '\n'
             for r in data:
-                csv += f"{r['source_type']},{r['source_name']},{r['pv']},{r['uv']},{r.get('pct', 0)}\n"
+                csv += _safe_csv_row([r['source_type'], r['source_name'], r['pv'], r['uv'], r.get('pct', 0)]) + '\n'
 
         elif report_type == 'geo':
             data = am.get_geo_distribution(conn, days)
-            csv = "country,pv,uv\n"
+            csv = _safe_csv_row(['country', 'pv', 'uv']) + '\n'
             for r in data:
-                csv += f"{r['country']},{r['pv']},{r['uv']}\n"
+                csv += _safe_csv_row([r['country'], r['pv'], r['uv']]) + '\n'
 
         else:
             return jsonify({'success': False, 'error': f'{_t("unknown type")}: {report_type}'}), 400

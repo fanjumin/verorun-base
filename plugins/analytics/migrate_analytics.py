@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""迁移 analytics 数据：SQLite → PostgreSQL（完整幂等版本）"""
-import sqlite3, psycopg2, psycopg2.extras, sys, os
+"""迁移 analytics 数据：SQLite → PostgreSQL（完整幂等版本）
+注意：sqlite3 仅在执行 migrate() 时按需导入，顶层导入不再依赖 sqlite3。
+"""
+import psycopg2, psycopg2.extras, sys, os
 
-SQLITE = '/path/to/analytics.db'
-PG_DSN = 'host=localhost port=5432 dbname=verorun user=verorun password=your_password'
+# 通过环境变量配置（部署时注入），保留默认占位值
+SQLITE = os.environ.get('ANALYTICS_SQLITE_PATH', '/path/to/analytics.db')
+PG_DSN = os.environ.get(
+    'ANALYTICS_PG_DSN',
+    'host=localhost port=5432 dbname=verorun user=verorun password=your_password'
+)
+# 目标 PG schema（默认为 analytics，可通过环境变量覆盖，避免与 schema 名耦合）
+SCHEMA = os.environ.get('ANALYTICS_SCHEMA', 'analytics')
 BATCH = 500
 
 TABLES = [
@@ -32,9 +40,9 @@ TABLES = [
      ['date','hour','service_name'],
      'SELECT date, hour, service_name, pv, uv, ipv, new_visitors, bounce_count, total_time, session_count, bot_count, error_count, avg_response_time FROM analytics_hourly_stats'),
 
-    ('analytics_alerts', ['name','metric','condition_operator','threshold','cooldown_seconds','enabled','notify_channels','created_at','updated_at'],
+    ('analytics_alerts', ['name','metric','operator','threshold','time_window','enabled','channels','created_at','updated_at'],
      None,
-     'SELECT name, metric, condition_operator, threshold, cooldown_seconds, enabled, notify_channels, created_at, updated_at FROM analytics_alerts'),
+     'SELECT name, metric, operator, threshold, time_window, enabled, channels, created_at, updated_at FROM analytics_alerts'),
 
     ('analytics_privacy_config', ['key','value','updated_at'],
      ['key'],
@@ -55,7 +63,7 @@ TABLES = [
 
 def build_sql(table, cols, conflict_cols):
     cols_s = ','.join(cols)
-    sql = f'INSERT INTO analytics.{table} ({cols_s}) VALUES %s'
+    sql = f'INSERT INTO {SCHEMA}.{table} ({cols_s}) VALUES %s'
     if conflict_cols:
         sql += f' ON CONFLICT ({",".join(conflict_cols)}) DO NOTHING'
     return sql
@@ -63,6 +71,13 @@ def build_sql(table, cols, conflict_cols):
 def migrate():
     if not os.path.exists(SQLITE):
         print(f'ERROR: {SQLITE} not found')
+        return 1
+
+    # 按需导入 sqlite3（仅执行迁移时需要，缺失时给出明确错误而非顶层导入崩溃）
+    try:
+        import sqlite3
+    except ImportError:
+        print('ERROR: sqlite3 module is required for SQLite → PostgreSQL migration')
         return 1
 
     sl = sqlite3.connect(SQLITE)
@@ -98,7 +113,7 @@ def migrate():
                 for row in batch:
                     try:
                         cur2.execute(
-                            f'INSERT INTO analytics.{table} ({",".join(cols)}) VALUES ({",".join(["%s"]*len(cols))}) ON CONFLICT DO NOTHING',
+                            f'INSERT INTO {SCHEMA}.{table} ({",".join(cols)}) VALUES ({",".join(["%s"]*len(cols))}) ON CONFLICT DO NOTHING',
                             row
                         )
                     except Exception:

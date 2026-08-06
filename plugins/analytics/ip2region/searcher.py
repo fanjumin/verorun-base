@@ -67,7 +67,6 @@ class Searcher(object):
             s_ptr = util.le_get_uint32(buff, 0)
             e_ptr = util.le_get_uint32(buff, 4)
         
-        # print("s_ptr: {}, e_ptr: {}".format(s_ptr, e_ptr))
         # @Note: ptr validate, zero ptr means source data missing
         # so we could just stop here and return an empty string.
         if s_ptr == 0 or e_ptr == 0:
@@ -92,7 +91,6 @@ class Searcher(object):
                 d_ptr = util.le_get_uint32(buff, _d_bytes + 2)
                 break
 
-        # print("d_len: {}, d_ptr: {}".format(d_len, d_ptr))
         # empty match interception.
         # and this could be a case.
         if d_len == 0:

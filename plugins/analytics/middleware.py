@@ -23,10 +23,12 @@ import time
 import re
 import os
 import sys
-import sqlite3
+import logging
 import psycopg2
 import fnmatch
 from datetime import datetime
+
+logger = logging.getLogger('analytics.middleware')
 
 # ─── 本地导入 ──────────────────────────────────────────────────────────────────
 from . import models as am
@@ -45,6 +47,43 @@ EXCLUDE_PATH_REGEX = None
 INTERNAL_IP_RANGES = [
     '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16',
 ]
+
+# 可信代理 CIDR 列表：仅当直连方属于这些网段时，才采信 X-Forwarded-For
+# 部署在 Nginx 后且可自行扩展（如加入内网负载均衡网段）
+TRUSTED_PROXIES = [
+    '127.0.0.1', '::1',
+    '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16',
+]
+
+
+def _is_trusted_proxy(ip: str) -> bool:
+    """判断直连 IP 是否为可信代理（仅可信来源才采信 X-Forwarded-For）"""
+    if not ip:
+        return False
+    try:
+        import ipaddress
+        ip_obj = ipaddress.ip_address(ip)
+        for r in TRUSTED_PROXIES:
+            if ip_obj in ipaddress.ip_network(r, strict=False):
+                return True
+    except Exception:
+        logger.warning('Invalid proxy IP detected: %r', ip, exc_info=True)
+    return False
+
+
+def _get_client_ip():
+    """获取真实客户端 IP：仅当直连方为可信代理时采信 X-Forwarded-For
+
+    攻击者直接构造 X-Forwarded-For 无法伪造（直连方不可信时直接取 remote_addr）。
+    """
+    from flask import request
+    remote = request.remote_addr or ''
+    if _is_trusted_proxy(remote):
+        forwarded = request.headers.get('X-Forwarded-For', '')
+        if forwarded:
+            # 取最左侧（最原始）客户端 IP
+            return forwarded.split(',')[0].strip()
+    return remote
 
 ANALYTICS_ENABLED = True
 SERVICE_NAME = 'unknown'
@@ -143,7 +182,7 @@ class AnalyticsMiddleware:
         app.before_request(self.before_request)
         app.after_request(self.after_request)
 
-        print(f'[Analytics] ✅ Middleware registered [{service_name}] sampling rate={sample_rate}')
+        logger.info('Middleware registered [%s] sampling rate=%s', service_name, sample_rate)
 
     def _load_privacy_config(self):
         """从数据库加载隐私配置"""
@@ -157,8 +196,8 @@ class AnalyticsMiddleware:
                     paths = json.loads(config['exclude_paths'])
                     if isinstance(paths, list):
                         EXCLUDE_PATHS = paths
-                except:
-                    pass
+                except Exception:
+                    logger.warning('Invalid exclude_paths in privacy config', exc_info=True)
             if config.get('internal_ip_ranges'):
                 try:
                     import json
@@ -166,20 +205,11 @@ class AnalyticsMiddleware:
                     if isinstance(ranges, list):
                         global INTERNAL_IP_RANGES
                         INTERNAL_IP_RANGES = ranges
-                except:
-                    pass
+                except Exception:
+                    logger.warning('Invalid internal_ip_ranges in privacy config', exc_info=True)
             conn.close()
-        except:
-            pass
-
-    def _get_client_ip(self):
-        """获取真实客户端 IP（优先 X-Forwarded-For，回退 remote_addr）"""
-        from flask import request
-        forwarded = request.headers.get('X-Forwarded-For', '')
-        if forwarded:
-            # 取第一个 IP（最原始的客户端 IP）
-            return forwarded.split(',')[0].strip()
-        return request.remote_addr or ''
+        except Exception:
+            logger.warning('Failed to load analytics privacy config', exc_info=True)
 
     def before_request(self):
         """请求开始：记录开始时间"""
@@ -189,7 +219,7 @@ class AnalyticsMiddleware:
 
         # 检查排除条件
         path = request.path
-        ip = self._get_client_ip()
+        ip = _get_client_ip()
 
         should_skip = (
             not ANALYTICS_ENABLED
@@ -202,7 +232,7 @@ class AnalyticsMiddleware:
 
     def after_request(self, response):
         """请求结束：采集数据 → 匿名化 → 哈希 → 写入"""
-        from flask import request, g, current_app
+        from flask import request, g
 
         # 跳过标记
         if getattr(g, '_analytics_skip', False):
@@ -219,143 +249,47 @@ class AnalyticsMiddleware:
             if start_time is None:
                 return response
 
-            response_time = int((time.time() - start_time) * 1000)
-            now = int(time.time())
-            today_str = datetime.now().strftime('%Y-%m-%d')
+            raw_ip = _get_client_ip()
+            data = _collect_log_data(request, response, raw_ip, start_time)
 
-            # 1. 获取原始数据
-            raw_ip = self._get_client_ip()
-            user_agent = request.headers.get('User-Agent', '')
-            path = request.path
-            query_string = am.anonymize_query_string(request.query_string.decode('utf-8') if hasattr(request.query_string, 'decode') else (request.query_string or ''))
-            referer = request.headers.get('Referer', '') or ''
-            language = request.headers.get('Accept-Language', '')[:64]
-            method = request.method
-            status = response.status_code
-            content_type = response.headers.get('Content-Type', 'text/html')
-
-            # 构建完整 URL
-            host = request.headers.get('Host', '')
-            scheme = request.headers.get('X-Forwarded-Proto', 'https')
-            full_url = f'{scheme}://{host}{path}'
-            if query_string:
-                full_url += f'?{query_string}'
-
-            # 2. 立即匿名化 IP（第一步！）
-            ip_prefix = am.hash_ip(raw_ip)
-
-            # 3. 检测爬虫
-            is_bot = am.is_bot(user_agent)
-
-            # 4. 解析 UA（非爬虫才解析以节省资源）
-            browser = ''
-            browser_version = ''
-            os_name = ''
-            device_type = 'desktop'
-            if not is_bot and user_agent:
-                ua_data = parse_ua(user_agent)
-                browser = ua_data.get('browser', '')
-                browser_version = ua_data.get('browser_version', '')
-                os_name = ua_data.get('os_name', '')
-                device_type = ua_data.get('device_type', 'desktop')
-                # 如果 UA 解析器也返回 is_bot，采纳
-                if ua_data.get('is_bot'):
-                    is_bot = True
-
-            # 5. 地理定位（仅对真实用户）
-            country = ''
-            city = ''
-            if not is_bot and raw_ip and raw_ip != '127.0.0.1':
-                geo = geoip_lookup(raw_ip)
-                country = geo.get('country', '')
-                city = geo.get('city', '')
-
-            # 6. 生成访客哈希
-            visitor_hash = am.make_visitor_hash(ip_prefix, user_agent, today_str)
-
-            # 7. 生成会话哈希
-            session_hash = am.make_session_hash(visitor_hash, now)
-
-            # 8. 来源分类
-            source_type, source_name = am.classify_source(referer)
-            ref_domain = am.normalize_referer(referer)
-
-            # 9. UTM 参数提取
-            from urllib.parse import parse_qs as pqs
-            utm_source = ''
-            utm_medium = ''
-            utm_campaign = ''
-            if query_string:
-                qs_parsed = pqs(query_string)
-                utm_source = qs_parsed.get('utm_source', [''])[0]
-                utm_medium = qs_parsed.get('utm_medium', [''])[0]
-                utm_campaign = qs_parsed.get('utm_campaign', [''])[0]
-
-            # 10. 写入原始日志（带重试）
+            # 写入原始日志（带重试）
             @_db_write
             def _do_write():
                 conn = am.get_db()
                 try:
-                    am.insert_log(conn, {
-                        'timestamp': now,
-                        'visitor_hash': visitor_hash,
-                        'session_hash': session_hash,
-                        'ip_prefix': ip_prefix,
-                        'country': country,
-                        'city': city,
-                        'user_agent': user_agent[:512],
-                        'browser': browser,
-                        'browser_version': browser_version,
-                        'os_name': os_name,
-                        'device_type': device_type,
-                        'is_bot': is_bot,
-                        'path': path,
-                        'query_string': query_string[:512],
-                        'referer': referer[:1024],
-                        'referer_domain': ref_domain,
-                        'utm_source': utm_source,
-                        'utm_medium': utm_medium,
-                        'utm_campaign': utm_campaign,
-                        'language': language,
-                        'status_code': status,
-                        'response_time': response_time,
-                        'request_method': method,
-                        'service_name': SERVICE_NAME,
-                        'full_url': full_url[:2048],
-                        'content_type': content_type,
-                    })
+                    am.insert_log(conn, data)
 
-                    # 11. 管理会话（非爬虫）
-                    if not is_bot:
+                    # 管理会话（非爬虫）
+                    if not data['is_bot']:
                         existing_session = conn.execute(
                             "SELECT id, page_views FROM analytics_visitor_sessions WHERE session_hash=?",
-                            (session_hash,)
+                            (data['session_hash'],)
                         ).fetchone()
 
                         if existing_session:
                             am.update_session(
-                                conn, session_hash,
-                                exit_path=path,
+                                conn, data['session_hash'],
+                                exit_path=data['path'],
                                 page_views=existing_session['page_views'] + 1,
                                 duration=int(time.time()) - start_time
                             )
                         else:
                             existing_visitor = conn.execute(
                                 "SELECT id FROM analytics_visitor_sessions WHERE visitor_hash=? AND date=?",
-                                (visitor_hash, today_str)
+                                (data['visitor_hash'], data['_date'])
                             ).fetchone()
                             is_new = 1 if existing_visitor is None else 0
 
                             am.track_session(
-                                conn, session_hash, visitor_hash, today_str,
-                                start_time=now,
-                                entry_path=path,
-                                referer=ref_domain or '',
-                                browser=browser,
-                                os_name=os_name,
-                                device_type=device_type,
-                                country=country,
-                                city=city,
+                                conn, data['session_hash'], data['visitor_hash'], data['_date'],
+                                start_time=data['timestamp'],
+                                entry_path=data['path'],
+                                referer=data['referer_domain'] or '',
+                                browser=data['browser'],
+                                os_name=data['os_name'],
+                                device_type=data['device_type'],
+                                country=data['country'],
+                                city=data['city'],
                                 is_bot=0,
                                 is_new=is_new,
                             )
@@ -365,11 +299,117 @@ class AnalyticsMiddleware:
             _do_write()
         except Exception as e:
             # 中间件绝不能影响主请求
-            import traceback
-            print(f'[Analytics] ⚠️ Data collection error: {e}')
-            traceback.print_exc()
+            logger.warning('Data collection error: %s', e, exc_info=True)
 
         return response
+
+
+# ─── 共享采集逻辑 ─────────────────────────────────────────────────────────────
+
+def _collect_log_data(request, response, raw_ip, start_time):
+    """共享采集逻辑：AnalyticsMiddleware.after_request 与 capture_after 共用，
+    保证字段完全一致（含 utm、content_type、full_url）。
+    返回可直接传给 am.insert_log 的 dict（另含 '_date' 供会话管理使用）。
+    """
+    response_time = int((time.time() - start_time) * 1000)
+    now = int(time.time())
+    today_str = datetime.now().strftime('%Y-%m-%d')
+
+    user_agent = request.headers.get('User-Agent', '')
+    path = request.path
+    query_string = am.anonymize_query_string(
+        request.query_string.decode('utf-8') if hasattr(request.query_string, 'decode') else (request.query_string or '')
+    )
+    referer = request.headers.get('Referer', '') or ''
+    language = request.headers.get('Accept-Language', '')[:64]
+    method = request.method
+    status = response.status_code
+    content_type = response.headers.get('Content-Type', 'text/html')
+
+    # 构建完整 URL
+    host = request.headers.get('Host', '')
+    scheme = request.headers.get('X-Forwarded-Proto', 'https')
+    full_url = f'{scheme}://{host}{path}'
+    if query_string:
+        full_url += f'?{query_string}'
+
+    # 立即匿名化 IP（第一步！）
+    ip_prefix = am.hash_ip(raw_ip)
+
+    # 检测爬虫
+    is_bot = am.is_bot(user_agent)
+
+    # 解析 UA（非爬虫才解析以节省资源）
+    browser = ''
+    browser_version = ''
+    os_name = ''
+    device_type = 'desktop'
+    if not is_bot and user_agent:
+        ua_data = parse_ua(user_agent)
+        browser = ua_data.get('browser', '')
+        browser_version = ua_data.get('browser_version', '')
+        os_name = ua_data.get('os_name', '')
+        device_type = ua_data.get('device_type', 'desktop')
+        # 如果 UA 解析器也返回 is_bot，采纳
+        if ua_data.get('is_bot'):
+            is_bot = True
+
+    # 地理定位（仅对真实用户）
+    country = ''
+    city = ''
+    if not is_bot and raw_ip and raw_ip != '127.0.0.1':
+        geo = geoip_lookup(raw_ip)
+        country = geo.get('country', '')
+        city = geo.get('city', '')
+
+    # 访客 / 会话哈希
+    visitor_hash = am.make_visitor_hash(ip_prefix, user_agent, today_str)
+    session_hash = am.make_session_hash(visitor_hash, now)
+
+    # 来源分类
+    source_type, source_name = am.classify_source(referer)
+    ref_domain = am.normalize_referer(referer)
+
+    # UTM 参数提取
+    utm_source = ''
+    utm_medium = ''
+    utm_campaign = ''
+    if query_string:
+        from urllib.parse import parse_qs as pqs
+        qs_parsed = pqs(query_string)
+        utm_source = qs_parsed.get('utm_source', [''])[0]
+        utm_medium = qs_parsed.get('utm_medium', [''])[0]
+        utm_campaign = qs_parsed.get('utm_campaign', [''])[0]
+
+    return {
+        'timestamp': now,
+        '_date': today_str,
+        'visitor_hash': visitor_hash,
+        'session_hash': session_hash,
+        'ip_prefix': ip_prefix,
+        'country': country,
+        'city': city,
+        'user_agent': user_agent[:512],
+        'browser': browser,
+        'browser_version': browser_version,
+        'os_name': os_name,
+        'device_type': device_type,
+        'is_bot': is_bot,
+        'path': path,
+        'query_string': query_string[:512],
+        'referer': referer[:1024],
+        'referer_domain': ref_domain,
+        'utm_source': utm_source,
+        'utm_medium': utm_medium,
+        'utm_campaign': utm_campaign,
+        'language': language,
+        'status_code': status,
+        'response_time': response_time,
+        'request_method': method,
+        'service_name': SERVICE_NAME,
+        'full_url': full_url[:2048],
+        'content_type': content_type,
+    }
 
 
 # ─── 快捷函数 ──────────────────────────────────────────────────────────────────
@@ -381,13 +421,13 @@ def capture_before():
     g._analytics_skip = False
 
     path = request.path
-    ip = request.remote_addr or ''
+    ip = _get_client_ip()
     if not ANALYTICS_ENABLED or _should_exclude(path) or _should_exclude_ip(ip):
         g._analytics_skip = True
 
 
 def capture_after(response):
-    """方便手动注册的 after_request 函数"""
+    """方便手动注册的 after_request 函数（与 AnalyticsMiddleware.after_request 共用采集逻辑）"""
     from flask import request, g
 
     if getattr(g, '_analytics_skip', False):
@@ -402,69 +442,19 @@ def capture_after(response):
         if start_time is None:
             return response
 
-        response_time = int((time.time() - start_time) * 1000)
-        now = int(time.time())
-        today_str = datetime.now().strftime('%Y-%m-%d')
-
-        raw_ip = request.remote_addr or ''
-        user_agent = request.headers.get('User-Agent', '')
-        path = request.path
-        query_string = am.anonymize_query_string(
-            request.query_string.decode('utf-8') if hasattr(request.query_string, 'decode') else (request.query_string or '')
-        )
-        referer = request.headers.get('Referer', '') or ''
-        language = request.headers.get('Accept-Language', '')[:64]
-        method = request.method
-        status = response.status_code
-
-        ip_prefix = am.hash_ip(raw_ip)
-        is_bot = am.is_bot(user_agent)
-
-        browser, browser_version, os_name = '', '', ''
-        device_type = 'desktop'
-        if not is_bot and user_agent:
-            ua_data = parse_ua(user_agent)
-            browser = ua_data.get('browser', '')
-            browser_version = ua_data.get('browser_version', '')
-            os_name = ua_data.get('os_name', '')
-            device_type = ua_data.get('device_type', 'desktop')
-            if ua_data.get('is_bot'):
-                is_bot = True
-
-        visitor_hash = am.make_visitor_hash(ip_prefix, user_agent, today_str)
-        session_hash = am.make_session_hash(visitor_hash, now)
-
-        source_type, source_name = am.classify_source(referer)
-        ref_domain = am.normalize_referer(referer)
-
-        country, city = '', ''
-        if not is_bot and raw_ip and raw_ip != '127.0.0.1':
-            geo = geoip_lookup(raw_ip)
-            country = geo.get('country', '')
-            city = geo.get('city', '')
+        raw_ip = _get_client_ip()
+        data = _collect_log_data(request, response, raw_ip, start_time)
 
         @_db_write
         def _do_write_capture():
             conn = am.get_db()
             try:
-                am.insert_log(conn, {
-                    'timestamp': now, 'visitor_hash': visitor_hash,
-                    'session_hash': session_hash, 'ip_prefix': ip_prefix,
-                    'country': country, 'city': city,
-                    'user_agent': user_agent[:512], 'browser': browser,
-                    'browser_version': browser_version, 'os_name': os_name,
-                    'device_type': device_type, 'is_bot': is_bot,
-                    'path': path, 'query_string': query_string[:512],
-                    'referer': referer[:1024], 'referer_domain': ref_domain,
-                    'language': language, 'status_code': status,
-                    'response_time': response_time, 'request_method': method,
-                    'service_name': SERVICE_NAME,
-                })
+                am.insert_log(conn, data)
             finally:
                 conn.close()
 
         _do_write_capture()
     except Exception as e:
-        print(f'[Analytics] ⚠️ capture_after: {e}')
+        logger.warning('capture_after error: %s', e, exc_info=True)
 
     return response
