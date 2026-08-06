@@ -28,7 +28,7 @@ def init_i18n(t_fn):
 
 class EmailPlugin(BasePlugin):
     name = 'email'
-    version = '1.1.0'
+    version = '1.2.0'
     description = 'Email Service — SMTP/IMAP email client with inbox, compose, attachments, and contact management'
     author = 'VeroRun'
 
@@ -73,4 +73,25 @@ class EmailPlugin(BasePlugin):
             print(_('[EmailPlugin] ✅ PG schema email dropped on uninstall'))
         except Exception as e:
             print(_('[EmailPlugin] ⚠️ Uninstall cleanup warning: {}').format(e))
+        return True
+
+    def get_dashboard_stats(self):
+        """Dashboard 统计：已发送邮件总数、联系人总数（§2.3/§6.3）。"""
+        try:
+            from .models import get_email_db
+            db = get_email_db()
+            total_sent = db.execute("SELECT COUNT(*) AS count FROM email_sent").fetchone()['count']
+            total_contacts = db.execute(
+                "SELECT COUNT(DISTINCT to_addr) AS count FROM email_sent"
+            ).fetchone()['count']
+            return {'total_sent': total_sent, 'total_contacts': total_contacts}
+        except Exception:
+            return {'total_sent': 0, 'total_contacts': 0}
+
+    def get_schema_version(self):
+        """返回当前 schema 版本（§10.6）。"""
+        return '1.2.0'
+
+    def migrate(self, from_version, to_version):
+        """版本升级逻辑（§10.6）。当前 schema 无历史迁移需求，直接放行。"""
         return True

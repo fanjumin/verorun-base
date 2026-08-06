@@ -1,15 +1,17 @@
 {
     "name": "Email Service",
     "identifier": "email",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "category": "system",
     "tags": ["email", "smtp", "imap", "notification"],
     "icon": "email",
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "",
     "description": "Email Service — SMTP/IMAP email client with inbox, compose, attachments, and contact management",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
     "dependencies": {},
-    "enabled": true,
     "admin_url": "",
     "admin_label": "Email Settings",
     "config": {
@@ -33,6 +35,12 @@
             "email/get_config"
         ],
         "listens": []
+    },
+    "dashboard": {
+        "stats": [
+            {"key": "total_sent",     "title": "Emails Sent", "type": "counter"},
+            {"key": "total_contacts", "title": "Contacts",    "type": "counter"}
+        ]
     },
     "menu": {
         "group": "Users & Support",
