@@ -9,7 +9,7 @@ The plugin stores its data in the main PostgreSQL database under a dedicated `ad
 | Property    | Value             |
 |-------------|-------------------|
 | Identifier  | `ads`             |
-| Version     | 1.1.0             |
+| Version     | 1.2.0             |
 | Database    | PostgreSQL, schema `ads` |
 | Menu Group  | AI & Content      |
 | Menu Key    | `ads`             |

@@ -7,7 +7,7 @@ Ad Management（广告管理）是 VeroRun 的广告投放管理插件，负责�
 | 属性 | 值 |
 |------|-----|
 | 标识 | `ads` |
-| 版本 | 1.1.0 |
+| 版本 | 1.2.0 |
 | 数据库 | PostgreSQL，schema `ads` |
 | 菜单组 | AI & Content |
 | 菜单键 | `ads` |

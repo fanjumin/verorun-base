@@ -1,7 +1,7 @@
 {
     "name": "Ad Management",
     "identifier": "ads",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "category": "content",
     "tags": ["advertising", "banner", "placement", "analytics", "ai-ready"],
     "icon": "ads",
