@@ -1,8 +1,8 @@
 {
     "name": "Ad Management",
     "identifier": "ads",
-    "version": "1.0.0",
-    "category": "Operations",
+    "version": "1.1.0",
+    "category": "content",
     "tags": ["advertising", "banner", "placement", "analytics", "ai-ready"],
     "icon": "ads",
     "description": "Ad Management — Ad placements, zones, impressions/clicks stats, and AI-ready APIs",
@@ -18,8 +18,8 @@
         "max_placements": 50
     },
     "permissions": [
-        "ads.read",
-        "ads.write"
+        "api:read",
+        "api:write"
     ],
     "hooks": {
         "provides": [
@@ -30,6 +30,28 @@
             "ads/record_click"
         ],
         "listens": []
+    },
+    "declare_roles": [
+        {
+            "name": "Ad Optimizer",
+            "slug": "ad_optimizer",
+            "role_type": "sub",
+            "domain": "advertising",
+            "description": "Manages ad placements, zones, impressions/clicks stats, and ad optimization via the ads plugin",
+            "managed_modules": ["plugins.ads"],
+            "provider": "dashscope",
+            "model_name": "qwen-turbo",
+            "system_prompt": "You are the ad management agent. Use the ads AI tools to list/create/update/delete ad placements, manage zones, query statistics, analyze performance, and generate render snippets.",
+            "is_active": 1
+        }
+    ],
+    "dashboard": {
+        "stats": [
+            {"key": "total_placements", "title": "Total Placements", "type": "counter"},
+            {"key": "total_impressions", "title": "Total Impressions", "type": "counter"},
+            {"key": "total_clicks", "title": "Total Clicks", "type": "counter"},
+            {"key": "active_placements", "title": "Active Placements", "type": "gauge"}
+        ]
     },
     "menu": {
         "group": "AI & Content",

@@ -2,8 +2,8 @@
 """
 Ad Management Plugin — 广告管理插件
 =====================================
-独立数据库 ads.db，不依赖主库。
-提供 /admin/ads API 和管理界面。
+数据存储于主库 PostgreSQL 的独立 ads schema（ad_placements / ad_zones / ad_stats / ad_clicks）。
+提供 /admin/ads API、管理界面与 AI-Ready 工具（Agent Matrix 集成）。
 """
 
 from i18n import _
@@ -33,7 +33,7 @@ class AdsPlugin(BasePlugin):
     author = 'VeroRun'
 
     def on_install(self, registry):
-        """安装时初始化独立数据库"""
+        """安装时初始化 ads schema 与表"""
         init_ad_db()
         return True
 
@@ -47,6 +47,26 @@ class AdsPlugin(BasePlugin):
     def register_routes(self):
         """注册 Flask 路由"""
         return [ads_bp]
+
+    def get_dashboard_stats(self):
+        """Dashboard 统计卡片数据（查询 ads schema 汇总，异常时返回零值）"""
+        try:
+            from .models import get_ads_db
+            conn = get_ads_db()
+            row = conn.execute('''SELECT
+                COUNT(*) AS total_placements,
+                COALESCE(SUM(impressions), 0) AS total_impressions,
+                COALESCE(SUM(clicks), 0) AS total_clicks,
+                COALESCE(SUM(CASE WHEN is_active=1 THEN 1 ELSE 0 END), 0) AS active_placements
+            FROM ad_placements''').fetchone()
+            return {
+                'total_placements': row['total_placements'],
+                'total_impressions': row['total_impressions'],
+                'total_clicks': row['total_clicks'],
+                'active_placements': row['active_placements'],
+            }
+        except Exception:
+            return {'total_placements': 0, 'total_impressions': 0, 'total_clicks': 0, 'active_placements': 0}
 
     def on_disable(self, registry):
         """禁用时清理"""
