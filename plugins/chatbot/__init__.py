@@ -9,7 +9,7 @@ from plugin_manager.base import BasePlugin
 class ChatbotPlugin(BasePlugin):
     name = 'AI Advisor'
     identifier = 'chatbot'
-    version = '1.1.0'
+    version = '1.2.0'
 
     def setup(self):
         # 先执行父类 setup()，触发 on_install（建表/写种子）和 on_enable（注册Agent）
@@ -60,14 +60,66 @@ class ChatbotPlugin(BasePlugin):
                 role_type=agent['role_type'],
                 description=f"AI Advisor Agent — {agent['domain']}",
                 domain=agent.get('domain', 'chatbot'),
-                provider='dashscope',
-                model_name='qwen-turbo',
+                provider='',
+                model_name='',
                 system_prompt=system_prompt,
                 capabilities=json.dumps(agent.get('capabilities', [])),
                 is_active=1 if agent.get('enabled_by_default', True) else 0
             )
         except Exception as e:
             self.log(f'Register agents failed: {e}', 'warning')
+
+    def _unregister_agents(self):
+        """清理本地 agent_registry（插件禁用/卸载时调用，实现"零残留"）"""
+        try:
+            from .models import unregister_agents
+            n = unregister_agents()
+            self.log(f'Agents unregistered: {n}')
+        except Exception as e:
+            self.log(f'Unregister agents failed: {e}', 'warning')
+
+    def on_disable(self, registry=None) -> bool:
+        """禁用时注销本地 Agent 注册，避免残留"""
+        self._unregister_agents()
+        return True
+
+    def on_uninstall(self, registry=None) -> bool:
+        """卸载时注销本地 Agent 注册，实现卸载零残留"""
+        self._unregister_agents()
+        return True
+
+    def get_schema_version(self):
+        """从插件独立库读取当前 schema 版本（§10.6）"""
+        try:
+            from .models import get_schema_version as _get_schema_version
+            return _get_schema_version()
+        except Exception:
+            return '0.0.0'
+
+    def migrate(self, from_version: str, to_version: str):
+        """版本升级逻辑（§10.6）：运行幂等建表/迁移并更新 schema 版本。"""
+        try:
+            from .models import init_chatbot_tables, set_schema_version
+            init_chatbot_tables()
+            set_schema_version(to_version)
+            self.log(f'Schema migrated: {from_version} → {to_version}')
+            return True
+        except Exception as e:
+            self.log(f'Schema migrate failed: {from_version} → {to_version}: {e}', 'error')
+            return False
+
+    def get_dashboard_stats(self):
+        """Dashboard 统计（§2.3）：与 plugin.json dashboard.stats 声明对应"""
+        stats = {'today_sessions': 0, 'handoff_rate': 0, 'avg_csat': 0}
+        try:
+            from .stats import get_today_stats
+            data = get_today_stats()
+            stats['today_sessions'] = data.get('today_sessions', 0)
+            stats['handoff_rate'] = data.get('handoff_rate', 0)
+            stats['avg_csat'] = data.get('avg_csat', 0)
+        except Exception as e:
+            self.log(f'Get dashboard stats failed: {e}', 'warning')
+        return stats
 
     def get_config_value(self, key: str, default: Any = None) -> Any:
         """优先 PluginManager，回退到独立库 plugin_configs 表"""

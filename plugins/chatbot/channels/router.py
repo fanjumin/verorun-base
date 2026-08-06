@@ -8,12 +8,34 @@ AI Advisor 多渠道路由核心
   3. 调用对应平台 API 发送回复
 """
 import json
-import logging
 import sys
 import os
+import ipaddress
+import socket
 import urllib.request as _ur
+from urllib.parse import urlparse
 
-logger = logging.getLogger(__name__)
+from plugin_manager.logger import get_plugin_logger
+
+logger = get_plugin_logger('chatbot')
+
+
+def _assert_public_host(url):
+    """§11.3 网络隔离：拒绝内网/回环/链路本地 IP 段，防 SSRF。
+
+    在发起外呼前校验目标主机解析出的所有 IP，命中私网/保留地址直接拒绝。
+    """
+    host = urlparse(url).hostname
+    if not host:
+        raise ValueError(f'[Chatbot] 非法 URL，无法解析主机名: {url}')
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        raise ValueError(f'[Chatbot] 域名解析失败: {host} ({e})')
+    for info in infos:
+        addr = ipaddress.ip_address(info[4][0])
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            raise ValueError(f'[Chatbot] 禁止访问内网地址: {host} -> {info[4][0]}')
 
 
 def _get_channel_config(channel):
@@ -22,7 +44,7 @@ def _get_channel_config(channel):
     from models import get_im_db
     conn = get_im_db()
     row = conn.execute(
-        "SELECT config_json FROM channel_configs WHERE channel=? AND is_enabled=1 LIMIT 1",
+        "SELECT config_json FROM channel_configs WHERE channel=%s AND is_enabled=1 LIMIT 1",
         (channel,)
     ).fetchone()
     if not row:
@@ -107,6 +129,7 @@ def telegram_handle_webhook(body):
             'text': reply[:4096],
             'parse_mode': 'Markdown'
         }).encode()
+        _assert_public_host(f'https://api.telegram.org/bot{bot_token}/sendMessage')
         _ur.urlopen(
             _ur.Request(
                 f'https://api.telegram.org/bot{bot_token}/sendMessage',
@@ -167,6 +190,7 @@ def line_handle_webhook(body):
                 'replyToken': reply_token,
                 'messages': [{'type': 'text', 'text': reply[:2000]}]
             }).encode()
+            _assert_public_host('https://api.line.me/v2/bot/message/reply')
             _ur.urlopen(
                 _ur.Request(
                     'https://api.line.me/v2/bot/message/reply',

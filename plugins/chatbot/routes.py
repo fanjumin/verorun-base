@@ -2,13 +2,14 @@ from i18n import _
 import json
 import sys
 import os
-import logging
 from datetime import datetime
 from flask import Blueprint, request, jsonify, g, current_app
 
+from plugin_manager.logger import get_plugin_logger
+
 
 chatbot_bp = Blueprint('chatbot_admin', __name__)
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('chatbot')
 
 # ── 公开 Webhook 蓝图（多渠道）─────────────────────────
 webhook_bp = Blueprint('chatbot_webhook', __name__, url_prefix='/api/v1/channels')

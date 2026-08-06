@@ -8,13 +8,7 @@ AI Advisor (Chatbot) Plugin — PostgreSQL schema: chatbot
 """
 import psycopg2
 import psycopg2.extras
-import os
 from plugins._base.db import get_raw_connection
-
-_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-_DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
-_DB_PATH = os.path.join(_DATA_DIR, 'chatbot.db')  # 保留用于迁移
-os.makedirs(_DATA_DIR, exist_ok=True)
 
 _chatbot_conn = None
 
@@ -23,12 +17,22 @@ class _PgConnection:
     """psycopg2 connection adapter with sqlite3-compatible interface."""
     def __init__(self, conn):
         self._conn = conn
+    def __enter__(self):
+        # 与 with 语句兼容（stats.py 使用 with _get_db() as conn:）
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # 单例连接不关闭，仅按结果提交/回滚
+        if exc_type is None:
+            try:
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+        else:
+            self._conn.rollback()
+        return False
     def execute(self, sql, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if params is not None:
-            cur.execute(sql.replace('?', '%s'), params)
-        else:
-            cur.execute(sql)
+        cur.execute(sql, params)
         return cur
     def commit(self):
         self._conn.commit()
@@ -53,6 +57,13 @@ def get_chatbot_db():
 def init_chatbot_tables():
     """创建所有 chatbot 插件表（幂等）"""
     conn = get_chatbot_db()
+
+    # 0. Schema 版本追踪表（§10.6）
+    conn.execute('''CREATE TABLE IF NOT EXISTS schema_meta (
+        key         TEXT PRIMARY KEY,
+        value       TEXT DEFAULT '',
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+    )''')
 
     # 1. 插件配置表
     conn.execute('''CREATE TABLE IF NOT EXISTS plugin_configs (
@@ -102,7 +113,32 @@ def init_chatbot_tables():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_cs_session ON chatbot_sessions(session_id)')
 
     conn.commit()
-    print(f'[ChatbotPlugin] PG schema chatbot is ready ({_DB_PATH})')
+    print('[ChatbotPlugin] PG schema chatbot is ready')
+
+
+# ── Schema 版本迁移（§10.6） ──
+
+def get_schema_version() -> str:
+    """从 schema_meta 表读取当前 schema 版本（§10.6）"""
+    try:
+        conn = get_chatbot_db()
+        row = conn.execute(
+            "SELECT value FROM schema_meta WHERE key='schema_version'"
+        ).fetchone()
+        return row['value'] if row else '0.0.0'
+    except Exception:
+        return '0.0.0'
+
+
+def set_schema_version(version: str):
+    """写入当前 schema 版本（§10.6）"""
+    conn = get_chatbot_db()
+    conn.execute('''
+        INSERT INTO schema_meta (key, value, updated_at)
+        VALUES ('schema_version', %s, NOW())
+        ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
+    ''', (version,))
+    conn.commit()
 
 
 # ── 配置读写 ──
@@ -195,24 +231,39 @@ def get_agent(agent_id: str):
     return dict(row) if row else None
 
 
+def unregister_agents():
+    """清空本地 agent_registry 表（插件禁用/卸载时调用，实现"零残留"）"""
+    conn = get_chatbot_db()
+    cur = conn.execute('DELETE FROM agent_registry')
+    conn.commit()
+    return cur.rowcount
+
+
 # ── 从主库迁移已有数据（幂等，首次运行自动执行） ──
 
 def migrate_from_main():
-    """从主库迁移 plugin_configs 和 chatbot_sessions 到独立库（幂等）"""
+    """从主库迁移 plugin_configs / agent_matrix / chatbot_sessions 到独立库（幂等）。
+
+    每个分支独立 try/except：主库缺少某张表（如 plugin_configs）不会中断其余迁移。
+    """
     try:
         import sys as _s, os as _o
         _s.path.insert(0, _o.path.join(_o.path.dirname(__file__), '..', '..', 'auth-center'))
         from models import get_db as get_main_db
+    except Exception as e:
+        print(f'[ChatbotPlugin] Main DB import failed, skip migration: {e}')
+        return
 
-        with get_main_db() as mc:
-            # 迁移 plugin_configs（仅迁移 chatbot.db 中不存在的键，不覆盖已有值）
+    with get_main_db() as mc:
+        # 迁移 plugin_configs（仅迁移独立库中不存在的键，不覆盖已有值）
+        try:
             main_rows = mc.execute(
                 "SELECT key, value FROM plugin_configs WHERE plugin_name='chatbot'"
             ).fetchall()
             migrated = 0
             if main_rows:
                 local_keys = {
-                    r['key'] for r in conn.execute(
+                    r['key'] for r in get_chatbot_db().execute(
                         'SELECT key FROM plugin_configs WHERE plugin_name=%s', ('chatbot',)
                     ).fetchall()
                 }
@@ -224,8 +275,11 @@ def migrate_from_main():
                     print(f'[ChatbotPlugin] Migrated {migrated}/{len(main_rows)} plugin_configs (skipped existing)')
                 else:
                     print(f'[ChatbotPlugin] Skipped migration, all {len(main_rows)} plugin_configs already exist')
+        except Exception as e:
+            print(f'[ChatbotPlugin] plugin_configs migration skipped: {e}')
 
-            # 迁移 agent（仅迁移 chatbot 相关的 agent_matrix 记录）
+        # 迁移 agent（仅迁移 chatbot 相关的 agent_matrix 记录）
+        try:
             agent_rows = mc.execute(
                 "SELECT * FROM agent_matrix WHERE domain='chatbot' OR managed_modules LIKE '%chatbot%'"
             ).fetchall()
@@ -240,8 +294,11 @@ def migrate_from_main():
                         is_active=r.get('is_active', 1)
                     )
                 print(f'[ChatbotPlugin] Migrated {len(agent_rows)} agent_registry entries')
+        except Exception as e:
+            print(f'[ChatbotPlugin] agent migration skipped: {e}')
 
-            # 迁移 chatbot_sessions（仅最近 30 天）
+        # 迁移 chatbot_sessions（仅最近 30 天）
+        try:
             session_rows = mc.execute(
                 "SELECT * FROM chatbot_sessions WHERE created_at >= NOW() - INTERVAL '30 days'"
             ).fetchall()
@@ -261,5 +318,5 @@ def migrate_from_main():
                     )
                 conn.commit()
                 print(f'[ChatbotPlugin] Migrated {len(session_rows)} chatbot_sessions entries')
-    except Exception as e:
-        print(f'[ChatbotPlugin] Failed to migrate main database data (normal on first run): {e}')
+        except Exception as e:
+            print(f'[ChatbotPlugin] chatbot_sessions migration skipped: {e}')

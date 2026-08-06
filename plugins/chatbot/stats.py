@@ -1,10 +1,11 @@
 """AI Advisor 对话统计与报表"""
 from i18n import _
 import json
-import logging
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from plugin_manager.logger import get_plugin_logger
+
+logger = get_plugin_logger('chatbot')
 
 
 def _get_db():
@@ -62,28 +63,28 @@ def get_today_stats():
             # 今日对话数（唯一 session）
             total = conn.execute(
                 "SELECT COUNT(DISTINCT session_id) as cnt FROM chatbot_sessions "
-                "WHERE source='chatbot' AND date(created_at)=?",
+                "WHERE source='chatbot' AND date(created_at)=%s",
                 (today,)
             ).fetchone()['cnt'] or 0
 
             # 今日转人工数
             escalated = conn.execute(
                 "SELECT COUNT(DISTINCT session_id) as cnt FROM chatbot_sessions "
-                "WHERE source='chatbot' AND escalated=1 AND date(created_at)=?",
+                "WHERE source='chatbot' AND escalated=1 AND date(created_at)=%s",
                 (today,)
             ).fetchone()['cnt'] or 0
 
             # 今日 CSAT 平均分
             avg_csat = conn.execute(
                 "SELECT COALESCE(AVG(csat_score),0) as avg FROM chatbot_sessions "
-                "WHERE source='chatbot' AND csat_score>0 AND date(created_at)=?",
+                "WHERE source='chatbot' AND csat_score>0 AND date(created_at)=%s",
                 (today,)
             ).fetchone()['avg'] or 0
 
             # 意图分布
             intent_raw = conn.execute(
                 "SELECT intent, COUNT(*) as cnt FROM chatbot_sessions "
-                "WHERE source='chatbot' AND date(created_at)=? AND intent!='' "
+                "WHERE source='chatbot' AND date(created_at)=%s AND intent!='' "
                 "GROUP BY intent ORDER BY cnt DESC",
                 (today,)
             ).fetchall()
@@ -92,7 +93,7 @@ def get_today_stats():
             # 情绪分布
             sentiment_raw = conn.execute(
                 "SELECT sentiment, COUNT(*) as cnt FROM chatbot_sessions "
-                "WHERE source='chatbot' AND date(created_at)=? AND sentiment!='' "
+                "WHERE source='chatbot' AND date(created_at)=%s AND sentiment!='' "
                 "GROUP BY sentiment ORDER BY cnt DESC",
                 (today,)
             ).fetchall()
@@ -151,7 +152,7 @@ def record_csat(session_id, score):
     try:
         with _get_db() as conn:
             conn.execute(
-                "UPDATE chatbot_sessions SET csat_score=? WHERE session_id=?",
+                "UPDATE chatbot_sessions SET csat_score=%s WHERE session_id=%s",
                 (score, session_id)
             )
             conn.commit()
@@ -168,9 +169,9 @@ def get_hot_topics(limit=10):
         with _get_db() as conn:
             rows = conn.execute(
                 "SELECT user_query, COUNT(*) as cnt FROM chatbot_sessions "
-                "WHERE source='chatbot' AND date(created_at)=? "
+                "WHERE source='chatbot' AND date(created_at)=%s "
                 "AND user_query!='' "
-                "GROUP BY user_query ORDER BY cnt DESC LIMIT ?",
+                "GROUP BY user_query ORDER BY cnt DESC LIMIT %s",
                 (today, limit)
             ).fetchall()
         return [{'query': r['user_query'], 'count': r['cnt']} for r in rows]
@@ -242,7 +243,7 @@ AI：{ai_reply[:500]}"""
         engine = UnifiedLLM({'provider': 'dashscope', 'model_name': 'qwen-turbo'})
         reply = ''
         for token in engine.chat_stream([
-            {'role': 'system', 'content': _('你是一个对话质量评审员。只输出 JSON。')},
+            {'role': 'system', 'content': _('You are a conversation quality reviewer. Output JSON only.')},
             {'role': 'user', 'content': prompt}
         ], temperature=0.1, max_tokens=256):
             if not token.startswith('Error:'):
