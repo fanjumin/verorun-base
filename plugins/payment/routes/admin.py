@@ -2,7 +2,7 @@
 """
 Payment Plugin — /admin/payment/configs 配置管理路由
 ====================================================
-支付凭证存储在插件独立数据库 payment.db（payment_configs 表），
+支付凭证存储在插件独立 PostgreSQL schema `payment`（payment_configs 表），
 完全独立于主库 system_config。
 """
 from i18n import _
@@ -169,7 +169,7 @@ def delete_provider_config(provider):
         return jsonify({'success': False, 'error': f'Unknown provider: {provider}'}), 400
 
     conn = _get_db()
-    conn.execute('DELETE FROM payment_configs WHERE provider=?', (provider,))
+    conn.execute('DELETE FROM payment_configs WHERE provider=%s', (provider,))
     conn.commit()
     _log(a, 'delete', 'payment_config', provider, f'Cleared {provider} payment config')
     return jsonify({'success': True, 'message': f'{provider} config cleared'})

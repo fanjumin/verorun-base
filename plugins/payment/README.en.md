@@ -4,13 +4,13 @@
 
 The **payment** plugin is the unified payment gateway management module for the VeroRun platform. It provides centralized configuration and management for multiple payment providers including Alipay, WeChat Pay, Stripe, and PayPal. The plugin handles payment creation, confirmation, and notification verification through a consistent hook-based interface.
 
-The plugin manages its own independent SQLite database at `data/payment.db` with tables for `payment_logs` and `payment_configs`. It also supports migration from the main VeroRun database via the `migrate_from_main_db()` method.
+The plugin manages its own independent PostgreSQL schema `payment` with tables for `payment_logs` and `payment_configs` (connected via `plugins/_base/db.py` `get_raw_connection()`). It also supports migration from the main VeroRun database via the `migrate_from_main_db()` method.
 
 | Property    | Value                |
 |-------------|----------------------|
 | Identifier  | `payment`            |
 | Version     | 1.0.0                |
-| Database    | `data/payment.db`    |
+| Database    | PG schema `payment`  |
 | Menu Group  | Business Center      |
 | Menu Key    | `payment`            |
 
@@ -34,8 +34,9 @@ The plugin follows a clean service-oriented architecture:
 ```
 payment/
   __init__.py     -- Plugin entry point (PaymentPlugin)
-  models.py       -- Data layer (ORM models, payment_logs, payment_configs)
-  services.py     -- Payment processing logic (create, confirm, verify)
+  models.py       -- Data layer (PG schema, payment_logs, payment_configs)
+  services.py     -- Payment processing logic (delegated to auth-center)
+  migrations/     -- Schema migration scripts (§10.6)
   routes/
     admin.py      -- Admin routes (payment_admin_bp)
 ```
@@ -58,6 +59,8 @@ plugins/payment/
   __init__.py
   models.py
   services.py
+  migrations/
+    v1.0.0_baseline.sql
   routes/
     admin.py
   README.en.md
@@ -70,7 +73,7 @@ plugins/payment/
 1. Ensure the `payment/` directory is present under `plugins/`.
 2. The plugin is auto-discovered by the VeroRun plugin loader.
 3. Verify activation in the admin panel under **Plugins**.
-4. The database `data/payment.db` is automatically initialized on first load.
+4. The PostgreSQL schema `payment` is automatically initialized on first load.
 5. If migrating from the main database, the `migrate_from_main_db()` method is called automatically.
 6. Configure payment provider credentials in the admin panel.
 
@@ -129,7 +132,7 @@ This plugin does not listen to any external hooks.
 This plugin has no external third-party Python dependencies. It relies on:
 
 - VeroRun core (hook system, plugin loader, template engine)
-- SQLite (via VeroRun's database abstraction layer)
+- PostgreSQL (via `plugins/_base/db.py` `get_raw_connection()` factory)
 - External payment provider APIs (Alipay, WeChat Pay, Stripe, PayPal)
 
 ---
@@ -138,7 +141,9 @@ This plugin has no external third-party Python dependencies. It relies on:
 
 | Permission       | Description                              |
 |------------------|------------------------------------------|
-| `payment.manage` | Manage payment configurations and logs   |
+| `api:read`       | Read payment configurations and logs     |
+| `api:write`      | Write payment configurations             |
+| `admin:access`   | Access the admin payment page            |
 
 ---
 

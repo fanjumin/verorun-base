@@ -1,35 +1,25 @@
 #!/usr/bin/env python3
 """
-Payment Plugin — 独立数据库模型
-==============================
+Payment Plugin — 独立 PG schema 模型
+=====================================
 - payment_logs: 支付交易日志（已有）
 - payment_configs: 支付提供商凭证（新增，替代主库 system_config）
+数据隔离基于 PostgreSQL 独立 schema `payment`（§9.1/§11.2），
+通过 plugins/_base/db.py 的 get_raw_connection() 获取统一连接。
 """
 from i18n import _
 import psycopg2
-from psycopg2.extras import RealDictCursor
-import os
-import json
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
-
-_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-_DATA_DIR = os.path.join(_PLUGIN_DIR, 'data')
-_DB_PATH = os.path.join(_DATA_DIR, 'payment.db')
-os.makedirs(_DATA_DIR, exist_ok=True)
 
 _payment_conn = None
 _conn_lock = __import__('threading').Lock()
 
 
 def _rebuild_db():
-    """重建数据库（文件损坏时调用）"""
+    """重建 schema 表结构（连接异常时调用）"""
     global _payment_conn
     _payment_conn = None
-    try:
-        os.remove(_DB_PATH)
-    except OSError:
-        pass
     conn = PgConnection(get_raw_connection())
     conn.execute("CREATE SCHEMA IF NOT EXISTS payment")
     conn.execute("SET search_path TO payment")
@@ -194,7 +184,7 @@ def migrate_from_main_db():
                 if r and r['value']:
                     set_payment_config('alipay', key.replace('alipay_', ''), r['value'])
             # 回调域名
-            r = conn.execute('SELECT value FROM system_config WHERE key="payment.notify_base"').fetchone()
+            r = conn.execute('SELECT value FROM system_config WHERE key=%s', ('payment.notify_base',)).fetchone()
             if r and r['value']:
                 set_payment_config('alipay', 'notify_base', r['value'])
             # 微信
@@ -202,9 +192,90 @@ def migrate_from_main_db():
                 r = conn.execute('SELECT value FROM system_config WHERE key=%s', (key,)).fetchone()
                 if r and r['value']:
                     set_payment_config('wechat', key.replace('wechat_', ''), r['value'])
-        print(_('[PaymentPlugin] ✅ Main database payment credentials migrated to standalone database'))
+        print(_('[PaymentPlugin] ✅ Main database payment credentials migrated to independent schema'))
     except Exception as e:
         print(f'[PaymentPlugin] ⚠️ Failed to migrate payment credentials (normal on first run): {e}')
+
+
+# ── 卸载清理 / 版本迁移 / Dashboard 统计（§10.5 / §10.6 / §12.5） ──
+
+def drop_payment_schema():
+    """卸载时删除独立 schema `payment`，确保零残留（§12.5）"""
+    conn = get_raw_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DROP SCHEMA IF EXISTS payment CASCADE")
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+
+
+_SCHEMA_VERSION = '1.0.0'
+
+
+def get_schema_version() -> str:
+    """从 meta 表读取当前 schema 版本（§10.6）"""
+    conn = get_payment_db()
+    try:
+        conn.execute('''CREATE TABLE IF NOT EXISTS payment_meta (
+            meta_key   TEXT PRIMARY KEY,
+            meta_value TEXT NOT NULL DEFAULT ''
+        )''')
+        r = conn.execute(
+            "SELECT meta_value FROM payment_meta WHERE meta_key='schema_version'"
+        ).fetchone()
+        if not r:
+            conn.execute(
+                "INSERT INTO payment_meta (meta_key, meta_value) VALUES ('schema_version', %s)",
+                (_SCHEMA_VERSION,)
+            )
+            conn.commit()
+            return _SCHEMA_VERSION
+        return r['meta_value'] or _SCHEMA_VERSION
+    except Exception:
+        return _SCHEMA_VERSION
+
+
+def migrate(from_version: str, to_version: str) -> bool:
+    """schema 迁移入口（§10.6）。当前无迁移脚本，仅更新记录的版本号。"""
+    conn = get_payment_db()
+    try:
+        conn.execute('''CREATE TABLE IF NOT EXISTS payment_meta (
+            meta_key   TEXT PRIMARY KEY,
+            meta_value TEXT NOT NULL DEFAULT ''
+        )''')
+        conn.execute(
+            "INSERT INTO payment_meta (meta_key, meta_value) VALUES ('schema_version', %s) "
+            "ON CONFLICT (meta_key) DO UPDATE SET meta_value=EXCLUDED.meta_value",
+            (to_version,)
+        )
+        conn.commit()
+        return True
+    except Exception:
+        return False
+
+
+def get_dashboard_stats() -> dict:
+    """Dashboard 统计指标（§2.3/§10.5）：支付日志数、已配置渠道、24h 支付量"""
+    conn = get_payment_db()
+    try:
+        total_logs = conn.execute(
+            'SELECT COUNT(*) AS c FROM payment_logs'
+        ).fetchone()['c'] or 0
+        total_configs = conn.execute(
+            'SELECT COUNT(DISTINCT provider) AS c FROM payment_configs'
+        ).fetchone()['c'] or 0
+        recent_payments = conn.execute(
+            "SELECT COUNT(*) AS c FROM payment_logs WHERE created_at > NOW() - INTERVAL '1 day'"
+        ).fetchone()['c'] or 0
+    except Exception:
+        total_logs = total_configs = recent_payments = 0
+    return {
+        'total_logs': total_logs,
+        'total_configs': total_configs,
+        'recent_payments': recent_payments,
+    }
 
 
 ensure_payment_tables = init_payment_tables

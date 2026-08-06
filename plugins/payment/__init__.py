@@ -2,7 +2,7 @@
 """
 Payment Gateway Plugin — 支付配置插件（完全独立）
 ==================================================
-- 独立数据库：data/payment.db（payment_logs + payment_configs）
+- 独立 schema：PostgreSQL schema `payment`（payment_logs + payment_configs）
 - 独立路由：/admin/payment/configs/*（替代主库 /user/config）
 - 支持：支付宝、微信支付、Stripe、PayPal
 - 市场自动检测：CN 显示支付宝/微信，INTL 显示 Stripe/PayPal
@@ -28,7 +28,7 @@ class PaymentPlugin(BasePlugin):
 
     def on_enable(self, registry):
         self._init_db()
-        print(_('[PaymentPlugin] ✅ Payment plugin enabled (standalone database)'))
+        print(_('[PaymentPlugin] ✅ Payment plugin enabled (independent PG schema)'))
         return True
 
     def _init_db(self):
@@ -45,6 +45,39 @@ class PaymentPlugin(BasePlugin):
     def on_disable(self, registry):
         print(_('[PaymentPlugin] ⚠️ Payment plugin disabled'))
         return True
+
+    def on_uninstall(self, registry=None):
+        """卸载时清理独立 schema，确保零残留（§12.5）
+
+        注意：PluginManager.uninstall() 以无参方式调用本方法，
+        故签名必须使用 registry=None 默认值，避免 TypeError 被静默吞掉。
+        """
+        try:
+            from .models import drop_payment_schema
+            drop_payment_schema()
+            print('[PaymentPlugin] ✅ Schema payment dropped (uninstall)')
+        except Exception as e:
+            print(f'[PaymentPlugin] ⚠️ on_uninstall cleanup failed: {e}')
+        return True
+
+    def get_schema_version(self) -> str:
+        """当前 schema 版本（§10.6）"""
+        from .models import get_schema_version as _gsv
+        return _gsv()
+
+    def migrate(self, from_version: str, to_version: str) -> bool:
+        """schema 迁移入口（§10.6），当前无迁移脚本"""
+        from .models import migrate as _migrate
+        return _migrate(from_version, to_version)
+
+    def get_dashboard_stats(self) -> dict:
+        """Dashboard 统计指标（§2.3/§10.5）"""
+        try:
+            from .models import get_dashboard_stats
+            return get_dashboard_stats()
+        except Exception as e:
+            print(f'[PaymentPlugin] ⚠️ get_dashboard_stats failed: {e}')
+            return {}
 
     # ── 对外接口 ──
 
