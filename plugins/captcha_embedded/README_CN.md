@@ -2,9 +2,9 @@
 
 ## 概述
 
-Captcha Service 是 VeroRun 的滑块验证码插件，提供拼图生成、行为分析与频率限制能力。插件采用嵌入式设计，无需独立数据库，验证码路由由管理后台（auth-center）的 `admin/captcha_bp` 提供，本插件专注于验证码的核心生成与校验逻辑。
+Captcha Service 是 VeroRun 的滑块验证码插件，提供拼图生成、行为分析与频率限制能力。插件采用自包含架构：核心逻辑（生成器、安全、行为分析、存储）内聚于插件自身 `captcha/` 包，REST 路由由插件自有 `routes.py` 暴露（url_prefix 保持 `/api/captcha`）。
 
-版本：**0.1.0**
+版本：**1.0.0**
 
 ## 功能特性
 
@@ -18,23 +18,32 @@ Captcha Service 是 VeroRun 的滑块验证码插件，提供拼图生成、行�
 
 ### 数据库策略
 
-插件**无独立数据库**，所有验证码临时状态数据存储于内存缓存或主库中。
+插件生产环境使用 **Redis + 内存回退** 存储验证码临时状态（token、限流、封禁、统计）。
+Redis 本身即持久化方案（RDB/AOF），对短生命周期（TTL≤300s）的验证码数据是合理选择，
+热路径（每次 generate/verify/consume）延迟低。
+
+按插件标准 v1.4 §9.1/§11.2，`models.py` 已声明此存储策略，并预留 PostgreSQL schema
+`captcha_embedded`（表定义 + `init_captcha_db()`）；未来如需全量迁移 PG 可直接调用初始化
+后切换 `store.py` 读写层。
 
 ### 模块结构
 
 ```
 ┌─────────────────────────────────────────────────┐
 │                __init__.py                       │
-│          (路由注册与 Hook 提供)                    │
-│   路由来自 admin/captcha_bp (auth-center)          │
+│          (插件生命周期 + 路由注册 + Dashboard)     │
 └─────────────────────┬───────────────────────────┘
                       │
           ┌───────────┼───────────┐
           ▼           ▼           ▼
 ┌──────────────┐ ┌──────────┐ ┌──────────────┐
-│ captcha/     │ │ captcha/ │ │ captcha/     │
-│ generate     │ │ verify   │ │ consume      │
-│ (生成拼图)    │ │ (验证滑块) │ │ (消费令牌)    │
+│ routes.py    │ │ captcha/ │ │ config.py    │
+│ Blueprint    │ │ 生成器/   │ │ 配置         │
+│ /api/captcha │ │ 安全/行为/│ │ (SECRET_KEY, │
+│ (generate/   │ │ 存储      │ │ IMAGE_DIR…)  │
+│ verify/      │ │           │ │              │
+│ consume/     │ │           │ │              │
+│ stats)       │ │           │ │              │
 └──────────────┘ └──────────┘ └──────────────┘
 ```
 
@@ -49,10 +58,22 @@ Captcha Service 是 VeroRun 的滑块验证码插件，提供拼图生成、行�
 
 ```
 captcha_embedded/
-├── __init__.py          # 插件入口，定义路由与 Hook 接口
-├── plugin.json          # 插件元数据配置
+├── __init__.py          # 插件入口：生命周期 + 路由注册 + Dashboard 统计
+├── plugin.json          # 插件元数据配置（plugin-standard v1.4 合规）
+├── routes.py            # Blueprint（url_prefix=/api/captcha，从 admin/captcha_bp.py 迁入）
+├── config.py            # 配置（从 captcha-service/config.py 迁入，含延迟 SECRET_KEY 校验）
+├── models.py            # 存储策略声明 + PG schema captcha_embedded 预留（init_captcha_db）
+├── images/              # 拼图背景图（自包含，26 张，从 captcha-service/images 复制）
+├── captcha/             # 核心逻辑（从 captcha-service/captcha/ 迁入）
+│   ├── __init__.py
+│   ├── generator.py     # 拼图生成
+│   ├── security.py      # HMAC token 生成/校验（延迟获取密钥）
+│   ├── behavior.py      # 行为轨迹分析与风险评分
+│   └── store.py         # 存储：Redis + 内存 fallback
+├── templates/
+│   └── captcha_stats.html  # 统计页裸 JS partial（§12.11 无 <script>）
 └── i18n/
-    ├── en.yml           # 英文国际化
+    ├── en.yml           # 英文国际化（identity 映射）
     └── zh-CN.yml        # 中文国际化
 ```
 
@@ -118,18 +139,19 @@ captcha_embedded/
 
 ### 管理后台
 
-本插件无管理后台菜单。
+本插件无独立管理菜单。`templates/captcha_stats.html` 为统计页裸 JS partial
+（§12.11 无 `<script>`），数据来自 `GET /api/captcha/admin/stats/`，主系统可按需加载。
 
 ## 依赖关系
 
 ### 内部依赖
 
-- VeroRun 核心框架：Hook 系统、路由注册
-- 管理后台（auth-center）：提供 `admin/captcha_bp` 路由蓝图
+- VeroRun 核心框架：Hook 系统、PluginManager 路由注册（register_routes）
+- 拼图背景图：插件内 `images/` 目录（自包含，经 `config.IMAGE_DIR` 引用，环境变量可覆盖）
 
 ### 外部依赖
 
-无外部第三方依赖。
+- 第三方 Python 包：Pillow（拼图生成）、numpy（像素处理）、redis（存储，可选）
 
 ### 被依赖
 

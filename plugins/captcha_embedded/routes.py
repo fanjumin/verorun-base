@@ -1,32 +1,25 @@
-"""Captcha Flask Blueprint — 【已迁移】2026-08-06 迁移至插件 plugins/captcha_embedded/routes.py。
+#!/usr/bin/env python3
+"""Captcha Flask Blueprint — 插件自有路由（2026-08-06 从 admin/captcha_bp.py 迁入）。
 
-本文件保留仅为回滚兜底，主系统（admin/app.py）与插件均不再引用。
-待插件新路由验证通过后，删除本文件需用户单独批准。
+端点：
+  GET  /api/captcha/generate     → 生成拼图挑战
+  POST /api/captcha/verify       → 验证位置 + 行为分析
+  POST /api/captcha/consume      → 一次性消费 Token
+  GET  /api/captcha/admin/stats/ → 统计数据
 
-迁移前说明：
-  端点：
-    GET  /api/captcha/generate   → 生成拼图挑战
-    POST /api/captcha/verify     → 验证位置 + 行为分析
-    POST /api/captcha/consume    → 一次性消费 Token
-    GET  /api/admin/captcha/stats → 统计数据
+url_prefix 保持与迁出前一致（/api/captcha），前端 puzzle-captcha.js、
+auth_server 代理、auth-center consume 调用均依赖此前缀。
 """
-import sys, os
-
-# Ensure captcha-service/ is importable from admin's cwd
-CAPTCHA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'captcha-service')
-if CAPTCHA_DIR not in sys.path:
-    sys.path.insert(0, CAPTCHA_DIR)
-
 from flask import Blueprint, request, jsonify
 
-from captcha.generator import generate_puzzle
-from captcha.security import generate_token, verify_token
-from captcha.store import (
+from .captcha.generator import generate_puzzle
+from .captcha.security import generate_token, verify_token
+from .captcha.store import (
     save_challenge, consume_challenge, peek_challenge,
     check_rate_limit, record_fail, check_ip_blocked, record_stat, get_stats,
 )
-from captcha.behavior import analyze_trajectory, compute_risk
-from config import TOLERANCE, RISK_THRESHOLD
+from .captcha.behavior import analyze_trajectory, compute_risk
+from .config import TOLERANCE, RISK_THRESHOLD
 
 captcha_bp = Blueprint('captcha', __name__, url_prefix='/api/captcha')
 

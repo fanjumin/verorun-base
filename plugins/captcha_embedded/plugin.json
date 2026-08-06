@@ -1,12 +1,17 @@
-﻿{
+{
     "name": "Captcha Service",
     "identifier": "captcha_embedded",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "Slider Captcha — Puzzle generation + behavior analysis + rate limiting",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
+    "category": "system",
+    "icon": "keys",
+    "tags": ["安全", "验证码", "反爬虫"],
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "",
     "dependencies": {},
-    "enabled": true,
     "config": {},
     "permissions": [
         "captcha.generate",
@@ -20,6 +25,15 @@
         ],
         "listens": []
     },
+    "agents": [],
+    "dashboard": {
+        "stats": [
+            {"key": "total_requests", "title": "Total Requests", "type": "counter"},
+            {"key": "pass_rate", "title": "Pass Rate", "type": "gauge"},
+            {"key": "last_hour", "title": "Requests Last Hour", "type": "gauge"}
+        ]
+    },
+    "admin_url": "/admin/captcha/stats",
     "settings_schema": {
         "type": "object",
         "properties": {}
