@@ -313,3 +313,38 @@
 
 #### 修复
 index.html 补回 `document.cookie` 写入逻辑
+
+---
+
+## 2026-08-06 — 修复：管理员后台卡死 "Verifying Identity..."
+
+### 问题描述
+管理员后台无法进入，页面只显示 "Verifying Identity..."，控制台报：
+`admin:13553 Uncaught SyntaxError: Unexpected identifier 'width'`
+
+### 根因（两个问题叠加）
+
+1. **plugins_store.html 第 45 行转义引号错误（v0.49.0 回归）**
+   - `admin/templates/partials/plugins_store.html` 第 45 行（v0.49.0 插件商店 UX 改造新增的卡片缩略图 `onerror` 代码）中，JS 单引号字符串内出现 `\\'`：
+     - JS 中 `\\` 被解释为字面量反斜杠，紧随的 `'` 直接终止字符串
+     - 后面的 `width:100%...` 变成裸标识符 → `SyntaxError: Unexpected identifier 'width'`
+   - 该错误位于 admin 主 `<script>` 块内，导致整个 admin JS 崩溃，页面永远停在 "Verifying Identity..."
+   - 注：此问题曾在历史提交 `c389b61` 修复过（9 处 `\\'`），本次为 v0.49.0 UX 改造重新引入
+
+2. **admin_coupons.html 违规包含 `<script>` 标签**
+   - `plugins/coupons/templates/admin_coupons.html` 第 2/217 行含 `<script>`/`</script>`，违反 `docs/plugin-standard-v1.3.md` §12.11「前端模板铁律：禁止 `<script>` 标签」
+   - admin 所有 partial/插件模板是裸 JS，由 core.html 开外层大 `<script>`、tail.html 统一闭合；插件模板自带 `<script>` 会提前截断外层 script，导致后续所有 partial 的 JS 变成裸 HTML（`Unexpected token '<'` / `xxx is not defined`）
+
+### 修复内容
+
+| 文件 | 修改 |
+|------|------|
+| `admin/templates/partials/plugins_store.html` | 第 45 行 `\\'` → HTML 实体 `&quot;`（style 属性双引号改用实体，避免字符串提前截断） |
+| `plugins/coupons/templates/admin_coupons.html` | 删除第 2 行 `<script>` 与第 217 行 `</script>`，回归裸 JS 铁律 |
+
+### 验证结果
+- 本地真实 Jinja2 渲染 admin.html（15053 行），主 script 块（约 1.48 万行 JS）通过 `node --check` **零语法错误**
+- `<script>` 标签仅剩 head checkUpdate 块与主块两对，coupon 违规标签已消除
+
+### 部署提示
+- 服务器生效需重启 admin 服务(8084)：`admin/app.py` 设置了 `TEMPLATES_AUTO_RELOAD=False` + jinja2 字节码缓存，模板修改后不会自动热加载
