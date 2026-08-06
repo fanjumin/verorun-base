@@ -58,7 +58,7 @@ def logistics_history():
     conn = get_logistics_db()
     total = conn.execute('SELECT COUNT(*) as c FROM logistics_queries').fetchone()['c']
     rows = conn.execute(
-        'SELECT * FROM logistics_queries ORDER BY queried_at DESC LIMIT ? OFFSET ?',
+        'SELECT * FROM logistics_queries ORDER BY queried_at DESC LIMIT %s OFFSET %s',
         (per_page, offset)
     ).fetchall()
     return jsonify({

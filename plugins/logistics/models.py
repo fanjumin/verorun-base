@@ -6,12 +6,11 @@ Logistics Plugin Models — 独立数据库 logistics.db
 - logistics_queries: 物流查询日志
 """
 from i18n import _
-import psycopg2
-from psycopg2.extras import RealDictCursor
 import os
 from plugins._base.db import PgConnection
+from plugin_manager.logger import get_plugin_logger
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'logistics.db')
+logger = get_plugin_logger('logistics')
 
 _logistics_conn = None
 
@@ -45,7 +44,7 @@ def init_logistics_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_logistics_queries_code ON logistics_queries(logistic_code)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_logistics_queries_at ON logistics_queries(queried_at)')
     conn.commit()
-    print(_('[LogisticsPlugin] logistics.db initialized'))
+    logger.info(_('LogisticsPlugin database initialized'))
 
 
 # 兼容旧接口名

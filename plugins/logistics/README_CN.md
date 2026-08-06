@@ -2,21 +2,21 @@
 
 ## 概述
 
-Logistics Express（物流配送查询）是 VeroRun 的物流轨迹追踪插件，对接快递鸟（Kdniao）API，支持 600 多家快递公司的物流轨迹实时查询。插件使用独立数据库 `logistics.db` 存储查询日志。
+Logistics Express（物流配送查询）是 VeroRun 的物流轨迹追踪插件，对接快递鸟（Kdniao）API，支持 600 多家快递公司的物流轨迹实时查询。插件使用独立 PostgreSQL schema（`logistics`）存储查询日志。
 
 ## 功能特性
 
 - **物流轨迹查询**：对接快递鸟 API，支持 600+ 快递公司实时物流轨迹查询
 - **快递公司识别**：自动识别快递单号对应的快递公司
 - **状态文本化**：提供 `logistics/get_shipping_status_text` Hook，将物流状态码转换为可读文本
-- **查询日志**：所有查询记录保存到 `logistics.db`，方便审计和问题排查
+- **查询日志**：所有查询记录保存到 PostgreSQL `logistics` schema，方便审计和问题排查
 - **管理后台**：内置 `admin_logistics.html` 管理界面，支持可视化查询和配置
 
 ## 架构设计
 
 ### 数据库策略
 
-使用**独立数据库** `logistics.db`（SQLite），存储查询日志记录。配置信息（快递鸟商户 ID、API Key）通过系统配置读取，支持环境变量覆盖。
+使用**独立 PostgreSQL schema** `logistics`（通过 `CREATE SCHEMA IF NOT EXISTS logistics`），存储查询日志记录。配置信息（快递鸟商户 ID、API Key）通过系统配置读取，支持环境变量覆盖。
 
 ### 模块结构
 
@@ -44,7 +44,7 @@ logistics/
 | `templates/admin_logistics.html` | 管理后台页面 |
 | `i18n/en.yml` | 英文翻译 |
 | `i18n/zh-CN.yml` | 中文翻译 |
-| `logistics.db` | 独立 SQLite 数据库文件 |
+| PostgreSQL `logistics` Schema | 独立 PostgreSQL Schema（`CREATE SCHEMA IF NOT EXISTS logistics`） |
 
 ## 安装与启用
 
@@ -56,7 +56,7 @@ logistics/
 
 插件默认启用（`enabled: true`）。启用时执行：
 
-1. 调用 `init_logistics_db()` 初始化独立数据库 `logistics.db`（幂等操作）
+1. 调用 `init_logistics_db()` 初始化独立 PostgreSQL schema `logistics`（幂等操作：`CREATE SCHEMA IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS`）
 2. 注册 Flask 蓝图路由
 
 ### 配置要求
@@ -77,6 +77,8 @@ logistics/
 | 权限标识 | 说明 |
 |----------|------|
 | `logistics.query` | 允许查询物流轨迹 |
+| `network:request` | 允许发起外部 API 请求（快递鸟） |
+| `admin:access` | 允许访问管理后台物流页面 |
 
 ## API 端点
 

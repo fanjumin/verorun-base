@@ -1,10 +1,13 @@
 {
     "name": "Logistics Express",
     "identifier": "logistics",
-    "version": "0.2.0",
+    "version": "1.1.0",
     "category": "shop",
     "tags": ["logistics", "express", "kdniao", "shipping"],
-    "icon": "plugins",
+    "icon": "package",
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "",
     "description": "Logistics Express — shipment tracking via Kdniao API with 600+ carriers",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
@@ -17,7 +20,9 @@
         "kdniao_api_key": ""
     },
     "permissions": [
-        "logistics.query"
+        "logistics.query",
+        "network:request",
+        "admin:access"
     ],
     "hooks": {
         "provides": [
@@ -25,6 +30,12 @@
             "logistics/get_shipping_status_text"
         ],
         "listens": []
+    },
+    "dashboard": {
+        "stats": [
+            {"key": "total_queries", "title": "Total Queries", "type": "counter"},
+            {"key": "success_rate", "title": "Success Rate", "type": "gauge"}
+        ]
     },
     "menu": {
         "group": "Business Center",

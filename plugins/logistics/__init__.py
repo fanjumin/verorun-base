@@ -13,13 +13,12 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugin_manager.base import BasePlugin
+from plugin_manager.logger import get_plugin_logger
+
+logger = get_plugin_logger('logistics')
 
 
 class LogisticsPlugin(BasePlugin):
-    name = 'logistics'
-    version = '1.0.0'
-    description = 'Logistics Express — shipment tracking via Kdniao API with 600+ carriers'
-    author = 'VeroRun'
 
     def on_install(self, registry):
         """安装时初始化独立 logistics.db"""
@@ -31,7 +30,7 @@ class LogisticsPlugin(BasePlugin):
         """启用时初始化数据库（幂等）"""
         from .models import init_logistics_db
         init_logistics_db()
-        print(_('[LogisticsPlugin] ✅ Logistics plugin enabled (logistics.db)'))
+        logger.info(_('Logistics plugin enabled'))
         return True
 
     def register_routes(self):
@@ -40,7 +39,16 @@ class LogisticsPlugin(BasePlugin):
         return [logistics_bp]
 
     def on_disable(self, registry):
-        print(_('[LogisticsPlugin] ⚠️ Logistics plugin disabled'))
+        logger.info(_('Logistics plugin disabled'))
+        return True
+
+    def on_uninstall(self, registry):
+        """Uninstall cleanup: drop logistics schema and all its data"""
+        from .models import get_logistics_db
+        conn = get_logistics_db()
+        conn.execute("DROP SCHEMA IF EXISTS logistics CASCADE")
+        conn.commit()
+        logger.info(_('Logistics plugin uninstalled — schema dropped'))
         return True
 
     # ── 对外接口 ──
@@ -65,3 +73,20 @@ class LogisticsPlugin(BasePlugin):
     def get_shipping_status_text(self, shipping_status):
         from .services import get_shipping_status_text as _g
         return _g(shipping_status)
+
+    def get_dashboard_stats(self):
+        """Dashboard stats (§2.3): query count and success rate from logistics schema"""
+        stats = {'total_queries': 0, 'success_rate': 0}
+        try:
+            from .models import get_logistics_db
+            conn = get_logistics_db()
+            total = conn.execute('SELECT COUNT(*) AS c FROM logistics_queries').fetchone()
+            stats['total_queries'] = total['c'] if total else 0
+            if stats['total_queries'] > 0:
+                success = conn.execute(
+                    "SELECT COUNT(*) AS c FROM logistics_queries WHERE success=1"
+                ).fetchone()
+                stats['success_rate'] = round(success['c'] / stats['total_queries'] * 100, 1)
+        except Exception as e:
+            logger.warning(f'get_dashboard_stats failed: {e}')
+        return stats

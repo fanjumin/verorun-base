@@ -8,14 +8,14 @@ from i18n import _
 import hashlib
 import json
 import base64
-import logging
 import os
 from typing import Dict, Any, List, Tuple
 from urllib import request, parse
 
 from .models import get_logistics_db
+from plugin_manager.logger import get_plugin_logger
 
-logger = logging.getLogger(__name__)
+logger = get_plugin_logger('logistics')
 
 # ── 默认配置（环境变量兜底）──
 KDNIAO_API_URL = os.environ.get('KDNIAO_API_URL',
@@ -130,9 +130,9 @@ def _log_query(shipper_code, logistic_code, order_code, success, error_msg=''):
     try:
         conn = get_logistics_db()
         conn.execute(
-            'INSERT INTO logistics_queries (shipper_code, logistic_code, order_code, success, error_msg) VALUES (?,?,?,?,?)',
+            'INSERT INTO logistics_queries (shipper_code, logistic_code, order_code, success, error_msg) VALUES (%s,%s,%s,%s,%s)',
             (shipper_code, logistic_code, order_code, 1 if success else 0, error_msg)
         )
         conn.commit()
     except Exception as e:
-        print(f'[LogisticsPlugin] Log write failed: {e}')
+        logger.error(f'Log write failed: {e}')

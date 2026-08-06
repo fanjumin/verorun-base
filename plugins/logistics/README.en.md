@@ -66,7 +66,7 @@ plugins/logistics/
 1. Ensure the `logistics/` directory is present under `plugins/`.
 2. The plugin is auto-discovered by the VeroRun plugin loader.
 3. Verify activation in the admin panel under **Plugins**.
-4. The database `logistics.db` is automatically initialized on first load.
+4. The `logistics` schema is automatically initialized on first load (via `CREATE SCHEMA IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS`).
 5. **Required:** Configure Kdniao API credentials before use.
 
 ---
@@ -121,9 +121,11 @@ This plugin has no external third-party Python dependencies. It relies on:
 
 ## Permissions
 
-| Permission         | Description                          |
-|--------------------|--------------------------------------|
-| `logistics.query`  | Query shipment tracking information  |
+| Permission          | Description                          |
+|---------------------|--------------------------------------|
+| `logistics.query`   | Query shipment tracking information  |
+| `network:request`   | External API call to Kdniao          |
+| `admin:access`      | Admin panel access for logistics     |
 
 ---
 
