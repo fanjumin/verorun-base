@@ -1,10 +1,14 @@
-"""Captcha Flask Blueprint — 嵌入 admin 进程，从 captcha-service/ 加载核心逻辑。
+"""Captcha Flask Blueprint — 【已迁移】2026-08-06 迁移至插件 plugins/captcha_embedded/routes.py。
 
-端点：
-  GET  /api/captcha/generate   → 生成拼图挑战
-  POST /api/captcha/verify     → 验证位置 + 行为分析
-  POST /api/captcha/consume    → 一次性消费 Token
-  GET  /api/admin/captcha/stats → 统计数据
+本文件保留仅为回滚兜底，主系统（admin/app.py）与插件均不再引用。
+待插件新路由验证通过后，删除本文件需用户单独批准。
+
+迁移前说明：
+  端点：
+    GET  /api/captcha/generate   → 生成拼图挑战
+    POST /api/captcha/verify     → 验证位置 + 行为分析
+    POST /api/captcha/consume    → 一次性消费 Token
+    GET  /api/admin/captcha/stats → 统计数据
 """
 import sys, os
 
