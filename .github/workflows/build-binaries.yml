@@ -16,11 +16,13 @@ jobs:
       - name: Checkout verorun-code
         uses: actions/checkout@v4
 
-      - name: Guard — only main app version tags (vX.Y.Z)
+      - name: Guard — only main app release tags in allowlist
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          if ! echo "${TAG}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Skipping build: ${TAG} is not a main app version tag"
+          # 允许清单：docs/main-app-tags.txt（bump-version.yml 自动维护）
+          # 不在清单内一律跳过（fail-closed），插件 tag 无论任何格式都不会触发构建
+          if ! grep -qxF "$TAG" docs/main-app-tags.txt 2>/dev/null; then
+            echo "Skipping build: ${TAG} is not in main app release allowlist"
             exit 0
           fi
 
