@@ -589,23 +589,25 @@ SELECT config FROM plugin_registry WHERE identifier = 'my_plugin';
 
 **管理端入口**：插件通过 `plugin.json` 的 `admin_url` 字段声明管理页面入口。插件管理列表（`plugins_admin.html`）据此显示 🔗 Manage 链接跳转到插件自有管理页或 admin SPA。插件配置不再通过 PluginManager 内联加载，由插件自有页面独立承载。
 
-**管理菜单（`menu` 扩展字段）**：`PluginManager` 消费 `plugin.json` 顶层 `menu` 对象，向 admin SPA 注入插件管理菜单项（`PluginManager.get_plugin_menus()` 读取 `metadata['menu']`）。该字段为系统实际使用但未写入早期规范的扩展字段，结构如下：
+**管理菜单（`menu` 扩展字段）**：`PluginManager` 消费 `plugin.json` 顶层 `menu` 对象，向 admin SPA 注入插件管理菜单项（`PluginManager.get_plugin_menus()` 读取 `metadata['menu']`）。v1.5 推荐使用 `items` 数组声明多个菜单项（单插件可挂多个管理页面，如 mini_app_builder 同时提供「小程序」与「开发者账号」入口）；早期顶层单数格式（`key`/`icon`/`label` 直接置于 `menu` 下）仍向后兼容。结构如下：
 
 ```json
 "menu": {
   "group": "System",
-  "key": "dev_accounts",
-  "icon": "key",
-  "label": "Developer Accounts"
+  "items": [
+    {"key": "mini_apps", "icon": "deploy", "label": "Mini Apps", "label_i18n_key": "menu.mini_apps"},
+    {"key": "dev_accounts", "icon": "key", "label": "Developer Accounts", "label_i18n_key": "menu.dev_accounts"}
+  ]
 }
 ```
 
 - `group` — 菜单分组名（如 `System`、`Security & Compliance`）
-- `key` — 唯一标识，admin SPA 通过 `window["l_" + key]()` 调用插件页面渲染函数
-- `icon` — 菜单图标名称
-- `label` — 菜单显示名（可配合 i18n 翻译）
+- `items[]` — 菜单项数组（v1.5 推荐）
+- `items[].key` — 唯一标识，admin SPA 通过 `window["l_" + key]()` 调用插件页面渲染函数
+- `items[].icon` — 菜单图标名称
+- `items[].label` — 菜单显示名（可配合 `label_i18n_key` 按当前语言本地化）
 
-约定：`menu.key` 必须与插件模板中定义的 `window.l_<key>` 渲染函数一致，否则点击菜单无页面响应。可选 `url` 字段仅作展示用途，不参与导航（导航由 admin SPA 的 `goPlugin()` 依据 `embed_url` 决定；无 `embed_url` 时走内联 `l_<key>()` 渲染）。
+约定：`menu.items[].key`（或单数 `menu.key`）必须与插件模板中定义的 `window.l_<key>` 渲染函数一致，否则点击菜单无页面响应。可选 `url` 字段仅作展示用途，不参与导航（导航由 admin SPA 的 `goPlugin()` 依据 `embed_url` 决定；无 `embed_url` 时走内联 `l_<key>()` 渲染）。
 
 ### 10.4 依赖管理
 
