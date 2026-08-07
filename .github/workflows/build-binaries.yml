@@ -19,9 +19,9 @@ jobs:
       - name: Guard — only main app release tags in allowlist
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          # 允许清单：docs/main-app-tags.txt（bump-version.yml 自动维护）
+          # 允许清单：.github/main-app-tags.txt（bump-version.yml 自动维护）
           # 不在清单内一律跳过（fail-closed），插件 tag 无论任何格式都不会触发构建
-          if ! grep -qxF "$TAG" docs/main-app-tags.txt 2>/dev/null; then
+          if ! grep -qxF "$TAG" .github/main-app-tags.txt 2>/dev/null; then
             echo "Skipping build: ${TAG} is not in main app release allowlist"
             exit 0
           fi
