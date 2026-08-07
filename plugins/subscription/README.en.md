@@ -9,7 +9,7 @@ The plugin includes scheduled jobs for subscription expiry checks and auto-renew
 | Property    | Value                              |
 |-------------|------------------------------------|
 | Identifier  | `subscription`                     |
-| Version     | 1.0.1                              |
+| Version     | 1.1.0                              |
 | Database    | Main DB `subscription` schema (PostgreSQL) |
 | Menu Group  | System (admin)                     |
 

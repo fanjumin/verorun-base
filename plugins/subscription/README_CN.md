@@ -7,7 +7,7 @@ Subscription（统一按需订阅管理）是 VeroRun 的核心订阅计费插�
 | 属性      | 值                                |
 |-----------|-----------------------------------|
 | 标识符    | `subscription`                    |
-| 版本      | 1.0.1                             |
+| 版本      | 1.1.0                             |
 | 数据库    | 主库 `subscription` schema（PostgreSQL） |
 | 菜单分组  | System（管理后台）                |
 
