@@ -25,21 +25,46 @@ function loadVerificationConfig(){
     var items = d.data.filter(function(k){return k.key.indexOf('verification.alipay.')===0});
     var h='';
     items.forEach(function(k){
+      // F-001: 所有动态内容按所在上下文转义，防止属性/脚本注入
+      var ek = escAttr(k.key);            // id 属性上下文
+      var ekJs = escJsAttr(k.key);        // onclick JS 字符串上下文
+      var el = escHtml(k.label||k.key);   // 文本内容
+      var ep = escAttr(k.placeholder||"");
       var isSensitive = k.sensitive;
-      var displayVal = isSensitive ? k.masked_value : k.value;
-      var safeVal = (k.value||"").replace(/"/g,"&quot;");
-      var safeMasked = (k.masked_value||"").replace(/"/g,"&quot;");
-      var ph = k.placeholder||"";
-      h+='<div class="fl"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+(k.label||k.key)+'</div></div>';
+      var safeVal = escAttr(k.value||"");
+      var attrMasked = escAttr(k.masked_value||"");
+      var jsMasked = escJsAttr(k.masked_value||"");
+      h+='<div class="fl"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">'+el+'</div></div>';
       if(isSensitive){
-        h+='<input class="in" id="cf-'+k.key+'" type="password" value="'+safeMasked+'" placeholder="'+ph+'" style="width:180px" onfocus="this.value=\'\'" onblur="if(!this.value)this.value=\''+safeMasked+'\'">';
+        h+='<input class="in" id="cf-'+ek+'" type="password" value="'+attrMasked+'" placeholder="'+ep+'" style="width:180px" onfocus="this.value=\'\'" onblur="if(!this.value)this.value=\''+jsMasked+'\'">';
       }else{
-        h+='<input class="in" id="cf-'+k.key+'" value="'+safeVal+'" placeholder="'+ph+'" style="width:200px">';
+        h+='<input class="in" id="cf-'+ek+'" value="'+safeVal+'" placeholder="'+ep+'" style="width:200px">';
       }
-      h+='<button class="btn bp bs" onclick="scfg(\''+k.key+'\')">{{ _('save') }}</button></div>';
+      h+='<button class="btn bp bs" onclick="scfg(\''+ekJs+'\')">{{ _('save') }}</button></div>';
     });
     document.getElementById("verification-config-form").innerHTML = h||'<div class="em">{{ _('No Config') }}</div>';
-  }).catch(function(){});
+  }).catch(function(err){
+    // F-006: 加载失败时显示错误状态，不再静默吞掉
+    document.getElementById("verification-config-form").innerHTML =
+      '<div class="em" style="color:#dc2626">{{ _('Failed to load configuration. Please check the server status.') }}</div>';
+    console.error('Verification config load error:', err);
+  });
+}
+
+// F-001: HTML 属性上下文转义（& " ' < >）
+function escAttr(val){
+  return (val||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+                  .replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// F-001: JS 字符串字面量（位于 HTML 内联事件属性中）转义 — 先 JS 转义反斜杠/单引号，再 HTML 实体转义
+function escJsAttr(val){
+  return (val||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")
+                  .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+                  .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// F-001: 文本内容上下文转义（& < >）
+function escHtml(val){
+  return (val||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function loadVerificationRequests(){

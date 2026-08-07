@@ -12,7 +12,12 @@
     "enabled": true,
     "config": {},
     "permissions": [
-        "user.verification"
+        "user.verification",
+        "user:profile",
+        "api:read",
+        "api:write",
+        "admin:access",
+        "network:request"
     ],
     "hooks": {
         "provides": [

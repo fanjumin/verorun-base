@@ -62,7 +62,7 @@ Identity Verification（实名认证）是 VeroRun 平台的用户身份认证�
 - **数据独立**：认证请求记录存储在插件独立库中，不污染主库
 - **逻辑复用**：核心认证逻辑（发起认证、回调处理）委托给 auth-center 已有的 `verification_service`，避免代码重复
 - **路由保留**：认证回调路由保留在 auth-center 中，插件仅补充管理 UI
-- **兼容旧接口**：插件服务层通过 `sys.path` 导入 auth-center 的实现，确保兼容性
+- **兼容旧接口**：插件服务层惰性导入 auth-center 的 `verification_service`（admin 进程已包含 auth-center 于 sys.path，无需修改 sys.path）
 
 ## 目录结构
 
@@ -71,9 +71,8 @@ verification/
 +-- README.md                    # 插件文档
 +-- plugin.json                  # 插件元数据配置
 +-- __init__.py                  # 插件入口，注册蓝图和 Hook
-+-- models.py                    # 数据模型（独立库连接、表创建、索引、主库迁移）
++-- models.py                    # 数据模型（独立 schema 连接、表创建、索引、主库迁移）
 +-- services.py                  # 核心服务（委托给 auth-center verification_service）
-+-- verification.db              # 独立数据库文件（保留用于迁移）
 +-- i18n/
 |   +-- en.yml                   # 英文国际化
 |   +-- zh-CN.yml                # 中文国际化
