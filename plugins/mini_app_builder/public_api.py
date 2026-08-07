@@ -25,6 +25,15 @@ mini_program_bp = Blueprint('mini_program', __name__, url_prefix='/api/v1/mini-p
 # Helpers
 # ═══════════════════════════════════════════════════════════════
 
+def _ensure_auth_center():
+    """Ensure auth-center is importable (main_site removes it from sys.path
+    after startup; user_registry is a new module not cached in sys.modules)."""
+    import sys as _sys
+    _auth_center = os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center')
+    if os.path.isdir(_auth_center) and _auth_center not in _sys.path:
+        _sys.path.insert(0, _auth_center)
+
+
 def _ok(data=None):
     return jsonify({'success': True, 'data': data})
 
@@ -116,28 +125,46 @@ def mp_auth_validate():
 
 
 def _douyin_login(data):
-    """Handle Douyin mini-program login"""
+    """Handle Douyin mini-program login.
+
+    v2.1.0：通过 auth-center 服务层注册/获取主库用户（douyin_open_id 列），
+    并在独立库记录 平台身份 -> user_id 映射（联邦身份）。
+    """
     code = data.get('code', '')
     if not code:
         return _err('code is required', 400)
 
     try:
-        # Reuse existing Douyin login logic
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
-        from routes.douyin_miniprogram import _exchange_code_for_session, _create_or_update_user
+        _ensure_auth_center()
+        from plugins.oauth_config.services.douyin_service import code2session
 
-        session_info = _exchange_code_for_session(code)
-        if not session_info:
+        domain = (request.headers.get('Host', '') or '').split(':')[0]
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        result = code2session(code, site_domain=domain) if code2session else None
+        if not result or not result.get('openid'):
             return _err('Failed to exchange code with Douyin', 400)
 
-        user = _create_or_update_user(session_info, data.get('nickname', ''), data.get('avatar', ''))
+        openid = result['openid']
+        nickname = data.get('nickname', '') or ''
+        avatar = data.get('avatar', '') or ''
+        import hashlib
+        username = 'dy_' + hashlib.md5(openid.encode()).hexdigest()[:12]
+        display_name = nickname or f'DouyinUser_{openid[-6:]}'
+
+        from services.user_registry import register_or_get_platform_user
+        user = register_or_get_platform_user(
+            'douyin', openid, username, display_name, avatar)
+
+        from .platform_users import upsert_mapping
+        upsert_mapping('douyin', openid, user['id'], username, display_name, avatar)
 
         from services.jwt_service import generate_token
         token = generate_token({
             'user_id': user['id'],
             'username': user['username'],
             'platform': 'douyin',
-            'platform_user_id': user.get('platform_user_id', ''),
+            'platform_user_id': openid,
         })
 
         return _ok({
@@ -147,8 +174,8 @@ def _douyin_login(data):
                 'username': user['username'],
                 'display_name': user.get('display_name', ''),
                 'platform': 'douyin',
-                'platform_user_id': user.get('platform_user_id', ''),
-                'is_new_user': user.get('is_new_user', False),
+                'platform_user_id': openid,
+                'is_new_user': False,
             }
         })
     except Exception as e:
@@ -158,18 +185,21 @@ def _douyin_login(data):
 
 
 def _wechat_login(data):
-    """Handle WeChat mini-program login"""
+    """Handle WeChat mini-program login.
+
+    v2.1.0：通过 oauth_config 换取 openid/unionid，经 auth-center 服务层
+    注册主库用户（wechat_openid 列），独立库记录映射（联邦身份）。
+    """
     code = data.get('code', '')
     if not code:
         return _err('code is required', 400)
 
     try:
-        # Reuse WeChat code-to-session logic from auth-center
-        from models import get_db
-        from plugins.oauth_config.services.wechat_service import exchange_code_for_session
+        _ensure_auth_center()
+        from plugins.oauth_config.services.wechat_service import get_openid_by_code
 
-        session_info = exchange_code_for_session(code)
-        if not session_info:
+        session_info = get_openid_by_code(code)
+        if not session_info or not session_info.get('openid'):
             return _err('Failed to exchange code with WeChat', 400)
 
         openid = session_info.get('openid', '')
@@ -177,28 +207,15 @@ def _wechat_login(data):
 
         import hashlib
         username = 'wx_' + hashlib.md5(openid.encode()).hexdigest()[:12]
+        nickname = data.get('nickname', '') or 'WeChat User'
+        avatar = data.get('avatar', '') or ''
 
-        with get_db() as conn:
-            existing = conn.execute(
-                "SELECT id, username, display_name FROM users WHERE username=%s",
-                (username,)
-            ).fetchone()
+        from services.user_registry import register_or_get_platform_user
+        user = register_or_get_platform_user(
+            'wechat', unionid, username, nickname, avatar)
 
-            if existing:
-                user = dict(existing)
-                is_new = False
-            else:
-                conn.execute(
-                    "INSERT INTO users (username, display_name, platform, platform_user_id, created_at) "
-                    "VALUES (%s, %s, 'wechat', %s, NOW())",
-                    (username, data.get('nickname', 'WeChat User'), unionid)
-                )
-                conn.commit()
-                user = dict(conn.execute(
-                    "SELECT id, username, display_name FROM users WHERE username=%s",
-                    (username,)
-                ).fetchone())
-                is_new = True
+        from .platform_users import upsert_mapping
+        upsert_mapping('wechat', unionid, user['id'], username, nickname, avatar)
 
         from services.jwt_service import generate_token
         token = generate_token({
@@ -216,7 +233,7 @@ def _wechat_login(data):
                 'display_name': user.get('display_name', ''),
                 'platform': 'wechat',
                 'platform_user_id': unionid,
-                'is_new_user': is_new,
+                'is_new_user': False,
             }
         })
     except Exception as e:
@@ -237,9 +254,6 @@ def _telegram_login(data):
         from urllib.parse import parse_qs, unquote
 
         # Verify HMAC signature
-        from models import get_db
-
-        # Get bot token from dev_accounts (mini_app_builder schema via plugin layer)
         from .submodules.accounts.models import get_by_platform_raw
         from .submodules.accounts.crypto import decrypt
 
@@ -282,27 +296,13 @@ def _telegram_login(data):
         display_name = tg_first_name or tg_username or f'TG{tg_user_id}'
         username = 'tg_' + hashlib.md5(tg_user_id.encode()).hexdigest()[:12]
 
-        with get_db() as conn:
-            existing = conn.execute(
-                "SELECT id, username, display_name FROM users WHERE username=%s",
-                (username,)
-            ).fetchone()
+        _ensure_auth_center()
+        from services.user_registry import register_or_get_platform_user
+        user = register_or_get_platform_user(
+            'telegram', tg_user_id, username, display_name, '')
 
-            if existing:
-                user = dict(existing)
-                is_new = False
-            else:
-                conn.execute(
-                    "INSERT INTO users (username, display_name, platform, platform_user_id, created_at) "
-                    "VALUES (%s, %s, 'telegram', %s, NOW())",
-                    (username, display_name, tg_user_id)
-                )
-                conn.commit()
-                user = dict(conn.execute(
-                    "SELECT id, username, display_name FROM users WHERE username=%s",
-                    (username,)
-                ).fetchone())
-                is_new = True
+        from .platform_users import upsert_mapping
+        upsert_mapping('telegram', tg_user_id, user['id'], username, display_name, '')
 
         from services.jwt_service import generate_token
         token = generate_token({
@@ -320,7 +320,7 @@ def _telegram_login(data):
                 'display_name': user.get('display_name', ''),
                 'platform': 'telegram',
                 'platform_user_id': tg_user_id,
-                'is_new_user': is_new,
+                'is_new_user': False,
             }
         })
     except Exception as e:
@@ -330,7 +330,11 @@ def _telegram_login(data):
 
 
 def _line_login(data):
-    """Handle LINE LIFF login"""
+    """Handle LINE LIFF login.
+
+    v2.1.0：经 auth-center 服务层注册主库用户（line 无专用列，按 username
+    匹配），独立库记录映射（联邦身份）。
+    """
     access_token = data.get('accessToken', '')
     user_id = data.get('userId', '')
     if not access_token or not user_id:
@@ -338,32 +342,18 @@ def _line_login(data):
 
     try:
         import hashlib
-        from models import get_db
+        _ensure_auth_center()
 
         username = 'line_' + hashlib.md5(user_id.encode()).hexdigest()[:12]
         display_name = data.get('displayName', data.get('nickname', 'LINE User'))
+        avatar = data.get('avatar', '') or ''
 
-        with get_db() as conn:
-            existing = conn.execute(
-                "SELECT id, username, display_name FROM users WHERE username=%s",
-                (username,)
-            ).fetchone()
+        from services.user_registry import register_or_get_platform_user
+        user = register_or_get_platform_user(
+            'line', user_id, username, display_name, avatar)
 
-            if existing:
-                user = dict(existing)
-                is_new = False
-            else:
-                conn.execute(
-                    "INSERT INTO users (username, display_name, platform, platform_user_id, created_at) "
-                    "VALUES (%s, %s, 'line', %s, NOW())",
-                    (username, display_name, user_id)
-                )
-                conn.commit()
-                user = dict(conn.execute(
-                    "SELECT id, username, display_name FROM users WHERE username=%s",
-                    (username,)
-                ).fetchone())
-                is_new = True
+        from .platform_users import upsert_mapping
+        upsert_mapping('line', user_id, user['id'], username, display_name, avatar)
 
         from services.jwt_service import generate_token
         token = generate_token({
@@ -381,7 +371,7 @@ def _line_login(data):
                 'display_name': user.get('display_name', ''),
                 'platform': 'line',
                 'platform_user_id': user_id,
-                'is_new_user': is_new,
+                'is_new_user': False,
             }
         })
     except Exception as e:
@@ -490,7 +480,7 @@ def mp_chat_stream():
             # Log session asynchronously
             threading.Thread(
                 target=_log_session_async,
-                args=(session_id, message, full_reply, platform, intent, sentiment),
+                args=(session_id, user_id, message, full_reply, platform, intent, sentiment),
                 daemon=True
             ).start()
 
@@ -510,8 +500,24 @@ def mp_chat_stream():
     )
 
 
-def _log_session_async(session_id, user_query, ai_reply, platform, intent, sentiment):
-    """Log session in background thread"""
+def _log_session_async(session_id, user_id, user_query, ai_reply, platform, intent, sentiment):
+    """Persist chat session to the independent DB (background thread).
+
+    v2.1.0：会话历史独立存储于 mini_app_builder.mini_app_sessions。
+    """
+    try:
+        from .db import get_db
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO mini_app_sessions "
+                "(session_id, user_id, platform, query_text, reply_text, intent, sentiment) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (session_id, user_id or 0, platform, user_query, ai_reply, intent, sentiment)
+            )
+    except Exception as e:
+        import logging
+        logging.warning(f'[MiniProgram] Session persist failed: {e}')
+    # 兼容：保留原 stats 统计（主库 chatbot_sessions），失败静默
     try:
         from plugins.chatbot.stats import log_session
         log_session(
@@ -524,7 +530,7 @@ def _log_session_async(session_id, user_query, ai_reply, platform, intent, senti
         )
     except Exception as e:
         import logging
-        logging.warning(f'[MiniProgram] Session logging failed: {e}')
+        logging.warning(f'[MiniProgram] Stats session logging failed: {e}')
 
 
 @mini_program_bp.route('/chat/send', methods=['POST'])
@@ -594,17 +600,19 @@ def mp_chat_send():
 
 @mini_program_bp.route('/chat/history', methods=['GET'])
 def mp_chat_history():
-    """Get conversation history for the current user."""
+    """Get conversation history for the current user (independent DB)."""
     user_id, err = _require_auth()
     if err:
         return err
 
     try:
-        from models import get_db
+        from .db import get_db
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT * FROM chatbot_sessions WHERE source LIKE %s ORDER BY created_at DESC LIMIT 50",
-                (f'mini_program_%',)
+                "SELECT id, session_id, platform, query_text, reply_text, intent, "
+                "sentiment, created_at FROM mini_app_sessions "
+                "WHERE user_id=%s ORDER BY created_at DESC LIMIT 50",
+                (user_id,)
             ).fetchall()
         return _ok([dict(r) for r in rows])
     except Exception as e:
@@ -642,9 +650,9 @@ def mp_knowledge_search():
 
 @mini_program_bp.route('/site/info', methods=['GET'])
 def mp_site_info():
-    """Get site brand and theme configuration (public)."""
+    """Get site brand and theme configuration (public, via internal API)."""
     try:
-        from services.brand_service import get_brand_settings
+        from .internal_client import get_brand_settings
         brand = get_brand_settings()
         return _ok({
             'site_name': brand.get('site_name', 'VeroRun'),
@@ -660,61 +668,40 @@ def mp_site_info():
 
 @mini_program_bp.route('/site/pages', methods=['GET'])
 def mp_site_pages():
-    """Get published page list (public)."""
+    """Get published page list (public, via internal API)."""
     try:
-        from models import get_db
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT slug, title, meta_description, updated_at FROM cms_posts "
-                "WHERE status='published' AND post_type='page' ORDER BY sort_order ASC"
-            ).fetchall()
-        return _ok([dict(r) for r in rows])
+        from .internal_client import get_published_pages
+        return _ok(get_published_pages())
     except Exception as e:
         return _ok([])
 
 
 @mini_program_bp.route('/site/page/<slug>', methods=['GET'])
 def mp_site_page(slug):
-    """Get a specific page by slug (public)."""
+    """Get a specific page by slug (public, via internal API)."""
     try:
-        from models import get_db
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT * FROM cms_posts WHERE slug=%s AND status='published' AND post_type='page' LIMIT 1",
-                (slug,)
-            ).fetchone()
-            if not row:
-                return _err('Page not found', 404)
-
-            page = dict(row)
-            # Get blocks for this page
-            blocks = conn.execute(
-                "SELECT * FROM cms_blocks WHERE post_id=%s AND status='published' ORDER BY sort_order ASC",
-                (page['id'],)
-            ).fetchall()
-            page['blocks'] = [dict(b) for b in blocks]
-            return _ok(page)
+        from .internal_client import get_published_page
+        page = get_published_page(slug)
+        if not page:
+            return _err('Page not found', 404)
+        return _ok(page)
     except Exception as e:
         return _err(f'Failed to get page: {e}', 500)
 
 
 @mini_program_bp.route('/user/profile', methods=['GET'])
 def mp_user_profile():
-    """Get current user profile."""
+    """Get current user profile (via auth-center service layer)."""
     user_id, err = _require_auth()
     if err:
         return err
 
     try:
-        from models import get_db
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT id, username, display_name, avatar, platform, platform_user_id, created_at "
-                "FROM users WHERE id=%s",
-                (user_id,)
-            ).fetchone()
-            if not row:
-                return _err('User not found', 404)
-            return _ok(dict(row))
+        _ensure_auth_center()
+        from services.user_registry import get_user_by_id
+        user = get_user_by_id(user_id)
+        if not user:
+            return _err('User not found', 404)
+        return _ok(user)
     except Exception as e:
         return _err(f'Failed to get profile: {e}', 500)

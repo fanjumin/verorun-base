@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Mini App Builder — data models & CRUD for mini-app projects / versions.
 
-Tables (mini_app_projects, mini_app_versions) live in the `mini_app_builder`
-schema (migrated from public by v2.0.0), managed through plugins/_base/db.py.
+v2.1.0 起数据物理迁移至独立数据库 `verorun_miniapp`（不再使用主库），
+表位于 mini_app_builder schema，连接走本插件独立的 db.py（MINI_APP_DB_URL
+或 MINI_APP_PG_* 环境变量）。
 """
 
 import os
 import json
 from contextlib import contextmanager
 
-from plugins._base.db import PgConnection, get_raw_connection
+from .db import MiniAppConnection as PgConnection, get_raw_connection
 
 # ── Table Name Constants ──
 TABLE_MINIAPP_PROJECTS = 'mini_app_projects'
@@ -18,12 +19,12 @@ TABLE_MINIAPP_VERSIONS = 'mini_app_versions'
 
 @contextmanager
 def get_db():
-    """PostgreSQL connection (mini_app_builder schema first, then public)."""
+    """PostgreSQL connection to the independent DB (mini_app_builder first)."""
     conn = get_raw_connection()
     conn.autocommit = False
     try:
         wrapped = PgConnection(conn)
-        wrapped.execute("SET search_path TO mini_app_builder, public")
+        wrapped.execute("SET search_path TO mini_app_builder, platform_users, public")
         yield wrapped
     finally:
         conn.close()
@@ -81,6 +82,23 @@ def init_tables():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_map_slug ON mini_app_projects(slug)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_mav_project ON mini_app_versions(project_id)")
+
+        # v2.1.0：小程序聊天会话独立存储（替代主库 chatbot_sessions）
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mini_app_sessions (
+                id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                session_id  TEXT NOT NULL,
+                user_id     BIGINT DEFAULT 0,
+                platform    TEXT DEFAULT '',
+                query_text  TEXT DEFAULT '',
+                reply_text  TEXT DEFAULT '',
+                intent      TEXT DEFAULT '',
+                sentiment   TEXT DEFAULT '',
+                created_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_miniapp_sessions_user ON mini_app_sessions(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_miniapp_sessions_session ON mini_app_sessions(session_id)")
 
         # Migration: add new AI-prompt columns to existing mini_app_versions tables
         _migrate_mini_app_versions_ai_columns(conn)

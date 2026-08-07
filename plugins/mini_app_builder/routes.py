@@ -622,8 +622,7 @@ def mini_app_generate():
         try:
             _mini_app_tasks[task_id]['status'] = 'running'
 
-            from services.brand_service import get_brand_settings
-            from site_builder.site_settings.models import get_draft_tokens
+            from .internal_client import get_brand_settings, get_draft_tokens
             from .mini_app.engine import MiniAppEngine
 
             brand = get_brand_settings() or {}

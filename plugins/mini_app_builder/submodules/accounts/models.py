@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """Developer Credentials — data access layer (merged from plugins/dev_accounts).
 
-Tables live in the `mini_app_builder` schema (see migrate.py); a public view
-keeps backward compatibility for any external readers.  Connections go through
-plugins/_base/db.py and explicitly SET search_path so both the moved tables
-and shared public tables resolve correctly.
+v2.1.0 起连接独立数据库 `verorun_miniapp`（不再使用主库），表位于
+mini_app_builder schema，连接走本插件独立的 db.py。
 """
 
 import json
 from contextlib import contextmanager
 from urllib.error import URLError
 
-from plugins._base.db import PgConnection, get_raw_connection
+from ..db import MiniAppConnection as PgConnection, get_raw_connection
 from .crypto import encrypt, decrypt, mask
 
 
@@ -20,17 +18,12 @@ SENSITIVE_FIELDS = ['app_secret', 'bot_token', 'channel_secret', 'access_token']
 
 @contextmanager
 def get_db():
-    """PostgreSQL connection (mini_app_builder schema first, then public).
-
-    dev_accounts / schema_meta tables were moved to the mini_app_builder schema
-    by the v2.0.0 migration; shared public tables (users etc.) still resolve via
-    the trailing `public` search path entry.
-    """
+    """PostgreSQL connection to the independent DB (mini_app_builder first)."""
     conn = get_raw_connection()
     conn.autocommit = False
     try:
         wrapped = PgConnection(conn)
-        wrapped.execute("SET search_path TO mini_app_builder, public")
+        wrapped.execute("SET search_path TO mini_app_builder, platform_users, public")
         yield wrapped
     finally:
         conn.close()

@@ -65,16 +65,16 @@ class MiniAppBuilderPlugin(BasePlugin):
         return True
 
     def _init_db(self):
-        """v2.0.0 schema migration + idempotent table creation (safe to rerun).
+        """v2.1.0：独立库 schema 初始化（幂等，安全重复执行）。
 
         顺序：
-          1. run_migrations()   —— 旧 public 表 ALTER TABLE SET SCHEMA 至
-                                   mini_app_builder schema（幂等）。
-          2. init_tables()      —— mini_app_projects / mini_app_versions
-                                   CREATE TABLE IF NOT EXISTS（search_path 已含
-                                   mini_app_builder，全新安装时建在独立 schema）。
-          3. accounts init_db() —— dev_accounts / schema_meta 建表。
-          4. ensure_public_views() —— 重建 public 视图向后兼容。
+          1. run_migrations()   —— 确保 mini_app_builder / platform_users schema
+                                  存在（v2.1.0 起连接独立库 verorun_miniapp）。
+          2. init_tables()      —— mini_app_projects / mini_app_versions /
+                                   mini_app_sessions 建表（独立库）。
+          3. platform_users.init_tables() —— platform_user_mappings 建表（独立库）。
+          4. accounts init_db() —— dev_accounts / schema_meta 建表。
+          5. ensure_public_views() —— 重建独立库内 public 视图向后兼容。
         """
         try:
             from .migrate import run_migrations
@@ -87,6 +87,12 @@ class MiniAppBuilderPlugin(BasePlugin):
             init_tables()
         except Exception as e:
             logger.warning('[MiniAppBuilder] init_tables failed: %s', e)
+
+        try:
+            from .platform_users import init_tables as _init_mappings_db
+            _init_mappings_db()
+        except Exception as e:
+            logger.warning('[MiniAppBuilder] platform_users init failed: %s', e)
 
         try:
             from .submodules.accounts.models import init_db as _init_accounts_db
