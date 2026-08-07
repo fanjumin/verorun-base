@@ -1,9 +1,10 @@
-# 插件标准 v1.4 — 完整规范
+# 插件标准 v1.5 — 完整规范
 
 > 生成日期：2026-07-09（§9-11 于 07-09 追加）
 > 更新日期：2026-07-31（§9、§10.3、§11.2 — 适配 PostgreSQL schema 架构）
 > 更新日期：2026-08-05（v1.2 → v1.3 — 追加 §13 版本发现与升级规范）
 > 更新日期：2026-08-05（v1.3 → v1.4 — 追加 §14 商店展示规范 + plugin.json 展示字段）
+> 更新日期：2026-08-07（v1.4 → v1.5 — 追加 §15 前端框架插件指南、§16 插件审核规范；§9.2 补框架插件目录约定；§11.3 补审核交叉引用；§12.11 补 iframe 例外条款）
 > 前置阅读：本规范假定已了解项目最高宪法 [AGENTS.md](../AGENTS.md) 和 `project_rules.md`。
 
 ---
@@ -426,6 +427,28 @@ cur.execute("CREATE TABLE IF NOT EXISTS my_data (...)")
 - 读主库 public schema 数据需显式指定 `public.table_name`
 - `plugins/_base/db.py` 提供统一的 `get_raw_connection()` 工厂，替代各插件内联 `psycopg2.connect()`
 
+### 9.2 框架插件目录约定（v1.5 追加）
+
+使用 React/Vue 等前端框架的插件，在标准目录基础上增加：
+
+```
+plugins/<id>/
+├── static/
+│   ├── lib/                # 本地化的框架 UMD 库（禁止外网 CDN，见 §15）
+│   └── js/                 # 自身脚本（手写或构建产物）
+├── src/                    # （可选）框架源码（组件/样式），审核要求见 §16
+│   ├── components/
+│   └── build/              # （可选）可复现构建配置（esbuild/vite 等）
+├── templates/
+│   └── <page>.html         # iframe 独立页面（menu.embed_url 指向）
+└── plugin.json             # menu.embed_url 必须声明 iframe 页面路由
+```
+
+约束：
+- 框架库只允许**本地静态文件**，禁止在页面中引用外网 CDN（unpkg/jsdelivr/cdnjs）
+- `templates/` 框架页面为独立完整 HTML，允许 `<script>`（§12.11 例外条款）
+- 若提交打包产物，必须同时提供 `src/` 源码 + 构建命令，保证**可复现构建**（§16 审核要求）
+
 ---
 
 ## 10. 功能扩展规范
@@ -725,6 +748,7 @@ plugins/<name>/
 - `network:request` 权限默认关闭，开启需管理员确认
 - 插件发起的 HTTP 请求默认超时 10 秒
 - 禁止访问内网 IP 段（127.0.0.0/8、10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）
+- **前端侧**（浏览器环境）安全规则（外网 CDN、token/Cookie 外泄、XSS）见 §16「插件审核规范」
 
 ---
 
@@ -751,6 +775,8 @@ plugins/<id>/
 ├── templates/           # 前端 partial（从 admin/templates/partials/ 迁入）
 └── i18n/                # zh-CN.yml / en.yml
 ```
+
+> 使用前端框架（React/Vue）的插件目录约定另见 §9.2。
 
 ### 12.3 独立库 + 主库只读契约
 
@@ -846,6 +872,12 @@ tail.html 统一闭合。插件模板**绝不能自带 `<script>...</script>`**�
 闭合标签会提前截断外层 script，导致其后所有 partial 的 JS 变成裸 HTML
 （表现为满屏 `Unexpected token '<'`、`xxx is not defined`、URL 片段被当资源 404）。
 插件前端模板首行应直接是 JS 或 `//` 注释，不加任何 HTML script 标签。
+
+> **iframe 例外条款（v1.5）**：本铁律仅约束**内联 partial**（`window.l_<key>()` 裸 JS 渲染路径，
+> 运行在共享 admin 页面）。走 **iframe 加载（`menu.embed_url`）的框架插件页面是独立完整 HTML 文档**，
+> 允许使用 `<script>` 标签引入本地框架库与自身脚本，但必须遵守 §15「前端框架插件指南」：
+> 仅限本地静态库、禁止外网 CDN、token 按 §15 传递。
+> 内联路径（`l_<key>()`）**永远禁止**引入任何前端框架（全局作用域污染、版本冲突）。
 
 ---
 
@@ -960,4 +992,128 @@ Phase C 落地后，`plugin.json` 中声明的 `icon_url`、`screenshots`、`rea
 `icon_url`、`screenshots`、`readme_url` 三个字段均为可选。
 旧 `plugin.json` 不加这些字段，`PluginInfo` 自动给默认值（空字符串/空数组），
 安装和展示照常工作。卡片和详情弹窗对空值有降级处理（占位符 / 隐藏标签页）。
+
+---
+
+## 15. 前端框架插件指南（2026-08 追加，v1.5）
+
+> 本指南面向习惯使用 React/Vue 的插件开发者。框架支持是**可选便利层**，
+> 不是迁移要求——存量原生 JS 插件零影响。
+
+### 15.1 支持范围与硬边界
+
+| 项 | 规则 |
+|----|------|
+| 加载路径 | **强制 iframe**（`menu.embed_url` 声明独立页面路由）；内联 `l_<key>()` 路径**永远禁止**框架 |
+| 受支持框架 | React 18.3.x（UMD）、Vue 3.4.x（UMD） |
+| 框架库来源 | 仅限系统本地静态库，**禁止外网 CDN** |
+| 存量插件 | 零迁移，本指南仅适用于新框架插件 |
+
+### 15.2 本地框架库
+
+系统提供（vendored 静态文件，随代码分发）：
+
+| 库 | 路径 | 版本 |
+|----|------|------|
+| React | `admin/static/lib/workflow/react.production.min.js` | 18.3.1 |
+| ReactDOM | `admin/static/lib/workflow/react-dom.production.min.js` | 18.3.1 |
+| Vue | `admin/static/lib/plugin-frameworks/vue.global.prod.js` | 3.4.38 |
+
+> iframe 页面经 Admin 蓝图静态路由可访问（`/static/lib/...`）。
+> **禁止**自行引用 unpkg / jsdelivr / cdnjs 等外网 CDN（§16 审核必查）。
+>
+> Vue 3.4.38 SHA256（锁定）：`B50EEEFE35D41636BB96C92B40F1DF0B4FB7914E07B3C625B1EC15E9748767B9`
+
+### 15.3 iframe 页面模板（最小骨架）
+
+```html
+<!DOCTYPE html>
+<html lang="{{ g.lang_code or 'zh-CN' }}">
+<head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="/static/css/design-system.css"/>
+<script src="/static/lib/plugin-frameworks/vue.global.prod.js"></script>
+<script>window.__SSO_TOKEN = {{ sso_token|tojson }};</script>
+</head>
+<body>
+<div id="app"></div>
+<script src="/plugin/<id>/static/js/app.js"></script>
+</body>
+</html>
+```
+
+### 15.4 SSO 鉴权（token）
+
+- iframe 加载时 `goPlugin()` 通过 URL 参数注入 token：`embed_url?token=...`
+- 插件页面后端路由校验 `?token=`（与现 ali_api / analytics 同模式）
+- **禁止**将 token 发送到任何第三方域名；页面内请求仅允许同域 API
+
+### 15.5 i18n 注入（window.__t）
+
+`_()` 为服务端 Jinja2 函数，框架组件无法直接调用。服务端渲染 iframe 页面时将翻译字典注入：
+
+```html
+<script>
+window.__t = {{ translations|tojson }};
+window.__locale = '{{ g.lang_code or "zh-CN" }}';
+</script>
+```
+
+组件内通过 `window.__t['key']` 读取，缺失键回退英文源串。插件 i18n 文件仍放 `plugins/<id>/i18n/{zh-CN,en}.yml`。
+
+### 15.6 样式约定
+
+- 引用 `design-system.css`（仅变量），使用系统标准变量名（`--bg-card`、`--text`、`--border` 等）
+- 禁止硬编码色值，与主站/Admin 视觉保持一致
+
+### 15.7 安全红线（审核必查，见 §16）
+
+1. 禁止外网 CDN 脚本
+2. 禁止 token / Cookie 外泄到第三方域
+3. 禁止 `eval(` / `new Function(` / `innerHTML` 拼接不可信数据
+4. 提交打包产物必须附 `src/` 源码 + 可复现构建命令
+
+---
+
+## 16. 插件审核规范（2026-08 追加，v1.5）
+
+> 审核针对**所有提交商店/发布的插件**，后端 Python 与前端 JS/HTML **同等覆盖**。
+> React/Vue 框架插件因打包混淆，额外要求源码包与可复现构建。
+
+### 16.1 审核范围
+
+| 维度 | 覆盖 |
+|------|------|
+| 后端 Python | 危险执行（subprocess / eval / os.system）、SQL 拼接、pickle 反序列化、硬编码凭据 |
+| 前端 JS/HTML | 外网 CDN、token / Cookie 外泄、XSS（eval / new Function / innerHTML）、document.write |
+| 框架插件（React/Vue） | 依赖清单（package.json / lock）、源码 + 可复现构建、打包产物与源码一致性 |
+
+### 16.2 审核方式（AI 辅助 + 人工审批）
+
+- 审核由 **VeroRun AI Agent** 依据本规范及设计文档执行（提示词规则另行维护）
+- Agent 输出**结构化审核报告**（findings / severity / verdict），供人工快速复核
+- **人工审批兜底**：verdict 仅作建议，最终放行由管理员决定（approval 节点）
+
+### 16.3 审核流程（工作流）
+
+```
+触发（提交商店 / 发布前）
+  → 采集插件源码 + 设计文档
+  → AI Agent 对照规范审查 → 结构化报告
+  → 人工审批（approval）
+  → 通知结果 + 记录审核日志
+```
+
+### 16.4 审核挂点
+
+| 阶段 | 动作 |
+|------|------|
+| 发布前（publish） | 门禁：AI 审核 + 人工审批通过后方可发布 |
+| 商店提交（submit_plugin） | 接入同一审核流程 |
+| 人工复核 | 支持随时对已安装插件发起复审 |
+
+### 16.5 提示词规则
+
+> ⏳ 维护中：具体提示词模板与工作流配置在后续批次补充（见方案文档
+> `文档/plugin-react-vue-support-plan.md`）。审核判定标准以 §16.1 范围为准。
 

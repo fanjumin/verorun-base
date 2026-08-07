@@ -1,5 +1,14 @@
 # 修改记录
 
+## v0.50.0 — 2026-08-07
+
+### Changes
+
+- Version bump from v0.49.0
+- feat(plugins): 前端框架插件便利层 — React 18 / Vue 3.4 本地 UMD 库（禁外网 CDN）+ 官方 react_plugin / vue_plugin 可复制模板（iframe + SSO token + window.__t i18n + design-system）
+- feat(plugins): 插件标准 v1.4 → v1.5 — 新增 §15 前端框架插件指南、§16 插件审核规范（AI 辅助 + 人工审批，提示词规则待后续批次）；§12.11 iframe 例外条款；§9.2 框架插件目录约定；§11.3 前端安全交叉引用
+- feat(admin): Vue 3.4.38 UMD 本地化（admin/static/lib/plugin-frameworks/，SHA256 锁定）
+
 ## v0.49.0 — 2026-08-05
 
 ### Changes

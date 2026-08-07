@@ -1,0 +1,48 @@
+{
+    "name": "Vue Demo Plugin",
+    "identifier": "vue_plugin",
+    "version": "0.1.0",
+    "description": "Official Vue plugin template — iframe page powered by Vue 3.4 UMD (local, no CDN)",
+    "author": "VeroRun",
+    "min_app_version": "0.10.0",
+
+    "category": "utility",
+    "icon": "plugins",
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "",
+    "tags": ["vue", "template", "iframe"],
+
+    "dependencies": {},
+
+    "admin_url": "",
+    "admin_label": "Vue Demo",
+
+    "config": {},
+
+    "permissions": [
+        "admin:access"
+    ],
+
+    "hooks": {
+        "provides": [],
+        "listens": []
+    },
+
+    "dashboard": {
+        "stats": []
+    },
+
+    "menu": {
+        "key": "vue_plugin",
+        "group": "Plugins & i18n",
+        "icon": "plugins",
+        "label": "Vue Demo",
+        "embed_url": "/admin/vue-demo/"
+    },
+
+    "settings_schema": {
+        "type": "object",
+        "properties": {}
+    }
+}
