@@ -1,10 +1,9 @@
 """
-Wishlist Plugin — 独立数据库
-=============================
-插件自己的 wishlist.db，主库只读 products 表。
+Wishlist Plugin — 基于 PostgreSQL schema 的数据层
+==================================================
+使用独立 PG schema `wishlist`，主库只读 products 表。
 """
 
-import os
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
@@ -28,16 +27,13 @@ class _PgConnection:
         self._conn.close()
 
 
-PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
 @contextmanager
 def get_db():
-    """连接插件自己的数据库。"""
+    """连接插件自己的数据库（PG schema: wishlist）。"""
     conn = get_raw_connection()
     conn.autocommit = False
     conn.execute("CREATE SCHEMA IF NOT EXISTS wishlist")
-    conn.execute("SET search_path TO wishlist")
+    conn.execute("SET search_path TO wishlist, public")
     try:
         yield _PgConnection(conn)
     finally:
@@ -45,18 +41,19 @@ def get_db():
 
 
 def init_db():
-    """创建插件自己的表。"""
+    """创建插件自己的表（幂等）。"""
     with get_db() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS wishlist (
                 id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 user_id     BIGINT NOT NULL,
                 product_id  BIGINT NOT NULL,
-                created_at  TEXT DEFAULT (NOW()),
+                created_at  TIMESTAMPTZ DEFAULT NOW(),
                 UNIQUE(user_id, product_id)
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_wishlist_user ON wishlist(user_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_wishlist_product ON wishlist(product_id)')
         conn.commit()
 
 

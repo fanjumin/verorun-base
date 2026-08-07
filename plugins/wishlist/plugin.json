@@ -1,27 +1,61 @@
-﻿{
-    "name": "收藏/心愿单",
+{
+    "name": "Wishlist",
     "identifier": "wishlist",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "收藏/心愿单 — 用户收藏商品、管理心愿清单",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
+
+    "category": "shop",
+    "icon": "heart",
+    "icon_url": "",
+    "screenshots": [],
+    "readme_url": "README.en.md",
+    "tags": ["电商", "收藏", "心愿单"],
+
     "dependencies": {},
     "enabled": true,
     "config": {},
+
     "permissions": [
-        "shop.product.read",
-        "user.read"
+        "api:read",
+        "user:profile"
     ],
+
     "hooks": {
         "provides": [
             "wishlist/sync"
         ],
-        "listens": [
-            "product/price_change"
+        "listens": []
+    },
+
+    "agents": [],
+
+    "dashboard": {
+        "stats": [
+            {
+                "key": "total_favorites",
+                "title": "总收藏数",
+                "type": "counter"
+            },
+            {
+                "key": "active_users",
+                "title": "有收藏的用户数",
+                "type": "counter"
+            }
         ]
     },
+
     "settings_schema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+            "max_page_size": {
+                "title": "最大分页大小",
+                "type": "integer",
+                "default": 50,
+                "minimum": 1,
+                "maximum": 200
+            }
+        }
     }
 }
