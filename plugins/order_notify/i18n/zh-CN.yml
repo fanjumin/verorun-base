@@ -1,4 +1,5 @@
 # Order Notify Plugin — Chinese Translation
+"plugin.name": "订单通知"
 "Order has been created": "订单已创建"
 "Your order %s has been created (¥%.2f). Please complete payment soon.": "您的订单 %s 已创建，金额 ¥%.2f，请尽快完成支付。"
 "Payment successful": "支付成功"

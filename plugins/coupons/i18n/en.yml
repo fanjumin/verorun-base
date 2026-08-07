@@ -1,5 +1,7 @@
 # Coupons Plugin — English Translation
 
+"plugin.name": "Smart Coupons"
+"plugin.menu_label": "Coupon Management"
 "Smart Coupons": "Smart Coupons"
 "Loading...": "Loading..."
 "New Coupon": "New Coupon"

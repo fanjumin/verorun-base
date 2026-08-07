@@ -55,6 +55,41 @@ def clear_plugin_yaml_cache(plugin_name: str = None):
         _YAML_CACHE.clear()
 
 
+def localize_plugin_dict(p: dict, locale: str = None) -> dict:
+    """按当前语言翻译插件显示名/菜单 label（in-place 修改 p 并返回）。
+
+    依据 plugin.json 中的 name_i18n_key / menu.label_i18n_key 字段，
+    从插件 i18n/{locale}.yml 查找翻译；未设置 key 或未找到翻译时
+    保留原值，对旧插件完全向后兼容。
+    """
+    if locale is None:
+        try:
+            from i18n import get_lang
+            locale = get_lang()
+        except Exception:
+            locale = 'zh-CN'
+
+    metadata = p.get('metadata') or {}
+    if not isinstance(metadata, dict):
+        return p
+
+    identifier = p.get('identifier') or ''
+    i18n_dir = os.path.join(p.get('path', ''), 'i18n') if p.get('path') else ''
+    translations = _load_plugin_yaml(identifier, i18n_dir).get(locale, {})
+
+    name_key = metadata.get('name_i18n_key')
+    if name_key and translations.get(name_key):
+        p['name'] = translations[name_key]
+
+    menu = metadata.get('menu')
+    if isinstance(menu, dict):
+        label_key = menu.get('label_i18n_key')
+        if label_key and translations.get(label_key):
+            menu['label'] = translations[label_key]
+
+    return p
+
+
 class BasePlugin(ABC):
     """Abstract base class for all plugins."""
 

@@ -25,7 +25,7 @@ def _current_user_id(request) -> int:
 
 class WishlistPlugin(BasePlugin):
     name = 'wishlist'
-    version = '1.2.0'
+    version = '1.2.1'
     description = 'Wishlist — 收藏/心愿单，用户收藏商品、管理心愿清单'
     author = 'VeroRun'
     dependencies = {}
@@ -43,13 +43,8 @@ class WishlistPlugin(BasePlugin):
             return False
 
     def on_enable(self, registry) -> bool:
-        """启用时幂等初始化插件表。"""
-        try:
-            init_db()
-            return True
-        except Exception as e:
-            logger.error(f"Failed to enable wishlist: {e}")
-            return False
+        """启用时无需重复建表（on_install 已创建，禁用不删表，重启用沿用）。"""
+        return True
 
     def on_disable(self, registry) -> bool:
         """禁用时无需清理持久化数据，仅记录日志。"""

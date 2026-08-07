@@ -1,4 +1,6 @@
 # 1688 Supply Chain Plugin — English translations (source keys are English, §12.1)
+plugin.name: 1688 Supply Chain
+plugin.menu_label: 1688 Supply Chain
 Product Sourcing: Product Sourcing
 AI Optimization: AI Optimization
 Local Publishing: Local Publishing

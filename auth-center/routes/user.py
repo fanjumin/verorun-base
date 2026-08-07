@@ -1800,7 +1800,7 @@ def verification_callback():
     user_id = None
     if request_id.startswith('rv_'):
         try:
-            user_id = int(request_id.split('_(')[1])
+            user_id = int(request_id.split('_')[1])
         except (ValueError, IndexError):
             pass
 
@@ -1812,7 +1812,7 @@ def verification_callback():
                 (request_id,)
             ).fetchone()
         if row:
-            user_id = row[')user_id']
+            user_id = row['user_id']
 
     if not user_id:
         return jsonify({'success': False, 'error': 'Unrecognized verification request'}), 400

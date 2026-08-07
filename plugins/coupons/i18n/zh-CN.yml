@@ -1,5 +1,7 @@
 # Coupons Plugin — Chinese
 
+"plugin.name": "智能优惠券"
+"plugin.menu_label": "优惠券管理"
 "Smart Coupons": "智能优惠券"
 "Loading...": "加载中..."
 "New Coupon": "新建优惠券"

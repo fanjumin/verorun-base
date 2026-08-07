@@ -1,7 +1,8 @@
 {
-    "name": "商品评价系统",
+    "name": "Product Reviews",
+    "name_i18n_key": "plugin.name",
     "identifier": "reviews",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "商品评价系统 — 用户对已购商品打分、写评价、晒图",
     "author": "VeroRun",
     "min_app_version": "0.10.0",

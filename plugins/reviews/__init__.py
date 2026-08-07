@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ReviewsPlugin(BasePlugin):
     name = 'reviews'
-    version = '1.1.0'
+    version = '1.1.1'
     description = _('Product Reviews — rate, review, and share photos of purchased products')
 
     def on_install(self, registry) -> bool:

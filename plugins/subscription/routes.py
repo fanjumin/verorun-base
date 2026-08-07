@@ -39,6 +39,15 @@ def _get_user_id():
     uid = getattr(request, 'user_id', None)
     if uid:
         return uid
+    # 尝试从 ?token= query 参数解析（iframe goPlugin 场景，与 analytics/vue_plugin 模板同模式）
+    token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token')
+    if token:
+        try:
+            from services.jwt_service import validate_token
+            payload = validate_token(token)
+            return payload.get('user_id') or payload.get('sub')
+        except Exception:
+            pass
     # 尝试从 Authorization header 解析
     auth = request.headers.get('Authorization', '')
     if auth.startswith('Bearer '):
@@ -78,10 +87,12 @@ def _admin_required(f):
             return f(*args, **kwargs)
         # Fallback: check JWT is_admin claim (admin panel :8084)
         auth = request.headers.get('Authorization', '')
-        if auth.startswith('Bearer '):
+        token = auth[7:] if auth.startswith('Bearer ') else \
+            (request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token'))
+        if token:
             try:
                 from services.jwt_service import validate_token
-                payload = validate_token(auth[7:])
+                payload = validate_token(token)
                 if payload.get('is_admin'):
                     return f(*args, **kwargs)
             except Exception:

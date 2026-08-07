@@ -13,15 +13,19 @@ class OrderNotifyPlugin(BasePlugin):
     description = _('Order Notify — Auto send notifications on order created, paid, shipped, refunded')
 
     def on_enable(self, registry) -> bool:
-        init_db()
-        bus = get_event_bus()
-        bus.on(EventName.ORDER_CREATED, self._on_created)
-        bus.on(EventName.ORDER_PAID, self._on_paid)
-        bus.on(EventName.ORDER_SHIPPED, self._on_shipped)
-        bus.on(EventName.ORDER_REFUNDED, self._on_refunded)
-        bus.on(EventName.ORDER_CANCELLED, self._on_cancelled)
-        bus.on(EventName.ORDER_COMPLETED, self._on_completed)
-        return True
+        try:
+            init_db()
+            bus = get_event_bus()
+            bus.on(EventName.ORDER_CREATED, self._on_created)
+            bus.on(EventName.ORDER_PAID, self._on_paid)
+            bus.on(EventName.ORDER_SHIPPED, self._on_shipped)
+            bus.on(EventName.ORDER_REFUNDED, self._on_refunded)
+            bus.on(EventName.ORDER_CANCELLED, self._on_cancelled)
+            bus.on(EventName.ORDER_COMPLETED, self._on_completed)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to enable order_notify: {e}")
+            return False
 
     def on_disable(self, registry) -> bool:
         bus = get_event_bus()

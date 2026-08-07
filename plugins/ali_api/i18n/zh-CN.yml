@@ -1,4 +1,6 @@
 # 1688 供应链采集插件 — 中文翻译（源键为英文，§12.1）
+plugin.name: 1688 供应链采集
+plugin.menu_label: 1688 供应链采集
 Product Sourcing: 商品采集
 AI Optimization: AI 优化
 Local Publishing: 本地发布

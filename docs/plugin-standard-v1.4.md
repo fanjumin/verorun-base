@@ -29,7 +29,8 @@
 plugin.json
 ├── 标识
 │   ├── identifier         string   ★必填   唯一标识，如 "ali_api"
-│   ├── name               string   ★必填   显示名称，如 "1688 供应链采集"
+│   ├── name               string   ★必填   显示名称（英文规范值，如 "1688 Supply Chain"）
+│   ├── name_i18n_key      string   ★v1.5   插件名 i18n 查找键（如 "plugin.name"，见 §10.5）
 │   ├── version            string   ★必填   语义化版本号
 │   ├── description        string           描述
 │   ├── author             string           作者
@@ -73,7 +74,8 @@ plugin.json
 
 ```json
 {
-  "name": "1688 供应链采集",
+  "name": "1688 Supply Chain",
+  "name_i18n_key": "plugin.name",
   "identifier": "ali_api",
   "version": "0.3.0",
   "description": "1688 供应链采集 — 商品搜索、AI 优化、本地商城发布",

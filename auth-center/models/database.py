@@ -6,6 +6,8 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from contextlib import contextmanager
 
+logger = logging.getLogger(__name__)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, '..', '..', 'data')
 DB_PATH = os.environ.get('DB_PATH', os.path.join(DATA_DIR, 'x7k2m9a4.db'))
@@ -109,6 +111,7 @@ def get_db():
             # Swallow commit failure left over from a caught DB error (e.g. a
             # migration touched a not-yet-created table on a fresh install).
             # Roll back so the caller can continue instead of aborting the import.
+            logger.exception("DB commit failed, rolled back (caller continues)")
             conn.rollback()
     except Exception:
         conn.rollback()
@@ -1078,7 +1081,7 @@ def init_db():
             ('verification.wechat.app_secret', '', '微信开放平台 App Secret'),
             ('verification.wechat.auth_url', 'https://api.weixin.qq.com/sns/oauth2/access_token', '微信OAuth地址'),
             ('verification.enabled', 'false', '是否启用第三方实名认证 (true/false)'),
-            ('verification.stub_mode', 'true', '开发模式：true=跳过真实第三方调用，直接模拟通过'),
+            ('verification.stub_mode', 'false', '开发模式：true=跳过真实第三方调用，直接模拟通过（默认关闭，安全优先）'),
         ]
         for key, value, desc in provider_seeds:
             m.execute(

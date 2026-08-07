@@ -662,11 +662,14 @@ class PluginManager:
             print(f'[PluginManager] get_unified_list ensure_store_synced failed: {e}')
 
         local_ids = set(self._cache.keys())
+        from .base import localize_plugin_dict
         local = [p.to_dict() for p in self._cache.values()]
         for p in local:
             if isinstance(p.get('status'), PluginStatus):
                 p['status'] = p['status'].value
             p['_source'] = 'local'
+            # i18n: 按当前语言翻译插件显示名/菜单 label（name_i18n_key 机制）
+            localize_plugin_dict(p)
 
         # ── 版本发现：本地已安装版本 vs 商店目录版本 ──────────
         try:
@@ -902,6 +905,7 @@ class PluginManager:
 
     def get_plugin_menus(self) -> list:
         """收集所有已安装+已启用插件的菜单项"""
+        from .base import localize_plugin_dict
         menus = []
         for pid, pinfo in self._cache.items():
             if pinfo.status not in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
@@ -915,12 +919,24 @@ class PluginManager:
                     menu_cfg = inst.get_menu()
             if not menu_cfg:
                 continue
+            # i18n: 按当前语言翻译菜单 label（label_i18n_key 机制）
+            localize_plugin_dict({
+                'identifier': pid,
+                'path': pinfo.path,
+                'metadata': {'menu': menu_cfg},
+            })
             # Support items array for sub-menus (e.g., shop plugin with 4 items)
             if 'items' in menu_cfg:
                 group = menu_cfg.get('group', 'Plugins')
                 for item in menu_cfg['items']:
                     item['group'] = group
                     item['_plugin_id'] = pid
+                    # 子菜单项同样支持 label_i18n_key 翻译
+                    localize_plugin_dict({
+                        'identifier': pid,
+                        'path': pinfo.path,
+                        'metadata': {'menu': item},
+                    })
                     menus.append(item)
             else:
                 menu_cfg['_plugin_id'] = pid
@@ -1021,7 +1037,7 @@ class PluginManager:
                 plugin_mod_path = os.path.join(plugin_dir, '__plugin__.py')
                 if os.path.isfile(plugin_mod_path):
                     spec = importlib.util.spec_from_file_location(
-                        f'{identifier}.__plugin__(', plugin_mod_path)
+                        f'{identifier}.__plugin__', plugin_mod_path)
                     plugin_mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(plugin_mod)
                     for attr_name in dir(plugin_mod):
