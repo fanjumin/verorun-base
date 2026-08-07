@@ -10,6 +10,8 @@
 #   sudo bash deploy/install.sh rollback         # rollback to previous commit
 #   sudo bash deploy/install.sh seed             # seed initial data (admin, plans, products)
 #   sudo bash deploy/install.sh configure-domain  # configure domain post-install
+#   --approve-migrate: explicitly approve DB migration + seed on install
+#   (skipped by default; run e.g. 'sudo bash deploy/install.sh install --approve-migrate')
 # ==========================================================================
 set -euo pipefail
 
@@ -114,6 +116,10 @@ detect_mode() {
 
 detect_domain() {
     local domain_arg="${1:-}"
+    # Skip flag-style args (e.g. --approve-migrate) that may land in $2
+    if [[ "${domain_arg}" == --* ]]; then
+        domain_arg=""
+    fi
     if [ -n "$domain_arg" ]; then
         DOMAIN="$domain_arg"
     elif [ -f "${APP_HOME}/.env" ]; then
@@ -218,6 +224,9 @@ do_install() {
     generate_env force
     done_step ".env generated"
 
+    # Production gate: refuse to continue if DEBUG got enabled in .env
+    assert_debug_disabled
+
     if [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain not configured. System and nginx not started."
         echo -e "${INFO} After install, run:"
@@ -242,8 +251,13 @@ do_install() {
     done_step "Sudoers configured"
 
     step "Database migration"
-    sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
-    done_step "Database migrated"
+    if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
+        done_step "Database migrated"
+    else
+        echo -e "${WARN} Skipped database migration (pass --approve-migrate to apply schema changes)"
+        echo -e "${INFO} Services may fail to start if code references columns not yet in the DB"
+    fi
 
     step "Seed data"
     do_seed
@@ -342,6 +356,9 @@ do_update() {
     update_env
     done_step ".env synced"
 
+    # Production gate: refuse to continue if DEBUG got enabled in .env
+    assert_debug_disabled
+
     step "Update Python dependencies"
     req_hash=$(md5sum "${APP_HOME}/requirements.txt" | awk '{print $1}')
     cached_hash=$(cat "${APP_HOME}/.requirements_hash" 2>/dev/null || echo "")
@@ -422,6 +439,13 @@ do_seed() {
         echo -e "${FAIL} Python venv not found at ${VENV_DIR}"
         echo -e "${INFO} Run 'install.sh install' first"
         exit 1
+    fi
+
+    # Seed is grouped under the same manual gate as DB migration:
+    # pass --approve-migrate to inject initial data
+    if [ "${APPROVE_MIGRATE:-0}" != "1" ]; then
+        echo -e "${WARN} Skipped seed data (pass --approve-migrate to inject admin/plans/products)"
+        return 0
     fi
 
     # Read credentials from temp file (set by prompt_admin_creds before detach)
@@ -592,6 +616,10 @@ FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
 
+# Production defaults: DEBUG must stay disabled (assert_debug_disabled enforces on install/update)
+APP_DEBUG=false
+FLASK_DEBUG=0
+
 # v2.1.0 — mini_app_builder 独立数据库与内部服务令牌
 MINI_APP_PG_DB=verorun_miniapp
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
@@ -621,6 +649,19 @@ ENVEOF
     chmod 600 "${env_file}"
 }
 
+assert_debug_disabled() {
+    # Production gate: refuse to continue if DEBUG is enabled in .env
+    # Protects against developer mistakes causing performance/memory issues in prod
+    local _dbg
+    _dbg=$(grep -E '^(APP_DEBUG|FLASK_DEBUG)=' "${APP_HOME}/.env" 2>/dev/null | head -1 | cut -d= -f2)
+    case "${_dbg}" in
+        1|true|TRUE|True|on|yes)
+            echo -e "${FAIL} Production install aborted: DEBUG is enabled in .env"
+            echo -e "${INFO} Set APP_DEBUG=false in ${APP_HOME}/.env and re-run"
+            exit 1 ;;
+    esac
+}
+
 update_env() {
     local env_file="${APP_HOME}/.env"
     if [ ! -f "${env_file}" ]; then
@@ -636,6 +677,15 @@ update_env() {
             val=$(python3 -c "import secrets; print(secrets.token_hex(32))")
             echo "${key}=${val}" >> "${env_file}"
             missing+=("${key}")
+        fi
+    done
+
+    # Fill missing DEBUG keys with production-safe defaults
+    for key in APP_DEBUG:false FLASK_DEBUG:0; do
+        local k="${key%%:*}" v="${key##*:}"
+        if ! grep -q "^${k}=" "${env_file}" 2>/dev/null; then
+            echo "${k}=${v}" >> "${env_file}"
+            missing+=("${k}")
         fi
     done
 
@@ -708,7 +758,7 @@ SVCEOF
     # 8084 — Admin (uses run_gunicorn.py to avoid platform/ shadowing stdlib)
     # RuntimeDirectory=verorun → systemd creates /run/verorun/ owned by APP_USER on service start.
     # Used by admin/app.py for update_status.json + update.log (no more root-permission 500s).
-    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py" "verorun"
+    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 300 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py" "verorun"
 
     # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
@@ -1019,6 +1069,7 @@ for arg in "$@"; do
     case "${arg}" in
         --region=*) REGION="${arg#*=}" ;;
         --region) ;; # value consumed in next iteration if present, but --region value form preferred
+        --approve-migrate) APPROVE_MIGRATE=1 ;;
     esac
 done
 # Validate region
