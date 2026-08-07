@@ -844,7 +844,7 @@ def create_prompt(data):
                 json.dumps(data.get('task_triggers', [])) if isinstance(data.get('task_triggers'), list) else data.get('task_triggers', '[]'),
                 data.get('parent_id'),
                 data.get('priority', 0),
-                1 if data.get('is_active', True) else 0,
+                bool(data.get('is_active', True)),
             )).fetchone()
             if new_id:
                 conn.commit()
@@ -877,7 +877,7 @@ def update_prompt(prompt_id, data):
                 data.get('prompt_type', 'system'), data.get('domain', ''),
                 data.get('tags', '[]'), data.get('task_triggers', '[]'),
                 data.get('parent_id'), data.get('priority', 0),
-                1 if data.get('is_active', True) else 0,
+                bool(data.get('is_active', True)),
             )).fetchone()
             conn.commit()
             return new_id[0]
@@ -891,6 +891,8 @@ def update_prompt(prompt_id, data):
                 val = data[key]
                 if key in ('tags', 'task_triggers') and isinstance(val, list):
                     val = json.dumps(val)
+                elif key == 'is_active':
+                    val = bool(val)
                 fields.append(f"{key}=%s")
                 values.append(val)
         if not fields:
