@@ -59,8 +59,8 @@ def get_registry_db():
     conn = psycopg2.connect(
         host=os.environ.get('PG_HOST', 'localhost'),
         port=os.environ.get('PG_PORT', '5432'),
-        dbname=os.environ.get('PG_DATABASE', 'verorun'),
-        user=os.environ.get('PG_USER', 'postgres'),
+        dbname=os.environ.get('PG_DB', 'verorun'),
+        user=os.environ.get('PG_USER', 'verorun'),
         password=os.environ.get('PG_PASSWORD', ''),
     )
     wrapped = _PgConnection(conn)

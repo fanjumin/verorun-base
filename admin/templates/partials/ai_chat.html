@@ -989,7 +989,7 @@ function matMpChange(){
 function matLoadPrompts(){
   var sel=document.getElementById("matNewPromptTmpl");
   if(!sel)return;
-  fetch("/admin/agent-matrix/prompts",{headers:{"Authorization":"Bearer "+T}})
+  fetch("/admin/agent-matrix/prompts/files",{headers:{"Authorization":"Bearer "+T}})
     .then(function(r){return r.json()})
     .then(function(d){
       if(!d.success||!d.data)return;
@@ -1044,7 +1044,7 @@ function matEditProvChange(){
 function matEditLoadPrompts(){
   var sel=document.getElementById("matEditPromptTmpl");
   if(!sel)return;
-  fetch("/admin/agent-matrix/prompts",{headers:{"Authorization":"Bearer "+T}})
+  fetch("/admin/agent-matrix/prompts/files",{headers:{"Authorization":"Bearer "+T}})
     .then(function(r){return r.json()})
     .then(function(d){
       if(!d.success||!d.data)return;

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // AI Hub — 统一 AI/LLM 管理中枢
 // 整合: Matrix / Model Management / Provider Keys / Token Usage / LLM Quotas
 // ============================================================
@@ -11,6 +11,7 @@ window.l_ai_hub = function() {
     { id: "keys",      label: "Provider Keys", icon: "🔑" },
     { id: "models",    label: "Model Mgmt",    icon: "🔧" },
     { id: "matrix",    label: "Matrix",        icon: "🤖" },
+    { id: "prompts",   label: "Prompts",       icon: "📝" },
     { id: "quotas",    label: "LLM Quotas",    icon: "⚖️" },
     { id: "tokens",    label: "Token Usage",   icon: "📈" }
   ];
@@ -53,6 +54,7 @@ window.aiHubSwitchTab = function(tabId) {
     case 'keys':     l_provider_keys('aiHubContent');    break;
     case 'models':   l_model_providers('aiHubContent'); break;
     case 'matrix':   l_matrix('aiHubContent');        break;
+    case 'prompts':  l_prompts_db('aiHubContent');    break;
     case 'quotas':   l_llm_quotas('aiHubContent');       break;
     case 'tokens':   l_token_monitoring('aiHubContent'); break;
   }

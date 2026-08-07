@@ -336,6 +336,54 @@ def init_agent_matrix_tables():
 
             CREATE INDEX IF NOT EXISTS idx_dm_session ON discussion_messages(session_id);
             CREATE INDEX IF NOT EXISTS idx_dm_round ON discussion_messages(session_id, round_num);
+
+            -- ================================================
+            -- 10. Prompt entries table (Dynamic Prompt System)
+            -- ================================================
+            CREATE TABLE IF NOT EXISTS agent_prompts (
+                id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                name          TEXT NOT NULL,
+                slug          TEXT NOT NULL,
+                version       INTEGER DEFAULT 1,
+                content       TEXT NOT NULL,
+                prompt_type   TEXT NOT NULL DEFAULT 'system'
+                              CHECK(prompt_type IN ('system','scene','tool','rule','composite')),
+                domain        TEXT DEFAULT '',
+                tags          TEXT DEFAULT '[]',
+                task_triggers TEXT DEFAULT '[]',
+                parent_id     BIGINT DEFAULT NULL,
+                priority      INTEGER DEFAULT 0,
+                is_active     BOOLEAN DEFAULT TRUE,
+                created_at    TEXT DEFAULT (NOW()),
+                updated_at    TEXT DEFAULT (NOW()),
+                UNIQUE(slug, version)
+            );
+            CREATE INDEX IF NOT EXISTS idx_ap_type ON agent_prompts(prompt_type);
+            CREATE INDEX IF NOT EXISTS idx_ap_domain ON agent_prompts(domain);
+            CREATE INDEX IF NOT EXISTS idx_ap_active ON agent_prompts(is_active);
+            -- 复合索引：常用筛选组合 prompt_type + is_active
+            CREATE INDEX IF NOT EXISTS idx_ap_type_active ON agent_prompts(prompt_type, is_active);
+            -- 全局安全规则唯一性保证（_get_global_rules 只允许一条 rule+general）
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_ap_rule_general
+                ON agent_prompts(prompt_type, domain)
+                WHERE prompt_type='rule' AND domain='general';
+
+            -- ================================================
+            -- 11. Agent-Prompt binding table (Dynamic Prompt System)
+            -- ================================================
+            CREATE TABLE IF NOT EXISTS agent_prompt_bindings (
+                id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                agent_id      BIGINT NOT NULL REFERENCES agent_matrix(id) ON DELETE CASCADE,
+                prompt_id     BIGINT NOT NULL REFERENCES agent_prompts(id) ON DELETE CASCADE,
+                binding_type  TEXT NOT NULL DEFAULT 'default'
+                              CHECK(binding_type IN ('default','scene','override','mode')),
+                condition     TEXT DEFAULT '',
+                priority      INTEGER DEFAULT 0,
+                UNIQUE(agent_id, prompt_id, binding_type)
+            );
+            CREATE INDEX IF NOT EXISTS idx_apb_agent ON agent_prompt_bindings(agent_id);
+            CREATE INDEX IF NOT EXISTS idx_apb_prompt ON agent_prompt_bindings(prompt_id);
+            CREATE INDEX IF NOT EXISTS idx_apb_type ON agent_prompt_bindings(binding_type);
         """)
         conn.commit()
 
@@ -717,6 +765,201 @@ def toggle_agent(agent_id):
         conn.execute("UPDATE agent_matrix SET is_active=%s, updated_at=NOW() WHERE id=%s", (new, agent_id))
         conn.commit()
         return new
+
+
+# ============================================================
+# Prompt CRUD (Dynamic Prompt System)
+# ============================================================
+
+def list_prompts(prompt_type=None, domain=None, keyword=None, active_only=False):
+    """列出提示词条目，支持按类型/域/关键词筛选"""
+    with get_db() as conn:
+        sql = "SELECT * FROM agent_prompts WHERE 1=1"
+        params = []
+        if prompt_type:
+            sql += " AND prompt_type=%s"
+            params.append(prompt_type)
+        if domain:
+            sql += " AND domain=%s"
+            params.append(domain)
+        if keyword:
+            sql += " AND (name LIKE %s OR slug LIKE %s OR content LIKE %s)"
+            kw = f'%{keyword}%'
+            params.extend([kw, kw, kw])
+        if active_only:
+            sql += " AND is_active=TRUE"
+        sql += " ORDER BY prompt_type, priority DESC, version DESC"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_prompt(prompt_id):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM agent_prompts WHERE id=%s", (prompt_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_prompt_versions(slug):
+    """返回同一 slug 的全部版本（升序）"""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM agent_prompts WHERE slug=%s ORDER BY version ASC",
+            (slug,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def create_prompt(data):
+    """创建新提示词。同 slug 已存在时 version 自动 +1。
+
+    使用 UNIQUE(slug, version) + ON CONFLICT DO NOTHING 原子化，
+    避免并发创建时 MAX(version)+1 竞态（R2-A3）。
+    """
+    with get_db() as conn:
+        slug = (data.get('slug') or '').strip()
+        if not slug:
+            # 未提供 slug 时由 name 生成
+            slug = (data.get('name') or 'prompt').strip().lower().replace(' ', '-')
+        for _attempt in range(3):
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) AS v FROM agent_prompts WHERE slug=%s",
+                (slug,)
+            ).fetchone()
+            version = int(row['v']) + 1
+            new_id = conn.execute("""
+                INSERT INTO agent_prompts
+                (name, slug, version, content, prompt_type, domain, tags,
+                 task_triggers, parent_id, priority, is_active)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (slug, version) DO NOTHING
+                RETURNING id
+            """, (
+                data.get('name', slug),
+                slug,
+                version,
+                data.get('content', ''),
+                data.get('prompt_type', 'system'),
+                data.get('domain', ''),
+                json.dumps(data.get('tags', [])) if isinstance(data.get('tags'), list) else data.get('tags', '[]'),
+                json.dumps(data.get('task_triggers', [])) if isinstance(data.get('task_triggers'), list) else data.get('task_triggers', '[]'),
+                data.get('parent_id'),
+                data.get('priority', 0),
+                1 if data.get('is_active', True) else 0,
+            )).fetchone()
+            if new_id:
+                conn.commit()
+                return new_id[0]
+            # 冲突（并发已插入相同 slug+version）→ 重试计算新版本
+        raise RuntimeError(f"Failed to create prompt: concurrent conflict for slug={slug}")
+
+
+def update_prompt(prompt_id, data):
+    """更新提示词。content 变更时 version 自动 +1。"""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT slug, version, content FROM agent_prompts WHERE id=%s", (prompt_id,)
+        ).fetchone()
+        if not row:
+            return None
+
+        content = data.get('content')
+        if content is not None and content != row['content']:
+            # 内容有变 → 新版本
+            version = int(row['version']) + 1
+            new_id = conn.execute("""
+                INSERT INTO agent_prompts
+                (name, slug, version, content, prompt_type, domain, tags,
+                 task_triggers, parent_id, priority, is_active)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id
+            """, (
+                data.get('name', ''), row['slug'], version, content,
+                data.get('prompt_type', 'system'), data.get('domain', ''),
+                data.get('tags', '[]'), data.get('task_triggers', '[]'),
+                data.get('parent_id'), data.get('priority', 0),
+                1 if data.get('is_active', True) else 0,
+            )).fetchone()
+            conn.commit()
+            return new_id[0]
+
+        # 仅元数据更新
+        fields = []
+        values = []
+        for key in ['name', 'prompt_type', 'domain', 'tags', 'task_triggers',
+                    'parent_id', 'priority', 'is_active']:
+            if key in data:
+                val = data[key]
+                if key in ('tags', 'task_triggers') and isinstance(val, list):
+                    val = json.dumps(val)
+                fields.append(f"{key}=%s")
+                values.append(val)
+        if not fields:
+            return prompt_id
+        fields.append("updated_at=NOW()")
+        values.append(prompt_id)
+        conn.execute(
+            f"UPDATE agent_prompts SET {','.join(fields)} WHERE id=%s",
+            values
+        )
+        conn.commit()
+        return prompt_id
+
+
+def delete_prompt(prompt_id):
+    """软删除：is_active=false"""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE agent_prompts SET is_active=FALSE, updated_at=NOW() WHERE id=%s",
+            (prompt_id,)
+        )
+        conn.commit()
+
+
+def list_bindings(agent_id=None):
+    """列出 Agent-Prompt 绑定关系"""
+    with get_db() as conn:
+        sql = """
+            SELECT b.*, p.name AS prompt_name, p.slug AS prompt_slug, p.version,
+                   p.prompt_type, p.domain, a.name AS agent_name
+            FROM agent_prompt_bindings b
+            LEFT JOIN agent_prompts p ON p.id = b.prompt_id
+            LEFT JOIN agent_matrix a ON a.id = b.agent_id
+            WHERE 1=1
+        """
+        params = []
+        if agent_id:
+            sql += " AND b.agent_id=%s"
+            params.append(agent_id)
+        sql += " ORDER BY b.agent_id, b.binding_type, b.priority DESC"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def create_binding(agent_id, prompt_id, binding_type='default', condition='', priority=0):
+    """为 Agent 绑定 Prompt（幂等：UNIQUE 冲突时原子更新，避免 DELETE+INSERT 非原子）"""
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO agent_prompt_bindings
+            (agent_id, prompt_id, binding_type, condition, priority)
+            VALUES (%s,%s,%s,%s,%s)
+            ON CONFLICT (agent_id, prompt_id, binding_type)
+            DO UPDATE SET condition=excluded.condition, priority=excluded.priority
+        """, (agent_id, prompt_id, binding_type, condition, priority))
+        conn.commit()
+
+
+def delete_binding(binding_id, agent_id=None):
+    """解绑。可指定 agent_id 校验归属（R2-A2）。返回受影响行数。"""
+    with get_db() as conn:
+        if agent_id is not None:
+            cur = conn.execute(
+                "DELETE FROM agent_prompt_bindings WHERE id=%s AND agent_id=%s",
+                (binding_id, agent_id)
+            )
+        else:
+            cur = conn.execute("DELETE FROM agent_prompt_bindings WHERE id=%s", (binding_id,))
+        conn.commit()
+        return cur.rowcount if cur and hasattr(cur, 'rowcount') else 0
 
 
 # ============================================================
