@@ -4,11 +4,11 @@
 
 VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, site builder, mini-program generation, and a plugin-based extension system with full lifecycle management, store, payment, license activation, and subscription support.
 
-> **Version:** 0.50.0
+> **Version:** 0.50.1
 > **Code Repository (private):** https://github.com/fanjumin/verorun-code
 > **Base Repository (open download):** https://github.com/fanjumin/verorun-base
 
-[![Version](https://img.shields.io/badge/version-0.50.0-blue)](https://github.com/fanjumin/verorun-code/releases)
+[![Version](https://img.shields.io/badge/version-0.50.1-blue)](https://github.com/fanjumin/verorun-code/releases)
 [![Python](https://img.shields.io/badge/python-3.11+-green)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-EULA-blue)](LICENSE)
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791)](https://www.postgresql.org/)
