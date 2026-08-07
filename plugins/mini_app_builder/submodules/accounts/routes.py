@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Developer Accounts — API routes
+"""Developer Credentials — API routes (merged from plugins/dev_accounts)
 
 Prefix: /admin/dev-accounts/
 """

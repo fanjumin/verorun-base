@@ -46,7 +46,8 @@ if _platform_dir not in sys.path:
 sys.modules.pop('routes', None)
 
 from routes.api_v1 import api_v1_bp
-from routes.mini_program import mini_program_bp
+# mini_program_bp 已解耦至插件 plugins/mini_app_builder/public_api.py（v2.0.0），
+# 由 PluginManager mount_all_routes() 挂载（见下方 ── PluginManager ── 段）
 
 from flask import (Flask, request, jsonify, render_template,
                    send_from_directory, redirect, Blueprint, Response, make_response)
@@ -107,7 +108,19 @@ app.jinja_loader = jinja2.ChoiceLoader([
 try:
     from plugin_manager.manager import PluginManager
     app.plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'plugins')
-    PluginManager(app)
+    pm = PluginManager(app)
+    # 启动期挂载全部已安装插件路由（含 mini_app_builder 的运行时 API
+    # /api/v1/mini-program/*），运行时由门卫按启用状态放行/拦截
+    # （Flask 3 运行时无法动态注册蓝图，故启动期全量挂载）。
+    pm.mount_all_routes()
+
+    @app.before_request
+    def _plugin_gatekeeper():
+        """禁用插件的路由请求返回 404，等价于插件不存在。"""
+        from flask import abort
+        if not pm.is_path_allowed(request.path):
+            abort(404)
+
     print('[PluginManager] ✅ Platform 服务插件管理器已初始化')
 except Exception as e:
     print(f'[PluginManager] ⚠️ Platform 服务初始化失败: {e}')
@@ -117,7 +130,7 @@ register_auth(app, exclude_blueprints=['admin', 'cms_admin'])
 app.register_blueprint(sub_bp, name='platform_subscription')
 app.register_blueprint(api_v1_bp)
 app.register_blueprint(douyin_mp_bp)
-app.register_blueprint(mini_program_bp)
+# mini_program_bp 已由 PluginManager 挂载（plugins/mini_app_builder）
 # 独立部署API — 仅主服务器模式注册
 if _HAS_DEPLOY_API:
     _MODE = os.environ.get('APP_MODE', 'main')

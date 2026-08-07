@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Developer Accounts — data access layer"""
+"""Developer Credentials — data access layer (merged from plugins/dev_accounts).
+
+Tables live in the `mini_app_builder` schema (see migrate.py); a public view
+keeps backward compatibility for any external readers.  Connections go through
+plugins/_base/db.py and explicitly SET search_path so both the moved tables
+and shared public tables resolve correctly.
+"""
 
 import json
 from contextlib import contextmanager
@@ -14,23 +20,24 @@ SENSITIVE_FIELDS = ['app_secret', 'bot_token', 'channel_secret', 'access_token']
 
 @contextmanager
 def get_db():
-    """PostgreSQL connection (public schema).
+    """PostgreSQL connection (mini_app_builder schema first, then public).
 
-    dev_accounts 表保留在主库 public schema（逻辑解耦，见 __init__.py 模块注释），
-    因此这里显式 SET search_path TO public，与 main_site / site_builder 共享读取一致。
+    dev_accounts / schema_meta tables were moved to the mini_app_builder schema
+    by the v2.0.0 migration; shared public tables (users etc.) still resolve via
+    the trailing `public` search path entry.
     """
     conn = get_raw_connection()
     conn.autocommit = False
     try:
         wrapped = PgConnection(conn)
-        wrapped.execute("SET search_path TO public")
+        wrapped.execute("SET search_path TO mini_app_builder, public")
         yield wrapped
     finally:
         conn.close()
 
 
 def init_db():
-    """Create dev_accounts table if it doesn't exist (PostgreSQL)."""
+    """Create dev_accounts / schema_meta tables if they don't exist (PostgreSQL)."""
     with get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS dev_accounts (
@@ -89,7 +96,17 @@ def get_by_id(account_id: int) -> dict | None:
 
 
 def get_by_platform(platform: str, active_only: bool = True) -> dict | None:
-    """Get the first active account for a platform."""
+    """Get the first active account for a platform (sensitive fields masked)."""
+    row = get_by_platform_raw(platform, active_only=active_only)
+    return _sanitize(dict(row)) if row else None
+
+
+def get_by_platform_raw(platform: str, active_only: bool = True) -> dict | None:
+    """Get the first account for a platform with raw (encrypted) fields.
+
+    Intended for internal runtime consumers (deploy, Telegram login) that call
+    decrypt() themselves.  Prefer get_by_platform() for display purposes.
+    """
     with get_db() as conn:
         if active_only:
             row = conn.execute(
@@ -101,7 +118,7 @@ def get_by_platform(platform: str, active_only: bool = True) -> dict | None:
                 "SELECT * FROM dev_accounts WHERE platform=? LIMIT 1",
                 (platform,)
             ).fetchone()
-    return _sanitize(dict(row)) if row else None
+    return dict(row) if row else None
 
 
 def create(platform: str, account_name: str, **kwargs) -> int:

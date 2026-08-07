@@ -2,7 +2,11 @@
 """Fernet 加密工具 — 用于加密 developer account 敏感字段。
 
 底层算法：cryptography.fernet = AES-128-CBC + HMAC-SHA256（非 AES-256-GCM）。
-密钥派生：DEV_ACCOUNTS_ENCRYPTION_KEY 环境变量 → SHA-256 → base64 urlsafe（Fernet 密钥格式）。
+密钥派生（优先级从高到低）：
+    1. MINI_APP_ENCRYPTION_KEY   （mini_app_builder v2.0.0 新主密钥）
+    2. DEV_ACCOUNTS_ENCRYPTION_KEY （兼容旧 dev_accounts 插件已加密数据）
+    3. ENCRYPTION_KEY              （通用回退）
+任一 key → SHA-256 → base64 urlsafe（Fernet 密钥格式）。
 采用懒加载：首次 encrypt/decrypt 调用时才读取密钥并初始化，避免模块导入即崩溃。
 """
 
@@ -18,12 +22,15 @@ _HAS_CRYPTO = False
 def _get_encryption_key() -> bytes:
     """Derive a Fernet-compatible key from the environment variable.
 
-    Raises RuntimeError if DEV_ACCOUNTS_ENCRYPTION_KEY is not set.
+    Raises RuntimeError if no supported key env var is set.
     """
-    raw_key = os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY')
+    raw_key = (os.environ.get('MINI_APP_ENCRYPTION_KEY')
+               or os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY')
+               or os.environ.get('ENCRYPTION_KEY'))
     if not raw_key:
         raise RuntimeError(
-            "DEV_ACCOUNTS_ENCRYPTION_KEY environment variable is required. "
+            "MINI_APP_ENCRYPTION_KEY (or legacy DEV_ACCOUNTS_ENCRYPTION_KEY) "
+            "environment variable is required. "
             "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
         )
     key_bytes = hashlib.sha256(raw_key.encode()).digest()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""site_builder/mini_app/generators/ — Platform-specific mini-program generators"""
+"""mini_app_builder/mini_app/generators/ — Platform-specific mini-program generators"""
 
 from .base import BaseMiniAppGenerator
 from .douyin import DouyinGenerator

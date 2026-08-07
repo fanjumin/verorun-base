@@ -1,25 +1,17 @@
 #!/usr/bin/env python3
 """MiniAppPreviewRenderer — AI plan JSON  →  HTML preview page
 
-Reuses the existing `ai_site_preview.html` template from admin/templates/.
+Reuses the existing `ai_site_preview.html` template from admin/templates/
+via Flask's `render_template` (the admin app already registers that folder).
 """
 
 import json
-import os
 
-from flask import render_template_string
+from flask import render_template
 
 
 class MiniAppPreviewRenderer:
     """Render an AI-generated Mini App plan as an editable HTML preview."""
-
-    def __init__(self, template_path=None):
-        if template_path is None:
-            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            template_path = os.path.join(base, 'admin', 'templates', 'ai_site_preview.html')
-
-        with open(template_path, 'r', encoding='utf-8') as f:
-            self._template = f.read()
 
     # ── Public API ──────────────────────────────────────
 
@@ -40,8 +32,8 @@ class MiniAppPreviewRenderer:
         widget_html = self._build_widget_html(plan.get('widgets', []))
         tabbar_html = self._build_tabbar_html(plan.get('tabBar', []))
 
-        return render_template_string(
-            self._template,
+        return render_template(
+            'ai_site_preview.html',
             draft_tokens=tokens,
             draft_blocks=blocks,
             preview_mode=True,

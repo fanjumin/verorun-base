@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Mini-Program Unified API — routes for all social media mini-program platforms
 
-Provides authentication, streaming chat, RAG knowledge search, and site content
-endpoints for Douyin, WeChat, Telegram, and LINE mini-programs.
+Moved from main_site/routes/mini_program.py into the mini_app_builder plugin
+(v2.0.0 decoupling).  Provides authentication, streaming chat, RAG knowledge
+search, and site content endpoints for Douyin, WeChat, Telegram, and LINE
+mini-programs.
 
 Prefix: /api/v1/mini-program/
 """
@@ -237,17 +239,15 @@ def _telegram_login(data):
         # Verify HMAC signature
         from models import get_db
 
-        # Get bot token from dev_accounts
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT bot_token FROM dev_accounts WHERE platform='telegram' AND is_active=1 LIMIT 1"
-            ).fetchone()
+        # Get bot token from dev_accounts (mini_app_builder schema via plugin layer)
+        from .submodules.accounts.models import get_by_platform_raw
+        from .submodules.accounts.crypto import decrypt
 
-        if not row:
+        account = get_by_platform_raw('telegram')
+        if not account or not account.get('bot_token'):
             return _err('Telegram bot not configured', 500)
 
-        from plugins.dev_accounts.crypto import decrypt
-        bot_token = decrypt(row['bot_token'])
+        bot_token = decrypt(account['bot_token'])
 
         # Parse initData
         params = parse_qs(init_data)

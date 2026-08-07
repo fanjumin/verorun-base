@@ -1,7 +1,11 @@
-# Developer Accounts Plugin — English Translation
+# Mini App Builder Plugin — English Translation
 # ================================================
 
-"Developer Accounts": "Developer Accounts"
+"plugin.name": "Mini App Builder"
+"menu.mini_apps": "Mini Apps"
+"menu.dev_accounts": "Developer Accounts"
+
+# ── Developer Accounts (merged from dev_accounts plugin) ──
 "Manage developer accounts for social media platforms (Douyin, WeChat, Telegram, LINE)": "Manage developer accounts for social media platforms (Douyin, WeChat, Telegram, LINE)"
 "List all developer accounts": "List all developer accounts"
 "Get a single developer account": "Get a single developer account"
@@ -11,6 +15,8 @@
 "Test connection for a developer account": "Test connection for a developer account"
 "Total Accounts": "Total Accounts"
 "Active Accounts": "Active Accounts"
+"Total Projects": "Total Projects"
+"Total Versions": "Total Versions"
 "Requires admin permissions": "Requires admin permissions"
 "platform is required": "platform is required"
 "account_name is required": "account_name is required"

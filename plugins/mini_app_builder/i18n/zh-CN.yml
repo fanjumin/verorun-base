@@ -1,7 +1,11 @@
-# Developer Accounts Plugin — 中文翻译
+# Mini App Builder Plugin — 中文翻译
 # ======================================
 
-Developer Accounts: 开发者账号
+plugin.name: 小程序生成器
+menu.mini_apps: 小程序
+menu.dev_accounts: 开发者账号
+
+# ── 开发者账号（合并自 dev_accounts 插件）──
 Manage developer accounts for social media platforms (Douyin, WeChat, Telegram, LINE): 管理社交媒体平台（抖音、微信、Telegram、LINE）的开发者账号
 List all developer accounts: 列出所有开发者账号
 Get a single developer account: 查看开发者账号详情
@@ -11,6 +15,8 @@ Delete a developer account: 删除开发者账号
 Test connection for a developer account: 测试开发者账号连接
 Total Accounts: 账号总数
 Active Accounts: 活跃账号数
+Total Projects: 项目总数
+Total Versions: 版本总数
 Requires admin permissions: 需要管理员权限
 platform is required: platform 为必填项
 account_name is required: account_name 为必填项
