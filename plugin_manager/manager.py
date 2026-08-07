@@ -123,30 +123,33 @@ class PluginManager:
         self._load_cache()
 
         # 自动安装新发现的插件
+        # PLUGIN_AUTO_INSTALL=0 时跳过自动安装/自动启用（部署默认关，插件由后台手动安装启用）
+        auto_install = os.environ.get('PLUGIN_AUTO_INSTALL', '1').strip().lower() not in ('0', 'false', 'no')
         try:
             discovered = self._discovery.discover()
-            auto_installed = 0
-            for info in discovered:
-                if info.identifier not in self._cache:
-                    self.install(info.identifier)
-                    auto_installed += 1
-            if auto_installed > 0:
-                print(f'[PluginManager] ✅ 自动安装 {auto_installed} 个新插件')
-                self._load_cache()  # 重新加载缓存
+            if auto_install:
+                auto_installed = 0
+                for info in discovered:
+                    if info.identifier not in self._cache:
+                        self.install(info.identifier)
+                        auto_installed += 1
+                if auto_installed > 0:
+                    print(f'[PluginManager] ✅ 自动安装 {auto_installed} 个新插件')
+                    self._load_cache()  # 重新加载缓存
 
-            # 自动启用所有 INSTALLED 状态的插件（新安装 + 已安装未启用）
-            auto_enabled = 0
-            for info in discovered:
-                cached = self._cache.get(info.identifier)
-                if cached and cached.status == PluginStatus.INSTALLED:
-                    try:
-                        self.enable(info.identifier)
-                        auto_enabled += 1
-                    except Exception as e:
-                        print(f'[PluginManager] ⚠️ auto-enable {info.identifier}: {e}')
-            if auto_enabled > 0:
-                print(f'[PluginManager] ✅ 自动启用 {auto_enabled} 个插件')
-                self._load_cache()
+                # 自动启用所有 INSTALLED 状态的插件（新安装 + 已安装未启用）
+                auto_enabled = 0
+                for info in discovered:
+                    cached = self._cache.get(info.identifier)
+                    if cached and cached.status == PluginStatus.INSTALLED:
+                        try:
+                            self.enable(info.identifier)
+                            auto_enabled += 1
+                        except Exception as e:
+                            print(f'[PluginManager] ⚠️ auto-enable {info.identifier}: {e}')
+                if auto_enabled > 0:
+                    print(f'[PluginManager] ✅ 自动启用 {auto_enabled} 个插件')
+                    self._load_cache()
 
             # 用磁盘 plugin.json 刷新已缓存插件的静态元信息（menu/version 等）。
             # 当磁盘版本与数据库不一致时同步写回 DB，确保插件管理器展示最新版本号。

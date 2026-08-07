@@ -134,6 +134,9 @@ CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
 DEV_ACCOUNTS_ENCRYPTION_KEY=${DEV_ACCOUNTS_ENCRYPTION_KEY}
 LICENSE_SERVER_SECRET=${LICENSE_SERVER_SECRET}
 
+# Deployments do not auto-install/enable plugins by default (install manually in admin)
+PLUGIN_AUTO_INSTALL=0
+
 # VeroGuard — daemon encrypted communication key (official side and client must match)
 PROBE_SECRET=${PROBE_SECRET}
 
