@@ -74,9 +74,22 @@
   }
 
   // ── API helper ──
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[2]) : '';
+  }
+
   function api(url, opts) {
     opts = opts || {};
     opts.headers = opts.headers || {};
+    // CSRF: 状态变更请求附加 X-CSRF-Token 头（双重提交 Cookie 模式）
+    if (opts.method && opts.method.toUpperCase() !== 'GET') {
+      opts.headers['X-CSRF-Token'] = getCookie('csrf_token');
+    }
+    if (opts.body && typeof opts.body !== 'string') {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(opts.body);
+    }
     return fetch(url, opts).then(function (r) {
       if (!r.ok) {
         return r.json().then(function (d) {
@@ -838,17 +851,99 @@
   // ══════════════════════════════════════════════════════════════
 
   function initSettings() {
+    // 加载已保存的设置
+    api('/admin/vault/api/settings').then(function (data) {
+      var cfg = data.config || {};
+      if (cfg.encryption) {
+        var enc = cfg.encryption;
+        if (enc.enabled !== undefined) document.getElementById('encEnabled').value = String(enc.enabled);
+        if (enc.algorithm) document.getElementById('encAlgorithm').value = enc.algorithm;
+        if (enc.key_source) document.getElementById('encKeySource').value = enc.key_source;
+      }
+      if (cfg.retention) {
+        var ret = cfg.retention;
+        if (ret.keep_days !== undefined) document.getElementById('keepDays').value = ret.keep_days;
+        if (ret.compression) document.getElementById('compressionAlg').value = ret.compression;
+      }
+      if (cfg.notifications) {
+        var notify = cfg.notifications;
+        if (notify.email) {
+          document.getElementById('notifyEmailEnabled').value = String(!!notify.email.enabled);
+          if (notify.email.recipients && notify.email.recipients.length) {
+            document.getElementById('notifyEmail').value = notify.email.recipients.join(',');
+          }
+        }
+        if (notify.webhook && notify.webhook.url) {
+          document.getElementById('notifyWebhook').value = notify.webhook.url;
+        }
+        if (notify.feishu && notify.feishu.webhook_url) {
+          document.getElementById('notifyFeishu').value = notify.feishu.webhook_url;
+        }
+        if (notify.dingtalk && notify.dingtalk.webhook_url) {
+          document.getElementById('notifyDingtalk').value = notify.dingtalk.webhook_url;
+        }
+      }
+    }).catch(function (e) {
+      toast('Failed to load settings: ' + e.message, 'error');
+    });
+
+    function saveSettings(section, payload) {
+      var req = { };
+      req[section] = payload;
+      return api('/admin/vault/api/settings', {
+        method: 'POST',
+        body: JSON.stringify(req),
+      });
+    }
+
     document.getElementById('encryptionForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      toast('Settings saved', 'success');
+      var payload = {
+        enabled: document.getElementById('encEnabled').value === 'true',
+        algorithm: document.getElementById('encAlgorithm').value,
+        key_source: document.getElementById('encKeySource').value,
+      };
+      saveSettings('encryption', payload)
+        .then(function () { toast('Encryption settings saved', 'success'); })
+        .catch(function (err) { toast('Failed to save: ' + err.message, 'error'); });
     });
+
     document.getElementById('retentionForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      toast('Settings saved', 'success');
+      var payload = {
+        keep_days: parseInt(document.getElementById('keepDays').value, 10) || 30,
+        compression: document.getElementById('compressionAlg').value,
+      };
+      saveSettings('retention', payload)
+        .then(function () { toast('Retention settings saved', 'success'); })
+        .catch(function (err) { toast('Failed to save: ' + err.message, 'error'); });
     });
+
     document.getElementById('notifyForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      toast('Settings saved', 'success');
+      var recipients = (document.getElementById('notifyEmail').value || '')
+        .split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      var payload = {
+        email: {
+          enabled: document.getElementById('notifyEmailEnabled').value === 'true',
+          recipients: recipients,
+        },
+        webhook: {
+          enabled: !!document.getElementById('notifyWebhook').value,
+          url: document.getElementById('notifyWebhook').value,
+        },
+        feishu: {
+          enabled: !!document.getElementById('notifyFeishu').value,
+          webhook_url: document.getElementById('notifyFeishu').value,
+        },
+        dingtalk: {
+          enabled: !!document.getElementById('notifyDingtalk').value,
+          webhook_url: document.getElementById('notifyDingtalk').value,
+        },
+      };
+      saveSettings('notifications', payload)
+        .then(function () { toast('Notification settings saved', 'success'); })
+        .catch(function (err) { toast('Failed to save: ' + err.message, 'error'); });
     });
   }
 
@@ -887,6 +982,8 @@
       if (btn) btn.addEventListener('click', function () { createBackup('full'); });
       var drillBtn = document.getElementById('btnDrill');
       if (drillBtn) drillBtn.addEventListener('click', runDrill);
+      var cleanupBtn = document.getElementById('btnCleanup');
+      if (cleanupBtn) cleanupBtn.addEventListener('click', cleanupBackups);
     } else if (pageId === 'restore') {
       initRestore();
     } else if (pageId === 'schedules') {

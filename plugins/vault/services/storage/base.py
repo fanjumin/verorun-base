@@ -8,6 +8,7 @@ All storage backends (S3/OSS/Azure/GCS/SFTP/WebDAV) must implement this interfac
 from abc import ABC, abstractmethod
 from typing import Optional
 import json
+from ..utils import decrypt_config_secrets, encrypt_config_secrets, mask_config_secrets
 
 
 class BaseStorageAdapter(ABC):
@@ -74,6 +75,7 @@ class StorageRouter:
                 if isinstance(config, str):
                     config = json.loads(config)
                 config['name'] = name
+                config = decrypt_config_secrets(config)
                 adapter = self._create_adapter(stype, config)
                 if adapter:
                     self._adapters[target_id] = adapter
@@ -179,6 +181,9 @@ class StorageRouter:
             d = dict(zip(cols, row))
             if isinstance(d.get('config'), str):
                 d['config'] = json.loads(d['config'])
+            # 敏感字段脱敏，不向前端返回明文密钥
+            if isinstance(d.get('config'), dict):
+                d['config'] = mask_config_secrets(d['config'])
             for ts_key in ('last_test_at', 'created_at'):
                 if hasattr(d.get(ts_key), 'strftime'):
                     d[ts_key] = d[ts_key].strftime('%Y-%m-%d %H:%M:%S')
@@ -197,12 +202,14 @@ class StorageRouter:
                 "UPDATE vault_storage_targets SET is_default = FALSE WHERE is_default = TRUE"
             )
 
+        # 敏感字段加密后入库
+        safe_config = encrypt_config_secrets(config or {})
         cur.execute("""
             INSERT INTO vault_storage_targets
                 (name, storage_type, config, is_default, enabled, created_at)
             VALUES (%s,%s,%s,%s,TRUE,NOW())
             RETURNING id
-        """, (name, storage_type, json.dumps(config), is_default))
+        """, (name, storage_type, json.dumps(safe_config), is_default))
         row_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
@@ -226,6 +233,7 @@ class StorageRouter:
             if key in kwargs:
                 val = kwargs[key]
                 if key == 'config' and isinstance(val, dict):
+                    val = encrypt_config_secrets(val)
                     val = _json.dumps(val)
                 updates.append(f"{key} = %s")
                 params.append(val)

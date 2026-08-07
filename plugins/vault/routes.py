@@ -46,9 +46,13 @@ import sys
 import json
 import glob
 import shutil
+import secrets
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Blueprint, jsonify, render_template, send_file, request, session, redirect
+
+from .services.utils import safe_backup_path, safe_join
 
 vault_bp = Blueprint('vault', __name__, url_prefix='/admin/vault',
                      template_folder='templates')
@@ -57,13 +61,142 @@ BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'vault')
 
 
+# ══════════════════════════════════════════════════════════════
+# CSRF 防护（双重提交 Cookie 模式，与项目 ali_api 插件一致）
+# ══════════════════════════════════════════════════════════════
+
+def _generate_csrf_token() -> str:
+    """生成 CSRF Token。"""
+    return secrets.token_urlsafe(32)
+
+
+def _validate_csrf() -> bool:
+    """验证 CSRF Token（双重提交 Cookie 模式）。
+
+    GET/HEAD/OPTIONS 放行；内部定时任务（X-Internal-Secret 匹配）放行；
+    其余状态变更请求需 X-CSRF-Token 头与 csrf_token Cookie 一致。
+    """
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return True
+
+    internal_secret = os.environ.get('HEALTH_SECRET', '')
+    if internal_secret and request.headers.get('X-Internal-Secret') == internal_secret:
+        return True
+
+    header_token = request.headers.get('X-CSRF-Token', '')
+    cookie_token = request.cookies.get('csrf_token', '')
+    if not header_token or not cookie_token:
+        return False
+    return secrets.compare_digest(header_token, cookie_token)
+
+
+# ══════════════════════════════════════════════════════════════
+# 权限检查（对齐 plugin.json permissions 声明）
+# ══════════════════════════════════════════════════════════════
+
+PERMISSIONS = {
+    'vault.read': 'view backups',
+    'vault.write': 'create/delete backups',
+    'vault.download': 'download backups',
+    'vault.admin': 'manage schedules/storage/settings',
+}
+
+
+def _check_permission(permission: str) -> bool:
+    """检查当前用户是否具备指定权限。
+
+    后台所有端点均要求 is_admin（与系统管理后台一致）；
+    vault.admin 额外要求 role 为 super_admin / admin。
+    """
+    payload = getattr(request, 'vault_user', None)
+    if not payload or not payload.get('is_admin'):
+        return False
+    if permission in ('vault.read', 'vault.write', 'vault.download'):
+        return True
+    if permission == 'vault.admin':
+        return payload.get('role') in ('super_admin', 'admin')
+    return False
+
+
+def require_permission(permission: str):
+    """装饰器：要求指定权限，否则 403。"""
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if not _check_permission(permission):
+                return jsonify({'success': False, 'error': 'Insufficient permissions'}), 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+# ══════════════════════════════════════════════════════════════
+# 速率限制（轻量内存滑动窗口，无外部依赖）
+# ══════════════════════════════════════════════════════════════
+
+_RATE_LIMIT_WINDOW = 60          # 窗口：60 秒
+_RATE_LIMIT_MAX = 30             # 窗口内最大请求数
+_RATE_LIMIT_KEYS = {}            # key -> 请求时间戳列表
+_RATE_LIMIT_LAST_CLEAN = time.time()
+
+
+def _rate_limited(f):
+    """装饰器：按 IP + 端点滑动窗口限流，超限返回 429。"""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        global _RATE_LIMIT_LAST_CLEAN
+        now = time.time()
+
+        # 周期性清理过期记录，防止内存膨胀
+        if now - _RATE_LIMIT_LAST_CLEAN > 300:
+            _RATE_LIMIT_LAST_CLEAN = now
+            cutoff = now - _RATE_LIMIT_WINDOW
+            for k in [k for k, v in _RATE_LIMIT_KEYS.items() if not v or v[-1] < cutoff]:
+                _RATE_LIMIT_KEYS.pop(k, None)
+
+        key = (request.remote_addr or 'unknown', request.path)
+        hits = [t for t in _RATE_LIMIT_KEYS.get(key, []) if t >= now - _RATE_LIMIT_WINDOW]
+        if len(hits) >= _RATE_LIMIT_MAX:
+            return jsonify({'success': False, 'error': 'Too many requests, please try later'}), 429
+        hits.append(now)
+        _RATE_LIMIT_KEYS[key] = hits
+        return f(*args, **kwargs)
+    return wrapped
+
+
+def _err(e) -> str:
+    """记录异常到日志并返回通用错误消息，避免向前端泄露内部路径/堆栈。"""
+    try:
+        import traceback
+        print(f'[Vault] Error: {e}')
+        traceback.print_exc()
+    except Exception:
+        pass
+    return 'Internal server error'
+
+
+@vault_bp.after_request
+def _set_security_headers(resp):
+    """统一设置 CSRF Cookie（双重提交）与安全响应头。"""
+    # 首次访问时种下 CSRF Cookie（HttpOnly=False 以便 JS 读取，SameSite=Lax）
+    # path='/' 确保后续所有 /admin/vault/* API 请求都能携带该 Cookie
+    if not request.cookies.get('csrf_token'):
+        try:
+            resp.set_cookie('csrf_token', _generate_csrf_token(),
+                            max_age=3600, httponly=False,
+                            samesite='Lax', secure=request.is_secure,
+                            path='/')
+        except Exception:
+            pass
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    resp.headers['X-XSS-Protection'] = '1; mode=block'
+    resp.headers['Referrer-Policy'] = 'same-origin'
+    return resp
+
+
 # Static file routes (explicit, more reliable than Blueprint static_url_path)
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-
-@vault_bp.route('/static/<path:filename>')
-def vault_static(filename):
-    """Serve vault static files (CSS, JS)."""
-    return send_file(os.path.join(STATIC_DIR, filename))
 
 
 @vault_bp.before_request
@@ -81,28 +214,64 @@ def _vault_ensure_schema():
 # ══════════════════════════════════════════════════════════════
 
 def _require_vault_auth(f):
-    """Decorator: require user login for API access.
+    """Decorator: require admin login for API access.
     
-    Authenticates via JWT sso_token (cookie or query param) — 
-    matching the admin app's auth mechanism.
+    - 仅接受 HttpOnly Cookie（sso_token）或 Authorization Bearer 头，禁止 URL 参数传 token
+    - 校验 CSRF（状态变更方法）
+    - 放行内部定时任务（X-Internal-Secret 匹配 HEALTH_SECRET）
     """
     @wraps(f)
     def wrapped(*args, **kwargs):
-        token = request.args.get('token') or request.cookies.get('sso_token')
+        # 内部定时任务（orchestrator cron_jobs）放行，避免破坏定时备份
+        internal_secret = os.environ.get('HEALTH_SECRET', '')
+        if internal_secret and request.headers.get('X-Internal-Secret') == internal_secret:
+            # 注入内部特权身份，供 require_permission 放行
+            request.vault_user = {'is_admin': True, 'role': 'super_admin', 'internal': True}
+            return f(*args, **kwargs)
+
+        token = request.cookies.get('sso_token')
+        if not token:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]
+
         if not token:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
                request.content_type == 'application/json':
                 return jsonify({'success': False, 'error': 'Authentication required'}), 401
             return redirect('/admin/login')
+
         try:
             from services.jwt_service import validate_token
             payload = validate_token(token)
             if not payload or not payload.get('is_admin'):
                 raise ValueError('Invalid admin token')
         except Exception:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+               request.content_type == 'application/json':
+                return jsonify({'success': False, 'error': 'Authentication required'}), 401
             return redirect('/admin/login')
+
+        # CSRF 防护（状态变更方法）
+        if not _validate_csrf():
+            return jsonify({'success': False, 'error': 'CSRF validation failed'}), 403
+
+        request.vault_user = payload
         return f(*args, **kwargs)
     return wrapped
+
+
+@vault_bp.route('/static/<path:filename>')
+@_require_vault_auth
+def vault_static(filename):
+    """Serve vault static files (CSS, JS). Requires admin auth, path-traversal safe."""
+    try:
+        filepath = safe_join(STATIC_DIR, filename)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid path'}), 400
+    if not os.path.isfile(filepath):
+        return jsonify({'success': False, 'error': 'Not found'}), 404
+    return send_file(filepath)
 
 
 def _get_backup_dir():
@@ -170,6 +339,101 @@ def settings_page():
     return render_template('vault_settings.html')
 
 
+# ══════════════════════════════════════════════════════════════
+# Settings API — 持久化插件配置（加密敏感字段）
+# ══════════════════════════════════════════════════════════════
+
+def _load_plugin_config() -> dict:
+    """从 plugin_registry 读取 vault 插件配置。"""
+    from plugins._base.db import get_raw_connection
+    conn = get_raw_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT config FROM plugin_registry WHERE identifier = 'vault'")
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row and row[0]:
+        return json.loads(row[0]) if isinstance(row[0], str) else row[0]
+    return {}
+
+
+def _save_plugin_config(cfg: dict) -> bool:
+    """将配置写入 plugin_registry（存在则更新，不存在则插入）。"""
+    from plugins._base.db import get_raw_connection
+    conn = get_raw_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE plugin_registry SET config = %s, updated_at = NOW() "
+        "WHERE identifier = 'vault'",
+        (json.dumps(cfg, ensure_ascii=False),),
+    )
+    if cur.rowcount == 0:
+        cur.execute(
+            "INSERT INTO plugin_registry (identifier, config, status, created_at, updated_at) "
+            "VALUES ('vault', %s, 'active', NOW(), NOW())",
+            (json.dumps(cfg, ensure_ascii=False),),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return True
+
+
+@vault_bp.route('/api/settings', methods=['GET'])
+@_require_vault_auth
+@require_permission('vault.admin')
+def api_get_settings():
+    """获取插件设置（敏感字段脱敏返回）。"""
+    try:
+        cfg = _load_plugin_config()
+        # 通知渠道中的敏感字段脱敏
+        notify = cfg.get('notifications', {})
+        for key in ('email', 'webhook', 'feishu', 'dingtalk'):
+            if key in notify and isinstance(notify[key], dict):
+                from .services.utils import mask_config_secrets
+                notify[key] = mask_config_secrets(notify[key])
+        cfg['notifications'] = notify
+        return jsonify({'success': True, 'config': cfg})
+    except Exception as e:
+        return jsonify({'success': False, 'error': _err(e)}), 500
+
+
+@vault_bp.route('/api/settings', methods=['POST'])
+@_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
+def api_save_settings():
+    """保存插件设置（敏感字段加密后入库）。"""
+    try:
+        data = request.get_json(silent=True) or {}
+        cfg = _load_plugin_config()
+
+        # 白名单合并，避免覆盖未知字段
+        for section in ('encryption', 'retention', 'notifications', 'storage'):
+            if section in data and isinstance(data[section], dict):
+                cfg[section] = data[section]
+
+        # 通知渠道敏感字段加密
+        notify = cfg.get('notifications', {})
+        for key in ('email', 'webhook', 'feishu', 'dingtalk'):
+            if key in notify and isinstance(notify[key], dict):
+                from .services.utils import encrypt_config_secrets
+                notify[key] = encrypt_config_secrets(notify[key])
+        cfg['notifications'] = notify
+
+        _save_plugin_config(cfg)
+
+        try:
+            from .services.audit import log_audit
+            log_audit('settings.update', 'plugin', 'vault', {'sections': list(data.keys())})
+        except Exception:
+            pass
+
+        return jsonify({'success': True, 'message': 'Settings saved'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': _err(e)}), 500
+
+
 @vault_bp.route('/audit')
 @_require_vault_auth
 def audit_page():
@@ -182,6 +446,8 @@ def audit_page():
 
 @vault_bp.route('/api/create', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_create_backup_legacy():
     """Trigger a full backup (legacy endpoint)."""
     return _handle_backup_create()
@@ -189,17 +455,19 @@ def api_create_backup_legacy():
 
 @vault_bp.route('/api/list', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.read')
 def api_list_backups_legacy():
     """List all backup archives (legacy endpoint)."""
     try:
         archives = _list_backup_archives()
         return jsonify({'success': True, 'backups': archives, 'total': len(archives)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/download/<label>', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.download')
 def api_download_backup_legacy(label):
     """Download a backup archive (legacy endpoint)."""
     return _handle_backup_download(label)
@@ -207,6 +475,8 @@ def api_download_backup_legacy(label):
 
 @vault_bp.route('/api/delete/<label>', methods=['DELETE'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_delete_backup_legacy(label):
     """Delete a backup archive (legacy endpoint)."""
     return _handle_backup_delete(label)
@@ -214,6 +484,8 @@ def api_delete_backup_legacy(label):
 
 @vault_bp.route('/api/cleanup', methods=['DELETE'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_cleanup_backups():
     """Cleanup backups older than configured keep_days."""
     try:
@@ -243,7 +515,7 @@ def api_cleanup_backups():
 
         return jsonify({'success': True, 'deleted': deleted, 'keep_days': keep_days})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -252,6 +524,8 @@ def api_cleanup_backups():
 
 @vault_bp.route('/api/backup/create', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_create_backup():
     """Create backup (supports full / incremental / differential)."""
     return _handle_backup_create()
@@ -259,6 +533,7 @@ def api_create_backup():
 
 @vault_bp.route('/api/backup/list', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.read')
 def api_list_backups():
     """List backups with search, filtering, and pagination."""
     try:
@@ -292,14 +567,18 @@ def api_list_backups():
             'total_pages': max(1, (total + per_page - 1) // per_page),
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/backup/detail/<label>', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.read')
 def api_backup_detail(label):
     """Get backup detail with content preview."""
-    archive_path = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+    try:
+        archive_path = safe_backup_path(label)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
     if not os.path.isfile(archive_path):
         return jsonify({'success': False, 'error': 'Backup not found'}), 404
 
@@ -330,6 +609,7 @@ def api_backup_detail(label):
 
 @vault_bp.route('/api/backup/download/<label>', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.download')
 def api_download_backup(label):
     """Download a backup archive."""
     return _handle_backup_download(label)
@@ -337,6 +617,8 @@ def api_download_backup(label):
 
 @vault_bp.route('/api/backup/delete/<label>', methods=['DELETE'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_delete_backup(label):
     """Delete a backup (requires confirmation)."""
     return _handle_backup_delete(label)
@@ -348,6 +630,7 @@ def api_delete_backup(label):
 
 @vault_bp.route('/api/health', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.read')
 def api_health_check():
     """System health: backup status, storage usage, last backup time."""
     try:
@@ -415,7 +698,7 @@ def api_health_check():
             },
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -424,6 +707,7 @@ def api_health_check():
 
 @vault_bp.route('/api/audit', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.admin')
 def api_audit_logs():
     """Query audit logs."""
     try:
@@ -449,7 +733,7 @@ def api_audit_logs():
 
         return jsonify({'success': True, 'logs': logs, 'count': len(logs)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -458,6 +742,7 @@ def api_audit_logs():
 
 @vault_bp.route('/api/schedule/list', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.admin')
 def api_list_schedules():
     """List all backup schedules."""
     try:
@@ -470,11 +755,13 @@ def api_list_schedules():
                     s[key] = s[key].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify({'success': True, 'schedules': schedules})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/schedule/create', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_create_schedule():
     """Create a new backup schedule."""
     try:
@@ -506,11 +793,13 @@ def api_create_schedule():
 
         return jsonify({'success': True, 'schedule': result})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/schedule/<int:schedule_id>', methods=['PUT', 'DELETE'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_schedule_crud(schedule_id):
     """Update or delete a schedule."""
     try:
@@ -536,11 +825,13 @@ def api_schedule_crud(schedule_id):
             pass
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/schedule/<int:schedule_id>/toggle', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_toggle_schedule(schedule_id):
     """Enable or disable a schedule."""
     try:
@@ -552,7 +843,7 @@ def api_toggle_schedule(schedule_id):
         result = scheduler.toggle_schedule(schedule_id, enabled)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -561,6 +852,7 @@ def api_toggle_schedule(schedule_id):
 
 @vault_bp.route('/api/storage/list', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.admin')
 def api_list_storage():
     """List all storage targets."""
     try:
@@ -569,11 +861,13 @@ def api_list_storage():
         targets = router.list_targets()
         return jsonify({'success': True, 'targets': targets})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/storage/create', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_create_storage():
     """Create a new storage target."""
     try:
@@ -601,11 +895,13 @@ def api_create_storage():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/storage/<int:target_id>', methods=['PUT', 'DELETE'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_storage_crud(target_id):
     """Update or delete a storage target."""
     try:
@@ -626,11 +922,13 @@ def api_storage_crud(target_id):
         result = router.update_target(target_id, **data)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/storage/<int:target_id>/test', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_test_storage(target_id):
     """Test connection for a storage target."""
     try:
@@ -639,7 +937,7 @@ def api_test_storage(target_id):
         result = router.test_target(target_id)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -648,6 +946,7 @@ def api_test_storage(target_id):
 
 @vault_bp.route('/api/compliance/report', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.admin')
 def api_compliance_report():
     """Generate compliance report."""
     try:
@@ -655,7 +954,7 @@ def api_compliance_report():
         report = ComplianceReporter.generate_report()
         return jsonify({'success': True, 'report': report})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -664,6 +963,8 @@ def api_compliance_report():
 
 @vault_bp.route('/api/storage/rotate', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.admin')
 def api_rotate_upload():
     """Trigger 3-2-1 rotation upload for latest backup."""
     try:
@@ -682,11 +983,12 @@ def api_rotate_upload():
         result = router.rotate_upload(latest, obj_name)
         return jsonify({'success': True, 'rotation': result})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/storage/tier/report', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.admin')
 def api_tier_report():
     """Get storage tier distribution report."""
     try:
@@ -694,7 +996,7 @@ def api_tier_report():
         router = StorageRouter()
         return jsonify({'success': True, 'tiers': router.tier_report()})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -703,6 +1005,8 @@ def api_tier_report():
 
 @vault_bp.route('/api/backup/sign/<label>', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_sign_backup(label):
     """Sign a backup with HMAC-SHA256 for tamper-proofing."""
     try:
@@ -710,7 +1014,10 @@ def api_sign_backup(label):
         if not secret:
             return jsonify({'success': False, 'error': 'VAULT_SIGNING_KEY not set'}), 400
 
-        filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+        try:
+            filepath = safe_backup_path(label)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
         if not os.path.isfile(filepath):
             return jsonify({'success': False, 'error': 'Backup not found'}), 404
 
@@ -718,11 +1025,12 @@ def api_sign_backup(label):
         sig_path = VaultValidator.sign_file(filepath, secret)
         return jsonify({'success': True, 'signature': os.path.basename(sig_path)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/backup/verify/<label>', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.read')
 def api_verify_backup(label):
     """Verify a backup's integrity and signature."""
     try:
@@ -730,7 +1038,10 @@ def api_verify_backup(label):
         if not secret:
             return jsonify({'success': False, 'error': 'VAULT_SIGNING_KEY not set'}), 400
 
-        filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+        try:
+            filepath = safe_backup_path(label)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
         if not os.path.isfile(filepath):
             return jsonify({'success': False, 'error': 'Backup not found'}), 404
 
@@ -738,7 +1049,7 @@ def api_verify_backup(label):
         result = VaultValidator.verify_file(filepath, secret)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -747,6 +1058,8 @@ def api_verify_backup(label):
 
 @vault_bp.route('/api/restore/preview', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_restore_preview():
     """Preview backup contents before restore."""
     try:
@@ -755,16 +1068,23 @@ def api_restore_preview():
         if not label:
             return jsonify({'success': False, 'error': 'Backup label is required'}), 400
 
+        try:
+            safe_backup_path(label)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
+
         from .services.restore_engine import RestoreEngine
         engine = RestoreEngine()
         result = engine.preview(label)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/restore', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_restore():
     """Execute restore with optional scope."""
     try:
@@ -772,6 +1092,11 @@ def api_restore():
         label = data.get('label', '')
         if not label:
             return jsonify({'success': False, 'error': 'Backup label is required'}), 400
+
+        try:
+            safe_backup_path(label)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
 
         scope = data.get('scope', {})
         target_db = data.get('target_db')
@@ -796,11 +1121,13 @@ def api_restore():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/restore/pitr', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_restore_pitr():
     """Point-in-time recovery to a specific timestamp."""
     try:
@@ -826,16 +1153,23 @@ def api_restore_pitr():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 @vault_bp.route('/api/restore/drill', methods=['POST'])
 @_require_vault_auth
+@_rate_limited
+@require_permission('vault.write')
 def api_restore_drill():
     """Execute a restore drill — restore to sandbox, verify, cleanup."""
     try:
         data = request.get_json(silent=True) or {}
         label = data.get('label', '')
+        if label:
+            try:
+                safe_backup_path(label)
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
 
         from .services.restore_engine import RestoreEngine
         engine = RestoreEngine()
@@ -854,7 +1188,7 @@ def api_restore_drill():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -863,6 +1197,7 @@ def api_restore_drill():
 
 @vault_bp.route('/api/trend', methods=['GET'])
 @_require_vault_auth
+@require_permission('vault.read')
 def api_trend():
     """Return backup size trend data for dashboard charts."""
     try:
@@ -905,7 +1240,7 @@ def api_trend():
             } for a in reversed(archives[-90:])]
             return jsonify({'success': True, 'trend': trend_data})
         except Exception as e2:
-            return jsonify({'success': False, 'error': str(e2)}), 500
+            return jsonify({'success': False, 'error': _err(e2)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -948,7 +1283,7 @@ def _handle_backup_create():
                                               os.path.basename(result['archive']))
                 result['remote'] = upload_result
             except Exception as e:
-                result['remote'] = {'uploaded': False, 'error': str(e)}
+                result['remote'] = {'uploaded': False, 'error': _err(e)}
 
             # 4. Notify
             try:
@@ -1009,12 +1344,15 @@ def _handle_backup_create():
 
         return jsonify(result), 200 if result.get('success') else 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500
 
 
 def _handle_backup_download(label):
     """Internal handler for backup download."""
-    filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+    try:
+        filepath = safe_backup_path(label)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
     if not os.path.isfile(filepath):
         return jsonify({'success': False, 'error': 'Backup not found'}), 404
     return send_file(filepath, as_attachment=True, download_name=f'{label}.tar.gz')
@@ -1031,7 +1369,10 @@ def _handle_backup_delete(label):
             'message': 'Are you sure you want to delete backup "%s"? This action cannot be undone.' % label,
         }), 400
 
-    filepath = os.path.join(BACKUP_DIR, f'{label}.tar.gz')
+    try:
+        filepath = safe_backup_path(label)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid backup label'}), 400
     if not os.path.isfile(filepath):
         return jsonify({'success': False, 'error': 'Backup not found'}), 404
 
@@ -1045,4 +1386,4 @@ def _handle_backup_delete(label):
             pass
         return jsonify({'success': True, 'message': f'Backup {label} deleted'})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': _err(e)}), 500

@@ -13,6 +13,8 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import Dict, List
 
+from .utils import decrypt_config_secrets
+
 
 class VaultNotifier:
     """Unified notification dispatcher."""
@@ -38,13 +40,13 @@ class VaultNotifier:
                 cfg = json.loads(row[0]) if isinstance(row[0], str) else row[0]
                 notify = cfg.get('notifications', {})
                 if notify.get('email', {}).get('enabled'):
-                    channels.append({'type': 'email', 'config': notify['email']})
+                    channels.append({'type': 'email', 'config': decrypt_config_secrets(notify['email'])})
                 if notify.get('webhook', {}).get('enabled'):
-                    channels.append({'type': 'webhook', 'config': notify['webhook']})
+                    channels.append({'type': 'webhook', 'config': decrypt_config_secrets(notify['webhook'])})
                 if notify.get('feishu', {}).get('enabled'):
-                    channels.append({'type': 'feishu', 'config': notify['feishu']})
+                    channels.append({'type': 'feishu', 'config': decrypt_config_secrets(notify['feishu'])})
                 if notify.get('dingtalk', {}).get('enabled'):
-                    channels.append({'type': 'dingtalk', 'config': notify['dingtalk']})
+                    channels.append({'type': 'dingtalk', 'config': decrypt_config_secrets(notify['dingtalk'])})
         except Exception as e:
             print(f'[Vault] Failed to load notification channels: {e}')
 

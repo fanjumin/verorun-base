@@ -7,10 +7,65 @@ Manages backup schedules, computes next run times, and triggers backup jobs.
 
 import subprocess
 import os
+import shlex
 import glob as _glob
 from datetime import datetime, time, timedelta
 from croniter import croniter
 from .utils import get_vault_conn
+
+
+# 命令白名单 — 仅允许在 hook 中执行的可执行文件（绝对路径）。
+# 可用环境变量 VAULT_HOOK_ALLOWLIST 追加（以空格或冒号分隔的绝对路径）。
+_DEFAULT_ALLOWED_HOOK_COMMANDS = {
+    '/usr/bin/pg_dump',
+    '/usr/bin/pg_restore',
+    '/usr/bin/tar',
+    '/usr/bin/gzip',
+    '/usr/bin/zstd',
+    '/usr/bin/curl',
+    '/usr/bin/wget',
+    '/usr/bin/rsync',
+    '/usr/local/bin/verorun-backup-helper',
+}
+
+
+def _load_allowed_hook_commands() -> set:
+    """合并内置白名单与环境变量扩展白名单。"""
+    allowed = set(_DEFAULT_ALLOWED_HOOK_COMMANDS)
+    extra = os.environ.get('VAULT_HOOK_ALLOWLIST', '')
+    if extra:
+        for item in extra.replace(':', ' ').split():
+            if item.strip():
+                allowed.add(item.strip())
+    return allowed
+
+
+def _validate_hook_command(cmd_str: str, allowed: set) -> list:
+    """验证并解析 hook 命令，防止命令注入。
+
+    - 使用 shlex.split 安全分词，不解析 shell 元字符（; | & > 等）
+    - 仅允许白名单中的可执行文件（os.path.realpath 防符号链接绕过）
+    """
+    if not cmd_str or not cmd_str.strip():
+        return []
+
+    try:
+        parts = shlex.split(cmd_str)
+    except ValueError as e:
+        raise ValueError(f'Invalid hook command: {e}')
+
+    if not parts:
+        return []
+
+    executable = parts[0]
+    real_exe = os.path.realpath(executable) if os.path.exists(executable) else executable
+    if real_exe not in allowed:
+        raise ValueError(
+            f"Hook command '{executable}' is not in the allowed list. "
+            f"Allowed: {sorted(allowed)}"
+        )
+
+    return parts
 
 
 class VaultScheduler:
@@ -159,9 +214,15 @@ class VaultScheduler:
         conn.close()
 
     def _run_hook(self, hook_command: str) -> dict:
+        """安全执行 hook 命令（shell=False + 白名单，防命令注入）。"""
         try:
+            allowed = _load_allowed_hook_commands()
+            parts = _validate_hook_command(hook_command, allowed)
+            if not parts:
+                return {'success': True, 'stdout': '', 'stderr': '', 'error': None}
+
             proc = subprocess.run(
-                hook_command, shell=True, capture_output=True,
+                parts, shell=False, capture_output=True,
                 text=True, timeout=300,
             )
             return {
@@ -170,6 +231,8 @@ class VaultScheduler:
                 'stderr': proc.stderr.strip(),
                 'error': proc.stderr.strip() if proc.returncode != 0 else None,
             }
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
