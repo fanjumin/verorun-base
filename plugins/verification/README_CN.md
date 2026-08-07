@@ -142,7 +142,7 @@ verification/
 | 依赖项 | 用途 |
 |--------|------|
 | `plugins._base.db` | 插件基础数据库连接模块 |
-| `auth-center.models` | 主库读取（verification_requests 迁移源） |
+| 主库 schema `public.verification_requests` | 迁移源（同一 PG 实例，以 `public.` 限定直接读取） |
 | `auth-center.services.verification_service` | 核心认证逻辑（`initiate_verification`、`verify_callback`） |
 
 ### 外部依赖
