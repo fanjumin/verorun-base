@@ -2,7 +2,7 @@
 """
 Subscription Plugin — 数据模型
 =================================
-独立数据库: plugins/subscription/data/subscription.db
+独立 PG Schema: subscription（通过 plugins/_base/db.py 连接主库）
 表:
   - sub_items           SKU 目录（可订阅项定义）
   - user_subscriptions  用户订阅记录
@@ -10,33 +10,12 @@ Subscription Plugin — 数据模型
 """
 
 from i18n import _
-import os
-import psycopg2
-import threading
 from typing import Optional, List, Dict, Any
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from plugins._base.db import PgConnection
 from plugins._base.db import get_raw_connection
-
-
-# ── 数据库路径 ──────────────────────────────────────────────────────────
-
-def get_db_path() -> str:
-    return os.path.join(os.path.dirname(__file__), 'data', 'subscription.db')
-
-
-def get_db():
-    """获取独立数据库连接"""
-    db_path = get_db_path()
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = get_raw_connection()
-    conn.autocommit = False
-    wrapped = PgConnection(conn)
-    wrapped.execute("CREATE SCHEMA IF NOT EXISTS subscription")
-    wrapped.execute("SET search_path TO subscription")
-    return wrapped
 
 
 # ── 状态枚举 ────────────────────────────────────────────────────────────
@@ -132,8 +111,6 @@ CREATE INDEX IF NOT EXISTS idx_sub_orders_status ON sub_orders(status);
 
 def init_tables():
     """初始化所有表"""
-    db_path = get_db_path()
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = PgConnection(get_raw_connection())
     conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
     conn.execute("SET search_path TO subscription")
@@ -461,6 +438,7 @@ class SubOrder:
     qr_code: str = ''
     redirect_url: str = ''
     paid_at: Optional[str] = None
+    created_at: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)
     id: Optional[int] = None
 
@@ -479,6 +457,7 @@ class SubOrder:
             'qr_code': self.qr_code,
             'redirect_url': self.redirect_url,
             'paid_at': self.paid_at,
+            'created_at': self.created_at,
         }
 
     @classmethod
@@ -497,5 +476,6 @@ class SubOrder:
             qr_code=row.get('qr_code', ''),
             redirect_url=row.get('redirect_url', ''),
             paid_at=row.get('paid_at'),
+            created_at=row.get('created_at'),
             extra=json.loads(row.get('extra', '{}')),
         )

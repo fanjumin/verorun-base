@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subscription Management — VeroRun</title>
+    <title>{{ _('Subscription Management') }} — VeroRun</title>
     <link rel="stylesheet" href="/admin/static/css/design-system.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -178,15 +178,15 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>Subscription</h1>
-            <span class="market-badge" id="marketBadge">Market</span>
+            <h1>{{ _('Subscription') }}</h1>
+            <span class="market-badge" id="marketBadge">{{ _('market') }}</span>
         </div>
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" data-tab="market">Available</button>
-            <button class="tab" data-tab="my-subs">My Subscriptions</button>
-            <button class="tab" data-tab="orders">Orders</button>
+            <button class="tab active" data-tab="market">{{ _('available_items') }}</button>
+            <button class="tab" data-tab="my-subs">{{ _('my_subscriptions') }}</button>
+            <button class="tab" data-tab="orders">{{ _('orders') }}</button>
         </div>
 
         <!-- Available Items -->
@@ -204,12 +204,12 @@
             <table class="order-table">
                 <thead>
                     <tr>
-                        <th>Order No.</th>
-                        <th>Item</th>
-                        <th>Amount</th>
-                        <th>Channel</th>
-                        <th>Status</th>
-                        <th>Date</th>
+                        <th>{{ _('order_no') }}</th>
+                        <th>{{ _('item') }}</th>
+                        <th>{{ _('amount') }}</th>
+                        <th>{{ _('channel') }}</th>
+                        <th>{{ _('status') }}</th>
+                        <th>{{ _('date') }}</th>
                     </tr>
                 </thead>
                 <tbody id="ordersBody"></tbody>
@@ -220,13 +220,13 @@
     <!-- Payment Modal -->
     <div class="modal-overlay" id="paymentModal">
         <div class="modal">
-            <h3 id="modalTitle">Pay</h3>
+            <h3 id="modalTitle">{{ _('pay') }}</h3>
             <div class="amount-display" id="modalAmount"></div>
             <div class="qr-code" id="modalQR">
-                <img id="modalQRImg" src="" alt="QR Code" style="max-width:200px;display:none;">
+                <img id="modalQRImg" src="" alt="{{ _('qr_code') }}" style="max-width:200px;display:none;">
             </div>
-            <a class="pay-link" id="modalLink" href="#" target="_blank" style="display:none;">Proceed to Pay</a>
-            <button class="close-btn" onclick="closeModal()">Close</button>
+            <a class="pay-link" id="modalLink" href="#" target="_blank" style="display:none;">{{ _('redirect_to_pay') }}</a>
+            <button class="close-btn" onclick="closeModal()">{{ _('close') }}</button>
         </div>
     </div>
 
@@ -249,7 +249,7 @@
 
         // ── Load Data ────────────────────────────────────────────────────────
         async function loadItems() {
-            const res = await fetch('/api/subscription/items');
+            const res = await fetch('/plugin/subscription/api/items');
             if (res.ok) {
                 const data = await res.json();
                 state.items = data.items || [];
@@ -259,7 +259,7 @@
 
         async function loadMySubs() {
             try {
-                const res = await fetch('/api/subscription/my');
+                const res = await fetch('/plugin/subscription/api/my');
                 if (res.ok) {
                     const data = await res.json();
                     state.mySubs = data.subscriptions || [];
@@ -270,7 +270,7 @@
 
         async function loadOrders() {
             try {
-                const res = await fetch('/api/subscription/orders');
+                const res = await fetch('/plugin/subscription/api/orders');
                 if (res.ok) {
                     const data = await res.json();
                     state.orders = data.orders || [];
@@ -297,19 +297,19 @@
                     </div>
                     <div class="card-desc">${item.description || ''}</div>
                     ${isSubscribed ? `
-                        <button class="btn btn-subscribed">&#10003; Subscribed</button>
+                        <button class="btn btn-subscribed">&#10003; {{ _('subscribed') }}</button>
                     ` : `
                         <div class="card-pricing">
                             <div class="price-option selected" data-interval="month" data-item="${item.item_key}">
                                 <div class="price-amount">&yen;${ym}</div>
-                                <div class="price-label">Monthly</div>
+                                <div class="price-label">{{ _('month') }}</div>
                             </div>
                             <div class="price-option" data-interval="year" data-item="${item.item_key}">
                                 <div class="price-amount">&yen;${yy}</div>
-                                <div class="price-label">Yearly</div>
+                                <div class="price-label">{{ _('year') }}</div>
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="onSubscribe('${item.item_key}')">Subscribe</button>
+                        <button class="btn btn-primary" onclick="onSubscribe('${item.item_key}')">{{ _('subscribe') }}</button>
                     `}
                 </div>`;
             }).join('');
@@ -381,7 +381,7 @@
 
             try {
                 let item = state.items.find(i => i.item_key === itemKey);
-                let res = await fetch('/api/subscription/subscribe', {
+                let res = await fetch('/plugin/subscription/api/subscribe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ item_key: itemKey, interval_type: interval }),
@@ -402,7 +402,7 @@
         async function onCancel(itemKey) {
             if (!confirm('Cancel this subscription?')) return;
             try {
-                let res = await fetch('/api/subscription/cancel', {
+                let res = await fetch('/plugin/subscription/api/cancel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ item_key: itemKey }),

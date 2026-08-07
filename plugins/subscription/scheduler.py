@@ -8,19 +8,9 @@ Subscription Plugin — 定时任务
   - 到期日自动续费扣款
 """
 
-import os
 from datetime import datetime, timedelta
 
-from .services import get_subscription_service, has_subscription
-from .models import SubStatus
-from plugins._base.db import get_raw_connection
-
-
-SUBSCRIPTION_JOBS = []
-
-
-def _get_locale():
-    return 'zh-CN' if os.environ.get('DEPLOY_MARKET', 'cn') == 'cn' else 'en'
+from .services import get_subscription_service
 
 
 def check_expired_subscriptions():
@@ -76,7 +66,9 @@ def notify_expiring_soon():
         for row in suspended:
             sub_data = dict(row)
             # 重试：创建新订单
-            svc.renew(sub_data['user_id'], sub_data['item_key'])
+            success, msg, _ = svc.renew(sub_data['user_id'], sub_data['item_key'])
+            if not success:
+                print(f'[Subscription/Job] Retry renew failed: user={sub_data["user_id"]}, item={sub_data["item_key"]}, msg={msg}')
 
 
 def cleanup_old_orders():
@@ -94,90 +86,34 @@ def cleanup_old_orders():
 
 # ── 注册到 APScheduler ───────────────────────────────────────────────────
 
+# M-04：按标准 §3.2 register_jobs() 配置格式定义
+#   job_id / func / trigger / kwargs / priority / max_retries
 SUBSCRIPTION_JOBS = [
     {
-        'name': 'subscription_check_expired',
+        'job_id': 'subscription_check_expired',
         'func': check_expired_subscriptions,
         'trigger': 'cron',
-        'hour': 2,
-        'minute': 0,
+        'kwargs': {'hour': 2, 'minute': 0},
+        'priority': 'normal',
+        'max_retries': 2,
         'description': 'Daily check for expired subscriptions and auto-renew',
     },
     {
-        'name': 'subscription_notify_expiring',
+        'job_id': 'subscription_notify_expiring',
         'func': notify_expiring_soon,
         'trigger': 'cron',
-        'hour': 10,
-        'minute': 0,
+        'kwargs': {'hour': 10, 'minute': 0},
+        'priority': 'low',
+        'max_retries': 2,
         'description': 'Daily notification for subscriptions expiring in 3 days',
     },
     {
-        'name': 'subscription_cleanup_orders',
+        'job_id': 'subscription_cleanup_orders',
         'func': cleanup_old_orders,
         'trigger': 'cron',
-        'hour': 3,
-        'minute': 30,
+        'kwargs': {'hour': 3, 'minute': 30},
+        'priority': 'low',
+        'max_retries': 2,
         'description': 'Cleanup pending orders older than 90 days',
     },
 ]
-
-
-def seed_subscription_schedules():
-    """将定时任务写入 orchestrator 的 cron_jobs 表
-
-    使用 INSERT OR IGNORE，不覆盖已有同名任务。
-    """
-    try:
-        import psycopg2
-
-        # orchestrator 数据库路径（与 orchestrator/models.py 一致）
-        data_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data'
-        )
-        orch_db = os.environ.get('DB_PATH', os.path.join(data_dir, 'x7k2m9a4.db'))
-
-        if not os.path.exists(orch_db):
-            print(f'[Subscription/Scheduler] Orchestrator DB not found: {orch_db}, skipping')
-            return
-
-        conn = get_raw_connection()
-        conn.autocommit = False
-        conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
-        conn.execute("SET search_path TO subscription")
-
-        # 确保 cron_jobs 表存在
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS cron_jobs (
-                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                name TEXT UNIQUE NOT NULL,
-                func TEXT,
-                trigger TEXT DEFAULT 'cron',
-                hour BIGINT DEFAULT 0,
-                minute BIGINT DEFAULT 0,
-                description TEXT DEFAULT '',
-                enabled BIGINT DEFAULT 1,
-                created_at TEXT DEFAULT (NOW())
-            )
-        """)
-
-        for job in SUBSCRIPTION_JOBS:
-            conn.execute("""
-                INSERT INTO cron_jobs (name, func, trigger, hour, minute, description, enabled)
-                VALUES (%s,%s,%s,%s,%s,%s,1)
-                ON CONFLICT (name) DO NOTHING
-            """, (
-                job['name'],
-                f"plugins.subscription.scheduler.{job['func'].__name__}",
-                job.get('trigger', 'cron'),
-                job.get('hour', 0),
-                job.get('minute', 0),
-                job.get('description', ''),
-            ))
-
-        conn.commit()
-        conn.close()
-        print(f'[Subscription/Scheduler] {len(SUBSCRIPTION_JOBS)} jobs seeded to orchestrator')
-
-    except Exception as e:
-        print(f'[Subscription/Scheduler] Error seeding schedules: {e}')

@@ -64,3 +64,25 @@ subscription_required_text: 您需要订阅 {item} 才能使用此功能
 base_description: CMS 内容管理 + Agent 矩阵 + 口令控制台 + 模型配置 + 邮件服务 + AI 图片生成
 market_cn: 中国区
 market_intl: 国际区
+
+# ── API 错误消息（M-04：路由/服务层原文 key） ──
+'Authentication required': 需要身份认证
+'Admin required': 需要管理员权限
+'item_key is required': 缺少 item_key 参数
+'interval_type must be month or year': interval_type 必须为 month 或 year
+'item_key required': 缺少 item_key 参数
+'Invalid webhook': 无效的 Webhook 请求
+'Not found': 未找到
+'user_id required': 缺少 user_id 参数
+'Subscription item not found': 订阅项不存在
+'Subscription item is not available': 该订阅项暂不可用
+'Already subscribed': 已订阅
+'Invalid interval type': 无效的计费周期
+'Invalid price': 无效的价格
+'Payment creation failed: {error}': 支付创建失败：{error}
+'Subscription not found': 订阅不存在
+'This item is included in your Base subscription and cannot be canceled separately': 该功能已包含在系统底座中，无法单独取消订阅
+'Renewal': 续费
+'Order not found': 订单不存在
+'Order cannot be refunded (current status: {status})': 订单当前状态无法退款（当前状态：{status}）
+'Refund failed: {error}': 退款失败：{error}

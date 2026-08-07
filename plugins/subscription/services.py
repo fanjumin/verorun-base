@@ -7,33 +7,22 @@ SubscriptionService: 订阅/取消/续费/查询/权限检查
 """
 
 import os
-import json
-import psycopg2
 import secrets
 import time
-import hashlib
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timedelta
-from functools import wraps
 
-from plugins._base.db import get_raw_connection
+from plugins._base.db import get_raw_connection, PgConnection
 
 from .models import (
-    get_db, get_db_path,
     SubItem, UserSubscription, SubOrder,
-    SubStatus, OrderStatus, IntervalType,
-    init_tables, seed_default_items,
+    SubStatus, OrderStatus,
 )
-
-# ── i18n 注入 ───────────────────────────────────────────────────────────
-
-_t = lambda text, **kwargs: text  # 默认回退
 
 
 def init_i18n(t_func):
-    """由 __init__.py 在 on_enable 时调用注入翻译函数"""
-    global _t
-    _t = t_func
+    """由 __init__.py 在 on_enable 时调用注入翻译函数（注入到服务单例，L-05）"""
+    get_subscription_service().set_t(t_func)
 
 
 # ── 支付渠道路由（双环境） ──────────────────────────────────────────────
@@ -60,12 +49,18 @@ def get_available_channels() -> List[str]:
 class SubscriptionService:
     """订阅管理核心服务"""
 
-    def __init__(self):
-        self._db_path = get_db_path()
+    def __init__(self, t_func=None):
+        self._t = t_func or (lambda text, **kwargs: text)
+
+    def set_t(self, t_func):
+        """运行期注入翻译函数（L-05：避免模块级全局 _t 的多线程竞态）"""
+        self._t = t_func or (lambda text, **kwargs: text)
 
     def _get_conn(self):
-        conn = get_raw_connection()
-        conn.autocommit = False
+        # 配套修复：get_raw_connection() 返回原始 psycopg2 连接，
+        # 必须包一层 PgConnection（提供 execute/上下文管理器与占位符兼容），
+        # 否则下方所有 conn.execute() 调用都会 AttributeError。
+        conn = PgConnection(get_raw_connection())
         conn.execute("CREATE SCHEMA IF NOT EXISTS subscription")
         conn.execute("SET search_path TO subscription")
         return conn
@@ -198,22 +193,22 @@ class SubscriptionService:
         # 检查 SKU 是否存在且活跃
         item = self.get_item(item_key)
         if not item:
-            return False, _t('Subscription item not found'), None
+            return False, self._t('Subscription item not found'), None
         if not item.is_active:
-            return False, _t('Subscription item is not available'), None
+            return False, self._t('Subscription item is not available'), None
 
         # 检查是否已订阅
         existing = self.get_user_subscription(user_id, item_key)
         if existing and existing.status == SubStatus.ACTIVE:
-            return False, _t('Already subscribed'), None
+            return False, self._t('Already subscribed'), None
 
         # 计算价格
         if interval_type not in ('month', 'year'):
-            return False, _t('Invalid interval type'), None
+            return False, self._t('Invalid interval type'), None
 
         amount_fen = item.price_month if interval_type == 'month' else item.price_year
         if amount_fen <= 0:
-            return False, _t('Invalid price'), None
+            return False, self._t('Invalid price'), None
 
         # 选择支付渠道
         if channel is None:
@@ -241,6 +236,18 @@ class SubscriptionService:
             channel=channel,
             interval_type=interval_type,
         )
+
+        # C-02：支付网关未配置/创建失败时，将订单标记为 failed，避免堆积无法支付的 pending 订单
+        if not pay_result.get('success'):
+            err_msg = pay_result.get('error', 'Payment gateway error')
+            print(f'[Subscription] Payment creation failed: {err_msg}')
+            with self._get_conn() as conn:
+                conn.execute(
+                    "UPDATE sub_orders SET status='failed', updated_at=NOW() WHERE order_no=%s",
+                    (order_no,)
+                )
+                conn.commit()
+            return False, self._t('Payment creation failed: {error}').format(error=err_msg), None
 
         # 更新订单支付信息
         with self._get_conn() as conn:
@@ -275,8 +282,10 @@ class SubscriptionService:
     def on_payment_success(self, order_no: str, trade_no: str = '') -> Tuple[bool, str]:
         """支付成功后：标记订单 + 创建/续费用户订阅"""
         with self._get_conn() as conn:
+            # H-02：SELECT ... FOR UPDATE 行级锁防止重复回调并发处理。
+            # 并发请求会阻塞于此，待本事务提交后再查询时 status 已非 pending，直接返回已处理。
             order_row = conn.execute(
-                "SELECT * FROM sub_orders WHERE order_no=%s AND status='pending'",
+                "SELECT * FROM sub_orders WHERE order_no=%s AND status='pending' FOR UPDATE",
                 (order_no,)
             ).fetchone()
 
@@ -334,10 +343,16 @@ class SubscriptionService:
                       now.isoformat(), period_end.isoformat(), order_no))
 
             # 处理 auto_activate：订阅 base 时自动开通关联项
+            # M-05：改为同一连接内查询，避免在事务中另开连接（嵌套连接可能死锁/读不到未提交数据）
             if order.item_key == 'base':
-                base_item = self.get_item('base')
-                if base_item and base_item.auto_activate:
-                    auto_items = [x.strip() for x in base_item.auto_activate.split(',') if x.strip()]
+                base_row = conn.execute(
+                    "SELECT * FROM sub_items WHERE item_key=%s", ('base',)
+                ).fetchone()
+                auto_activate = ''
+                if base_row:
+                    auto_activate = (base_row.get('auto_activate') if isinstance(base_row, dict) else base_row['auto_activate']) or ''
+                if auto_activate:
+                    auto_items = [x.strip() for x in auto_activate.split(',') if x.strip()]
                     for ai in auto_items:
                         ai_existing = conn.execute(
                             "SELECT * FROM user_subscriptions WHERE user_id=%s AND item_key=%s",
@@ -365,7 +380,7 @@ class SubscriptionService:
         """
         sub = self.get_user_subscription(user_id, item_key)
         if not sub:
-            return False, _t('Subscription not found')
+            return False, self._t('Subscription not found')
 
         # 不允许取消 base 自动开通的子项
         if item_key != 'base':
@@ -373,7 +388,7 @@ class SubscriptionService:
             if base_item and base_item.auto_activate:
                 auto_items = [x.strip() for x in base_item.auto_activate.split(',') if x.strip()]
                 if item_key in auto_items:
-                    return False, _t('This item is included in your Base subscription and cannot be canceled separately')
+                    return False, self._t('This item is included in your Base subscription and cannot be canceled separately')
 
         with self._get_conn() as conn:
             if immediate:
@@ -398,11 +413,11 @@ class SubscriptionService:
         """手动续费：创建续费订单"""
         sub = self.get_user_subscription(user_id, item_key)
         if not sub:
-            return False, _t('Subscription not found'), None
+            return False, self._t('Subscription not found'), None
 
         item = self.get_item(item_key)
         if not item:
-            return False, _t('Subscription item not found'), None
+            return False, self._t('Subscription item not found'), None
 
         interval = sub.interval_type
         amount_fen = item.price_month if interval == 'month' else item.price_year
@@ -424,7 +439,7 @@ class SubscriptionService:
         pay_result = create_payment(
             order_no=order_no,
             amount_fen=amount_fen,
-            subject=f"{item.name_zh} - {_t('Renewal')}",
+            subject=f"{item.name_zh} - {self._t('Renewal')}",
             description=item.description_zh,
             channel=channel,
             interval_type=interval,
@@ -454,19 +469,25 @@ class SubscriptionService:
                 (now,)
             ).fetchall()
 
+            # M-01：先收集需批量更新的 id，循环结束后一次性提交（避免 N 次独立提交）
+            non_renew_ids = []
             for row in rows:
                 sub = UserSubscription.from_row(dict(row))
                 if sub.auto_renew:
                     # 标记待自动续费（由 scheduler 处理）
                     expired.append(sub)
                 else:
-                    conn.execute(
-                        "UPDATE user_subscriptions SET status='expired', updated_at=NOW() WHERE id=%s",
-                        (sub.id,)
-                    )
-                    conn.commit()
                     sub.status = SubStatus.EXPIRED
+                    non_renew_ids.append(sub.id)
                     expired.append(sub)
+
+            if non_renew_ids:
+                conn.execute(
+                    "UPDATE user_subscriptions SET status='expired', updated_at=NOW() "
+                    "WHERE id = ANY(%s)",
+                    (non_renew_ids,)
+                )
+            conn.commit()
 
         return expired
 
@@ -484,7 +505,7 @@ class SubscriptionService:
     def list_orders(self, user_id: int, limit: int = 50) -> List[SubOrder]:
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM sub_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM sub_orders WHERE user_id=%s ORDER BY created_at DESC LIMIT %s",
                 (user_id, limit)
             ).fetchall()
             return [SubOrder.from_row(dict(r)) for r in rows]
@@ -509,9 +530,9 @@ class SubscriptionService:
         """
         order = self.get_order(order_no)
         if not order:
-            return False, _t('Order not found')
+            return False, self._t('Order not found')
         if order.status != OrderStatus.PAID:
-            return False, _t('Order cannot be refunded (current status: {status})').format(status=order.status.value)
+            return False, self._t('Order cannot be refunded (current status: {status})').format(status=order.status.value)
 
         # 调用支付网关退款
         from .gateways import process_refund
@@ -525,7 +546,7 @@ class SubscriptionService:
         if not refund_result.get('success'):
             error_msg = refund_result.get('error', 'Unknown error')
             print(f'[Subscription Refund] Gateway refund failed for {order_no}: {error_msg}')
-            return False, _t('Refund failed: {error}').format(error=error_msg)
+            return False, self._t('Refund failed: {error}').format(error=error_msg)
 
         # 更新订单
         with self._get_conn() as conn:

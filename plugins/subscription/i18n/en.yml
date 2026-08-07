@@ -64,3 +64,25 @@ subscription_required_text: You need to subscribe to {item} to use this feature
 base_description: CMS + Agent Matrix + Command Console + Model Config + Email + AI Image Gen
 market_cn: China
 market_intl: International
+
+# ── API 错误消息（M-04：路由/服务层原文 key） ──
+'Authentication required': Authentication required
+'Admin required': Admin required
+'item_key is required': item_key is required
+'interval_type must be month or year': interval_type must be month or year
+'item_key required': item_key required
+'Invalid webhook': Invalid webhook
+'Not found': Not found
+'user_id required': user_id required
+'Subscription item not found': Subscription item not found
+'Subscription item is not available': Subscription item is not available
+'Already subscribed': Already subscribed
+'Invalid interval type': Invalid interval type
+'Invalid price': Invalid price
+'Payment creation failed: {error}': 'Payment creation failed: {error}'
+'Subscription not found': Subscription not found
+'This item is included in your Base subscription and cannot be canceled separately': This item is included in your Base subscription and cannot be canceled separately
+'Renewal': Renewal
+'Order not found': Order not found
+'Order cannot be refunded (current status: {status})': 'Order cannot be refunded (current status: {status})'
+'Refund failed: {error}': 'Refund failed: {error}'

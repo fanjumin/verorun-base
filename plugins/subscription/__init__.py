@@ -12,11 +12,6 @@ Subscription Plugin — 统一按需订阅管理
     from plugins.subscription.routes import sub_bp
 """
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from plugin_manager.base import BasePlugin
 
 
@@ -25,6 +20,13 @@ class SubscriptionPlugin(BasePlugin):
     version = '1.0.0'
     description = 'Pay-as-you-go subscription marketplace — per-item billing with dual-environment payments'
     author = 'VeroRun'
+
+    # L-04: 配置 Schema（与 plugin.json settings_schema 对齐）
+    config_schema = {
+        'trial_days': {'type': 'integer', 'default': 0, 'minimum': 0},
+        'grace_days': {'type': 'integer', 'default': 3, 'minimum': 0},
+        'auto_renew_default': {'type': 'boolean', 'default': True},
+    }
 
     def on_install(self, registry):
         """安装时创建独立数据库表 + 种子 SKU 目录"""
@@ -39,7 +41,7 @@ class SubscriptionPlugin(BasePlugin):
         return True
 
     def on_enable(self, registry):
-        """启用时: 确保表存在 + 种子 + 初始化 i18n + 注册定时任务"""
+        """启用时: 确保表存在 + 种子 + 初始化 i18n"""
         from .models import init_tables, seed_default_items
         init_tables()
         seed_default_items()
@@ -50,14 +52,6 @@ class SubscriptionPlugin(BasePlugin):
         _routes.init_i18n(self.t)
         _services.init_i18n(self.t)
         print('[Subscription] Plugin i18n initialized')
-
-        # 注册定时任务（到期检查 + 自动续费）
-        try:
-            from .scheduler import seed_subscription_schedules
-            seed_subscription_schedules()
-            print('[Subscription] Scheduled jobs registered')
-        except Exception as e:
-            print(f'[Subscription] Scheduler warning: {e}')
 
         return True
 
@@ -73,4 +67,24 @@ class SubscriptionPlugin(BasePlugin):
 
     def on_disable(self, registry):
         print('[Subscription] Disabled')
+        return True
+
+    def on_uninstall(self, registry):
+        """卸载时清理插件独立 schema（H-05）
+
+        仅删除 subscription schema 中的插件表，不动主库公共数据。
+        返回 False 表示卸载失败，PluginManager 将中止卸载。
+        """
+        from plugins._base.db import get_raw_connection, PgConnection
+        try:
+            conn = PgConnection(get_raw_connection())
+            try:
+                conn.execute("DROP SCHEMA IF EXISTS subscription CASCADE")
+                conn.commit()
+                print('[Subscription] Schema dropped')
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f'[Subscription] Uninstall error: {e}')
+            return False
         return True

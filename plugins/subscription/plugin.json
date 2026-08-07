@@ -5,21 +5,32 @@
     "description": "Unified Subscription Management — Pay-as-you-go feature marketplace with dual-environment payment routing (cn: Alipay/WeChat, intl: Stripe/PayPal)",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
-    "category": "Core",
+    "category": "system",
+    "icon": "credit_card",
+    "icon_url": "https://cdn.verorun.com/plugins/subscription/icon.png",
+    "readme_url": "https://cdn.verorun.com/plugins/subscription/README.md",
+    "screenshots": [],
     "tags": ["subscription", "payment", "billing"],
     "dependencies": {},
     "enabled": true,
-    "admin_url": "",
+    "admin_url": "/plugin/subscription/admin/",
     "admin_label": "Subscription Settings",
+    "menu": {
+        "group": "System",
+        "key": "subscription_admin",
+        "icon": "credit_card",
+        "label": "Subscription Settings",
+        "embed_url": "/plugin/subscription/admin/"
+    },
     "config": {
         "trial_days": 0,
         "grace_days": 3,
         "auto_renew_default": true
     },
     "permissions": [
-        "subscription.read",
-        "subscription.write",
-        "subscription.admin"
+        "api:read",
+        "api:write",
+        "admin:access"
     ],
     "hooks": {
         "provides": [
@@ -29,9 +40,7 @@
             "subscription/cancel",
             "subscription/renew"
         ],
-        "listens": [
-            "user/registered"
-        ]
+        "listens": []
     },
     "settings_schema": {
         "type": "object",

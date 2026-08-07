@@ -12,11 +12,25 @@ from typing import Dict, Any, Tuple
 
 
 def _get_stripe_config() -> dict:
-    return {
+    cfg = {
         'secret_key': os.environ.get('STRIPE_SECRET_KEY', ''),
         'publishable_key': os.environ.get('STRIPE_PUBLISHABLE_KEY', ''),
         'webhook_secret': os.environ.get('STRIPE_WEBHOOK_SECRET', ''),
     }
+
+    # H-03：环境变量缺失时从 system_config 表读取兜底
+    if not cfg['secret_key']:
+        from . import _get_config_from_db
+        db = _get_config_from_db({
+            'secret_key': 'stripe_secret_key',
+            'publishable_key': 'stripe_publishable_key',
+            'webhook_secret': 'stripe_webhook_secret',
+        })
+        for field, value in db.items():
+            if not cfg.get(field):
+                cfg[field] = value
+
+    return cfg
 
 
 def create_stripe_session(order_no: str, amount_fen: int, subject: str,
@@ -26,17 +40,19 @@ def create_stripe_session(order_no: str, amount_fen: int, subject: str,
     Returns:
         Dict with redirect_url for client redirect.
     """
+    from . import _is_placeholder
     cfg = _get_stripe_config()
     sk = cfg['secret_key']
 
-    if not sk or sk.startswith('sk_live_xxx'):
-        # 未配置或占位符
-        print('[Stripe] Not configured, using mock')
+    if not sk or _is_placeholder(sk):
+        # C-02：未配置不再返回 mock 跳转，避免产生无法支付的 pending 订单
+        print('[Stripe] Not configured, cannot create payment')
         return {
-            'success': True,
-            'trade_no': f'STRIPEMOCK{order_no}',
+            'success': False,
+            'trade_no': '',
             'qr_code': '',
-            'redirect_url': f'/payment/mock?order={order_no}&channel=stripe',
+            'redirect_url': '',
+            'error': 'Stripe gateway not configured',
         }
 
     try:
@@ -78,12 +94,14 @@ def create_stripe_session(order_no: str, amount_fen: int, subject: str,
         }
 
     except ImportError:
-        print('[Stripe] stripe-python not installed, using mock')
+        # C-02：未安装 SDK 不再返回 mock，改为明确失败
+        print('[Stripe] stripe-python not installed, cannot create payment')
         return {
-            'success': True,
-            'trade_no': f'STRIPEMOCK{order_no}',
+            'success': False,
+            'trade_no': '',
             'qr_code': '',
-            'redirect_url': f'/payment/mock?order={order_no}&channel=stripe',
+            'redirect_url': '',
+            'error': 'stripe-python SDK not installed',
         }
     except Exception as e:
         print(f'[Stripe] Error: {e}')
@@ -106,12 +124,18 @@ def refund_stripe_session(trade_no: str, amount_fen: int = 0) -> Dict[str, Any]:
     Returns:
         {'success': bool, 'refund_no': str, 'error': str}
     """
+    from . import _is_placeholder
     cfg = _get_stripe_config()
     sk = cfg['secret_key']
 
-    if not sk or sk.startswith('sk_live_xxx'):
-        print('[Stripe Refund] Not configured, using mock')
-        return {'success': True, 'refund_no': f'STRIPEREFUND{trade_no}', 'error': ''}
+    if not sk or _is_placeholder(sk):
+        # C-01：未配置不再返回 mock 退款成功，否则订单被标记 refunded 但资金未退回
+        print('[Stripe Refund] NOT CONFIGURED — refund rejected')
+        return {
+            'success': False,
+            'refund_no': '',
+            'error': 'Stripe gateway not configured; refund requires manual processing',
+        }
 
     try:
         import stripe
@@ -132,8 +156,13 @@ def refund_stripe_session(trade_no: str, amount_fen: int = 0) -> Dict[str, Any]:
         return {'success': True, 'refund_no': refund.id, 'error': ''}
 
     except ImportError:
-        print('[Stripe Refund] stripe-python not installed, using mock')
-        return {'success': True, 'refund_no': f'STRIPEREFUND{trade_no}', 'error': ''}
+        # C-01：SDK 未安装时拒绝退款，避免虚假成功（与 create_stripe_session 一致）
+        print('[Stripe Refund] stripe-python not installed, refund rejected')
+        return {
+            'success': False,
+            'refund_no': '',
+            'error': 'stripe-python SDK not installed; refund requires manual processing',
+        }
     except Exception as e:
         print(f'[Stripe Refund] Error: {e}')
         return {'success': False, 'refund_no': '', 'error': str(e)}
@@ -148,13 +177,11 @@ def verify_stripe_webhook(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
     cfg = _get_stripe_config()
     webhook_secret = cfg['webhook_secret']
 
-    if not webhook_secret or webhook_secret.startswith('whsec_xxx'):
-        # Mock mode
-        return True, {
-            'order_no': raw_data.get('data', {}).get('object', {}).get('metadata', {}).get('order_no', ''),
-            'trade_no': raw_data.get('data', {}).get('object', {}).get('id', ''),
-            'status': 'paid',
-        }
+    from . import _is_gateway_configured
+    if not _is_gateway_configured('stripe'):
+        # ❌ 旧代码：Mock mode 直接返回 True（认证绕过风险），此处拒绝所有回调
+        print('[Stripe] SECURITY: webhook secret not configured, rejecting webhook')
+        return False, {}
 
     try:
         import stripe
@@ -180,11 +207,9 @@ def verify_stripe_webhook(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
         return False, {}
 
     except ImportError:
-        return True, {
-            'order_no': raw_data.get('data', {}).get('object', {}).get('metadata', {}).get('order_no', ''),
-            'trade_no': raw_data.get('data', {}).get('object', {}).get('id', ''),
-            'status': 'paid',
-        }
+        # ❌ 旧代码：未安装 stripe-python 时也返回 True，此处拒绝并告警
+        print('[Stripe] SECURITY: stripe-python not installed, rejecting webhook')
+        return False, {}
     except Exception as e:
         print(f'[Stripe] Webhook verify error: {e}')
         return False, {}

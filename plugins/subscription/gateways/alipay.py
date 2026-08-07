@@ -79,8 +79,11 @@ def _sign(params: dict, private_key: str) -> str:
         signature = key.sign(sign_str.encode(), padding.PKCS1v15(), hashes.SHA256())
         return base64.b64encode(signature).decode()
     except ImportError:
-        import hashlib
-        return hashlib.sha256(sign_str.encode()).hexdigest()
+        # ❌ 旧代码：降级为 sha256 摘要（无 RSA 私钥时也能"签名"成功，支付网关必然验签失败）
+        raise RuntimeError(
+            '[Alipay] cryptography library is required for RSA2 signing. '
+            'Install with: pip install cryptography'
+        )
 
 
 def _verify(params: dict, signature: str, public_key: str) -> bool:
@@ -107,13 +110,14 @@ def create_alipay_order(order_no: str, amount_fen: int, subject: str,
     app_id = cfg['app_id']
 
     if not app_id:
-        # 未配置，降级到 mock
-        print('[Alipay] Not configured, using mock')
+        # C-02：未配置不再返回 mock 二维码，避免用户扫码后无法支付、订单永久 pending
+        print('[Alipay] Not configured, cannot create payment')
         return {
-            'success': True,
-            'trade_no': f'ALIMOCK{order_no}',
-            'qr_code': f'https://mock.qr/alipay/{order_no}',
+            'success': False,
+            'trade_no': '',
+            'qr_code': '',
             'redirect_url': '',
+            'error': 'Alipay gateway not configured',
         }
 
     gateway = 'https://openapi.alipay.com/gateway.do'
@@ -121,7 +125,7 @@ def create_alipay_order(order_no: str, amount_fen: int, subject: str,
         gateway = 'https://openapi-sandbox.dl.alipaydev.com/gateway.do'
 
     notify_base = cfg['notify_base']
-    notify_url = f'{notify_base}/api/subscription/notify/alipay' if notify_base else ''
+    notify_url = f'{notify_base}/plugin/subscription/api/notify/alipay' if notify_base else ''
 
     amount_yuan = f'{amount_fen / 100:.2f}'
     params = {
@@ -197,8 +201,13 @@ def refund_alipay_order(order_no: str, amount_fen: int, refund_no: str = None) -
     app_id = cfg['app_id']
 
     if not app_id:
-        print('[Alipay Refund] Not configured, using mock')
-        return {'success': True, 'refund_no': f'ALIREFUND{order_no}', 'error': ''}
+        # C-01：未配置不再返回 mock 退款成功，否则订单被标记 refunded 但资金未退回
+        print('[Alipay Refund] NOT CONFIGURED — refund rejected')
+        return {
+            'success': False,
+            'refund_no': '',
+            'error': 'Alipay gateway not configured; refund requires manual processing',
+        }
 
     gateway = 'https://openapi.alipay.com/gateway.do'
     if os.environ.get('ALIPAY_SANDBOX') == 'true':
@@ -252,12 +261,11 @@ def verify_alipay_notify(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
         Tuple[bool, dict]: (is_valid, {order_no, trade_no, trade_status, total_amount})
     """
     cfg = _get_alipay_config()
-    if not cfg['app_id']:
-        return True, {
-            'order_no': raw_data.get('out_trade_no', ''),
-            'trade_no': raw_data.get('trade_no', ''),
-            'trade_status': 'TRADE_SUCCESS',
-        }
+    from . import _is_gateway_configured
+    if not _is_gateway_configured('alipay'):
+        # ❌ 旧代码：未配置时直接返回 True（认证绕过风险），此处拒绝所有回调
+        print('[Alipay] SECURITY: payment gateway not configured, rejecting callback')
+        return False, {}
 
     sign = raw_data.get('sign', '')
     if not sign:

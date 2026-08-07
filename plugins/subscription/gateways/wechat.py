@@ -15,12 +15,27 @@ from typing import Dict, Any, Tuple
 
 
 def _get_wechat_config() -> dict:
-    return {
+    cfg = {
         'app_id': os.environ.get('WECHAT_APP_ID', ''),
         'mch_id': os.environ.get('WECHAT_MCH_ID', ''),
         'api_key': os.environ.get('WECHAT_API_KEY', ''),
         'notify_base': os.environ.get('NOTIFY_BASE', ''),
     }
+
+    # H-03：环境变量缺失时从 system_config 表读取兜底
+    if not cfg['app_id']:
+        from . import _get_config_from_db
+        db = _get_config_from_db({
+            'app_id': 'wechat_app_id',
+            'mch_id': 'wechat_mch_id',
+            'api_key': 'wechat_api_key',
+            'notify_base': 'payment.notify_base',
+        })
+        for field, value in db.items():
+            if not cfg.get(field):
+                cfg[field] = value
+
+    return cfg
 
 
 def _sign_wechat(params: dict, api_key: str) -> str:
@@ -40,16 +55,18 @@ def create_wechat_order(order_no: str, amount_fen: int, subject: str,
     api_key = cfg['api_key']
 
     if not app_id or not mch_id or not api_key:
-        print('[WeChat] Not configured, using mock')
+        # C-02：未配置不再返回 mock 二维码，避免用户扫码后无法支付、订单永久 pending
+        print('[WeChat] Not configured, cannot create payment')
         return {
-            'success': True,
-            'trade_no': f'WXMOCK{order_no}',
-            'qr_code': f'https://mock.qr/wechat/{order_no}',
+            'success': False,
+            'trade_no': '',
+            'qr_code': '',
             'redirect_url': '',
+            'error': 'WeChat Pay gateway not configured',
         }
 
     notify_base = cfg['notify_base']
-    notify_url = f'{notify_base}/api/subscription/notify/wechat' if notify_base else ''
+    notify_url = f'{notify_base}/plugin/subscription/api/notify/wechat' if notify_base else ''
 
     nonce_str = secrets.token_hex(16)
     params = {
@@ -133,8 +150,13 @@ def refund_wechat_order(order_no: str, amount_fen: int, refund_no: str = None) -
     api_key = cfg['api_key']
 
     if not app_id or not mch_id or not api_key:
-        print('[WeChat Refund] Not configured, using mock')
-        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+        # ❌ 旧代码：未配置时返回 mock 成功，导致管理端误以为退款已执行
+        print('[WeChat Refund] NOT CONFIGURED — refund rejected, requires manual processing')
+        return {
+            'success': False,
+            'refund_no': '',
+            'error': 'WeChat Pay gateway not configured; refund requires manual processing',
+        }
 
     nonce_str = secrets.token_hex(16)
     refund_no = refund_no or f'REF{int(time.time())}{uuid.uuid4().hex[:8].upper()}'
@@ -177,9 +199,11 @@ def refund_wechat_order(order_no: str, amount_fen: int, refund_no: str = None) -
         return {'success': False, 'refund_no': '', 'error': root.find('return_msg').text if root.find('return_msg') is not None else 'unknown'}
 
     except Exception as e:
-        # SSL 错误通常是证书未配置，记录并返回 mock 成功（人工处理）
+        # SSL 错误通常是退款证书未配置。❌ 旧代码静默返回成功，此处改为明确失败并告警
         print(f'[WeChat Refund] Request error (may need client cert): {e}')
-        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+        if 'SSL' in str(e).upper():
+            return {'success': False, 'refund_no': '', 'error': 'SSL client certificate not configured for refund API'}
+        return {'success': False, 'refund_no': '', 'error': str(e)}
 
 
 def verify_wechat_notify(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
@@ -190,12 +214,11 @@ def verify_wechat_notify(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
     """
     cfg = _get_wechat_config()
 
-    if not cfg['app_id']:
-        return True, {
-            'order_no': raw_data.get('out_trade_no', ''),
-            'trade_no': raw_data.get('transaction_id', ''),
-            'status': 'paid',
-        }
+    from . import _is_gateway_configured
+    if not _is_gateway_configured('wechat'):
+        # ❌ 旧代码：未配置时直接返回 True（认证绕过风险），此处拒绝所有回调
+        print('[WeChat] SECURITY: payment gateway not configured, rejecting callback')
+        return False, {}
 
     # 验证签名
     sign = raw_data.get('sign', '')

@@ -14,11 +14,25 @@ from typing import Dict, Any, Tuple
 
 
 def _get_paypal_config() -> dict:
-    return {
+    cfg = {
         'client_id': os.environ.get('PAYPAL_CLIENT_ID', ''),
         'client_secret': os.environ.get('PAYPAL_CLIENT_SECRET', ''),
         'mode': os.environ.get('PAYPAL_MODE', 'sandbox'),  # sandbox | live
     }
+
+    # H-03：环境变量缺失时从 system_config 表读取兜底
+    if not cfg['client_id']:
+        from . import _get_config_from_db
+        db = _get_config_from_db({
+            'client_id': 'paypal_client_id',
+            'client_secret': 'paypal_client_secret',
+            'mode': 'paypal_mode',
+        })
+        for field, value in db.items():
+            if not cfg.get(field):
+                cfg[field] = value
+
+    return cfg
 
 
 def _get_api_base() -> str:
@@ -56,14 +70,17 @@ def create_paypal_order(order_no: str, amount_fen: int, subject: str,
     Returns:
         Dict with redirect_url for client approval.
     """
+    from . import _is_placeholder
     cfg = _get_paypal_config()
-    if not cfg['client_id'] or cfg['client_id'].startswith('xxxx'):
-        print('[PayPal] Not configured, using mock')
+    if not cfg['client_id'] or _is_placeholder(cfg['client_id']):
+        # C-02：未配置不再返回 mock 跳转，避免产生无法支付的 pending 订单
+        print('[PayPal] Not configured, cannot create payment')
         return {
-            'success': True,
-            'trade_no': f'PPMOCK{order_no}',
+            'success': False,
+            'trade_no': '',
             'qr_code': '',
-            'redirect_url': f'/payment/mock?order={order_no}&channel=paypal',
+            'redirect_url': '',
+            'error': 'PayPal gateway not configured',
         }
 
     token = _get_access_token()
@@ -144,10 +161,16 @@ def refund_paypal_order(trade_no: str, amount_fen: int = 0) -> Dict[str, Any]:
     Returns:
         {'success': bool, 'refund_no': str, 'error': str}
     """
+    from . import _is_placeholder
     cfg = _get_paypal_config()
-    if not cfg['client_id'] or cfg['client_id'].startswith('xxxx'):
-        print('[PayPal Refund] Not configured, using mock')
-        return {'success': True, 'refund_no': f'PPREFUND{trade_no}', 'error': ''}
+    if not cfg['client_id'] or _is_placeholder(cfg['client_id']):
+        # C-01：未配置不再返回 mock 退款成功，否则订单被标记 refunded 但资金未退回
+        print('[PayPal Refund] NOT CONFIGURED — refund rejected')
+        return {
+            'success': False,
+            'refund_no': '',
+            'error': 'PayPal gateway not configured; refund requires manual processing',
+        }
 
     token = _get_access_token()
     if not token:
@@ -217,13 +240,11 @@ def verify_paypal_webhook(raw_data: dict, headers: dict) -> Tuple[bool, dict]:
     # PayPal 的 webhook 验证需要通过 PayPal API 确认
     # 这里简化处理：如果配置了 client_id 则尝试捕获订单
 
-    cfg = _get_paypal_config()
-    if not cfg['client_id'] or cfg['client_id'].startswith('xxxx'):
-        return True, {
-            'order_no': raw_data.get('purchase_units', [{}])[0].get('reference_id', ''),
-            'trade_no': raw_data.get('id', ''),
-            'status': 'paid',
-        }
+    from . import _is_gateway_configured
+    if not _is_gateway_configured('paypal'):
+        # ❌ 旧代码：未配置时直接返回 True（认证绕过风险），此处拒绝所有回调
+        print('[PayPal] SECURITY: payment gateway not configured, rejecting webhook')
+        return False, {}
 
     # 简单的状态检查
     status = raw_data.get('status', '')

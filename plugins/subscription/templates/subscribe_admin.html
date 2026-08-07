@@ -108,9 +108,9 @@ input:focus, select:focus { outline: none; border-color: var(--blue); }
 
   {# ── Tab Navigation ── #}
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('items')">{{ _('Plans') }}</div>
-    <div class="tab" onclick="switchTab('users')">{{ _('Subscribers') }}</div>
-    <div class="tab" onclick="switchTab('orders')">{{ _('Orders') }}</div>
+    <div class="tab active" id="tab-items" onclick="switchTab('items')">{{ _('Plans') }}</div>
+    <div class="tab" id="tab-users" onclick="switchTab('users')">{{ _('Subscribers') }}</div>
+    <div class="tab" id="tab-orders" onclick="switchTab('orders')">{{ _('Orders') }}</div>
   </div>
 
   {# ── Plans Tab ── #}
@@ -127,7 +127,7 @@ input:focus, select:focus { outline: none; border-color: var(--blue); }
               <th>{{ _('Key') }}</th>
               <th>{{ _('Name') }}</th>
               <th>{{ _('Price') }}</th>
-              <th>{{ _('Duration') }}</th>
+              <th>{{ _('Category') }}</th>
               <th>{{ _('Status') }}</th>
               <th>{{ _('Actions') }}</th>
             </tr>
@@ -202,12 +202,12 @@ input:focus, select:focus { outline: none; border-color: var(--blue); }
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
-  document.querySelector('.tab[onclick*="'+name+'"]').classList.add('active');
-  document.getElementById('panel-'+name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
 }
 
 function loadItems() {
-  fetch('/admin/subscription/items')
+  fetch('/plugin/subscription/admin/items')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var tbody = document.getElementById('items-tbody');
@@ -221,9 +221,9 @@ function loadItems() {
         tr.innerHTML =
           '<td><code>' + item.item_key + '</code></td>' +
           '<td><strong>' + (item.name || item.item_key) + '</strong></td>' +
-          '<td>' + (item.price || '-') + '</td>' +
-          '<td>' + (item.duration_days || '0') + 'd</td>' +
-          '<td><span class="badge badge-' + (item.active ? 'active' : 'expired') + '">' + (item.active ? '{{ _('Active') }}' : '{{ _('Inactive') }}') + '</span></td>' +
+          '<td>&yen;' + (item.price_month_yuan || '-') + ' / ' + (item.price_year_yuan || '-') + '</td>' +
+          '<td>' + (item.category || '-') + '</td>' +
+          '<td><span class="badge badge-' + (item.is_active ? 'active' : 'expired') + '">' + (item.is_active ? '{{ _('Active') }}' : '{{ _('Inactive') }}') + '</span></td>' +
           '<td><button class="btn btn-danger btn-sm" onclick="deleteItem(\'' + item.item_key + '\')">{{ _('Delete') }}</button></td>';
         tbody.appendChild(tr);
       });
@@ -233,7 +233,7 @@ function loadItems() {
 
 function loadUsers() {
   var uid = document.getElementById('user-filter').value;
-  var url = '/admin/subscription/users';
+  var url = '/plugin/subscription/admin/users';
   if (uid) url += '?user_id=' + uid;
   fetch(url)
     .then(function(r) { return r.json(); })
@@ -249,9 +249,9 @@ function loadUsers() {
         tr.innerHTML =
           '<td>' + s.user_id + '</td>' +
           '<td>' + (s.item_key || '-') + '</td>' +
-          '<td><span class="badge badge-' + (s.is_active ? 'active' : 'expired') + '">' + (s.is_active ? '{{ _('Active') }}' : '{{ _('Expired') }}') + '</span></td>' +
-          '<td class="small">' + (s.start_time || '-') + '</td>' +
-          '<td class="small">' + (s.end_time || '-') + '</td>';
+          '<td><span class="badge badge-' + (s.status === 'active' ? 'active' : 'expired') + '">' + (s.status === 'active' ? '{{ _('Active') }}' : s.status) + '</span></td>' +
+          '<td class="small">' + (s.period_start || '-') + '</td>' +
+          '<td class="small">' + (s.period_end || '-') + '</td>';
         tbody.appendChild(tr);
       });
     })
@@ -259,7 +259,7 @@ function loadUsers() {
 }
 
 function loadOrders() {
-  fetch('/admin/subscription/orders')
+  fetch('/plugin/subscription/admin/orders')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var tbody = document.getElementById('orders-tbody');
@@ -274,8 +274,8 @@ function loadOrders() {
           '<td><code>' + (o.order_no || '-') + '</code></td>' +
           '<td>' + (o.user_id || '-') + '</td>' +
           '<td>' + (o.item_key || '-') + '</td>' +
-          '<td>' + (o.amount || '-') + '</td>' +
-          '<td><span class="badge badge-' + ((o.status === 'paid' || o.status === 'completed') ? 'active' : 'pending') + '">' + (o.status || '-') + '</span></td>' +
+          '<td>&yen;' + (o.amount_yuan || '-') + '</td>' +
+          '<td><span class="badge badge-' + (o.status === 'paid' ? 'active' : o.status === 'refunded' ? 'expired' : 'pending') + '">' + (o.status || '-') + '</span></td>' +
           '<td class="small">' + (o.created_at || '-') + '</td>';
         tbody.appendChild(tr);
       });
@@ -284,16 +284,30 @@ function loadOrders() {
 }
 
 function showAddItem() {
-  var name = prompt('{{ _('Enter plan name:') }}');
-  if (!name) return;
-  var price = prompt('{{ _('Enter price:') }}');
-  if (!price) return;
-  var days = prompt('{{ _('Enter duration (days):') }}');
-  if (!days) return;
-  fetch('/admin/subscription/items', {
+  var itemKey = prompt('{{ _('Enter plan key:') }}');
+  if (!itemKey) return;
+  var nameZh = prompt('{{ _('Enter plan name (Chinese):') }}');
+  if (!nameZh) return;
+  var nameEn = prompt('{{ _('Enter plan name (English):') }}') || nameZh;
+  var category = prompt('{{ _('Enter category:') }}') || 'feature';
+  var priceMonth = parseFloat(prompt('{{ _('Enter monthly price (yuan):') }}') || '0');
+  var priceYear = parseFloat(prompt('{{ _('Enter yearly price (yuan):') }}') || '0');
+  var descZh = prompt('{{ _('Enter description (Chinese):') }}') || '';
+  var descEn = prompt('{{ _('Enter description (English):') }}') || '';
+  fetch('/plugin/subscription/admin/items', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: name, price: parseFloat(price), duration_days: parseInt(days)})
+    body: JSON.stringify({
+      item_key: itemKey,
+      category: category,
+      name_zh: nameZh,
+      name_en: nameEn,
+      description_zh: descZh,
+      description_en: descEn,
+      price_month: Math.round(priceMonth * 100),
+      price_year: Math.round(priceYear * 100),
+      is_active: 1
+    })
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
@@ -305,7 +319,7 @@ function showAddItem() {
 
 function deleteItem(key) {
   if (!confirm('{{ _('Delete this plan?') }}')) return;
-  fetch('/admin/subscription/items/' + encodeURIComponent(key), { method: 'DELETE' })
+  fetch('/plugin/subscription/admin/items/' + encodeURIComponent(key), { method: 'DELETE' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.message) { loadItems(); }
