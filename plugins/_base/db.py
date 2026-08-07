@@ -74,4 +74,5 @@ def get_raw_connection():
         dbname=os.environ.get('PG_DB', 'verorun'),
         user=os.environ.get('PG_USER', 'verorun'),
         password=os.environ.get('PG_PASSWORD', ''),
+        connect_timeout=10,  # 建连最多等 10 秒，避免低配机器上无限挂死
     )

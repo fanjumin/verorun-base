@@ -84,6 +84,7 @@ def get_raw_connection():
         dbname=os.environ.get('MINI_APP_PG_DB', 'verorun_miniapp'),
         user=os.environ.get('MINI_APP_PG_USER', os.environ.get('PG_USER', 'verorun')),
         password=os.environ.get('MINI_APP_PG_PASSWORD', os.environ.get('PG_PASSWORD', '')),
+        connect_timeout=10,  # 建连最多等 10 秒，避免低配机器上无限挂死
     )
 
 
