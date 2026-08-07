@@ -62,9 +62,12 @@ class VaultPlugin(BasePlugin):
         name = 'Vault — Daily Backup'
         try:
             with orch_db() as conn:
-                existing = conn.execute(
+                # orchestrator 的 get_db() 返回裸 cursor，其 execute() 返回 None，
+                # 必须先 execute 再 fetchone，不能链式调用。
+                conn.execute(
                     'SELECT id FROM cron_jobs WHERE name=%s', (name,)
-                ).fetchone()
+                )
+                existing = conn.fetchone()
                 if existing:
                     print('[Vault] Backup schedule already registered')
                     return

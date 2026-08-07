@@ -55,8 +55,10 @@ class WishlistPlugin(BasePlugin):
         """卸载时清理独立 schema，确保零残留。"""
         try:
             conn = get_raw_connection()
-            conn.execute("DROP SCHEMA IF EXISTS wishlist CASCADE")
+            cur = conn.cursor()
+            cur.execute("DROP SCHEMA IF EXISTS wishlist CASCADE")
             conn.commit()
+            cur.close()
             conn.close()
             logger.info("Wishlist schema dropped on uninstall")
             return True

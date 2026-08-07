@@ -32,8 +32,10 @@ def get_db():
     """连接插件自己的数据库（PG schema: wishlist）。"""
     conn = get_raw_connection()
     conn.autocommit = False
-    conn.execute("CREATE SCHEMA IF NOT EXISTS wishlist")
-    conn.execute("SET search_path TO wishlist, public")
+    cur = conn.cursor()
+    cur.execute("CREATE SCHEMA IF NOT EXISTS wishlist")
+    cur.execute("SET search_path TO wishlist, public")
+    cur.close()
     try:
         yield _PgConnection(conn)
     finally:

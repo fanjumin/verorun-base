@@ -370,13 +370,15 @@ def init_analytics_tables(db_path=None):
     if db_path:
         _ANALYTICS_DB = db_path
     conn = get_db()
-    for stmt in _load_schema_sql().split(';'):
-        s = stmt.strip()
-        if s:
-            try:
-                conn.execute(s)
-            except Exception as e:
-                logger.warning('Schema error: %s', e, exc_info=True)
+    sql = _load_schema_sql()
+    try:
+        # psycopg2 原生支持一次执行多条语句，切勿用 ';' 手动切分：
+        # 迁移文件注释里包含分号（见 001_initial.sql）时会被切出非法 SQL，
+        # 导致语法错误 + 事务污染，后续语句全部报 transaction aborted。
+        conn.execute(sql)
+    except Exception as e:
+        conn.rollback()
+        logger.warning('Schema error: %s', e, exc_info=True)
     conn.commit()
     logger.info('PG schema analytics initialized (11 tables)')
 

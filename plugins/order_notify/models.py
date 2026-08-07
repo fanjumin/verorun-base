@@ -24,9 +24,13 @@ def get_db():
     """获取本插件的独立数据库连接"""
     if 'order_notify_db' not in g:
         from plugins._base.db import get_raw_connection
-        g.order_notify_db = get_raw_connection()
-        g.order_notify_db.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
-        g.order_notify_db.execute("SET search_path TO order_notify")
+        raw = get_raw_connection()
+        cur = raw.cursor()
+        cur.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
+        cur.execute("SET search_path TO order_notify")
+        raw.commit()
+        cur.close()
+        g.order_notify_db = raw
     return _PgConnection(g.order_notify_db)
 
 
@@ -40,9 +44,10 @@ def init_db():
     """初始化插件自有表"""
     from plugins._base.db import get_raw_connection
     conn = get_raw_connection()
-    conn.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
-    conn.execute("SET search_path TO order_notify")
-    conn.execute("""
+    cur = conn.cursor()
+    cur.execute("CREATE SCHEMA IF NOT EXISTS order_notify")
+    cur.execute("SET search_path TO order_notify")
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS notification_log (
             id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             user_id     BIGINT NOT NULL,
@@ -54,15 +59,16 @@ def init_db():
             created_at  TEXT    NOT NULL DEFAULT NOW()
         )
     """)
-    conn.execute("""
+    cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_notification_log_user
             ON notification_log(user_id)
     """)
-    conn.execute("""
+    cur.execute("""
         CREATE INDEX IF NOT EXISTS idx_notification_log_order
             ON notification_log(order_id)
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
 
