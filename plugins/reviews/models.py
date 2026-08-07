@@ -31,8 +31,12 @@ def get_db():
     """连接插件自己的数据库。"""
     from plugins._base.db import get_raw_connection
     conn = get_raw_connection()
-    conn.execute("CREATE SCHEMA IF NOT EXISTS reviews")
-    conn.execute("SET search_path TO reviews")
+    # get_raw_connection() 返回裸 psycopg2 连接，无 .execute()，必须经 cursor 执行
+    cur = conn.cursor()
+    cur.execute("CREATE SCHEMA IF NOT EXISTS reviews")
+    cur.execute("SET search_path TO reviews")
+    cur.close()
+    conn.commit()
     try:
         yield _PgConnection(conn)
     finally:

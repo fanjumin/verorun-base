@@ -98,7 +98,6 @@ class VaultPlugin(BasePlugin):
                     target_config,
                     'low',
                 ))
-                conn.commit()
                 print('[Vault] Daily backup schedule registered (03:00 UTC)')
         except Exception as e:
             print(f'[Vault] Failed to register backup schedule: {e}')

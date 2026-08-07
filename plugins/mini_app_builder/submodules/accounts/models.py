@@ -9,7 +9,7 @@ import json
 from contextlib import contextmanager
 from urllib.error import URLError
 
-from ..db import MiniAppConnection as PgConnection, get_raw_connection
+from ...db import MiniAppConnection as PgConnection, get_raw_connection
 from .crypto import encrypt, decrypt, mask
 
 

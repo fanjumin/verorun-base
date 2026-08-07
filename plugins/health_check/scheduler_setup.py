@@ -163,7 +163,6 @@ def seed_health_schedules():
                     target_config,
                     'normal',
                 ))
-                conn.commit()
                 registered += 1
 
         except Exception as e:
