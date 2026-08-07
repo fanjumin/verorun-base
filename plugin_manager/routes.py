@@ -25,6 +25,7 @@ from .manager import PluginManager
 from .models import PluginStatus
 from .models_store import get_registry_db
 from .exceptions import PluginError
+from .base import localize_plugin_dict
 
 bp = Blueprint('plugin_manager_api', __name__, url_prefix='/admin/plugins')
 
@@ -61,6 +62,8 @@ def _info_to_dict(info) -> dict:
     # 处理 config（确保不超长）
     if isinstance(d.get('config'), str):
         d['config'] = json.loads(d['config'])
+    # 按当前语言翻译插件显示名/菜单 label（name_i18n_key 机制）
+    localize_plugin_dict(d)
     return d
 
 

@@ -1072,10 +1072,16 @@ def dispatch_task():
     if not target_id:
         return _error(_('Target_agent_id must'))
 
-    # 加载 prompt
+    # 加载 prompt（动态解析）
     from agent_matrix.orchestrator import AgentOrchestrator
     orch = AgentOrchestrator(models_module=_m())
-    prompt = orch._load_prompt(agent_config.get('system_prompt', ''))
+    task_ctx = {
+        'domain': agent_config.get('domain', 'general'),
+        'task_type': data.get('task_type', data.get('action', 'execute')),
+        'mode': data.get('mode', ''),
+        'user_query': data.get('description', '') or data.get('title', ''),
+    }
+    prompt = orch._resolve_prompt(agent_config, task_ctx)
     if prompt:
         agent_config['system_prompt'] = prompt
 
@@ -1142,15 +1148,34 @@ def list_providers():
 
 @agent_matrix_bp.route('/prompts', methods=['GET'])
 def list_prompts():
-    """列出可用 Prompt 模板"""
+    """数据库提示词列表（支持 ?type=&domain=&keyword= 筛选）"""
     admin, err = _require_admin()
     if err: return err
 
-    prompt_dir = os.path.join(os.path.dirname(__file__), 'prompts')
+    prompt_type = request.args.get('type')
+    domain = request.args.get('domain')
+    keyword = request.args.get('keyword')
+    try:
+        rows = _m().list_prompts(
+            prompt_type=prompt_type, domain=domain, keyword=keyword
+        )
+        return _success(rows)
+    except Exception as e:
+        return _error(f'List prompts failed: {e}', 500)
+
+
+@agent_matrix_bp.route('/prompts/files', methods=['GET'])
+def list_prompt_files():
+    """列出可用 Prompt 文件模板（chat 编辑器下拉框使用）"""
+    admin, err = _require_admin()
+    if err: return err
+
     templates = [
         {"id": "custom", "name": "自定义提示词", "description": "手动编写完整的 System Prompt", "is_builtin": False},
     ]
 
+    # 文件模板（保持 chat 编辑器兼容）
+    prompt_dir = os.path.join(os.path.dirname(__file__), 'prompts')
     if os.path.exists(prompt_dir):
         for f in sorted(os.listdir(prompt_dir)):
             if f.endswith('.md'):
@@ -1182,11 +1207,17 @@ def load_prompt_content():
     if not path:
         return _error(_('Path parameter must'))
 
-    # Security: only allow prompts/ paths
+    # Security: 仅允许 prompts/ 下文件，且用 realpath 防路径遍历（对齐 resolver 实现）
+    prompt_dir = os.path.join(os.path.dirname(__file__), 'prompts')
     if not path.startswith('prompts/') or '..' in path:
         return _error(_('Invalid path'), 400)
 
-    full_path = os.path.join(os.path.dirname(__file__), path)
+    full_path = os.path.realpath(os.path.join(os.path.dirname(__file__), path))
+    real_base = os.path.realpath(prompt_dir)
+    if not full_path.startswith(real_base + os.sep):
+        logging.getLogger(__name__).warning(f'Prompt 路径遍历尝试被拦截: {path}')
+        return _error(_('Invalid path'), 400)
+
     if not os.path.exists(full_path):
         return _error(_('Prompt file does not exist'), 404)
 
@@ -1194,6 +1225,187 @@ def load_prompt_content():
         content = f.read()
 
     return _success(content)
+
+
+# ============================================================
+# Prompt DB CRUD (Dynamic Prompt System) — 文档 12 节
+# ============================================================
+
+@agent_matrix_bp.route('/prompts', methods=['POST'])
+def create_prompt_route():
+    """创建新提示词"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True) or {}
+    if not data.get('name'):
+        return _error(_('Name is required'))
+    if not data.get('content'):
+        return _error(_('Content is required'))
+    # prompt_type 枚举校验（对齐 DB CHECK 约束，提前返回 400）
+    prompt_type = data.get('prompt_type', 'system')
+    if prompt_type not in ('system', 'scene', 'tool', 'rule', 'composite'):
+        return _error(_('Invalid prompt_type'), 400)
+    try:
+        new_id = _m().create_prompt(data)
+        return _success({'id': new_id})
+    except Exception as e:
+        return _error(f'Create prompt failed: {e}', 500)
+
+
+@agent_matrix_bp.route('/prompts/<int:pid>', methods=['GET'])
+def get_prompt_route(pid):
+    """提示词详情"""
+    admin, err = _require_admin()
+    if err: return err
+
+    row = _m().get_prompt(pid)
+    if not row:
+        return _error(_('Prompt does not exist'), 404)
+    return _success(row)
+
+
+@agent_matrix_bp.route('/prompts/<int:pid>', methods=['PUT'])
+def update_prompt_route(pid):
+    """更新提示词（content 变更自动 version+1）"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True) or {}
+    try:
+        result = _m().update_prompt(pid, data)
+        if result is None:
+            return _error(_('Prompt does not exist'), 404)
+        return _success({'id': result})
+    except Exception as e:
+        return _error(f'Update prompt failed: {e}', 500)
+
+
+@agent_matrix_bp.route('/prompts/<int:pid>', methods=['DELETE'])
+def delete_prompt_route(pid):
+    """软删除提示词（is_active=false）"""
+    admin, err = _require_admin()
+    if err: return err
+
+    row = _m().get_prompt(pid)
+    if not row:
+        return _error(_('Prompt does not exist'), 404)
+    _m().delete_prompt(pid)
+    return _success()
+
+
+@agent_matrix_bp.route('/prompts/<int:pid>/versions', methods=['GET'])
+def prompt_versions_route(pid):
+    """同 slug 的版本历史"""
+    admin, err = _require_admin()
+    if err: return err
+
+    row = _m().get_prompt(pid)
+    if not row:
+        return _error(_('Prompt does not exist'), 404)
+    versions = _m().get_prompt_versions(row['slug'])
+    return _success(versions)
+
+
+@agent_matrix_bp.route('/prompts/<int:pid>/test', methods=['POST'])
+def test_prompt_route(pid):
+    """用指定 Prompt 回答测试问题（验证组装效果）"""
+    admin, err = _require_admin()
+    if err: return err
+
+    ai_err = _check_ai_access()
+    if ai_err: return ai_err
+
+    row = _m().get_prompt(pid)
+    if not row:
+        return _error(_('Prompt does not exist'), 404)
+
+    data = request.get_json(force=True) or {}
+    question = data.get('question', '')
+    if not question:
+        return _error(_('Question is required'))
+
+    # 用测试 Agent 的模型配置（默认第一个 active sub agent）
+    agent_config = None
+    agent_id = data.get('agent_id')
+    if agent_id:
+        agent_config = _m().get_agent(agent_id)
+    if not agent_config:
+        agents = _m().list_agents(role_type='sub', active_only=True)
+        agent_config = agents[0] if agents else None
+    if not agent_config:
+        return _error(_('No available Agent'), 500)
+
+    agent_config['system_prompt'] = row['content']
+
+    from agent_matrix.engine import UnifiedLLM
+    engine = UnifiedLLM(agent_config)
+    if not engine.is_ready():
+        return _error(_('AI Engine Not Ready (Check API Key)'), 500)
+
+    try:
+        response = engine.ask(question, temperature=0.3)
+        return _success({'prompt_id': pid, 'response': response})
+    except Exception as e:
+        return _error(f'Test failed: {e}', 500)
+
+
+@agent_matrix_bp.route('/agents/<int:aid>/bindings', methods=['GET'])
+def list_agent_bindings_route(aid):
+    """列出指定 Agent 的 Prompt 绑定关系"""
+    admin, err = _require_admin()
+    if err: return err
+
+    if not _m().get_agent(aid):
+        return _error(_('Agent does not exist'), 404)
+    try:
+        rows = _m().list_bindings(agent_id=aid)
+        return _success(rows)
+    except Exception as e:
+        return _error(f'List bindings failed: {e}', 500)
+
+
+@agent_matrix_bp.route('/agents/<int:aid>/bind-prompt', methods=['POST'])
+def bind_prompt_route(aid):
+    """为 Agent 绑定 Prompt"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True) or {}
+    prompt_id = data.get('prompt_id')
+    if not prompt_id:
+        return _error(_('prompt_id is required'))
+
+    if not _m().get_agent(aid):
+        return _error(_('Agent does not exist'), 404)
+    if not _m().get_prompt(prompt_id):
+        return _error(_('Prompt does not exist'), 404)
+
+    binding_type = data.get('binding_type', 'default')
+    if binding_type not in ('default', 'scene', 'override', 'mode'):
+        return _error(_('Invalid binding_type'), 400)
+
+    _m().create_binding(
+        aid, prompt_id,
+        binding_type=binding_type,
+        condition=data.get('condition', ''),
+        priority=data.get('priority', 0),
+    )
+    return _success()
+
+
+@agent_matrix_bp.route('/agents/<int:aid>/bind-prompt/<int:bid>', methods=['DELETE'])
+def unbind_prompt_route(aid, bid):
+    """解绑 Agent-Prompt（校验绑定归属该 Agent）"""
+    admin, err = _require_admin()
+    if err: return err
+
+    if not _m().get_agent(aid):
+        return _error(_('Agent does not exist'), 404)
+    deleted = _m().delete_binding(bid, agent_id=aid)
+    if not deleted:
+        return _error(_('Binding does not exist for this agent'), 404)
+    return _success()
 
 
 # ============================================================
@@ -1332,10 +1544,15 @@ def chat_stream_sse():
     if not agent_config:
         return jsonify({'error': _('No available Agent')}), 500
 
-    # 加载 system_prompt（来自文件或直接文本）
+    # 加载 system_prompt（动态解析）
     from agent_matrix.orchestrator import AgentOrchestrator
     orch = AgentOrchestrator(models_module=_m())
-    base_prompt = orch._load_prompt(agent_config.get('system_prompt', ''))
+    base_prompt = orch._resolve_prompt(agent_config, {
+        'domain': agent_config.get('domain', 'general'),
+        'task_type': 'chat',
+        'mode': data.get('mode', ''),
+        'user_query': message[:200],
+    })
 
     # 加载知识库（实时 RAG 检索 + 静态兜底）
     knowledge = _inject_knowledge(user_message=message)
@@ -2103,6 +2320,11 @@ def init_agent_matrix(app):
     """初始化 Agent 矩阵系统（由 admin/app.py 调用）"""
     _m().init_agent_matrix_tables()
     _m().seed_default_agents()
+    try:
+        from agent_matrix.seed_prompts import seed_prompts
+        seed_prompts()
+    except Exception as e:
+        print(f'[Agent Matrix] ⚠️ seed_prompts failed: {e}')
     app.register_blueprint(agent_matrix_bp)
     print(_('[Agent Matrix] ✅ Database + seed data has been initialized'))
     print(f'[Agent Matrix] 📋 API: /admin/agent-matrix/*')

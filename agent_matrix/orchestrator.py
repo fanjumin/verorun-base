@@ -28,6 +28,9 @@ class AgentOrchestrator:
         self.models = models_module
         self._engine_module = engine_module
         self._runner_class = runner_class
+        # 动态提示词解析引擎（懒初始化，避免循环依赖）
+        self._prompt_resolver = None
+        self._resolver_init_failed = False
 
     # -------------------------------------------------------
     # 外部入口
@@ -47,6 +50,8 @@ class AgentOrchestrator:
         }
         """
         startup = time.time()
+        # 持久化当前模式，供 PromptResolver 动态解析使用
+        self._current_mode = mode or ''
 
         # 注入模式指令
         mode_prefixes = {
@@ -103,8 +108,9 @@ class AgentOrchestrator:
         if session_id:
             self.models.add_message(session_id, 'user', instruction, master_task_id=master_task_id)
 
-        # 5. 下发子任务（传入原始指令用于参考图识别 + user_id 用于模块策略校验）
-        sub_results = self.dispatch_sub_tasks(decomposed, master_task_id, session_id, original_instruction=instruction, user_id=user_id)
+        # 5. 下发子任务（传入原始指令用于参考图识别 + user_id 用于模块策略校验 + mode 用于动态提示词）
+        sub_results = self.dispatch_sub_tasks(decomposed, master_task_id, session_id,
+                                              original_instruction=instruction, user_id=user_id, mode=mode)
 
         # 6. 汇总结果
         all_completed = all(r.get('status') == 'completed' for r in sub_results)
@@ -345,8 +351,14 @@ class AgentOrchestrator:
             logger.warning("Master Agent AI 引擎未就绪，使用模板分解")
             return self._template_decompose(instruction, sub_agents)
 
-        # 加载 Master Agent 的 System Prompt（从文件）
-        master_prompt = self._load_prompt(master_config.get('system_prompt', ''))
+        # 加载 Master Agent 的 System Prompt（动态解析）
+        task_ctx = {
+            'domain': master_config.get('domain', 'general'),
+            'task_type': 'decompose',
+            'mode': getattr(self, '_current_mode', '') or '',
+            'user_query': instruction[:200],
+        }
+        master_prompt = self._resolve_prompt(master_config, task_ctx)
 
         decompose_prompt = f"""{master_prompt}
 
@@ -522,7 +534,7 @@ class AgentOrchestrator:
     # 任务分发与执行
     # -------------------------------------------------------
 
-    def dispatch_sub_tasks(self, tasks: list, master_task_id: str, session_id: str = None, original_instruction: str = '', user_id: int = 0):
+    def dispatch_sub_tasks(self, tasks: list, master_task_id: str, session_id: str = None, original_instruction: str = '', user_id: int = 0, mode: str = ''):
         """
         并行分发并执行子任务（ThreadPoolExecutor + 超时熔断）
 
@@ -547,6 +559,9 @@ class AgentOrchestrator:
         completed_count = 0
         total = len(tasks)
         results_lock = threading.Lock()
+        # 将 mode 注入每个子任务，供 _execute_standard_agent 读取（避免跨线程共享实例属性）
+        for t in tasks:
+            t['_mode'] = mode
 
         def _run_single(task_def):
             """在线程池中执行单个子任务"""
@@ -786,7 +801,14 @@ class AgentOrchestrator:
                                  session_id, master_task_id):
         """执行标准 LLM Agent"""
         from agent_matrix.agent_runner import AgentRunner
-        prompt = self._load_prompt(agent_config.get('system_prompt', ''))
+        # 动态解析 System Prompt
+        task_ctx = {
+            'domain': agent_config.get('domain', 'general'),
+            'task_type': task_def.get('task_type', 'execute'),
+            'mode': task_def.get('_mode', getattr(self, '_current_mode', '') or ''),
+            'user_query': task_def.get('description', ''),
+        }
+        prompt = self._resolve_prompt(agent_config, task_ctx)
         if prompt:
             agent_config['system_prompt'] = prompt
         runner = AgentRunner(agent_config, db_models=self.models)
@@ -1051,6 +1073,24 @@ class AgentOrchestrator:
             return ''
         return prompt_source
 
+    def _get_prompt_resolver(self):
+        """懒初始化 PromptResolver（避免循环依赖）"""
+        if self._prompt_resolver is None and not self._resolver_init_failed:
+            try:
+                from agent_matrix.prompt_resolver import PromptResolver
+                self._prompt_resolver = PromptResolver(self.models)
+            except Exception as e:
+                logger.warning(f"PromptResolver 初始化失败: {e}")
+                self._resolver_init_failed = True
+        return self._prompt_resolver
+
+    def _resolve_prompt(self, agent_config, task_context):
+        """通过 PromptResolver 动态解析 Prompt；失败/不可用时回退 _load_prompt。"""
+        resolver = self._get_prompt_resolver()
+        if resolver:
+            return resolver.resolve(agent_config, task_context)
+        return self._load_prompt(agent_config.get('system_prompt', ''))
+
     def _add_task_log(self, task_id, agent_id, level, log_type, message):
         if self.models:
             try:
@@ -1068,10 +1108,27 @@ class AgentOrchestrator:
     AGENT_TIMEOUT = 120
     MAX_DISCUSS_ROUNDS = 3
 
-    # Discussion prompt file paths
-    PROMPT_PLANNER = 'prompts/discuss_planner.md'
-    PROMPT_REVIEWER = 'prompts/discuss_reviewer.md'
-    PROMPT_DECIDER = 'prompts/discuss_decider.md'
+    # Discussion prompt 源文件路径（标签查询失败时的降级兜底）
+    _DISCUSSION_PROMPT_FILES = {
+        'planner': 'prompts/discuss_planner.md',
+        'reviewer': 'prompts/discuss_reviewer.md',
+        'decider': 'prompts/discuss_decider.md',
+    }
+
+    def _get_discussion_prompt(self, agent_config, role):
+        """动态解析 Discussion 角色提示词。
+
+        优先按标签 discussion_<role> 从 agent_prompts 表查询；
+        无匹配时回退读取原 .md 文件（保持既有行为）。
+
+        agent_config: 对应讨论角色的 Agent 配置（供 Resolver 上下文参考）。
+        """
+        resolver = self._get_prompt_resolver()
+        if resolver:
+            content = resolver.get_by_tag(f'discussion_{role}')
+            if content:
+                return content
+        return self._load_prompt(self._DISCUSSION_PROMPT_FILES.get(role, ''))
 
     # ============================================================
     # Helper: find agent by domain
@@ -1220,7 +1277,7 @@ class AgentOrchestrator:
                     task=fix_prompt,
                     context=[],
                     user_id=user_id,
-                    prompt_path=self.PROMPT_DECIDER
+                    prompt_path=self._get_discussion_prompt(agent_config, 'decider')
                 )
 
                 match = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', fixed)
@@ -1403,7 +1460,7 @@ class AgentOrchestrator:
                              'and output it as JSON:\n\n' + instruction,
                         context=[],
                         user_id=user_id,
-                        prompt_path=self.PROMPT_DECIDER
+                        prompt_path=self._get_discussion_prompt(available, 'decider')
                     )
                     exec_plan = self._parse_decision_json(plan, available, user_id)
 
@@ -1453,7 +1510,7 @@ class AgentOrchestrator:
             task=instruction,
             context=discussion_context,
             user_id=user_id,
-            prompt_path=self.PROMPT_PLANNER
+            prompt_path=self._get_discussion_prompt(planner_agent, 'planner')
         )
 
         discussion_context.append({
@@ -1484,7 +1541,7 @@ class AgentOrchestrator:
             task=review_task,
             context=discussion_context,
             user_id=user_id,
-            prompt_path=self.PROMPT_REVIEWER
+            prompt_path=self._get_discussion_prompt(reviewer_agent, 'reviewer')
         )
 
         discussion_context.append({
@@ -1516,7 +1573,7 @@ class AgentOrchestrator:
             task=revision_task,
             context=discussion_context,
             user_id=user_id,
-            prompt_path=self.PROMPT_PLANNER
+            prompt_path=self._get_discussion_prompt(planner_agent, 'planner')
         )
 
         discussion_context.append({
@@ -1547,7 +1604,7 @@ class AgentOrchestrator:
             task=decision_task,
             context=discussion_context,
             user_id=user_id,
-            prompt_path=self.PROMPT_DECIDER
+            prompt_path=self._get_discussion_prompt(decider_agent, 'decider')
         )
 
         discussion_context.append({

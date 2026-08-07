@@ -359,13 +359,13 @@ class StubVerificationProvider(BaseVerificationProvider):
 
     def build_auth_url(self, request_id: str, return_url: str, **kwargs) -> str:
         # 开发模式：直接跳到回调地址，模拟第三方认证通过
+        # 合规：不将身份证号等 PII 放入 URL（浏览器历史/服务器日志/Referer 均会泄露）
         separator = '&' if '?' in return_url else '?'
         return (
             f"{return_url}{separator}"
             f"request_id={request_id}&"
             f"stub=true&"
-            f"real_name=测试用户&"
-            f"id_number=11010119900101001X"
+            f"real_name=测试用户"
         )
 
     def verify_signature(self, params: Dict[str, Any]) -> bool:
@@ -508,11 +508,22 @@ def verify_callback(user_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
 
     with get_db() as conn:
         existing = conn.execute(
-            "SELECT id, status FROM verification_requests WHERE request_id=%s",
+            "SELECT id, status, user_id FROM verification_requests WHERE request_id=%s",
             (request_id,)
         ).fetchone()
 
-        if existing and existing['status'] == 'completed':
+        if not existing:
+            return {'success': False, 'error': '认证流水不存在'}
+
+        # F-C4: request_id 归属校验 — 防止使用他人流水号冒名认证
+        if existing['user_id'] != user_id:
+            logger.warning(
+                f"Verification request_id={request_id} ownership mismatch: "
+                f"caller={user_id}, owner={existing['user_id']}"
+            )
+            return {'success': False, 'error': '认证流水归属校验失败'}
+
+        if existing['status'] == 'completed':
             return {'success': False, 'error': '该认证流水已处理'}
 
     # 获取 Provider 并验签
@@ -551,7 +562,7 @@ def verify_callback(user_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
         )
         # 更新认证流水状态
         conn.execute(
-            "UPDATE verification_requests SET status='completed', completed_at=? WHERE request_id=?",
+            "UPDATE verification_requests SET status='completed', completed_at=%s WHERE request_id=%s",
             (now_iso(), request_id)
         )
         conn.commit()

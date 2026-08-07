@@ -251,7 +251,73 @@ CREATE INDEX IF NOT EXISTS idx_agent_conv_session ON agent_conversations(session
 CREATE INDEX IF NOT EXISTS idx_agent_conv_task ON agent_conversations(master_task_id);
 ```
 
-### 3.5 与现有表的关系
+### 3.5 `agent_prompts` / `agent_prompt_bindings` — 动态提示词系统表
+
+> 动态提示词系统：将静态 `.md` 提示词升级为数据库驱动、标签匹配、链式组装的动态调度引擎。
+> 由 `prompt_resolver.py` 的 `PromptResolver` 在运行时四层组装：
+> Layer 1 角色基础（default 绑定）→ Layer 2 全局安全规则（rule + domain=general）→
+> Layer 3 场景模版（task_triggers 精确匹配）→ Layer 4 模式增强（mode 标签）。
+
+```sql
+-- 提示词条目表（同一 slug 允许多版本）
+CREATE TABLE IF NOT EXISTS agent_prompts (
+    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name          TEXT NOT NULL,                          -- 显示名称
+    slug          TEXT NOT NULL,                          -- 唯一标识（英文）
+    version       INTEGER DEFAULT 1,                      -- 版本号（内容变更自动 +1）
+    content       TEXT NOT NULL,                          -- 提示词正文（i18n 统一英文）
+    prompt_type   TEXT NOT NULL DEFAULT 'system'
+                  CHECK(prompt_type IN ('system','scene','tool','rule','composite')),
+    domain        TEXT DEFAULT '',                        -- 领域（general 表示全局）
+    tags          TEXT DEFAULT '[]',                      -- JSON: 标签数组（Layer 4 匹配）
+    task_triggers TEXT DEFAULT '[]',                      -- JSON: 触发任务类型数组（Layer 3 精确匹配）
+    parent_id     BIGINT DEFAULT NULL,                    -- 继承父级提示词
+    priority      INTEGER DEFAULT 0,                      -- 匹配优先级（越大越优先）
+    is_active     BOOLEAN DEFAULT TRUE,                   -- 软删除标记
+    created_at    TEXT DEFAULT (NOW()),
+    updated_at    TEXT DEFAULT (NOW()),
+    UNIQUE(slug, version)
+);
+CREATE INDEX IF NOT EXISTS idx_ap_type ON agent_prompts(prompt_type);
+CREATE INDEX IF NOT EXISTS idx_ap_domain ON agent_prompts(domain);
+CREATE INDEX IF NOT EXISTS idx_ap_active ON agent_prompts(is_active);
+CREATE INDEX IF NOT EXISTS idx_ap_type_active ON agent_prompts(prompt_type, is_active);
+-- 全局安全规则唯一性：仅允许一条 rule+general（Layer 2）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ap_rule_general
+    ON agent_prompts(prompt_type, domain)
+    WHERE prompt_type='rule' AND domain='general';
+
+-- Agent-Prompt 绑定表
+CREATE TABLE IF NOT EXISTS agent_prompt_bindings (
+    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    agent_id      BIGINT NOT NULL REFERENCES agent_matrix(id) ON DELETE CASCADE,
+    prompt_id     BIGINT NOT NULL REFERENCES agent_prompts(id) ON DELETE CASCADE,
+    binding_type  TEXT NOT NULL DEFAULT 'default'
+                  CHECK(binding_type IN ('default','scene','override','mode')),
+    condition     TEXT DEFAULT '',                        -- JSON 条件（mode/task_type 精确匹配）
+    priority      INTEGER DEFAULT 0,
+    UNIQUE(agent_id, prompt_id, binding_type)
+);
+CREATE INDEX IF NOT EXISTS idx_apb_agent ON agent_prompt_bindings(agent_id);
+CREATE INDEX IF NOT EXISTS idx_apb_prompt ON agent_prompt_bindings(prompt_id);
+CREATE INDEX IF NOT EXISTS idx_apb_type ON agent_prompt_bindings(binding_type);
+```
+
+> 说明：当前系统为**非多租户架构**（由系统管理员统一管控，权限通过管理后台 `_require_admin()` 隔离），`agent_prompts` 表不包含 scope/owner 扩展字段。
+
+降级策略（保证不破坏现有行为）：
+- `system_config.prompt_resolver_enabled = false` → 回退读取 `agent_matrix.system_prompt` 原逻辑
+- 开关检查异常 → 默认禁用（安全降级回 legacy，R2-A6）
+- 任何异常 / 无匹配条目 → 回退 `_load_prompt()`（读取 `prompts/*.md` 文件）
+- 数据迁移：`seed_prompts.py` 将现有 15 个 `.md` 文件逐字节导入为 V1 记录并建立 default 绑定（幂等，按 MAX(version) 判断已存在）
+
+并发与原子性保证（R2 审计修复）：
+- `create_prompt`：`UNIQUE(slug, version)` + `ON CONFLICT DO NOTHING` 原子化，冲突时重试，避免并发 MAX(version) 竞态
+- `create_binding`：`UNIQUE(agent_id, prompt_id, binding_type)` + `ON CONFLICT DO UPDATE` 原子 UPSERT
+- `unbind_prompt_route`：删除时校验绑定归属 Agent（`WHERE id=%s AND agent_id=%s`）
+- `mode` 经 `task_def['_mode']` 注入子任务，跨线程不共享实例属性（修复 ThreadPoolExecutor 并发）
+
+### 3.6 与现有表的关系
 
 ```
 agent_matrix  ←→ agents (已有)  → 系统已有管理CRUD，新增 agent_matrix 作为增强
@@ -550,13 +616,19 @@ STEP 6 — 最终报告
 ```
 agent-matrix/                       # 新增模块
 ├── __init__.py
-├── models.py                       # agent_matrix / agent_tasks / task_logs / agent_conversations 表操作
+├── models.py                       # agent_matrix / agent_tasks / task_logs / agent_conversations / agent_prompts / agent_prompt_bindings 表操作
+├── prompt_resolver.py              # 动态提示词解析引擎 (PromptResolver)
+│                                  #   - 四层组装: default → rule → scene → mode
+│                                  #   - 失败自动降级回退 _load_prompt()
+│                                  #   - 读取 system_config.prompt_resolver_enabled 开关
+├── seed_prompts.py                 # 提示词迁移脚本 (幂等, 由 init_agent_matrix 调用)
 ├── orchestrator.py                 # Task Orchestrator 核心
 │                                  #   - task_decompose()
 │                                  #   - assign_task()
 │                                  #   - execute_task()
 │                                  #   - collect_results()
 │                                  #   - aggregate_report()
+│                                  #   - Prompt 加载统一走 _resolve_prompt()
 ├── agent_runner.py                 # Agent 执行器
 │                                  #   - 加载 AI 引擎 (OpenAI/DeepSeek/Qwen)
 │                                  #   - 注入 system_prompt
@@ -572,7 +644,7 @@ admin/
 └── templates/admin.html            # +导航 Agent 矩阵 + l_matrix() 页面
 
 auth-center/
-├── models/database.py              # +5张新表
+├── models/database.py              # +7张表
 └── routes/admin.py                 # 现有，不冲突
 ```
 
@@ -592,7 +664,26 @@ auth-center/
 | POST | /admin/agent-matrix/agents/<id>/test | 测试 Agent (发一条消息) |
 | POST | /admin/agent-matrix/agents/<id>/toggle | 启用/禁用 |
 
-### 8.2 任务管理
+### 8.2 动态提示词管理 (Dynamic Prompt System)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /admin/agent-matrix/prompts | DB 提示词列表 (支持 ?type=&domain=&keyword=) |
+| POST | /admin/agent-matrix/prompts | 创建提示词（同 slug 自动 version+1） |
+| GET | /admin/agent-matrix/prompts/files | Prompt 文件模板列表（chat 编辑器下拉框使用） |
+| GET | /admin/agent-matrix/prompts/load?path=... | 加载 .md 文件内容（原有） |
+| GET | /admin/agent-matrix/prompts/<id> | 提示词详情 |
+| PUT | /admin/agent-matrix/prompts/<id> | 更新提示词（content 变更自动 version+1） |
+| DELETE | /admin/agent-matrix/prompts/<id> | 软删除提示词 |
+| GET | /admin/agent-matrix/prompts/<id>/versions | 同 slug 版本历史 |
+| POST | /admin/agent-matrix/prompts/<id>/test | 用指定 Prompt 测试回答 |
+| GET | /admin/agent-matrix/agents/<aid>/bindings | 指定 Agent 的绑定关系列表 |
+| POST | /admin/agent-matrix/agents/<aid>/bind-prompt | 创建绑定 (default/scene/override/mode) |
+| DELETE | /admin/agent-matrix/agents/<aid>/bind-prompt/<bid> | 解绑 |
+
+> 注意：`GET /prompts` 与 `GET /prompts/files` 语义分离——前者为 DB 提示词管理（AI Hub > Prompts），后者为文件模板（chat 编辑器兼容）。
+
+### 8.3 任务管理
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -603,7 +694,7 @@ auth-center/
 | POST | /admin/agent-matrix/tasks/<task_id>/retry | 重试任务 |
 | GET | /admin/agent-matrix/tasks/<task_id>/logs | 任务日志 |
 
-### 8.3 Master Agent 对话
+### 8.4 Master Agent 对话
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -611,7 +702,7 @@ auth-center/
 | GET | /admin/agent-matrix/chat/history | 对话历史 |
 | GET | /admin/agent-matrix/chat/<session_id> | 指定会话详情 |
 
-### 8.4 统计与监控
+### 8.5 统计与监控
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
