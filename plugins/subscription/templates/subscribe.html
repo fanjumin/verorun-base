@@ -178,7 +178,7 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>{{ _('Subscription') }}</h1>
+            <h1>{{ _('subscription') }}</h1>
             <span class="market-badge" id="marketBadge">{{ _('market') }}</span>
         </div>
 
@@ -244,7 +244,7 @@
             await Promise.all([loadItems(), loadMySubs(), loadOrders()]);
             bindTabs();
             document.getElementById('marketBadge').textContent =
-                document.querySelector('meta[name="deploy-market"]')?.content || 'Market';
+                document.querySelector('meta[name="deploy-market"]')?.content || '{{ _('market') }}';
         }
 
         // ── Load Data ────────────────────────────────────────────────────────
@@ -327,7 +327,7 @@
         function renderMySubs() {
             const list = document.getElementById('mySubsList');
             if (state.mySubs.length === 0) {
-                list.innerHTML = '<div class="empty">No subscriptions yet. Browse available items to subscribe.</div>';
+                list.innerHTML = '<div class="empty">{{ _('no_subscriptions_yet') }}</div>';
                 return;
             }
             list.innerHTML = state.mySubs.map(sub => `
@@ -335,16 +335,16 @@
                     <div class="sub-info">
                         <span class="sub-name">${sub.name || sub.item_key}</span>
                         <span class="sub-meta">
-                            ${sub.interval_type === 'month' ? 'Monthly' : 'Yearly'} &mdash;
+                            ${sub.interval_type === 'month' ? '{{ _('month') }}' : '{{ _('year') }}'} &mdash;
                             ${sub.amount_yuan} &mdash;
-                            Expires: ${sub.period_end ? sub.period_end.slice(0,10) : '-'}
-                            ${sub.auto_renew ? ' (Auto-renew)' : ''}
+                            {{ _('expires') }}: ${sub.period_end ? sub.period_end.slice(0,10) : '-'}
+                            ${sub.auto_renew ? ' ({{ _('auto_renew') }})' : ''}
                         </span>
                     </div>
                     <div class="sub-actions">
                         <span class="status-badge status-${sub.status}">${sub.status}</span>
                         ${sub.status === 'active' ? `
-                            <button class="btn btn-sm btn-danger" onclick="onCancel('${sub.item_key}')">Cancel</button>
+                            <button class="btn btn-sm btn-danger" onclick="onCancel('${sub.item_key}')">{{ _('cancel') }}</button>
                         ` : ''}
                     </div>
                 </div>
@@ -354,7 +354,7 @@
         function renderOrders() {
             const tbody = document.getElementById('ordersBody');
             if (state.orders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty">No orders yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty">{{ _('no_orders_yet') }}</td></tr>';
                 return;
             }
             tbody.innerHTML = state.orders.map(o => `
@@ -392,15 +392,15 @@
                     state.pendingItem = { ...data.order, itemName: item?.name || itemKey };
                     showPaymentModal(state.pendingItem);
                 } else {
-                    alert(data.error || 'Subscribe failed');
+                    alert(data.error || '{{ _('subscribe_failed') }}');
                 }
             } catch(e) {
-                alert('Network error');
+                alert('{{ _('network_error') }}');
             }
         }
 
         async function onCancel(itemKey) {
-            if (!confirm('Cancel this subscription?')) return;
+            if (!confirm('{{ _('cancel_this_subscription') }}')) return;
             try {
                 let res = await fetch('/plugin/subscription/api/cancel', {
                     method: 'POST',
@@ -412,13 +412,13 @@
                     await loadItems();
                 }
             } catch(e) {
-                alert('Network error');
+                alert('{{ _('network_error') }}');
             }
         }
 
         // ── Modal ────────────────────────────────────────────────────────────
         function showPaymentModal(order) {
-            document.getElementById('modalTitle').textContent = `Pay — ${order.itemName || order.item_key}`;
+            document.getElementById('modalTitle').textContent = `{{ _('pay') }} — ${order.itemName || order.item_key}`;
             document.getElementById('modalAmount').textContent = `¥${order.amount_yuan}`;
 
             let qrImg = document.getElementById('modalQRImg');

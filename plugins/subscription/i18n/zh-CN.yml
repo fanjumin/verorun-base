@@ -86,3 +86,19 @@ market_intl: 国际区
 'Order not found': 订单不存在
 'Order cannot be refunded (current status: {status})': 订单当前状态无法退款（当前状态：{status}）
 'Refund failed: {error}': 退款失败：{error}
+
+# ── 用户门户模板（subscribe.html，P2-04） ──
+item: 商品
+channel: 支付渠道
+date: 日期
+pay: 支付
+qr_code: 二维码
+close: 关闭
+subscribed: 已订阅
+expires: 到期
+network_error: 网络错误
+market: 市场
+no_subscriptions_yet: 暂无订阅
+no_orders_yet: 暂无订单
+cancel_this_subscription: 确定取消该订阅吗？
+'Subscription Management': 订阅管理

@@ -86,3 +86,19 @@ market_intl: International
 'Order not found': Order not found
 'Order cannot be refunded (current status: {status})': 'Order cannot be refunded (current status: {status})'
 'Refund failed: {error}': 'Refund failed: {error}'
+
+# ── 用户门户模板（subscribe.html，P2-04） ──
+item: Item
+channel: Channel
+date: Date
+pay: Pay
+qr_code: QR Code
+close: Close
+subscribed: Subscribed
+expires: Expires
+network_error: Network error
+market: Market
+no_subscriptions_yet: No subscriptions yet.
+no_orders_yet: No orders yet.
+cancel_this_subscription: Cancel this subscription?
+'Subscription Management': Subscription Management

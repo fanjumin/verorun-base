@@ -6,12 +6,12 @@ The **subscription** plugin provides a unified subscription management system fo
 
 The plugin includes scheduled jobs for subscription expiry checks and auto-renewal, and uses dedicated gateway modules for each supported payment provider.
 
-| Property    | Value                |
-|-------------|----------------------|
-| Identifier  | `subscription`       |
-| Version     | 1.0.0                |
-| Database    | (internal)           |
-| Menu Group  | (managed via admin)  |
+| Property    | Value                              |
+|-------------|------------------------------------|
+| Identifier  | `subscription`                     |
+| Version     | 1.0.1                              |
+| Database    | Main DB `subscription` schema (PostgreSQL) |
+| Menu Group  | System (admin)                     |
 
 ---
 
@@ -22,9 +22,11 @@ The plugin includes scheduled jobs for subscription expiry checks and auto-renew
 - **Dual-Environment Routing** -- Automatic payment routing: CN users get Alipay/WeChat Pay; INTL users get Stripe/PayPal.
 - **Multi-Gateway Support** -- Dedicated gateway modules for Alipay, WeChat Pay, Stripe, and PayPal.
 - **Subscription Lifecycle** -- Full lifecycle management: subscribe, cancel, renew, and check subscription status.
-- **Scheduled Jobs** -- Automated expiry checks via `register_jobs()` and configurable auto-renewal.
+- **Scheduled Jobs** -- Expiry checks and auto-renewal retries registered via `register_jobs()`.
 - **Trial & Grace Periods** -- Configurable trial days and grace periods for subscription management.
-- **User Registration Hook** -- Automatically initialize subscription state when a new user registers.
+- **Concurrency-Safe Callbacks** -- Payment callbacks use row-level locking (`SELECT ... FOR UPDATE`) to prevent duplicate processing.
+- **Gateway Config Fallback** -- Gateway credentials are read from environment variables with a `system_config` table fallback.
+- **Full i18n** -- User portal and admin panel are fully translatable (en / zh-CN).
 
 ---
 
@@ -35,15 +37,20 @@ The plugin follows a gateway-based architecture with a scheduler:
 ```
 subscription/
   __init__.py     -- Plugin entry point (SubscriptionPlugin)
-  models.py       -- Data layer (ORM models, subscription tables)
+  models.py       -- Data layer (models, DDL, seed data)
   routes.py       -- Web layer (sub_bp Blueprint)
   services.py     -- Subscription business logic
   scheduler.py    -- Scheduled jobs for expiry and auto-renewal
   gateways/
+    __init__.py   -- Payment routing and shared helpers
     alipay.py     -- Alipay payment gateway
     paypal.py     -- PayPal payment gateway
     stripe.py     -- Stripe payment gateway
     wechat.py     -- WeChat Pay payment gateway
+  templates/      -- User portal + admin panel templates
+  i18n/           -- en.yml / zh-CN.yml translations
+  migrations/     -- Reserved for future DB migrations
+  screenshots/    -- Store page screenshots
 ```
 
 **Data Flow:**
@@ -67,10 +74,19 @@ plugins/subscription/
   services.py
   scheduler.py
   gateways/
+    __init__.py
     alipay.py
     paypal.py
     stripe.py
     wechat.py
+  templates/
+    subscribe.html
+    subscribe_admin.html
+  i18n/
+    en.yml
+    zh-CN.yml
+  migrations/
+  screenshots/
   README.en.md
 ```
 
@@ -81,8 +97,8 @@ plugins/subscription/
 1. Ensure the `subscription/` directory is present under `plugins/`.
 2. The plugin is auto-discovered by the VeroRun plugin loader.
 3. Verify activation in the admin panel under **Plugins**.
-4. The database is automatically initialized on first load.
-5. Configure payment gateway credentials for each supported provider.
+4. The database schema is automatically initialized on first load.
+5. Configure payment gateway credentials for each supported provider (environment variables or `system_config`).
 6. The `register_jobs()` method registers scheduled jobs for expiry checks and auto-renewal.
 
 ---
@@ -95,7 +111,7 @@ plugins/subscription/
 | `grace_days`         | integer | 3       | Grace period after expiry before access is revoked|
 | `auto_renew_default` | boolean | true    | Default auto-renewal setting for new subscriptions|
 
-Each payment gateway also requires its own provider-specific credentials (API keys, secrets, merchant IDs).
+Each payment gateway also requires its own provider-specific credentials (API keys, secrets, merchant IDs). Credentials are resolved from environment variables first, then fall back to the `system_config` table.
 
 ---
 
@@ -113,28 +129,34 @@ Each payment gateway also requires its own provider-specific credentials (API ke
 
 ### Hooks Listened
 
-| Hook               | Description                                              |
-|--------------------|----------------------------------------------------------|
-| `user/registered`  | Initialize subscription state for new users              |
+This plugin listens to no external events; all lifecycle behavior is driven by the provided hooks and scheduled jobs.
 
 ### Admin Routes
 
-- `GET  /admin/subscription/` -- Subscription management dashboard
-- `POST /admin/subscription/sku` -- Create or update a subscription SKU
-- `GET  /admin/subscription/users` -- View user subscriptions
+- `GET  /plugin/subscription/admin/` -- Subscription management dashboard
+- `GET/POST /plugin/subscription/admin/items` -- SKU catalog management
+- `DELETE /plugin/subscription/admin/items/<item_key>` -- Delete a SKU
+- `GET  /plugin/subscription/admin/users` -- View user subscriptions
+- `GET  /plugin/subscription/admin/orders` -- View orders
+- `POST /plugin/subscription/admin/orders/<order_no>/refund` -- Refund an order
 
 ### Public Routes
 
-- `GET  /api/subscription/plans` -- List available subscription plans
-- `GET  /api/subscription/my` -- Get current user's subscriptions
-- `POST /api/subscription/subscribe` -- Subscribe to a plan
-- `POST /api/subscription/cancel` -- Cancel a subscription
+- `GET  /plugin/subscription/portal` -- User subscription portal page
+- `GET  /plugin/subscription/api/items` -- List available subscription plans
+- `GET  /plugin/subscription/api/my` -- Get current user's subscriptions
+- `GET  /plugin/subscription/api/check/<item_key>` -- Check feature access
+- `POST /plugin/subscription/api/subscribe` -- Subscribe to a plan
+- `POST /plugin/subscription/api/cancel` -- Cancel a subscription
+- `POST /plugin/subscription/api/renew` -- Renew a subscription
+- `GET  /plugin/subscription/api/orders` -- List current user's orders
+- `POST /plugin/subscription/api/notify/{alipay,wechat,stripe,paypal}` -- Payment gateway callbacks
 
 ### Scheduled Jobs
 
-The `register_jobs()` method registers two periodic jobs:
-1. **Expiry Check** -- Runs daily to identify and process expired subscriptions.
-2. **Auto-Renewal** -- Runs daily to process auto-renewals for subscriptions nearing expiry.
+The `register_jobs()` method registers scheduled jobs:
+1. **Expiry Check** -- Runs periodically to identify and process expired subscriptions.
+2. **Auto-Renewal Retry** -- Retries renewal for suspended subscriptions.
 
 ---
 
@@ -142,19 +164,19 @@ The `register_jobs()` method registers two periodic jobs:
 
 This plugin has no external third-party Python dependencies. It relies on:
 
-- VeroRun core (hook system, plugin loader, template engine, job scheduler)
-- SQLite (via VeroRun's database abstraction layer)
+- VeroRun core (hook system, plugin loader, template engine, job scheduler, i18n)
+- PostgreSQL (main VeroRun database, dedicated `subscription` schema)
 - External payment gateway APIs (Alipay, WeChat Pay, Stripe, PayPal)
 
 ---
 
 ## Permissions
 
-| Permission             | Description                              |
-|------------------------|------------------------------------------|
-| `subscription.read`    | View subscription plans and status       |
-| `subscription.write`   | Subscribe, cancel, and renew             |
-| `subscription.admin`   | Manage subscription SKUs and all users   |
+| Permission   | Description                            |
+|--------------|----------------------------------------|
+| `api:read`   | View subscription plans and status     |
+| `api:write`  | Subscribe, cancel, and renew           |
+| `admin:access` | Manage subscription SKUs and all users |
 
 ---
 

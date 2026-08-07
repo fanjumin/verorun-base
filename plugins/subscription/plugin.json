@@ -1,7 +1,7 @@
 {
     "name": "Subscription",
     "identifier": "subscription",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Unified Subscription Management — Pay-as-you-go feature marketplace with dual-environment payment routing (cn: Alipay/WeChat, intl: Stripe/PayPal)",
     "author": "VeroRun",
     "min_app_version": "0.10.0",
@@ -9,7 +9,7 @@
     "icon": "credit_card",
     "icon_url": "https://cdn.verorun.com/plugins/subscription/icon.png",
     "readme_url": "https://cdn.verorun.com/plugins/subscription/README.md",
-    "screenshots": [],
+    "screenshots": ["screenshots/admin.png"],
     "tags": ["subscription", "payment", "billing"],
     "dependencies": {},
     "enabled": true,

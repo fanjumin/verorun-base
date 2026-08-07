@@ -1,37 +1,46 @@
-# Subscription (subscription)
+# Subscription（subscription）
 
 ## 概述
 
-Subscription（统一按需订阅管理）是 VeroRun 的核心订阅计费插件，采用按 Feature/SKU 独立订阅模式，废弃传统套餐制。支持双环境支付路由（CN 环境使用支付宝/微信支付，INTL 环境使用 Stripe/PayPal），实现按需付费的灵活计费体系。
+Subscription（统一按需订阅管理）是 VeroRun 的核心订阅计费插件，采用按 Feature/SKU 独立订阅模式。支持双环境支付路由（CN 环境使用支付宝/微信支付，INTL 环境使用 Stripe/PayPal），实现按需付费的灵活计费体系。
+
+| 属性      | 值                                |
+|-----------|-----------------------------------|
+| 标识符    | `subscription`                    |
+| 版本      | 1.0.1                             |
+| 数据库    | 主库 `subscription` schema（PostgreSQL） |
+| 菜单分组  | System（管理后台）                |
 
 ## 功能特性
 
 - **按 Feature/SKU 独立订阅**：每个功能或 SKU 独立计费，用户可按需订阅，无需购买固定套餐
-- **双环境支付路由**：自动根据站点域名判断市场环境（verorun.cn 或 verorun.com），路由到对应支付渠道
-- **试用期支持**：可配置免费试用天数，新用户自动获得试用资格
-- **宽限期管理**：订阅到期后有可配置的宽限期，避免服务立即中断
-- **自动续费**：支持默认开启自动续费，减少用户手动续费操作
+- **双环境支付路由**：自动根据 `DEPLOY_MARKET` 环境变量路由支付渠道（CN → 支付宝/微信支付；INTL → Stripe/PayPal）
+- **试用期支持**：可配置免费试用天数（`trial_days`）
+- **宽限期管理**：订阅到期后有可配置的宽限期（`grace_days`），避免服务立即中断
+- **自动续费**：支持默认开启自动续费（`auto_renew_default`）
 - **订阅全生命周期管理**：提供 `subscribe`、`cancel`、`renew` 全流程 Hook
-- **定时任务**：`scheduler.py` 定期检查订阅状态，处理到期提醒和自动续费
-- **种子数据**：内置默认 SKU 目录，安装时自动填充
+- **定时任务**：通过 `register_jobs()` 注册到期检查与自动续费重试任务
+- **回调并发安全**：支付回调使用行级锁（`SELECT ... FOR UPDATE`）防止重复处理
+- **网关配置兜底**：网关密钥优先读环境变量，缺失时回退到 `system_config` 表
+- **全量 i18n**：用户门户与管理后台均支持中英双语
 
 ## 架构设计
 
 ### 数据库策略
 
-使用**独立数据库**（通过 `models.py` 中的 `init_tables()` 初始化），存储订阅记录、SKU 目录、支付记录等核心数据。订阅状态查询时可跨库读取主库用户信息。
+使用**主库独立 schema**（PostgreSQL，`subscription` schema），通过 `plugins/_base/db.py` 的统一连接工厂 `get_raw_connection()` 连接，存储订阅记录、SKU 目录、支付订单等核心数据。订阅状态查询时可跨 schema 读取主库用户信息。
 
 ### 模块结构
 
 ```
 subscription/
 ├── __init__.py                # 插件入口，SubscriptionPlugin 类定义
-├── models.py                  # 数据模型，数据库初始化，种子数据
+├── models.py                  # 数据模型，DDL 初始化，种子数据
 ├── routes.py                  # Flask 蓝图路由，订阅页面与 API
-├── services.py                # 核心服务层，订阅逻辑处理
-├── scheduler.py               # 定时调度器，到期检查与提醒
+├── services.py                # 核心服务层，订阅业务逻辑
+├── scheduler.py               # 定时调度器，到期检查与自动续费重试
 ├── gateways/
-│   ├── __init__.py
+│   ├── __init__.py            # 支付渠道路由与公共工具（含 system_config 兜底）
 │   ├── alipay.py              # 支付宝支付网关
 │   ├── wechat.py              # 微信支付网关
 │   ├── stripe.py              # Stripe 支付网关
@@ -39,9 +48,13 @@ subscription/
 ├── templates/
 │   ├── subscribe.html         # 用户订阅页面
 │   └── subscribe_admin.html   # 管理后台页面
-└── i18n/
-    ├── en.yml
-    └── zh-CN.yml
+├── i18n/
+│   ├── en.yml                 # 英文翻译
+│   └── zh-CN.yml              # 中文翻译
+├── migrations/                # 数据库迁移预留目录
+├── screenshots/               # 商店页截图
+├── README.en.md               # 英文说明
+└── README_CN.md               # 中文说明
 ```
 
 ## 目录结构
@@ -49,10 +62,11 @@ subscription/
 | 文件/目录 | 说明 |
 |-----------|------|
 | `__init__.py` | 插件入口，定义 `SubscriptionPlugin` 类，处理生命周期 |
-| `models.py` | 数据模型层，提供 `init_tables()` 初始化数据库，`seed_default_items()` 填充种子数据 |
+| `models.py` | 数据模型层，提供 `init_tables()` 初始化 schema，`seed_default_items()` 填充种子数据 |
 | `routes.py` | 路由层，提供订阅页面和 API 端点 |
 | `services.py` | 核心服务层，`SubscriptionService` 实现订阅的创建、查询、取消、续费等逻辑 |
-| `scheduler.py` | 定时调度器，定期检查订阅到期状态，触发提醒和自动续费 |
+| `scheduler.py` | 定时调度器，通过 `register_jobs()` 注册到期检查与自动续费重试 |
+| `gateways/__init__.py` | 支付渠道路由、占位符检测、`system_config` 配置兜底 |
 | `gateways/alipay.py` | 支付宝支付网关实现 |
 | `gateways/wechat.py` | 微信支付网关实现 |
 | `gateways/stripe.py` | Stripe 支付网关实现 |
@@ -61,21 +75,19 @@ subscription/
 | `templates/subscribe_admin.html` | 管理后台页面模板 |
 | `i18n/en.yml` | 英文翻译 |
 | `i18n/zh-CN.yml` | 中文翻译 |
+| `migrations/` | 数据库迁移预留目录 |
+| `screenshots/` | 商店详情页截图 |
 
 ## 安装与启用
 
-### 安装
-
 插件已内置在 `plugins/subscription/` 目录下。VeroRun 启动时会自动扫描并注册。
-
-### 启用
 
 插件默认启用（`enabled: true`）。启用时执行：
 
-1. 调用 `init_tables()` 创建独立数据库表
+1. 调用 `init_tables()` 初始化 `subscription` schema 与数据表
 2. 调用 `seed_default_items()` 填充默认 SKU 目录
-3. 初始化 i18n 翻译函数（注入到 routes 和 services 模块）
-4. 注册定时任务（到期检查、自动续费）
+3. 初始化插件 i18n 翻译函数（注入到 routes 和 services 模块）
+4. 通过 `register_jobs()` 注册定时任务（到期检查、自动续费重试）
 5. 注册 Flask 蓝图路由
 
 ## 配置说明
@@ -92,9 +104,9 @@ subscription/
 
 | 权限标识 | 说明 |
 |----------|------|
-| `subscription.read` | 读取订阅状态和 SKU 信息 |
-| `subscription.write` | 创建/修改/取消订阅 |
-| `subscription.admin` | 管理 SKU 目录和订阅配置 |
+| `api:read` | 读取订阅状态和 SKU 信息 |
+| `api:write` | 创建/修改/取消订阅 |
+| `admin:access` | 管理 SKU 目录和订阅配置 |
 
 ## API 端点
 
@@ -108,24 +120,43 @@ subscription/
 | `subscription/cancel` | 取消用户的订阅 |
 | `subscription/renew` | 续费用户的订阅 |
 
-### 管理后台路由
-
-通过 Flask 蓝图注册，提供：
-- SKU 目录管理
-- 订阅记录管理
-- 用户订阅状态查询
-
-## 依赖关系
-
 ### 事件监听
 
-| 事件名称 | 处理逻辑 |
-|----------|----------|
-| `user/registered` | 新用户注册后，自动为其创建试用期订阅（如果 `trial_days > 0`） |
+本插件不监听外部事件，所有生命周期行为由提供的 Hook 与定时任务驱动。
 
-### 事件提供
+### 管理后台路由
 
-本插件向事件总线提供 5 个 Hook，覆盖订阅全生命周期。其他插件可通过 `subscription/has` 检查用户是否拥有特定功能权限。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/plugin/subscription/admin/` | 订阅管理后台页面 |
+| GET/POST | `/plugin/subscription/admin/items` | SKU 目录管理 |
+| DELETE | `/plugin/subscription/admin/items/<item_key>` | 删除 SKU |
+| GET | `/plugin/subscription/admin/users` | 用户订阅列表 |
+| GET | `/plugin/subscription/admin/orders` | 订单列表 |
+| POST | `/plugin/subscription/admin/orders/<order_no>/refund` | 订单退款 |
+
+### 用户端路由
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/plugin/subscription/portal` | 用户订阅门户页面 |
+| GET | `/plugin/subscription/api/items` | 获取可订阅 SKU 列表 |
+| GET | `/plugin/subscription/api/my` | 获取当前用户订阅 |
+| GET | `/plugin/subscription/api/check/<item_key>` | 检查功能权限 |
+| POST | `/plugin/subscription/api/subscribe` | 订阅 |
+| POST | `/plugin/subscription/api/cancel` | 取消订阅 |
+| POST | `/plugin/subscription/api/renew` | 续费 |
+| GET | `/plugin/subscription/api/orders` | 获取当前用户订单 |
+| POST | `/plugin/subscription/api/notify/{alipay,wechat,stripe,paypal}` | 支付网关回调 |
+
+### 定时任务
+
+通过 `register_jobs()` 注册：
+
+1. **到期检查**：定期扫描并处理到期订阅
+2. **自动续费重试**：对欠费/到期订阅重试创建续费订单
+
+## 依赖关系
 
 ### 外部依赖
 
@@ -134,11 +165,12 @@ subscription/
 - **Stripe**：INTL 环境支付网关，依赖 Stripe API
 - **PayPal**：INTL 环境支付网关，依赖 PayPal REST API
 - 依赖 VeroRun 核心框架的 `BasePlugin`、事件总线、i18n 模块
+- PostgreSQL 主库连接（`plugins/_base/db.py`）
 
 ### 菜单集成
 
-- **菜单组**：Core（无分组）
-- 注意：此插件属于核心模块，菜单项不显示在常规分组中
+- 菜单分组：System
+- 管理入口：`/plugin/subscription/admin/`（通过 `menu` 字段注册到管理后台）
 
 ## 许可证
 
