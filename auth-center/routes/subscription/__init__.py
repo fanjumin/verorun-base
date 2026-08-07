@@ -795,7 +795,8 @@ def subscription_portal():
         brand = None
     resp = make_response(render_template('subscribe_portal.html', token=token, brand=brand))
     if token and request.args.get('token'):
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
     return resp
 
 

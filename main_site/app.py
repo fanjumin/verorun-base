@@ -298,12 +298,13 @@ def index():
             resp = make_response(render_template('index.html', brand=brand, server_token=token, **_chatbot_context()))
             site_domain = brand.get('site_domain', '').strip()
             cd = ('.' + site_domain) if site_domain else ''
+            _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
             if cd:
                 resp.set_cookie('sso_token', token, domain=cd, path='/',
-                                max_age=604800, samesite='Lax', secure=True, httponly=True)
+                                max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
             else:
                 resp.set_cookie('sso_token', token, path='/',
-                                max_age=604800, samesite='Lax', secure=True, httponly=True)
+                                max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
             return resp
 
     # 3. 未登录 → 重定向到官网登录页

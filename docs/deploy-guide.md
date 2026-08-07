@@ -10,6 +10,61 @@
 
 ---
 
+## No-Domain / LAN Deployment
+
+Deploy VeroRun **without a public domain**, accessible via `localhost` or a LAN IP
+(e.g. `http://192.168.x.x/`). No DNS, no SSL, no subdomains required.
+
+```bash
+sudo bash deploy/install-local.sh
+```
+
+Access paths after install:
+
+| Path | Backend | Purpose |
+|------|---------|---------|
+| `http://localhost/` | 8081 | Main site |
+| `http://localhost/admin/` | 8084 | Admin panel |
+| `http://localhost/auth/` | 8083 | User console / subscriptions |
+| `http://localhost/subscribe` | 8083 | Subscription |
+
+The same paths work via `http://<LAN-IP>/` from other machines on the network.
+
+### Differences vs `install.sh`
+
+| Dimension | install.sh (domain mode) | install-local.sh |
+|-----------|--------------------------|----------------------|
+| Domain | Required, else services not started | Not required, `DEPLOY_DOMAIN` empty |
+| Protocol | `DEPLOY_PROTOCOL=https` | `DEPLOY_PROTOCOL=http` |
+| Nginx | Subdomain `server_name` routing | Path routing only, `listen 80 default_server` |
+| SSL | Manual certbot | Skipped (HTTP) |
+| Backend binding | `127.0.0.1` | `127.0.0.1` (unchanged) |
+
+### Limitations (architecture-bound)
+
+Online payment, OAuth third-party login, and SMS notifications require public
+callback URLs and are **unavailable** in no-domain mode. Multi-tenant subdomains
+and SSL are also unavailable. This mode targets **development / testing / intranet**
+deployment, not public production.
+
+### Security Notes
+
+- Transmission is plain HTTP — restrict port 80 access to trusted IPs via `ufw`/security groups
+- Application-layer protections (JWT signing, password hashing, CSRF `samesite=Lax`,
+  `httponly` cookies) remain fully active
+
+### Switching to Domain Mode Later
+
+```bash
+sudo bash deploy/install.sh configure-domain your-domain.com
+```
+
+The code changes are conditional branches — once `DEPLOY_DOMAIN` is set and
+`DEPLOY_PROTOCOL` defaults to `https`, the system automatically returns to
+domain-mode behavior. No code rollback needed.
+
+---
+
 ## One-Command Install
 
 Run this on a fresh Ubuntu server:

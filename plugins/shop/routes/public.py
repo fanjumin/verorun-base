@@ -86,8 +86,9 @@ def shop_page():
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if request.args.get('token'):
         # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(redirect(request.path))
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
         return resp
     return make_response(render_template('public/shop.html', token=token))
 
@@ -98,8 +99,9 @@ def shop_detail(pid):
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if request.args.get('token'):
         # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(redirect(request.path))
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
         return resp
     return make_response(render_template('public/shop_detail.html', token=token))
 
@@ -110,8 +112,9 @@ def shop_preview(pid):
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if request.args.get('token'):
         # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(redirect(request.path))
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
         return resp
     return make_response(render_template('public/shop_detail.html', token=token, preview=True))
 
@@ -121,8 +124,9 @@ def cart_page():
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if request.args.get('token'):
         # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(redirect(request.path))
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
         return resp
     return make_response(render_template('public/cart.html', token=token))
 
@@ -133,8 +137,9 @@ def payment_page(oid):
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if request.args.get('token'):
         # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(redirect(request.path))
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
         return resp
     return make_response(render_template('public/payment.html', order_id=oid, token=token))
 
@@ -145,8 +150,9 @@ def orders_page():
     token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token') or ''
     if request.args.get('token'):
         # 消费 URL 中的 token：写入 cookie 后 302 到干净 URL，避免 token 残留地址栏/访问日志
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(redirect(request.path))
-        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=True, httponly=True)
+        resp.set_cookie('sso_token', token, path='/', max_age=604800, samesite='Lax', secure=_is_https, httponly=True)
         return resp
     return make_response(render_template('public/orders.html', token=token))
 
@@ -822,8 +828,9 @@ def api_pay_order(oid):
 
     resp = jsonify({'success': result.get('success', False), 'data': {'method': 'alipay', **result}})
     if user_token:
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp.set_cookie('sso_token', user_token, path='/', max_age=604800,
-                        samesite='Lax', secure=True, httponly=True)
+                        samesite='Lax', secure=_is_https, httponly=True)
     return resp
 
 

@@ -155,8 +155,9 @@ def index():
     csrf_token = _generate_csrf_token()
     response = make_response(render_template('ali_admin/index.html', csrf_token=csrf_token))
     # 设置 CSRF Cookie（HttpOnly=False 以让 JS 读取，必须 SameSite=Lax）
+    _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
     response.set_cookie('csrf_token', csrf_token, 
-                        max_age=3600, httponly=False, samesite='Lax', secure=True)
+                        max_age=3600, httponly=False, samesite='Lax', secure=_is_https)
     # 添加安全响应头
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'

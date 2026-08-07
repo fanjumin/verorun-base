@@ -165,9 +165,10 @@ def oauth_callback(provider):
         jwt = create_token(user['id'], app_name='trademind')
         callback_url = f'https://{main_domain}/?token={jwt}'
         cd_val = '.' + main_domain
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(flask_redirect(callback_url))
         resp.set_cookie('sso_token', jwt, domain=cd_val, path='/', max_age=604800,
-                        httponly=True, secure=True, samesite='Lax')
+                        httponly=True, secure=_is_https, samesite='Lax')
         return resp
 
     # ── International OAuth providers (Google/GitHub/Facebook) ──
@@ -209,9 +210,10 @@ def oauth_callback(provider):
         jwt = create_token(user['id'], app_name='trademind')
         callback_url = f'https://{main_domain}/?token={jwt}'
         cd_val = '.' + main_domain
+        _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
         resp = make_response(flask_redirect(callback_url))
         resp.set_cookie('sso_token', jwt, domain=cd_val, path='/', max_age=604800,
-                        httponly=True, secure=True, samesite='Lax')
+                        httponly=True, secure=_is_https, samesite='Lax')
         return resp
 
     # ── Alipay OAuth ──
@@ -309,9 +311,10 @@ def oauth_callback(provider):
         final_path += '?' + parsed.query
     callback_url = f'https://{main_domain}/?token={jwt}&redirect={urllib.parse.quote(final_path, safe="")}'
     cd_val = '.' + main_domain
+    _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
     resp = make_response(flask_redirect(callback_url))
     resp.set_cookie('sso_token', jwt, domain=cd_val, path='/', max_age=604800,
-                    httponly=True, secure=True, samesite='Lax')
+                    httponly=True, secure=_is_https, samesite='Lax')
     return resp
 
 
@@ -455,11 +458,12 @@ def douyin_callback():
     
     jwt = create_token(user['id'], app_name='trademind')
     main_domain = os.environ.get('DEPLOY_DOMAIN', '')
+    _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
     cd_val = '.' + main_domain
     callback_url = f'https://{main_domain}/?token={jwt}'
     resp = make_response(flask_redirect(callback_url))
     resp.set_cookie('sso_token', jwt, domain=cd_val, path='/', max_age=604800,
-                    httponly=True, secure=True, samesite='Lax')
+                    httponly=True, secure=_is_https, samesite='Lax')
     return resp
 
 
