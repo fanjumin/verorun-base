@@ -10,23 +10,45 @@
     "readme_url": "README.md",
     "description": "Mini-program generation & developer account management (merged with dev_accounts)",
     "author": "VeroRun",
-    "min_app_version": "0.10.0",
+    "min_app_version": "2.0.0",
 
     "dependencies": {},
+
+    "provides_credential_management": true,
+    "replaces_plugins": ["dev_accounts"],
 
     "admin_url": "/admin/site-builder/mini-app",
     "admin_label": "Mini Apps",
 
-    "config": {},
+    "config": {
+        "output_base": "workspace/mini_apps",
+        "task_ttl_seconds": 3600,
+        "max_concurrent_tasks": 5,
+        "ai_generation_enabled": true,
+        "encryption_key_env": "MINI_APP_ENCRYPTION_KEY"
+    },
 
     "permissions": [
         "admin:access",
-        "network:request"
+        "database:write",
+        "network:request",
+        "file:write",
+        "crypto:encrypt"
     ],
 
     "hooks": {
-        "provides": [],
-        "listens": []
+        "provides": [
+            "mini_app.generate",
+            "mini_app.deploy",
+            "mini_app.preview",
+            "dev_accounts.created",
+            "dev_accounts.updated",
+            "dev_accounts.deleted"
+        ],
+        "listens": [
+            "site.created",
+            "brand.updated"
+        ]
     },
 
     "dashboard": {

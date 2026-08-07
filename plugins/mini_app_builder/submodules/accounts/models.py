@@ -85,6 +85,26 @@ def get_all(platform: str = None) -> list:
     return [_sanitize(dict(r)) for r in rows]
 
 
+def get_all_raw(platform: str = None) -> list:
+    """Get all developer accounts with raw (still-encrypted) fields.
+
+    Unlike get_all(), this does NOT mask sensitive fields.  Intended for
+    internal consumers (e.g. the plugin public API) that call decrypt()
+    themselves.
+    """
+    with get_db() as conn:
+        if platform:
+            rows = conn.execute(
+                "SELECT * FROM dev_accounts WHERE platform=? ORDER BY created_at DESC",
+                (platform,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM dev_accounts ORDER BY platform, created_at DESC"
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_by_id(account_id: int) -> dict | None:
     """Get a single developer account by ID."""
     with get_db() as conn:

@@ -151,3 +151,38 @@ class MiniAppBuilderPlugin(BasePlugin):
         except Exception:
             stats.update({'total_projects': 0, 'total_versions': 0})
         return stats
+
+    # ─── 公开 API（供其他插件/模块调用）───
+
+    def get_accounts_for_platform(self, platform: str) -> dict | None:
+        """获取指定平台的有效凭证（敏感字段已脱敏，用于展示/校验）。"""
+        from .submodules.accounts.models import get_by_platform
+        return get_by_platform(platform, active_only=True)
+
+    def get_all_platform_credentials(self) -> dict:
+        """获取所有平台凭证（含解密后的敏感字段，仅供内部可信调用方）。
+
+        返回结构: {platform: {id, account_name, app_id, app_secret,
+                              bot_token, access_token, channel_id,
+                              channel_secret, extra_config}}
+        """
+        from .submodules.accounts.models import get_all_raw
+        from .submodules.accounts.crypto import decrypt
+
+        creds = {}
+        for acct in get_all_raw():
+            if not acct.get('is_active'):
+                continue
+            platform = acct['platform']
+            creds[platform] = {
+                'id': acct.get('id'),
+                'account_name': acct.get('account_name'),
+                'app_id': acct.get('app_id'),
+                'app_secret': decrypt(acct.get('app_secret')) if acct.get('app_secret') else None,
+                'bot_token': decrypt(acct.get('bot_token')) if acct.get('bot_token') else None,
+                'access_token': decrypt(acct.get('access_token')) if acct.get('access_token') else None,
+                'channel_id': acct.get('channel_id'),
+                'channel_secret': decrypt(acct.get('channel_secret')) if acct.get('channel_secret') else None,
+                'extra_config': acct.get('extra_config'),
+            }
+        return creds
