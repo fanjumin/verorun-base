@@ -503,7 +503,8 @@ def mp_chat_stream():
 def _log_session_async(session_id, user_id, user_query, ai_reply, platform, intent, sentiment):
     """Persist chat session to the independent DB (background thread).
 
-    v2.1.0：会话历史独立存储于 mini_app_builder.mini_app_sessions。
+    v2.1.0：会话历史独立存储于 mini_app_builder.mini_app_sessions（不再写主库
+    chatbot_sessions，v2.1.0-audit 修复）。
     """
     try:
         from .db import get_db
@@ -517,20 +518,6 @@ def _log_session_async(session_id, user_id, user_query, ai_reply, platform, inte
     except Exception as e:
         import logging
         logging.warning(f'[MiniProgram] Session persist failed: {e}')
-    # 兼容：保留原 stats 统计（主库 chatbot_sessions），失败静默
-    try:
-        from plugins.chatbot.stats import log_session
-        log_session(
-            session_id=session_id,
-            user_query=user_query,
-            ai_reply=ai_reply,
-            source=f'mini_program_{platform}',
-            intent=intent,
-            sentiment=sentiment,
-        )
-    except Exception as e:
-        import logging
-        logging.warning(f'[MiniProgram] Stats session logging failed: {e}')
 
 
 @mini_program_bp.route('/chat/send', methods=['POST'])

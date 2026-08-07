@@ -12,7 +12,7 @@
     "author": "VeroRun",
     "min_app_version": "2.0.0",
 
-    "dependencies": {},
+    "dependencies": {"oauth_config": ">=1.0.0"},
 
     "provides_credential_management": true,
     "replaces_plugins": ["dev_accounts"],
