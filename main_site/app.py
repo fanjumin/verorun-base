@@ -46,6 +46,7 @@ if _platform_dir not in sys.path:
 sys.modules.pop('routes', None)
 
 from routes.api_v1 import api_v1_bp
+from routes.internal_api import internal_api_bp
 # mini_program_bp 已解耦至插件 plugins/mini_app_builder/public_api.py（v2.0.0），
 # 由 PluginManager mount_all_routes() 挂载（见下方 ── PluginManager ── 段）
 
@@ -130,6 +131,7 @@ register_auth(app, exclude_blueprints=['admin', 'cms_admin'])
 app.register_blueprint(sub_bp, name='platform_subscription')
 app.register_blueprint(api_v1_bp)
 app.register_blueprint(douyin_mp_bp)
+app.register_blueprint(internal_api_bp)  # 内部服务 API（插件数据解耦后共享数据获取）
 # mini_program_bp 已由 PluginManager 挂载（plugins/mini_app_builder）
 # 独立部署API — 仅主服务器模式注册
 if _HAS_DEPLOY_API:

@@ -177,6 +177,12 @@ class PluginManager:
         except Exception as e:
             print(f'[PluginManager] ⚠️ 自动安装失败: {e}')
 
+        # 自动禁用已被替代的弃用插件（如旧 dev_accounts）
+        try:
+            self._auto_disable_deprecated()
+        except Exception as e:
+            print(f'[PluginManager] ⚠️ 自动禁用弃用插件失败: {e}')
+
         # 记录到 app 扩展
         if not hasattr(app, 'extensions'):
             app.extensions = {}
@@ -509,6 +515,35 @@ class PluginManager:
                     self.activate(identifier)
                 except Exception as e:
                     print(f'[PluginManager] ❌ auto-activate {identifier}: {e}')
+
+    def _auto_disable_deprecated(self):
+        """自动禁用已被新插件替代的旧插件（deprecated 兼容机制）。
+
+        兼容两种声明方式（plugin.json）：
+          1. 新插件声明 ``"replaces_plugins": ["old_id"]``；
+          2. 旧插件自身标记 ``"status": "deprecated"`` + ``"replaced_by": "new_id"``。
+        当替代插件已处于 enabled/active 状态时，自动禁用旧插件（防止路由冲突）。
+        幂等：重复调用安全。
+        """
+        replaced: Dict[str, str] = {}  # old_id -> new_id
+        for info in list(self._cache.values()):
+            meta = info.metadata or {}
+            for old_id in meta.get('replaces_plugins') or []:
+                replaced[old_id] = info.identifier
+            if meta.get('status') == 'deprecated' and meta.get('replaced_by'):
+                replaced[info.identifier] = meta['replaced_by']
+        for old_id, new_id in replaced.items():
+            old = self._cache.get(old_id)
+            replacement = self._cache.get(new_id)
+            if not old or not replacement:
+                continue
+            if replacement.status in (PluginStatus.ENABLED, PluginStatus.ACTIVE) and \
+                    old.status in (PluginStatus.INSTALLED, PluginStatus.ENABLED, PluginStatus.ACTIVE):
+                print(f'[PluginManager] ⚠️ 自动禁用已弃用插件 {old_id}（由 {new_id} 替代）')
+                try:
+                    self.disable(old_id)
+                except Exception as e:
+                    print(f'[PluginManager] ⚠️ 禁用弃用插件 {old_id} 失败: {e}')
 
     def mount_active_routes(self):
         """启动期挂载所有 enabled/active 插件的路由（必须在首个请求前调用）。
