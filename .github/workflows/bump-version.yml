@@ -61,11 +61,14 @@ jobs:
           # 写入 VERSION 文件
           echo "$NEW_VERSION" > VERSION
 
+          # 追加到主程序版本允许清单（sync-to-base / build-binaries 守卫依据）
+          echo "v${NEW_VERSION}" >> .github/main-app-tags.txt
+
       - name: Commit & Tag
         run: |
           git config user.name  "VeroRun CI"
           git config user.email "ci@verorun.com"
-          git add VERSION docs/main-app-tags.txt
+          git add VERSION .github/main-app-tags.txt
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
           if git rev-parse "${{ steps.bump.outputs.tag }}" >/dev/null 2>&1; then
             echo "Tag ${{ steps.bump.outputs.tag }} already exists, skipping creation"
