@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
 : "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
-: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
+: "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -27,7 +27,7 @@ set -euo pipefail
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
 # ── Sparse-checkout 白名单：仅这些目录在服务器检出（cone 模式） ──
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -35,16 +35,78 @@ OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; I
 
 # ── Git mirror: DISABLED — ghproxy.com unstable, direct GitHub preferred ──
 
-# ── Pip mirror: auto-detect PyPI connectivity ──
+# ── CN Network Auto-Adaptation (v1.0) ────────────────────────────────
+# 中国网络环境优化：apt 镜像切换 / pip 多源竞速 / git 超时保护
+# 完全向后兼容：海外环境（默认源可达）不触发任何切换。
 PIP_MIRROR=""
-if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 https://pypi.org >/dev/null 2>&1; then
-    : # pypi.org reachable
-else
-    PIP_MIRROR="-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com"
-    echo -e "${INFO} using Aliyun PyPI mirror"
-fi
+PIP_MIRROR_DETECTED=""
+
+# 1. apt 镜像：检测默认源 3s 内不可达 → 自动切换阿里云（幂等，marker 文件控制）
+_ensure_apt_mirror() {
+    local _marker="/etc/apt/.verorun_mirror_applied"
+    [ -f "${_marker}" ] && return 0
+    if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 http://archive.ubuntu.com >/dev/null 2>&1; then
+        touch "${_marker}"; return 0
+    fi
+    echo -e "${WARN} Ubuntu default mirror unreachable → switching to Aliyun"
+    cp /etc/apt/sources.list "/etc/apt/sources.list.bak.$(date +%s)"
+    sed -i 's|http://[^/]*archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+    sed -i 's|http://[^/]*security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+    sed -i 's|http://[^/]*ports.ubuntu.com|http://mirrors.aliyun.com|g'   /etc/apt/sources.list
+    touch "${_marker}"
+    echo -e "${OK} apt mirror → Aliyun"
+}
+
+# 2. pip 镜像：多源竞速（阿里云 → 清华 → 官方）选响应最快，仅检测一次
+_detect_pip_mirror() {
+    [ -n "${PIP_MIRROR_DETECTED:-}" ] && return 0
+    echo -e "${INFO} Detecting fastest pip mirror..."
+    local _best="" _best_time=999
+    for _t in \
+        "aliyun|https://mirrors.aliyun.com/pypi/simple/pip/|-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com" \
+        "tsinghua|https://pypi.tuna.tsinghua.edu.cn/simple/pip/|-i https://pypi.tuna.tsinghua.edu.cn/simple/ --trusted-host pypi.tuna.tsinghua.edu.cn" \
+        "pypi|https://pypi.org/simple/pip/|"; do
+        local _name="${_t%%|*}"; local _rest="${_t#*|}"; local _url="${_rest%%|*}"; local _args="${_rest#*|}"
+        local _start=$(date +%s%N)
+        if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 --max-time 5 "${_url}" -o /dev/null 2>/dev/null; then
+            local _elapsed=$(( ($(date +%s%N) - _start) / 1000000 ))
+            echo -e "  ${INFO} ${_name}: ${_elapsed}ms"
+            if [ "${_elapsed}" -lt "${_best_time}" ]; then
+                _best_time="${_elapsed}"; _best="${_args}"
+            fi
+        else
+            echo -e "  ${WARN} ${_name}: unreachable"
+        fi
+    done
+    if [ -n "${_best}" ]; then PIP_MIRROR="${_best}"; fi
+    PIP_MIRROR_DETECTED=1
+    echo -e "${OK} pip mirror → ${PIP_MIRROR:-default}"
+}
+
+# 3. git clone 超时保护（60s）+ 浅克隆加速；失败给出明确指引
+# 注意：不执行 fetch --unshallow —— sparse-checkout 不依赖完整历史，
+#      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
+_clone_with_timeout() {
+    local _repo=$1 _dest=$2 _branch=$3
+    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow)..."
+    if timeout 60 git clone --depth 1 -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
+        return 0
+    fi
+    echo -e "${FAIL} git clone failed or timed out (60s)"
+    echo -e "${INFO} Possible causes:"
+    echo -e "${INFO}   1. GitHub unreachable (DNS pollution / GFW)"
+    echo -e "${INFO}   2. SSH key not configured (private repo)"
+    echo -e "${INFO}   3. Network too slow"
+    echo -e "${INFO} Workarounds:"
+    echo -e "${INFO}   • Use a proxy: export https_proxy=... && re-run"
+    echo -e "${INFO}   • Pre-clone manually: git clone ${_repo} ${_dest}"
+    echo -e "${INFO}   • For public base: use the HTTPS installer from verorun-base"
+    exit 1
+}
+
 # --prefer-binary: prefer wheels, fall back to source build
 _pip_install() {
+    _detect_pip_mirror
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"
 }
 
@@ -100,6 +162,72 @@ ensure_git_auth() {
     fi
 }
 
+# ── Interactive directory conflict resolution ────────────────────────
+# 文档 verorun-deploy-guide.html §6.3：目录冲突时三选一（备份/删除/中止）
+resolve_directory_conflict() {
+    local target_dir="$1"
+
+    # 目录不存在 → 正常流程
+    if [ ! -d "${target_dir}" ]; then
+        return 0
+    fi
+
+    # 已是 git 仓库 → 可以安全更新
+    if [ -d "${target_dir}/.git" ]; then
+        echo -e "${OK} Existing VeroRun installation detected at ${target_dir}"
+        return 0
+    fi
+
+    # 目录存在但不是 git 仓库 → 交互式选择
+    echo ""
+    echo -e "${WARN} ═══════════════════════════════════════════════════════"
+    echo -e "${WARN}  Directory conflict detected:"
+    echo -e "${WARN}    ${target_dir}"
+    echo -e "${WARN}"
+    echo -e "${WARN}  This directory exists but is NOT a VeroRun installation."
+    echo -e "${WARN}  What would you like to do?"
+    echo -e "${WARN}"
+    echo -e "${INFO}  [1] Backup and reinstall"
+    echo -e "${INFO}      → Move to ${target_dir}.bak.$(date +%Y%m%d%H%M%S) and proceed"
+    echo -e "${INFO}  [2] Delete and reinstall"
+    echo -e "${INFO}      → Remove ${target_dir} completely and proceed"
+    echo -e "${INFO}  [3] Abort installation"
+    echo -e "${INFO}      → Exit now. You can manually resolve and re-run."
+    echo -e "${WARN} ═══════════════════════════════════════════════════════"
+
+    while true; do
+        read -r -p "  Your choice [1/2/3]: " _choice </dev/tty
+
+        case "${_choice}" in
+            1)
+                local _bak="${target_dir}.bak.$(date +%Y%m%d%H%M%S)"
+                echo -e "${INFO} Backing up to ${_bak} ..."
+                mv "${target_dir}" "${_bak}"
+                echo -e "${OK} Backup complete. Proceeding with installation."
+                return 0
+                ;;
+            2)
+                # 安全防护：拒绝删除危险路径
+                if [ -z "${target_dir}" ] || [ "${target_dir}" = "/" ] || [ "${target_dir}" = "${HOME}" ]; then
+                    echo -e "${FAIL} Refusing to remove dangerous path: ${target_dir}"
+                    exit 1
+                fi
+                echo -e "${INFO} Removing ${target_dir} ..."
+                rm -rf "${target_dir}"
+                echo -e "${OK} Removed. Proceeding with installation."
+                return 0
+                ;;
+            3)
+                echo -e "${INFO} Installation aborted by user."
+                exit 0
+                ;;
+            *)
+                echo -e "${WARN} Please enter 1, 2, or 3"
+                ;;
+        esac
+    done
+}
+
 # ── Mode / Domain detection ──────────────────────────────────────────
 
 detect_mode() {
@@ -147,6 +275,7 @@ prompt_domain() {
 do_install() {
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
+    _ensure_apt_mirror
     apt-get update
     apt-get install -y python3 python3-venv python3-pip python3-dev \
         nginx git curl wget build-essential libpq-dev libssl-dev
@@ -162,16 +291,19 @@ do_install() {
     fi
 
     # Ensure role exists and password matches .env
+    # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
+    _sql_tmp=$(mktemp)
+    chmod 600 "${_sql_tmp}"
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -q 1; then
-        sudo -u postgres psql -c "ALTER ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
+        printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     else
-        sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
+        printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     fi
+    sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
+    rm -f "${_sql_tmp}"
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
-    # v2.1.0：mini_app_builder 插件独立数据库（同实例新库，数据库级物理隔离）
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='mini_app'" | grep -q 1 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE DATABASE mini_app OWNER verorun" 2>/dev/null || true
+    # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
     done_step "PostgreSQL is running"
 
     step "Create directories"
@@ -186,19 +318,15 @@ do_install() {
     ensure_git_auth
 
     step "Pull code"
+    # 审计 H3 修复：目录冲突时交互式三选一（备份/删除/中止），不再直接 rm -rf
+    resolve_directory_conflict "${APP_HOME}"
     if [ -d "${APP_HOME}/.git" ]; then
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
         git fetch origin "${GIT_BRANCH}"
         git reset --hard "origin/${GIT_BRANCH}"
     else
-        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
-            rm -rf "${APP_HOME}"
-        else
-            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
-            exit 1
-        fi
-        git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
+        _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     fi
     # 应用 sparse-checkout 白名单（幂等；拉取后立即收窄工作区，仅保留运行时目录）
     if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
@@ -313,13 +441,9 @@ do_update() {
     step "Pull latest code"
     if [ ! -d "${APP_HOME}/.git" ]; then
         echo -e "${WARN} .git missing — re-cloning repository"
-        if [ -n "${APP_HOME}" ] && [ "${APP_HOME}" != "/" ] && [ "${APP_HOME}" != "${HOME}" ]; then
-            rm -rf "${APP_HOME}"
-        else
-            echo -e "${FAIL} Refusing to remove APP_HOME='${APP_HOME}'"
-            exit 1
-        fi
-        git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
+        # 审计 H3 修复：复用交互式冲突处理，禁止直接 rm -rf
+        resolve_directory_conflict "${APP_HOME}"
+        _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     else
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
@@ -435,7 +559,7 @@ print('DB OK')
 # Seed initial data
 # ==========================================================================
 # ── Admin credentials temp file ──────────────────────────────────────
-VR_ADMIN_CREDS_FILE="/tmp/verorun-admin-creds"
+VR_ADMIN_CREDS_FILE="/root/.verorun-creds"
 
 do_seed() {
     step "Seed initial data"
@@ -465,11 +589,13 @@ do_seed() {
         echo -e "${INFO} No admin credentials provided — username defaults to 'administrator'"
     fi
 
-    local _seed_args=""
+    # 审计 C1：管理员凭据经环境变量传入 seed_data.py，避免出现在进程命令行
     if [ -n "${VR_ADMIN_USERNAME}" ]; then
-        _seed_args="--admin-user ${VR_ADMIN_USERNAME} --admin-pass ${VR_ADMIN_PASSWORD}"
+        sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
+            "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
+    else
+        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     fi
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py" ${_seed_args}
     echo -e "${OK} Seed data injected"
 }
 
@@ -511,6 +637,8 @@ prompt_admin_creds() {
 
     printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${_user}" "${_pass}" > "${VR_ADMIN_CREDS_FILE}"
     chmod 600 "${VR_ADMIN_CREDS_FILE}"
+    # 审计 C2 加固：脚本异常退出时清理凭据文件（prompt 仅在 install 模式调用，无 EXIT trap 冲突）
+    trap 'rm -f "${VR_ADMIN_CREDS_FILE}"' EXIT
     echo -e "${OK} Admin credentials saved"
 }
 
@@ -609,6 +737,7 @@ generate_env() {
 # VeroRun production config — auto-generated by install.sh
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=${DOMAIN}
+DEPLOY_PROTOCOL=https
 DB_PATH=${APP_HOME}/data/verorun.db
 PG_HOST=localhost
 PG_PORT=5432
@@ -624,12 +753,8 @@ APP_MODE=main
 APP_DEBUG=false
 FLASK_DEBUG=0
 
-# v2.1.0 — mini_app_builder 独立数据库与内部服务令牌
-MINI_APP_PG_DB=mini_app
+# v2.1.0 — 内部服务令牌
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
-
-# v2.1.0 — site_builder 插件独立数据库
-SITE_BUILDER_PG_DB=verorun_sitebuilder
 
 # Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
@@ -678,7 +803,7 @@ update_env() {
 
     # Fill missing Phase 1 keys
     local missing=()
-    for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET; do
+    for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET INTERNAL_SERVICE_TOKEN; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
             local val
             val=$(python3 -c "import secrets; print(secrets.token_hex(32))")
@@ -1071,13 +1196,15 @@ fi
 detect_mode "${1:-}"
 detect_domain "${2:-}"
 
-# Parse --region flag
-for arg in "$@"; do
-    case "${arg}" in
-        --region=*) REGION="${arg#*=}" ;;
-        --region) ;; # value consumed in next iteration if present, but --region value form preferred
+# Parse flags: --region cn / --region=cn / --approve-migrate
+# 审计 H4 修复：原 --region) 分支为空操作，--region cn 空格分隔形式的值被丢弃
+while [ $# -gt 0 ]; do
+    case "${1}" in
+        --region=*) REGION="${1#*=}" ;;
+        --region) shift; [ $# -gt 0 ] && REGION="${1}" ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
     esac
+    shift
 done
 # Validate region
 if [ "${REGION}" != "cn" ] && [ "${REGION}" != "global" ]; then
@@ -1109,7 +1236,8 @@ case "${DEPLOY_MODE}" in
         do_seed
         ;;
     configure-domain)
-        do_configure_domain "${2:-}"
+        # 审计 R1 修复：while 循环已 shift 清空 $2，改用 detect_domain 写入的全局 DOMAIN
+        do_configure_domain "${DOMAIN}"
         ;;
     *)
         echo "Usage: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain <domain>]"

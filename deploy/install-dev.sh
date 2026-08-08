@@ -51,14 +51,78 @@ set -euo pipefail
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
-# ── Pip mirror: auto-detect PyPI connectivity ──
+# ── CN Network Auto-Adaptation (v1.0) ────────────────────────────────
+# 中国网络环境优化：apt 镜像切换 / pip 多源竞速 / git 超时保护
+# 完全向后兼容：海外环境（默认源可达）不触发任何切换。
 PIP_MIRROR=""
-if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 https://pypi.org >/dev/null 2>&1; then
-    : # pypi.org reachable
-else
-    PIP_MIRROR="-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com"
-fi
+PIP_MIRROR_DETECTED=""
+
+# 1. apt 镜像：检测默认源 3s 内不可达 → 自动切换阿里云（幂等，marker 文件控制）
+_ensure_apt_mirror() {
+    local _marker="/etc/apt/.verorun_mirror_applied"
+    [ -f "${_marker}" ] && return 0
+    if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 http://archive.ubuntu.com >/dev/null 2>&1; then
+        touch "${_marker}"; return 0
+    fi
+    echo -e "${WARN} Ubuntu default mirror unreachable → switching to Aliyun"
+    cp /etc/apt/sources.list "/etc/apt/sources.list.bak.$(date +%s)"
+    sed -i 's|http://[^/]*archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+    sed -i 's|http://[^/]*security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+    sed -i 's|http://[^/]*ports.ubuntu.com|http://mirrors.aliyun.com|g'   /etc/apt/sources.list
+    touch "${_marker}"
+    echo -e "${OK} apt mirror → Aliyun"
+}
+
+# 2. pip 镜像：多源竞速（阿里云 → 清华 → 官方）选响应最快，仅检测一次
+_detect_pip_mirror() {
+    [ -n "${PIP_MIRROR_DETECTED:-}" ] && return 0
+    echo -e "${INFO} Detecting fastest pip mirror..."
+    local _best="" _best_time=999
+    for _t in \
+        "aliyun|https://mirrors.aliyun.com/pypi/simple/pip/|-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com" \
+        "tsinghua|https://pypi.tuna.tsinghua.edu.cn/simple/pip/|-i https://pypi.tuna.tsinghua.edu.cn/simple/ --trusted-host pypi.tuna.tsinghua.edu.cn" \
+        "pypi|https://pypi.org/simple/pip/|"; do
+        local _name="${_t%%|*}"; local _rest="${_t#*|}"; local _url="${_rest%%|*}"; local _args="${_rest#*|}"
+        local _start=$(date +%s%N)
+        if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 --max-time 5 "${_url}" -o /dev/null 2>/dev/null; then
+            local _elapsed=$(( ($(date +%s%N) - _start) / 1000000 ))
+            echo -e "  ${INFO} ${_name}: ${_elapsed}ms"
+            if [ "${_elapsed}" -lt "${_best_time}" ]; then
+                _best_time="${_elapsed}"; _best="${_args}"
+            fi
+        else
+            echo -e "  ${WARN} ${_name}: unreachable"
+        fi
+    done
+    if [ -n "${_best}" ]; then PIP_MIRROR="${_best}"; fi
+    PIP_MIRROR_DETECTED=1
+    echo -e "${OK} pip mirror → ${PIP_MIRROR:-default}"
+}
+
+# 3. git clone 超时保护（60s）+ 浅克隆加速；失败给出明确指引
+# 注意：不执行 fetch --unshallow —— sparse-checkout 不依赖完整历史，
+#      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
+_clone_with_timeout() {
+    local _repo=$1 _dest=$2 _branch=$3
+    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow)..."
+    if timeout 60 git clone --depth 1 -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
+        return 0
+    fi
+    echo -e "${FAIL} git clone failed or timed out (60s)"
+    echo -e "${INFO} Possible causes:"
+    echo -e "${INFO}   1. GitHub unreachable (DNS pollution / GFW)"
+    echo -e "${INFO}   2. SSH key not configured (private repo)"
+    echo -e "${INFO}   3. Network too slow"
+    echo -e "${INFO} Workarounds:"
+    echo -e "${INFO}   • Use a proxy: export https_proxy=... && re-run"
+    echo -e "${INFO}   • Pre-clone manually: git clone ${_repo} ${_dest}"
+    echo -e "${INFO}   • For public base: use the HTTPS installer from verorun-base"
+    exit 1
+}
+
+# --prefer-binary: prefer wheels, fall back to source build
 _pip_install() {
+    _detect_pip_mirror
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"
 }
 
@@ -594,6 +658,7 @@ do_install() {
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        _ensure_apt_mirror
         apt-get update
         apt-get install -y python3 python3-venv python3-pip python3-dev \
             nginx git curl wget build-essential libpq-dev libssl-dev
@@ -648,7 +713,7 @@ do_install() {
         git reset --hard "origin/${GIT_BRANCH}"
     else
         # 目录不存在或已被清理/备份 → 全新 clone
-        git clone -b "${GIT_BRANCH}" "${GIT_REPO}" "${APP_HOME}"
+        _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     fi
     if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true

@@ -29,14 +29,57 @@ set -euo pipefail
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
-# ── Pip mirror: auto-detect PyPI connectivity ──
+# ── CN Network Auto-Adaptation (v1.0) ────────────────────────────────
+# 中国网络环境优化：apt 镜像切换 / pip 多源竞速
+# 完全向后兼容：海外环境（默认源可达）不触发任何切换。
 PIP_MIRROR=""
-if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 https://pypi.org >/dev/null 2>&1; then
-    : # pypi.org reachable
-else
-    PIP_MIRROR="-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com"
-fi
+PIP_MIRROR_DETECTED=""
+
+# 1. apt 镜像：检测默认源 3s 内不可达 → 自动切换阿里云（幂等，marker 文件控制）
+_ensure_apt_mirror() {
+    local _marker="/etc/apt/.verorun_mirror_applied"
+    [ -f "${_marker}" ] && return 0
+    if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 http://archive.ubuntu.com >/dev/null 2>&1; then
+        touch "${_marker}"; return 0
+    fi
+    echo -e "${WARN} Ubuntu default mirror unreachable → switching to Aliyun"
+    cp /etc/apt/sources.list "/etc/apt/sources.list.bak.$(date +%s)"
+    sed -i 's|http://[^/]*archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+    sed -i 's|http://[^/]*security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+    sed -i 's|http://[^/]*ports.ubuntu.com|http://mirrors.aliyun.com|g'   /etc/apt/sources.list
+    touch "${_marker}"
+    echo -e "${OK} apt mirror → Aliyun"
+}
+
+# 2. pip 镜像：多源竞速（阿里云 → 清华 → 官方）选响应最快，仅检测一次
+_detect_pip_mirror() {
+    [ -n "${PIP_MIRROR_DETECTED:-}" ] && return 0
+    echo -e "${INFO} Detecting fastest pip mirror..."
+    local _best="" _best_time=999
+    for _t in \
+        "aliyun|https://mirrors.aliyun.com/pypi/simple/pip/|-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com" \
+        "tsinghua|https://pypi.tuna.tsinghua.edu.cn/simple/pip/|-i https://pypi.tuna.tsinghua.edu.cn/simple/ --trusted-host pypi.tuna.tsinghua.edu.cn" \
+        "pypi|https://pypi.org/simple/pip/|"; do
+        local _name="${_t%%|*}"; local _rest="${_t#*|}"; local _url="${_rest%%|*}"; local _args="${_rest#*|}"
+        local _start=$(date +%s%N)
+        if command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 3 --max-time 5 "${_url}" -o /dev/null 2>/dev/null; then
+            local _elapsed=$(( ($(date +%s%N) - _start) / 1000000 ))
+            echo -e "  ${INFO} ${_name}: ${_elapsed}ms"
+            if [ "${_elapsed}" -lt "${_best_time}" ]; then
+                _best_time="${_elapsed}"; _best="${_args}"
+            fi
+        else
+            echo -e "  ${WARN} ${_name}: unreachable"
+        fi
+    done
+    if [ -n "${_best}" ]; then PIP_MIRROR="${_best}"; fi
+    PIP_MIRROR_DETECTED=1
+    echo -e "${OK} pip mirror → ${PIP_MIRROR:-default}"
+}
+
+# --prefer-binary: prefer wheels, fall back to source build
 _pip_install() {
+    _detect_pip_mirror
     sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"
 }
 
@@ -200,16 +243,12 @@ FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
 
-# Local/LAN mode: DEBUG enabled for development convenience
-APP_DEBUG=true
-FLASK_DEBUG=1
+# Production-safe default: DEBUG disabled (审计 H2 修复，防止本地脚本误开启调试)
+APP_DEBUG=false
+FLASK_DEBUG=0
 
-# v2.1.0 — mini_app_builder 独立数据库与内部服务令牌（修复 install-local.sh 遗漏）
-MINI_APP_PG_DB=mini_app
+# v2.1.0 — 内部服务令牌（修复 install-local.sh 遗漏）
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
-
-# v2.1.0 — site_builder 插件独立数据库
-SITE_BUILDER_PG_DB=verorun_sitebuilder
 
 # Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
@@ -288,7 +327,7 @@ SVCEOF
     # 8083 — Platform / User Console
     write_one_service "verorun-auth" 8083 "main_site" "--timeout 120 --log-level warning"
     # 8084 — Admin (uses run_gunicorn.py to avoid platform/ shadowing stdlib)
-    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 120 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py" "verorun"
+    write_one_service "verorun-admin" 8084 "admin.app" "--timeout 300 --max-requests=1000 --graceful-timeout=30 --log-level warning --config admin/gunicorn_config.py" "admin/run_gunicorn.py" "verorun"
     # 8085 — Health Check
     write_one_service "verorun-health" 8085 "health_service.app" "--timeout 30 --graceful-timeout=30 --log-level warning"
     # ── verorun-guardian (standalone daemon, no HTTP port) ──
@@ -356,9 +395,8 @@ write_sudoers() {
     local sudoers_file="/etc/sudoers.d/verorun"
     cat > "${sudoers_file}" << SUEOF
 # Managed by VeroRun install-code.sh — regenerated on every install
-# Grants ${APP_USER} passwordless restart for VeroRun services
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install-code.sh
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install-code.sh restart
+# Grants ${APP_USER} passwordless restart for VeroRun services only
+# 审计 H5 修复：不再授予"运行整个安装脚本"的无密码权限，仅保留受控的 systemctl restart
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
@@ -466,12 +504,13 @@ do_seed() {
         echo -e "${INFO} Run 'install-code.sh' first"
         exit 1
     fi
-    # 用数组传递参数，避免用户名/密码含空格时被错误拆分
-    local _seed_args=()
+    # 审计 C1：管理员凭据经环境变量传入 seed_data.py，避免出现在进程命令行
     if [ -n "${VR_ADMIN_USERNAME:-}" ]; then
-        _seed_args+=(--admin-user "${VR_ADMIN_USERNAME}" --admin-pass "${VR_ADMIN_PASSWORD}")
+        sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
+            "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
+    else
+        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     fi
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py" "${_seed_args[@]}"
     echo -e "${OK} Seed data injected"
 }
 
@@ -527,6 +566,7 @@ do_install() {
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        _ensure_apt_mirror
         apt-get update
         apt-get install -y python3 python3-venv python3-pip python3-dev \
             nginx git curl wget build-essential libpq-dev libssl-dev
@@ -547,16 +587,19 @@ do_install() {
         apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
+    # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
+    _sql_tmp=$(mktemp)
+    chmod 600 "${_sql_tmp}"
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -q 1; then
-        sudo -u postgres psql -c "ALTER ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
+        printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     else
-        sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD '${PG_PASSWORD}'" 2>/dev/null || true
+        printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     fi
+    sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
+    rm -f "${_sql_tmp}"
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
-    # v2.1.0：site_builder 插件独立数据库（同实例新库，数据库级物理隔离）
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun_sitebuilder'" | grep -q 1 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE DATABASE verorun_sitebuilder OWNER verorun" 2>/dev/null || true
+    # 铁律：install-code.sh 只允许创建系统库，插件数据库一律不建
     done_step "PostgreSQL is running"
 
     # 步骤 3: 创建目录

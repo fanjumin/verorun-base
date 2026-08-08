@@ -57,7 +57,13 @@ trap 'rm -f "${TMP_FILE}"' EXIT
     echo
     # Keep all existing entries (skip title line and following blank line)
     if [ -f CHANGELOG.md ]; then
-        tail -n +3 CHANGELOG.md
+        # 审计 L3：校验前两行为"标题+空行"，格式异常时保留全部内容，避免旧条目被截断
+        if head -2 CHANGELOG.md | grep -qE '^# ' && [ -z "$(sed -n '2p' CHANGELOG.md | tr -d '[:space:]')" ]; then
+            tail -n +3 CHANGELOG.md
+        else
+            echo -e "${WARN} CHANGELOG.md header format unexpected — keeping full file"
+            cat CHANGELOG.md
+        fi
     fi
 } > "${TMP_FILE}"
 mv "${TMP_FILE}" CHANGELOG.md
