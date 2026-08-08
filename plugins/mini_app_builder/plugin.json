@@ -2,7 +2,7 @@
     "name": "Mini App Builder",
     "name_i18n_key": "plugin.name",
     "identifier": "mini_app_builder",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "category": "tools",
     "icon": "deploy",
     "icon_url": "",
