@@ -207,6 +207,9 @@ FLASK_DEBUG=1
 MINI_APP_PG_DB=verorun_miniapp
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
+# v2.1.0 — site_builder 插件独立数据库
+SITE_BUILDER_PG_DB=verorun_sitebuilder
+
 # Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
 CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
@@ -498,6 +501,9 @@ do_install() {
     fi
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
+    # v2.1.0：site_builder 插件独立数据库（同实例新库，数据库级物理隔离）
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun_sitebuilder'" | grep -q 1 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE verorun_sitebuilder OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
     # 步骤 3: 创建目录

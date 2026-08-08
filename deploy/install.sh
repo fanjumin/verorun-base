@@ -27,7 +27,7 @@ set -euo pipefail
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
 # ── Sparse-checkout 白名单：仅这些目录在服务器检出（cone 模式） ──
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins site_builder agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -205,6 +205,8 @@ do_install() {
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
         git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
     fi
+    # 本地/无域名部署脚本不进生产工作区：install.sh 不部署也不更新 install-local.sh
+    rm -f "${APP_HOME}/deploy/install-local.sh"
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
@@ -339,6 +341,8 @@ do_update() {
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
         git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
     fi
+    # 本地/无域名部署脚本不进生产工作区：install.sh 不部署也不更新 install-local.sh
+    rm -f "${APP_HOME}/deploy/install-local.sh"
     local after_commit
     after_commit=$(git log --oneline -1)
     done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
@@ -623,6 +627,9 @@ FLASK_DEBUG=0
 # v2.1.0 — mini_app_builder 独立数据库与内部服务令牌
 MINI_APP_PG_DB=verorun_miniapp
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+
+# v2.1.0 — site_builder 插件独立数据库
+SITE_BUILDER_PG_DB=verorun_sitebuilder
 
 # Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}

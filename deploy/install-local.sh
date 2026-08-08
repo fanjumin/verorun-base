@@ -32,7 +32,7 @@ set -euo pipefail
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${REGION:=global}"                # cn | global
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins site_builder agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -127,6 +127,12 @@ JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
+
+# v2.1.0 — mini_app_builder 插件独立数据库
+MINI_APP_PG_DB=verorun_miniapp
+
+# v2.1.0 — site_builder 插件独立数据库
+SITE_BUILDER_PG_DB=verorun_sitebuilder
 
 # Local/LAN mode: DEBUG enabled for development convenience
 APP_DEBUG=true
@@ -415,6 +421,12 @@ do_install() {
     fi
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
+    # v2.1.0：mini_app_builder 插件独立数据库（同实例新库，数据库级物理隔离）
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun_miniapp'" | grep -q 1 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE verorun_miniapp OWNER verorun" 2>/dev/null || true
+    # v2.1.0：site_builder 插件独立数据库（同实例新库，数据库级物理隔离）
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun_sitebuilder'" | grep -q 1 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE verorun_sitebuilder OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
     step "Create directories"
