@@ -1,5 +1,42 @@
 # 修改记录
 
+## v0.54.0 — 2026-08-08
+
+### Changes
+
+- feat: site_builder 插件化发布（v2.1.0）— 独立数据库 verorun_sitebuilder + 内部 API + 菜单自动注册；legacy site_builder 从 sparse-checkout 移除
+- feat(deploy): install-code.sh 本地源码全量部署脚本（无 git clone、无域名）；install-local.sh / install-code.sh 从 verorun-base 同步中排除
+- feat(deploy): PLUGIN_AUTO_INSTALL 开关 — 部署默认不自动安装/启用插件，后台手动启用
+- fix(deploy): admin 启动超时 — health_check.sh 增加 curl 超时 + gunicorn timeout 提升至 300s
+- fix(db): 启动迁移串行化 + connect_timeout，解决低配机器启动挂起
+- chore(deploy): 本地 LAN 部署启用 debug 模式
+
+## v0.53.0 — 2026-08-07
+
+### Changes
+
+- feat(plugins): mini_app_builder v2.1.0 — 数据解耦至独立库 verorun_miniapp + 联邦身份
+- feat(deploy): 本地无域名部署支持 — SSO cookie secure 跟随 DEPLOY_PROTOCOL + 子域转路径映射 + install-local.sh
+- fix(plugins): 修复启动期数据库初始化错误 — analytics SQL 切分 + order_notify/wishlist 裸连接 + health_check/vault cursor 链式调用
+- fix(plugins): mini_app_builder 审计修复 — oauth_config 依赖声明 + 会话仅写独立库
+
+## v0.52.0 — 2026-08-07
+
+### Changes
+
+- feat(plugins): mini_app_builder v2.0.0 — 解耦小程序生成 + 合并 Developer Accounts 插件
+- fix(agent_matrix): is_active 用 bool 适配 PostgreSQL boolean 列（create/update prompt）
+- fix(plugins): mini_app_builder 审计修复 — plugin.json 规范化 + 弃用自动禁用 + 公开 API
+
+## v0.51.0 — 2026-08-07
+
+### Changes
+
+- feat(agent_matrix): Dynamic Prompt System — PromptResolver 动态提示词解析引擎（数据库驱动、标签匹配、四层组装、降级回退）
+- feat(plugins): 标准审计修复与发布 — 5 插件启用加固 + name/menu i18n 机制
+- feat(plugins/vault): v2.2.0 安全复审计修复收尾 + 版本升级
+- chore: 移除含凭据的临时测试脚本
+
 ## v0.50.1 — 2026-08-07
 
 ### Changes
