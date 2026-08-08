@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CMS Page Generator — Write LLM page content into cms_blocks / cms_posts tables
 
-v1.0.0 起 cms_blocks / cms_posts 位于主库，本生成器改经 main_site 内部
+v2.1.0 起 cms_blocks / cms_posts 位于主库，本生成器经 main_site 内部
 API（internal_client）读写区块数据（默认草稿 is_published=0）。
 """
 

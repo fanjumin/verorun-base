@@ -5,8 +5,6 @@ site_settings:
   save: "保存"
   saved: "已保存"
   reset: "重置为默认"
-  migrate: "从旧模块迁移数据"
-  migrated: "迁移完成"
 
   tabs:
     brand: "品牌"

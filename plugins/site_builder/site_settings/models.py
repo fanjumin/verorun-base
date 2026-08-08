@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Site Settings Models — Unified Design Token Data Model
 
-v1.0.0 起运行于独立数据库 site_builder（site_builder schema）；
-主库 cms_blocks 等共享数据改经 main_site 内部 API（internal_client）访问。
+v2.1.0 运行于独立数据库 site_builder（site_builder schema）；
+主库 cms_blocks 等共享数据经 main_site 内部 API（internal_client）访问。
 """
 
 import json, os
@@ -137,145 +137,6 @@ def save_tokens(site_key, token_dict, generated_by='manual', prompt_id=None):
             )
         conn.commit()
     return True
-
-
-def _parse_json_field(val):
-    """Safely parse JSON field"""
-    if isinstance(val, (dict, list)):
-        return val
-    if isinstance(val, str):
-        try:
-            return json.loads(val)
-        except (json.JSONDecodeError, TypeError):
-            return val
-    return val
-
-
-def migrate_from_legacy():
-    """Migrate legacy table data to design_tokens (first-time only).
-
-    ⚠️ 一次性主库临时耦合：本函数在首次迁移时直连主库
-    （from models.database import get_db）读取旧表（brand_settings /
-    header_nav / footer_* / site_theme_config / themes），写入插件独立库。
-    这是临时、仅执行一次的逻辑 —— 幂等标记为「独立库 design_tokens 已有
-    site_key='platform' 数据即直接跳过」（含 pg_dump 数据迁移导入场景）。
-    数据迁移完成后（见 migrations/v2.1.0_migrate_to_independent.sql），
-    可在后续版本移除本函数及其主库依赖，改由独立迁移脚本完成。
-    """
-    with get_db() as conn:
-        # Check if already migrated
-        existing = conn.execute(
-            "SELECT id FROM design_tokens WHERE site_key='platform'"
-        ).fetchone()
-        if existing:
-            return  # Already migrated
-
-        tokens = dict(DEFAULT_TOKENS)
-
-    # 旧表在主库 → 使用主库连接读取（仅在首次迁移时执行一次）
-    from models.database import get_db as _main_db
-    with _main_db() as conn:
-        # ── 1. Brand Settings ──
-        try:
-            brand = conn.execute('SELECT * FROM brand_settings WHERE id=1').fetchone()
-            if brand:
-                b = dict(brand)
-                tokens['brand'].update({
-                    'site_name': b.get('site_name_cn', '') or b.get('company_name', ''),
-                    'slogan': b.get('slogan', ''),
-                    'company_name': b.get('company_name', ''),
-                    'logo_url': b.get('logo_url', ''),
-                    'favicon_url': b.get('favicon_url', ''),
-                    'contact_email': b.get('contact_email', ''),
-                })
-                tokens['footer']['copyright'] = b.get('copyright', '')
-                tokens['footer']['icp_number'] = b.get('icp_number', '')
-                tokens['footer']['security_number'] = b.get('security_number', '')
-                tokens['seo']['title'] = b.get('seo_title', '')
-                tokens['seo']['description'] = b.get('seo_desc', '')
-        except Exception:
-            conn.rollback()
-
-        # ── 2. Navigation ──
-        try:
-            nav_rows = conn.execute(
-                "SELECT title, url, sort_order FROM header_nav WHERE site='platform' AND is_enabled=1 ORDER BY sort_order"
-            ).fetchall()
-            if nav_rows:
-                tokens['navigation']['items'] = [
-                    {'id': i + 1, 'title': r['title'], 'url': r['url'],
-                     'icon': '', 'target': '_self', 'children': []}
-                    for i, r in enumerate(nav_rows)
-                ]
-        except Exception:
-            conn.rollback()
-
-        # ── 3. Footer Links ──
-        try:
-            fl_rows = conn.execute(
-                "SELECT section, title, url FROM footer_links WHERE is_enabled=1 ORDER BY section, sort_order"
-            ).fetchall()
-            sections = {}
-            for r in fl_rows:
-                sec = r['section']
-                if sec not in sections:
-                    sections[sec] = {'name': sec, 'links': []}
-                sections[sec]['links'].append({'title': r['title'], 'url': r['url']})
-            if sections:
-                tokens['footer']['sections'] = list(sections.values())
-        except Exception:
-            conn.rollback()
-
-        # ── 4. Footer Articles / Documents ──
-        try:
-            fa_rows = conn.execute(
-                "SELECT title, url FROM footer_articles WHERE is_enabled=1 ORDER BY sort_order"
-            ).fetchall()
-            if fa_rows:
-                tokens['footer']['articles'] = [
-                    {'title': r['title'], 'url': r['url']} for r in fa_rows
-                ]
-        except Exception:
-            conn.rollback()
-
-        # ── 5. Theme Config ──
-        try:
-            theme_row = conn.execute(
-                "SELECT t.config_json FROM site_theme_config s "
-                "LEFT JOIN themes t ON s.theme_id = t.id "
-                "WHERE s.site_key='main'"
-            ).fetchone()
-            if theme_row and theme_row['config_json']:
-                th_cfg = _parse_json_field(theme_row['config_json'])
-                if isinstance(th_cfg, dict):
-                    variables = th_cfg.get('variables', {})
-                    if isinstance(variables, dict):
-                        if 'preset' in variables:
-                            is_dark = variables['preset'] == 'dark'
-                            if is_dark:
-                                tokens['colors'].update({
-                                    'background': '#0f172a',
-                                    'surface': '#1e293b',
-                                    'text_primary': '#f1f5f9',
-                                    'text_secondary': '#94a3b8',
-                                    'border': '#334155',
-                                })
-                        if 'font_scale' in variables:
-                            tokens['typography']['font_scale'] = variables['font_scale']
-                        if 'border_radius' in variables:
-                            tokens['border_radius']['md'] = f"{variables['border_radius']}px"
-        except Exception:
-            pass
-
-    # ── Save 到插件独立库 ──
-    token_json = json.dumps(tokens, ensure_ascii=False)
-    with get_db() as conn:
-        conn.execute(
-            'INSERT INTO design_tokens (site_key, token_json, generated_by, version) VALUES (%s,%s,%s,%s)',
-            ('platform', token_json, 'migrated', 1)
-        )
-        conn.commit()
-        print('[SiteSettings] Legacy data migrated to design_tokens (platform)')
 
 
 # ── Draft / Preview / Publish ─────────────────────────────────

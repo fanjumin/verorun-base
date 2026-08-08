@@ -4,7 +4,7 @@
 Endpoints: ~13
 Prefix: /admin/site-builder/
 
-v1.0.0 解耦说明：
+v2.1.0 解耦说明：
   - 鉴权/审计自包含（_require_admin / _log），不再依赖 auth-center 路由层。
   - 主库 cms_blocks / cms_posts / 品牌设置改经 main_site 内部 API
     （internal_client）访问；design_tokens 等插件数据位于独立库。

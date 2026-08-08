@@ -1,6 +1,5 @@
 -- v2.1.0: Site Builder plugin initial schema (independent database site_builder)
--- 表结构与原主库（auth-center/models/database.py + site_builder/models.py +
--- site_builder/site_settings/models.py）保持一致，便于 pg_dump 数据迁移无缝导入。
+-- 独立库初始 schema：由插件安装时自动执行（幂等）。
 BEGIN;
 
 CREATE SCHEMA IF NOT EXISTS site_builder;

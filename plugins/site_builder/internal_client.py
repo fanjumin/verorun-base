@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""site_builder — internal service client (v1.0.0).
+"""site_builder — internal service client (v2.1.0).
 
 插件数据库解耦后，cms_blocks / cms_posts / 品牌信息等主库共享数据不再直连
 主库，改为调用 main_site 提供的内部 API（/api/internal/*）。读操作带 LRU

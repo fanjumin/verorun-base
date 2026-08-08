@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """site_builder — independent PostgreSQL connection factory.
 
-v2.1.0 起插件数据从主库物理迁移到独立库 `site_builder`。
+site_builder 插件数据存储于独立数据库 `site_builder`（site_builder schema）。
 本文件不再依赖 plugins/_base/db.py（主库共享连接），而是使用独立的
 `SITE_BUILDER_DB_URL`（优先）或 `SITE_BUILDER_PG_*` 环境变量建立连接。
 

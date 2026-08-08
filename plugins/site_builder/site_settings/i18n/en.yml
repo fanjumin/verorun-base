@@ -5,8 +5,6 @@ site_settings:
   save: "Save"
   saved: "Saved"
   reset: "Reset to Default"
-  migrate: "Migrate from legacy modules"
-  migrated: "Migration complete"
 
   tabs:
     brand: "Brand"

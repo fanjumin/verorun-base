@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Site Builder Plugin (v2.1.0) — AI 智能建站插件
 
-v2.1.0 解耦与合并：
+v2.1.0 解耦：
   - 建站能力从核心模块 site_builder/ 解耦至此插件。
   - 数据表（site_builder_prompts / site_builder_tasks / design_tokens /
-    site_versions）由 v2.1.0 迁移至独立数据库 `site_builder` 的
-    `site_builder` schema（见 migrations/）。
+    site_versions）存储于独立数据库 `site_builder` 的 `site_builder` schema，
+    安装时自动建库（幂等），卸载时保留数据。
   - 主库共享数据（cms_blocks / cms_posts / 品牌设置）改经 main_site 内部
     API（/api/internal/*）访问（见 internal_client.py）。
   - 含两个子模块：
@@ -42,7 +42,7 @@ class SiteBuilderPlugin(BasePlugin):
     @property
     def version(self):
         info = getattr(self, 'plugin_info', None)
-        return getattr(info, 'version', None) or '1.0.0'
+        return getattr(info, 'version', None) or '2.1.0'
 
     @property
     def description(self):
@@ -77,9 +77,8 @@ class SiteBuilderPlugin(BasePlugin):
                                   site_builder schema 存在。
           2. models.init_tables() + seed_default_prompts()
                                   —— 提示词模板 / 建站任务建表并植入内置模板。
-          3. site_settings.models.init_tables() + migrate_from_legacy()
-                                  —— design_tokens / site_versions 建表，
-                                     首次运行从主库旧表迁移品牌等数据。
+          3. site_settings.models.init_tables()
+                                  —— design_tokens / site_versions 建表。
         """
         try:
             from .migrate import run_migrations
@@ -99,12 +98,6 @@ class SiteBuilderPlugin(BasePlugin):
             _init_settings_tables()
         except Exception as e:
             logger.warning('[SiteBuilder] site_settings init_tables failed: %s', e)
-
-        try:
-            from .site_settings.models import migrate_from_legacy
-            migrate_from_legacy()
-        except Exception as e:
-            logger.warning('[SiteBuilder] migrate_from_legacy failed: %s', e)
 
     def register_routes(self):
         """挂载 2 个蓝图（url_prefix 各自自定义，由 mount_all_routes 沿用）。

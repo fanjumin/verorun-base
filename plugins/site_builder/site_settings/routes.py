@@ -159,12 +159,3 @@ def register_routes(bp):
         save_tokens('platform', current)
         _log(admin['user_id'], 'update', 'site_settings_typography', '', str(list(data.keys())))
         return jsonify({'success': True, 'message': 'Typography updated'})
-
-    @bp.route('/site-settings/migrate', methods=['POST'])
-    def force_migrate():
-        admin, err = _require_admin()
-        if err: return err
-        from .models import migrate_from_legacy
-        migrate_from_legacy()
-        _log(admin['user_id'], 'migrate', 'site_settings', '', '')
-        return jsonify({'success': True, 'message': 'Migration completed'})
