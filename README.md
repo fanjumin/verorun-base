@@ -718,7 +718,6 @@ verorun-code/
 ├── prompts/                # AI coding rules & system prompts (12 rule files)
 ├── deploy/                 # Deployment scripts, Nginx config, Gunicorn config, seed data
 │   ├── install.sh          # One-command install/update/restart/rollback/health/seed (private & base repos)
-│   ├── install-base.sh     # One-command deploy script (v2.1) for the public verorun-base (HTTPS clone)
 │   ├── install-local.sh    # Local/LAN deployment without a public domain (path routing, HTTP, no SSL)
 │   ├── install-code.sh     # Full deployment from a local source copy (no git clone, no domain)
 │   ├── health_check.sh     # Standalone service health check script

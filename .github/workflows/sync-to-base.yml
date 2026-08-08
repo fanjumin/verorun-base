@@ -55,17 +55,6 @@ jobs:
           # .gitattributes 中的 export-ignore 控制哪些文件不导出
           git archive --format=tar "${{ steps.vars.outputs.tag }}" | tar -xC /tmp/base/
 
-      - name: Install public installer (install-base.sh)
-        run: |
-          cd /tmp/base
-          # base 使用精简版 install.sh：公开仓库（HTTPS，免 SSH key）+ 无私有授权密钥
-          rm -f deploy/install.sh
-          if [ -f deploy/install-base.sh ]; then
-            mv deploy/install-base.sh deploy/install.sh
-          else
-            echo "install-base.sh not found, skipping"
-          fi
-
       - name: Commit and push to verorun-base
         run: |
           cd /tmp/base
