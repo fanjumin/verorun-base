@@ -4,6 +4,7 @@
 # ==========================================================================
 # Usage:
 #   sudo bash deploy/install-local.sh
+#   sudo bash deploy/install-local.sh --skip-deps     # skip dependency install
 #
 # Deploys VeroRun WITHOUT a public domain, accessible via:
 #   http://localhost/          → main site
@@ -398,19 +399,70 @@ do_seed() {
     echo -e "${OK} Seed data injected"
 }
 
+# ── Dependency scan helpers ──────────────────────────────────────────
+check_system_deps() {
+    local pkg
+    for pkg in python3 python3-venv python3-pip python3-dev nginx git curl wget \
+        build-essential libpq-dev libssl-dev postgresql postgresql-client; do
+        if ! dpkg -s "${pkg}" >/dev/null 2>&1; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+check_python_deps() {
+    [ -x "${VENV_DIR}/bin/python" ] || return 1
+    [ -f "${APP_HOME}/requirements.txt" ] || return 1
+    local freeze line pkg
+    freeze=$("${VENV_DIR}/bin/pip" list --format=freeze 2>/dev/null) || return 1
+    while read -r line; do
+        [ -z "${line}" ] && continue
+        case "${line}" in \#*) continue ;; esac
+        pkg="${line%%[<>=!~;]*}"
+        pkg=$(printf '%s' "${pkg}" | tr 'A-Z' 'a-z' | tr '_' '-')
+        printf '%s\n' "${freeze}" | grep -qi "^${pkg}==" || return 1
+    done < "${APP_HOME}/requirements.txt"
+    return 0
+}
+
 # ── Fresh install (no-domain) ─────────────────────────────────────────
 do_install() {
+    step "Dependency check"
+    if [ "${SKIP_DEPS:-0}" = "1" ]; then
+        echo -e "${WARN} --skip-deps: skipping dependency installation"
+    elif check_system_deps && check_python_deps; then
+        echo -e "${OK} All dependencies already installed — skipping"
+        SKIP_DEPS=1
+    else
+        echo -e "${WARN} Some dependencies are missing (system or Python packages)"
+        read -r -p "Install dependencies now? [Y/n] " _ans || _ans=""
+        case "${_ans}" in
+            n|N) echo -e "${WARN} Skipping dependency installation"; SKIP_DEPS=1 ;;
+            *)   echo -e "${OK} Will install missing dependencies" ;;
+        esac
+    fi
+    done_step "Dependency check complete"
+
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update
-    apt-get install -y python3 python3-venv python3-pip python3-dev \
-        nginx git curl wget build-essential libpq-dev libssl-dev
+    if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        apt-get update
+        apt-get install -y python3 python3-venv python3-pip python3-dev \
+            nginx git curl wget build-essential libpq-dev libssl-dev
+    else
+        echo -e "${WARN} Skipped (deps already present or --skip-deps)"
+    fi
     done_step "System dependencies installed"
 
     PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
+        if [ "${SKIP_DEPS:-0}" = "1" ]; then
+            echo -e "${FAIL} postgresql not running, but dependency installation was skipped"
+            exit 1
+        fi
         apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
@@ -462,11 +514,15 @@ do_install() {
     done_step "Code pulled ($(git -C "${APP_HOME}" log --oneline -1))"
 
     step "Python virtual environment"
-    if [ ! -f "${VENV_DIR}/bin/python" ]; then
-        sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
+    if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        if [ ! -f "${VENV_DIR}/bin/python" ]; then
+            sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
+        fi
+        _pip_install --upgrade pip
+        _pip_install -r "${APP_HOME}/requirements.txt"
+    else
+        echo -e "${WARN} Skipped (deps already present or --skip-deps)"
     fi
-    _pip_install --upgrade pip
-    _pip_install -r "${APP_HOME}/requirements.txt"
     done_step "Python dependencies installed"
 
     step "Generate .env (no-domain mode)"
@@ -533,6 +589,7 @@ fi
 for arg in "$@"; do
     case "${arg}" in
         --region=*) REGION="${arg#*=}" ;;
+        --skip-deps) SKIP_DEPS=1 ;;
     esac
 done
 if [ "${REGION}" != "cn" ] && [ "${REGION}" != "global" ]; then
