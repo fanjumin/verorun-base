@@ -64,5 +64,9 @@ deploy/caddy export-ignore
 tools export-ignore
 tmp export-ignore
 
+# ── 本地/无域名部署脚本（仅 verorun-code 需要，不进 verorun-base） ──
+deploy/install-local.sh export-ignore
+deploy/install-code.sh export-ignore
+
 # ── .gitattributes 自身（不应进入 verorun-base） ──
 .gitattributes export-ignore
