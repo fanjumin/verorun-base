@@ -4,7 +4,7 @@
 -- 注意：4 张自有表（dev_accounts 等）为「迁移 + 导入」得来，回滚时**保留**，
 -- 因为它们已从主库转移，删除即永久丢失。
 --
--- 运行方式： psql -d verorun_miniapp -f migrations/v2.1.0_rollback.sql
+-- 运行方式： psql -d mini_app -f migrations/v2.1.0_rollback.sql
 -- 幂等：可重复执行。
 
 DROP TABLE IF EXISTS mini_app_builder.mini_app_sessions;

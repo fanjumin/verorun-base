@@ -15,7 +15,7 @@
 
 ### Changes
 
-- feat(plugins): mini_app_builder v2.1.0 — 数据解耦至独立库 verorun_miniapp + 联邦身份
+- feat(plugins): mini_app_builder v2.1.0 — 数据解耦至独立库 mini_app + 联邦身份
 - feat(deploy): 本地无域名部署支持 — SSO cookie secure 跟随 DEPLOY_PROTOCOL + 子域转路径映射 + install-local.sh
 - fix(plugins): 修复启动期数据库初始化错误 — analytics SQL 切分 + order_notify/wishlist 裸连接 + health_check/vault cursor 链式调用
 - fix(plugins): mini_app_builder 审计修复 — oauth_config 依赖声明 + 会话仅写独立库

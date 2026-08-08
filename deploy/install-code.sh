@@ -205,7 +205,7 @@ APP_DEBUG=true
 FLASK_DEBUG=1
 
 # v2.1.0 — mini_app_builder 独立数据库与内部服务令牌（修复 install-local.sh 遗漏）
-MINI_APP_PG_DB=verorun_miniapp
+MINI_APP_PG_DB=mini_app
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
 # v2.1.0 — site_builder 插件独立数据库

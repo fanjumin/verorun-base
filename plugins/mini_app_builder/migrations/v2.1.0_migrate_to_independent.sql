@@ -1,12 +1,12 @@
 -- mini_app_builder v2.1.0 — 主库 → 独立库 数据迁移指引
 -- =============================================================
--- 将主库 verorun 的 mini_app_builder schema 数据迁移到独立库 verorun_miniapp。
+-- 将主库 verorun 的 mini_app_builder schema 数据迁移到独立库 mini_app。
 --
 -- ⚠️ 本脚本为「操作指引」（含变量），不能直接 psql -f 执行。
 --    请在**服务器**上按以下步骤执行，并由运维人员核对。
 --
 -- 前置条件：
---   1. 已创建独立库： CREATE DATABASE verorun_miniapp OWNER verorun;
+--   1. 已创建独立库： CREATE DATABASE mini_app OWNER verorun;
 --   2. 已执行 v2.1.0.sql 完成独立库建表；
 --   3. 应用已升级到 mini_app_builder v2.1.0，且插件迁移逻辑已运行
 --      （旧表已在主库的 mini_app_builder schema 中）。
@@ -19,7 +19,7 @@
 --     -f /tmp/miniapp_schema_data.sql
 
 -- ── Step 2: 导入独立库（数据走 4 张自有表 + sessions）──
--- psql -h 127.0.0.1 -p 5432 -U verorun -d verorun_miniapp -f /tmp/miniapp_schema_data.sql
+-- psql -h 127.0.0.1 -p 5432 -U verorun -d mini_app -f /tmp/miniapp_schema_data.sql
 
 -- ── Step 3: 校验行数一致 ──
 -- SELECT 'dev_accounts' AS tbl, COUNT(*) FROM mini_app_builder.dev_accounts
@@ -28,8 +28,8 @@
 --（分别在主库与独立库执行，逐表对比计数）
 
 -- ── Step 4: 切换应用连接 ──
--- .env 增加： MINI_APP_PG_DB=verorun_miniapp
---（或 MINI_APP_DB_URL=postgres://verorun:xxx@127.0.0.1:5432/verorun_miniapp）
+-- .env 增加： MINI_APP_PG_DB=mini_app
+--（或 MINI_APP_DB_URL=postgres://verorun:xxx@127.0.0.1:5432/mini_app）
 -- 重启 admin(8084) 与 main_site(8081)。
 
 -- ── Step 5: 观察期（建议 1 周）后清理主库残留 ──
@@ -40,7 +40,7 @@
 -- ⚠️ 仅在确认独立库数据完整、无回滚需求后执行。
 
 -- ── 回滚（观察期内）──
--- psql -h 127.0.0.1 -U verorun -d verorun_miniapp -f migrations/v2.1.0_rollback.sql
+-- psql -h 127.0.0.1 -U verorun -d mini_app -f migrations/v2.1.0_rollback.sql
 -- psql -d verorun -c "CREATE SCHEMA IF NOT EXISTS mini_app_builder;"
--- pg_dump -d verorun_miniapp --schema=mini_app_builder --data-only --column-inserts | psql -d verorun
+-- pg_dump -d mini_app --schema=mini_app_builder --data-only --column-inserts | psql -d verorun
 -- .env 移除 MINI_APP_PG_DB / MINI_APP_DB_URL，重启服务。

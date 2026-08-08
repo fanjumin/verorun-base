@@ -69,7 +69,7 @@ class MiniAppBuilderPlugin(BasePlugin):
 
         顺序：
           1. run_migrations()   —— 确保 mini_app_builder / platform_users schema
-                                  存在（v2.1.0 起连接独立库 verorun_miniapp）。
+                                  存在（v2.1.0 起连接独立库 mini_app）。
           2. init_tables()      —— mini_app_projects / mini_app_versions /
                                    mini_app_sessions 建表（独立库）。
           3. platform_users.init_tables() —— platform_user_mappings 建表（独立库）。

@@ -4,10 +4,10 @@ services:
   # v2.1.0 — mini_app_builder 插件独立数据库（数据库级物理隔离）
   postgres_miniapp:
     image: postgres:15-alpine
-    container_name: verorun_miniapp_pg
+    container_name: mini_app_pg
     restart: unless-stopped
     environment:
-      POSTGRES_DB: verorun_miniapp
+      POSTGRES_DB: mini_app
       POSTGRES_USER: ${MINI_APP_PG_USER:-verorun}
       POSTGRES_PASSWORD: ${MINI_APP_PG_PASSWORD:-}
     ports:
@@ -31,7 +31,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
       - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
-      - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-verorun}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/verorun_miniapp
+      - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-verorun}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
     logging:
       driver: "json-file"

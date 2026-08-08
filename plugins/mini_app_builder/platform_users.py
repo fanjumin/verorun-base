@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Platform user mapping — 联邦身份映射表数据层 (v2.1.0).
 
-独立库 `verorun_miniapp` 中维护 平台身份 → 主库用户(user_id) 的映射，
+独立库 `mini_app` 中维护 平台身份 → 主库用户(user_id) 的映射，
 插件不再直接访问主库 users 表。用户真正的账号由 auth-center 管理；
 本插件仅记录「平台用户」对应的主库用户 ID，用于登录后签发共享 JWT。
 

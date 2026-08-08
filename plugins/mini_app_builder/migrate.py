@@ -4,7 +4,7 @@
 v2.0.0 把旧表从 public schema 移到 mini_app_builder schema（主库内移动，
 保留数据/索引/序列），并创建 public 视图向后兼容。
 
-v2.1.0 起数据物理迁移到独立数据库 `verorun_miniapp`：连接切换到独立库，
+v2.1.0 起数据物理迁移到独立数据库 `mini_app`：连接切换到独立库，
 run_migrations 仅确保 schema 存在；若独立库 public 中残留未迁移表（迁移
 中断场景），仍会将其移动到 mini_app_builder schema。
 

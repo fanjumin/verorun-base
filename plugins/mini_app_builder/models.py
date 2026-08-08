@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mini App Builder — data models & CRUD for mini-app projects / versions.
 
-v2.1.0 起数据物理迁移至独立数据库 `verorun_miniapp`（不再使用主库），
+v2.1.0 起数据物理迁移至独立数据库 `mini_app`（不再使用主库），
 表位于 mini_app_builder schema，连接走本插件独立的 db.py（MINI_APP_DB_URL
 或 MINI_APP_PG_* 环境变量）。
 """

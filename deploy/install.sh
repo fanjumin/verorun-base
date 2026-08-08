@@ -170,8 +170,8 @@ do_install() {
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     # v2.1.0：mini_app_builder 插件独立数据库（同实例新库，数据库级物理隔离）
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun_miniapp'" | grep -q 1 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE DATABASE verorun_miniapp OWNER verorun" 2>/dev/null || true
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='mini_app'" | grep -q 1 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE mini_app OWNER verorun" 2>/dev/null || true
     done_step "PostgreSQL is running"
 
     step "Create directories"
@@ -625,7 +625,7 @@ APP_DEBUG=false
 FLASK_DEBUG=0
 
 # v2.1.0 — mini_app_builder 独立数据库与内部服务令牌
-MINI_APP_PG_DB=verorun_miniapp
+MINI_APP_PG_DB=mini_app
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
 # v2.1.0 — site_builder 插件独立数据库

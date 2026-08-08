@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Developer Credentials — data access layer (merged from plugins/dev_accounts).
 
-v2.1.0 起连接独立数据库 `verorun_miniapp`（不再使用主库），表位于
+v2.1.0 起连接独立数据库 `mini_app`（不再使用主库），表位于
 mini_app_builder schema，连接走本插件独立的 db.py。
 """
 

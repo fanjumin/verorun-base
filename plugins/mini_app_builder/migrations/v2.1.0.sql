@@ -1,10 +1,10 @@
 -- mini_app_builder v2.1.0 migration — 独立数据库建表
 -- =============================================================
--- 目标：插件自有数据从主库 verorun 物理迁移到独立库 verorun_miniapp。
--- 本 SQL 在 **独立库 verorun_miniapp** 上执行（数据迁移见
+-- 目标：插件自有数据从主库 verorun 物理迁移到独立库 mini_app。
+-- 本 SQL 在 **独立库 mini_app** 上执行（数据迁移见
 -- v2.1.0_migrate_to_independent.sql）。
 --
--- 运行方式： psql -d verorun_miniapp -f migrations/v2.1.0.sql
+-- 运行方式： psql -d mini_app -f migrations/v2.1.0.sql
 -- 幂等：可重复执行。
 --
 -- 注意：此处创建的 4 张自有表（dev_accounts / schema_meta /
