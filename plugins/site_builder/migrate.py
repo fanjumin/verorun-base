@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """site_builder — idempotent schema migration runner.
 
-v2.1.0 起插件数据物理迁移到独立数据库 `verorun_sitebuilder`：连接切换到
+v2.1.0 起插件数据物理迁移到独立数据库 `site_builder`：连接切换到
 独立库，run_migrations 仅确保 schema 存在；若独立库 public schema 中残留
 未迁移表（迁移中断场景），仍会将其移动到 site_builder schema。
 

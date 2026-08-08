@@ -21,7 +21,7 @@
 
     "config": {
         "db_url_env": "SITE_BUILDER_DB_URL",
-        "database_name": "verorun_sitebuilder",
+        "database_name": "site_builder",
         "schema": "site_builder",
         "internal_base_url_env": "MAIN_SITE_INTERNAL_URL",
         "internal_token_env": "INTERNAL_SERVICE_TOKEN"

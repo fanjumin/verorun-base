@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Site Settings Models — Unified Design Token Data Model
 
-v1.0.0 起运行于独立数据库 verorun_sitebuilder（site_builder schema）；
+v1.0.0 起运行于独立数据库 site_builder（site_builder schema）；
 主库 cms_blocks 等共享数据改经 main_site 内部 API（internal_client）访问。
 """
 

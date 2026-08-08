@@ -1,13 +1,13 @@
--- v2.1.0_migrate_to_independent.sql: 主库 → 独立库 verorun_sitebuilder 数据迁移指引
+-- v2.1.0_migrate_to_independent.sql: 主库 → 独立库 site_builder 数据迁移指引
 --
 -- 前置条件：
---   1. 已在 PostgreSQL 服务器创建独立数据库：CREATE DATABASE verorun_sitebuilder;
+--   1. 已在 PostgreSQL 服务器创建独立数据库：CREATE DATABASE site_builder;
 --   2. 独立库已应用 v2.1.0.sql（可由插件 on_install/on_enable 自动执行）。
 --
 -- 迁移 4 张表（site_builder_prompts / site_builder_tasks / design_tokens / site_versions）：
 --
 --   # 1) 从主库导出（--column-inserts 保证列名对齐，design_tokens 含 draft_json）
---   pg_dump --dbname="postgres://USER:PASS@HOST/verorun" --table=public.site_builder_prompts \
+--   pg_dump --dbname="postgres://USER:PASS@HOST/main_db" --table=public.site_builder_prompts \
 --           --table=public.site_builder_tasks --table=public.design_tokens \
 --           --table=public.site_versions --data-only --column-inserts -f /tmp/sb_data.sql
 --
@@ -19,14 +19,14 @@
 --           s/public\.site_versions/site_builder.site_versions/g' /tmp/sb_data.sql
 --
 --   # 3) 导入独立库
---   psql "postgres://USER:PASS@HOST/verorun_sitebuilder" -f /tmp/sb_data.sql
+--   psql "postgres://USER:PASS@HOST/site_builder" -f /tmp/sb_data.sql
 --
 --   # 4) 校验行数一致
---   psql "postgres://USER:PASS@HOST/verorun" -c "SELECT 'prompts', count(*) FROM site_builder_prompts
+--   psql "postgres://USER:PASS@HOST/main_db" -c "SELECT 'prompts', count(*) FROM site_builder_prompts
 --         UNION ALL SELECT 'tasks', count(*) FROM site_builder_tasks
 --         UNION ALL SELECT 'tokens', count(*) FROM design_tokens
 --         UNION ALL SELECT 'versions', count(*) FROM site_versions;"
---   psql "postgres://USER:PASS@HOST/verorun_sitebuilder" -c "SELECT 'prompts', count(*) FROM site_builder.site_builder_prompts
+--   psql "postgres://USER:PASS@HOST/site_builder" -c "SELECT 'prompts', count(*) FROM site_builder.site_builder_prompts
 --         UNION ALL SELECT 'tasks', count(*) FROM site_builder.site_builder_tasks
 --         UNION ALL SELECT 'tokens', count(*) FROM site_builder.design_tokens
 --         UNION ALL SELECT 'versions', count(*) FROM site_builder.site_versions;"

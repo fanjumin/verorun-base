@@ -4,7 +4,7 @@
 v2.1.0 解耦与合并：
   - 建站能力从核心模块 site_builder/ 解耦至此插件。
   - 数据表（site_builder_prompts / site_builder_tasks / design_tokens /
-    site_versions）由 v2.1.0 迁移至独立数据库 `verorun_sitebuilder` 的
+    site_versions）由 v2.1.0 迁移至独立数据库 `site_builder` 的
     `site_builder` schema（见 migrations/）。
   - 主库共享数据（cms_blocks / cms_posts / 品牌设置）改经 main_site 内部
     API（/api/internal/*）访问（见 internal_client.py）。
@@ -73,7 +73,7 @@ class SiteBuilderPlugin(BasePlugin):
         """独立库 schema 初始化（幂等，安全重复执行）。
 
         顺序：
-          1. run_migrations()   —— 确保独立库 verorun_sitebuilder 的
+          1. run_migrations()   —— 确保独立库 site_builder 的
                                   site_builder schema 存在。
           2. models.init_tables() + seed_default_prompts()
                                   —— 提示词模板 / 建站任务建表并植入内置模板。

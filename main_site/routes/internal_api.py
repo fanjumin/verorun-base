@@ -85,7 +85,7 @@ def internal_cms_page(slug):
 def internal_draft_tokens():
     """site_builder draft tokens（生成站点时使用）。
 
-    v1.0.0 起 design_tokens 位于插件独立库 verorun_sitebuilder，
+    v1.0.0 起 design_tokens 位于插件独立库 site_builder，
     直接读插件库（与插件同进程部署，经 plugins 顶层包导入）。
     """
     try:

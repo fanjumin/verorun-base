@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """site_builder — independent PostgreSQL connection factory.
 
-v1.0.0 起插件数据从主库 `verorun` 物理迁移到独立库 `verorun_sitebuilder`。
+v2.1.0 起插件数据从主库物理迁移到独立库 `site_builder`。
 本文件不再依赖 plugins/_base/db.py（主库共享连接），而是使用独立的
 `SITE_BUILDER_DB_URL`（优先）或 `SITE_BUILDER_PG_*` 环境变量建立连接。
 
 连接优先级：
     1. SITE_BUILDER_DB_URL            （完整 postgres:// URL）
     2. SITE_BUILDER_PG_HOST/PORT/DB/USER/PASSWORD
-       （未设单项时回退到通用 PG_* 环境变量，DB 名固定为 verorun_sitebuilder）
+       （未设单项时回退到通用 PG_* 环境变量，DB 名固定为 site_builder）
 """
 
 import os
@@ -73,7 +73,7 @@ def get_raw_connection():
     """返回指向独立数据库的 psycopg2 连接。
 
     优先使用 SITE_BUILDER_DB_URL；未设置时用 SITE_BUILDER_PG_*（单项回退 PG_*），
-    数据库名固定为 verorun_sitebuilder。
+    数据库名固定为 site_builder。
     """
     db_url = os.environ.get('SITE_BUILDER_DB_URL', '')
     if db_url:
@@ -81,7 +81,7 @@ def get_raw_connection():
     return psycopg2.connect(
         host=os.environ.get('SITE_BUILDER_PG_HOST', os.environ.get('PG_HOST', '')),
         port=int(os.environ.get('SITE_BUILDER_PG_PORT', os.environ.get('PG_PORT', 5432))),
-        dbname=os.environ.get('SITE_BUILDER_PG_DB', 'verorun_sitebuilder'),
+        dbname=os.environ.get('SITE_BUILDER_PG_DB', 'site_builder'),
         user=os.environ.get('SITE_BUILDER_PG_USER', os.environ.get('PG_USER', 'verorun')),
         password=os.environ.get('SITE_BUILDER_PG_PASSWORD', os.environ.get('PG_PASSWORD', '')),
         connect_timeout=10,  # 建连最多等 10 秒，避免低配机器上无限挂死

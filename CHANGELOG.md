@@ -4,7 +4,7 @@
 
 ### Changes
 
-- feat: site_builder 插件化发布（v2.1.0）— 独立数据库 verorun_sitebuilder + 内部 API + 菜单自动注册；legacy site_builder 从 sparse-checkout 移除
+- feat: site_builder 插件化发布（v2.1.0）— 独立数据库 site_builder + 内部 API + 菜单自动注册；legacy site_builder 从 sparse-checkout 移除
 - feat(deploy): install-code.sh 本地源码全量部署脚本（无 git clone、无域名）；install-local.sh / install-code.sh 从 verorun-base 同步中排除
 - feat(deploy): PLUGIN_AUTO_INSTALL 开关 — 部署默认不自动安装/启用插件，后台手动启用
 - fix(deploy): admin 启动超时 — health_check.sh 增加 curl 超时 + gunicorn timeout 提升至 300s
