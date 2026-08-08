@@ -154,9 +154,13 @@ def _parse_json_field(val):
 def migrate_from_legacy():
     """Migrate legacy table data to design_tokens (first-time only).
 
-    v1.0.0 起 design_tokens 位于独立库；旧表（brand_settings / header_nav /
-    footer_* / site_theme_config / themes）仍在主库，故此处用主库连接读取
-    旧数据，写入插件独立库。独立库已有数据（含数据迁移导入）时直接跳过。
+    ⚠️ 一次性主库临时耦合：本函数在首次迁移时直连主库
+    （from models.database import get_db）读取旧表（brand_settings /
+    header_nav / footer_* / site_theme_config / themes），写入插件独立库。
+    这是临时、仅执行一次的逻辑 —— 幂等标记为「独立库 design_tokens 已有
+    site_key='platform' 数据即直接跳过」（含 pg_dump 数据迁移导入场景）。
+    数据迁移完成后（见 migrations/v2.1.0_migrate_to_independent.sql），
+    可在后续版本移除本函数及其主库依赖，改由独立迁移脚本完成。
     """
     with get_db() as conn:
         # Check if already migrated
