@@ -9,7 +9,7 @@
     "screenshots": [],
     "readme_url": "README.md",
     "description": "Mini-program generation & developer account management (merged with dev_accounts)",
-    "author": "VeroRun",
+    "author": "mini_app_builder",
     "min_app_version": "2.0.0",
 
     "dependencies": {"oauth_config": ">=1.0.0"},

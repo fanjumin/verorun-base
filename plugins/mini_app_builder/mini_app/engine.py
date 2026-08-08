@@ -22,7 +22,7 @@ class MiniAppEngine:
             'include_chat': True,
             'include_pages': ['home', 'about'],
             'theme_color': '#1890ff',
-            'app_name': 'VeroRun AI',
+            'app_name': '',
         })
     """
 

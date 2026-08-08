@@ -7,7 +7,7 @@ App({
 
         // Try to restore previous session
         if (dp.restoreToken()) {
-            console.log('[VeroRun] Token restored');
+            console.log('[mini-app] Token restored');
         }
 
         // Store globally

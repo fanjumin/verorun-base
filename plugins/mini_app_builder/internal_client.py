@@ -33,7 +33,7 @@ _CACHE_TTL = {
 }
 
 _DEFAULT_BRAND = {
-    'site_name': 'VeroRun',
+    'site_name': '',
     'tagline': '',
     'primary_color': '#1890ff',
     'secondary_color': '',

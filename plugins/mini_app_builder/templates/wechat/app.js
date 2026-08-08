@@ -5,7 +5,7 @@ App({
         wp.baseURL = '{{ base_url }}';
 
         if (wp.restoreToken()) {
-            console.log('[VeroRun] Token restored');
+            console.log('[mini-app] Token restored');
         }
 
         this.globalData = {

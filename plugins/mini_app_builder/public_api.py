@@ -642,7 +642,7 @@ def mp_site_info():
         from .internal_client import get_brand_settings
         brand = get_brand_settings()
         return _ok({
-            'site_name': brand.get('site_name', 'VeroRun'),
+            'site_name': brand.get('site_name', ''),
             'tagline': brand.get('tagline', ''),
             'primary_color': brand.get('primary_color', '#1890ff'),
             'secondary_color': brand.get('secondary_color', ''),

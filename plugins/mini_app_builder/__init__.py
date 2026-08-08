@@ -50,7 +50,7 @@ class MiniAppBuilderPlugin(BasePlugin):
     @property
     def author(self):
         info = getattr(self, 'plugin_info', None)
-        return getattr(info, 'author', None) or 'VeroRun'
+        return getattr(info, 'author', None) or 'mini_app_builder'
 
     def setup(self):
         super().setup()

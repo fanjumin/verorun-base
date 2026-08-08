@@ -72,7 +72,7 @@ class BaseMiniAppGenerator(ABC):
     def _get_brand_context(self, brand: dict) -> dict:
         """Extract and normalize brand context for template rendering."""
         return {
-            'app_name': brand.get('site_name', 'VeroRun AI'),
+            'app_name': brand.get('site_name', ''),
             'tagline': brand.get('tagline', ''),
             'primary_color': brand.get('primary_color', '#1890ff'),
             'secondary_color': brand.get('secondary_color', ''),
