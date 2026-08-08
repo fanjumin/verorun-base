@@ -756,8 +756,8 @@ def chat_tool():
             action = args.get('action', 'preview')
             prompt_identifier = args.get('prompt_identifier', '')
             try:
-                from site_builder.models import get_prompt as _get_prompt, list_prompts as _list_prompts
-                from site_builder.engine import SiteBuilderEngine
+                from plugins.site_builder.models import get_prompt as _get_prompt, list_prompts as _list_prompts
+                from plugins.site_builder.engine import SiteBuilderEngine
                 engine = SiteBuilderEngine()
 
                 # 获取提示词模板

@@ -204,24 +204,10 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# ===== Site Builder 核心模块 =====
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-try:
-    from site_builder import init_site_builder
-    from site_builder.models import init_tables, seed_default_prompts
-    init_tables()
-    # 蓝图注册优先，确保路由始终可用（seed 失败不应阻断注册）
-    init_site_builder(app)
-    try:
-        seed_default_prompts()
-    except Exception as _seed_err:
-        print(f'[SiteBuilder] ⚠️ 种子数据播种失败（不影响路由）: {_seed_err}')
-    print(f'[SiteBuilder] ✅ 核心模块已初始化')
-    print(f'[SiteBuilder] 📋 API: /admin/site-builder/*')
-except Exception as e:
-    print(f'[SiteBuilder] ❌ 初始化失败: {e}')
-    import traceback
-    traceback.print_exc()
+# ===== Site Builder（已解耦为插件 plugins/site_builder，v2.1.0） =====
+# 建站能力（提示词模板/建站任务/预览发布）与站点设置（设计令牌）已迁移至
+# plugins/site_builder 插件，由 PluginManager 自动发现、安装并挂载路由
+# （/admin/site-builder/*、/admin/site-settings/*），此处不再需要初始化。
 
 # ===== Agent 矩阵系统 =====
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
