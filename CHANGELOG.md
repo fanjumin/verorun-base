@@ -1,5 +1,13 @@
 # 修改记录
 
+## v0.55.1 — 2026-08-09
+
+### Changes
+
+- fix(deploy): 部署脚本 v3 审计整改（--region 缺值报错、--skip-deps 生效、DEBUG 强制禁用、do_rollback 统一 before_commit）
+- refactor(deploy): 抽取公共函数到 deploy/lib/common.sh（install.sh / install-local.sh / install-dev.sh / install-code.sh 共用）
+- docs(deploy): 弃用 curl|bash 管道安装，统一 git clone 本地执行
+
 ## v0.55.0 — 2026-08-09
 
 ### Changes
