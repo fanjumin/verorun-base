@@ -28,8 +28,6 @@ set -euo pipefail
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
-# ── Sparse-checkout 白名单：仅这些目录在服务器检出（cone 模式） ──
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
@@ -45,12 +43,13 @@ else
     _tmp_common="$(mktemp)"
     _ok=0
     if command -v curl >/dev/null 2>&1; then
-        if curl -sSL --connect-timeout 15 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
+        # 审计 M-1：统一 --max-time 防握手卡死 + --retry 抗瞬时抖动
+        if curl -sSL --connect-timeout 15 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
         # 官方源失败（如 GFW 封锁）→ 降级到 jsdelivr CDN 镜像
-        if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 10 "${_COMMON_MIRROR}" -o "${_tmp_common}"; then _ok=1; fi
+        if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 10 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_MIRROR}" -o "${_tmp_common}"; then _ok=1; fi
     elif command -v wget >/dev/null 2>&1; then
-        if wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
-        if [ "${_ok}" != "1" ] && wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_MIRROR}"; then _ok=1; fi
+        if wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
+        if [ "${_ok}" != "1" ] && wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_MIRROR}"; then _ok=1; fi
     fi
     if [ "${_ok}" != "1" ]; then
         echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
@@ -95,6 +94,23 @@ prompt_domain() {
 # Fresh install
 # ==========================================================================
 do_install() {
+    # 审计 NEW-C2：与其他三脚本一致的依赖预检——已有环境自动跳过，避免无提示重装
+    step "Dependency check"
+    if [ "${SKIP_DEPS:-0}" = "1" ]; then
+        echo -e "${WARN} --skip-deps: skipping dependency installation"
+    elif check_system_deps && check_python_deps; then
+        echo -e "${OK} All dependencies already installed — skipping"
+        SKIP_DEPS=1
+    else
+        echo -e "${WARN} Some dependencies are missing (system or Python packages)"
+        read -r -p "Install dependencies now? [Y/n] " _ans || _ans=""
+        case "${_ans}" in
+            n|N) echo -e "${WARN} Skipping dependency installation"; SKIP_DEPS=1 ;;
+            *)   echo -e "${OK} Will install missing dependencies" ;;
+        esac
+    fi
+    done_step "Dependency check complete"
+
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     if [ "${SKIP_DEPS:-0}" = "1" ]; then
@@ -131,8 +147,15 @@ do_install() {
     fi
     sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
     rm -f "${_sql_tmp}"
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -qE '^\s*1\s*$' 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null
+    # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        echo -e "${FAIL} FATAL: PostgreSQL role 'verorun' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
+        exit 1
+    fi
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        echo -e "${FAIL} FATAL: PostgreSQL database 'verorun' not created."
+        exit 1
+    fi
     # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
     done_step "PostgreSQL is running"
 
@@ -172,8 +195,8 @@ do_install() {
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
         git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
     fi
-    # 本地/无域名部署脚本不进生产工作区：install.sh 不部署也不更新 install-local.sh
-    rm -f "${APP_HOME}/deploy/install-local.sh"
+    # 审计 NEW-H2：本地/无域名部署脚本不进生产工作区——统一清理三个无域名脚本
+    rm -f "${APP_HOME}/deploy/install-local.sh" "${APP_HOME}/deploy/install-code.sh" "${APP_HOME}/deploy/install-dev.sh"
     # Clean stale __pycache__ before chown (avoids race-condition failures)
     find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
@@ -196,6 +219,9 @@ do_install() {
     step "Generate .env"
     generate_env force
     done_step ".env generated"
+
+    # 审计 NEW-H1：与 install-local.sh 一致的 VeroGuard 完整性清单构建
+    build_veroguard_manifest
 
     # Production gate: refuse to continue if DEBUG got enabled in .env
     assert_debug_disabled
@@ -267,12 +293,21 @@ do_update() {
     done_step "Environment backed up"
 
     step "Restore locally modified files"
-    # 生产环境严禁手动修改 tracked 文件，自动恢复 working directory 的本地修改
+    # 审计 C-3：默认拒绝覆盖本地修改（防止销毁用户定制/热修复）；--force 时先备份 diff 再恢复
     if [ -d "${APP_HOME}/.git" ]; then
         if ! git -C "${APP_HOME}" diff --quiet; then
-            echo -e "${WARN} Local modifications detected, restoring to git version..."
+            if [ "${FORCE_UPDATE:-0}" != "1" ]; then
+                echo -e "${FAIL} Local modifications detected — refusing to overwrite them."
+                echo -e "${INFO} To review:  git -C ${APP_HOME} diff"
+                echo -e "${INFO} To backup:  git -C ${APP_HOME} diff > ${APP_HOME}/.rollback/local-patch-$(date +%s).diff"
+                echo -e "${INFO} Re-run with '--force' to auto-restore (a backup diff is saved first)."
+                exit 1
+            fi
+            mkdir -p "${APP_HOME}/.rollback"
+            git -C "${APP_HOME}" diff > "${APP_HOME}/.rollback/local-patch-$(date +%s).diff"
+            echo -e "${WARN} Local modifications detected (backed up to .rollback/local-patch-*.diff), restoring to git version..."
             git -C "${APP_HOME}" diff --name-only -z | xargs -0 git -C "${APP_HOME}" checkout --
-            done_step "Locally modified files restored"
+            done_step "Locally modified files restored (diff saved)"
         else
             done_step "No local modifications"
         fi
@@ -310,8 +345,8 @@ do_update() {
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
         git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
     fi
-    # 本地/无域名部署脚本不进生产工作区：install.sh 不部署也不更新 install-local.sh
-    rm -f "${APP_HOME}/deploy/install-local.sh"
+    # 审计 NEW-H2：本地/无域名部署脚本不进生产工作区——统一清理三个无域名脚本
+    rm -f "${APP_HOME}/deploy/install-local.sh" "${APP_HOME}/deploy/install-code.sh" "${APP_HOME}/deploy/install-dev.sh"
     local after_commit
     after_commit=$(git log --oneline -1)
     done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
@@ -321,13 +356,16 @@ do_update() {
     script_md5=$(md5sum "${APP_HOME}/deploy/install.sh" | awk '{print $1}')
     if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
         echo -e "${INFO} install.sh updated, re-running with new version..."
-        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" bash "${APP_HOME}/deploy/install.sh" update
+        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" FORCE_UPDATE="${FORCE_UPDATE:-0}" bash "${APP_HOME}/deploy/install.sh" update
         exit
     fi
 
     step "Update .env (fill missing keys)"
     update_env
     done_step ".env synced"
+
+    # 审计 R3-M2：代码更新后重建 VeroGuard 完整性清单，避免基准过时触发误报
+    build_veroguard_manifest
 
     # Production gate: refuse to continue if DEBUG got enabled in .env
     assert_debug_disabled
@@ -641,6 +679,11 @@ print_summary() {
     echo "  ║  WARNING: Admin account NOT created — admin panel inaccessible"
     echo "  ║  To fix: sudo bash deploy/install.sh seed                      ║"
     fi
+    # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+    if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+    echo "  ╠══════════════════════════════════════════════════════════════╣"
+    echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+    fi
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
@@ -675,6 +718,7 @@ while [ $# -gt 0 ]; do
         --region) shift; [ $# -gt 0 ] && REGION="${1}" || { echo -e "${FAIL} --region requires a value"; exit 1; } ;;
         --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
+        --force) FORCE_UPDATE=1 ;;   # 审计 C-3：update 时允许覆盖本地修改（先备份 diff）
     esac
     shift
 done

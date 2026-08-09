@@ -20,7 +20,8 @@
 [ "${INSTALL_SCRIPT}" = "bash" ] && INSTALL_SCRIPT="deploy/install.sh"
 
 # ── 幂等默认配置（脚本已设置则不覆盖） ─────────────────────────────────
-: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
+# 审计 C-2：GIT_REPO 由各入口脚本（install.sh / install-local.sh / install-code.sh /
+# install-dev.sh）在 source 本文件之前自行定义 —— common.sh 不定义仓库地址，避免来源混淆。
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -28,6 +29,10 @@
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${REGION:=global}"                # cn | global
+# 审计 H-5：Sparse-checkout 白名单（基础列表）。入口脚本可通过追加扩展，
+# 如 install-code.sh 在 source 后执行 SPARSE_DIRS="${SPARSE_DIRS} plugins"。
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
+: "${FORCE_UPDATE:=0}"              # 审计 C-3：update 时强制覆盖本地修改（配合 --force）
 : "${PIP_MIRROR:=}"
 : "${PIP_MIRROR_DETECTED:=}"
 : "${VR_ADMIN_CREDS_FILE:=/root/.verorun-creds}"
@@ -101,7 +106,8 @@ _detect_pip_mirror() {
 _clone_with_timeout() {
     local _repo=$1 _dest=$2 _branch=$3
     echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow)..."
-    if timeout 60 git clone --depth 1 -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
+    # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
+    if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
         return 0
     fi
     echo -e "${FAIL} git clone failed or timed out (60s)"
@@ -117,9 +123,21 @@ _clone_with_timeout() {
 }
 
 # --prefer-binary: prefer wheels, fall back to source build
+# 审计 C-4：安装失败显式报错 + 最多重试 3 次（网络抖动 / 镜像临时超时可自动恢复）
 _pip_install() {
     _detect_pip_mirror
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"
+    local _attempt=1 _max=3
+    while [ "${_attempt}" -le "${_max}" ]; do
+        if sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"; then
+            return 0
+        fi
+        echo -e "${WARN} pip install failed (attempt ${_attempt}/${_max}): $*"
+        _attempt=$((_attempt + 1))
+        [ "${_attempt}" -le "${_max}" ] && sleep 5
+    done
+    echo -e "${FAIL} pip install failed after ${_max} attempts: $*"
+    echo -e "${INFO} Check mirror reachability (${PIP_MIRROR:-default}) or dependency conflicts, then re-run."
+    return 1
 }
 
 # ══════════════════════════════════════════════════════════════════════
@@ -274,6 +292,8 @@ update_env() {
     fi
 
     local missing=()
+
+    # ── 必需的密钥（缺失则随机生成） ──
     for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET INTERNAL_SERVICE_TOKEN; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
             local val
@@ -282,6 +302,36 @@ update_env() {
             missing+=("${key}")
         fi
     done
+
+    # ── 审计 H-2：必需的配置项（缺失则用默认值补齐，绝不覆盖已有值） ──
+    # 早期版本升级后可能缺少 DEPLOY_PROTOCOL / VERORUN_REGION / DEPLOY_MARKET 等，
+    # 缺失会导致服务启动失败或运行时行为不一致，此处统一补齐。
+    local _dom
+    # 取最后一行 DEPLOY_DOMAIN，避免历史重复行导致多行变量污染
+    _dom=$(grep "^DEPLOY_DOMAIN=" "${env_file}" 2>/dev/null | tail -1 | cut -d= -f2)
+    # 审计 NEW-H3：DEPLOY_PROTOCOL 不做自动推断（有域名 ≠ 已配 HTTPS 证书）。
+    # 缺失时默认 http，由用户根据实际 TLS 配置自行修改 .env。
+    while read -r _k _v; do
+        if ! grep -q "^${_k}=" "${env_file}" 2>/dev/null; then
+            echo "${_k}=${_v}" >> "${env_file}"
+            missing+=("${_k}")
+        fi
+    done << EOF
+DEPLOY_MARKET cn
+DEPLOY_DOMAIN ${_dom}
+DEPLOY_PROTOCOL http
+DB_PATH ${APP_HOME}/data/verorun.db
+PG_HOST localhost
+PG_PORT 5432
+PG_DB verorun
+PG_USER verorun
+APP_MODE main
+PLUGIN_AUTO_INSTALL 0
+VERORUN_REGION ${REGION:-global}
+DASHSCOPE_TEXT_KEY 
+OPENAI_API_KEY 
+DEEPSEEK_API_KEY 
+EOF
 
     for key in APP_DEBUG:false FLASK_DEBUG:0; do
         local k="${key%%:*}" v="${key##*:}"
@@ -422,8 +472,8 @@ write_sudoers() {
     cat > "${sudoers_file}" << SUEOF
 # Managed by VeroRun ${INSTALL_SCRIPT} — regenerated on every install/update
 # Grants ${APP_USER} passwordless one-click update for VeroRun services
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh update
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh restart
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/${INSTALL_SCRIPT} update
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/${INSTALL_SCRIPT} restart
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
@@ -490,10 +540,15 @@ check_python_deps() {
     freeze=$("${VENV_DIR}/bin/pip" list --format=freeze 2>/dev/null) || return 1
     while read -r line; do
         [ -z "${line}" ] && continue
-        case "${line}" in \#*) continue ;; esac
-        pkg="${line%%[<>=!~;]*}"
+        # 审计 H-6：跳过注释 / pip 选项 / -e 可编辑安装 / git+ / http(s) / file: 等非普通包行
+        case "${line}" in
+            \#*|--*|-e*|git+*|http://*|https://*|file:*|[-!+]*|.) continue ;;
+        esac
+        pkg="${line%%[<>=!~;@]*}"
+        pkg="${pkg%%\[*}"   # 去掉 extras（如 flask[async]）
         pkg=$(printf '%s' "${pkg}" | tr 'A-Z' 'a-z' | tr '_' '-')
-        printf '%s\n' "${freeze}" | grep -qi "^${pkg}==" || return 1
+        # 精确匹配已安装包名（^ 锚定行首，避免前缀误匹配如 discord.py 命中 discord）
+        printf '%s\n' "${freeze}" | grep -qi "^${pkg}==\|^${pkg} @ " || return 1
     done < "${APP_HOME}/requirements.txt"
     return 0
 }
@@ -572,7 +627,8 @@ health_check() {
     check_port() {
         local port=$1 name=$2
         local code
-        code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
+        # 审计 H-7：--max-time 10 防止服务接受连接但永不响应时 curl 挂起导致健康检查卡死
+        code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
         if [ "$code" != "000" ]; then
             echo -e "  ${OK} ${name} (:${port}) -> HTTP ${code}"
         else
@@ -608,6 +664,22 @@ health_check() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# VeroGuard 完整性清单构建（审计 NEW-H1：四种部署模式统一调用）
+# ══════════════════════════════════════════════════════════════════════
+build_veroguard_manifest() {
+    step "Build integrity manifest (VeroGuard)"
+    # 用 .env 中的 PROBE_SECRET 生成守护进程完整性基准清单。
+    # 官方端依赖该清单校验客户端文件完整性；文件缺失时降级跳过（不中断安装）。
+    if [ -f "${APP_HOME}/veroguard/tools/build_manifest.py" ]; then
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; set +a; cd ${APP_HOME} && PYTHONPATH=${APP_HOME} ${VENV_DIR}/bin/python veroguard/tools/build_manifest.py --project-dir ${APP_HOME} --output ${APP_HOME}/veroguard/data/manifest.json.enc --secret \"\${PROBE_SECRET}\"" \
+            || echo -e "${WARN} Manifest build failed — VeroGuard integrity check unavailable"
+    else
+        echo -e "${WARN} build_manifest.py not found — VeroGuard integrity check unavailable"
+    fi
+    done_step "Integrity manifest built"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # 种子数据
 # ══════════════════════════════════════════════════════════════════════
 do_seed() {
@@ -639,17 +711,18 @@ do_seed() {
         rm -f "${VR_ADMIN_CREDS_FILE}"
     fi
 
+    # 审计 NEW-M1：凭据在此处统一确定，保证 print_summary 展示与 seed_data.py 实际写入的密码一致。
+    # 无凭据时生成默认管理员（administrator + 随机密码），并始终经环境变量传入 seed_data.py。
     if [ -z "${VR_ADMIN_USERNAME}" ]; then
-        echo -e "${INFO} No admin credentials provided — username defaults to 'administrator'"
+        VR_ADMIN_USERNAME="administrator"
+    fi
+    if [ -z "${VR_ADMIN_PASSWORD}" ]; then
+        VR_ADMIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(8))")
     fi
 
     # 审计 C1：管理员凭据经环境变量传入 seed_data.py，避免出现在进程命令行
-    if [ -n "${VR_ADMIN_USERNAME}" ]; then
-        sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
-            "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
-    else
-        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
-    fi
+    sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
+        "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     echo -e "${OK} Seed data injected"
 }
 

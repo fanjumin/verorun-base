@@ -107,10 +107,14 @@ sudo bash deploy/install.sh configure-domain your-domain.com
 
 ### `verorun-code` (private repo)
 
+> Use `install-code.sh` for `verorun-code` deployments — it defaults `GIT_REPO` to the SSH
+> private repository. Do NOT use `install.sh` for private repos, as it pulls the public
+> `verorun-base` repository (HTTPS).
+
 ```bash
 git clone git@github.com:fanjumin/verorun-code.git
 cd verorun-code
-sudo bash deploy/install.sh install your-domain.com
+sudo bash deploy/install-code.sh install
 ```
 
 ---

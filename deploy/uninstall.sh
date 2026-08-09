@@ -62,8 +62,12 @@ done_step "Nginx config removed"
 step "User & files"
 if id "${APP_USER}" &>/dev/null; then
     # 审计 M6 修复：不再用 -r 级联删除 home（改为下方显式 rm -rf 可控目录）
-    userdel "${APP_USER}" 2>/dev/null || true
-    echo "  user ${APP_USER} removed"
+    if userdel "${APP_USER}" 2>/dev/null; then
+        echo "  user ${APP_USER} removed"
+    else
+        # 审计 L-2：userdel 失败（如存在运行中进程）时明确警告，不再静默继续
+        echo -e "${WARN} userdel ${APP_USER} failed (user may have running processes). Home dir will still be removed."
+    fi
 else
     echo "  user ${APP_USER} not found"
 fi
