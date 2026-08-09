@@ -131,9 +131,11 @@ server {
     # No server_name: match every Host (localhost / LAN IP)
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # ── Admin panel ─────────────────────────
     location /admin/ {
+        client_max_body_size 100M;
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -350,6 +352,7 @@ do_update() {
     step "Backup current version"
     mkdir -p "${APP_HOME}/.rollback"
     cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
+    echo "${before_commit}" > "${APP_HOME}/.rollback/before_commit"
     done_step "Environment backed up"
 
     step "Restore locally modified files"
