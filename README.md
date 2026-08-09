@@ -132,7 +132,20 @@ For detailed instructions, see [deploy/README.md](deploy/README.md).
 
 ### Local / LAN Deployment (no domain required)
 
-For local development, testing, or LAN access **without a public domain**, VeroRun ships three additional deploy scripts in `deploy/`:
+For local development, testing, or LAN access **without a public domain**, VeroRun ships three additional deploy scripts in `deploy/`. One-command install (no git required — scripts auto-fetch `deploy/lib/common.sh` from verorun-base when run via pipe):
+
+```bash
+# 1) Local / LAN deployment (public verorun-base, no SSH key required)
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
+
+# 2) Team intranet server — full source incl. plugins (private verorun-code, requires SSH deploy key)
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash
+
+# 3) Developer workstation — plugins excluded, clone ~50% smaller (private verorun-code, requires SSH deploy key)
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh | sudo bash
+```
+
+Equivalent local invocation (from a checkout):
 
 ```bash
 # 1) Deploy from the git repository (path-based routing, full code incl. plugins)

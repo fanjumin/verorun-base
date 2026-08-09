@@ -9,9 +9,16 @@
 set -euo pipefail
 
 APP_USER="${SUDO_USER:-$(whoami)}"
-APP_HOME="/home/${APP_USER}/verorun"
+APP_HOME="${VR_APP_HOME:-}"
 LOG_DIR="/var/log/verorun"
 SERVICE_DIR="/etc/systemd/system"
+
+# 审计 H-3 修复：安装支持通过环境变量自定义 APP_HOME，卸载不得硬编码默认路径。
+# 优先从 systemd 服务文件解析实际 WorkingDirectory，解析失败才回退默认路径。
+if [ -z "${APP_HOME}" ] && [ -f "${SERVICE_DIR}/verorun-main.service" ]; then
+    APP_HOME=$(grep '^WorkingDirectory=' "${SERVICE_DIR}/verorun-main.service" 2>/dev/null | head -1 | cut -d= -f2)
+fi
+APP_HOME="${APP_HOME:-/home/${APP_USER}/verorun}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -62,8 +69,12 @@ done_step "Nginx config removed"
 step "User & files"
 if id "${APP_USER}" &>/dev/null; then
     # 审计 M6 修复：不再用 -r 级联删除 home（改为下方显式 rm -rf 可控目录）
-    userdel "${APP_USER}" 2>/dev/null || true
-    echo "  user ${APP_USER} removed"
+    if userdel "${APP_USER}" 2>/dev/null; then
+        echo "  user ${APP_USER} removed"
+    else
+        # 审计 L-2：userdel 失败（如存在运行中进程）时明确警告，不再静默继续
+        echo -e "${WARN} userdel ${APP_USER} failed (user may have running processes). Home dir will still be removed."
+    fi
 else
     echo "  user ${APP_USER} not found"
 fi

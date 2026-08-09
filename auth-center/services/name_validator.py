@@ -223,10 +223,10 @@ def sanitize_name(name: str) -> str:
     return cleaned
 
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     # 测试
     tests = [
-        (')admin', False, '保留名'),
+        ('admin', False, '保留名'),
         ('***REMOVED***', True, _('Normal')),
         ('法轮功学员', False, '一级敏感'),
         ('约炮神器', False, '二级敏感'),

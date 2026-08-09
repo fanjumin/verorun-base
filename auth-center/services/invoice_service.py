@@ -10,12 +10,39 @@ from datetime import datetime
 # ── 发票存储目录 ──
 INVOICE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data', 'invoices')
 
-# ── 公司信息（后续可从 system_config 读取） ──
-SELLER_NAME = '徐州易开网络科技有限公司'
-SELLER_TAX_ID = '91320300MAE4XXXXXX'
-SELLER_ADDRESS = '江苏省徐州市'
-SELLER_PHONE = '0516-XXXXXXXX'
-SELLER_BANK = '中国银行徐州分行'
+
+def _get_seller_info():
+    """从 system_config 读取发票商家信息。
+
+    Returns:
+        dict: {name, tax_id, address, phone, bank}
+
+    Raises:
+        ValueError: seller_tax_id 未配置或仍为掩码占位时抛出，拒绝开票。
+    """
+    try:
+        from models import get_db
+    except ImportError:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+        from models import get_db
+
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT key, value FROM system_config WHERE key IN "
+            "('seller_name','seller_tax_id','seller_address','seller_phone','seller_bank')"
+        ).fetchall()
+    cfg = {r['key']: r['value'] for r in rows}
+
+    seller = {
+        'name': cfg.get('seller_name', '') or '',
+        'tax_id': cfg.get('seller_tax_id', '') or '',
+        'address': cfg.get('seller_address', '') or '',
+        'phone': cfg.get('seller_phone', '') or '',
+        'bank': cfg.get('seller_bank', '') or '',
+    }
+    if not seller['tax_id'] or 'X' in seller['tax_id'].upper():
+        raise ValueError('seller tax id not configured, refuse to issue invoice')
+    return seller
 
 
 def _ensure_dir():
@@ -44,8 +71,8 @@ def _find_chinese_font():
     try:
         import subprocess
         subprocess.run(
-            ['pip3', 'install', '--break-system-packages', 'fonttools', '2>/dev/null'],
-            capture_output=True, timeout=30
+            ['pip3', 'install', '--break-system-packages', 'fonttools'],
+            capture_output=True, timeout=30, stderr=subprocess.DEVNULL
         )
         # Check if any .ttf or .ttc files exist in common dirs
         for root in ['/usr/share/fonts', '/usr/local/share/fonts']:
@@ -77,6 +104,9 @@ def generate_invoice_pdf(order_no, user_name, plan_name, period_text, amount_fen
     amount_yuan = amount_fen / 100.0
     pdf_filename = f'{invoice_no}.pdf'
     pdf_path = os.path.join(INVOICE_DIR, pdf_filename)
+
+    # 商家信息必须在 PDF 生成前校验：未配置或仍为掩码时抛错，禁止开票
+    seller = _get_seller_info()
 
     font_path = _find_chinese_font()
 
@@ -126,9 +156,9 @@ def generate_invoice_pdf(order_no, user_name, plan_name, period_text, amount_fen
         pdf.set_font(font_name, 'B', 12)
         pdf.cell(0, 8, 'Seller / Xiao Shou Fang', new_x='LMARGIN', new_y='NEXT')
         pdf.set_font(font_name, '', 10)
-        pdf.cell(0, 6, f'Name: {SELLER_NAME}', new_x='LMARGIN', new_y='NEXT')
-        pdf.cell(0, 6, f'Tax ID: {SELLER_TAX_ID}', new_x='LMARGIN', new_y='NEXT')
-        pdf.cell(0, 6, f'Address: {SELLER_ADDRESS}', new_x='LMARGIN', new_y='NEXT')
+        pdf.cell(0, 6, f'Name: {seller["name"]}', new_x='LMARGIN', new_y='NEXT')
+        pdf.cell(0, 6, f'Tax ID: {seller["tax_id"]}', new_x='LMARGIN', new_y='NEXT')
+        pdf.cell(0, 6, f'Address: {seller["address"]}', new_x='LMARGIN', new_y='NEXT')
         pdf.ln(2)
 
         pdf.set_font(font_name, 'B', 12)

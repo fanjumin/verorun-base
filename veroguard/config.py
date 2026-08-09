@@ -67,6 +67,9 @@ FILES_TO_ROLLBACK = [
 INTEGRITY_CHECK_INTERVAL = int(os.getenv('GUARDIAN_INTEGRITY_INTERVAL', '300'))
 
 # ── 心跳上报 ───────────────────────────────────
+# 注意：心跳上报依赖官方端 VeroGuard 服务（api.verorun.cn / api.verorun.com）。
+# 本地/LAN 部署（无官方端）时心跳不可用；完整性校验清单需由部署脚本
+# 在安装后通过 veroguard/tools/build_manifest.py 生成。
 HEARTBEAT_INTERVAL = int(os.getenv('GUARDIAN_HEARTBEAT_INTERVAL', '300'))
 PROBE_SECRET       = os.getenv('PROBE_SECRET', '')
 DEPLOYMENT_CODE    = os.getenv('DEPLOYMENT_CODE', '')

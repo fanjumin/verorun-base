@@ -13,10 +13,40 @@ Usage:
     roi = uf.calculate_roi(user_id, plugin_count=3)
 """
 
+# ⚠️ DEPRECATED (legacy) — 本服务无生产调用者。
+# 主站订阅链路当前由 auth-center/routes/subscription/__init__.py 承载。
+# 迁移/重构前请勿基于本文件实现新逻辑。上线任务 T12 要求：仅标注，不迁移。
+
+
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 
 from models import get_db, now_iso
+from services.feature_gate_service import FEATURE_MATRIX
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+
+def _format_daily_limit(limit: int) -> str:
+    """Format a daily limit value: -1 means unlimited, otherwise the real number."""
+    return 'Unlimited' if limit < 0 else str(limit)
+
+
+def _get_paid_plan_price() -> int:
+    """Read the actual paid plan monthly price (fen) from subscription_plans.
+
+    Falls back to 8800 (¥88) when no active plan is configured.
+    """
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                'SELECT price_month FROM subscription_plans WHERE is_active=1 ORDER BY price_month ASC LIMIT 1'
+            ).fetchone()
+        if row:
+            return int(row['price_month'])
+    except Exception:
+        pass
+    return 8800
 
 # ── Constants ──────────────────────────────────────────────────────────────
 
@@ -194,7 +224,9 @@ class UpgradeFunnelService:
                 'improvements': [
                     {'metric': 'Rate limit', 'current': f'{fg.get_rate_limit(user_id)} RPM',
                      'upgraded': '300 RPM'},
-                    {'metric': 'Daily limit', 'current': 'Unlimited', 'upgraded': 'Unlimited'},
+                    {'metric': 'Daily limit',
+                     'current': _format_daily_limit(FEATURE_MATRIX[tier]['daily_limit']),
+                     'upgraded': _format_daily_limit(FEATURE_MATRIX['premium']['daily_limit'])},
                 ],
                 'cta': 'Go Premium',
             })
@@ -312,8 +344,8 @@ class UpgradeFunnelService:
 
         individual_total = sum(p.get('price_month_fen', 0) for p in top_plugins)
 
-        # Paid plan unlocks all plugins (hypothetical pricing)
-        paid_plan_price = 8800  # ¥88/month for standard paid tier
+        # Paid plan unlocks all plugins (read actual price from subscription_plans)
+        paid_plan_price = _get_paid_plan_price()  # fallback 8800 if unconfigured
 
         savings = individual_total - paid_plan_price
         savings_pct = round(savings / individual_total * 100, 1) if individual_total > 0 else 0

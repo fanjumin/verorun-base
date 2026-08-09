@@ -44,7 +44,7 @@ WECHAT_MCHID = _pay_cfg.get('wechat_mchid', '').strip() or os.environ.get('WECHA
 WECHAT_API_V3_KEY = _pay_cfg.get('wechat_api_v3_key', '').strip() or os.environ.get('WECHAT_API_V3_KEY', '')
 WECHAT_CERT_SERIAL = _pay_cfg.get('wechat_cert_serial', '').strip() or os.environ.get('WECHAT_CERT_SERIAL', '')
 
-NOTIFY_BASE = _pay_cfg.get('payment.notify_base', '').strip() or os.environ.get('NOTIFY_BASE', deploy.url())
+NOTIFY_BASE = _pay_cfg.get('payment.notify_base', '').strip() or os.environ.get('NOTIFY_BASE', f"https://{os.environ.get('DEPLOY_DOMAIN', 'localhost')}")
 NOTIFY_URL = NOTIFY_BASE + '/subscription/notify/wechat'
 WECHAT_PLAN_ID = _pay_cfg.get('wechat_plan_id', '').strip() or os.environ.get('WECHAT_PLAN_ID', '')
 
@@ -420,7 +420,7 @@ def refund_order(order_no: str, amount_fen: int, refund_no: str = None):
 
     except Exception as e:
         print(f'[WeChat Refund] Error (may need client cert): {e}')
-        return {'success': True, 'refund_no': f'WXREFUND{order_no}', 'error': ''}
+        return {'success': False, 'refund_no': '', 'error': str(e)}
 
 
 # ============================================================
@@ -432,10 +432,9 @@ def handle_notify():
     body = request.get_data(as_text=True)
     headers = request.headers
 
-    # 验签（生产环境必须）
+    # 验签（fail-closed：验签失败立即拒绝）
     if not _verify_wechat_sign(headers, body):
-        # 生产环境应返回 FAIL，开发阶段跳过
-        pass
+        return jsonify({'code': 'FAIL', 'message': 'signature mismatch'}), 400
 
     try:
         data = json.loads(body)

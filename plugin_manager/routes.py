@@ -993,7 +993,11 @@ def coupon_list():
 from .payment import (
     get_payment_router, create_payment_order,
     update_payment_order, get_payment_order, OrderStatus,
+    PaymentChannelNotConfigured,
 )
+
+import os
+from i18n import _
 from .subscription import get_subscription_manager
 from .coupons import get_coupon_manager
 
@@ -1062,7 +1066,10 @@ def store_purchase(identifier: str):
 
     # 调用支付网关
     router = get_payment_router()
-    provider = router.get_provider(channel)
+    try:
+        provider = router.get_provider(channel)
+    except PaymentChannelNotConfigured as e:
+        return _json_result(False, error=str(e), code=400)
     result = provider.create_order(order)
 
     if result.success:
@@ -1103,9 +1110,15 @@ def payment_order_status(order_no: str):
 
 @bp.route('/payment/notify/<channel>', methods=['POST'])
 def payment_notify(channel: str):
-    """支付回调 Webhook（统一入口，支持 alipay / wechat / stripe / paypal / mock）"""
+    """Unified payment webhook entry (alipay / wechat / stripe / paypal / mock)."""
+    # mock channel is only available in dev environment
+    if channel == 'mock' and os.environ.get('DEPLOY_ENV', 'dev') != 'dev':
+        return _json_result(False, error=_('mock channel disabled'), code=403)
     router = get_payment_router()
-    provider = router.get_provider(channel)
+    try:
+        provider = router.get_provider(channel)
+    except PaymentChannelNotConfigured as e:
+        return _json_result(False, error=str(e), code=400)
 
     # ── 根据 channel 解析原始数据 ──
     raw_data = None
@@ -1239,7 +1252,10 @@ def payment_refund(order_no: str):
         return _json_result(False, error='Order not paid or already refunded', code=400)
 
     router = get_payment_router()
-    provider = router.get_provider(order.channel)
+    try:
+        provider = router.get_provider(order.channel)
+    except PaymentChannelNotConfigured as e:
+        return _json_result(False, error=str(e), code=400)
     result = provider.refund(order_no)
 
     if result.success:

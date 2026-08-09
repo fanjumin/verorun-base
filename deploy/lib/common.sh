@@ -20,7 +20,8 @@
 [ "${INSTALL_SCRIPT}" = "bash" ] && INSTALL_SCRIPT="deploy/install.sh"
 
 # ── 幂等默认配置（脚本已设置则不覆盖） ─────────────────────────────────
-: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
+# 审计 C-2：GIT_REPO 由各入口脚本（install.sh / install-local.sh / install-code.sh /
+# install-dev.sh）在 source 本文件之前自行定义 —— common.sh 不定义仓库地址，避免来源混淆。
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -28,6 +29,11 @@
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${REGION:=global}"                # cn | global
+# 审计 H-5：Sparse-checkout 白名单（基础列表）。入口脚本可通过追加扩展，
+# 如 install-code.sh 在 source 后执行 SPARSE_DIRS="${SPARSE_DIRS} plugins"。
+# 审计 M-1：追加 scripts/（README 引用 scripts/dev_start.py 本地开发脚本）。
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy scripts}"
+: "${FORCE_UPDATE:=0}"              # 审计 C-3：update 时强制覆盖本地修改（配合 --force）
 : "${PIP_MIRROR:=}"
 : "${PIP_MIRROR_DETECTED:=}"
 : "${VR_ADMIN_CREDS_FILE:=/root/.verorun-creds}"
@@ -101,7 +107,8 @@ _detect_pip_mirror() {
 _clone_with_timeout() {
     local _repo=$1 _dest=$2 _branch=$3
     echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow)..."
-    if timeout 60 git clone --depth 1 -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
+    # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
+    if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
         return 0
     fi
     echo -e "${FAIL} git clone failed or timed out (60s)"
@@ -117,9 +124,21 @@ _clone_with_timeout() {
 }
 
 # --prefer-binary: prefer wheels, fall back to source build
+# 审计 C-4：安装失败显式报错 + 最多重试 3 次（网络抖动 / 镜像临时超时可自动恢复）
 _pip_install() {
     _detect_pip_mirror
-    sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"
+    local _attempt=1 _max=3
+    while [ "${_attempt}" -le "${_max}" ]; do
+        if sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --timeout 120 --prefer-binary ${PIP_MIRROR} "$@"; then
+            return 0
+        fi
+        echo -e "${WARN} pip install failed (attempt ${_attempt}/${_max}): $*"
+        _attempt=$((_attempt + 1))
+        [ "${_attempt}" -le "${_max}" ] && sleep 5
+    done
+    echo -e "${FAIL} pip install failed after ${_max} attempts: $*"
+    echo -e "${INFO} Check mirror reachability (${PIP_MIRROR:-default}) or dependency conflicts, then re-run."
+    return 1
 }
 
 # ══════════════════════════════════════════════════════════════════════
@@ -274,6 +293,8 @@ update_env() {
     fi
 
     local missing=()
+
+    # ── 必需的密钥（缺失则随机生成） ──
     for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET INTERNAL_SERVICE_TOKEN; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
             local val
@@ -282,6 +303,36 @@ update_env() {
             missing+=("${key}")
         fi
     done
+
+    # ── 审计 H-2：必需的配置项（缺失则用默认值补齐，绝不覆盖已有值） ──
+    # 早期版本升级后可能缺少 DEPLOY_PROTOCOL / VERORUN_REGION / DEPLOY_MARKET 等，
+    # 缺失会导致服务启动失败或运行时行为不一致，此处统一补齐。
+    local _dom
+    # 取最后一行 DEPLOY_DOMAIN，避免历史重复行导致多行变量污染
+    _dom=$(grep "^DEPLOY_DOMAIN=" "${env_file}" 2>/dev/null | tail -1 | cut -d= -f2)
+    # 审计 NEW-H3：DEPLOY_PROTOCOL 不做自动推断（有域名 ≠ 已配 HTTPS 证书）。
+    # 缺失时默认 http，由用户根据实际 TLS 配置自行修改 .env。
+    while read -r _k _v; do
+        if ! grep -q "^${_k}=" "${env_file}" 2>/dev/null; then
+            echo "${_k}=${_v}" >> "${env_file}"
+            missing+=("${_k}")
+        fi
+    done << EOF
+DEPLOY_MARKET cn
+DEPLOY_DOMAIN ${_dom}
+DEPLOY_PROTOCOL http
+DB_PATH ${APP_HOME}/data/verorun.db
+PG_HOST localhost
+PG_PORT 5432
+PG_DB verorun
+PG_USER verorun
+APP_MODE main
+PLUGIN_AUTO_INSTALL 0
+VERORUN_REGION ${REGION:-global}
+DASHSCOPE_TEXT_KEY 
+OPENAI_API_KEY 
+DEEPSEEK_API_KEY 
+EOF
 
     for key in APP_DEBUG:false FLASK_DEBUG:0; do
         local k="${key%%:*}" v="${key##*:}"
@@ -304,13 +355,18 @@ update_env() {
 # ══════════════════════════════════════════════════════════════════════
 write_systemd_services() {
     local env_file="${APP_HOME}/.env"
+    # 审计 H-4 修复：gunicorn worker 数不再硬编码 -w 2。
+    # 默认保持 2（向后兼容，不改变现有部署资源占用）；
+    # 高并发场景可用 VR_WORKERS 环境变量覆盖，例如：
+    #   VR_WORKERS=4 sudo bash deploy/install.sh update
+    local _workers="${VR_WORKERS:-2}"
     write_one_service() {
         local name=$1 port=$2 module=$3 extra_args="${4:-}" runner="${5:-}" runtime_dir="${6:-}"
         local file="${SERVICE_DIR}/${name}.service"
         if [ -n "${runner}" ]; then
-            local exec_cmd="${VENV_DIR}/bin/python ${APP_HOME}/${runner} -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app"
+            local exec_cmd="${VENV_DIR}/bin/python ${APP_HOME}/${runner} -w ${_workers} -b 127.0.0.1:${port} ${extra_args} ${module}:app"
         else
-            local exec_cmd="${VENV_DIR}/bin/gunicorn -w 2 -b 127.0.0.1:${port} ${extra_args} ${module}:app"
+            local exec_cmd="${VENV_DIR}/bin/gunicorn -w ${_workers} -b 127.0.0.1:${port} ${extra_args} ${module}:app"
         fi
         local rt_block=""
         if [ -n "${runtime_dir}" ]; then
@@ -422,8 +478,8 @@ write_sudoers() {
     cat > "${sudoers_file}" << SUEOF
 # Managed by VeroRun ${INSTALL_SCRIPT} — regenerated on every install/update
 # Grants ${APP_USER} passwordless one-click update for VeroRun services
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh update
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh restart
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/${INSTALL_SCRIPT} update
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/${INSTALL_SCRIPT} restart
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
@@ -490,10 +546,15 @@ check_python_deps() {
     freeze=$("${VENV_DIR}/bin/pip" list --format=freeze 2>/dev/null) || return 1
     while read -r line; do
         [ -z "${line}" ] && continue
-        case "${line}" in \#*) continue ;; esac
-        pkg="${line%%[<>=!~;]*}"
+        # 审计 H-6：跳过注释 / pip 选项 / -e 可编辑安装 / git+ / http(s) / file: 等非普通包行
+        case "${line}" in
+            \#*|--*|-e*|git+*|http://*|https://*|file:*|[-!+]*|.) continue ;;
+        esac
+        pkg="${line%%[<>=!~;@]*}"
+        pkg="${pkg%%\[*}"   # 去掉 extras（如 flask[async]）
         pkg=$(printf '%s' "${pkg}" | tr 'A-Z' 'a-z' | tr '_' '-')
-        printf '%s\n' "${freeze}" | grep -qi "^${pkg}==" || return 1
+        # 精确匹配已安装包名（^ 锚定行首，避免前缀误匹配如 discord.py 命中 discord）
+        printf '%s\n' "${freeze}" | grep -qi "^${pkg}==\|^${pkg} @ " || return 1
     done < "${APP_HOME}/requirements.txt"
     return 0
 }
@@ -572,7 +633,8 @@ health_check() {
     check_port() {
         local port=$1 name=$2
         local code
-        code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
+        # 审计 H-7：--max-time 10 防止服务接受连接但永不响应时 curl 挂起导致健康检查卡死
+        code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
         if [ "$code" != "000" ]; then
             echo -e "  ${OK} ${name} (:${port}) -> HTTP ${code}"
         else
@@ -608,6 +670,22 @@ health_check() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# VeroGuard 完整性清单构建（审计 NEW-H1：四种部署模式统一调用）
+# ══════════════════════════════════════════════════════════════════════
+build_veroguard_manifest() {
+    step "Build integrity manifest (VeroGuard)"
+    # 用 .env 中的 PROBE_SECRET 生成守护进程完整性基准清单。
+    # 官方端依赖该清单校验客户端文件完整性；文件缺失时降级跳过（不中断安装）。
+    if [ -f "${APP_HOME}/veroguard/tools/build_manifest.py" ]; then
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; set +a; cd ${APP_HOME} && PYTHONPATH=${APP_HOME} ${VENV_DIR}/bin/python veroguard/tools/build_manifest.py --project-dir ${APP_HOME} --output ${APP_HOME}/veroguard/data/manifest.json.enc --secret \"\${PROBE_SECRET}\"" \
+            || echo -e "${WARN} Manifest build failed — VeroGuard integrity check unavailable"
+    else
+        echo -e "${WARN} build_manifest.py not found — VeroGuard integrity check unavailable"
+    fi
+    done_step "Integrity manifest built"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # 种子数据
 # ══════════════════════════════════════════════════════════════════════
 do_seed() {
@@ -639,17 +717,18 @@ do_seed() {
         rm -f "${VR_ADMIN_CREDS_FILE}"
     fi
 
+    # 审计 NEW-M1：凭据在此处统一确定，保证 print_summary 展示与 seed_data.py 实际写入的密码一致。
+    # 无凭据时生成默认管理员（administrator + 随机密码），并始终经环境变量传入 seed_data.py。
     if [ -z "${VR_ADMIN_USERNAME}" ]; then
-        echo -e "${INFO} No admin credentials provided — username defaults to 'administrator'"
+        VR_ADMIN_USERNAME="administrator"
+    fi
+    if [ -z "${VR_ADMIN_PASSWORD}" ]; then
+        VR_ADMIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(8))")
     fi
 
     # 审计 C1：管理员凭据经环境变量传入 seed_data.py，避免出现在进程命令行
-    if [ -n "${VR_ADMIN_USERNAME}" ]; then
-        sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
-            "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
-    else
-        sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
-    fi
+    sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
+        "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     echo -e "${OK} Seed data injected"
 }
 
@@ -674,4 +753,761 @@ do_rollback() {
     else
         echo -e "${FAIL} Rollback failed"
     fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# C-1 统一部署函数（审计 R4 激活：四入口脚本共用，DEPLOY_TYPE 驱动）
+# DEPLOY_TYPE: production | lan | code | dev
+# 由各入口脚本在 source 本文件前定义（install.sh=production, install-local=lan,
+# install-code=code, install-dev=dev）。四个入口脚本不再各自定义同名函数，
+# Bash 不再发生"后定义覆盖先定义"，此处统一版本直接生效。
+# ══════════════════════════════════════════════════════════════════════
+
+# ── .env 生成：注释头 / DEPLOY_DOMAIN / DEPLOY_PROTOCOL 由 DEPLOY_TYPE 驱动 ──
+generate_env() {
+    local env_file="${APP_HOME}/.env"
+    local force="${1:-}"
+
+    if [ -f "${env_file}" ] && [ "${force}" != "force" ]; then
+        echo -e "${WARN} .env already exists, skipping"
+        return
+    fi
+
+    if [ -f "${env_file}" ] && [ "${force}" = "force" ]; then
+        cp "${env_file}" "${env_file}.bak.$(date +%s)" 2>/dev/null || true
+        if [ "${DEPLOY_TYPE}" = "production" ]; then
+            echo -e "${INFO} Existing .env backed up"
+        fi
+    fi
+
+    if [ -z "${PG_PASSWORD:-}" ]; then
+        PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    fi
+    JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    PLUGIN_LICENSE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    CAPTCHA_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    DEV_ACCOUNTS_ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    INTERNAL_SERVICE_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+
+    # ── DEPLOY_TYPE 驱动：注释头 / DOMAIN / PROTOCOL ──
+    local _env_header="VeroRun config — auto-generated by ${INSTALL_SCRIPT} (no-domain / LAN mode)"
+    local _deploy_domain=""
+    local _deploy_protocol="http"
+    case "${DEPLOY_TYPE}" in
+        production)
+            _env_header="VeroRun production config — auto-generated by ${INSTALL_SCRIPT}"
+            _deploy_domain="${DOMAIN:-}"
+            _deploy_protocol="https"
+            ;;
+        code)
+            _env_header="VeroRun config — auto-generated by ${INSTALL_SCRIPT} (no-domain / LAN mode, full plugins)"
+            ;;
+    esac
+
+    cat > "${env_file}" << ENVEOF
+# ${_env_header}
+DEPLOY_MARKET=cn
+DEPLOY_DOMAIN=${_deploy_domain}
+DEPLOY_PROTOCOL=${_deploy_protocol}
+DB_PATH=${APP_HOME}/data/verorun.db
+PG_HOST=localhost
+PG_PORT=5432
+PG_DB=verorun
+PG_USER=verorun
+PG_PASSWORD=${PG_PASSWORD}
+JWT_SECRET=${JWT_SECRET}
+FLASK_SECRET_KEY=${FLASK_SECRET}
+ENCRYPTION_KEY=${ENCRYPTION_KEY}
+APP_MODE=main
+
+# v2.1.0 — 内部服务令牌
+INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+
+# Production defaults: DEBUG must stay disabled (assert_debug_disabled enforces on install/update)
+APP_DEBUG=false
+FLASK_DEBUG=0
+
+# Phase 1 — Security hardening keys (2026-07-28)
+PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
+CAPTCHA_SECRET_KEY=${CAPTCHA_SECRET_KEY}
+DEV_ACCOUNTS_ENCRYPTION_KEY=${DEV_ACCOUNTS_ENCRYPTION_KEY}
+LICENSE_SERVER_SECRET=${LICENSE_SERVER_SECRET}
+
+# Deployments do not auto-install/enable plugins by default (install manually in admin)
+PLUGIN_AUTO_INSTALL=0
+
+# VeroGuard — daemon encrypted communication key (official side and client must match)
+PROBE_SECRET=${PROBE_SECRET}
+
+# API Keys (intentionally empty — set real values before enabling AI features)
+DASHSCOPE_TEXT_KEY=
+OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
+
+# Region routing (VeroRun 0.43.0+)
+VERORUN_REGION=${REGION}
+ENVEOF
+
+    chown "${APP_USER}:${APP_USER}" "${env_file}"
+    chmod 600 "${env_file}"
+}
+
+# ── Nginx：DOMAIN 非空→域名多 server；空→LAN 单 server ──
+write_nginx_config() {
+    local nginx_conf="/etc/nginx/sites-available/verorun.conf"
+    local nginx_enabled="/etc/nginx/sites-enabled/verorun.conf"
+
+    if [ -n "${DOMAIN:-}" ]; then
+        # ── 域名模式：主域 / platform / agent 三 server ──
+        cat > "${nginx_conf}" << NGXEOF
+# VeroRun Nginx — auto-generated by ${INSTALL_SCRIPT}
+
+# ── Main domain ────────────────────────────────
+server {
+    listen 80;
+    server_name ${DOMAIN} www.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # ── Admin ─────────────────────────────────
+    location /admin/ {
+        proxy_pass http://127.0.0.1:8084;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+    }
+
+    # ── Auth / subscribe ─────────────────────
+    location /auth/ {
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /subscribe {
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # ── Main site ───────────────────────────────
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+    }
+}
+
+# ── Platform subdomain ─────────────────────────
+server {
+    listen 80;
+    server_name platform.${DOMAIN};
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+
+# ── Agent subdomain ────────────────────────────
+server {
+    listen 80;
+    server_name agent.${DOMAIN};
+    client_max_body_size 100M;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:8084;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+NGXEOF
+    else
+        # ── 无域名模式：default_server 单 server（/admin/ 统一含 client_max_body_size 100M，审计 R4 L-B） ──
+        cat > "${nginx_conf}" << NGXEOF
+# VeroRun Nginx — no-domain mode (auto-generated by ${INSTALL_SCRIPT})
+
+server {
+    listen 80 default_server;
+    # No server_name: match every Host (localhost / LAN IP)
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # ── Admin panel ─────────────────────────
+    location /admin/ {
+        client_max_body_size 100M;
+        proxy_pass http://127.0.0.1:8084;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+    }
+
+    # ── User console / auth ─────────────────
+    location /auth/ {
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /subscribe {
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # ── Main site (default route) ───────────
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+    }
+}
+NGXEOF
+    fi
+
+    # 审计 M-2 修复：删除 default 站点前先备份（幂等——已有备份不覆盖），
+    # 避免同机运行的其他 Web 服务（phpMyAdmin/Grafana 等）依赖 default 配置时被误伤。
+    if [ -f /etc/nginx/sites-available/default ] && [ ! -f /etc/nginx/sites-available/default.bak.verorun ]; then
+        cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak.verorun
+    fi
+    rm -f /etc/nginx/sites-enabled/default
+    ln -sf "${nginx_conf}" "${nginx_enabled}"
+}
+
+# ── Fresh install：DEPLOY_TYPE 驱动域名询问 / 拉取文案 / 清理 / 服务启动 ──
+do_install() {
+    step "Dependency check"
+    if [ "${SKIP_DEPS:-0}" = "1" ]; then
+        echo -e "${WARN} --skip-deps: skipping dependency installation"
+    elif check_system_deps && check_python_deps; then
+        echo -e "${OK} All dependencies already installed — skipping"
+        SKIP_DEPS=1
+    else
+        echo -e "${WARN} Some dependencies are missing (system or Python packages)"
+        # 审计 H-2 修复：curl | sudo bash 管道执行时 stdin 已被脚本内容占用，
+        # 必须 < /dev/tty 从终端读取，否则 read 会吞掉后续脚本内容。
+        read -r -p "Install dependencies now? [Y/n] " _ans < /dev/tty || _ans=""
+        case "${_ans}" in
+            n|N) echo -e "${WARN} Skipping dependency installation"; SKIP_DEPS=1 ;;
+            *)   echo -e "${OK} Will install missing dependencies" ;;
+        esac
+    fi
+    done_step "Dependency check complete"
+
+    step "System dependencies"
+    export DEBIAN_FRONTEND=noninteractive
+    if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        _ensure_apt_mirror
+        apt-get update
+        apt-get install -y python3 python3-venv python3-pip python3-dev \
+            nginx git curl wget build-essential libpq-dev libssl-dev
+    else
+        if [ "${DEPLOY_TYPE}" = "production" ]; then
+            echo -e "${WARN} --skip-deps: skipping system dependency installation"
+        else
+            echo -e "${WARN} Skipped (deps already present or --skip-deps)"
+        fi
+    fi
+    done_step "System dependencies installed"
+
+    PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+
+    step "PostgreSQL"
+    if ! systemctl is-active --quiet postgresql 2>/dev/null; then
+        if [ "${SKIP_DEPS:-0}" = "1" ]; then
+            echo -e "${FAIL} postgresql not running, but dependency installation was skipped"
+            exit 1
+        fi
+        apt-get install -y postgresql postgresql-client
+        systemctl enable --now postgresql
+    fi
+    # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
+    _sql_tmp=$(mktemp)
+    chmod 600 "${_sql_tmp}"
+    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+    else
+        printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+    fi
+    sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
+    rm -f "${_sql_tmp}"
+    # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        echo -e "${FAIL} FATAL: PostgreSQL role 'verorun' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
+        exit 1
+    fi
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        echo -e "${FAIL} FATAL: PostgreSQL database 'verorun' not created."
+        exit 1
+    fi
+    # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
+    done_step "PostgreSQL is running"
+
+    step "Create directories"
+    mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
+    mkdir -p "${APP_HOME}/.cache/llm" \
+             "${APP_HOME}/.cache/sessions" \
+             "${APP_HOME}/.cache/agents"
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
+    done_step "Directories ready"
+
+    ensure_git_auth
+
+    # ── DEPLOY_TYPE 驱动：Pull code 步骤标签（commit hash 在拉取完成后动态求值） ──
+    local _pull_step="Pull code"
+    local _pull_suffix=""           # 审计 R5 BUG-1：仅存格式后缀，此处不做命令替换
+    case "${DEPLOY_TYPE}" in
+        code)
+            _pull_step="Pull code (full — includes all plugins)"
+            _pull_suffix=" (full, all plugins)"
+            ;;
+        dev)
+            _pull_step="Pull code (plugins excluded — clone ~50% smaller)"
+            _pull_suffix=" (plugins excluded)"
+            ;;
+    esac
+    step "${_pull_step}"
+    # 审计 H3 修复：目录冲突时交互式三选一（备份/删除/中止），不再直接 rm -rf
+    resolve_directory_conflict "${APP_HOME}"
+    if [ -d "${APP_HOME}/.git" ]; then
+        git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
+        cd "${APP_HOME}"
+        # 审计 F-2：抑制 git 交互式凭据提示 + 超时保护，避免 origin 指向镜像时无限卡死
+        git remote set-url origin "${GIT_REPO}"
+        export GIT_TERMINAL_PROMPT=0
+        if ! timeout 60 git fetch origin "${GIT_BRANCH}" 2>&1; then
+            echo -e "${FAIL} Git fetch failed or timed out (60s) — aborting"
+            echo -e "${INFO} Check origin remote: git -C ${APP_HOME} remote -v"
+            echo -e "${INFO} If it points to a mirror (ghfast.top/ghproxy), reset it:"
+            echo -e "${INFO}   git -C ${APP_HOME} remote set-url origin ${GIT_REPO}"
+            exit 1
+        fi
+        git reset --hard "origin/${GIT_BRANCH}"
+    else
+        _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
+    fi
+    # 应用 sparse-checkout 白名单（幂等；拉取后立即收窄工作区，仅保留运行时目录）
+    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
+        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+    fi
+    # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
+    if [ "${DEPLOY_TYPE}" = "production" ]; then
+        rm -f "${APP_HOME}/deploy/install-local.sh" "${APP_HOME}/deploy/install-code.sh" "${APP_HOME}/deploy/install-dev.sh"
+    fi
+    # Clean stale __pycache__ before chown (avoids race-condition failures)
+    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
+    done_step "Code pulled${_pull_suffix}: $(git -C "${APP_HOME}" log --oneline -1)"
+
+    step "Python virtual environment"
+    if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        if [ ! -f "${VENV_DIR}/bin/python" ]; then
+            sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
+        fi
+        _pip_install --upgrade pip
+        _pip_install -r "${APP_HOME}/requirements.txt"
+    else
+        echo -e "${WARN} Skipped (deps already present or --skip-deps)"
+    fi
+    done_step "Python dependencies installed"
+
+    # 仅 production 需要域名
+    if [ "${DEPLOY_TYPE}" = "production" ]; then
+        prompt_domain
+    fi
+
+    step "Generate .env"
+    generate_env force
+    if [ "${DEPLOY_TYPE}" = "production" ]; then
+        done_step ".env generated"
+    else
+        done_step ".env generated (DEPLOY_DOMAIN empty, DEPLOY_PROTOCOL=http)"
+    fi
+
+    # 审计 NEW-H1：与四脚本一致的 VeroGuard 完整性清单构建
+    build_veroguard_manifest
+
+    # Production gate: refuse to continue if DEBUG got enabled in .env
+    assert_debug_disabled
+
+    # 仅 production：DOMAIN 未配置时不启动 systemd / nginx
+    if [ "${DEPLOY_TYPE}" = "production" ] && [ -z "${DOMAIN}" ]; then
+        echo -e "${WARN} Domain not configured. System and nginx not started."
+        echo -e "${INFO} After install, run:"
+        echo -e "${INFO}   sudo bash deploy/${INSTALL_SCRIPT} configure-domain <your-domain>"
+    else
+        step "systemd services"
+        write_systemd_services
+        done_step "systemd services configured"
+
+        if [ "${DEPLOY_TYPE}" = "production" ]; then
+            step "Nginx"
+        else
+            step "Nginx (path routing)"
+        fi
+        write_nginx_config
+        nginx -t && systemctl restart nginx
+        done_step "Nginx configured"
+
+        step "Start services"
+        restart_services
+        done_step "Services started"
+    fi
+
+    step "Configure sudoers (one-click update permissions)"
+    write_sudoers
+    done_step "Sudoers configured"
+
+    step "Database migration"
+    if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
+        done_step "Database migrated"
+    else
+        echo -e "${WARN} Skipped database migration (pass --approve-migrate to apply schema changes)"
+        echo -e "${INFO} Services may fail to start if code references columns not yet in the DB"
+    fi
+
+    step "Seed data"
+    # 审计 NEW-M1：凭据由 common.sh do_seed 统一生成并回显（此处不再用全局变量传递）
+    do_seed
+    done_step "Seed data injected"
+
+    print_summary
+}
+
+# ── Incremental update：production 从 .env 读域名；.git 缺失按模式处理；self-update 用 ${INSTALL_SCRIPT} ──
+do_update() {
+    # ── Trap: write failure status on any early exit ──
+    # /run/verorun/ is tmpfs managed by systemd RuntimeDirectory (verorun-admin.service).
+    # Owned by APP_USER, no root-permission conflicts. Cleared on reboot (intended).
+    local _status_file="/run/verorun/update_status.json"
+    mkdir -p /run/verorun 2>/dev/null || true
+    chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > '"${_status_file}" EXIT
+
+    # Self-update tracking: md5 of currently-running ${INSTALL_SCRIPT}
+    UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/${INSTALL_SCRIPT}" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
+
+    # 仅 production 从 .env 读取域名；无域名模式保持 DOMAIN 为空（write_nginx_config 走 default_server）
+    if [ "${DEPLOY_TYPE}" = "production" ]; then
+        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2) || true
+    fi
+
+    local before_commit
+    before_commit=$(git -C "${APP_HOME}" log --oneline -1 2>/dev/null || echo "unknown")
+
+    step "Backup current version"
+    mkdir -p "${APP_HOME}/.rollback"
+    cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
+    echo "${before_commit}" > "${APP_HOME}/.rollback/before_commit"
+    done_step "Environment backed up"
+
+    step "Restore locally modified files"
+    # 审计 C-3：默认拒绝覆盖本地修改（防止销毁用户定制/热修复）；--force 时先备份 diff 再恢复
+    if [ -d "${APP_HOME}/.git" ]; then
+        if ! git -C "${APP_HOME}" diff --quiet; then
+            if [ "${FORCE_UPDATE:-0}" != "1" ]; then
+                echo -e "${FAIL} Local modifications detected — refusing to overwrite them."
+                echo -e "${INFO} To review:  git -C ${APP_HOME} diff"
+                echo -e "${INFO} To backup:  git -C ${APP_HOME} diff > ${APP_HOME}/.rollback/local-patch-$(date +%s).diff"
+                echo -e "${INFO} Re-run with '--force' to auto-restore (a backup diff is saved first)."
+                exit 1
+            fi
+            mkdir -p "${APP_HOME}/.rollback"
+            git -C "${APP_HOME}" diff > "${APP_HOME}/.rollback/local-patch-$(date +%s).diff"
+            echo -e "${WARN} Local modifications detected (backed up to .rollback/local-patch-*.diff), restoring to git version..."
+            git -C "${APP_HOME}" diff --name-only -z | xargs -0 git -C "${APP_HOME}" checkout --
+            done_step "Locally modified files restored (diff saved)"
+        else
+            done_step "No local modifications"
+        fi
+    else
+        done_step "Skipped (no .git directory)"
+    fi
+
+    ensure_git_auth
+
+    step "Pull latest code"
+    if [ ! -d "${APP_HOME}/.git" ]; then
+        if [ "${DEPLOY_TYPE}" = "production" ]; then
+            echo -e "${WARN} .git missing — re-cloning repository"
+            # 审计 H3 修复：复用交互式冲突处理，禁止直接 rm -rf
+            resolve_directory_conflict "${APP_HOME}"
+            _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
+        else
+            # 审计 R4 L-A：错误消息使用 ${INSTALL_SCRIPT}，不再硬编码脚本名
+            echo -e "${FAIL} .git missing — cannot update. Re-install with ${INSTALL_SCRIPT}."
+            exit 1
+        fi
+    else
+        git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
+        cd "${APP_HOME}"
+        git remote set-url origin "${GIT_REPO}"
+        if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
+            echo -e "${FAIL} Git fetch failed. Check network connectivity."
+            echo -e "${FAIL} Update aborted."
+            exit 1
+        fi
+        git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
+            echo -e "${WARN} Fast-forward merge failed, falling back to reset"
+            git reset --hard "origin/${GIT_BRANCH}" || {
+                echo -e "${FAIL} Git reset failed."
+                exit 1
+            }
+        }
+    fi
+    # 应用 sparse-checkout 白名单：老仓库立即移除 .github/CHANGELOG/docs 等非运行时文件
+    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
+        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+    fi
+    # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
+    if [ "${DEPLOY_TYPE}" = "production" ]; then
+        rm -f "${APP_HOME}/deploy/install-local.sh" "${APP_HOME}/deploy/install-code.sh" "${APP_HOME}/deploy/install-dev.sh"
+    fi
+    local after_commit
+    after_commit=$(git log --oneline -1)
+    done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
+
+    # Self-update: if the entry script itself changed, re-run update with new version
+    local script_md5
+    script_md5=$(md5sum "${APP_HOME}/deploy/${INSTALL_SCRIPT}" | awk '{print $1}')
+    if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
+        echo -e "${INFO} ${INSTALL_SCRIPT} updated, re-running with new version..."
+        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" FORCE_UPDATE="${FORCE_UPDATE:-0}" bash "${APP_HOME}/deploy/${INSTALL_SCRIPT}" update
+        exit
+    fi
+
+    step "Update .env (fill missing keys)"
+    update_env
+    done_step ".env synced"
+
+    # 审计 R3-M2：代码更新后重建 VeroGuard 完整性清单，避免基准过时触发误报
+    build_veroguard_manifest
+
+    # Production gate: refuse to continue if DEBUG got enabled in .env
+    assert_debug_disabled
+
+    step "Update Python dependencies"
+    req_hash=$(md5sum "${APP_HOME}/requirements.txt" | awk '{print $1}')
+    cached_hash=$(cat "${APP_HOME}/.requirements_hash" 2>/dev/null || echo "")
+    if [ "${req_hash}" != "${cached_hash}" ]; then
+        _pip_install -r "${APP_HOME}/requirements.txt"
+        echo "${req_hash}" > "${APP_HOME}/.requirements_hash"
+    else
+        echo -e "${INFO} requirements.txt unchanged, skipping pip install"
+    fi
+    done_step "Dependencies updated"
+
+    step "Update systemd services"
+    chmod +x "${APP_HOME}/deploy/health_check.sh" 2>/dev/null || true
+    write_systemd_services
+    done_step "Systemd services updated"
+
+    step "Update sudoers (one-click update permissions)"
+    write_sudoers
+    done_step "Sudoers updated"
+
+    step "Update Nginx config"
+    write_nginx_config
+    nginx -t && systemctl restart nginx
+    done_step "Nginx config updated"
+
+    step "Pre-flight check"
+    # 验证数据库可连接（直接 psycopg2 连接，不依赖 plugins 包）
+    if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
+import os, psycopg2
+conn = psycopg2.connect(
+    host=os.getenv('PG_HOST', 'localhost'),
+    port=os.getenv('PG_PORT', '5432'),
+    dbname=os.getenv('PG_DB', 'verorun'),
+    user=os.getenv('PG_USER', 'verorun'),
+    password=os.getenv('PG_PASSWORD', ''),
+)
+conn.close()
+print('DB OK')
+\""; then
+        echo -e "${FAIL} Database not accessible — aborting update"
+        exit 1
+    fi
+    # 验证 Python 语法无致命错误
+    if ! sudo -u "${APP_USER}" bash -c "${VENV_DIR}/bin/python -m py_compile ${APP_HOME}/admin/app.py"; then
+        echo -e "${FAIL} Syntax error in new code — aborting update"
+        exit 1
+    fi
+    done_step "Pre-flight passed"
+
+    step "Restart services"
+    restart_services
+    done_step "Services restarted"
+
+    step "Health check"
+    health_check
+
+    # ── Write final update status for admin UI polling ──
+    trap - EXIT  # Clear the failure trap before writing success
+    local _status_file="/run/verorun/update_status.json"
+    mkdir -p /run/verorun 2>/dev/null || true
+    chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
+    if [ "${UPDATE_FAILED:-0}" -eq 0 ]; then
+        echo '{"status":"success","progress":100,"message":"Update completed successfully","error":null}' > "${_status_file}"
+    else
+        echo '{"status":"failed","progress":100,"message":"Update completed with errors","error":"Some services are unhealthy"}' > "${_status_file}"
+    fi
+}
+
+# ── Summary：按 DEPLOY_TYPE 条件渲染 ──
+print_summary() {
+    local PUBLIC_IP
+    case "${DEPLOY_TYPE}" in
+        production)
+            PUBLIC_IP=$(curl -s --connect-timeout 5 --max-time 10 ifconfig.me 2>/dev/null || echo "unknown")
+
+            echo ""
+            echo "  ╔══════════════════════════════════════════════════════════════╗"
+            echo "  ║              Deployment Complete!                             ║"
+            if [ -n "${DOMAIN}" ]; then
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Main site:  https://${DOMAIN}                                 ║"
+            echo "  ║  Platform:   https://platform.${DOMAIN}                        ║"
+            echo "  ║  Admin:      https://agent.${DOMAIN}/admin/                    ║"
+            fi
+            if [ "${APPROVE_MIGRATE:-0}" != "1" ]; then
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  WARNING: Admin account NOT created — admin panel inaccessible"
+            echo "  ║  To fix: sudo bash deploy/${INSTALL_SCRIPT} seed                      ║"
+            fi
+            # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+            if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            fi
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Useful commands:                                            ║"
+            echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
+            echo "  ║    journalctl -u verorun-guardian -f                         ║"
+            echo "  ║    bash deploy/${INSTALL_SCRIPT} update                              ║"
+            echo "  ║    bash deploy/${INSTALL_SCRIPT} rollback                            ║"
+            echo "  ╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            ;;
+        lan)
+            echo ""
+            echo "  ╔══════════════════════════════════════════════════════════════╗"
+            echo "  ║         No-domain / LAN Deployment Complete!                  ║"
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Main site:   http://localhost/                               ║"
+            echo "  ║  Admin:       http://localhost/admin/                         ║"
+            echo "  ║  Console:     http://localhost/auth/                          ║"
+            PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+            if [ -n "${PUBLIC_IP}" ]; then
+            echo "  ║  LAN access:  http://${PUBLIC_IP}/  (same paths)              ║"
+            fi
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Useful commands:                                            ║"
+            echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
+            echo "  ║    bash deploy/${INSTALL_SCRIPT} update                        ║"
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  AI API keys are empty by default — set real values in:      ║"
+            echo "  ║    ${APP_HOME}/.env  (DASHSCOPE_TEXT_KEY / OPENAI_API_KEY /   ║"
+            echo "  ║    DEEPSEEK_API_KEY) before enabling AI features             ║"
+            if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            fi
+            echo "  ╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            ;;
+        code)
+            PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+            echo ""
+            echo "  ╔══════════════════════════════════════════════════════════════╗"
+            echo "  ║      Team Intranet Deployment Complete (Full Plugins)!        ║"
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Main site:   http://localhost/                               ║"
+            echo "  ║  Admin:       http://localhost/admin/                         ║"
+            echo "  ║  Console:     http://localhost/auth/                          ║"
+            if [ -n "${PUBLIC_IP}" ]; then
+            echo "  ║  LAN access:  http://${PUBLIC_IP}/  (same paths)              ║"
+            fi
+            echo "  ║  Plugins:     $(ls -d ${APP_HOME}/plugins/*/ 2>/dev/null | wc -l) directories installed                    ║"
+            echo "  ║  Code size:   $(du -sh ${APP_HOME} 2>/dev/null | cut -f1)                              ║"
+            # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+            if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            fi
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Useful commands:                                            ║"
+            echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
+            echo "  ║    bash deploy/${INSTALL_SCRIPT} update                         ║"
+            echo "  ╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            ;;
+        dev)
+            echo ""
+            echo "  ╔══════════════════════════════════════════════════════════════╗"
+            echo "  ║         Developer Deployment Complete!                        ║"
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Main site:   http://localhost/                               ║"
+            echo "  ║  Admin:       http://localhost/admin/                         ║"
+            echo "  ║  Console:     http://localhost/auth/                          ║"
+            PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+            if [ -n "${PUBLIC_IP}" ]; then
+            echo "  ║  LAN access:  http://${PUBLIC_IP}/  (same paths)              ║"
+            fi
+            echo "  ║  Plugins:     NOT installed (install via Admin panel)          ║"
+            # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+            if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            fi
+            echo "  ╠══════════════════════════════════════════════════════════════╣"
+            echo "  ║  Useful commands:                                            ║"
+            echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
+            echo "  ║    bash deploy/${INSTALL_SCRIPT} update                          ║"
+            echo "  ╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            ;;
+        *)
+            echo -e "${WARN} print_summary: unknown DEPLOY_TYPE '${DEPLOY_TYPE}'"
+            ;;
+    esac
 }

@@ -48,13 +48,36 @@ Fresh install in a single command — no `git` required (the script auto-fetches
 
 **With a domain:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
+Replace `your-domain.com` with your actual domain name.
 
 **Local / LAN (no domain):**
 ```bash
 curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
 ```
+
+**Team intranet server (private repo — requires SSH deploy key):**
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash
+```
+
+**Developer workstation (private repo — requires SSH deploy key):**
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh | sudo bash
+```
+
+**Script selector:**
+
+| Scenario | Script | Domain | Code source | SSH deploy key |
+|----------|--------|--------|-------------|----------------|
+| Local / LAN (no domain) | `install-local.sh` | none | public `verorun-base` (HTTPS) | not required |
+| Production (with domain) | `install.sh` | yes | public `verorun-base` (HTTPS) | not required |
+| Team intranet (no domain, full plugins) | `install-code.sh` | none | private `verorun-code` (SSH) | required |
+| Developer workstation (no domain, no plugins) | `install-dev.sh` | none | private `verorun-code` (SSH) | required |
+
+The scripts auto-fetch `deploy/lib/common.sh` from verorun-base when run via pipe,
+so `git` is not required for the one-command install.
 
 **Alternatively — clone then run locally:**
 
@@ -84,10 +107,14 @@ sudo bash deploy/install.sh configure-domain your-domain.com
 
 ### `verorun-code` (private repo)
 
+> Use `install-code.sh` for `verorun-code` deployments — it defaults `GIT_REPO` to the SSH
+> private repository. Do NOT use `install.sh` for private repos, as it pulls the public
+> `verorun-base` repository (HTTPS).
+
 ```bash
 git clone git@github.com:fanjumin/verorun-code.git
 cd verorun-code
-sudo bash deploy/install.sh install your-domain.com
+sudo bash deploy/install-code.sh install
 ```
 
 ---

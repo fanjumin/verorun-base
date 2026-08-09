@@ -678,15 +678,42 @@ def reactivate_subscription():
     _audit_log(uid, 'reactivated', _('User Re-activate Subscription'))
     return api_res({'message': _('Subscription reactivated')})
 
+def _is_stub_order(order):
+    """Return True if the order was created through a payment channel
+    that is currently not configured (i.e. a stub/dev order)."""
+    method = (order.get('payment_method') or 'alipay').lower()
+    if method == 'wechat':
+        from .gateway.wechat import _is_stub as _gw_is_stub
+    elif method == 'stripe':
+        from .gateway.stripe import _is_stub as _gw_is_stub
+    elif method == 'paypal':
+        from .gateway.paypal import _is_stub as _gw_is_stub
+    else:
+        from .gateway.alipay import _is_stub as _gw_is_stub
+    try:
+        return bool(_gw_is_stub())
+    except Exception:
+        return True
+
+
 @sub_bp.route('/stub-confirm/<order_no>', methods=['POST'])
 def stub_confirm(order_no):
-    """开发模式：手动确认 stub 订单"""
+    """Dev-mode only manual confirm for stub orders (blocks free-activation exploits)."""
+    if os.environ.get('DEPLOY_ENV', 'dev') != 'dev':
+        return api_err(_('stub confirm is disabled outside dev'), 403)
     payload = _require_auth()
     if not payload:
         return api_err(_('Please log in first'), 401)
+    uid = payload['user_id']
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM subscription_orders WHERE order_no=%s', (order_no,)).fetchone()
+    if not row:
+        return api_err(_('Order not found'), 404)
+    if row['user_id'] != uid:
+        return api_err(_('Forbidden'), 403)
+    if not _is_stub_order(row):
+        return api_err(_('Not a stub order'), 400)
     if _fulfill_order(order_no):
-        with get_db() as conn:
-            row = conn.execute('SELECT * FROM subscription_orders WHERE order_no=%s', (order_no,)).fetchone()
         plan = get_plan(row['plan_key']) if row else None
         msg = f'🎉 {plan["name"] if plan else ""} Subscription Successful!' if row and row['item_type'] == 'new' else _('Order completed')
         return api_res({'message': msg, 'order_no': order_no})

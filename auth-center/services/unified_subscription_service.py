@@ -18,6 +18,11 @@ Usage:
     access = svc.check_plugin_access(user_id=1, plugin_key='sentiment')
 """
 
+# ⚠️ DEPRECATED (legacy) — 本服务无生产调用者。
+# 主站订阅链路当前由 auth-center/routes/subscription/__init__.py 承载。
+# 迁移/重构前请勿基于本文件实现新逻辑。上线任务 T12 要求：仅标注，不迁移。
+
+
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 

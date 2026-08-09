@@ -41,7 +41,7 @@ def _get_mac_address() -> str:
     try:
         import uuid
         mac = uuid.getnode()
-        if mac != uuid.getnode():
+        if mac and mac != 0xFFFFFFFFFFFF:
             return f'{mac:012x}'
     except Exception:
         pass
@@ -493,7 +493,7 @@ class LicenseManager:
 # ── 开发者入驻占位接口（未来） ──────────────────────────────────────
 
 def submit_plugin(plugin_data: dict) -> dict:
-    """[未来] 开发者提交插件到商店审核
+    """[未来] 开发者提交插件到商店审核（暂未开放，明确拒绝）
 
     Args:
         plugin_data: {
@@ -511,9 +511,8 @@ def submit_plugin(plugin_data: dict) -> dict:
     Returns:
         {'success': bool, 'plugin_id': str, 'error': str}
     """
-    import warnings
-    warnings.warn("submit_plugin() not yet implemented", FutureWarning)
-    return {'success': False, 'error': 'not_implemented'}
+    from i18n import _
+    return {'success': False, 'error': _('Plugin submission is not open yet')}
 
 
 # ── 模块级单例 ──────────────────────────────────────────────────────
