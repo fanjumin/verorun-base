@@ -77,8 +77,8 @@ def guardian_status():
         return {'status': 'not_running', 'error': 'guardian 未运行或状态文件不存在'}, 503
 
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     if _has_health_plugin:
         init_health_tables()
         migrate_alert_schema()
-    app.run(host=')0.0.0.0', port=8085, debug=False)
+    app.run(host='0.0.0.0', port=8085, debug=False)

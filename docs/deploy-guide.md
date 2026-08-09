@@ -148,6 +148,32 @@ manual configuration required:
 
 ---
 
+## 手动部署（Manual Deployment）
+
+一键命令（`curl | sudo bash`）等价于手动执行以下步骤，适合需要先审阅代码或网络受限的场景：
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
+
+# 2. 有域名部署
+sudo bash deploy/install.sh install your-domain.com
+
+# 3. 无域名部署（局域网/单机，后续可用 configure-domain 补配）
+sudo bash deploy/install-local.sh
+```
+
+私有库（`verorun-code`）将第 1 步替换为 SSH 克隆并改用 `install-dev.sh` / `install-code.sh`：
+
+```bash
+git clone git@github.com:fanjumin/verorun-code.git
+cd verorun-code
+sudo bash deploy/install.sh install your-domain.com
+```
+
+`install` 模式会自动执行数据库迁移 + 播种，装完即用，无需再手动执行 `seed`。
+
 ## Post-Install: Configure Domain
 
 If you skipped the domain prompt during install, set it now:
@@ -162,7 +188,8 @@ This updates `.env`, rewrites systemd services and Nginx config, then starts eve
 
 ## Seed Initial Data
 
-Populate the database with default admin account, plans, and products:
+`install` 模式已自动执行数据库迁移与播种（管理员账号、订阅计划、产品在安装时即已创建），装完即用。
+仅在 `update` 后或需要重置初始数据时手动执行：
 
 ```bash
 sudo bash /home/verorun/verorun-workspace/deploy/deploy.sh seed
@@ -217,6 +244,8 @@ sudo bash /home/verorun/verorun-workspace/deploy/deploy.sh restart
 | Main Site | 8081 | `verorun-main` | `main_site` |
 | Auth / Platform | 8083 | `verorun-auth` | `auth_server` |
 | Admin | 8084 | `verorun-admin` | `admin` |
+| Health Service | 8085 | `verorun-health` | `health_service` |
+| VeroGuard Guardian | — | `verorun-guardian` | `veroguard` |
 
 ### Nginx Routing
 

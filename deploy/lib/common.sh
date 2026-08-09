@@ -36,6 +36,10 @@
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
+# 审计 F-3：全局抑制 git 交互式凭据提示（update/rollback/configure-domain 等所有 git 调用点生效），
+# 任何凭据请求立即失败而非交互挂起，杜绝 origin 指向镜像时无限卡死。
+export GIT_TERMINAL_PROMPT=0
+
 # ══════════════════════════════════════════════════════════════════════
 # 日志
 # ══════════════════════════════════════════════════════════════════════
@@ -123,6 +127,18 @@ _pip_install() {
 # ══════════════════════════════════════════════════════════════════════
 ensure_git_auth() {
     if echo "${GIT_REPO}" | grep -q '^https://'; then
+        # 审计 F-1：HTTPS 公开仓库同样校验已存在的 origin，防止被改为 ghfast.top/ghproxy 等镜像后 fetch 卡死
+        if [ -d "${APP_HOME}/.git" ]; then
+            local current_url
+            current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
+            if [ -n "${current_url}" ] && [ "${current_url}" != "${GIT_REPO}" ]; then
+                echo -e "${WARN} Git origin mismatch detected — correcting:"
+                echo -e "${WARN}   was: ${current_url}"
+                echo -e "${WARN}   now: ${GIT_REPO}"
+                git -C "${APP_HOME}" remote set-url origin "${GIT_REPO}"
+                done_step "Git remote corrected to ${GIT_REPO}"
+            fi
+        fi
         return 0
     fi
     local ssh_key="/root/.ssh/id_ed25519"

@@ -149,7 +149,15 @@ do_install() {
     if [ -d "${APP_HOME}/.git" ]; then
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
-        git fetch origin "${GIT_BRANCH}"
+        # 审计 F-2：抑制 git 交互式凭据提示 + 超时保护，避免 origin 指向镜像时无限卡死
+        export GIT_TERMINAL_PROMPT=0
+        if ! timeout 60 git fetch origin "${GIT_BRANCH}" 2>&1; then
+            echo -e "${FAIL} Git fetch failed or timed out (60s) — aborting"
+            echo -e "${INFO} Check origin remote: git -C ${APP_HOME} remote -v"
+            echo -e "${INFO} If it points to a mirror (ghfast.top/ghproxy), reset it:"
+            echo -e "${INFO}   git -C ${APP_HOME} remote set-url origin ${GIT_REPO}"
+            exit 1
+        fi
         git reset --hard "origin/${GIT_BRANCH}"
     else
         _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
@@ -647,6 +655,11 @@ fi
 
 detect_mode "${1:-}"
 detect_domain "${2:-}"
+
+# 审计 A-1：install 模式默认批准 DB 迁移与播种，装完即用（与 install-local.sh 一致）
+if [ "${DEPLOY_MODE}" = "install" ]; then
+    APPROVE_MIGRATE=1
+fi
 
 # Parse flags: --region cn / --region=cn / --skip-deps / --approve-migrate
 # 审计 H4 修复：原 --region) 分支为空操作，--region cn 空格分隔形式的值被丢弃

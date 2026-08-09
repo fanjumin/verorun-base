@@ -41,6 +41,7 @@ curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/
 脚本会自动（**不生成 SSH Key**）：
 - 通过 HTTPS 克隆 `verorun-base` 到 `/home/<user>/verorun`
 - 安装依赖、配置 systemd、配置 Nginx
+- 执行数据库迁移 + 播种（`install` 模式自动放行，管理员账号、订阅计划、产品装完即已创建）
 - 启动所有服务
 
 ### 配置域名

@@ -292,6 +292,7 @@ def main():
     if missing:
         print(f"[FAIL] Tables not found: {', '.join(missing)}")
         print("       Run database migrations first, or verify .env config.")
+        print("       Try: sudo bash deploy/install.sh seed   (re-runs migration + seed)")
         db.close()
         sys.exit(1)
 
