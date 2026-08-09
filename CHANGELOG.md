@@ -1,5 +1,18 @@
 # 修改记录
 
+## v0.55.0 — 2026-08-09
+
+### Changes
+
+- feat(admin): goPlugin() 双通道兼容，优先内联 l_<key>() 降级 iframe
+- feat(admin): 解耦 l_site_builder()，修复侧边栏 site_builder 死链接
+- feat(currency_converter): iframe → 内联 partial l_currency_converter()
+- feat(subscription): iframe → 内联 partial l_subscription_admin()
+- feat(vault): iframe → 内联 partial l_vault() 仪表盘
+- feat(ali_api): iframe → 入口面板 + window.open() 独立窗口
+- chore(plugins): 移除 6 个 plugin.json embed_url，移除 site_builder/mini_app 的 admin_url
+- chore(discovery): admin_url 字段 deprecated 警告
+
 ## v0.54.0 — 2026-08-08
 
 ### Changes
