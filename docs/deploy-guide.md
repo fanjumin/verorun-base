@@ -15,6 +15,11 @@
 Deploy VeroRun **without a public domain**, accessible via `localhost` or a LAN IP
 (e.g. `http://192.168.x.x/`). No DNS, no SSL, no subdomains required.
 
+**One-command:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
+```
+
 ```bash
 sudo bash deploy/install-local.sh
 ```
@@ -34,9 +39,19 @@ The same paths work via `http://<LAN-IP>/` from other machines on the network.
 
 Besides `install-local.sh`, two more no-domain deploy scripts are shipped:
 
+**One-command:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash
+```
+
 **`install-code.sh` (team intranet deployment)** — clones the private `verorun-code` over SSH with full sparse-checkout **including all plugins**:
 ```bash
 sudo bash deploy/install-code.sh install
+```
+
+**One-command:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh | sudo bash
 ```
 
 **`install-dev.sh` (developer workstation)** — clones the private `verorun-code` over SSH (adds the deploy key on first run) with sparse-checkout that **excludes `plugins/`** (clone ~50% smaller) while keeping `plugin_manager/` so plugins can still be installed later from the admin panel:
@@ -109,13 +124,14 @@ manual configuration required:
 
 ## One-Command Install
 
-Run this on a fresh Ubuntu server:
+| 脚本 | 场景 | 一键命令 |
+|------|------|---------|
+| `install.sh` | 公网生产部署（需域名） | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh \| sudo bash -s -- install your-domain.com` |
+| `install-local.sh` | 局域网 / 单机无域名 | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh \| sudo bash` |
+| `install-dev.sh` | 开发工作站（私有库 SSH） | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh \| sudo bash` |
+| `install-code.sh` | 团队内网服务器（私有库 SSH + 全量 plugins） | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh \| sudo bash` |
 
-```bash
-curl -sSL https://raw.githubusercontent.com/fanjumin/VeroRunSystem/master/deploy/deploy.sh | sudo bash
-```
-
-During install you will be prompted for your domain name. You can skip it and configure later.
+公开库无需认证，单行命令直接可用。私有库首次运行会自动生成 SSH key，公钥添加到 GitHub Deploy Keys 后重跑同一条命令即可。
 
 ### What the install script does
 

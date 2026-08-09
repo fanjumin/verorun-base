@@ -3,6 +3,7 @@
 # VeroRun — Team intranet deployment script (no domain, full plugins)
 # ==========================================================================
 # Usage:
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash   # one-command install (pulls verorun-code, needs deploy key)
 #   sudo bash deploy/install-code.sh install                     # fresh install (when .env absent)
 #   sudo bash deploy/install-code.sh install --approve-migrate   # install + DB migration + seed
 #   sudo bash deploy/install-code.sh update                      # update code, deps, and restart
@@ -50,9 +51,31 @@ set -euo pipefail
 : "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
+    # 实体文件执行（git clone 后本地执行）→ 直接加载
+    # shellcheck disable=SC1091
+    source "${SCRIPT_DIR}/lib/common.sh"
+else
+    # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
+    # → 自动从 verorun-base 拉取公共函数库到临时目录加载
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
+    _tmp_common="$(mktemp)"
+    _ok=0
+    if command -v curl >/dev/null 2>&1; then
+        if curl -sSL --connect-timeout 15 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
+    fi
+    if [ "${_ok}" != "1" ]; then
+        echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
+        rm -f "${_tmp_common}"
+        exit 1
+    fi
+    # shellcheck disable=SC1090
+    source "${_tmp_common}"
+    rm -f "${_tmp_common}"
+fi
 
 # ── .env generation — no-domain mode ──────────────────────────────────
 generate_env() {
@@ -493,8 +516,7 @@ fi
 detect_mode "${1:-}"
 
 # Parse flags (while+shift pattern supports both --region=cn and --region cn)
-shift 2>/dev/null || true
-while [ "$#" -gt 0 ]; do
+while [ $# -gt 0 ]; do
     case "${1}" in
         --region=*) REGION="${1#*=}" ;;
         --region)
@@ -507,9 +529,6 @@ while [ "$#" -gt 0 ]; do
             ;;
         --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
-        *)
-            echo -e "${WARN} Unknown argument ignored: ${1}"
-            ;;
     esac
     shift
 done

@@ -2,7 +2,10 @@
 # ==========================================================================
 # VeroRun — Local / LAN deployment script (no public domain required)
 # ==========================================================================
-# Usage:
+# 一键部署:
+#   curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
+#
+# 手动部署:
 #   sudo bash deploy/install-local.sh                     # fresh install
 #   sudo bash deploy/install-local.sh update              # update code, deps, and restart
 #   sudo bash deploy/install-local.sh restart             # restart services only
@@ -42,9 +45,31 @@ set -euo pipefail
 : "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
+    # 实体文件执行（git clone 后本地执行）→ 直接加载
+    # shellcheck disable=SC1091
+    source "${SCRIPT_DIR}/lib/common.sh"
+else
+    # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
+    # → 自动从 verorun-base 拉取公共函数库到临时目录加载
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
+    _tmp_common="$(mktemp)"
+    _ok=0
+    if command -v curl >/dev/null 2>&1; then
+        if curl -sSL --connect-timeout 15 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
+    fi
+    if [ "${_ok}" != "1" ]; then
+        echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
+        rm -f "${_tmp_common}"
+        exit 1
+    fi
+    # shellcheck disable=SC1090
+    source "${_tmp_common}"
+    rm -f "${_tmp_common}"
+fi
 
 # ── .env generation — no-domain mode ──────────────────────────────────
 generate_env() {
@@ -309,6 +334,9 @@ do_install() {
     fi
 
     step "Seed data"
+    if [ -z "${VR_ADMIN_USERNAME:-}" ] && [ ! -f "${VR_ADMIN_CREDS_FILE}" ]; then
+        VR_ADMIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(8))")
+    fi
     do_seed
     done_step "Seed data injected"
 
@@ -333,6 +361,10 @@ print_summary() {
     echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
     echo "  ║    bash deploy/install-local.sh update                        ║"
+    if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+    echo "  ╠══════════════════════════════════════════════════════════════╣"
+    echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+    fi
     echo "  ╚══════════════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -483,6 +515,11 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 detect_mode "${1:-}"
+
+# 一键安装：install 模式默认批准 DB 迁移与播种，装完即完全可用
+if [ "${DEPLOY_MODE}" = "install" ]; then
+    APPROVE_MIGRATE=1
+fi
 
 # Parse flags (while+shift pattern supports both --region=cn and --region cn)
 while [ $# -gt 0 ]; do

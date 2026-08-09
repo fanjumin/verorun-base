@@ -41,10 +41,22 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 
 `verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-base`, SSH for `verorun-code`), so `update` always pulls from the correct source.
 
-## Quick Install (via git clone)
+## Quick Install (One Command)
 
-> Note: `install.sh` sources the shared `deploy/lib/common.sh` library, so
-> `curl | sudo bash` pipe install is no longer supported. Clone the repo first.
+Fresh install in a single command — no `git` required (the script auto-fetches the shared
+`deploy/lib/common.sh` library from verorun-base when run via pipe):
+
+**With a domain:**
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash
+```
+
+**Local / LAN (no domain):**
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
+```
+
+**Alternatively — clone then run locally:**
 
 ### With a domain
 

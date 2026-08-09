@@ -31,9 +31,12 @@ cd verorun-base
 sudo bash deploy/install.sh install your-domain.com
 ```
 
-**方式二：一键安装（已弃用）**
-> 注：`install.sh` 依赖同目录 `deploy/lib/common.sh`（公共函数库），
-> `curl | sudo bash` 管道安装无法加载公共函数库，已不支持。请使用方式一克隆后本地执行。
+**方式二：一键安装**
+> `install.sh` 支持 `curl | sudo bash` 管道一键部署：脚本从 stdin 执行时会自动从
+> `verorun-base` 拉取 `deploy/lib/common.sh` 公共函数库，无需预装 git。
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash
+```
 
 脚本会自动（**不生成 SSH Key**）：
 - 通过 HTTPS 克隆 `verorun-base` 到 `/home/<user>/verorun`

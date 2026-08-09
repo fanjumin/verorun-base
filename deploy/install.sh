@@ -3,8 +3,7 @@
 # VeroRun — One-command deploy script (v2.1)
 # ==========================================================================
 # Usage:
-#   注：本脚本依赖同目录 lib/common.sh（公共函数库），不支持 curl | bash 管道安装。
-#   正确方式：git clone 仓库后本地执行 → sudo bash deploy/install.sh install
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash   # one-command fresh install (public base)
 #   sudo bash deploy/install.sh update           # update code, deps, and restart
 #   sudo bash deploy/install.sh restart          # restart services only
 #   sudo bash deploy/install.sh health           # health check
@@ -33,9 +32,31 @@ set -euo pipefail
 : "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
+    # 实体文件执行（git clone 后本地执行）→ 直接加载
+    # shellcheck disable=SC1091
+    source "${SCRIPT_DIR}/lib/common.sh"
+else
+    # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
+    # → 自动从 verorun-base 拉取公共函数库到临时目录加载
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
+    _tmp_common="$(mktemp)"
+    _ok=0
+    if command -v curl >/dev/null 2>&1; then
+        if curl -sSL --connect-timeout 15 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
+    fi
+    if [ "${_ok}" != "1" ]; then
+        echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
+        rm -f "${_tmp_common}"
+        exit 1
+    fi
+    # shellcheck disable=SC1090
+    source "${_tmp_common}"
+    rm -f "${_tmp_common}"
+fi
 
 # ── Mode / Domain detection ──────────────────────────────────────────
 
@@ -600,6 +621,11 @@ print_summary() {
     echo "  ║  Main site:  https://${DOMAIN}                                 ║"
     echo "  ║  Platform:   https://platform.${DOMAIN}                        ║"
     echo "  ║  Admin:      https://agent.${DOMAIN}/admin/                    ║"
+    fi
+    if [ "${APPROVE_MIGRATE:-0}" != "1" ]; then
+    echo "  ╠══════════════════════════════════════════════════════════════╣"
+    echo "  ║  WARNING: Admin account NOT created — admin panel inaccessible"
+    echo "  ║  To fix: sudo bash deploy/install.sh seed                      ║"
     fi
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Useful commands:                                            ║"

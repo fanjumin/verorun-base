@@ -17,6 +17,7 @@
 
 # ── 脚本名（sudoers 声明 / 提示文案引用，参数化消除硬编码） ─────────────
 : "${INSTALL_SCRIPT:=$(basename "$0")}"
+[ "${INSTALL_SCRIPT}" = "bash" ] && INSTALL_SCRIPT="deploy/install.sh"
 
 # ── 幂等默认配置（脚本已设置则不覆盖） ─────────────────────────────────
 : "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
@@ -405,8 +406,8 @@ write_sudoers() {
     cat > "${sudoers_file}" << SUEOF
 # Managed by VeroRun ${INSTALL_SCRIPT} — regenerated on every install/update
 # Grants ${APP_USER} passwordless one-click update for VeroRun services
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/${INSTALL_SCRIPT} update
-${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/${INSTALL_SCRIPT} restart
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh update
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install.sh restart
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
@@ -503,6 +504,13 @@ prompt_admin_creds() {
     case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
     [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
 
+    # 非交互管道（curl | sudo bash 无 TTY）：自动降级，凭据由 seed_data.py 生成
+    if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+        echo -e "${INFO} Non-interactive shell — admin credentials auto-generated"
+        return 0
+    fi
+    exec 3>&-
+
     echo "" > /dev/tty
     echo -e "${INFO} Create the administrator account for VeroRun" > /dev/tty
 
@@ -594,9 +602,15 @@ do_seed() {
         exit 1
     fi
 
+    # Seed mode explicitly requested via command-line → always execute (overrides --approve-migrate gate)
+    if [ "${DEPLOY_MODE}" = "seed" ]; then
+        APPROVE_MIGRATE=1
+    fi
+
     # Seed is grouped under the same manual gate as DB migration
     if [ "${APPROVE_MIGRATE:-0}" != "1" ]; then
-        echo -e "${WARN} Skipped seed data (pass --approve-migrate to inject admin/plans/products)"
+        echo -e "${WARN} Skipped seed data — admin account NOT created, admin panel inaccessible"
+        echo -e "${WARN} To create admin account now, run: sudo bash deploy/install.sh seed"
         return 0
     fi
 
