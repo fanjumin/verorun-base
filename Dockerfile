@@ -30,9 +30,12 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # 复制项目代码（排除不需要的文件）
 COPY . /app/
-RUN rm -rf /app/__pycache__ /app/.* 2>/dev/null; \
-    find /app -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null; \
-    find /app -name '*.pyc' -delete
+# 审计 C-1 修复：不再使用 /app/.* 通配（会匹配所有以点开头的隐藏文件，
+# 存在误删 .env/.gitignore 等风险），改为精确 find 删除缓存与版本控制目录。
+RUN find /app -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null; \
+    find /app -name '*.pyc' -delete; \
+    find /app -name '.git' -type d -exec rm -rf {} + 2>/dev/null; \
+    find /app -name '.github' -type d -exec rm -rf {} + 2>/dev/null
 
 # Nginx 配置
 COPY deploy/nginx.conf /etc/nginx/sites-enabled/default
@@ -46,6 +49,10 @@ RUN chmod +x /entrypoint.sh
 
 # 数据卷
 VOLUME ["/app/data"]
+
+# 审计 M-4 修复：创建非 root 运行用户。
+# gunicorn 服务以 verorun 用户运行（最小权限原则）；nginx 保留 root 绑定 80 端口。
+RUN useradd -m -s /bin/bash verorun
 
 EXPOSE 80
 

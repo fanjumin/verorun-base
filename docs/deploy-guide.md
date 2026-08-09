@@ -352,6 +352,7 @@ The `.env` file is auto-generated during install. Manual edits may be needed for
 | `DASHSCOPE_TEXT_KEY` | DashScope API key | (set your own) |
 | `OPENAI_API_KEY` | OpenAI API key | (set your own) |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | (set your own) |
+| `VR_WORKERS` | gunicorn worker 数覆盖（审计 H-4，高并发调优，非 .env 变量，以环境变量形式传入，如 `VR_WORKERS=4 sudo bash deploy/install.sh update`） | `2` |
 
 After editing `.env`, restart all services:
 

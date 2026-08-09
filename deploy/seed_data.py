@@ -100,6 +100,9 @@ class SeedDB:
             os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
             self.conn = sqlite3.connect(db_path)
             self.conn.row_factory = sqlite3.Row
+            # 审计 M-7 修复：显式开启自动提交（isolation_level=None），与 PG 模式
+            # autocommit 对齐，避免 main() 中途抛出异常时已写入的 seed 数据丢失。
+            self.conn.isolation_level = None
             self._db_type = "sqlite"
             self._param_style = "?"
 

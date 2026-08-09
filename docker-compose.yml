@@ -44,19 +44,22 @@ services:
       - app_data:/app/data
       - app_uploads:/app/admin/static
       - app_platform_uploads:/app/main_site/static
+    env_file:
+      # 审计 C-2 修复：全部安全密钥（JWT_SECRET / FLASK_SECRET_KEY / ENCRYPTION_KEY /
+      # PLUGIN_LICENSE_SECRET / CAPTCHA_SECRET_KEY / DEV_ACCOUNTS_ENCRYPTION_KEY /
+      # LICENSE_SERVER_SECRET / PROBE_SECRET / INTERNAL_SERVICE_TOKEN / APP_DEBUG /
+      # FLASK_DEBUG / PLUGIN_AUTO_INSTALL / DEPLOY_MARKET 等）统一由 .env 注入。
+      # 避免逐项插值遗漏导致插件系统/验证码/VeroGuard 功能不可用。
+      - .env
     environment:
+      # 仅保留容器网络特有的覆盖项（PG_HOST 走 compose 服务名）。
+      # 注意：不要在 environment 里写 ${VAR:-} 插值透传——变量为空时
+      # environment 会覆盖 env_file 注入值（compose 优先级），造成密钥丢失。
       - DB_PATH=/app/data/verorun.db
       - PG_HOST=db
       - PG_PORT=5432
-      - PG_DB=${PG_DB:-verorun}
-      - PG_USER=${PG_USER:-verorun}
-      - PG_PASSWORD=${PG_PASSWORD:?set PG_PASSWORD in .env}
-      - APP_MODE=${APP_MODE:-main}
-      - JWT_SECRET=${JWT_SECRET:-}
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
       - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
       - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-verorun}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
-      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
