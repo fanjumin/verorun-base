@@ -491,6 +491,7 @@ First order exclusive: 首单专享
 Five: 五
 Fixed Amount: 固定金额
 Flip: 翻转
+Forbidden: 禁止访问
 Form: 表单
 Format Conversion: 格式转换
 Format validated and automatically certified: 格式校验通过，已自动认证
@@ -852,6 +853,7 @@ No website building guide: 暂无建站指南
 Node Execution Failed: 节点执行失败
 None: 无
 Normal: 正常
+Not a stub order: 非 stub 订单
 Not configured: 未配置
 Not logged in: 未登录
 Not logged in or token expired: 未登录或Token已过期
@@ -889,6 +891,7 @@ Order canceled: 订单已取消
 Order completed: 订单已完成
 Order deleted: 订单已删除
 Order does not exist: 订单不存在
+Order not found: 订单未找到
 Order failed: 下单失败
 Order has been created: 订单已创建
 Order management: 订单管理
@@ -917,6 +920,7 @@ Path parameter must: path 参数必须
 Pause: 暂停
 Paused: 已暂停
 Pay Now: 立即支付
+'Payment channel {channel} is not configured. Set credentials in system_config first.': '支付渠道 {channel} 未配置，请先在 system_config 中配置凭据'
 Payment Callback Domain: 支付回调域名
 Payment Created: 支付创建
 Payment Creation Failed: 支付创建失败
@@ -955,6 +959,7 @@ Picture uploaded successfully: 图片上传成功
 Plan: 方案
 Plan Generated: 方案已生成
 Plugin: 插件
+Plugin submission is not open yet: 插件提交功能暂未开放
 Please login first: 请先登录
 Politeness Level 1-5: 礼貌程度 1-5
 Popular Articles: 热门文章
@@ -1551,6 +1556,8 @@ Zunyi City: 遵义市
 action must be (voice_clone/tts/avatar_video/generate_image): action 必须（voice_clone/tts/avatar_video/generate_image）
 ad_id required: ad_id 必填
 avg_response_time (Average response ms): avg_response_time (平均响应ms)
+mock channel disabled: mock 通道已禁用
+stub confirm is disabled outside dev: stub 确认仅限开发模式
 © 2026 YizhanAI. All rights reserved.: © 2026 易站AI. All rights reserved.
 · Online: · 在线
 • Configure DNS resolution according to our help guide: • 按照我们的帮助指南配置DNS解析

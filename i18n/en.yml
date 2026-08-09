@@ -491,6 +491,7 @@ First order exclusive: First order exclusive
 Five: Five
 Fixed Amount: Fixed Amount
 Flip: Flip
+Forbidden: Forbidden
 Form: Form
 Format Conversion: Format Conversion
 Format validated and automatically certified: Format validated and automatically certified
@@ -852,6 +853,7 @@ No website building guide: No website building guide
 Node Execution Failed: Node Execution Failed
 None: None
 Normal: Normal
+Not a stub order: Not a stub order
 Not configured: Not configured
 Not logged in: Not logged in
 Not logged in or token expired: Not logged in or token expired
@@ -889,6 +891,7 @@ Order canceled: Order canceled
 Order completed: Order completed
 Order deleted: Order deleted
 Order does not exist: Order does not exist
+Order not found: Order not found
 Order failed: Order failed
 Order has been created: Order has been created
 Order management: Order management
@@ -917,6 +920,7 @@ Path parameter must: Path parameter must
 Pause: Pause
 Paused: Paused
 Pay Now: Pay Now
+'Payment channel {channel} is not configured. Set credentials in system_config first.': 'Payment channel {channel} is not configured. Set credentials in system_config first.'
 Payment Callback Domain: Payment Callback Domain
 Payment Created: Payment Created
 Payment Creation Failed: Payment Creation Failed
@@ -955,6 +959,7 @@ Picture uploaded successfully: Picture uploaded successfully
 Plan: Plan
 Plan Generated: Plan Generated
 Plugin: Plugin
+Plugin submission is not open yet: Plugin submission is not open yet
 Please login first: Please login first
 Politeness Level 1-5: Politeness Level 1-5
 Popular Articles: Popular Articles
@@ -1551,6 +1556,8 @@ Zunyi City: Zunyi City
 action must be (voice_clone/tts/avatar_video/generate_image): action must be (voice_clone/tts/avatar_video/generate_image)
 ad_id required: ad_id required
 avg_response_time (Average response ms): avg_response_time (Average response ms)
+mock channel disabled: mock channel disabled
+stub confirm is disabled outside dev: stub confirm is disabled outside dev
 © 2026 YizhanAI. All rights reserved.: © 2026 YizhanAI. All rights reserved.
 · Online: · Online
 • Configure DNS resolution according to our help guide: • Configure DNS resolution according to our help guide
