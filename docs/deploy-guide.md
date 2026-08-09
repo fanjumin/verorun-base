@@ -90,9 +90,14 @@ domain-mode behavior. No code rollback needed.
 ## China Network Auto-Adaptation (CN Network)
 
 All four deploy scripts (`install.sh` / `install-local.sh` / `install-dev.sh` /
-`install-code.sh`) ship a China-network auto-adaptation module. Overseas
-environments (default mirrors reachable) are fully unaffected — no manual
-configuration required:
+`install-code.sh`) source a shared common function library
+`deploy/lib/common.sh` at startup, which provides the China-network
+auto-adaptation module, logging helpers (`step` / `done_step` / `fail_step`),
+git auth, systemd service writing, sudoers, health check, seed and rollback.
+Each script keeps only its own domain-mode logic (`generate_env`,
+`write_nginx_config`, `print_summary`, `do_install`, `do_update`).
+Overseas environments (default mirrors reachable) are fully unaffected — no
+manual configuration required:
 
 | Item | Behavior |
 |------|----------|

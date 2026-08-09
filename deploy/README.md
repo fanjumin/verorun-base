@@ -36,17 +36,22 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 
 | Distribution | Repository | When to use |
 |--------------|-----------|-------------|
-| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. One-command install via `curl \| bash`. |
+| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. Install by cloning the repo (see below). |
 | `verorun-code` | `https://github.com/fanjumin/verorun-code` (private) | Official site / enterprise customization. Requires SSH access to the private repository. |
 
 `verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-base`, SSH for `verorun-code`), so `update` always pulls from the correct source.
 
-## Quick Install (One Command)
+## Quick Install (via git clone)
+
+> Note: `install.sh` sources the shared `deploy/lib/common.sh` library, so
+> `curl | sudo bash` pipe install is no longer supported. Clone the repo first.
 
 ### With a domain
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
+sudo bash deploy/install.sh install your-domain.com
 ```
 
 Replace `your-domain.com` with your actual domain name.
@@ -54,7 +59,9 @@ Replace `your-domain.com` with your actual domain name.
 ### Without a domain (configure later)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
+sudo bash deploy/install.sh install
 ```
 
 You will be prompted to enter a domain or skip. If skipped, you can configure it later:
@@ -63,17 +70,7 @@ You will be prompted to enter a domain or skip. If skipped, you can configure it
 sudo bash deploy/install.sh configure-domain your-domain.com
 ```
 
-### Via git clone
-
-**`verorun-base` (public):**
-
-```bash
-git clone https://github.com/fanjumin/verorun-base.git
-cd verorun-base
-sudo bash deploy/install.sh install your-domain.com
-```
-
-**`verorun-code` (private):**
+### `verorun-code` (private repo)
 
 ```bash
 git clone git@github.com:fanjumin/verorun-code.git

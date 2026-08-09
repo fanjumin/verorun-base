@@ -24,17 +24,16 @@
 
 `deploy/install.sh` 现在**默认从公开仓库 HTTPS 克隆**，无需 SSH Key。
 
-**方式一：一键安装（推荐）**
-```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
-```
-
-**方式二：HTTPS 克隆后本地运行**
+**方式一：HTTPS 克隆后本地运行（推荐）**
 ```bash
 git clone https://github.com/fanjumin/verorun-base.git
 cd verorun-base
 sudo bash deploy/install.sh install your-domain.com
 ```
+
+**方式二：一键安装（已弃用）**
+> 注：`install.sh` 依赖同目录 `deploy/lib/common.sh`（公共函数库），
+> `curl | sudo bash` 管道安装无法加载公共函数库，已不支持。请使用方式一克隆后本地执行。
 
 脚本会自动（**不生成 SSH Key**）：
 - 通过 HTTPS 克隆 `verorun-base` 到 `/home/<user>/verorun`
