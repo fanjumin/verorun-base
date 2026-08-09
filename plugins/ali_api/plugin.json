@@ -72,8 +72,7 @@
         "key": "ali_api",
         "icon": "plugins",
         "label_i18n_key": "plugin.menu_label",
-        "label": "1688 Supply Chain",
-        "embed_url": "/admin/ali-api/"
+        "label": "1688 Supply Chain"
     },
     "settings_schema": {
         "type": "object",

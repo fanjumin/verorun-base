@@ -19,8 +19,7 @@
         "group": "System",
         "key": "subscription_admin",
         "icon": "credit_card",
-        "label": "Subscription Settings",
-        "embed_url": "/plugin/subscription/admin/"
+        "label": "Subscription Settings"
     },
     "config": {
         "trial_days": 0,

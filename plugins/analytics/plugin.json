@@ -41,8 +41,7 @@
         "group": "Monitoring & Data",
         "key": "analytics",
         "icon": "analytics",
-        "label": "Analytics",
-        "embed_url": "/admin/analytics/"
+        "label": "Analytics"
     },
     "settings_schema": {
         "type": "object",

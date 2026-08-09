@@ -52,8 +52,7 @@
         "group": "Monitoring & Data",
         "key": "health",
         "icon": "health",
-        "label": "Health Check",
-        "embed_url": "/admin/health/"
+        "label": "Health Check"
     },
     "settings_schema": {
         "type": "object",

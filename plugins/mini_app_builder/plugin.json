@@ -17,7 +17,6 @@
     "provides_credential_management": true,
     "replaces_plugins": ["dev_accounts"],
 
-    "admin_url": "/admin/site-builder/mini-app",
     "admin_label": "Mini Apps",
 
     "config": {

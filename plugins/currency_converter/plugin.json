@@ -58,8 +58,7 @@
         "key": "currency_converter",
         "group": "Business Center",
         "icon": "currency",
-        "label": "Currency Settings",
-        "embed_url": "/admin/currency/"
+        "label": "Currency Settings"
     },
 
     "settings_schema": {

@@ -16,7 +16,6 @@
 
     "replaces_plugins": [],
 
-    "admin_url": "/admin/site-builder/prompts",
     "admin_label": "AI Site Builder",
 
     "config": {
