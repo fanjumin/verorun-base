@@ -22,9 +22,29 @@ class DeployConfig:
     EMAIL_DOMAIN = os.environ.get('DEPLOY_EMAIL_DOMAIN', os.environ.get('DEPLOY_DOMAIN', ''))
     BRAND = os.environ.get('DEPLOY_BRAND', '')
 
+    # ── No-domain path mode: subdomain → path prefix mapping ──
+    _PATH_MAP = {
+        'platform': '/auth',
+        'agent': '/admin',
+        'bot': '/bot',
+        'tm': '/tm',
+    }
+
     @classmethod
     def url(cls, subdomain=''):
-        """完整URL: your-domain.com"""
+        """Full URL: your-domain.com
+
+        In no-domain mode (DOMAIN empty or 'localhost'), the subdomain
+        is converted to a path prefix instead of an invalid subdomain URL,
+        e.g. url('platform') → /auth
+        """
+        # No-domain mode: path prefix replaces subdomain
+        if not cls.DOMAIN or cls.DOMAIN == 'localhost':
+            base = f"{cls.PROTOCOL}://{cls.DOMAIN}" if cls.DOMAIN else ''
+            if subdomain and subdomain in cls._PATH_MAP:
+                return f"{base}{cls._PATH_MAP[subdomain]}"
+            return base or '/'
+        # Domain mode: original logic unchanged
         if subdomain:
             return f"{cls.PROTOCOL}://{subdomain}.{cls.DOMAIN}"
         return f"{cls.PROTOCOL}://{cls.DOMAIN}"

@@ -4,11 +4,11 @@
 
 VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, site builder, mini-program generation, and a plugin-based extension system with full lifecycle management, store, payment, license activation, and subscription support.
 
-> **Version:** 0.50.1
+> **Version:** 0.55.0
 > **Code Repository (private):** https://github.com/fanjumin/verorun-code
 > **Base Repository (open download):** https://github.com/fanjumin/verorun-base
 
-[![Version](https://img.shields.io/badge/version-0.50.1-blue)](https://github.com/fanjumin/verorun-code/releases)
+[![Version](https://img.shields.io/badge/version-0.55.0-blue)](https://github.com/fanjumin/verorun-code/releases)
 [![Python](https://img.shields.io/badge/python-3.11+-green)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-EULA-blue)](LICENSE)
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791)](https://www.postgresql.org/)
@@ -62,7 +62,7 @@ VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations,
 - **Process:** systemd, Supervisor (Docker)
 - **Reverse Proxy:** Nginx + Let's Encrypt
 - **Cache:** Redis
-- **AI Engine:** OpenAI-compatible APIs — DashScope, OpenAI, DeepSeek, OpenRouter, SiliconFlow, Google Gemini, xAI Grok, Zhipu GLM (8 providers) with UnifiedLLM gateway
+- **AI Engine:** OpenAI-compatible APIs — DashScope, OpenAI, DeepSeek, OpenRouter, SiliconFlow, Google Gemini, xAI Grok, Zhipu GLM, KIMI (9 providers) with UnifiedLLM gateway
 - **AI Infrastructure:** Token budget gate (daily quota + rate limiting), LLM quota management, encrypted API key storage
 - **Frontend:** Jinja2 templates, vanilla JavaScript, React Flow (workflow editor), Chart.js, ECharts, Quill.js (rich text)
 - **JS Tooling:** Node.js (DiceBear avatars, esbuild)
@@ -82,7 +82,7 @@ VeroRun ships as **two repositories** with **two distribution modes**:
 | **Usage** | Official site, enterprise customization | Standard enterprise package, open download |
 | **URL** | `https://github.com/fanjumin/verorun-code` | `https://github.com/fanjumin/verorun-base` |
 | **Content** | Full source (all built-in plugins, license & unified auth) | Streamlined core export (plugins installed from store) |
-| **Install** | SSH deploy key + `install.sh` | One-line `curl \| bash` or HTTPS `git clone` |
+| **Install** | SSH access + `install.sh` (`GIT_REPO` override) / `install-dev.sh` | One-line `curl \| bash` or HTTPS `git clone` |
 
 `verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow, using `git archive` plus the `.gitattributes` export rules.
 
@@ -106,15 +106,15 @@ sudo bash deploy/install.sh install your-domain.com
 
 ### Deploy `verorun-code` (private, official / enterprise customization)
 
-Access requires SSH access to the private repository:
+Access requires SSH access to the private repository. Override `GIT_REPO` so `install.sh` pulls from `verorun-code` (add the server's deploy key to GitHub on first run):
 
 ```bash
 git clone git@github.com:fanjumin/verorun-code.git
 cd verorun-code
-sudo bash deploy/install.sh install your-domain.com
+sudo env GIT_REPO=git@github.com:fanjumin/verorun-code.git bash deploy/install.sh install your-domain.com
 ```
 
-`install.sh` uses SSH deploy-key authentication for the private `verorun-code` repository and HTTPS for the public `verorun-base` repository. The `GIT_REPO` variable is set automatically per distribution, so `update` always pulls from the correct source.
+By default `install.sh` uses **HTTPS** against the public `verorun-base` repository (`GIT_REPO=https://github.com/fanjumin/verorun-base.git`) — **no SSH key is required**. The `GIT_REPO` variable can be overridden per deployment, so `update` always pulls from the configured source. For developer workstations without a domain, use `install-dev.sh` (defaults to the private `verorun-code` over SSH).
 
 #### Region Selection
 
@@ -129,6 +129,27 @@ Supported values: `cn` (China mainland, routes to `api.verorun.cn`) or `global` 
 The install script provisions PostgreSQL, creates the `verorun` system user, sets up a Python virtual environment, generates `.env` with auto-generated secrets (including `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `DEV_ACCOUNTS_ENCRYPTION_KEY`, `LICENSE_SERVER_SECRET`, `PROBE_SECRET`), creates systemd services (main / auth / admin / health / guardian), configures Nginx, and optionally seeds initial data.
 
 For detailed instructions, see [deploy/README.md](deploy/README.md).
+
+### Local / LAN Deployment (no domain required)
+
+For local development, testing, or LAN access **without a public domain**, VeroRun ships three additional deploy scripts in `deploy/`:
+
+```bash
+# 1) Deploy from the git repository (path-based routing, full code incl. plugins)
+sudo bash deploy/install-local.sh
+
+# 2) Deploy from a local source copy (no git clone required)
+sudo bash deploy/install-code.sh --src /path/to/code
+
+# 3) Developer workstation deploy (from git over SSH, plugins excluded)
+sudo bash deploy/install-dev.sh install
+```
+
+- **`install-local.sh`** — deploys VeroRun without a public domain, accessible via `http://localhost/` (main site), `http://localhost/admin/` (admin panel), `http://localhost/auth/` (user console), or `http://<LAN-IP>/` for LAN access. Uses `DEPLOY_PROTOCOL=http` (no SSL) and Nginx path routing only (no subdomains). Online payment, OAuth, and SMS are unavailable because they require public callback URLs.
+- **`install-code.sh`** — the same no-domain deployment, but copies all source code and plugins from a local directory (or a tar package via `--from-tar`) instead of `git clone`.
+- **`install-dev.sh`** — developer-workstation deployment without a public domain. Clones from the private `verorun-code` over SSH (adds the deploy key on first run) and uses sparse-checkout that **excludes** `plugins/` (clone ~50% smaller) while keeping `plugin_manager/`, so plugins can still be installed manually later from the admin panel.
+
+> **Note:** Deployments do not auto-install or auto-enable plugins (`PLUGIN_AUTO_INSTALL=0` by default). Enable the plugins you need manually in the Admin panel after deployment.
 
 ### Post-Install
 
@@ -188,7 +209,8 @@ Local URLs: `http://localhost:8081/` (official site / unified login), `http://lo
 ### AI & Agent System
 - **9-Role Agent Matrix** — Multi-agent collaboration: Athena (coordinator), Content, Business, Builder, Finance, Ops, Service, plus Vision (image analysis), Creative (image generation), Supply Chain, Chatbot, Automation, Health Check, CMS, and User agents
 - **Agent Discussion v2.0** — 4-stage collaborative discussion protocol: Planner generates execution plan, Reviewer critiques, Planner revises, Decider approves or rejects
-- **UnifiedLLM Gateway** — Single entry point for all LLM calls across 8 AI providers with client caching and TTL
+- **Dynamic Prompt System** — Database-driven prompt resolution engine (`PromptResolver`) that upgrades static `.md` prompts into a tag-matched, chain-assembled dispatch system. Four-layer assembly: role base → global safety rules → scene templates (task-trigger matching) → mode enhancement (tool/scene by mode tag). Degrades gracefully to legacy prompt loading when disabled or on error
+- **UnifiedLLM Gateway** — Single entry point for all LLM calls across 9 AI providers with client caching and TTL
 - **AI Budget Gate** — Daily token budget cap + per-minute rate limiting with fail-open design
 - **LLM Quotas** — Fine-grained quota management: user-level, model-level, module-level, global-level
 - **Provider API Key Management** — Encrypted storage of API keys with multi-provider support
@@ -427,7 +449,7 @@ See `health_service/app.py` for the implementation and `health_service/runner.py
 
 The `UnifiedLLM` class in `agent_matrix/engine.py` provides a single entry point for all LLM interactions across the system. It supports:
 
-- **8 AI Providers:** DashScope, OpenAI, DeepSeek, OpenRouter, SiliconFlow, Google Gemini, xAI Grok, Zhipu GLM
+- **9 AI Providers:** DashScope, OpenAI, DeepSeek, OpenRouter, SiliconFlow, Google Gemini, xAI Grok, Zhipu GLM, KIMI
 - **Dual Resolution:** By `provider_model_id` (recommended) or legacy `provider + model`
 - **Client Caching:** 5-minute TTL cached OpenAI client instances, thread-safe
 - **API Key Resolution:** Priority chain — `provider_api_keys` table (encrypted), environment variable, `system_config` table
@@ -538,7 +560,7 @@ UNKNOWN -> INSTALLED -> ENABLED -> ACTIVE -> DISABLED -> UNINSTALLED
 
 ## Plugins
 
-26 built-in plugins with full lifecycle management (6-state: Unknown, Installed, Enabled, Active, Disabled, Uninstalled) via the Plugin Manager:
+27 built-in plugins with full lifecycle management (6-state: Unknown, Installed, Enabled, Active, Disabled, Uninstalled) via the Plugin Manager:
 
 | Plugin | Category | Description |
 |--------|----------|-------------|
@@ -550,17 +572,18 @@ UNKNOWN -> INSTALLED -> ENABLED -> ACTIVE -> DISABLED -> UNINSTALLED
 | `content_factory` | Content | RSS aggregation, AI content processing, skill pushing |
 | `coupons` | Marketing | Coupon engine with AI recommendations and scene engine |
 | `currency_converter` | Utility | Real-time currency conversion with scheduled rate updates |
-| `dev_accounts` | Dev | Developer account management with encrypted credentials |
 | `email` | Communication | Email service integration with template support |
 | `enterprise_verify` | Security | Enterprise identity verification workflow with admin and user routes |
 | `health_check` | Monitoring | Automated health checks (veroguard / AI gateway / plugin store checkers), alerts, AI auto-fix, metrics, scheduled snapshots |
 | `im_gateway` | Communication | Unified IM (Feishu, DingTalk, WeCom, Telegram, LINE, QQ) with adapter architecture |
 | `logistics` | E-Commerce | Shipping and logistics management |
+| `mini_app_builder` | Tools | Mini-program generation for WeChat/Douyin/Telegram/LINE/WhatsApp with preview and packaging, plus encrypted developer account management |
 | `oauth_config` | Auth | Multi-platform OAuth (WeChat, Alipay, Douyin, Google, GitHub, Facebook, Telegram) |
 | `order_notify` | E-Commerce | Order notification dispatch |
 | `payment` | E-Commerce | Payment gateway configuration (Stripe, PayPal, Alipay, WeChat) |
 | `reviews` | E-Commerce | Product review system |
 | `shop` | E-Commerce | Standalone shop module: products, orders, cart (decoupled from core) |
+| `site_builder` | Content | AI site builder — prompt templates, site tasks & unified design tokens |
 | `site_domains` | Site | Custom domain management |
 | `sms` | Communication | SMS service (Aliyun, Twilio) with country code support |
 | `social_push` | Marketing | Social media push (Twitter, LinkedIn, Reddit, Telegram Channel) |
@@ -602,7 +625,7 @@ See [sdks/README.md](sdks/README.md) for usage details.
 
 ---
 
-> **Codebase:** ~197,000 lines across 905 files (Python, HTML, JS, YAML, Shell, CSS, TypeScript). See [GUIDE.md](GUIDE.md) for installation and user guide.
+> **Codebase:** ~183,000 lines across 767 files (Python, HTML, JS, YAML, Shell, CSS, TypeScript). See [GUIDE.md](GUIDE.md) for installation and user guide.
 
 ---
 
@@ -649,13 +672,6 @@ verorun-code/
 │   ├── safe_eval.py        # Sandboxed expression evaluation
 │   ├── models.py           # Cron jobs, workflows, instances, logs
 │   └── routes.py           # Flask Blueprint: /admin/automation/*
-├── site_builder/           # AI-powered site generation
-│   ├── generators/         # Brand, navigation, pages, theme generators
-│   ├── mini_app/           # Mini program generators + templates + deployer + packager + preview renderer
-│   │   ├── generators/     # WeChat, Douyin, Telegram, LINE, WhatsApp
-│   │   └── templates/      # Platform-specific boilerplate
-│   ├── prompts/            # Industry-specific site templates (8 types)
-│   └── site_settings/      # Token-based site configuration engine
 ├── plugin_manager/         # Plugin lifecycle, discovery, store, license, payment, region routing
 │   ├── manager.py          # Core PluginManager class (6-state lifecycle)
 │   ├── discovery.py        # Plugin auto-discovery with semver dependency resolution
@@ -677,7 +693,7 @@ verorun-code/
 │   ├── exceptions.py       # Custom exception hierarchy (8 exception types)
 │   ├── logger.py           # Per-plugin independent logging (rotation: 5MB x 3)
 │   └── base.py             # Plugin system base classes
-├── plugins/                # 26 built-in plugins (each with models, routes, templates, i18n, plugin.json)
+├── plugins/                # 27 built-in plugins (each with models, routes, templates, i18n, plugin.json)
 ├── veroguard/              # VeroGuard unified guardian daemon
 │   ├── guardian.py         # Main entry point - multi-channel scheduling loop
 │   ├── config.py           # All parameters via environment variables, region-aware remote URL
@@ -705,6 +721,14 @@ verorun-code/
 ├── i18n/                   # Internationalization (en, zh-CN) with YAML seeding
 ├── prompts/                # AI coding rules & system prompts (12 rule files)
 ├── deploy/                 # Deployment scripts, Nginx config, Gunicorn config, seed data
+│   ├── install.sh          # One-command install/update/restart/rollback/health/seed (private & base repos)
+│   ├── install-local.sh    # Local/LAN deployment without a public domain (path routing, HTTP, no SSL)
+│   ├── install-code.sh     # Full deployment from a local source copy (no git clone, no domain)
+│   ├── install-dev.sh      # Developer workstation deployment (no public domain, plugins excluded)
+│   ├── health_check.sh     # Standalone service health check script
+│   ├── seed_data.py        # Seed initial data (admin account, plans, products)
+│   ├── bump_version.sh     # Version bump across VERSION / README / package.json
+│   └── uninstall.sh        # Service and file removal
 ├── nginx-domains/          # Per-domain Nginx site configs
 ├── data/                   # SQLite databases (development)
 ├── images/                 # Static images (badges, icons)

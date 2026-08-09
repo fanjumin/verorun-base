@@ -1,0 +1,24 @@
+{# 1688 Supply Chain — Admin entry panel (Phase 4) #}
+{# V20260809: replace iframe embed_url with l_ali_api() entry panel → window.open() #}
+<script>
+window.l_ali_api = function () {
+  document.getElementById('pt').textContent = {{ _('1688 Supply Chain') | tojson }};
+  document.getElementById('mc').innerHTML =
+    '<div class="pg" style="text-align:center;padding:60px 20px">' +
+      '<div style="font-size:56px;margin-bottom:16px">📦</div>' +
+      '<h3>{{ _('1688 Supply Chain Management') }}</h3>' +
+      '<p style="color:var(--dim);max-width:480px;margin:12px auto;font-size:14px;line-height:1.7">' +
+        '{{ _('Product sourcing, AI-optimized descriptions, local store publishing, API log monitoring, cache management, and configuration.') }}' +
+      '</p>' +
+      '<div class="f gap" style="justify-content:center;margin-top:20px">' +
+        '<button class="btn btn-p" style="font-size:14px;padding:10px 28px" ' +
+          'onclick="window.open(\'/admin/ali-api/\',\'_blank\',\'width=1280,height=900,scrollbars=yes\')">' +
+          '📦 {{ _('Open 1688 Console (New Window)') }}' +
+        '</button>' +
+      '</div>' +
+      '<div style="margin-top:32px;font-size:12px;color:var(--dim)">' +
+        '{{ _('The console opens in a separate window. Ensure your browser allows pop-ups for this site.') }}' +
+      '</div>' +
+    '</div>';
+};
+</script>

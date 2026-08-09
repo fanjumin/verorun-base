@@ -32,6 +32,7 @@ PG_CONFIG = {
     'user': os.environ.get('PG_USER', 'verorun'),
     'password': os.environ.get('PG_PASSWORD', ''),
     'application_name': 'verorun',
+    'connect_timeout': 10,  # 建连最多等 10 秒，避免低配机器上无限挂死
 }
 
 # ── 数据库连接 ──
@@ -144,13 +145,31 @@ def init_shop_db():
     pass  # [DEPRECATED] Moved to plugins/shop/models/database.py
 
 
+# 迁移守卫：同一进程内 init_db 只执行一次；跨进程仅一个进程执行全部 DDL。
+# 多 worker 并发跑数百条 DDL 会拖垮 PG（低配机器上表现为启动"挂死"超时）。
+_INIT_DB_RUNNING = False
+_INIT_DB_LOCK_KEY = 72715620
+
+
 def init_db():
     """Initialize all core tables using a fresh direct connection (not pool) to avoid aborted transactions."""
+    global _INIT_DB_RUNNING
+    if _INIT_DB_RUNNING:
+        print('[init_db] skipped (already ran in this process)')
+        return
     import psycopg2
     from psycopg2.extras import RealDictCursor
     fresh_conn = psycopg2.connect(**PG_CONFIG)
     fresh_conn.autocommit = False
     try:
+        # 跨进程串行化：拿不到 advisory lock 说明另一进程正在跑迁移，直接跳过
+        cur = fresh_conn.cursor()
+        cur.execute('SELECT pg_try_advisory_lock(%s)', (_INIT_DB_LOCK_KEY,))
+        if not cur.fetchone()[0]:
+            print('[init_db] skipped (another process holds migration lock)')
+            return
+        cur.close()
+        _INIT_DB_RUNNING = True
         # ── Mega DDL block: 核心表（隔离在单独事务中，失败不级联）──
         cur = fresh_conn.cursor()
         cur.execute("""

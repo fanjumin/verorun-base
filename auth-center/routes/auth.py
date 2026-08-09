@@ -295,10 +295,15 @@ def sms_login():
     }}))
     # Set cross-subdomain SSO cookie so subdomain can authenticate
     main_domain = os.environ.get('DEPLOY_DOMAIN', '')
+    _is_https = os.environ.get('DEPLOY_PROTOCOL', 'https') == 'https'
     if main_domain:
         resp.set_cookie('sso_token', token, domain='.' + main_domain,
                         path='/', max_age=604800, samesite='Lax',
-                        secure=True, httponly=True)
+                        secure=_is_https, httponly=True)
+    else:
+        resp.set_cookie('sso_token', token, path='/',
+                        max_age=604800, samesite='Lax',
+                        secure=_is_https, httponly=True)
     return resp
 
 # =============================================

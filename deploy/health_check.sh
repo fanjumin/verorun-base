@@ -9,7 +9,9 @@ MAX_WAIT=180
 INTERVAL=1
 
 for i in $(seq 1 "${MAX_WAIT}"); do
-    if curl -sf "http://127.0.0.1:${PORT}/health" > /dev/null 2>&1; then
+    # -m 5 --connect-timeout 3: prevent curl from hanging forever during slow startup
+    # (a hang here would block systemd start-post indefinitely)
+    if curl -sf -m 5 --connect-timeout 3 "http://127.0.0.1:${PORT}/health" > /dev/null 2>&1; then
         exit 0
     fi
     sleep "${INTERVAL}"

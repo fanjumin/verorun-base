@@ -61,13 +61,14 @@ done_step "Nginx config removed"
 # 3. User & directories (reverse of useradd + mkdir)
 step "User & files"
 if id "${APP_USER}" &>/dev/null; then
-    userdel -r "${APP_USER}" 2>/dev/null || true
-    echo "  user ${APP_USER} removed (home + files)"
+    # 审计 M6 修复：不再用 -r 级联删除 home（改为下方显式 rm -rf 可控目录）
+    userdel "${APP_USER}" 2>/dev/null || true
+    echo "  user ${APP_USER} removed"
 else
     echo "  user ${APP_USER} not found"
 fi
 rm -rf "${LOG_DIR}" 2>/dev/null || true
-# ── Note: APP_HOME is already removed by `userdel -r` above; kept as safety net ──
+# ── Note: home dir removed below via rm -rf (userdel without -r) ──
 rm -rf "${APP_HOME}" 2>/dev/null || true
 done_step "User & directories cleaned"
 

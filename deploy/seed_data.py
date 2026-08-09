@@ -162,19 +162,22 @@ def seed_plugin_products(db: SeedDB):
         print(f"  [OK] plugin_product: {p['plugin_key']}")
 
 
-def seed_admin_user(db: SeedDB):
+def seed_admin_user(db: SeedDB, username: str = None, password: str = None):
     """Create or update the admin user (no phone required)."""
-    pw_hash = hash_password(ADMIN_PASSWORD)
+    # 审计 L7：凭据经参数传入，不再使用 global 修改模块级变量
+    username = username or ADMIN_USERNAME
+    password = password or ADMIN_PASSWORD
+    pw_hash = hash_password(password)
 
     if db._db_type == "postgresql":
         cur = db.execute(
             "SELECT id FROM users WHERE username = %s",
-            (ADMIN_USERNAME,)
+            (username,)
         )
     else:
         cur = db.execute(
             "SELECT id FROM users WHERE username = ?",
-            (ADMIN_USERNAME,)
+            (username,)
         )
 
     row = cur.fetchone()
@@ -184,7 +187,7 @@ def seed_admin_user(db: SeedDB):
             "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1, password_changed_at = NULL WHERE id = %s"
             if db._db_type == "postgresql" else
             "UPDATE users SET username = ?, display_name = ?, password_hash = ?, is_admin = 1, active = 1, password_changed_at = NULL WHERE id = ?",
-            (ADMIN_USERNAME, ADMIN_DISPLAY, pw_hash, user_id)
+            (username, ADMIN_DISPLAY, pw_hash, user_id)
         )
         print(f"  [OK] admin user updated (id={user_id})")
     else:
@@ -194,7 +197,7 @@ def seed_admin_user(db: SeedDB):
             if db._db_type == "postgresql" else
             "INSERT INTO users (username, display_name, password_hash, is_admin, active) "
             "VALUES (?, ?, ?, 1, 1)",
-            (ADMIN_USERNAME, ADMIN_DISPLAY, pw_hash)
+            (username, ADMIN_DISPLAY, pw_hash)
         )
         if db._db_type == "postgresql":
             user_id = cur.fetchone()[0]
@@ -212,13 +215,15 @@ def seed_quotas(db: SeedDB):
         print(f"  [OK] quota: {q['target_type']}")
 
 
-def seed_admin_profile(db: SeedDB, user_id: int):
+def seed_admin_profile(db: SeedDB, user_id: int, username: str = None):
     """Create admin_profiles row for the admin user."""
+    # 审计 L7：用户名经参数传入
+    username = username or ADMIN_USERNAME
     db.insert_on_conflict("admin_profiles", {
         "user_id": user_id,
         "role": "super_admin",
         "permissions": '["users","content","finance","system","matrix","admins"]',
-        "real_name": ADMIN_USERNAME,
+        "real_name": username,
         "notes": "Initial Super Admin",
     }, conflict_col="user_id")
     print(f"  [OK] admin profile created (user_id={user_id})")
@@ -247,10 +252,9 @@ def main():
     parser.add_argument("--admin-pass", default=None, help="Admin password (overrides env var)")
     args = parser.parse_args()
 
-    if args.admin_user:
-        global ADMIN_USERNAME; ADMIN_USERNAME = args.admin_user
-    if args.admin_pass:
-        global ADMIN_PASSWORD; ADMIN_PASSWORD = args.admin_pass
+    # 审计 L7：凭据解析为局部变量，经参数传递给 seed 函数（不再使用 global）
+    username = args.admin_user or ADMIN_USERNAME
+    password = args.admin_pass or ADMIN_PASSWORD
 
     # Locate .env
     env_path = args.env
@@ -279,8 +283,8 @@ def main():
     print("[i] Seeding data...")
     seed_base_plan(db)
     seed_plugin_products(db)
-    user_id = seed_admin_user(db)
-    seed_admin_profile(db, user_id)
+    user_id = seed_admin_user(db, username, password)
+    seed_admin_profile(db, user_id, username)
     seed_quotas(db)
     seed_admin_subscription(db, user_id)
 
@@ -288,7 +292,7 @@ def main():
     db.close()
 
     print(f"\n[OK] Seed data injected successfully.")
-    print(f"     Admin account: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
+    print(f"     Admin account: {username} / {password}")
     print(f"     Plugins seeded: {len(DEFAULT_PLUGIN_PRODUCTS)}")
 
 

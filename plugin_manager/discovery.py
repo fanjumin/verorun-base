@@ -166,6 +166,8 @@ class PluginDiscovery:
             admin_url=meta.get('admin_url', ''),
             admin_label=meta.get('admin_label', ''),
         )
+        if info.admin_url and str(info.admin_url).startswith('/'):
+            print(f'[PluginDiscovery] WARNING: {identifier} uses deprecated admin_url field. Use menu.items[].key + l_<key>() instead.')
         return info
 
     def detect_changes(self, previous: List[PluginInfo]) -> dict:
