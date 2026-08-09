@@ -263,10 +263,24 @@ class StoreAPIClient:
         """从 GitHub Raw 同步全部插件目录到本地缓存
 
         Returns:
-            同步的插件数量
+            同步的插件数量；-1 表示目录源拉取失败但本地已有缓存
+            （保留缓存继续可用），0 表示拉取失败且本地无缓存（首次拉取）。
         """
         catalog = self._fetch_catalog()
         if not catalog:
+            # 目录源拉取失败：保留本地缓存，向上层明确反馈失败状态
+            cached = 0
+            try:
+                with get_registry_db() as conn:
+                    cached = conn.execute(
+                        'SELECT COUNT(*) AS cnt FROM store_plugins'
+                    ).fetchone()['cnt']
+            except Exception as e:
+                print(f'[StoreAPIClient] sync_all: 查询本地缓存失败: {e}')
+            if cached and cached > 0:
+                print(f'[StoreAPIClient] sync_all: 目录拉取失败，保留本地缓存 {cached} 条 (return -1)')
+                return -1
+            print('[StoreAPIClient] sync_all: 目录拉取失败，且无本地缓存 (return 0)')
             return 0
 
         plugins_data = catalog.get('plugins', [])

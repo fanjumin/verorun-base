@@ -114,7 +114,10 @@ class PluginManager:
             try:
                 count = store_client.sync_all()
                 self._last_store_sync_ts = time.time()
-                print(f'[PluginManager] Store catalog synced: {count} plugins')
+                if count < 0:
+                    print(f'[PluginManager] ⚠️ Store catalog sync failed, keeping cached data')
+                else:
+                    print(f'[PluginManager] Store catalog synced: {count} plugins')
             except Exception as e:
                 print(f'[PluginManager] Store sync failed: {e}')
         threading.Thread(target=_sync_store_catalog, daemon=True).start()
