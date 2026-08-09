@@ -82,7 +82,7 @@ VeroRun ships as **two repositories** with **two distribution modes**:
 | **Usage** | Official site, enterprise customization | Standard enterprise package, open download |
 | **URL** | `https://github.com/fanjumin/verorun-code` | `https://github.com/fanjumin/verorun-base` |
 | **Content** | Full source (all built-in plugins, license & unified auth) | Streamlined core export (plugins installed from store) |
-| **Install** | SSH deploy key + `install.sh` | One-line `curl \| bash` or HTTPS `git clone` |
+| **Install** | SSH access + `install.sh` (`GIT_REPO` override) / `install-dev.sh` | One-line `curl \| bash` or HTTPS `git clone` |
 
 `verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow, using `git archive` plus the `.gitattributes` export rules.
 
@@ -106,15 +106,15 @@ sudo bash deploy/install.sh install your-domain.com
 
 ### Deploy `verorun-code` (private, official / enterprise customization)
 
-Access requires SSH access to the private repository:
+Access requires SSH access to the private repository. Override `GIT_REPO` so `install.sh` pulls from `verorun-code` (add the server's deploy key to GitHub on first run):
 
 ```bash
 git clone git@github.com:fanjumin/verorun-code.git
 cd verorun-code
-sudo bash deploy/install.sh install your-domain.com
+sudo env GIT_REPO=git@github.com:fanjumin/verorun-code.git bash deploy/install.sh install your-domain.com
 ```
 
-`install.sh` uses SSH deploy-key authentication for the private `verorun-code` repository and HTTPS for the public `verorun-base` repository. The `GIT_REPO` variable is set automatically per distribution, so `update` always pulls from the correct source.
+By default `install.sh` uses **HTTPS** against the public `verorun-base` repository (`GIT_REPO=https://github.com/fanjumin/verorun-base.git`) — **no SSH key is required**. The `GIT_REPO` variable can be overridden per deployment, so `update` always pulls from the configured source. For developer workstations without a domain, use `install-dev.sh` (defaults to the private `verorun-code` over SSH).
 
 #### Region Selection
 
@@ -132,18 +132,22 @@ For detailed instructions, see [deploy/README.md](deploy/README.md).
 
 ### Local / LAN Deployment (no domain required)
 
-For local development, testing, or LAN access **without a public domain**, VeroRun ships two additional deploy scripts in `deploy/`:
+For local development, testing, or LAN access **without a public domain**, VeroRun ships three additional deploy scripts in `deploy/`:
 
 ```bash
-# 1) Deploy from the git repository with path-based routing
+# 1) Deploy from the git repository (path-based routing, full code incl. plugins)
 sudo bash deploy/install-local.sh
 
 # 2) Deploy from a local source copy (no git clone required)
 sudo bash deploy/install-code.sh --src /path/to/code
+
+# 3) Developer workstation deploy (from git over SSH, plugins excluded)
+sudo bash deploy/install-dev.sh install
 ```
 
 - **`install-local.sh`** — deploys VeroRun without a public domain, accessible via `http://localhost/` (main site), `http://localhost/admin/` (admin panel), `http://localhost/auth/` (user console), or `http://<LAN-IP>/` for LAN access. Uses `DEPLOY_PROTOCOL=http` (no SSL) and Nginx path routing only (no subdomains). Online payment, OAuth, and SMS are unavailable because they require public callback URLs.
 - **`install-code.sh`** — the same no-domain deployment, but copies all source code and plugins from a local directory (or a tar package via `--from-tar`) instead of `git clone`.
+- **`install-dev.sh`** — developer-workstation deployment without a public domain. Clones from the private `verorun-code` over SSH (adds the deploy key on first run) and uses sparse-checkout that **excludes** `plugins/` (clone ~50% smaller) while keeping `plugin_manager/`, so plugins can still be installed manually later from the admin panel.
 
 > **Note:** Deployments do not auto-install or auto-enable plugins (`PLUGIN_AUTO_INSTALL=0` by default). Enable the plugins you need manually in the Admin panel after deployment.
 
@@ -720,6 +724,7 @@ verorun-code/
 │   ├── install.sh          # One-command install/update/restart/rollback/health/seed (private & base repos)
 │   ├── install-local.sh    # Local/LAN deployment without a public domain (path routing, HTTP, no SSL)
 │   ├── install-code.sh     # Full deployment from a local source copy (no git clone, no domain)
+│   ├── install-dev.sh      # Developer workstation deployment (no public domain, plugins excluded)
 │   ├── health_check.sh     # Standalone service health check script
 │   ├── seed_data.py        # Seed initial data (admin account, plans, products)
 │   ├── bump_version.sh     # Version bump across VERSION / README / package.json

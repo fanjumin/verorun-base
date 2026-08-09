@@ -2,12 +2,12 @@
 
 ## 版本说明
 
-| 仓库 | 类型 | 内容 | 用途 |
-|------|------|------|------|
-| `verorun-code` | **私人** | 完整源码 + 全部插件 | 官方开发版 |
-| `verorun-base` | 公开 | 系统基座 + 编译二进制，不含插件 | 专业版（对外分发） |
+| 仓库 | 类型 | 内容 | 用途 | 默认部署脚本 |
+|------|------|------|------|--------------|
+| `verorun-base` | 公开 | 系统基座，不含插件 | 专业版（对外分发） | `install.sh`（HTTPS，无需 SSH Key） |
+| `verorun-code` | **私人** | 完整源码 + 全部插件 | 官方开发版 | `install-dev.sh` / `install-local.sh`（SSH） |
 
-本文档仅适用于 **verorun-code（开发版）**。
+本文档覆盖 **verorun-base（公开版）** 与 **verorun-code（开发版）** 两种部署方式。
 
 ---
 
@@ -20,70 +20,69 @@
 
 ---
 
-## 首次安装
+## 首次安装（公开版 verorun-base）
 
-### 1. 获取 install.sh
+`deploy/install.sh` 现在**默认从公开仓库 HTTPS 克隆**，无需 SSH Key。
 
-由于 `verorun-code` 是私人仓库，无法直接 `curl | bash`。需要先将 `install.sh` 上传到服务器：
-
-**方式一：scp（本地已有克隆）**
+**方式一：一键安装（推荐）**
 ```bash
-scp deploy/install.sh user@your-server:~/install.sh
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
 
-**方式二：手动复制内容**
-在服务器上创建 `install.sh`，粘贴 `deploy/install.sh` 的完整内容。
-
-### 2. 运行安装脚本（首次生成 SSH Deploy Key）
-
+**方式二：HTTPS 克隆后本地运行**
 ```bash
-sudo bash install.sh
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
+sudo bash deploy/install.sh install your-domain.com
 ```
 
-脚本会自动：
-- 在 `/root/.ssh/` 生成 ED25519 SSH 密钥对
-- 打印公钥内容
-- 提示你将其添加到 GitHub，然后退出
-
-预期输出类似：
-```
-[i] Generating SSH deploy key for git operations...
-╔══════════════════════════════════════════════════════════════╗
-║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║
-╠══════════════════════════════════════════════════════════════╣
-║  URL: https://github.com/fanjumin/verorun-code/settings/keys/new
-╠══════════════════════════════════════════════════════════════╣
-║  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... verorun-deploy-xxx
-╚══════════════════════════════════════════════════════════════╝
-[WARN] After adding the key, re-run this script to continue.
-```
-
-### 3. 添加 Deploy Key 到 GitHub
-
-1. 复制终端中打印的公钥内容（`ssh-ed25519 AAAAC3Nza...` 开头的那一行）
-2. 打开 https://github.com/fanjumin/verorun-code/settings/keys/new
-3. **Title**：填写服务器标识（如 `instance-20260731-045222`）
-4. **Key**：粘贴公钥
-5. 点击 **Add key**
-
-### 4. 重新运行安装
-
-```bash
-sudo bash install.sh
-```
-
-这次脚本会：
-- 检测到 SSH key 已存在
-- 添加 `github.com` 到 `known_hosts`
-- 通过 SSH 克隆 `verorun-code` 到 `/home/<user>/verorun`
+脚本会自动（**不生成 SSH Key**）：
+- 通过 HTTPS 克隆 `verorun-base` 到 `/home/<user>/verorun`
 - 安装依赖、配置 systemd、配置 Nginx
 - 启动所有服务
 
-### 5. 配置域名
+### 配置域名
 
 ```bash
 sudo bash deploy/install.sh configure-domain your-domain.com
 ```
+
+---
+
+## 开发版 verorun-code（SSH，可选）
+
+需要部署私人仓库 `verorun-code`（含全部插件）时，使用 **install-dev.sh**（默认 `GIT_REPO=git@github.com:fanjumin/verorun-code.git`）：
+
+1. 将 `install-dev.sh` 上传到服务器：
+   ```bash
+   scp deploy/install-dev.sh user@your-server:~/
+   ```
+2. 首次运行，脚本自动在 `/root/.ssh/` 生成 ED25519 SSH 密钥对并打印公钥，然后退出：
+   ```bash
+   sudo bash install-dev.sh install
+   ```
+   预期输出类似：
+   ```
+   [i] Generating SSH deploy key for git operations...
+   ╔══════════════════════════════════════════════════════════════╗
+   ║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║
+   ╠══════════════════════════════════════════════════════════════╣
+   ║  URL: https://github.com/fanjumin/verorun-code/settings/keys/new
+   ╠══════════════════════════════════════════════════════════════╣
+   ║  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... verorun-deploy-xxx
+   ╚══════════════════════════════════════════════════════════════╝
+   [WARN] After adding the key, re-run this script to continue.
+   ```
+3. 添加 Deploy Key 到 GitHub：
+   - 复制终端中打印的公钥内容（`ssh-ed25519 AAAAC3Nza...` 开头的那一行）
+   - 打开 https://github.com/fanjumin/verorun-code/settings/keys/new
+   - **Title**：填写服务器标识（如 `instance-20260731-045222`）
+   - **Key**：粘贴公钥，点击 **Add key**
+4. 重新运行安装，脚本会通过 SSH 克隆 `verorun-code` 到 `/home/<user>/verorun`：
+   - 检测到 SSH key 已存在
+   - 添加 `github.com` 到 `known_hosts`
+   - 安装依赖、配置 systemd、配置 Nginx
+   - 启动所有服务
 
 ---
 
@@ -96,7 +95,7 @@ sudo bash deploy/install.sh update
 ```
 
 脚本会自动：
-1. 确保 SSH 认证正常（`ensure_git_auth`）
+1. 确保 git 认证正常（`ensure_git_auth`；HTTPS 公开仓库自动跳过 SSH 设置）
 2. 备份当前版本
 3. 恢复本地修改的文件
 4. `git fetch` + `git merge` 拉取最新代码
@@ -118,9 +117,18 @@ sudo bash deploy/install.sh health
 
 ---
 
-## 已有服务器手动配置 SSH（首次）
+## 已有服务器切换仓库来源（可选）
 
-如果服务器已经安装过 verorun-code，但 git remote 是 HTTPS，需要手动切换：
+### 切换为 HTTPS（公开版 verorun-base）
+
+`install.sh` 默认即 HTTPS，无需任何操作。若当前是 SSH 仓库需切回公开版：
+
+```bash
+cd ~/verorun && sudo git remote set-url origin https://github.com/fanjumin/verorun-base.git
+sudo bash deploy/install.sh update
+```
+
+### 切换为 SSH（私有 verorun-code，开发者可选）
 
 ```bash
 # 1. 生成 SSH key
@@ -179,7 +187,7 @@ python tools/publish_plugin.py analytics --version 2.1.0
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `GIT_REPO` | `git@github.com:fanjumin/verorun-code.git` | Git 仓库地址 |
+| `GIT_REPO` | `https://github.com/fanjumin/verorun-base.git`（install.sh）<br>`git@github.com:fanjumin/verorun-code.git`（install-dev.sh / install-local.sh） | Git 仓库地址 |
 | `GIT_BRANCH` | `master` | 分支 |
 | `APP_USER` | `$SUDO_USER` | 应用运行用户 |
 | `APP_HOME` | `/home/$APP_USER/verorun` | 应用目录 |

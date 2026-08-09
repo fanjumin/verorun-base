@@ -30,6 +30,30 @@ Access paths after install:
 
 The same paths work via `http://<LAN-IP>/` from other machines on the network.
 
+### Other No-Domain Scripts
+
+Besides `install-local.sh`, two more no-domain deploy scripts are shipped:
+
+**`install-code.sh` (local source copy)** — no git clone required; copies all source code and plugins from a local directory (or a tar package via `--from-tar`):
+
+```bash
+sudo bash deploy/install-code.sh --src /path/to/code
+```
+
+**`install-dev.sh` (developer workstation)** — clones the private `verorun-code` over SSH (adds the deploy key on first run) with sparse-checkout that **excludes `plugins/`** (clone ~50% smaller) while keeping `plugin_manager/` so plugins can still be installed later from the admin panel:
+
+```bash
+sudo bash deploy/install-dev.sh install
+```
+
+### No-Domain Script Comparison
+
+| Script | Code Source | Plugins | Use Case |
+|--------|-------------|---------|----------|
+| `install-local.sh` | git clone `verorun-code` (SSH) | included | Full intranet / LAN deployment |
+| `install-code.sh` | local directory / tar package | included | No git environment, offline deploy |
+| `install-dev.sh` | git clone `verorun-code` (SSH) | excluded (clone ~50% smaller) | Developer workstation |
+
 ### Differences vs `install.sh`
 
 | Dimension | install.sh (domain mode) | install-local.sh |
@@ -62,6 +86,21 @@ sudo bash deploy/install.sh configure-domain your-domain.com
 The code changes are conditional branches — once `DEPLOY_DOMAIN` is set and
 `DEPLOY_PROTOCOL` defaults to `https`, the system automatically returns to
 domain-mode behavior. No code rollback needed.
+
+---
+
+## China Network Auto-Adaptation (CN Network)
+
+All four deploy scripts (`install.sh` / `install-local.sh` / `install-dev.sh` /
+`install-code.sh`) ship a China-network auto-adaptation module. Overseas
+environments (default mirrors reachable) are fully unaffected — no manual
+configuration required:
+
+| Item | Behavior |
+|------|----------|
+| **apt mirror** | If the default source is unreachable within 3s, switches to Aliyun (backup at `sources.list.bak.$(date +%s)`, idempotent via marker file) |
+| **pip mirror** | Multi-source speed test (Aliyun → Tsinghua → official), picks the fastest, detected once |
+| **git clone** | `timeout 60` + `--depth 1` shallow clone; on failure prints proxy / manual-clone workarounds |
 
 ---
 
