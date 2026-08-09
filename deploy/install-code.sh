@@ -60,12 +60,16 @@ else
     # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
     # → 自动从 verorun-base 拉取公共函数库到临时目录加载
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
+    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
     _tmp_common="$(mktemp)"
     _ok=0
     if command -v curl >/dev/null 2>&1; then
         if curl -sSL --connect-timeout 15 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
+        # 官方源失败（如 GFW 封锁）→ 降级到 jsdelivr CDN 镜像
+        if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 10 "${_COMMON_MIRROR}" -o "${_tmp_common}"; then _ok=1; fi
     elif command -v wget >/dev/null 2>&1; then
         if wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
+        if [ "${_ok}" != "1" ] && wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_MIRROR}"; then _ok=1; fi
     fi
     if [ "${_ok}" != "1" ]; then
         echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
