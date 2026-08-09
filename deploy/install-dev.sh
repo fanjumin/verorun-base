@@ -310,12 +310,22 @@ ENVEOF
 
 assert_debug_disabled() {
     # Production gate: refuse to continue if DEBUG is enabled in .env
+    # Protects against developer mistakes causing performance/memory issues in prod
     local _dbg
-    _dbg=$(grep -E '^(APP_DEBUG|FLASK_DEBUG)=' "${APP_HOME}/.env" 2>/dev/null | head -1 | cut -d= -f2)
+    # Check APP_DEBUG
+    _dbg=$(grep -E '^APP_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
     case "${_dbg}" in
         1|true|TRUE|True|on|yes)
-            echo -e "${FAIL} Production install aborted: DEBUG is enabled in .env"
+            echo -e "${FAIL} Production install aborted: APP_DEBUG is enabled in .env"
             echo -e "${INFO} Set APP_DEBUG=false in ${APP_HOME}/.env and re-run"
+            exit 1 ;;
+    esac
+    # Check FLASK_DEBUG
+    _dbg=$(grep -E '^FLASK_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
+    case "${_dbg}" in
+        1|true|TRUE|True|on|yes)
+            echo -e "${FAIL} Production install aborted: FLASK_DEBUG is enabled in .env"
+            echo -e "${INFO} Set FLASK_DEBUG=0 in ${APP_HOME}/.env and re-run"
             exit 1 ;;
     esac
 }
@@ -681,14 +691,14 @@ do_install() {
     # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
     _sql_tmp=$(mktemp)
     chmod 600 "${_sql_tmp}"
-    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -q 1; then
+    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     else
         printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     fi
     sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
     rm -f "${_sql_tmp}"
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -qE '^\s*1\s*$' 2>/dev/null || \
         sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
     # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
     done_step "PostgreSQL is running"

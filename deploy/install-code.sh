@@ -1,36 +1,60 @@
 #!/bin/bash
 # ==========================================================================
-# VeroRun — Local source code deployment script (no domain required)
+# VeroRun — Team intranet deployment script (no domain, full plugins)
 # ==========================================================================
 # Usage:
-#   sudo bash deploy/install-code.sh                    # 本地源码安装
-#   sudo bash deploy/install-code.sh --src /path/code   # 指定源码目录
-#   sudo bash deploy/install-code.sh --from-tar /path/pkg.tar.gz  # 远程 tar
-#   sudo bash deploy/install-code.sh seed               # 种子数据
-#   sudo bash deploy/install-code.sh restart            # 重启服务
-#   sudo bash deploy/install-code.sh --skip-deps        # 跳过依赖安装
+#   sudo bash deploy/install-code.sh install                     # fresh install (when .env absent)
+#   sudo bash deploy/install-code.sh install --approve-migrate   # install + DB migration + seed
+#   sudo bash deploy/install-code.sh update                      # update code, deps, and restart
+#   sudo bash deploy/install-code.sh restart                     # restart services only
+#   sudo bash deploy/install-code.sh health                      # health check
+#   sudo bash deploy/install-code.sh rollback                    # rollback to previous commit
+#   sudo bash deploy/install-code.sh seed                        # seed initial data
+#   --skip-deps: skip system + Python dependency installation
+#   --region=cn|global: region routing (default global; also supports "--region cn")
+#   --approve-migrate: explicitly approve DB migration + seed on install
 #
-# 功能: 从本地源码部署全功能 VeroRun，无域名，localhost/LAN 访问
-# 与 install-local.sh 区别: 无 git clone，完整拷贝所有源码和插件
+# Deploys VeroRun on a team intranet server WITHOUT a public domain:
+#   http://localhost/          → main site
+#   http://localhost/admin/    → admin panel
+#   http://localhost/auth/     → user console
+#   http://192.168.x.x/        → LAN access (same paths)
+#
+# Key differences vs deploy/install-dev.sh:
+#   - Sparse-checkout INCLUDES plugins/ → full source with all plugins
+#   - Targeted at team intranet deployment (not developer workstations)
+#   - All v4.0 security audit fixes are built in from the start
+#
+# Key differences vs deploy/install-local.sh:
+#   - Pulls from verorun-code (SSH, private repo) with full plugins
+#   - install-local.sh pulls from verorun-base (HTTPS, public repo) without plugins
+#
+# This script does NOT modify deploy/install.sh or deploy/install-local.sh.
+#
+# Limitations (expected, architecture-bound):
+#   - Online payment / OAuth / SMS unavailable (require public callback URLs)
+#   - Multi-tenant subdomains and SSL unavailable
 # ==========================================================================
 set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
+: "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
+: "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${REGION:=global}"                # cn | global
-: "${SOURCE_DIR:=}"                  # 源码目录，默认脚本所在目录的上一级
-: "${FROM_TAR:=}"                    # 远程 tar.gz 包路径
+# ── Sparse-checkout 白名单：含 plugins（全量源码） ──
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager plugins agent_matrix orchestrator i18n captcha-service shared providers themes static deploy}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
 # ── CN Network Auto-Adaptation (v1.0) ────────────────────────────────
-# 中国网络环境优化：apt 镜像切换 / pip 多源竞速
+# 中国网络环境优化：apt 镜像切换 / pip 多源竞速 / git 超时保护
 # 完全向后兼容：海外环境（默认源可达）不触发任何切换。
 PIP_MIRROR=""
 PIP_MIRROR_DETECTED=""
@@ -77,6 +101,27 @@ _detect_pip_mirror() {
     echo -e "${OK} pip mirror → ${PIP_MIRROR:-default}"
 }
 
+# 3. git clone 超时保护（60s）+ 浅克隆加速；失败给出明确指引
+# 注意：不执行 fetch --unshallow —— sparse-checkout 不依赖完整历史，
+#      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
+_clone_with_timeout() {
+    local _repo=$1 _dest=$2 _branch=$3
+    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow)..."
+    if timeout 60 git clone --depth 1 -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
+        return 0
+    fi
+    echo -e "${FAIL} git clone failed or timed out (60s)"
+    echo -e "${INFO} Possible causes:"
+    echo -e "${INFO}   1. GitHub unreachable (DNS pollution / GFW)"
+    echo -e "${INFO}   2. SSH key not configured (private repo)"
+    echo -e "${INFO}   3. Network too slow"
+    echo -e "${INFO} Workarounds:"
+    echo -e "${INFO}   • Use a proxy: export https_proxy=... && re-run"
+    echo -e "${INFO}   • Pre-clone manually: git clone ${_repo} ${_dest}"
+    echo -e "${INFO}   • For public base: use the HTTPS installer from verorun-base"
+    exit 1
+}
+
 # --prefer-binary: prefer wheels, fall back to source build
 _pip_install() {
     _detect_pip_mirror
@@ -87,135 +132,125 @@ step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
 
-# ══════════════════════════════════════════════════════════════════════
-# 核心差异: 本地源码拷贝 (替代 git clone + sparse-checkout)
-# ══════════════════════════════════════════════════════════════════════
-copy_source_code() {
-    local src_dir="$1"
-    local dst_dir="$2"
+# ── Admin credentials temp file ──────────────────────────────────────
+VR_ADMIN_CREDS_FILE="/root/.verorun-creds"
 
-    if [ ! -d "${src_dir}" ]; then
-        echo -e "${FAIL} Source directory not found: ${src_dir}"
-        exit 1
+# ── Git SSH auth setup (skip for HTTPS public repo) ───────────────────
+ensure_git_auth() {
+    if echo "${GIT_REPO}" | grep -q '^https://'; then
+        return 0
     fi
-
-    # 验证是否为 VeroRun 源码目录（检查关键文件）
-    if [ ! -f "${src_dir}/requirements.txt" ] || [ ! -d "${src_dir}/auth-center" ]; then
-        echo -e "${FAIL} Not a valid VeroRun source directory (missing requirements.txt or auth-center/)"
-        exit 1
+    local ssh_key="/root/.ssh/id_ed25519"
+    if [ ! -f "${ssh_key}" ]; then
+        echo -e "${INFO} Generating SSH deploy key for git operations..."
+        mkdir -p /root/.ssh
+        ssh-keygen -t ed25519 -N "" -f "${ssh_key}" -C "verorun-deploy-$(hostname)" >/dev/null 2>&1
+        chmod 600 "${ssh_key}"
+        chmod 644 "${ssh_key}.pub"
+        echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  ADD THIS DEPLOY KEY TO GITHUB (one-time setup):           ║${NC}"
+        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${YELLOW}║  URL: https://github.com/fanjumin/verorun-code/settings/keys/new${NC}"
+        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
+        cat "${ssh_key}.pub" | while read -r line; do
+            echo -e "${GREEN}║  ${line}${NC}"
+        done
+        echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${WARN} After adding the key, re-run this script to continue."
+        exit 0
     fi
-
-    echo -e "${INFO} Copying source code from: ${src_dir}"
-    echo -e "${INFO} Target directory: ${dst_dir}"
-
-    # 清理目标目录（如果存在且非空）——仅提示覆盖，不删除
-    if [ -d "${dst_dir}" ] && [ "$(ls -A "${dst_dir}" 2>/dev/null)" ]; then
-        echo -e "${WARN} Target directory exists and is not empty."
-        echo -e "${WARN} Existing files will be overwritten during copy."
+    if [ ! -f /root/.ssh/known_hosts ] || ! grep -q '^github\.com' /root/.ssh/known_hosts 2>/dev/null; then
+        ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
     fi
-    mkdir -p "${dst_dir}"
-
-    # 使用 rsync（如果可用）或 find+cp -a 进行全量拷贝
-    # 排除: .git, __pycache__, *.pyc, *.pyo, node_modules, venv, .env, *.egg-info, .DS_Store
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete \
-            --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
-            --exclude='*.pyo' --exclude='node_modules' --exclude='venv' \
-            --exclude='.env' --exclude='*.egg-info' --exclude='.DS_Store' \
-            "${src_dir}/" "${dst_dir}/"
-    else
-        # fallback: cp -a，只处理顶层条目，避免把 src_dir 自身拷进 dst_dir
-        find "${src_dir}" -mindepth 1 -maxdepth 1 \
-            ! -name '.git' ! -name '__pycache__' ! -name 'node_modules' \
-            ! -name 'venv' ! -name '.env' ! -name '.DS_Store' \
-            ! -name '*.egg-info' \
-            -exec cp -a {} "${dst_dir}/" \; 2>/dev/null || true
-        find "${dst_dir}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-        find "${dst_dir}" -name '*.pyc' -delete 2>/dev/null || true
-        find "${dst_dir}" -name '*.pyo' -delete 2>/dev/null || true
-    fi
-
-    # 确保 deploy 目录存在
-    if [ ! -d "${dst_dir}/deploy" ]; then
-        echo -e "${FAIL} deploy/ directory not copied correctly"
-        exit 1
-    fi
-
-    # 拷贝自身到 deploy 目录（确保脚本在目标环境中存在）
-    cp "$0" "${dst_dir}/deploy/install-code.sh" 2>/dev/null || true
-    chmod +x "${dst_dir}/deploy/install-code.sh" 2>/dev/null || true
-    chmod +x "${dst_dir}/deploy/health_check.sh" "${dst_dir}/deploy/seed_data.py" 2>/dev/null || true
-
-    chown -R "${APP_USER}:${APP_USER}" "${dst_dir}" 2>/dev/null || true
-    echo -e "${OK} Source code copied ($(du -sh "${dst_dir}" | cut -f1))"
-    echo -e "${INFO} Plugins: $(ls -d "${dst_dir}/plugins/"*/ 2>/dev/null | wc -l) directories"
-}
-
-# ══════════════════════════════════════════════════════════════════════
-# 从 tar.gz 解压源码（用于远程部署）
-# ══════════════════════════════════════════════════════════════════════
-extract_from_tar() {
-    local tar_path="$1"
-    local dst_dir="$2"
-
-    if [ ! -f "${tar_path}" ]; then
-        echo -e "${FAIL} Tar file not found: ${tar_path}"
-        exit 1
-    fi
-
-    # 危险路径保护：禁止删除空串、根目录或用户家目录
-    if [ -z "${dst_dir}" ] || [ "${dst_dir}" = "/" ] || [ "${dst_dir}" = "${HOME}" ]; then
-        echo -e "${FAIL} Refusing to remove dangerous path: ${dst_dir}"
-        exit 1
-    fi
-
-    echo -e "${INFO} Extracting from tar: ${tar_path}"
-
-    # 清理目标目录
-    if [ -d "${dst_dir}" ]; then
-        rm -rf "${dst_dir}"
-    fi
-    mkdir -p "${dst_dir}"
-
-    # 解压（优先 strip-components=1 处理带顶层目录的包）
-    if ! tar -xzf "${tar_path}" -C "${dst_dir}" --strip-components=1 2>/dev/null; then
-        if ! tar -xzf "${tar_path}" -C "${dst_dir}" 2>/dev/null; then
-            echo -e "${FAIL} Failed to extract tar file"
-            exit 1
+    if [ -d "${APP_HOME}/.git" ]; then
+        local current_url
+        current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
+        if echo "${current_url}" | grep -q '^https://'; then
+            git -C "${APP_HOME}" remote set-url origin "${GIT_REPO}"
+            done_step "Git remote switched to SSH"
         fi
     fi
-
-    # 验证
-    if [ ! -f "${dst_dir}/requirements.txt" ]; then
-        echo -e "${FAIL} Extracted source is not a valid VeroRun codebase"
-        exit 1
-    fi
-
-    chmod +x "${dst_dir}/deploy/health_check.sh" "${dst_dir}/deploy/seed_data.py" 2>/dev/null || true
-    chown -R "${APP_USER}:${APP_USER}" "${dst_dir}" 2>/dev/null || true
-    echo -e "${OK} Source extracted from tar ($(du -sh "${dst_dir}" | cut -f1))"
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# .env 生成（无域名模式，修复 install-local.sh 遗漏的变量）
-# ══════════════════════════════════════════════════════════════════════
+# ── Interactive directory conflict resolution ────────────────────────
+resolve_directory_conflict() {
+    local target_dir="$1"
+
+    # 目录不存在 → 正常流程
+    if [ ! -d "${target_dir}" ]; then
+        return 0
+    fi
+
+    # 已是 git 仓库 → 可以安全更新
+    if [ -d "${target_dir}/.git" ]; then
+        echo -e "${OK} Existing VeroRun installation detected at ${target_dir}"
+        return 0
+    fi
+
+    # 目录存在但不是 git 仓库 → 交互式选择
+    echo ""
+    echo -e "${WARN} ═══════════════════════════════════════════════════════"
+    echo -e "${WARN}  Directory conflict detected:"
+    echo -e "${WARN}    ${target_dir}"
+    echo -e "${WARN}"
+    echo -e "${WARN}  This directory exists but is NOT a VeroRun installation."
+    echo -e "${WARN}  What would you like to do?"
+    echo -e "${WARN}"
+    echo -e "${INFO}  [1] Backup and reinstall"
+    echo -e "${INFO}      → Move to ${target_dir}.bak.$(date +%Y%m%d%H%M%S) and proceed"
+    echo -e "${INFO}  [2] Delete and reinstall"
+    echo -e "${INFO}      → Remove ${target_dir} completely and proceed"
+    echo -e "${INFO}  [3] Abort installation"
+    echo -e "${INFO}      → Exit now. You can manually resolve and re-run."
+    echo -e "${WARN} ═══════════════════════════════════════════════════════"
+
+    while true; do
+        read -r -p "  Your choice [1/2/3]: " _choice </dev/tty
+
+        case "${_choice}" in
+            1)
+                local _bak="${target_dir}.bak.$(date +%Y%m%d%H%M%S)"
+                echo -e "${INFO} Backing up to ${_bak} ..."
+                mv "${target_dir}" "${_bak}"
+                echo -e "${OK} Backup complete. Proceeding with installation."
+                return 0
+                ;;
+            2)
+                # 安全防护：拒绝删除危险路径
+                if [ -z "${target_dir}" ] || [ "${target_dir}" = "/" ] || [ "${target_dir}" = "${HOME}" ]; then
+                    echo -e "${FAIL} Refusing to remove dangerous path: ${target_dir}"
+                    exit 1
+                fi
+                echo -e "${INFO} Removing ${target_dir} ..."
+                rm -rf "${target_dir}"
+                echo -e "${OK} Removed. Proceeding with installation."
+                return 0
+                ;;
+            3)
+                echo -e "${INFO} Installation aborted by user."
+                exit 0
+                ;;
+            *)
+                echo -e "${WARN} Please enter 1, 2, or 3"
+                ;;
+        esac
+    done
+}
+
+# ── .env generation — no-domain mode ──────────────────────────────────
 generate_env() {
     local env_file="${APP_HOME}/.env"
     local force="${1:-}"
-
     if [ -f "${env_file}" ] && [ "${force}" != "force" ]; then
         echo -e "${WARN} .env already exists, skipping"
         return
     fi
-
     if [ -f "${env_file}" ] && [ "${force}" = "force" ]; then
         cp "${env_file}" "${env_file}.bak.$(date +%s)" 2>/dev/null || true
     fi
-
     if [ -z "${PG_PASSWORD:-}" ]; then
         PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
     fi
-
     JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
@@ -224,11 +259,10 @@ generate_env() {
     DEV_ACCOUNTS_ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    # 修复 install-local.sh 遗漏: INTERNAL_SERVICE_TOKEN
     INTERNAL_SERVICE_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > "${env_file}" << ENVEOF
-# VeroRun config — auto-generated by install-code.sh (local-source / LAN mode)
+# VeroRun config — auto-generated by install-code.sh (no-domain / LAN mode, full plugins)
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=
 DEPLOY_PROTOCOL=http
@@ -243,12 +277,12 @@ FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
 
-# Production-safe default: DEBUG disabled (审计 H2 修复，防止本地脚本误开启调试)
+# v2.1.0 — 内部服务令牌
+INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+
+# Production defaults: DEBUG must stay disabled (assert_debug_disabled enforces on install/update)
 APP_DEBUG=false
 FLASK_DEBUG=0
-
-# v2.1.0 — 内部服务令牌（修复 install-local.sh 遗漏）
-INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
 # Phase 1 — Security hardening keys (2026-07-28)
 PLUGIN_LICENSE_SECRET=${PLUGIN_LICENSE_SECRET}
@@ -273,12 +307,65 @@ ENVEOF
 
     chown "${APP_USER}:${APP_USER}" "${env_file}"
     chmod 600 "${env_file}"
-    echo -e "${OK} .env generated (no-domain mode, all secrets initialized)"
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# systemd 服务（与 install-local.sh 完全一致）
-# ══════════════════════════════════════════════════════════════════════
+# ── assert_debug_disabled (v2: checks both APP_DEBUG and FLASK_DEBUG separately) ──
+assert_debug_disabled() {
+    # Production gate: refuse to continue if DEBUG is enabled in .env
+    # Protects against developer mistakes causing performance/memory issues in prod
+    local _dbg
+    # Check APP_DEBUG
+    _dbg=$(grep -E '^APP_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
+    case "${_dbg}" in
+        1|true|TRUE|True|on|yes)
+            echo -e "${FAIL} Production install aborted: APP_DEBUG is enabled in .env"
+            echo -e "${INFO} Set APP_DEBUG=false in ${APP_HOME}/.env and re-run"
+            exit 1 ;;
+    esac
+    # Check FLASK_DEBUG
+    _dbg=$(grep -E '^FLASK_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
+    case "${_dbg}" in
+        1|true|TRUE|True|on|yes)
+            echo -e "${FAIL} Production install aborted: FLASK_DEBUG is enabled in .env"
+            echo -e "${INFO} Set FLASK_DEBUG=0 in ${APP_HOME}/.env and re-run"
+            exit 1 ;;
+    esac
+}
+
+update_env() {
+    local env_file="${APP_HOME}/.env"
+    if [ ! -f "${env_file}" ]; then
+        generate_env
+        return
+    fi
+
+    local missing=()
+    for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET INTERNAL_SERVICE_TOKEN; do
+        if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
+            local val
+            val=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+            echo "${key}=${val}" >> "${env_file}"
+            missing+=("${key}")
+        fi
+    done
+
+    for key in APP_DEBUG:false FLASK_DEBUG:0; do
+        local k="${key%%:*}" v="${key##*:}"
+        if ! grep -q "^${k}=" "${env_file}" 2>/dev/null; then
+            echo "${k}=${v}" >> "${env_file}"
+            missing+=("${k}")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "${OK} Filled missing keys: ${missing[*]}"
+        chmod 600 "${env_file}"
+    else
+        echo -e "${OK} All keys are present in .env"
+    fi
+}
+
+# ── systemd services ──────────────────────────────────────────────────
 write_systemd_services() {
     local env_file="${APP_HOME}/.env"
     write_one_service() {
@@ -390,13 +477,14 @@ GENVEOF
     chmod 600 "${env_file}"
 }
 
-# ── sudoers — one-click restart permissions (declarative, idempotent) ──
+# ── sudoers — one-click update permissions (declarative, idempotent) ──
 write_sudoers() {
     local sudoers_file="/etc/sudoers.d/verorun"
     cat > "${sudoers_file}" << SUEOF
-# Managed by VeroRun install-code.sh — regenerated on every install
-# Grants ${APP_USER} passwordless restart for VeroRun services only
-# 审计 H5 修复：不再授予"运行整个安装脚本"的无密码权限，仅保留受控的 systemctl restart
+# Managed by VeroRun install-code.sh — regenerated on every install/update
+# Grants ${APP_USER} passwordless one-click update for VeroRun services
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install-code.sh update
+${APP_USER} ALL=(root) NOPASSWD: /bin/bash ${APP_HOME}/deploy/install-code.sh restart
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-main
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-auth
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
@@ -504,8 +592,28 @@ do_seed() {
         echo -e "${INFO} Run 'install-code.sh' first"
         exit 1
     fi
+
+    # Seed is grouped under the same manual gate as DB migration
+    if [ "${APPROVE_MIGRATE:-0}" != "1" ]; then
+        echo -e "${WARN} Skipped seed data (pass --approve-migrate to inject admin/plans/products)"
+        return 0
+    fi
+
+    # Read credentials from temp file (set by prompt_admin_creds)
+    VR_ADMIN_USERNAME=""
+    VR_ADMIN_PASSWORD=""
+    if [ -f "${VR_ADMIN_CREDS_FILE}" ]; then
+        # shellcheck disable=SC1090
+        source "${VR_ADMIN_CREDS_FILE}"
+        rm -f "${VR_ADMIN_CREDS_FILE}"
+    fi
+
+    if [ -z "${VR_ADMIN_USERNAME}" ]; then
+        echo -e "${INFO} No admin credentials provided — username defaults to 'administrator'"
+    fi
+
     # 审计 C1：管理员凭据经环境变量传入 seed_data.py，避免出现在进程命令行
-    if [ -n "${VR_ADMIN_USERNAME:-}" ]; then
+    if [ -n "${VR_ADMIN_USERNAME}" ]; then
         sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
             "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     else
@@ -514,9 +622,6 @@ do_seed() {
     echo -e "${OK} Seed data injected"
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# do_install — 主安装流程（唯一差异: 步骤 4 用本地拷贝替代 git clone）
-# ══════════════════════════════════════════════════════════════════════
 # ── Dependency scan helpers ──────────────────────────────────────────
 check_system_deps() {
     local pkg
@@ -544,8 +649,8 @@ check_python_deps() {
     return 0
 }
 
+# ── Fresh install (no-domain, full plugins) ───────────────────────────
 do_install() {
-    # 步骤 0: 依赖检查（扫描已装依赖，缺失时询问是否安装）
     step "Dependency check"
     if [ "${SKIP_DEPS:-0}" = "1" ]; then
         echo -e "${WARN} --skip-deps: skipping dependency installation"
@@ -562,7 +667,6 @@ do_install() {
     fi
     done_step "Dependency check complete"
 
-    # 步骤 1: 系统依赖
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
     if [ "${SKIP_DEPS:-0}" != "1" ]; then
@@ -577,7 +681,6 @@ do_install() {
 
     PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 
-    # 步骤 2: PostgreSQL
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
         if [ "${SKIP_DEPS:-0}" = "1" ]; then
@@ -590,19 +693,18 @@ do_install() {
     # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
     _sql_tmp=$(mktemp)
     chmod 600 "${_sql_tmp}"
-    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -q 1; then
+    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     else
         printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     fi
     sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
     rm -f "${_sql_tmp}"
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
-    # 铁律：install-code.sh 只允许创建系统库，插件数据库一律不建
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -qE '^\s*1\s*$' 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null
+    # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
     done_step "PostgreSQL is running"
 
-    # 步骤 3: 创建目录
     step "Create directories"
     mkdir -p "${APP_HOME}" "${APP_HOME}/data" "${LOG_DIR}"
     mkdir -p "${APP_HOME}/.cache/llm" "${APP_HOME}/.cache/sessions" "${APP_HOME}/.cache/agents"
@@ -610,21 +712,29 @@ do_install() {
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
 
-    # 步骤 4: 拷贝源码 [核心差异点]
-    step "Copy source code"
-    if [ -n "${FROM_TAR:-}" ]; then
-        echo -e "${INFO} Source already extracted from tar, skipping copy"
-    else
-        local src_dir="${SOURCE_DIR}"
-        if [ -z "${src_dir}" ]; then
-            # 默认: 脚本所在目录的上一级
-            src_dir="$(cd "$(dirname "$0")/.." && pwd)"
-        fi
-        copy_source_code "${src_dir}" "${APP_HOME}"
-    fi
-    done_step "Source code in place (full, all plugins)"
+    ensure_git_auth
 
-    # 步骤 5: Python 虚拟环境
+    step "Pull code (full — includes all plugins)"
+    # 交互式解决目录冲突：备份/删除/中止 三选一
+    resolve_directory_conflict "${APP_HOME}"
+    if [ -d "${APP_HOME}/.git" ]; then
+        # 已有 git 仓库 → 拉取最新代码
+        git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
+        cd "${APP_HOME}"
+        git fetch origin "${GIT_BRANCH}"
+        git reset --hard "origin/${GIT_BRANCH}"
+    else
+        # 目录不存在或已被清理/备份 → 全新 clone
+        _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
+    fi
+    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
+        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+    fi
+    find "${APP_HOME}" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" 2>/dev/null || true
+    done_step "Code pulled (full, all plugins): $(git -C "${APP_HOME}" log --oneline -1)"
+
     step "Python virtual environment"
     if [ "${SKIP_DEPS:-0}" != "1" ]; then
         if [ ! -f "${VENV_DIR}/bin/python" ]; then
@@ -637,38 +747,39 @@ do_install() {
     fi
     done_step "Python dependencies installed"
 
-    # 步骤 6: 生成 .env
     step "Generate .env (no-domain mode)"
     generate_env force
     done_step ".env generated (DEPLOY_DOMAIN empty, DEPLOY_PROTOCOL=http)"
 
-    # 步骤 7: systemd 服务
+    # Production gate: refuse to continue if DEBUG got enabled in .env
+    assert_debug_disabled
+
     step "systemd services"
     write_systemd_services
     done_step "systemd services configured"
 
-    # 步骤 8: Nginx
     step "Nginx (path routing)"
     write_nginx_config
     nginx -t && systemctl restart nginx
     done_step "Nginx configured"
 
-    # 步骤 9: 启动服务
     step "Start services"
     restart_services
     done_step "Services started"
 
-    # 步骤 10: sudoers
-    step "Configure sudoers (one-click restart permissions)"
+    step "Configure sudoers (one-click update permissions)"
     write_sudoers
     done_step "Sudoers configured"
 
-    # 步骤 11: 数据库迁移
     step "Database migration"
-    sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
-    done_step "Database migrated"
+    if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
+        done_step "Database migrated"
+    else
+        echo -e "${WARN} Skipped database migration (pass --approve-migrate to apply schema changes)"
+        echo -e "${INFO} Services may fail to start if code references columns not yet in the DB"
+    fi
 
-    # 步骤 12: 种子数据
     step "Seed data"
     do_seed
     done_step "Seed data injected"
@@ -682,7 +793,7 @@ print_summary() {
     PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     echo ""
     echo "  ╔══════════════════════════════════════════════════════════════╗"
-    echo "  ║         Local Source Deployment Complete!                    ║"
+    echo "  ║      Team Intranet Deployment Complete (Full Plugins)!        ║"
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Main site:   http://localhost/                               ║"
     echo "  ║  Admin:       http://localhost/admin/                         ║"
@@ -690,56 +801,331 @@ print_summary() {
     if [ -n "${PUBLIC_IP}" ]; then
     echo "  ║  LAN access:  http://${PUBLIC_IP}/  (same paths)              ║"
     fi
-    echo "  ╠══════════════════════════════════════════════════════════════╣"
-    echo "  ║  Plugins:     $(ls -d ${APP_HOME}/plugins/*/ 2>/dev/null | wc -l) installed                      ║"
-    echo "  ║  Code size:   $(du -sh ${APP_HOME} 2>/dev/null | cut -f1)                         ║"
+    echo "  ║  Plugins:     $(ls -d ${APP_HOME}/plugins/*/ 2>/dev/null | wc -l) directories installed                    ║"
+    echo "  ║  Code size:   $(du -sh ${APP_HOME} 2>/dev/null | cut -f1)                              ║"
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
-    echo "  ║    bash deploy/install-code.sh restart                        ║"
+    echo "  ║    bash deploy/install-code.sh update                         ║"
     echo "  ╚══════════════════════════════════════════════════════════════╝"
     echo ""
 }
 
-# ══════════════════════════════════════════════════════════════════════
-# Main entry
-# ══════════════════════════════════════════════════════════════════════
+# ── Command mode detection ───────────────────────────────────────────
+detect_mode() {
+    local mode="${1:-}"
+    if [ -n "$mode" ]; then
+        DEPLOY_MODE="$mode"
+    elif [ -f "${APP_HOME}/.env" ]; then
+        DEPLOY_MODE="update"
+    else
+        DEPLOY_MODE="install"
+    fi
+    echo -e "${INFO} Deploy mode: ${DEPLOY_MODE}"
+}
+
+# ── Admin credentials prompt (before TTY detach) ─────────────────────
+prompt_admin_creds() {
+    case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
+    [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
+
+    echo "" > /dev/tty
+    echo -e "${INFO} Create the administrator account for VeroRun" > /dev/tty
+
+    local _user="" _pass="" _pass2=""
+    read -r -p "  Admin username: " _user < /dev/tty
+    while [ -z "${_user}" ]; do
+        echo -e "${WARN} Username cannot be empty" > /dev/tty
+        read -r -p "  Admin username: " _user < /dev/tty
+    done
+
+    read -r -s -p "  Admin password: " _pass < /dev/tty
+    echo "" > /dev/tty
+    while [ -z "${_pass}" ]; do
+        echo -e "${WARN} Password cannot be empty" > /dev/tty
+        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo "" > /dev/tty
+    done
+
+    read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+    echo "" > /dev/tty
+    while [ "${_pass}" != "${_pass2}" ]; do
+        echo -e "${WARN} Passwords do not match, try again" > /dev/tty
+        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo "" > /dev/tty
+        read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+        echo "" > /dev/tty
+    done
+
+    printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${_user}" "${_pass}" > "${VR_ADMIN_CREDS_FILE}"
+    chmod 600 "${VR_ADMIN_CREDS_FILE}"
+    # 审计 C2 加固：脚本异常退出时清理凭据文件（prompt 仅在 install 模式调用，无 EXIT trap 冲突）
+    trap 'rm -f "${VR_ADMIN_CREDS_FILE}"' EXIT
+    echo -e "${OK} Admin credentials saved"
+}
+
+# ── Health check ─────────────────────────────────────────────────────
+health_check() {
+    echo ""
+    local all_ok=true
+
+    check_port() {
+        local port=$1 name=$2
+        local code
+        code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
+        if [ "$code" != "000" ]; then
+            echo -e "  ${OK} ${name} (:${port}) -> HTTP ${code}"
+        else
+            echo -e "  ${FAIL} ${name} (:${port}) -> no response"
+            all_ok=false
+        fi
+    }
+
+    check_port 8081 "verorun-main"
+    check_port 8083 "verorun-auth"
+    check_port 8084 "verorun-admin"
+    check_port 8085 "verorun-health"
+
+    if systemctl is-active --quiet verorun-guardian 2>/dev/null; then
+        echo -e "  ${OK} verorun-guardian (systemd)"
+    else
+        echo -e "  ${FAIL} verorun-guardian (inactive)"
+        all_ok=false
+    fi
+
+    echo ""
+    echo -e "${INFO} Migration log check:"
+    for svc in verorun-admin verorun-auth verorun-main; do
+        journalctl -u "${svc}" --since "1 min ago" 2>/dev/null | grep -i "\[Migration\]" | tail -2 || true
+    done
+
+    if $all_ok; then
+        echo -e "\n${OK} All services healthy"
+    else
+        echo -e "\n${FAIL} Some services are unhealthy — check logs"
+        UPDATE_FAILED=1
+    fi
+}
+
+# ── Incremental update ───────────────────────────────────────────────
+do_update() {
+    local _status_file="/run/verorun/update_status.json"
+    mkdir -p /run/verorun 2>/dev/null || true
+    chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
+    trap 'echo "{\"status\":\"failed\",\"progress\":100,\"message\":\"Update failed\",\"error\":\"Script exited unexpectedly\"}" > '"${_status_file}" EXIT
+
+    UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/install-code.sh" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
+
+    local before_commit
+    before_commit=$(git -C "${APP_HOME}" log --oneline -1 2>/dev/null || echo "unknown")
+
+    step "Backup current version"
+    mkdir -p "${APP_HOME}/.rollback"
+    cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
+    echo "${before_commit}" > "${APP_HOME}/.rollback/before_commit"
+    done_step "Environment backed up"
+
+    step "Restore locally modified files"
+    if [ -d "${APP_HOME}/.git" ]; then
+        if ! git -C "${APP_HOME}" diff --quiet; then
+            echo -e "${WARN} Local modifications detected, restoring to git version..."
+            git -C "${APP_HOME}" diff --name-only -z | xargs -0 git -C "${APP_HOME}" checkout --
+            done_step "Locally modified files restored"
+        else
+            done_step "No local modifications"
+        fi
+    else
+        done_step "Skipped (no .git directory)"
+    fi
+
+    ensure_git_auth
+
+    step "Pull latest code"
+    if [ ! -d "${APP_HOME}/.git" ]; then
+        echo -e "${FAIL} .git missing — cannot update. Re-install with install-code.sh."
+        exit 1
+    else
+        git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
+        cd "${APP_HOME}"
+        if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
+            echo -e "${FAIL} Git fetch failed. Check network connectivity."
+            exit 1
+        fi
+        git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
+            echo -e "${WARN} Fast-forward merge failed, falling back to reset"
+            git reset --hard "origin/${GIT_BRANCH}" || {
+                echo -e "${FAIL} Git reset failed."
+                exit 1
+            }
+        }
+    fi
+    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
+        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+    fi
+    local after_commit
+    after_commit=$(git log --oneline -1)
+    done_step "Code updated: ${before_commit:0:7} -> ${after_commit:0:7}"
+
+    local script_md5
+    script_md5=$(md5sum "${APP_HOME}/deploy/install-code.sh" | awk '{print $1}')
+    if [ "${UPDATE_MD5}" != "${script_md5}" ]; then
+        echo -e "${INFO} install-code.sh updated, re-running with new version..."
+        exec sudo APP_USER="${APP_USER}" APP_HOME="${APP_HOME}" VENV_DIR="${VENV_DIR}" REGION="${REGION}" bash "${APP_HOME}/deploy/install-code.sh" update
+        exit
+    fi
+
+    step "Update .env (fill missing keys)"
+    update_env
+    done_step ".env synced"
+
+    assert_debug_disabled
+
+    step "Update Python dependencies"
+    req_hash=$(md5sum "${APP_HOME}/requirements.txt" | awk '{print $1}')
+    cached_hash=$(cat "${APP_HOME}/.requirements_hash" 2>/dev/null || echo "")
+    if [ "${req_hash}" != "${cached_hash}" ]; then
+        _pip_install -r "${APP_HOME}/requirements.txt"
+        echo "${req_hash}" > "${APP_HOME}/.requirements_hash"
+    else
+        echo -e "${INFO} requirements.txt unchanged, skipping pip install"
+    fi
+    done_step "Dependencies updated"
+
+    step "Update systemd services"
+    chmod +x "${APP_HOME}/deploy/health_check.sh" 2>/dev/null || true
+    write_systemd_services
+    done_step "Systemd services updated"
+
+    step "Update sudoers"
+    write_sudoers
+    done_step "Sudoers updated"
+
+    step "Update Nginx config"
+    write_nginx_config
+    nginx -t && systemctl restart nginx
+    done_step "Nginx config updated"
+
+    step "Pre-flight check"
+    if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
+import os, psycopg2
+conn = psycopg2.connect(
+    host=os.getenv('PG_HOST', 'localhost'),
+    port=os.getenv('PG_PORT', '5432'),
+    dbname=os.getenv('PG_DB', 'verorun'),
+    user=os.getenv('PG_USER', 'verorun'),
+    password=os.getenv('PG_PASSWORD', ''),
+)
+conn.close()
+print('DB OK')
+\""; then
+        echo -e "${FAIL} Database not accessible — aborting update"
+        exit 1
+    fi
+    if ! sudo -u "${APP_USER}" bash -c "${VENV_DIR}/bin/python -m py_compile ${APP_HOME}/admin/app.py"; then
+        echo -e "${FAIL} Syntax error in new code — aborting update"
+        exit 1
+    fi
+    done_step "Pre-flight passed"
+
+    step "Restart services"
+    restart_services
+    done_step "Services restarted"
+
+    step "Health check"
+    health_check
+
+    trap - EXIT
+    local _status_file="/run/verorun/update_status.json"
+    mkdir -p /run/verorun 2>/dev/null || true
+    chown "${APP_USER}:${APP_USER}" /run/verorun 2>/dev/null || true
+    if [ "${UPDATE_FAILED:-0}" -eq 0 ]; then
+        echo '{"status":"success","progress":100,"message":"Update completed successfully","error":null}' > "${_status_file}"
+    else
+        echo '{"status":"failed","progress":100,"message":"Update completed with errors","error":"Some services are unhealthy"}' > "${_status_file}"
+    fi
+}
+
+# ── Rollback ─────────────────────────────────────────────────────────
+do_rollback() {
+    step "Rollback to previous version"
+    cd "${APP_HOME}"
+    git reflog --oneline -5 | head -5
+    local target_commit
+    if [ -f "${APP_HOME}/.rollback/before_commit" ]; then
+        target_commit=$(head -1 "${APP_HOME}/.rollback/before_commit" | awk '{print $1}')
+        echo -e "${INFO} Rolling back to saved commit: ${target_commit}"
+    else
+        target_commit="HEAD~1"
+        echo -e "${WARN} No saved commit found, falling back to HEAD~1"
+    fi
+    if git reset --hard "${target_commit}"; then
+        systemctl restart verorun-admin verorun-auth verorun-main verorun-health verorun-guardian
+        echo -e "${OK} Rolled back to $(git log --oneline -1)"
+    else
+        echo -e "${FAIL} Rollback failed"
+    fi
+}
+
+# ── Main entry ──────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${FAIL} Please run with sudo: sudo bash deploy/install-code.sh"
+    echo -e "${FAIL} Please run with sudo: sudo bash deploy/install-code.sh [install|update|restart|health|rollback|seed]"
     exit 1
 fi
 
-# 解析参数
-MODE="install"
-for arg in "$@"; do
-    case "${arg}" in
-        --src=*) SOURCE_DIR="${arg#*=}" ;;
-        --from-tar=*) FROM_TAR="${arg#*=}" ;;
-        --region=*) REGION="${arg#*=}" ;;
-        --skip-deps) SKIP_DEPS=1 ;;
-        seed) MODE="seed" ;;
-        restart) MODE="restart" ;;
-    esac
-done
+detect_mode "${1:-}"
 
+# Parse flags (while+shift pattern supports both --region=cn and --region cn)
+shift 2>/dev/null || true
+while [ "$#" -gt 0 ]; do
+    case "${1}" in
+        --region=*) REGION="${1#*=}" ;;
+        --region)
+            if [ "$#" -lt 2 ]; then
+                echo -e "${FAIL} --region requires a value (cn|global)"
+                exit 1
+            fi
+            REGION="$2"
+            shift
+            ;;
+        --skip-deps) SKIP_DEPS=1 ;;
+        --approve-migrate) APPROVE_MIGRATE=1 ;;
+        *)
+            echo -e "${WARN} Unknown argument ignored: ${1}"
+            ;;
+    esac
+    shift
+done
 if [ "${REGION}" != "cn" ] && [ "${REGION}" != "global" ]; then
     echo -e "${FAIL} --region must be 'cn' or 'global' (got: ${REGION})"
     exit 1
 fi
 echo -e "${INFO} Region: ${REGION}"
 
-case "${MODE}" in
+# Ask for admin credentials (TTY is still alive)
+prompt_admin_creds
+
+case "${DEPLOY_MODE}" in
     install)
-        # 如果指定了 --from-tar，先解压到 APP_HOME 再走安装流程
-        if [ -n "${FROM_TAR}" ]; then
-            extract_from_tar "${FROM_TAR}" "${APP_HOME}"
-        fi
         do_install
+        ;;
+    update)
+        do_update
+        ;;
+    restart)
+        restart_services
+        ;;
+    health)
+        health_check
+        ;;
+    rollback)
+        do_rollback
         ;;
     seed)
         do_seed
         ;;
-    restart)
-        restart_services
+    *)
+        echo "Usage: sudo bash deploy/install-code.sh [install|update|restart|health|rollback|seed] [--region cn|global] [--skip-deps] [--approve-migrate]"
+        exit 1
         ;;
 esac

@@ -4,8 +4,8 @@
 
 | 仓库 | 类型 | 内容 | 用途 | 默认部署脚本 |
 |------|------|------|------|--------------|
-| `verorun-base` | 公开 | 系统基座，不含插件 | 专业版（对外分发） | `install.sh`（HTTPS，无需 SSH Key） |
-| `verorun-code` | **私人** | 完整源码 + 全部插件 | 官方开发版 | `install-dev.sh` / `install-local.sh`（SSH） |
+| `verorun-base` | 公开 | 系统基座，不含插件 | 专业版（对外分发）+ 本地/LAN 部署 | `install.sh`（HTTPS，无需 SSH Key）<br>`install-local.sh`（HTTPS，本地/LAN 无域名） |
+| `verorun-code` | **私人** | 完整源码 + 全部插件 | 官方开发版 / 团队内网 | `install-dev.sh`（SSH，不含 plugins）<br>`install-code.sh`（SSH，含全部 plugins） |
 
 本文档覆盖 **verorun-base（公开版）** 与 **verorun-code（开发版）** 两种部署方式。
 
@@ -51,7 +51,10 @@ sudo bash deploy/install.sh configure-domain your-domain.com
 
 ## 开发版 verorun-code（SSH，可选）
 
-需要部署私人仓库 `verorun-code`（含全部插件）时，使用 **install-dev.sh**（默认 `GIT_REPO=git@github.com:fanjumin/verorun-code.git`）：
+需要部署私人仓库 `verorun-code`（含全部插件）时，使用以下脚本之一：
+
+- **install-dev.sh**（开发者工作站，不含 plugins）：<br>`GIT_REPO=git@github.com:fanjumin/verorun-code.git`，sparse-checkout 排除 plugins/，克隆体积约减 50%
+- **install-code.sh**（团队内网，含全部 plugins）：<br>`GIT_REPO=git@github.com:fanjumin/verorun-code.git`，sparse-checkout 包含所有目录
 
 1. 将 `install-dev.sh` 上传到服务器：
    ```bash
@@ -187,7 +190,7 @@ python tools/publish_plugin.py analytics --version 2.1.0
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `GIT_REPO` | `https://github.com/fanjumin/verorun-base.git`（install.sh）<br>`git@github.com:fanjumin/verorun-code.git`（install-dev.sh / install-local.sh） | Git 仓库地址 |
+| `GIT_REPO` | `https://github.com/fanjumin/verorun-base.git`（install.sh / install-local.sh）<br>`git@github.com:fanjumin/verorun-code.git`（install-dev.sh / install-code.sh） | Git 仓库地址 |
 | `GIT_BRANCH` | `master` | 分支 |
 | `APP_USER` | `$SUDO_USER` | 应用运行用户 |
 | `APP_HOME` | `/home/$APP_USER/verorun` | 应用目录 |

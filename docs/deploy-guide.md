@@ -34,14 +34,12 @@ The same paths work via `http://<LAN-IP>/` from other machines on the network.
 
 Besides `install-local.sh`, two more no-domain deploy scripts are shipped:
 
-**`install-code.sh` (local source copy)** — no git clone required; copies all source code and plugins from a local directory (or a tar package via `--from-tar`):
-
+**`install-code.sh` (team intranet deployment)** — clones the private `verorun-code` over SSH with full sparse-checkout **including all plugins**:
 ```bash
-sudo bash deploy/install-code.sh --src /path/to/code
+sudo bash deploy/install-code.sh install
 ```
 
 **`install-dev.sh` (developer workstation)** — clones the private `verorun-code` over SSH (adds the deploy key on first run) with sparse-checkout that **excludes `plugins/`** (clone ~50% smaller) while keeping `plugin_manager/` so plugins can still be installed later from the admin panel:
-
 ```bash
 sudo bash deploy/install-dev.sh install
 ```
@@ -50,8 +48,8 @@ sudo bash deploy/install-dev.sh install
 
 | Script | Code Source | Plugins | Use Case |
 |--------|-------------|---------|----------|
-| `install-local.sh` | git clone `verorun-code` (SSH) | included | Full intranet / LAN deployment |
-| `install-code.sh` | local directory / tar package | included | No git environment, offline deploy |
+| `install-local.sh` | git clone `verorun-base` (HTTPS) | N/A (base repo) | Full intranet / LAN deployment (public base) |
+| `install-code.sh` | git clone `verorun-code` (SSH) | included | Team intranet deployment (full source + plugins) |
 | `install-dev.sh` | git clone `verorun-code` (SSH) | excluded (clone ~50% smaller) | Developer workstation |
 
 ### Differences vs `install.sh`

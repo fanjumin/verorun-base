@@ -12,6 +12,8 @@
 #   sudo bash deploy/install.sh configure-domain  # configure domain post-install
 #   --approve-migrate: explicitly approve DB migration + seed on install
 #   (skipped by default; run e.g. 'sudo bash deploy/install.sh install --approve-migrate')
+#   --skip-deps: skip system + Python dependency installation (existing env re-deploy)
+#   --region=cn|global: region routing (default global; also supports "--region cn")
 # ==========================================================================
 set -euo pipefail
 
@@ -275,10 +277,14 @@ prompt_domain() {
 do_install() {
     step "System dependencies"
     export DEBIAN_FRONTEND=noninteractive
-    _ensure_apt_mirror
-    apt-get update
-    apt-get install -y python3 python3-venv python3-pip python3-dev \
-        nginx git curl wget build-essential libpq-dev libssl-dev
+    if [ "${SKIP_DEPS:-0}" = "1" ]; then
+        echo -e "${WARN} --skip-deps: skipping system dependency installation"
+    else
+        _ensure_apt_mirror
+        apt-get update
+        apt-get install -y python3 python3-venv python3-pip python3-dev \
+            nginx git curl wget build-essential libpq-dev libssl-dev
+    fi
     done_step "System dependencies installed"
 
     # Generate PG password early so PostgreSQL role and .env match
@@ -286,6 +292,10 @@ do_install() {
 
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
+        if [ "${SKIP_DEPS:-0}" = "1" ]; then
+            echo -e "${FAIL} postgresql not running, but dependency installation was skipped"
+            exit 1
+        fi
         apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
@@ -294,15 +304,15 @@ do_install() {
     # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
     _sql_tmp=$(mktemp)
     chmod 600 "${_sql_tmp}"
-    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -q 1; then
+    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     else
         printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     fi
     sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
     rm -f "${_sql_tmp}"
-    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -q 1 2>/dev/null || \
-        sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null || true
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" | grep -qE '^\s*1\s*$' 2>/dev/null || \
+        sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun" 2>/dev/null
     # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
     done_step "PostgreSQL is running"
 
@@ -341,11 +351,15 @@ do_install() {
     done_step "Code pulled ($(git -C "${APP_HOME}" log --oneline -1))"
 
     step "Python virtual environment"
-    if [ ! -f "${VENV_DIR}/bin/python" ]; then
-        sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
+    if [ "${SKIP_DEPS:-0}" != "1" ]; then
+        if [ ! -f "${VENV_DIR}/bin/python" ]; then
+            sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
+        fi
+        _pip_install --upgrade pip
+        _pip_install -r "${APP_HOME}/requirements.txt"
+    else
+        echo -e "${WARN} Skipped (deps already present or --skip-deps)"
     fi
-    _pip_install --upgrade pip
-    _pip_install -r "${APP_HOME}/requirements.txt"
     done_step "Python dependencies installed"
 
     prompt_domain
@@ -420,6 +434,7 @@ do_update() {
     step "Backup current version"
     mkdir -p "${APP_HOME}/.rollback"
     cp "${APP_HOME}/.env" "${APP_HOME}/.rollback/.env.bak" 2>/dev/null || true
+    echo "${before_commit}" > "${APP_HOME}/.rollback/before_commit"
     done_step "Environment backed up"
 
     step "Restore locally modified files"
@@ -693,7 +708,15 @@ do_rollback() {
     step "Rollback to previous version"
     cd "${APP_HOME}"
     git reflog --oneline -5 | head -5
-    if git reset --hard HEAD~1; then
+    local target_commit
+    if [ -f "${APP_HOME}/.rollback/before_commit" ]; then
+        target_commit=$(head -1 "${APP_HOME}/.rollback/before_commit" | awk '{print $1}')
+        echo -e "${INFO} Rolling back to saved commit: ${target_commit}"
+    else
+        target_commit="HEAD~1"
+        echo -e "${WARN} No saved commit found, falling back to HEAD~1"
+    fi
+    if git reset --hard "${target_commit}"; then
         systemctl restart verorun-admin verorun-auth verorun-main verorun-health verorun-guardian
         echo -e "${OK} Rolled back to $(git log --oneline -1)"
     else
@@ -785,11 +808,20 @@ assert_debug_disabled() {
     # Production gate: refuse to continue if DEBUG is enabled in .env
     # Protects against developer mistakes causing performance/memory issues in prod
     local _dbg
-    _dbg=$(grep -E '^(APP_DEBUG|FLASK_DEBUG)=' "${APP_HOME}/.env" 2>/dev/null | head -1 | cut -d= -f2)
+    # Check APP_DEBUG
+    _dbg=$(grep -E '^APP_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
     case "${_dbg}" in
         1|true|TRUE|True|on|yes)
-            echo -e "${FAIL} Production install aborted: DEBUG is enabled in .env"
+            echo -e "${FAIL} Production install aborted: APP_DEBUG is enabled in .env"
             echo -e "${INFO} Set APP_DEBUG=false in ${APP_HOME}/.env and re-run"
+            exit 1 ;;
+    esac
+    # Check FLASK_DEBUG
+    _dbg=$(grep -E '^FLASK_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
+    case "${_dbg}" in
+        1|true|TRUE|True|on|yes)
+            echo -e "${FAIL} Production install aborted: FLASK_DEBUG is enabled in .env"
+            echo -e "${INFO} Set FLASK_DEBUG=0 in ${APP_HOME}/.env and re-run"
             exit 1 ;;
     esac
 }
@@ -1189,7 +1221,7 @@ print_summary() {
 
 # Must run as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${FAIL} Please run with sudo: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain] [--region cn|global]"
+    echo -e "${FAIL} Please run with sudo: sudo bash install.sh [install|update|restart|health|rollback|seed|configure-domain] [--region cn|global] [--skip-deps] [--approve-migrate]"
     exit 1
 fi
 
