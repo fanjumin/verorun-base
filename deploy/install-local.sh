@@ -274,7 +274,8 @@ do_install() {
         # 已有 git 仓库 → 拉取最新代码
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
-        # 审计 F-2：抑制 git 交互式凭据提示 + 超时保护，避免 origin 指向镜像时无限卡死
+        # 审计 F-2：修复残留镜像 remote → 重置为 GIT_REPO 后再 fetch
+        git remote set-url origin "${GIT_REPO}"
         export GIT_TERMINAL_PROMPT=0
         if ! timeout 60 git fetch origin "${GIT_BRANCH}" 2>&1; then
             echo -e "${FAIL} Git fetch failed or timed out (60s) — aborting"
@@ -417,6 +418,7 @@ do_update() {
     else
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
+        git remote set-url origin "${GIT_REPO}"
         if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
             echo -e "${FAIL} Git fetch failed. Check network connectivity."
             exit 1
