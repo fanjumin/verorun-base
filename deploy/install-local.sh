@@ -57,7 +57,7 @@ else
     _tmp_common="$(mktemp)"
     _ok=0
     if command -v curl >/dev/null 2>&1; then
-        if curl -sSL --connect-timeout 15 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
+        if curl -sSL --connect-timeout 15 --max-time 25 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
     elif command -v wget >/dev/null 2>&1; then
         if wget -q --timeout=15 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
     fi
