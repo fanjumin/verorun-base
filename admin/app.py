@@ -160,6 +160,23 @@ try:
     init_kb_scheduler()
 except Exception as e:
     print(f'[KnowledgeMaintenance] ⚠️ 调度器启动失败: {e}')
+
+# ===== 自动续费引擎（旧体系，唯一调度入口）=====
+# T07: 主站订阅链路（auth-center/routes/subscription/renewal.py）为唯一自动续费引擎，
+#      另两套实现（plugins/subscription/scheduler.py、plugin_manager/subscription.py）已弃用。
+try:
+    from routes.subscription.renewal import run_renewal_scan, run_dunning_scan
+    from apscheduler.schedulers.background import BackgroundScheduler
+    _renew_sched = BackgroundScheduler(timezone='Asia/Shanghai')
+    _renew_sched.add_job(run_renewal_scan, 'cron', hour=3, minute=0)    # 每日 03:00 扫描到期
+    _renew_sched.add_job(run_dunning_scan, 'cron', hour=3, minute=10)   # 每日 03:10 重试失败扣款
+    _renew_sched.start()
+    print('[Renewal] ✅ 自动续费调度已启动（每日 03:00 扫描到期 / 03:10 重试扣款）')
+except ImportError:
+    print('[Renewal] ⚠️ APScheduler 未安装，自动续费调度跳过')
+except Exception as e:
+    print(f'[Renewal] ⚠️ 自动续费调度启动失败: {e}')
+
 init_cms_tables()
 
 # ===== PluginManager（新插件系统）=====

@@ -258,9 +258,9 @@ def _log_audit(conn, user_id, action, detail, sub_id=None, admin_id=None):
 # 入口
 # ============================================================
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     # 直接运行：导入依赖后执行
     import secrets
     run_renewal_scan()
     run_dunning_scan()
-    print(')[renewal] Done')
+    print('[renewal] Done')

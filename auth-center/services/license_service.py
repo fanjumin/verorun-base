@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import psycopg2
 import psycopg2.extras
 from psycopg2.extras import RealDictCursor
+from i18n import _
 
 # PostgreSQL 连接配置（复用环境变量）
 _PG_CONFIG = {

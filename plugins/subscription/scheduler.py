@@ -8,6 +8,11 @@ Subscription Plugin — 定时任务
   - 到期日自动续费扣款
 """
 
+# ⚠️ DEPRECATED (legacy) — 本模块的 SUBSCRIPTION_JOBS 无 register_jobs() 调用者，已弃用。
+# 主站自动续费链路当前由 auth-center/routes/subscription/renewal.py 承载
+# （admin/app.py 每日调度 run_renewal_scan / run_dunning_scan）。
+# 上线任务 T07 要求：仅标注，不迁移。
+
 from datetime import datetime, timedelta
 
 from .services import get_subscription_service

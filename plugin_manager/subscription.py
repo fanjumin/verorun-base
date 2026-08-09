@@ -9,6 +9,11 @@ Plugin Manager — 订阅管理
   - yearly: 按年订阅，自动续费
 """
 
+# ⚠️ DEPRECATED (auto-renew engine) — 本文件的自动续费调度入口已弃用。
+# 主站自动续费链路当前由 auth-center/routes/subscription/renewal.py 承载
+# （admin/app.py 每日调度 run_renewal_scan / run_dunning_scan）。
+# 上线任务 T07/T11 要求：仅保留订阅 CRUD 能力，勿再启用 _auto_renew_task 引擎。
+
 import json
 import threading
 from typing import Optional, Dict, List, Any
@@ -306,89 +311,6 @@ class SubscriptionManager:
             except ValueError:
                 return start.replace(year=start.year + 1, month=2, day=28)
         return start + timedelta(days=30)
-
-
-# ── 自动续费调度器 ──────────────────────────────────────────────────
-
-_AUTO_RENEW_LOCK = threading.Lock()
-
-
-def _auto_renew_task(app=None):
-    """自动续费检查任务：到期前 3 天内的订阅发起扣款"""
-    try:
-        mgr = _get_sub_manager_for_scheduler()
-        subs = mgr.check_expired()
-        for sub in subs:
-            if sub.auto_renew and sub.retry_count < 3:
-                print(f'[AutoRenew] Attempting renew for {sub.plugin_id} (retry #{sub.retry_count})')
-                # 通过原始支付渠道重新下单扣款
-                try:
-                    from .payment import get_payment_router, create_payment_order, update_payment_order, get_payment_order
-                    router = get_payment_router()
-                    provider = router.get_provider_for_plugin(sub.plugin_id)
-
-                    order = create_payment_order(
-                        plugin_id=sub.plugin_id,
-                        channel='auto_renew',
-                        amount_fen=sub.amount_fen,
-                        subject=f'Plugin subscription renewal - {sub.plugin_id}',
-                        description='Auto renew',
-                    )
-
-                    result = provider.create_order(order)
-                    if result.success:
-                        # 模拟：标记为已支付（实际应等回调）
-                        update_payment_order(order.order_no, status='paid',
-                                             paid_at=datetime.now().isoformat())
-                        mgr.renew(sub.plugin_id)
-                        print(f'[AutoRenew] ✅ Renewed {sub.plugin_id}')
-                    else:
-                        conn = get_registry_db().__enter__()
-                        conn.execute(
-                            'UPDATE plugin_subscriptions SET retry_count=retry_count+1, updated_at=NOW() WHERE id=%s',
-                            (sub.id,)
-                        )
-                        conn.commit()
-                        conn.__exit__(None, None, None)
-                        print(f'[AutoRenew] ❌ Renewal failed for {sub.plugin_id}: {result.error}')
-                except Exception as e:
-                    print(f'[AutoRenew] ❌ Error renewing {sub.plugin_id}: {e}')
-    except Exception as e:
-        print(f'[AutoRenew] Task error: {e}')
-
-
-def _get_sub_manager_for_scheduler():
-    """获取 SubscriptionManager 实例（用于调度器）"""
-    global _SUB_MGR
-    if _SUB_MGR is None:
-        with _SUB_MGR_LOCK:
-            if _SUB_MGR is None:
-                _SUB_MGR = SubscriptionManager()
-    return _SUB_MGR
-
-
-def start_auto_renew_scheduler(app):
-    """注册 APScheduler 每天检查即将到期的订阅
-
-    在 Flask app 初始化时调用。
-    """
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-        scheduler = BackgroundScheduler()
-        scheduler.add_job(
-            func=_auto_renew_task,
-            trigger='interval',
-            days=1,
-            id='plugin_sub_auto_renew',
-            name='Plugin Subscription Auto Renewal',
-            replace_existing=True,
-        )
-        scheduler.start()
-        print('[PluginManager] ✅ Auto-renew scheduler started (daily check)')
-    except ImportError:
-        print('[PluginManager] ⚠️ APScheduler not installed. Auto-renew disabled.')
-    except Exception as e:
-        print(f'[PluginManager] ⚠️ Failed to start auto-renew scheduler: {e}')
 
 
 # ── 模块级单例 ──────────────────────────────────────────────────────

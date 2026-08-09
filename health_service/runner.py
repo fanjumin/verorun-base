@@ -25,9 +25,9 @@ if PROJECT_DIR not in sys.path:
 # 现在才 import gunicorn（这时 import platform 会找到标准库）
 from gunicorn.app.wsgiapp import run
 
-if __name__ == '__main__(':
+if __name__ == '__main__':
     sys.argv = [
-        ')gunicorn',
+        'gunicorn',
         '-w', '2',
         '--max-requests', '1000',
         '-b', '0.0.0.0:8085',

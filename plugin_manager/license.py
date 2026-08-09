@@ -41,7 +41,7 @@ def _get_mac_address() -> str:
     try:
         import uuid
         mac = uuid.getnode()
-        if mac != uuid.getnode():
+        if mac and mac != 0xFFFFFFFFFFFF:
             return f'{mac:012x}'
     except Exception:
         pass
