@@ -41,7 +41,7 @@ Besides `install-local.sh`, two more no-domain deploy scripts are shipped:
 
 **One-command:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash
 ```
 
 **`install-code.sh` (team intranet deployment)** — clones the private `verorun-code` over SSH with full sparse-checkout **including all plugins**:
@@ -51,7 +51,7 @@ sudo bash deploy/install-code.sh install
 
 **One-command:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh | sudo bash
 ```
 
 **`install-dev.sh` (developer workstation)** — clones the private `verorun-code` over SSH (adds the deploy key on first run) with sparse-checkout that **excludes `plugins/`** (clone ~50% smaller) while keeping `plugin_manager/` so plugins can still be installed later from the admin panel:
@@ -127,11 +127,11 @@ manual configuration required:
 | 脚本 | 场景 | 一键命令 |
 |------|------|---------|
 | `install.sh` | 公网生产部署（需域名） | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh \| sudo bash -s -- install your-domain.com` |
-| `install-local.sh` | 局域网 / 单机无域名 | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh \| sudo bash` |
-| `install-dev.sh` | 开发工作站（私有库 SSH） | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh \| sudo bash` |
-| `install-code.sh` | 团队内网服务器（私有库 SSH + 全量 plugins） | `curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh \| sudo bash` |
+| `install-local.sh` | 局域网 / 单机无域名 | `curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh \| sudo bash` |
+| `install-dev.sh` | 开发工作站（私有库 SSH） | `curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh \| sudo bash` |
+| `install-code.sh` | 团队内网服务器（私有库 SSH + 全量 plugins） | `curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh \| sudo bash` |
 
-公开库无需认证，单行命令直接可用。私有库首次运行会自动生成 SSH key，公钥添加到 GitHub Deploy Keys 后重跑同一条命令即可。
+公开库（`install.sh` / `install-local.sh`）无需认证，单行命令直接可用。私有库（`install-dev.sh` / `install-code.sh`）需先配置 SSH deploy key：服务器生成密钥后，将公钥加入 GitHub `verorun-code` 仓库的 Deploy Keys，再重跑同一条命令即可。
 
 ### What the install script does
 
