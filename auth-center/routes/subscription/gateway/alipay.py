@@ -223,7 +223,7 @@ def create_cycle_sign_request(user_id, plan_key, period, price_fen):
     params['sign'] = sign
 
     # 生成签约链接（用户跳转到支付宝签约页）
-    sign_url = ALIPAY_GATEWAY + '%s' + '&'.join([f'{k}={params[k]}' for k in params])
+    sign_url = ALIPAY_GATEWAY + '?' + '&'.join([f'{k}={params[k]}' for k in params])
 
     return {
         'stub': False,
