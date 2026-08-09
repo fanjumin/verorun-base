@@ -839,7 +839,9 @@ def api_pay_order(oid):
 # =============================================
 @shop_public_bp.route('/api/pay/<oid>/stub-confirm', methods=['POST'])
 def api_stub_confirm(oid):
-    """开发模式：直接确认订单已支付，不经过支付宝"""
+    """Dev-mode only: mark a shop order as paid without going through a gateway."""
+    if os.environ.get('DEPLOY_ENV', 'dev') != 'dev':
+        return jsonify({'success': False, 'error': _('stub confirm is disabled outside dev')}), 403
     payload, err = _require_user()
     if err:
         return err

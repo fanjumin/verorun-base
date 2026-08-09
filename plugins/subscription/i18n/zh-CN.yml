@@ -102,3 +102,33 @@ no_subscriptions_yet: 暂无订阅
 no_orders_yet: 暂无订单
 cancel_this_subscription: 确定取消该订阅吗？
 'Subscription Management': 订阅管理
+
+# Portal JS texts (subscribe.html)
+Free: 免费
+per_year: /年
+per_month: /月
+Monthly: 月付
+Quarterly: 季付
+Semi-Annual: 半年付
+Yearly: 年付
+times_per_day: " 次/天"
+Choose: "选择 "
+Free Sign Up: 免费注册
+Confirm Payment: 确认支付
+Creating order...: 创建订单...
+Please log in first: 请先登录
+Redirecting to login page...: 即将跳转登录页...
+Failed to create order: 创建订单失败
+Redirecting to payment...: 正在跳转到支付...
+Return here after payment: 支付完成后请返回本站
+Payment channel not configured, please contact admin: 支付渠道未配置，请联系管理员
+Subscription successful!: 订阅成功！
+Plan activated: 套餐已激活
+Confirmation failed: 确认失败
+Retry: 重试
+Network error, please retry: 网络错误，请重试
+Console: 控制台
+Yearly only: 年付仅
+Quarterly only: 季付仅
+Semi-Annual only: 半年付仅
+Save: 省

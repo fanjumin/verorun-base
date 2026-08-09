@@ -426,4 +426,33 @@ def admin_panel():
 @sub_bp.route('/portal', methods=['GET'])
 def subscribe_portal():
     """用户订阅管理门户"""
-    return render_template('subscribe.html')
+    return render_template('subscribe.html', translations={
+        'sub.free': _t('Free'),
+        'sub.per_year': _t('per_year'),
+        'sub.per_month': _t('per_month'),
+        'sub.monthly': _t('Monthly'),
+        'sub.quarterly': _t('Quarterly'),
+        'sub.semi_annual': _t('Semi-Annual'),
+        'sub.yearly': _t('Yearly'),
+        'sub.times_per_day': _t('times_per_day'),
+        'sub.choose': _t('Choose'),
+        'sub.free_register': _t('Free Sign Up'),
+        'sub.confirm_pay': _t('Confirm Payment'),
+        'sub.creating': _t('Creating order...'),
+        'sub.login_required': _t('Please log in first'),
+        'sub.redirecting_login': _t('Redirecting to login page...'),
+        'sub.order_failed': _t('Failed to create order'),
+        'sub.redirecting_pay': _t('Redirecting to payment...'),
+        'sub.return_after_pay': _t('Return here after payment'),
+        'sub.dev_no_configured': _t('Payment channel not configured, please contact admin'),
+        'sub.success': _t('Subscription successful!'),
+        'sub.plan_activated': _t('Plan activated'),
+        'sub.confirm_failed': _t('Confirmation failed'),
+        'sub.retry': _t('Retry'),
+        'sub.network_error': _t('Network error, please retry'),
+        'sub.console': _t('Console'),
+        'sub.yearly_save': _t('Yearly only'),
+        'sub.quarterly_save': _t('Quarterly only'),
+        'sub.semi_annual_save': _t('Semi-Annual only'),
+        'sub.save': _t('Save'),
+    })

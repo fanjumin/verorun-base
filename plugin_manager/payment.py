@@ -24,9 +24,14 @@ from urllib.parse import urlencode
 from enum import Enum
 
 from .models import get_registry_db
+from i18n import _
 
 
 # ── 订单状态 ──────────────────────────────────────────────────────────
+
+class PaymentChannelNotConfigured(Exception):
+    """Raised when a payment channel is not configured (no silent mock fallback in production)."""
+
 
 class OrderStatus(str, Enum):
     PENDING = 'pending'       # 待支付
@@ -771,21 +776,30 @@ class PaymentRouter:
         return 'alipay' if self._market == 'cn' else 'stripe'
 
     def get_provider(self, channel: str = None) -> PaymentProvider:
-        """获取支付提供方。
+        """Get the payment provider for a channel.
 
-        如果 channel 为 None 或空，自动根据市场选择默认渠道。
-        如果指定渠道未配置（stub），自动降级为 mock。
+        Falls back to the market default channel when channel is empty.
+        When the requested channel is not configured (stub), dev mode falls
+        back to mock for local integration, while production raises
+        PaymentChannelNotConfigured so mock can never silently accept money.
         """
         if not channel:
             channel = self.default_channel
         provider = self._providers.get(channel)
         if provider is None:
-            provider = self._providers['mock']
-        # 检测 stub 降级
+            if os.environ.get('DEPLOY_ENV', 'dev') == 'dev':
+                provider = self._providers['mock']
+            else:
+                raise PaymentChannelNotConfigured(
+                    _('Payment channel {channel} is not configured. Set credentials in system_config first.').format(channel=channel))
+        # Detect stub fallback
         stub_check = getattr(provider, '_is_stub', None)
         if callable(stub_check) and stub_check():
-            print(f'[Payment] {channel} not configured, falling back to mock')
-            return self._providers['mock']
+            if os.environ.get('DEPLOY_ENV', 'dev') == 'dev':
+                print(f'[Payment] {channel} not configured, falling back to mock')
+                return self._providers['mock']
+            raise PaymentChannelNotConfigured(
+                _('Payment channel {channel} is not configured. Set credentials in system_config first.').format(channel=channel))
         return provider
 
     def register_provider(self, channel: str, provider: PaymentProvider):
@@ -801,6 +815,8 @@ class PaymentRouter:
                 ).fetchone()
                 if row:
                     return self.get_provider(row['channel'])
+        except PaymentChannelNotConfigured:
+            raise
         except Exception:
             pass
         return self.get_provider(None)

@@ -190,7 +190,7 @@ class LicenseService:
         if not deployment_code:
             return self.get_status()
 
-        heartbeat_url = os.environ.get(self.HEARTBEAT_URL_ENV, self.DEFAULT_HEARTBEAT_URL)
+        heartbeat_url = self._get_heartbeat_url()
 
         try:
             resp = requests.post(

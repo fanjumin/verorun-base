@@ -37,7 +37,7 @@ _alipay_cfg = _get_alipay_db_config()
 ALIPAY_APP_ID = _alipay_cfg.get('alipay_app_id', '').strip() or os.environ.get('ALIPAY_APP_ID', '')
 ALIPAY_GATEWAY = 'https://openapi.alipay.com/gateway.do'
 
-NOTIFY_BASE = _alipay_cfg.get('payment.notify_base', '').strip() or os.environ.get('NOTIFY_BASE', deploy.url())
+NOTIFY_BASE = _alipay_cfg.get('payment.notify_base', '').strip() or os.environ.get('NOTIFY_BASE', f"https://{os.environ.get('DEPLOY_DOMAIN', 'localhost')}")
 NOTIFY_URL = NOTIFY_BASE + '/subscription/notify/alipay'
 RETURN_URL = NOTIFY_BASE + '/subscribe/success'
 
@@ -166,7 +166,7 @@ def call_alipay_page_pay(order_no, description, amount_fen):
     query_parts = []
     for k, v in params.items():
         query_parts.append(urllib.parse.quote(k) + '=' + urllib.parse.quote(str(v)))
-    pay_url = ALIPAY_GATEWAY + '%s' + '&'.join(query_parts)
+    pay_url = ALIPAY_GATEWAY + '?' + '&'.join(query_parts)
 
     return {
         'stub': False,

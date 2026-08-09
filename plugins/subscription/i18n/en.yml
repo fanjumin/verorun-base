@@ -102,3 +102,33 @@ no_subscriptions_yet: No subscriptions yet.
 no_orders_yet: No orders yet.
 cancel_this_subscription: Cancel this subscription?
 'Subscription Management': Subscription Management
+
+# Portal JS texts (subscribe.html)
+Free: Free
+per_year: /year
+per_month: /month
+Monthly: Monthly
+Quarterly: Quarterly
+Semi-Annual: Semi-Annual
+Yearly: Yearly
+times_per_day: " times/day"
+Choose: "Choose "
+Free Sign Up: Free Sign Up
+Confirm Payment: Confirm Payment
+Creating order...: Creating order...
+Please log in first: Please log in first
+Redirecting to login page...: Redirecting to login page...
+Failed to create order: Failed to create order
+Redirecting to payment...: Redirecting to payment...
+Return here after payment: Return here after payment
+Payment channel not configured, please contact admin: Payment channel not configured, please contact admin
+Subscription successful!: Subscription successful!
+Plan activated: Plan activated
+Confirmation failed: Confirmation failed
+Retry: Retry
+Network error, please retry: Network error, please retry
+Console: Console
+Yearly only: Yearly only
+Quarterly only: Quarterly only
+Semi-Annual only: Semi-Annual only
+Save: Save
