@@ -136,10 +136,10 @@ PLUGIN_AUTO_INSTALL=0
 # VeroGuard — daemon encrypted communication key (official side and client must match)
 PROBE_SECRET=${PROBE_SECRET}
 
-# API Keys (replace with real values)
-DASHSCOPE_TEXT_KEY=sk-your-key-here
-OPENAI_API_KEY=sk-your-key-here
-DEEPSEEK_API_KEY=sk-your-key-here
+# API Keys (intentionally empty — set real values before enabling AI features)
+DASHSCOPE_TEXT_KEY=
+OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
 
 # Region routing (VeroRun 0.43.0+)
 VERORUN_REGION=${REGION}
