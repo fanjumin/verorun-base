@@ -622,12 +622,13 @@ fi
 detect_mode "${1:-}"
 detect_domain "${2:-}"
 
-# Parse flags: --region cn / --region=cn / --approve-migrate
+# Parse flags: --region cn / --region=cn / --skip-deps / --approve-migrate
 # 审计 H4 修复：原 --region) 分支为空操作，--region cn 空格分隔形式的值被丢弃
 while [ $# -gt 0 ]; do
     case "${1}" in
         --region=*) REGION="${1#*=}" ;;
-        --region) shift; [ $# -gt 0 ] && REGION="${1}" ;;
+        --region) shift; [ $# -gt 0 ] && REGION="${1}" || { echo -e "${FAIL} --region requires a value"; exit 1; } ;;
+        --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
     esac
     shift
