@@ -130,10 +130,10 @@ PLUGIN_AUTO_INSTALL=0
 # VeroGuard — daemon encrypted communication key (official side and client must match)
 PROBE_SECRET=${PROBE_SECRET}
 
-# API Keys (replace with real values)
-DASHSCOPE_TEXT_KEY=sk-your-key-here
-OPENAI_API_KEY=sk-your-key-here
-DEEPSEEK_API_KEY=sk-your-key-here
+# API Keys (intentionally empty — set real values before enabling AI features)
+DASHSCOPE_TEXT_KEY=
+OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
 
 # Region routing (VeroRun 0.43.0+)
 VERORUN_REGION=${REGION}
@@ -313,6 +313,14 @@ do_install() {
     generate_env force
     done_step ".env generated (DEPLOY_DOMAIN empty, DEPLOY_PROTOCOL=http)"
 
+    step "Build integrity manifest (VeroGuard)"
+    # 用刚生成的 PROBE_SECRET 生成守护进程完整性基准清单。
+    # 官方端依赖该清单校验客户端文件完整性；本地/LAN 无官方端时清单仍可生成，
+    # 缺失时 VeroGuard 完整性校验会跳过。
+    sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; set +a; cd ${APP_HOME} && PYTHONPATH=${APP_HOME} ${VENV_DIR}/bin/python veroguard/tools/build_manifest.py --project-dir ${APP_HOME} --output ${APP_HOME}/veroguard/data/manifest.json.enc --secret \"\${PROBE_SECRET}\"" \
+        || echo -e "${WARN} Manifest build failed — VeroGuard integrity check unavailable"
+    done_step "Integrity manifest built"
+
     # Production gate: refuse to continue if DEBUG got enabled in .env
     assert_debug_disabled
 
@@ -370,6 +378,10 @@ print_summary() {
     echo "  ║  Useful commands:                                            ║"
     echo "  ║    systemctl status verorun-{main,auth,admin,guardian}       ║"
     echo "  ║    bash deploy/install-local.sh update                        ║"
+    echo "  ╠══════════════════════════════════════════════════════════════╣"
+    echo "  ║  AI API keys are empty by default — set real values in:      ║"
+    echo "  ║    ${APP_HOME}/.env  (DASHSCOPE_TEXT_KEY / OPENAI_API_KEY /   ║"
+    echo "  ║    DEEPSEEK_API_KEY) before enabling AI features             ║"
     if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
     echo "  ╠══════════════════════════════════════════════════════════════╣"
     echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"

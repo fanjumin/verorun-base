@@ -1,6 +1,25 @@
 version: "3.8"
 
 services:
+  # 主 PostgreSQL（核心库，所有服务共用）
+  db:
+    image: postgres:16
+    container_name: verorun_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PG_DB:-verorun}
+      POSTGRES_USER: ${PG_USER:-verorun}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-verorun} -d ${PG_DB:-verorun}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # v2.1.0 — mini_app_builder 插件独立数据库（数据库级物理隔离）
   postgres_miniapp:
     image: postgres:15-alpine
@@ -16,7 +35,7 @@ services:
       - miniapp_pg_data:/var/lib/postgresql/data
 
   app:
-    image: your-registry/app:latest
+    build: {context: ., dockerfile: Dockerfile}
     container_name: verorun
     restart: unless-stopped
     ports:
@@ -27,12 +46,20 @@ services:
       - app_platform_uploads:/app/main_site/static
     environment:
       - DB_PATH=/app/data/verorun.db
-      - APP_MODE=${APP_MODE:-client}
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_DB=${PG_DB:-verorun}
+      - PG_USER=${PG_USER:-verorun}
+      - PG_PASSWORD=${PG_PASSWORD:?set PG_PASSWORD in .env}
+      - APP_MODE=${APP_MODE:-main}
       - JWT_SECRET=${JWT_SECRET:-}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
       - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
       - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-verorun}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
     logging:
       driver: "json-file"
       options:
@@ -40,6 +67,7 @@ services:
         max-file: "3"
 
 volumes:
+  pgdata:
   app_data:
   app_uploads:
   app_platform_uploads:
