@@ -209,10 +209,25 @@ def seed_admin_user(db: SeedDB, username: str = None, password: str = None):
 
 
 def seed_quotas(db: SeedDB):
-    """Seed default usage quotas."""
+    """Seed default usage quotas (idempotent: skip if target_type+target_id already exists)."""
     for q in DEFAULT_QUOTAS:
-        db.insert_on_conflict("usage_quotas", q, conflict_col="id")
-        print(f"  [OK] quota: {q['target_type']}")
+        target_type = q["target_type"]
+        target_id = q.get("target_id", 0)
+        if db._db_type == "postgresql":
+            cur = db.execute(
+                "SELECT 1 FROM usage_quotas WHERE target_type = %s AND target_id = %s",
+                (target_type, target_id)
+            )
+        else:
+            cur = db.execute(
+                "SELECT 1 FROM usage_quotas WHERE target_type = ? AND target_id = ?",
+                (target_type, target_id)
+            )
+        if cur.fetchone():
+            print(f"  [SKIP] quota: {target_type} (already exists)")
+        else:
+            db.insert_on_conflict("usage_quotas", q)
+            print(f"  [OK] quota: {target_type}")
 
 
 def seed_admin_profile(db: SeedDB, user_id: int, username: str = None):
@@ -277,6 +292,7 @@ def main():
     if missing:
         print(f"[FAIL] Tables not found: {', '.join(missing)}")
         print("       Run database migrations first, or verify .env config.")
+        print("       Try: sudo bash deploy/install.sh seed   (re-runs migration + seed)")
         db.close()
         sys.exit(1)
 

@@ -4,11 +4,11 @@
 
 VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations, CMS content management, AI customer service, automation workflows, cloud provisioning, analytics, health monitoring, site builder, mini-program generation, and a plugin-based extension system with full lifecycle management, store, payment, license activation, and subscription support.
 
-> **Version:** 0.55.0
+> **Version:** 0.55.4
 > **Code Repository (private):** https://github.com/fanjumin/verorun-code
 > **Base Repository (open download):** https://github.com/fanjumin/verorun-base
 
-[![Version](https://img.shields.io/badge/version-0.55.0-blue)](https://github.com/fanjumin/verorun-code/releases)
+[![Version](https://img.shields.io/badge/version-0.55.4-blue)](https://github.com/fanjumin/verorun-code/releases)
 [![Python](https://img.shields.io/badge/python-3.11+-green)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-EULA-blue)](LICENSE)
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791)](https://www.postgresql.org/)
@@ -126,7 +126,7 @@ sudo bash deploy/install.sh install your-domain.com --region=cn
 
 Supported values: `cn` (China mainland, routes to `api.verorun.cn`) or `global` (default, routes to `api.verorun.com`).
 
-The install script provisions PostgreSQL, creates the `verorun` system user, sets up a Python virtual environment, generates `.env` with auto-generated secrets (including `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `DEV_ACCOUNTS_ENCRYPTION_KEY`, `LICENSE_SERVER_SECRET`, `PROBE_SECRET`), creates systemd services (main / auth / admin / health / guardian), configures Nginx, and optionally seeds initial data.
+The install script provisions PostgreSQL, creates the `verorun` system user, sets up a Python virtual environment, generates `.env` with auto-generated secrets (including `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `DEV_ACCOUNTS_ENCRYPTION_KEY`, `LICENSE_SERVER_SECRET`, `PROBE_SECRET`), creates systemd services (main / auth / admin / health / guardian), configures Nginx, and runs database migration + seed so the deployment is usable right away.
 
 For detailed instructions, see [deploy/README.md](deploy/README.md).
 
@@ -153,8 +153,10 @@ sudo bash deploy/install-dev.sh install
 
 ### Post-Install
 
+`install` mode already runs database migration + seed automatically (admin account, plans, products are created during install), so the deployment is usable right away. The commands below are only needed in specific cases:
+
 ```bash
-# Seed initial data (admin account, plans, products)
+# Re-seed initial data (admin account, plans, products) after an update if needed
 sudo bash deploy/install.sh seed
 
 # Configure domain (if skipped during install)

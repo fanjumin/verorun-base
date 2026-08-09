@@ -1,5 +1,24 @@
 # 修改记录
 
+## v0.55.4 — 2026-08-09
+
+### Changes
+
+- feat(deploy): 四脚本一键部署装完即用 — install 模式默认批准迁移与播种，无 TTY 凭据自动降级，print_summary 输出管理员登录信息
+- fix(deploy): 审计修复 — install.sh/install-code.sh/install-dev.sh 主入口 install 模式自动 APPROVE_MIGRATE=1（迁移+播种装完即用）
+- fix(health_service): 修复 app.py `__main__` 与 `app.run(host=...)` 两处字符串笔误，`python health_service/app.py` 开发模式可正常启动
+- fix(deploy): git fetch 防卡死 — 全局 `GIT_TERMINAL_PROMPT=0` + `timeout 60` 包裹，origin 被镜像域名（ghfast.top/ghproxy）污染时自动纠偏回官方地址
+- fix(deploy): seed_data.py 缺表退出前输出可执行指引
+- docs(deploy): 更新部署指南 — 记录 install 模式自动迁移+播种、手动部署方式、git 卡死排查（删除误引旧仓库 deploy.sh 内容）
+
+## v0.55.1 — 2026-08-09
+
+### Changes
+
+- fix(deploy): 部署脚本 v3 审计整改（--region 缺值报错、--skip-deps 生效、DEBUG 强制禁用、do_rollback 统一 before_commit）
+- refactor(deploy): 抽取公共函数到 deploy/lib/common.sh（install.sh / install-local.sh / install-dev.sh / install-code.sh 共用）
+- docs(deploy): 弃用 curl|bash 管道安装，统一 git clone 本地执行
+
 ## v0.55.0 — 2026-08-09
 
 ### Changes

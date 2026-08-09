@@ -36,17 +36,34 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 
 | Distribution | Repository | When to use |
 |--------------|-----------|-------------|
-| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. One-command install via `curl \| bash`. |
+| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. Install by cloning the repo (see below). |
 | `verorun-code` | `https://github.com/fanjumin/verorun-code` (private) | Official site / enterprise customization. Requires SSH access to the private repository. |
 
 `verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-base`, SSH for `verorun-code`), so `update` always pulls from the correct source.
 
 ## Quick Install (One Command)
 
+Fresh install in a single command — no `git` required (the script auto-fetches the shared
+`deploy/lib/common.sh` library from verorun-base when run via pipe):
+
+**With a domain:**
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash
+```
+
+**Local / LAN (no domain):**
+```bash
+curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
+```
+
+**Alternatively — clone then run locally:**
+
 ### With a domain
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
+sudo bash deploy/install.sh install your-domain.com
 ```
 
 Replace `your-domain.com` with your actual domain name.
@@ -54,7 +71,9 @@ Replace `your-domain.com` with your actual domain name.
 ### Without a domain (configure later)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install
+git clone https://github.com/fanjumin/verorun-base.git
+cd verorun-base
+sudo bash deploy/install.sh install
 ```
 
 You will be prompted to enter a domain or skip. If skipped, you can configure it later:
@@ -63,17 +82,7 @@ You will be prompted to enter a domain or skip. If skipped, you can configure it
 sudo bash deploy/install.sh configure-domain your-domain.com
 ```
 
-### Via git clone
-
-**`verorun-base` (public):**
-
-```bash
-git clone https://github.com/fanjumin/verorun-base.git
-cd verorun-base
-sudo bash deploy/install.sh install your-domain.com
-```
-
-**`verorun-code` (private):**
+### `verorun-code` (private repo)
 
 ```bash
 git clone git@github.com:fanjumin/verorun-code.git
@@ -101,8 +110,9 @@ On a fresh install (`install` mode), the script:
    - `verorun-guardian` — VeroGuard unified guardian daemon
 8. **Nginx** — Configures reverse proxy for main domain + subdomains
 9. **Start services** — Starts all systemd services and Nginx
+10. **Database migration + seed** — In `install` mode the script auto-runs `init_db` migration and seeds initial data (admin account, subscription plans, products), so the deployment is fully usable right after install
 
-If no domain is provided, steps 7-9 are skipped and can be run later with `configure-domain`.
+If no domain is provided, steps 7-9 are skipped and can be run later with `configure-domain`. Steps 1-6 and 10 always run.
 
 ---
 
@@ -209,7 +219,7 @@ Internet
 
 ### 1. Seed Initial Data
 
-After installation, inject the admin user, subscription plans, and products:
+`install` mode already runs migration + seed automatically (admin account, plans, products are created during install). Only re-run seed manually when needed — e.g. after `update` or to reset initial data:
 
 ```bash
 sudo bash deploy/install.sh seed
@@ -320,6 +330,19 @@ sudo bash deploy/install.sh rollback
 ```
 
 This reverts the code to the previous git commit and restarts all services.
+
+### Git fetch hangs / never completes
+
+The scripts disable interactive credential prompts (`GIT_TERMINAL_PROMPT=0`) and wrap
+`git fetch` with a 60s timeout, so a bad remote fails fast instead of hanging. If `origin`
+was changed to a mirror domain (`ghfast.top`, `ghproxy`, etc.), `ensure_git_auth` auto-corrects
+it back to the official repository on the next run. To inspect / fix manually:
+
+```bash
+git -C /home/verorun/verorun remote -v
+sudo git -C /home/verorun/verorun remote set-url origin https://github.com/fanjumin/verorun-base.git
+sudo bash deploy/install.sh update
+```
 
 ---
 

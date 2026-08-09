@@ -10,6 +10,15 @@ if [ ! -f /app/.env ]; then
     echo "WARN: /app/.env not found — services will run without env config" >&2
 fi
 
+# 审计 v3 M2 修复：Supervisor 各 program 无 JWT_SECRET 等密钥环境变量
+# 启动前将 .env 导出到环境，supervisord 子进程（gunicorn/nginx）自动继承
+if [ -f /app/.env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source /app/.env
+    set +a
+fi
+
 # 确保 Supervisor 运行目录存在
 mkdir -p /var/run/supervisor
 chmod 755 /var/run/supervisor
