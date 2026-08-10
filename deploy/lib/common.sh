@@ -313,16 +313,20 @@ _setup_ssl_cert() {
         return 0  # 仅域名版 install.sh 触发；其余三脚本天然跳过
     fi
     step "HTTPS certificate (Let's Encrypt)"
-    if ! { exec 3<>/dev/tty; } 2>/dev/null; then
-        exec 3>&-
-        echo -e "${WARN} Non-interactive shell — skipping cert issuance."
-        echo -e "${INFO} Run later: sudo apt-get install -y certbot python3-certbot-nginx && sudo certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d platform.${DOMAIN} -d agent.${DOMAIN}"
-        return 0
-    fi
-    exec 3>&-
 
-    local _email=""
-    read -r -p "  Let's Encrypt email (for renewal notices, optional): " _email < /dev/tty
+    local _email="${SSL_EMAIL:-}"
+
+    # --ssl-email flag 传入：跳过 TTY 检查和交互输入
+    if [ -z "${_email}" ]; then
+        if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+            exec 3>&-
+            echo -e "${WARN} Non-interactive shell — skipping cert issuance."
+            echo -e "${INFO} Run later: sudo apt-get install -y certbot python3-certbot-nginx && sudo certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d platform.${DOMAIN} -d agent.${DOMAIN}"
+            return 0
+        fi
+        exec 3>&-
+        read -r -p "  Let's Encrypt email (for renewal notices, optional): " _email < /dev/tty
+    fi
 
     export DEBIAN_FRONTEND=noninteractive
     if ! apt-get install -y certbot python3-certbot-nginx 2>&1; then
@@ -742,6 +746,15 @@ detect_mode() {
 prompt_admin_creds() {
     case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
     [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
+
+    # --admin-user / --admin-pass flag 传入：直接写入凭据文件，跳过交互
+    if [ -n "${VR_ADMIN_USERNAME:-}" ] && [ -n "${VR_ADMIN_PASSWORD:-}" ]; then
+        printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${VR_ADMIN_USERNAME}" "${VR_ADMIN_PASSWORD}" > "${VR_ADMIN_CREDS_FILE}"
+        chmod 600 "${VR_ADMIN_CREDS_FILE}"
+        trap 'rm -f "${VR_ADMIN_CREDS_FILE}"' EXIT
+        echo -e "${OK} Admin credentials set via flag"
+        return 0
+    fi
 
     # 非交互管道（curl | sudo bash 无 TTY）：自动降级，凭据由 seed_data.py 生成
     if ! { exec 3<>/dev/tty; } 2>/dev/null; then
