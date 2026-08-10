@@ -54,6 +54,11 @@ jobs:
           # 使用 git archive 替代 rsync
           # .gitattributes 中的 export-ignore 控制哪些文件不导出
           git archive --format=tar "${{ steps.vars.outputs.tag }}" | tar -xC /tmp/base/
+          # ── site_domains 插件单独同步 ──
+          # plugins/ 整体被 .gitattributes 标记 export-ignore（不进 verorun-base），
+          # 此处直接从 checkout 工作区复制该插件，使其随 verorun-base 发布。
+          mkdir -p /tmp/base/plugins
+          cp -r plugins/site_domains /tmp/base/plugins/
 
       - name: Commit and push to verorun-base
         run: |
