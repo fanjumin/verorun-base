@@ -54,8 +54,11 @@ fi
 DEPLOY_TYPE="dev"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-if [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+fi
+if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     # 实体文件执行（git clone 后本地执行）→ 直接加载
     # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/lib/common.sh"
