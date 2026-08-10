@@ -1,5 +1,13 @@
 # 修改记录
 
+## v0.55.11 — 2026-08-10
+
+### Changes
+
+- Version bump from v0.55.10
+- fix(deploy): uninstall.sh 重写 — 移除 userdel（原误删 SSH 登录用户导致卸载后重装必失败）、DROP DATABASE/ROLE 前先 pg_terminate_backend 断开残留连接、失败显式报错并打印手工命令、支持 VR_UNINSTALL_YES=1 非交互一键卸载（curl|bash）
+- fix(deploy): 数据库角色密码根治 — do_install 建角色/建库去静默吞错，CREATE/ALTER ROLE 后以 PG_PASSWORD 实测 TCP 连接验证，密码不符自动断连→DROP→重建重试，彻底消除 "password authentication failed"；do_update Pre-flight 连不上时自动用 .env 密码 ALTER ROLE 同步后重试（幂等自愈）
+
 ## v0.55.10 — 2026-08-10
 
 ### Changes
