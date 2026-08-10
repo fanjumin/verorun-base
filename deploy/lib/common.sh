@@ -269,15 +269,15 @@ _resolve_git_repo() {
     # REGION=cn 时镜像优先（直连通常更慢/不可达）；global 直连优先，失败再降级
     if [ "${REGION:-global}" = "cn" ]; then
         _candidates=(
-            "https://ghfast.top/${_direct}"
-            "https://ghproxy.net/${_direct}"
+            "https://ghfast.top/${_direct#https://}"
+            "https://ghproxy.net/${_direct#https://}"
             "${_direct}"
         )
     else
         _candidates=(
             "${_direct}"
-            "https://ghfast.top/${_direct}"
-            "https://ghproxy.net/${_direct}"
+            "https://ghfast.top/${_direct#https://}"
+            "https://ghproxy.net/${_direct#https://}"
         )
     fi
 
