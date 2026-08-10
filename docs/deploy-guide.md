@@ -74,7 +74,7 @@ sudo bash deploy/install-dev.sh install
 | Domain | Required, else services not started | Not required, `DEPLOY_DOMAIN` empty |
 | Protocol | `DEPLOY_PROTOCOL=https` | `DEPLOY_PROTOCOL=http` |
 | Nginx | Subdomain `server_name` routing | Path routing only, `listen 80 default_server` |
-| SSL | Manual certbot | Skipped (HTTP) |
+| SSL | Auto certbot (Let's Encrypt) in install mode; non-TTY skips with manual command | Skipped (HTTP) |
 | Backend binding | `127.0.0.1` | `127.0.0.1` (unchanged) |
 
 ### Limitations (architecture-bound)
@@ -118,7 +118,7 @@ manual configuration required:
 |------|----------|
 | **apt mirror** | If the default source is unreachable within 3s, switches to Aliyun (backup at `sources.list.bak.$(date +%s)`, idempotent via marker file) |
 | **pip mirror** | Multi-source speed test (Aliyun → Tsinghua → official), picks the fastest, detected once |
-| **git clone** | `timeout 60` + `--depth 1` shallow clone; on failure prints proxy / manual-clone workarounds |
+| **git clone/fetch** | Auto-resolve repo URL before pulling: curl probes direct GitHub; if unreachable falls back to `ghfast.top` → `ghproxy.net` mirrors (mirror order reversed for `REGION=cn`). Probe uses curl only — git need not be preinstalled. SSH private repos (`verorun-code`) auto-switch to `ssh.github.com:443` when port 22 is blocked |
 
 ---
 
