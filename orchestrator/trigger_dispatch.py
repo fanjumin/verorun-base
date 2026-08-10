@@ -8,7 +8,7 @@ Trigger Dispatch — 事件驱动工作流分发
 设计原则：
   - 全程 try/except 包裹，任何异常都不得影响调用方（如文章发布主流程）
   - 匹配逻辑：trigger_event 精确匹配 + match_condition 子集匹配
-  - 复用 models.create_workflow_instance() 实例化，不重造轮子
+  - 统一由 run_workflow 创建并执行实例，避免双实例问题
 
 用法：
     from orchestrator.trigger_dispatch import dispatch_event
@@ -35,6 +35,7 @@ def _match_condition(condition: dict, context: dict) -> bool:
 def dispatch_event(event: str, context: dict = None) -> list:
     """根据事件触发匹配的工作流。
 
+    P2-F17: 统一由 run_workflow 创建并执行实例，消除双实例问题。
     返回创建的 workflow_instance id 列表（失败返回空列表，绝不抛异常）。
     """
     context = context or {}
@@ -54,9 +55,14 @@ def dispatch_event(event: str, context: dict = None) -> list:
                 cond = m.from_json(row['match_condition'], {})
                 if not _match_condition(cond or {}, context):
                     continue
-                inst_id = m.create_workflow_instance(
-                    row['workflow_id'], trigger_type='event',
+                # P2-F17: 统一由 run_workflow 创建实例并执行（消除双实例）
+                from orchestrator.workflow_engine import WorkflowEngine
+                engine = WorkflowEngine()
+                inst_id = engine.run_workflow(
+                    row['workflow_id'],
+                    trigger_type='event',
                     trigger_config={'event': event, 'context': context},
+                    initial_context=context,
                 )
                 if inst_id:
                     created.append(inst_id)

@@ -269,15 +269,15 @@ _resolve_git_repo() {
     # REGION=cn 时镜像优先（直连通常更慢/不可达）；global 直连优先，失败再降级
     if [ "${REGION:-global}" = "cn" ]; then
         _candidates=(
-            "https://ghfast.top/${_direct}"
-            "https://ghproxy.net/${_direct}"
+            "https://ghfast.top/${_direct#https://}"
+            "https://ghproxy.net/${_direct#https://}"
             "${_direct}"
         )
     else
         _candidates=(
             "${_direct}"
-            "https://ghfast.top/${_direct}"
-            "https://ghproxy.net/${_direct}"
+            "https://ghfast.top/${_direct#https://}"
+            "https://ghproxy.net/${_direct#https://}"
         )
     fi
 
@@ -1067,6 +1067,7 @@ server {
 
     # ── Admin ─────────────────────────────────
     location /admin/ {
+        client_max_body_size 100M;
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -1236,7 +1237,7 @@ do_install() {
     fi
     done_step "System dependencies installed"
 
-    PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    : "${PG_PASSWORD:=$(python3 -c "import secrets; print(secrets.token_hex(16))")}"
 
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
@@ -1387,6 +1388,22 @@ do_install() {
         step "Start services"
         restart_services
         done_step "Services started"
+
+        # Wait for backends to be ready before SSL cert (avoid 502 on HTTP challenge)
+        _wait=0
+        _max_wait=30
+        while [ $_wait -lt $_max_wait ]; do
+            if curl -s --max-time 2 http://127.0.0.1:8081/ > /dev/null 2>&1 \
+               && curl -s --max-time 2 http://127.0.0.1:8083/ > /dev/null 2>&1; then
+                echo -e "${OK} Backend services ready"
+                break
+            fi
+            sleep 1
+            _wait=$((_wait + 1))
+        done
+        if [ $_wait -ge $_max_wait ]; then
+            echo -e "${WARN} Backends did not respond within ${_max_wait}s — SSL may fail"
+        fi
     fi
 
     # HTTPS 证书自动签发（审计 Y-2）：仅 production + 域名已配置时启用
@@ -1398,7 +1415,7 @@ do_install() {
 
     step "Database migration"
     if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
-        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}:${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
         done_step "Database migrated"
     else
         echo -e "${WARN} Skipped database migration (pass --approve-migrate to apply schema changes)"
@@ -1428,7 +1445,7 @@ do_update() {
 
     # 仅 production 从 .env 读取域名；无域名模式保持 DOMAIN 为空（write_nginx_config 走 default_server）
     if [ "${DEPLOY_TYPE}" = "production" ]; then
-        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2) || true
+        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2) || true
     fi
 
     local before_commit

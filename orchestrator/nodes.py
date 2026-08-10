@@ -114,7 +114,7 @@ def _get_agent_from_db(agent_id: int) -> dict:
     return {}
 
 
-def _call_dashscope(api_key: str, model: str, prompt: str) -> dict:
+def _call_dashscope(api_key: str, model: str, prompt: str, timeout: int = 120) -> dict:
     """调用阿里云 DashScope API"""
     url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     body = json.dumps({
@@ -544,9 +544,15 @@ def _send_notification(title: str, message: str) -> dict:
 
 
 def _send_webhook(url: str, title: str, message: str) -> dict:
-    """发送 Webhook"""
+    """发送 Webhook（含 SSRF 防护）"""
     if not url:
         return {'success': False, 'error': _('Webhook URL is empty')}
+    # P1-F11: SSRF 防护 — 校验目标地址
+    from orchestrator.workflow_engine import _validate_target_url
+    try:
+        _validate_target_url(url)
+    except ValueError as e:
+        return {'success': False, 'error': f'SSRF blocked: {e}'}
     body = json.dumps({
         'title': title,
         'message': message,

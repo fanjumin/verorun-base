@@ -78,7 +78,7 @@ detect_domain() {
     if [ -n "$domain_arg" ]; then
         DOMAIN="$domain_arg"
     elif [ -f "${APP_HOME}/.env" ]; then
-        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" | cut -d= -f2)
+        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
     fi
 }
 

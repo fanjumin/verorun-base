@@ -88,7 +88,8 @@ class WorkerPool:
         Returns:
             task_id: 任务唯一标识
         """
-        task_id = f"{task_type}_{int(time.time()*1000)}_{id(task_data)}"
+        import uuid
+        task_id = f"{task_type}_{int(time.time()*1000)}_{uuid.uuid4().hex[:8]}"
         prio = Priority.__members__.get(priority.upper(), Priority.NORMAL).value
 
         with self._lock:
@@ -129,6 +130,9 @@ class WorkerPool:
                     self._active_tasks[task_id]['status'] = 'completed'
                     self._active_tasks[task_id]['finished_at'] = time.time()
 
+            # P1-F06: 任务完成后延迟清理（保留最近 100 条已完成记录）
+            self._cleanup_stale_tasks()
+
         except Exception as e:
             m.add_log('system', 0, 'error',
                        f'❌ Task Execution Failed [{task_id}]: {str(e)}')
@@ -139,7 +143,7 @@ class WorkerPool:
 
     # ---- 具体任务执行器 ----
 
-    def _execute_workflow_job(self, job_data: dict) -> dict:
+    def _execute_workflow_job(self, job_data: dict, target_config=None, timeout=300) -> dict:
         """执行工作流任务（作为 Cron 任务的回调）"""
         if isinstance(job_data, dict):
             wf_id = job_data.get('workflow_id')
@@ -263,6 +267,21 @@ class WorkerPool:
         )
 
     # ---- 状态和监控 ----
+
+    def _cleanup_stale_tasks(self):
+        """P1-F06: 定期清理已完成/失败的任务，保留最近 100 条"""
+        import random
+        # 每10次调用执行一次清理（降低锁竞争）
+        if random.randint(1, 10) != 1:
+            return
+        with self._lock:
+            finished = [(tid, t) for tid, t in self._active_tasks.items()
+                        if t['status'] in ('completed', 'failed')]
+            if len(finished) > 100:
+                # 按完成时间排序，保留最新 100 条
+                finished.sort(key=lambda x: x[1].get('finished_at', 0), reverse=True)
+                for tid, _ in finished[100:]:
+                    del self._active_tasks[tid]
 
     def get_active_tasks(self) -> list:
         """获取当前活跃任务"""

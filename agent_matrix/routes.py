@@ -45,81 +45,81 @@ def _inject_knowledge(user_message: str, top_k: int = 5, scope: str = None) -> s
     scope: 可选 'system' | 'user'，默认 None（检索全部）
     """
     try:
-        conn = _m().get_db()
-        sql = """SELECT id, title, content, keywords, category
-               FROM knowledge_blocks
-               WHERE deleted_at IS NULL"""
-        params = []
-        if scope:
-            sql += " AND scope=%s"
-            params.append(scope)
-        sql += " ORDER BY priority DESC, quality_score DESC"
-        blocks = conn.execute(sql, params).fetchall()
+        with _m().get_db() as conn:
+            sql = """SELECT id, title, content, keywords, category
+                    FROM knowledge_blocks
+                    WHERE deleted_at IS NULL"""
+            params = []
+            if scope:
+                sql += " AND scope=%s"
+                params.append(scope)
+            sql += " ORDER BY priority DESC, quality_score DESC"
+            blocks = conn.execute(sql, params).fetchall()
 
-        if not blocks:
-            return ''
+            if not blocks:
+                return ''
 
-        # 中文双字组合 + 字符评分（与 _rag_search 一致）
-        query = (user_message or '').replace(' ', '')
-        chars = list(query)
-        bigrams = [query[i:i+2] for i in range(len(query)-1)]
-        search_terms = set(chars + bigrams)
+            # 中文双字组合 + 字符评分（与 _rag_search 一致）
+            query = (user_message or '').replace(' ', '')
+            chars = list(query)
+            bigrams = [query[i:i+2] for i in range(len(query)-1)]
+            search_terms = set(chars + bigrams)
 
-        scored = []
-        for block in blocks:
-            score = 0.0
-            keywords = (block['keywords'] or '').split(',')
-            content = block['content'] or ''
-            title = block['title'] or ''
+            scored = []
+            for block in blocks:
+                score = 0.0
+                keywords = (block['keywords'] or '').split(',')
+                content = block['content'] or ''
+                title = block['title'] or ''
 
-            # 关键词匹配
-            kw_matches = sum(1 for kw in keywords if kw and kw in query)
-            if kw_matches > 0:
-                score += min(kw_matches / len(keywords), 1.0) * 0.6
+                # 关键词匹配
+                kw_matches = sum(1 for kw in keywords if kw and kw in query)
+                if kw_matches > 0:
+                    score += min(kw_matches / len(keywords), 1.0) * 0.6
 
-            # 字符重叠度
-            content_chars = set(content)
-            title_chars = set(title)
-            char_overlap = len(search_terms & content_chars) / max(len(search_terms), 1)
-            title_overlap = len(search_terms & title_chars) / max(len(search_terms), 1)
-            score += char_overlap * 0.25 + title_overlap * 0.15
+                # 字符重叠度
+                content_chars = set(content)
+                title_chars = set(title)
+                char_overlap = len(search_terms & content_chars) / max(len(search_terms), 1)
+                title_overlap = len(search_terms & title_chars) / max(len(search_terms), 1)
+                score += char_overlap * 0.25 + title_overlap * 0.15
 
-            # 精确匹配加分
-            if query in content:
-                score += 0.3
-            if query in title:
-                score += 0.2
+                # 精确匹配加分
+                if query in content:
+                    score += 0.3
+                if query in title:
+                    score += 0.2
 
-            if score > 0:
-                scored.append((block, score))
+                if score > 0:
+                    scored.append((block, score))
 
-        scored.sort(key=lambda x: -x[1])
-        top = scored[:top_k]
+            scored.sort(key=lambda x: -x[1])
+            top = scored[:top_k]
 
-        # 更新命中计数和质量分
-        for block, score in top:
-            if score > 0.3:
-                try:
-                    conn.execute(
-                        "UPDATE knowledge_blocks SET hit_count = hit_count + 1 WHERE id = %s",
-                        (block['id'],)
+            # 更新命中计数和质量分
+            for block, score in top:
+                if score > 0.3:
+                    try:
+                        conn.execute(
+                            "UPDATE knowledge_blocks SET hit_count = hit_count + 1 WHERE id = %s",
+                            (block['id'],)
+                        )
+                    except Exception:
+                        pass
+
+            # 拼成文本
+            lines = []
+            for block, score in top:
+                if score > 0.3:
+                    lines.append(
+                        f"- [{block['category']}] {block['title']}: {block['content'][:200]}"
                     )
-                except Exception:
-                    pass
 
-        # 拼成文本
-        lines = []
-        for block, score in top:
-            if score > 0.3:
-                lines.append(
-                    f"- [{block['category']}] {block['title']}: {block['content'][:200]}"
-                )
+            if not lines:
+                return ''
 
-        if not lines:
-            return ''
-
-        conn.commit()
-        return '\n\n=== 知识库（自动检索） ===\n' + '\n'.join(lines) + '\n=== 知识库结束 ==='
+            conn.commit()
+            return '\n\n=== 知识库（自动检索） ===\n' + '\n'.join(lines) + '\n=== 知识库结束 ==='
 
     except Exception as e:
         import logging
@@ -155,6 +155,7 @@ def _check_ai_access():
     检查 AI 功能是否可用（独立部署订阅过期检查）
     仅在客户端模式（APP_MODE=client）生效
     返回 None 表示可用，返回 Response 表示已过期
+    P1-F02: 改为 fail-closed，无法确认授权状态时返回 503
     """
     if os.environ.get('APP_MODE', 'main') != 'client':
         return None
@@ -169,9 +170,25 @@ def _check_ai_access():
                 'action': 'renew',
             }), 403
     except ImportError:
-        pass
+        import logging
+        logging.getLogger(__name__).error(
+            "[AgentMatrix] LicenseService import failed, blocking AI access (fail-closed)"
+        )
+        return jsonify({
+            'success': False,
+            'error': _('License service unavailable, AI features temporarily disabled'),
+            'code': 'license_unavailable',
+        }), 503
     except Exception as e:
-        print(f'[AgentMatrix] _check_ai_access error: {e}')
+        import logging
+        logging.getLogger(__name__).error(
+            f"[AgentMatrix] _check_ai_access error (fail-closed): {e}"
+        )
+        return jsonify({
+            'success': False,
+            'error': _('AI service unavailable, please try again later'),
+            'code': 'service_error',
+        }), 503
     return None
 
 
@@ -469,6 +486,9 @@ def chat_with_master():
     session_id = data.get('session_id', '')
     if not session_id:
         session_id = _m().create_session()
+    # P1-F09: session_id 白名单校验（防路径穿越）
+    elif not _m().is_valid_session_id(session_id):
+        return _error(_('Invalid session ID'), 400)
 
     mode = data.get('mode', 'fast')
 
@@ -528,6 +548,9 @@ def chat_tool():
     session_id = data.get('session_id', '')
     if not session_id:
         session_id = _m().create_session()
+    # P1-F09: session_id 白名单校验（防路径穿越）
+    elif not _m().is_valid_session_id(session_id):
+        return _error(_('Invalid session ID'), 400)
 
     # 获取 Master Agent 用于 AI 分析意图
     agents = _m().list_agents(role_type='master', active_only=True)
@@ -609,13 +632,10 @@ def chat_tool():
             name = args.get('name', _('My Voice'))
             audio_url = args.get('audio_url', '')
             if audio_url:
-                try:
-                    engine2 = UnifiedLLM(master)
-                    result = engine2.voice_clone(audio_url, name)
-                    summary = f'🎙️ 声音克隆已提交：{name}\n任务ID: {result.get("task_id", "")}'
-                    actions.append({'type': 'info', 'text': f'声音"{name}"克隆中，到「🎙️ 多媒体」查看进度'})
-                except Exception as e2:
-                    summary = f'Voice cloning failed: {e2}"'
+                # voice_clone 功能暂未实现，返回提示
+                summary = f'🎙️ 声音克隆：{name}\n语音克隆功能开发中，请到「🎙️ 多媒体」Tab使用音频上传功能。'
+                logger = logging.getLogger(__name__)
+                logger.warning(f"[Voice] voice_clone not implemented for '{name}', audio_url={audio_url}")
             else:
                 summary = '🎙️ 请提供音频URL来克隆声音，或到「🎙️ 多媒体」Tab上传音频文件。'
 
@@ -934,7 +954,11 @@ def _generate_ppt_file(topic, pages=10, style=_('Dark Tech Style, 16:9')):
 @agent_matrix_bp.route('/md-preview/<filename>')
 def agent_md_preview(filename):
     """渲染 Markdown 文件为 HTML 预览"""
+    admin, err = _require_admin()
+    if err: return err
+
     import markdown as _md
+    import bleach as _bleach
     media_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'media', 'temp')
     filename = os.path.basename(filename)
     fp = os.path.join(media_dir, filename)
@@ -944,9 +968,17 @@ def agent_md_preview(filename):
         with open(fp, 'r', encoding='utf-8') as f:
             md_content = f.read()
         html = _md.markdown(md_content, extensions=['fenced_code', 'tables', 'nl2br'])
+        # 白名单清洗 HTML，防止存储型 XSS
+        allowed_tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li',
+                        'a', 'strong', 'em', 'code', 'pre', 'blockquote', 'table',
+                        'thead', 'tbody', 'tr', 'th', 'td', 'br', 'hr', 'img']
+        allowed_attrs = {'a': ['href', 'title'], 'img': ['src', 'alt', 'title']}
+        html = _bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs)
         return jsonify({'success': True, 'html': html, 'filename': filename})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        import logging
+        logging.getLogger(__name__).error(f"md-preview failed for '{filename}': {e}")
+        return jsonify({'success': False, 'error': _('File preview failed')}), 500
 
 
 @agent_matrix_bp.route('/chat/history', methods=['GET'])
@@ -2236,6 +2268,9 @@ def chat_discuss_sse():
     session_id = data.get('session_id', '')
     if not session_id:
         session_id = _m().create_session()
+    # P1-F09: session_id 白名单校验（防路径穿越）
+    elif not _m().is_valid_session_id(session_id):
+        return _error(_('Invalid session ID'), 400)
 
     from agent_matrix.orchestrator import AgentOrchestrator
     from flask import Response, stream_with_context

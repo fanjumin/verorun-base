@@ -37,8 +37,27 @@ PG_CONFIG = {
 
 # ── 数据库连接 ──
 
+# P2-F08: 连接池 — 避免高并发下耗尽 PG 连接
+try:
+    from psycopg2 import pool
+    _connection_pool = pool.ThreadedConnectionPool(
+        minconn=int(os.environ.get('PG_POOL_MIN', 2)),
+        maxconn=int(os.environ.get('PG_POOL_MAX', 10)),
+        **PG_CONFIG
+    )
+    _pool_available = True
+except Exception:
+    _connection_pool = None
+    _pool_available = False
+
+
 def _connect():
-    """Create a fresh psycopg2 connection (no pooling, safe for gunicorn pre-fork)."""
+    """Create a psycopg2 connection (pooled if available, otherwise fresh)."""
+    if _pool_available:
+        try:
+            return _connection_pool.getconn()
+        except pool.PoolError:
+            logger.warning("Connection pool exhausted, falling back to direct connect")
     return psycopg2.connect(**PG_CONFIG)
 
 
@@ -47,6 +66,7 @@ class _DbWrapper:
     def __init__(self, conn):
         self._conn = conn
         self._cur = conn.cursor(cursor_factory=RealDictCursor)
+        self._from_pool = _pool_available
 
     def execute(self, sql, params=None):
         if params is not None:
@@ -76,6 +96,20 @@ class _DbWrapper:
 
     def close(self):
         self._cur.close()
+        # P2-F08: 归还连接到池，否则关闭
+        if self._from_pool and _pool_available:
+            try:
+                _connection_pool.putconn(self._conn)
+            except Exception:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+        else:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
 
     def executescript(self, sql):
         """Run multi-statement SQL (psycopg2 has no native executescript)."""

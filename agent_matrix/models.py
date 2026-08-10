@@ -104,6 +104,22 @@ def _next_session_id():
     return f'SESSION-{date}-{suffix}'
 
 
+def is_valid_session_id(session_id: str) -> bool:
+    """P1-F09: 校验 session_id 格式，防止路径穿越。
+    只允许 SESSION-YYYYMMDD-{hex8} 或 ^[A-Za-z0-9_-]{8,64}$ 格式。
+    """
+    import re
+    if not session_id:
+        return False
+    # 服务端生成的格式
+    if re.match(r'^SESSION-\d{8}-[a-f0-9]{8}$', session_id):
+        return True
+    # 通用白名单：字母数字/下划线/连字符，8-64字符
+    if re.match(r'^[A-Za-z0-9_-]{8,64}$', session_id):
+        return True
+    return False
+
+
 def get_master_agent_config():
     """从 agent_matrix 表中读取 Master Agent 的模型配置（通过 provider_model_id）"""
     try:

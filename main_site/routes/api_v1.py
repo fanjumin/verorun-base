@@ -950,7 +950,8 @@ def system_kb_update():
     if error:
         return error
 
-    from auth_center.services.kb_permission import check_kb_permission
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+    from services.kb_permission import check_kb_permission
     allowed, err = check_kb_permission('system', None, 'update_system', payload)
     if not allowed:
         return err
