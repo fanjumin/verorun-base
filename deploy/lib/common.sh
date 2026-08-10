@@ -1289,23 +1289,42 @@ do_install() {
     # 文件，连 root 也不例外）导致 mktemp→chown postgres→printf 写文件被内核 EACCES
     # 拒绝。改用 stdin 管道，无文件、无属主、无 /tmp，与内核防护完全解耦。
     local _pwd="${PG_PASSWORD//\'/\'\'}"
-    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${_pwd}" | sudo -u postgres psql -q 2>/dev/null || true
-    else
-        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${_pwd}" | sudo -u postgres psql -q 2>/dev/null || true
-    fi
-    # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
-    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        echo -e "${FAIL} FATAL: PostgreSQL role 'app' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
-        exit 1
-    fi
-    # 审计 Y-3 修复：R4 重构时 CREATE DATABASE 被丢弃，全新服务器必然在此处失败——
-    # 补回建库逻辑（createdb -O app appdb，不存在才建），再复查，失败才报错退出。
-    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='appdb'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        sudo -u postgres createdb -O app appdb 2>/dev/null || true
-    fi
-    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='appdb'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        echo -e "${FAIL} FATAL: PostgreSQL database 'appdb' not created."
+    local _db="appdb" _role="app" _tries=0
+    # 审计 M8 修复：建角色/改密码/建库不再静默吞错 —— 每一步显式判断输出，且成功后必须
+    # 用 .env 的 PG_PASSWORD 实测 TCP 连接（pg_hba 对 host 规则强制密码认证，与应用运行
+    # 方式一致），失败自动断连→DROP→重建重试，彻底根治 "password authentication failed"。
+    while [ "${_tries}" -lt 2 ]; do
+        if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${_role}'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+            printf "ALTER ROLE %s WITH LOGIN PASSWORD '%s';\n" "${_role}" "${_pwd}" | sudo -u postgres psql -q 2>&1 \
+                || echo -e "${WARN} ALTER ROLE failed (attempt $((_tries + 1))/2)"
+        else
+            printf "CREATE ROLE %s WITH LOGIN PASSWORD '%s';\n" "${_role}" "${_pwd}" | sudo -u postgres psql -q 2>&1 \
+                || echo -e "${WARN} CREATE ROLE failed (attempt $((_tries + 1))/2)"
+        fi
+        if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${_db}'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+            sudo -u postgres createdb -O "${_role}" "${_db}" 2>&1 \
+                || echo -e "${WARN} createdb failed (attempt $((_tries + 1))/2)"
+        fi
+        # 密码实测：与应用同样的 TCP 认证路径连接，验证 .env 密码与数据库实际密码一致
+        if PGPASSWORD="${PG_PASSWORD}" psql -h localhost -p "${PG_PORT:-5432}" -U "${_role}" -d "${_db}" -tAc "SELECT 1" >/dev/null 2>&1; then
+            break
+        fi
+        _tries=$((_tries + 1))
+        if [ "${_tries}" -lt 2 ]; then
+            echo -e "${WARN} Password check failed (attempt ${_tries}/2) — dropping ${_db} & ${_role} and recreating"
+            sudo -u postgres psql -q -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${_db}' AND pid <> pg_backend_pid()" >/dev/null 2>&1 || true
+            sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${_db}" >/dev/null 2>&1 || true
+            sudo -u postgres psql -c "DROP ROLE IF EXISTS ${_role}" >/dev/null 2>&1 || true
+        fi
+    done
+    if [ "${_tries}" -ge 2 ]; then
+        echo -e "${FAIL} FATAL: role/database password verification failed after 2 attempts."
+        echo -e "${INFO} Manual recovery:"
+        echo -e "${INFO}   sudo -u postgres psql"
+        echo -e "${INFO}     DROP DATABASE IF EXISTS appdb;"
+        echo -e "${INFO}     DROP ROLE IF EXISTS app;"
+        echo -e "${INFO}     CREATE ROLE app WITH LOGIN PASSWORD '${PG_PASSWORD}';"
+        echo -e "${INFO}     CREATE DATABASE appdb OWNER app;"
         exit 1
     fi
     # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
@@ -1626,7 +1645,8 @@ do_update() {
 
     step "Pre-flight check"
     # 验证数据库可连接（直接 psycopg2 连接，不依赖 plugins 包）
-    if ! sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
+    _db_preflight() {
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
 import os, psycopg2
 conn = psycopg2.connect(
     host=os.getenv('PG_HOST', 'localhost'),
@@ -1637,9 +1657,37 @@ conn = psycopg2.connect(
 )
 conn.close()
 print('DB OK')
-\""; then
-        echo -e "${FAIL} Database not accessible — aborting update"
-        exit 1
+\""
+    }
+    if _db_preflight; then
+        :
+    else
+        # 审计 M8 修复：历史遗留的高发问题是 .env 密码与数据库实际密码不一致
+        # （password authentication failed）。读取 .env 的 PG_PASSWORD 自动
+        # ALTER ROLE 同步数据库密码后重试（幂等自愈，失败才报错退出）。
+        echo -e "${WARN} Database connection failed — attempting to sync role password from .env"
+        local _pg_user _pg_db _pg_pwd
+        _pg_user=$(sudo -u "${APP_USER}" bash -c "source ${APP_HOME}/.env; echo \${PG_USER:-app}")
+        _pg_db=$(sudo -u "${APP_USER}" bash -c "source ${APP_HOME}/.env; echo \${PG_DB:-appdb}")
+        _pg_pwd=$(sudo -u "${APP_USER}" bash -c "source ${APP_HOME}/.env; echo \${PG_PASSWORD:-}")
+        if [ -z "${_pg_pwd}" ]; then
+            echo -e "${FAIL} PG_PASSWORD missing from ${APP_HOME}/.env"
+            exit 1
+        fi
+        local _sql_esc="${_pg_pwd//\'/\'\'}"
+        if printf "ALTER ROLE %s WITH LOGIN PASSWORD '%s';\n" "${_pg_user}" "${_sql_esc}" \
+            | sudo -u postgres psql -q 2>&1; then
+            echo -e "${OK} Role ${_pg_user} password synced from .env"
+        else
+            echo -e "${FAIL} Could not ALTER ROLE ${_pg_user} — check postgres access"
+            exit 1
+        fi
+        if _db_preflight; then
+            :
+        else
+            echo -e "${FAIL} Database still not accessible after password sync — aborting update"
+            exit 1
+        fi
     fi
     # 验证 Python 语法无致命错误
     if ! sudo -u "${APP_USER}" bash -c "${VENV_DIR}/bin/python -m py_compile ${APP_HOME}/admin/app.py"; then

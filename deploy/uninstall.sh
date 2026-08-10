@@ -38,10 +38,19 @@ echo -e "${RED}║  WARNING: This will remove ALL VeroRun data & services.  ║$
 echo -e "${RED}║  This action is IRREVERSIBLE. Databases will be DROPPED. ║${NC}"
 echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
-read -p "  Type 'yes' to confirm: " CONFIRM </dev/tty
-if [ "$CONFIRM" != "yes" ]; then
-    echo -e "${INFO} Aborted."
-    exit 0
+# 审计 M8 修复：非交互一键卸载（curl | sudo bash）必须支持 VR_UNINSTALL_YES=1 跳过确认；
+# 无 TTY 且未显式授权时明确报错退出（禁止 read </dev/tty 在管道下静默卡死）。
+if [ "${VR_UNINSTALL_YES:-0}" = "1" ]; then
+    echo -e "${INFO} VR_UNINSTALL_YES=1 — skipping confirmation"
+elif [ -t 0 ]; then
+    read -r -p "  Type 'yes' to confirm: " CONFIRM || CONFIRM=""
+    if [ "${CONFIRM:-}" != "yes" ]; then
+        echo -e "${INFO} Aborted."
+        exit 0
+    fi
+else
+    echo -e "${FAIL} Non-interactive uninstall requires VR_UNINSTALL_YES=1"
+    exit 1
 fi
 
 # 1. systemd services (reverse of write_systemd_services + restart_services)
@@ -65,29 +74,33 @@ if systemctl is-active --quiet nginx 2>/dev/null; then
 fi
 done_step "Nginx config removed"
 
-# 3. User & directories (reverse of useradd + mkdir)
+# 3. Directories (reverse of mkdir; do NOT touch the login user)
 step "User & files"
-if id "${APP_USER}" &>/dev/null; then
-    # 审计 M6 修复：不再用 -r 级联删除 home（改为下方显式 rm -rf 可控目录）
-    if userdel "${APP_USER}" 2>/dev/null; then
-        echo "  user ${APP_USER} removed"
-    else
-        # 审计 L-2：userdel 失败（如存在运行中进程）时明确警告，不再静默继续
-        echo -e "${WARN} userdel ${APP_USER} failed (user may have running processes). Home dir will still be removed."
-    fi
-else
-    echo "  user ${APP_USER} not found"
-fi
+# 审计 M8 修复：APP_USER 即 SSH 登录用户（如 ***REMOVED***），安装脚本从不创建系统用户，
+# 原 userdel 会误删登录账号导致服务器无法再 SSH 登录。卸载只清理安装脚本创建的目录。
 rm -rf "${LOG_DIR}" 2>/dev/null || true
-# ── Note: home dir removed below via rm -rf (userdel without -r) ──
 rm -rf "${APP_HOME}" 2>/dev/null || true
 done_step "User & directories cleaned"
 
 # 4. PostgreSQL (reverse of CREATE ROLE + CREATE DATABASE)
 step "PostgreSQL"
-sudo -u postgres psql -c "DROP DATABASE IF EXISTS appdb" 2>/dev/null || true
-sudo -u postgres psql -c "DROP ROLE IF EXISTS app" 2>/dev/null || true
-done_step "PostgreSQL database & role dropped"
+# 审计 M8 修复：先断开 appdb 上的残留连接（服务进程/守护进程占用时 DROP DATABASE 会失败），
+# DROP 结果显式判断并输出可执行的手工修复命令，不再静默吞错。
+sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='appdb' AND pid <> pg_backend_pid()" >/dev/null 2>&1 || true
+if sudo -u postgres psql -c "DROP DATABASE IF EXISTS appdb" 2>&1; then
+    done_step "Database appdb dropped"
+else
+    echo -e "${FAIL} DROP DATABASE appdb failed — check lingering connections:"
+    echo -e "${INFO}   sudo -u postgres psql -c \"SELECT pid, query FROM pg_stat_activity WHERE datname='appdb'\""
+    echo -e "${INFO}   sudo -u postgres psql -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='appdb'\""
+    echo -e "${INFO}   sudo -u postgres psql -c \"DROP DATABASE appdb\""
+fi
+if sudo -u postgres psql -c "DROP ROLE IF EXISTS app" 2>&1; then
+    done_step "Role app dropped"
+else
+    echo -e "${FAIL} DROP ROLE app failed — manual command:"
+    echo -e "${INFO}   sudo -u postgres psql -c \"DROP ROLE app\""
+fi
 
 # 5. Residual config files (sudoers + guardian env)
 step "Config files"
