@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Subscription Module — Blueprint Registration
-Admin backend = admin backend | VeroRon = user portal
+Admin backend = admin backend | VeroRun = user portal
 """
 import os, sys, json, secrets, hashlib, time
 from datetime import datetime, timedelta

@@ -87,11 +87,11 @@ def _send_reminder(conn, sub, days_before):
     if days_before == 7:
         title = f'📬 {plan_name} 即将到期'
         content = f'{nickname}，您的 {plan_name} 将于 {end_date} 到期（剩余7天），届时将自动续费。如需取消，请登录用户中心操作。'
-        sms = f'【VeroRon 维洛智能】您的{plan_name}将于{end_date}到期，届时自动续费。登录 verorun.com 查看详情。'
+        sms = f'【VeroRun 维洛智能】您的{plan_name}将于{end_date}到期，届时自动续费。登录 verorun.com 查看详情。'
     elif days_before == 3:
         title = f'⚠️ {plan_name} 3天后到期'
         content = f'{nickname}，您的 {plan_name} 将于 {end_date} 到期（剩余3天），请确保账户余额充足。'
-        sms = f'【VeroRon 维洛智能】您的{plan_name}将于3天后到期，到期自动续费。verorun.com/ucenter'
+        sms = f'【VeroRun 维洛智能】您的{plan_name}将于3天后到期，到期自动续费。verorun.com/ucenter'
     elif days_before == 1:
         title = f'⚡ {plan_name} 明天到期'
         content = f'{nickname}，您的 {plan_name} 将于明天（{end_date}）到期，我们将自动为您续费。'
@@ -167,7 +167,7 @@ def notify_downgraded_to_free(user_id, plan_name):
 
         title = f'📉 {plan_name} 已过期，已降级至免费版'
         content = f'{nickname}，您的 {plan_name} 宽限期已过，已自动降级为免费套餐。如需恢复高级功能，请登录用户中心重新订阅。'
-        sms = f'【VeroRon 维洛智能】{plan_name}已过期，已降级至免费版。登录 verorun.com 重新订阅恢复功能。'
+        sms = f'【VeroRun 维洛智能】{plan_name}已过期，已降级至免费版。登录 verorun.com 重新订阅恢复功能。'
 
         _insert_notification(conn, user_id, title, content)
         if phone:

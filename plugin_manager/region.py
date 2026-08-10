@@ -2,11 +2,11 @@
 """
 Region Router — 统一区域路由模块
 ===================================
-根据环境变量 VERORUN_REGION 动态返回正确的 API 端点。
+根据环境变量 APP_REGION 动态返回正确的 API 端点。
 所有需要连接远程服务的模块统一通过此模块获取 URL。
 
 环境变量:
-  VERORUN_REGION    cn | global (默认 global)
+  APP_REGION    cn | global (默认 global)
   API_BASE_CN       境内 API 基础 URL (默认 https://api.verorun.cn/v1)
   API_BASE_GLOBAL   境外 API 基础 URL (默认 https://api.verorun.com/v1)
   GUARDIAN_URL_CN   境内 VeroGuard 端点 (默认 https://api.verorun.cn)
@@ -32,7 +32,7 @@ def get_region() -> str:
     with _REGION_LOCK:
         if _REGION_CACHE is not None:
             return _REGION_CACHE
-        region = os.environ.get('VERORUN_REGION', 'global').strip().lower()
+        region = os.environ.get('APP_REGION', 'global').strip().lower()
         if region not in ('cn', 'global'):
             region = 'global'
         _REGION_CACHE = region

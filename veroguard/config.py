@@ -90,7 +90,7 @@ def _get_remote_url() -> str:
         from plugin_manager.region import get_veroguard_url
         return get_veroguard_url()
     except ImportError:
-        region = os.getenv('VERORUN_REGION', 'global')
+        region = os.getenv('APP_REGION', 'global')
         return 'https://api.verorun.cn' if region == 'cn' else 'https://api.verorun.com'
 
 REMOTE_URL = _get_remote_url()

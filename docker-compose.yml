@@ -7,15 +7,15 @@ services:
     container_name: verorun_pg
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${PG_DB:-verorun}
-      POSTGRES_USER: ${PG_USER:-verorun}
+      POSTGRES_DB: ${PG_DB:-appdb}
+      POSTGRES_USER: ${PG_USER:-app}
       POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-verorun} -d ${PG_DB:-verorun}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-app} -d ${PG_DB:-appdb}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: mini_app
-      POSTGRES_USER: ${MINI_APP_PG_USER:-verorun}
+      POSTGRES_USER: ${MINI_APP_PG_USER:-app}
       POSTGRES_PASSWORD: ${MINI_APP_PG_PASSWORD:-}
     ports:
       - "5433:5432"
@@ -55,11 +55,11 @@ services:
       # 仅保留容器网络特有的覆盖项（PG_HOST 走 compose 服务名）。
       # 注意：不要在 environment 里写 ${VAR:-} 插值透传——变量为空时
       # environment 会覆盖 env_file 注入值（compose 优先级），造成密钥丢失。
-      - DB_PATH=/app/data/verorun.db
+      - DB_PATH=/app/data/x7k2m9a4.db
       - PG_HOST=db
       - PG_PORT=5432
       - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
-      - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-verorun}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
+      - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-app}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
     depends_on:
       db:
         condition: service_healthy

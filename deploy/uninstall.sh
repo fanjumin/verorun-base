@@ -85,8 +85,8 @@ done_step "User & directories cleaned"
 
 # 4. PostgreSQL (reverse of CREATE ROLE + CREATE DATABASE)
 step "PostgreSQL"
-sudo -u postgres psql -c "DROP DATABASE IF EXISTS verorun" 2>/dev/null || true
-sudo -u postgres psql -c "DROP ROLE IF EXISTS verorun" 2>/dev/null || true
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS appdb" 2>/dev/null || true
+sudo -u postgres psql -c "DROP ROLE IF EXISTS app" 2>/dev/null || true
 done_step "PostgreSQL database & role dropped"
 
 # 5. Residual config files (sudoers + guardian env)

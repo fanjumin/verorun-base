@@ -126,7 +126,7 @@ def _build_auth_header(method: str, url_path: str, body: str = '') -> dict:
         ),
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': _('VeroRon Weiluo Intelligence'),
+        'User-Agent': _('VeroRun Weiluo Intelligence'),
     }
 
 

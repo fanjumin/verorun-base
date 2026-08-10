@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# VeroRon 维洛智能 (verorun.com / verorun.cn)
+# VeroRun 维洛智能 (verorun.com / verorun.cn)
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """
