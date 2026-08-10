@@ -21,6 +21,11 @@ fi
 # 审计 v3 M2 修复：Supervisor 各 program 无 JWT_SECRET 等密钥环境变量
 # 启动前将 .env 导出到环境，supervisord 子进程（gunicorn/nginx）自动继承
 if [ -f /app/.env ]; then
+    # 审计 P2-5：source 前校验 .env 不含 shell 元字符，防注入
+    if grep -q '[;&|`$()]' /app/.env 2>/dev/null; then
+        echo "FATAL: /app/.env contains shell metacharacters" >&2
+        exit 1
+    fi
     set -a
     # shellcheck disable=SC1091
     source /app/.env

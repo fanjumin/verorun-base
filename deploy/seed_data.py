@@ -42,13 +42,16 @@ def parse_env(env_path: str) -> dict:
     if not os.path.exists(env_path):
         print(f"[WARN] .env not found: {env_path}")
         return config
-    with open(env_path) as f:
+    with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, val = line.split("=", 1)
-            config[key.strip()] = val.strip()
+            val = val.strip()
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+                val = val[1:-1]
+            config[key.strip()] = val
     return config
 
 
@@ -90,7 +93,8 @@ class SeedDB:
         else:
             # SQLite mode
             import sqlite3
-            db_path = self.sqlite_path or self.env.get("DB_PATH", "data/x7k2m9a4.db")
+            _default_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "x7k2m9a4.db")
+            db_path = self.sqlite_path or self.env.get("DB_PATH") or _default_db
             os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
             self.conn = sqlite3.connect(db_path)
             self.conn.row_factory = sqlite3.Row
@@ -335,7 +339,7 @@ def main():
     db.close()
 
     print(f"\n[OK] Seed data injected successfully.")
-    print(f"     Admin account: {username} / {password}")
+    print(f"     Admin account: {username} / <password saved to install output above>")
     print(f"     Plugins seeded: {len(DEFAULT_PLUGIN_PRODUCTS)}")
 
 

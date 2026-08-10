@@ -58,6 +58,8 @@ else
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
     _tmp_common="$(mktemp)"
+    # 审计 P3-2：Ctrl+C 中断时清理临时文件
+    trap 'rm -f "${_tmp_common}"' EXIT
     _ok=0
     if command -v curl >/dev/null 2>&1; then
         # 审计 M-1：统一 --max-time 防握手卡死 + --retry 抗瞬时抖动
@@ -114,6 +116,9 @@ while [ $# -gt 0 ]; do
         --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
         --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;
         --admin-pass) shift; [ $# -gt 0 ] && VR_ADMIN_PASSWORD="${1}" || { echo -e "${FAIL} --admin-pass requires a value"; exit 1; } ;;
+        *)
+            echo -e "${WARN} Unknown argument ignored: ${1}"
+            ;;
     esac
     shift
 done

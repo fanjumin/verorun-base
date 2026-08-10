@@ -42,7 +42,12 @@ set -euo pipefail
 : "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-: "${APP_HOME:=/home/${APP_USER}/verorun}"
+# 审计 P1-8：APP_USER=root 时 home 为 /root（非 /home/root）
+if [ "${APP_USER}" = "root" ]; then
+    : "${APP_HOME:=/root/verorun}"
+else
+    : "${APP_HOME:=/home/${APP_USER}/verorun}"
+fi
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
@@ -121,6 +126,9 @@ while [ $# -gt 0 ]; do
         --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
         --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;
         --admin-pass) shift; [ $# -gt 0 ] && VR_ADMIN_PASSWORD="${1}" || { echo -e "${FAIL} --admin-pass requires a value"; exit 1; } ;;
+        *)
+            echo -e "${WARN} Unknown argument ignored: ${1}"
+            ;;
     esac
     shift
 done
