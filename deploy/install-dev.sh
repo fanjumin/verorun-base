@@ -111,6 +111,10 @@ while [ $# -gt 0 ]; do
         --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
         --force) FORCE_UPDATE=1 ;;   # 审计 C-3：update 时允许覆盖本地修改（先备份 diff）
+        --admin-user=*) VR_ADMIN_USERNAME="${1#*=}" ;;
+        --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
+        --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;
+        --admin-pass) shift; [ $# -gt 0 ] && VR_ADMIN_PASSWORD="${1}" || { echo -e "${FAIL} --admin-pass requires a value"; exit 1; } ;;
     esac
     shift
 done

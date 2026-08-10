@@ -1067,6 +1067,7 @@ server {
 
     # ── Admin ─────────────────────────────────
     location /admin/ {
+        client_max_body_size 100M;
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -1236,7 +1237,7 @@ do_install() {
     fi
     done_step "System dependencies installed"
 
-    PG_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    : "${PG_PASSWORD:=$(python3 -c "import secrets; print(secrets.token_hex(16))")}"
 
     step "PostgreSQL"
     if ! systemctl is-active --quiet postgresql 2>/dev/null; then
@@ -1398,7 +1399,7 @@ do_install() {
 
     step "Database migration"
     if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
-        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
+        sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; cd ${APP_HOME} && PYTHONPATH=${APP_HOME}:${APP_HOME}/auth-center ${VENV_DIR}/bin/python -c 'from models.database import init_db; init_db()'"
         done_step "Database migrated"
     else
         echo -e "${WARN} Skipped database migration (pass --approve-migrate to apply schema changes)"
@@ -1428,7 +1429,7 @@ do_update() {
 
     # 仅 production 从 .env 读取域名；无域名模式保持 DOMAIN 为空（write_nginx_config 走 default_server）
     if [ "${DEPLOY_TYPE}" = "production" ]; then
-        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2) || true
+        DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2) || true
     fi
 
     local before_commit
