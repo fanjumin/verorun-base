@@ -32,7 +32,7 @@
 # 审计 H-5：Sparse-checkout 白名单（基础列表）。入口脚本可通过追加扩展，
 # 如 install-code.sh 在 source 后执行 SPARSE_DIRS="${SPARSE_DIRS} plugins"。
 # 审计 M-1：追加 scripts/（README 引用 scripts/dev_start.py 本地开发脚本）。
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy scripts}"
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy scripts plugins/site_domains}"
 : "${FORCE_UPDATE:=0}"              # 审计 C-3：update 时强制覆盖本地修改（配合 --force）
 : "${PIP_MIRROR:=}"
 : "${PIP_MIRROR_DETECTED:=}"
@@ -106,16 +106,24 @@ _detect_pip_mirror() {
 #      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
 _clone_with_timeout() {
     local _repo=$1 _dest=$2 _branch=$3
-    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow)..."
-    # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
-    if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
-        return 0
-    fi
-    echo -e "${FAIL} git clone failed or timed out (60s)"
+    local _attempt=1 _max=3
+    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow, up to ${_max} attempts)..."
+    while [ "${_attempt}" -le "${_max}" ]; do
+        # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
+        if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
+            return 0
+        fi
+        echo -e "${WARN} git clone failed (attempt ${_attempt}/${_max})"
+        # 清理不完整克隆目录，避免下次 clone 报 "already exists"
+        rm -rf "${_dest}"
+        _attempt=$((_attempt + 1))
+        [ "${_attempt}" -le "${_max}" ] && sleep 5
+    done
+    echo -e "${FAIL} git clone failed after ${_max} attempts (timeout 60s each)"
     echo -e "${INFO} Possible causes:"
     echo -e "${INFO}   1. GitHub unreachable (DNS pollution / GFW)"
     echo -e "${INFO}   2. SSH key not configured (private repo)"
-    echo -e "${INFO}   3. Network too slow"
+    echo -e "${INFO}   3. Network too slow / mirror flaky"
     echo -e "${INFO} Workarounds:"
     echo -e "${INFO}   • Use a proxy: export https_proxy=... && re-run"
     echo -e "${INFO}   • Pre-clone manually: git clone ${_repo} ${_dest}"
@@ -447,7 +455,7 @@ resolve_directory_conflict() {
 assert_debug_disabled() {
     local _dbg
     # Check APP_DEBUG
-    _dbg=$(grep -E '^APP_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
+    _dbg=$(grep -E '^APP_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
     case "${_dbg}" in
         1|true|TRUE|True|on|yes)
             echo -e "${FAIL} Production install aborted: APP_DEBUG is enabled in .env"
@@ -455,7 +463,7 @@ assert_debug_disabled() {
             exit 1 ;;
     esac
     # Check FLASK_DEBUG
-    _dbg=$(grep -E '^FLASK_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2)
+    _dbg=$(grep -E '^FLASK_DEBUG=' "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
     case "${_dbg}" in
         1|true|TRUE|True|on|yes)
             echo -e "${FAIL} Production install aborted: FLASK_DEBUG is enabled in .env"
@@ -783,27 +791,35 @@ prompt_admin_creds() {
     echo -e "${INFO} Create the administrator account for VeroRun" > /dev/tty
 
     local _user="" _pass="" _pass2=""
-    read -r -p "  Admin username: " _user < /dev/tty
+    echo -n "  Admin username: " > /dev/tty
+    read -r _user < /dev/tty
+    _user="${_user//[^a-zA-Z0-9._-]/}"
     while [ -z "${_user}" ]; do
         echo -e "${WARN} Username cannot be empty" > /dev/tty
-        read -r -p "  Admin username: " _user < /dev/tty
+        echo -n "  Admin username: " > /dev/tty
+    read -r _user < /dev/tty
     done
 
-    read -r -s -p "  Admin password: " _pass < /dev/tty
+    echo -n "  Admin password: " > /dev/tty
+    read -r -s _pass < /dev/tty
     echo "" > /dev/tty
     while [ -z "${_pass}" ]; do
         echo -e "${WARN} Password cannot be empty" > /dev/tty
-        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo -n "  Admin password: " > /dev/tty
+    read -r -s _pass < /dev/tty
         echo "" > /dev/tty
     done
 
-    read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+    echo -n "  Confirm password: " > /dev/tty
+    read -r -s _pass2 < /dev/tty
     echo "" > /dev/tty
     while [ "${_pass}" != "${_pass2}" ]; do
         echo -e "${WARN} Passwords do not match, try again" > /dev/tty
-        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo -n "  Admin password: " > /dev/tty
+    read -r -s _pass < /dev/tty
         echo "" > /dev/tty
-        read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+        echo -n "  Confirm password: " > /dev/tty
+    read -r -s _pass2 < /dev/tty
         echo "" > /dev/tty
     done
 
@@ -1213,7 +1229,10 @@ do_install() {
         echo -e "${WARN} Some dependencies are missing (system or Python packages)"
         # 审计 H-2 修复：curl | sudo bash 管道执行时 stdin 已被脚本内容占用，
         # 必须 < /dev/tty 从终端读取，否则 read 会吞掉后续脚本内容。
-        read -r -p "Install dependencies now? [Y/n] " _ans < /dev/tty || _ans=""
+        # 提示符改用 echo -n > /dev/tty 输出——read -p 提示走 stderr，
+        # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
+        echo -n "Install dependencies now? [Y/n] " > /dev/tty
+        read -r _ans < /dev/tty || _ans=""
         case "${_ans}" in
             n|N) echo -e "${WARN} Skipping dependency installation"; SKIP_DEPS=1 ;;
             *)   echo -e "${OK} Will install missing dependencies" ;;
@@ -1252,10 +1271,11 @@ do_install() {
     # 审计 Y-4 修复：服务器 fs.protected_regular=2（sticky 全局可写目录内禁止写他人
     # 文件，连 root 也不例外）导致 mktemp→chown postgres→printf 写文件被内核 EACCES
     # 拒绝。改用 stdin 管道，无文件、无属主、无 /tmp，与内核防护完全解耦。
+    local _pwd="${PG_PASSWORD//\'/\'\'}"
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" | sudo -u postgres psql -q 2>/dev/null || true
+        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${_pwd}" | sudo -u postgres psql -q 2>/dev/null || true
     else
-        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" | sudo -u postgres psql -q 2>/dev/null || true
+        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${_pwd}" | sudo -u postgres psql -q 2>/dev/null || true
     fi
     # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
     if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
@@ -1324,7 +1344,9 @@ do_install() {
     # 应用 sparse-checkout 白名单（幂等；拉取后立即收窄工作区，仅保留运行时目录）
     if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
-        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+        if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+            echo -e "${WARN} sparse-checkout failed — working tree may include non-runtime files"
+        fi
     fi
     # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
     if [ "${DEPLOY_TYPE}" = "production" ]; then
@@ -1501,9 +1523,12 @@ do_update() {
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
         git remote set-url origin "${GIT_REPO}"
-        if ! git fetch origin "${GIT_BRANCH}" 2>&1; then
-            echo -e "${FAIL} Git fetch failed. Check network connectivity."
-            echo -e "${FAIL} Update aborted."
+        export GIT_TERMINAL_PROMPT=0
+        if ! timeout 60 git fetch origin "${GIT_BRANCH}" 2>&1; then
+            echo -e "${FAIL} Git fetch failed or timed out (60s) — aborting"
+            echo -e "${INFO} Check origin remote: git -C ${APP_HOME} remote -v"
+            echo -e "${INFO} If it points to a mirror (ghfast.top/ghproxy), reset it:"
+            echo -e "${INFO}   git -C ${APP_HOME} remote set-url origin ${GIT_REPO}"
             exit 1
         fi
         git merge "origin/${GIT_BRANCH}" --ff-only 2>/dev/null || {
@@ -1517,7 +1542,9 @@ do_update() {
     # 应用 sparse-checkout 白名单：老仓库立即移除 .github/CHANGELOG/docs 等非运行时文件
     if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
         git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
-        git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS}
+        if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+            echo -e "${WARN} sparse-checkout failed — working tree may include non-runtime files"
+        fi
     fi
     # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
     if [ "${DEPLOY_TYPE}" = "production" ]; then
@@ -1638,7 +1665,7 @@ print_summary() {
             # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
-            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
             fi
             echo "  ╠══════════════════════════════════════════════════════════════╣"
             echo "  ║  Useful commands:                                            ║"
@@ -1671,7 +1698,7 @@ print_summary() {
             echo "  ║    DEEPSEEK_API_KEY) before enabling AI features             ║"
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
-            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
             fi
             echo "  ╚══════════════════════════════════════════════════════════════╝"
             echo ""
@@ -1693,7 +1720,7 @@ print_summary() {
             # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
-            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
             fi
             echo "  ╠══════════════════════════════════════════════════════════════╣"
             echo "  ║  Useful commands:                                            ║"
@@ -1718,7 +1745,7 @@ print_summary() {
             # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
-            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ${VR_ADMIN_PASSWORD}"
+            echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
             fi
             echo "  ╠══════════════════════════════════════════════════════════════╣"
             echo "  ║  Useful commands:                                            ║"

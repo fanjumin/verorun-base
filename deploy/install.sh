@@ -18,7 +18,8 @@
 set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
-: "${DEPLOY_MODE:=update}"              # install | update | restart | health | rollback | seed | configure-domain
+# 审计 P3-3：DEPLOY_MODE 由 detect_mode()（lib/common.sh）无条件覆盖，此处不设默认值（死代码）
+#             install | update | restart | health | rollback | seed | configure-domain
 : "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
@@ -35,8 +36,11 @@ set -euo pipefail
 : "${SSL_EMAIL:=}"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-if [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+fi
+if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     # 实体文件执行（git clone 后本地执行）→ 直接加载
     # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/lib/common.sh"
@@ -46,6 +50,8 @@ else
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
     _tmp_common="$(mktemp)"
+    # 审计 P3-2：Ctrl+C 中断时清理临时文件
+    trap 'rm -f "${_tmp_common}"' EXIT
     _ok=0
     if command -v curl >/dev/null 2>&1; then
         # 审计 M-1：统一 --max-time 防握手卡死 + --retry 抗瞬时抖动
@@ -62,7 +68,6 @@ else
         exit 1
     fi
     # shellcheck disable=SC1090
-    chmod +x "${_tmp_common}"
     source "${_tmp_common}"
     rm -f "${_tmp_common}"
 fi
@@ -70,14 +75,11 @@ fi
 # ── Mode / Domain detection ──────────────────────────────────────────
 
 detect_domain() {
-    local domain_arg="${1:-}"
-    # Skip flag-style args (e.g. --approve-migrate) that may land in $2
-    if [[ "${domain_arg}" == --* ]]; then
-        domain_arg=""
-    fi
-    if [ -n "$domain_arg" ]; then
-        DOMAIN="$domain_arg"
-    elif [ -f "${APP_HOME}/.env" ]; then
+    # 审计 P0-1：移除 flag 前缀判断。函数仅在 while 参数解析完成后调用，
+    # 位置参数中的域名已由 while 循环的 *) catchall 写入 DOMAIN。
+    if [ -n "${1:-}" ]; then
+        DOMAIN="$1"
+    elif [ -z "${DOMAIN:-}" ] && [ -f "${APP_HOME}/.env" ]; then
         DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
     fi
 }
@@ -87,7 +89,10 @@ prompt_domain() {
         return
     fi
     echo -e "${INFO} Domain is required to continue."
-    read -p "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " DOMAIN </dev/tty
+    # 提示符改用 echo -n > /dev/tty 输出——read -p 提示走 stderr，
+    # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
+    echo -n "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " > /dev/tty
+    read -r DOMAIN < /dev/tty
     if [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain skipped. Run after install:"
         echo -e "${INFO}   sudo bash deploy/${INSTALL_SCRIPT} configure-domain <your-domain>"
@@ -124,7 +129,8 @@ do_configure_domain() {
 
     # Update DEPLOY_DOMAIN in .env
     if grep -q "^DEPLOY_DOMAIN=" "${env_file}"; then
-        sed -i "s/^DEPLOY_DOMAIN=.*/DEPLOY_DOMAIN=${domain}/" "${env_file}"
+        local _esc=$(printf '%s' "${domain}" | sed 's/[\/&\\]/\\&/g')
+        sed -i "s/^DEPLOY_DOMAIN=.*/DEPLOY_DOMAIN=${_esc}/" "${env_file}"
     else
         echo "DEPLOY_DOMAIN=${domain}" >> "${env_file}"
     fi
@@ -169,7 +175,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 detect_mode "${1:-}"
-detect_domain "${2:-}"
+# detect_domain 将在 while 参数解析完成后调用（审计 P0-1）
 
 # 审计 A-1：install 模式默认批准 DB 迁移与播种，装完即用（与 install-local.sh 一致）
 if [ "${DEPLOY_MODE}" = "install" ]; then
@@ -199,11 +205,16 @@ while [ $# -gt 0 ]; do
             if [ -z "${DOMAIN}" ] && [[ "${1}" != --* ]] && [ "${1}" != "${DEPLOY_MODE}" ]; then
                 DOMAIN="${1}"
                 echo -e "${INFO} Domain detected: ${DOMAIN}"
+            elif [ -n "${DOMAIN}" ] && [[ "${1}" != --* ]] && [ "${1}" != "${DEPLOY_MODE}" ] && [ "${1}" != "${DOMAIN}" ]; then
+                echo -e "${WARN} Domain overridden: ${DOMAIN} → ${1}"
+                DOMAIN="${1}"
             fi
             ;;
     esac
     shift
 done
+# 审计 P0-1：while 参数解析完成后统一解析域名（.env 仅作兜底；命令行域名优先，不被覆盖）
+detect_domain ""
 # Validate region
 if [ "${REGION}" != "cn" ] && [ "${REGION}" != "global" ]; then
     echo -e "${FAIL} --region must be 'cn' or 'global' (got: ${REGION})"

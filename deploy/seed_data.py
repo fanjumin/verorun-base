@@ -42,13 +42,16 @@ def parse_env(env_path: str) -> dict:
     if not os.path.exists(env_path):
         print(f"[WARN] .env not found: {env_path}")
         return config
-    with open(env_path) as f:
+    with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, val = line.split("=", 1)
-            config[key.strip()] = val.strip()
+            val = val.strip()
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+                val = val[1:-1]
+            config[key.strip()] = val
     return config
 
 
@@ -90,7 +93,8 @@ class SeedDB:
         else:
             # SQLite mode
             import sqlite3
-            db_path = self.sqlite_path or self.env.get("DB_PATH", "data/x7k2m9a4.db")
+            _default_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "x7k2m9a4.db")
+            db_path = self.sqlite_path or self.env.get("DB_PATH") or _default_db
             os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
             self.conn = sqlite3.connect(db_path)
             self.conn.row_factory = sqlite3.Row
@@ -153,10 +157,36 @@ def seed_base_plan(db: SeedDB):
 
 
 def seed_plugin_products(db: SeedDB):
-    """Seed initial plugin product catalog."""
+    """Seed initial plugin product catalog (site_domains only)."""
     for p in DEFAULT_PLUGIN_PRODUCTS:
         db.insert_on_conflict("plugin_products", p, conflict_col="plugin_key")
         print(f"  [OK] plugin_product: {p['plugin_key']}")
+
+
+def seed_site_domains(db: SeedDB, deploy_domain: str = None, brand: str = None):
+    """Seed the 3 default site_domains records (www/agent/platform).
+
+    Aligns with auth-center/models/database.py migration defaults; idempotent
+    via ON CONFLICT (full_domain) DO NOTHING.
+    """
+    deploy_domain = deploy_domain or "localhost"
+    brand = brand or "VeroRun 维洛智能"
+    defaults = [
+        ("www",      f"www.{deploy_domain}",      f"{brand} 官网",      'default', 1, 1),
+        ("agent",    f"agent.{deploy_domain}",    f"{brand} 管理后台",  'default', 1, 2),
+        ("platform", f"platform.{deploy_domain}", f"{brand} 用户中心",  'default', 1, 3),
+    ]
+    for sub, full, name, template, pub, sort in defaults:
+        db.insert_on_conflict("site_domains", {
+            "site_config_id": 1,
+            "subdomain": sub,
+            "full_domain": full,
+            "display_name": name,
+            "template": template,
+            "is_published": pub,
+            "sort_order": sort,
+        }, conflict_col="full_domain")
+        print(f"  [OK] site_domain: {full}")
 
 
 def seed_admin_user(db: SeedDB, username: str = None, password: str = None):
@@ -284,7 +314,7 @@ def main():
     db = SeedDB(env, sqlite_path=args.sqlite)
 
     # Verify required tables exist
-    required = ["users", "base_plans", "plugin_products", "usage_quotas", "user_subscriptions", "admin_profiles"]
+    required = ["users", "base_plans", "plugin_products", "usage_quotas", "user_subscriptions", "admin_profiles", "site_domains"]
     missing = [t for t in required if not db.table_exists(t)]
     if missing:
         print(f"[FAIL] Tables not found: {', '.join(missing)}")
@@ -293,9 +323,13 @@ def main():
         db.close()
         sys.exit(1)
 
+    deploy_domain = env.get("DEPLOY_DOMAIN") or "localhost"
+    deploy_brand = env.get("DEPLOY_BRAND") or "VeroRun 维洛智能"
+
     print("[i] Seeding data...")
     seed_base_plan(db)
     seed_plugin_products(db)
+    seed_site_domains(db, deploy_domain, deploy_brand)
     user_id = seed_admin_user(db, username, password)
     seed_admin_profile(db, user_id, username)
     seed_quotas(db)
@@ -305,7 +339,7 @@ def main():
     db.close()
 
     print(f"\n[OK] Seed data injected successfully.")
-    print(f"     Admin account: {username} / {password}")
+    print(f"     Admin account: {username} / <password saved to install output above>")
     print(f"     Plugins seeded: {len(DEFAULT_PLUGIN_PRODUCTS)}")
 
 

@@ -39,7 +39,12 @@ set -euo pipefail
 : "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-: "${APP_HOME:=/home/${APP_USER}/verorun}"
+# 审计 P1-8：APP_USER=root 时 home 为 /root（非 /home/root）
+if [ "${APP_USER}" = "root" ]; then
+    : "${APP_HOME:=/root/verorun}"
+else
+    : "${APP_HOME:=/home/${APP_USER}/verorun}"
+fi
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
@@ -49,8 +54,11 @@ set -euo pipefail
 DEPLOY_TYPE="dev"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-if [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+fi
+if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     # 实体文件执行（git clone 后本地执行）→ 直接加载
     # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/lib/common.sh"
@@ -115,6 +123,9 @@ while [ $# -gt 0 ]; do
         --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
         --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;
         --admin-pass) shift; [ $# -gt 0 ] && VR_ADMIN_PASSWORD="${1}" || { echo -e "${FAIL} --admin-pass requires a value"; exit 1; } ;;
+        *)
+            echo -e "${WARN} Unknown argument ignored: ${1}"
+            ;;
     esac
     shift
 done
