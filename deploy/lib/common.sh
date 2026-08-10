@@ -382,6 +382,22 @@ resolve_directory_conflict() {
     echo -e "${WARN}    ${target_dir}"
     echo -e "${WARN}"
     echo -e "${WARN}  This directory exists but is NOT a VeroRun installation."
+
+    # 无 TTY（如 curl|sudo bash 管道）：自动删除，无需交互
+    if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+        exec 3>&-
+        echo -e "${WARN}  Non-interactive mode — auto-removing and proceeding."
+        echo -e "${WARN} ═══════════════════════════════════════════════════════"
+        if [ -z "${target_dir}" ] || [ "${target_dir}" = "/" ] || [ "${target_dir}" = "${HOME}" ]; then
+            echo -e "${FAIL} Refusing to remove dangerous path: ${target_dir}"
+            exit 1
+        fi
+        rm -rf "${target_dir}"
+        echo -e "${OK} Removed. Proceeding with installation."
+        return 0
+    fi
+    exec 3>&-
+
     echo -e "${WARN}  What would you like to do?"
     echo -e "${WARN}"
     echo -e "${INFO}  [1] Backup and reinstall"
