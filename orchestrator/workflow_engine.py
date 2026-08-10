@@ -79,12 +79,27 @@ class WorkflowEngine:
         Returns:
             workflow_instance_id
         """
+        # P0-F05: 启停与并发约束（下沉到引擎内部，确保所有调用入口一致）
+        wf = m.get_workflow(workflow_id)
+        if not wf:
+            raise ValueError(f'工作流 #{workflow_id} 不存在')
+
+        if not wf.get('is_active'):
+            raise ValueError(f'工作流 #{workflow_id} 已暂停（is_active=False）')
+
+        max_conc = wf.get('max_concurrency', 0)
+        if max_conc > 0:
+            running_count = len(m.get_running_instances(workflow_id))
+            if running_count >= max_conc:
+                raise ValueError(
+                    f'工作流 #{workflow_id} 并发实例数已达上限 ({running_count}/{max_conc})')
+
         # 创建工作流实例
         inst_id = m.create_workflow_instance(
             workflow_id, trigger_type, trigger_config
         )
         if not inst_id:
-            raise ValueError(f'工作流 #{workflow_id} 不存在')
+            raise ValueError(f'工作流 #{workflow_id} 实例创建失败')
 
         # 更新上下文
         if initial_context:
@@ -390,10 +405,15 @@ class WorkflowEngine:
 
         elif node_type == 'http_request':
             import urllib.request
+            import socket
+            from urllib.parse import urlparse
             url = config.get('url', '')
             method = config.get('method', 'GET')
             headers = config.get('headers', {})
             body = config.get('body')
+
+            # P1-F11: SSRF 防护 — 禁止内网/回环/元数据地址
+            _validate_target_url(url)
 
             req = urllib.request.Request(url, method=method)
             for k, v in headers.items():
@@ -459,7 +479,7 @@ class WorkflowEngine:
         except Exception as e:
             import logging
             logging.warning(f"[Workflow] Condition evaluation failed: {e}")
-            return True  # 条件评估失败时默认不通过，避免错误分支被执行
+            return False  # P1-F10: 条件评估失败默认不通过（fail-closed），避免错误分支被执行
 
     def _is_instance_done(self, inst_id: int) -> bool:
         """检查实例是否已结束"""
@@ -640,6 +660,57 @@ class WorkflowEngine:
                 'finished_at': m.now_str()
             })
             m.add_log('workflow', inst_id, 'info', _('✅ Workflow completed (after approval resume)'))
+
+
+# ============================================================
+# P1-F11: SSRF 防护 — URL 目标地址校验
+# ============================================================
+
+import ipaddress
+import socket
+from urllib.parse import urlparse
+
+# 禁止的 IP 范围
+_SSRF_BLOCKED_NETWORKS = [
+    ipaddress.ip_network('127.0.0.0/8'),       # 回环 v4
+    ipaddress.ip_network('10.0.0.0/8'),         # A类私网
+    ipaddress.ip_network('172.16.0.0/12'),      # B类私网
+    ipaddress.ip_network('192.168.0.0/16'),     # C类私网
+    ipaddress.ip_network('169.254.0.0/16'),     # 链路本地（云元数据）
+    ipaddress.ip_network('0.0.0.0/8'),          # 当前网络
+    ipaddress.ip_network('100.64.0.0/10'),      # CGNAT
+    ipaddress.ip_network('198.18.0.0/15'),      # 基准测试
+    ipaddress.ip_network('224.0.0.0/4'),        # 多播 v4
+    ipaddress.ip_network('240.0.0.0/4'),        # 保留 v4
+    ipaddress.ip_network('::1/128'),             # 回环 v6
+    ipaddress.ip_network('fc00::/7'),            # 唯一本地 v6
+    ipaddress.ip_network('fe80::/10'),           # 链路本地 v6
+    ipaddress.ip_network('ff00::/8'),            # 多播 v6
+]
+
+
+def _validate_target_url(url: str):
+    """校验目标 URL 不指向内网/回环/保留地址（SSRF 防护，含 IPv4/IPv6）。"""
+    if not url:
+        raise ValueError('URL is empty')
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError(f'Cannot parse hostname from URL: {url}')
+    try:
+        addrs = socket.getaddrinfo(hostname, None)
+        # P1-F11: 检查所有解析结果（防 DNS rebinding）
+        for family, _, _, _, sockaddr in addrs:
+            addr = sockaddr[0]
+            ip = ipaddress.ip_address(addr)
+            for net in _SSRF_BLOCKED_NETWORKS:
+                if ip in net:
+                    raise ValueError(f'SSRF blocked: target {hostname} resolves to {ip} in {net}')
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError(f'Cannot resolve hostname: {hostname}')
+    return True
 
 
 # ============================================================

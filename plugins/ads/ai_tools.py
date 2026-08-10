@@ -5,7 +5,7 @@
 所有函数返回 dict {'success': bool, 'data': any, 'error': str|None}，
 便于上层统一处理。
 """
-import json, os, sys
+import json, os, sys, re, logging
 
 from i18n import _
 
@@ -13,6 +13,27 @@ from i18n import _
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
+
+_logger = logging.getLogger(__name__)
+
+
+def _sanitize_ad_code(ad_code: str) -> str:
+    """清洗广告代码，剥离 script/事件属性，防止存储型 XSS。
+    LLM 输出的 ad_code 可能包含恶意 HTML/JS，入库前必须净化。
+    """
+    if not ad_code:
+        return ad_code
+    # 剥离 <script> 标签及其内容
+    ad_code = re.sub(r'<script[\s\S]*?</script>', '', ad_code, flags=re.IGNORECASE)
+    # 剥离 on* 事件属性
+    ad_code = re.sub(r'\s+on\w+\s*=\s*["\'][^"\']*["\']', '', ad_code, flags=re.IGNORECASE)
+    ad_code = re.sub(r'\s+on\w+\s*=\s*[^\s>]+', '', ad_code, flags=re.IGNORECASE)
+    # 剥离 javascript: 伪协议
+    ad_code = re.sub(r'(?i)javascript\s*:', '', ad_code)
+    # 剥离 <iframe>
+    ad_code = re.sub(r'<iframe[\s\S]*?</iframe>', '', ad_code, flags=re.IGNORECASE)
+    _logger.info("[Ads] ad_code sanitized for storage")
+    return ad_code
 
 
 def _get_db():
@@ -71,12 +92,15 @@ def get_ad(ad_id):
 
 
 def create_ad(data):
-    """创建广告"""
+    """创建广告（入库前自动清洗 ad_code 防 XSS）"""
     try:
         # 校验必填
         name = (data.get('name') or '').strip()
         if not name:
             return {'success': False, 'error': _('Advertisement name cannot be empty')}
+        # P0-F12: ad_code 入库前清洗脚本/事件属性
+        if 'ad_code' in data and data['ad_code']:
+            data['ad_code'] = _sanitize_ad_code(data['ad_code'])
         from plugins.ads.models import create_ad_record
         ad_id = create_ad_record(data)
         return {'success': True, 'data': {'id': ad_id}}
@@ -85,8 +109,11 @@ def create_ad(data):
 
 
 def update_ad(ad_id, data):
-    """更新广告（动态字段，列名白名单见 models._UPDATE_FIELDS）"""
+    """更新广告（动态字段，列名白名单见 models._UPDATE_FIELDS，入库前自动清洗 ad_code）"""
     try:
+        # P0-F12: ad_code 入库前清洗脚本/事件属性
+        if 'ad_code' in data and data['ad_code']:
+            data['ad_code'] = _sanitize_ad_code(data['ad_code'])
         from plugins.ads.models import update_ad_record, AdNotFound
         try:
             update_ad_record(ad_id, data)

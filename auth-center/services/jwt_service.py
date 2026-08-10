@@ -32,15 +32,50 @@ def _cleanup_blacklist():
 
 
 def _revoke_jti(jti, expires_at):
-    """Add a jti to the blacklist until expires_at."""
+    """Add a jti to the blacklist (DB-backed with in-memory cache).
+    P1-F03: 落库确保多 worker/多进程同步生效。
+    """
     with _blacklist_lock:
         _token_blacklist[jti] = expires_at
+    # 持久化到数据库
+    try:
+        from models import get_db
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO system_config (key, value) VALUES (%s, %s) "
+                "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()",
+                (f'revoked_jti_{jti}', str(int(expires_at)))
+            )
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to persist revoked jti {jti} to DB: {e}")
 
 
 def _is_jti_revoked(jti):
-    """Check if a jti is blacklisted."""
+    """Check if a jti is blacklisted (memory cache + DB fallback).
+    P1-F03: 内存缓存未命中时查DB，确保多进程同步。
+    """
     with _blacklist_lock:
-        return jti in _token_blacklist
+        if jti in _token_blacklist:
+            return True
+    # 查数据库（多 worker 场景下其它进程吊销的 token）
+    try:
+        from models import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT value FROM system_config WHERE key=%s",
+                (f'revoked_jti_{jti}',)
+            ).fetchone()
+        if row:
+            expires_at = int(row['value'])
+            if time.time() < expires_at:
+                # 回填内存缓存
+                with _blacklist_lock:
+                    _token_blacklist[jti] = expires_at
+                return True
+    except Exception as e:
+        logger.error(f"DB check for revoked jti failed: {e}")
+    return False
 
 
 def create_token(user_id, phone=None, app_name='trademind', is_admin=False,
@@ -129,8 +164,9 @@ def validate_token(token):
                 revoked_at = int(row['value'])
                 if payload.get('iat', 0) < revoked_at:
                     return None  # Token issued before user was force-logged-out
-        except Exception:
-            pass  # Fail open on DB error (graceful degradation)
+        except Exception as e:
+            logger.error(f"User revocation DB check failed for user={user_id}: {e}")
+            return None  # P1-F03: fail-closed — DB 异常时拒绝 token
 
     return payload
 

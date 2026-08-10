@@ -185,7 +185,9 @@ class AgentOrchestrator:
             if not facts:
                 return
 
-            from auth_center.routes.cleaner_agent import process_clean_content
+            import os as _os, sys as _sys
+            _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', 'auth-center'))
+            from routes.cleaner_agent import process_clean_content
             for fact in facts:
                 try:
                     process_clean_content(fact, admin_id=user_id)
@@ -197,6 +199,10 @@ class AgentOrchestrator:
     def _should_extract(self, conversation_text: str, task_result: dict) -> bool:
         """判断对话是否值得提取知识"""
         import hashlib
+
+        # P1-F07: 全局开关 — 默认关闭自动知识提取，需显式启用
+        if os.environ.get('AUTO_KNOWLEDGE_EXTRACT', '0') != '1':
+            return False
 
         conv = (conversation_text or '').strip()
         if not conv:

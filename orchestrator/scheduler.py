@@ -317,9 +317,19 @@ class SchedulerEngine:
         m.update_cron_job(job_id, {
             'last_status': 'success' if result['success'] else 'failed',
             'last_duration_ms': duration_ms,
-            'run_count': job.get('run_count', 0) + 1,
-            'fail_count': job.get('fail_count', 0) + (0 if result['success'] else 1)
         })
+        # P2-F08: 原子自增 run_count / fail_count（防并发丢失更新）
+        try:
+            with m.get_db() as conn:
+                conn.execute(
+                    "UPDATE cron_jobs SET run_count = run_count + 1, "
+                    "fail_count = fail_count + %s "
+                    "WHERE id = %s",
+                    (0 if result['success'] else 1, job_id)
+                )
+                conn.commit()
+        except Exception:
+            pass
 
         # 检查依赖触发
         if result['success']:
@@ -458,6 +468,7 @@ class SchedulerEngine:
                 j for j in self._running_jobs.values()
                 if j and getattr(j, 'next_run_time', None)
             ])
+            hostname = platform.node() or os.environ.get('COMPUTERNAME', 'localhost')
 
             with m.get_db() as conn:
                 conn.execute("""
@@ -471,10 +482,10 @@ class SchedulerEngine:
                         last_heartbeat = EXCLUDED.last_heartbeat,
                         running_jobs = EXCLUDED.running_jobs,
                         state_json = EXCLUDED.state_json
-                """, (self.scheduler_id, os.uname().nodename, running_count))
+                """, (self.scheduler_id, hostname, running_count))
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[Scheduler Heartbeat] Failed to update heartbeat: {e}")
 
     # ---- 外部接口 ----
 

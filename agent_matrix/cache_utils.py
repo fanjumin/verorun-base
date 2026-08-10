@@ -51,6 +51,9 @@ class CacheStore:
 
     def get(self, key: str) -> dict | None:
         """Read cache entry. Returns None if missing or expired."""
+        # P1-F09: 防路径穿越 — 缓存键禁止包含路径分隔符
+        if '/' in key or '\\' in key or '..' in key:
+            return None
         fpath = self._subdir_path / f'{key}.json'
         try:
             with open(fpath, 'r', encoding='utf-8') as f:
@@ -66,6 +69,9 @@ class CacheStore:
 
     def set(self, key: str, data: dict):
         """Write cache entry."""
+        # P1-F09: 防路径穿越 — 缓存键禁止包含路径分隔符
+        if '/' in key or '\\' in key or '..' in key:
+            return
         data.setdefault('created_at', time.time())
         fpath = self._subdir_path / f'{key}.json'
         with self._lock:

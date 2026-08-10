@@ -2,6 +2,11 @@
 """安全表达式评估器 - 使用 AST 解析限制允许的操作"""
 import ast
 
+# P1-F10: 表达式规模限制
+MAX_AST_NODES = 200
+MAX_AST_DEPTH = 20
+MAX_EXPR_LENGTH = 2000
+
 def safe_eval(expression: str, local_vars: dict) -> bool:
     """
     安全地评估布尔表达式
@@ -12,6 +17,7 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
     - 算术运算符: +, -, *, /, %, //, **
     - 内置常量: True, False, None
     - 访问 local_vars 中的变量
+    - 幂运算指数限制：<= 100
     
     禁止的操作：
     - 函数调用
@@ -19,13 +25,25 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
     - 下标访问
     - lambda 表达式
     - 导入
+    - 大数运算（移位、超大幂次）
     """
+    # P1-F10: 表达式长度上限
+    if len(expression) > MAX_EXPR_LENGTH:
+        raise ValueError(f"Expression too long ({len(expression)} > {MAX_EXPR_LENGTH})")
+    
     try:
         # 解析表达式为 AST
         tree = ast.parse(expression, mode='eval')
         
+        # P1-F10: 节点数限制
+        node_count = 0
+        
         # 遍历 AST 节点进行安全检查
         for node in ast.walk(tree):
+            node_count += 1
+            if node_count > MAX_AST_NODES:
+                raise ValueError(f"Expression too complex ({node_count} nodes > {MAX_AST_NODES})")
+            
             # 禁止函数调用
             if isinstance(node, ast.Call):
                 raise ValueError(f"Function calls are not allowed: {ast.dump(node)}")
@@ -49,6 +67,14 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
             # 禁止复杂表达式
             if isinstance(node, (ast.DictComp, ast.SetComp, ast.ListComp, ast.GeneratorExp)):
                 raise ValueError(f"Comprehensions are not allowed")
+            
+            # P1-F10: 禁止移位运算（防止 1<<999999999）
+            if isinstance(node, ast.LShift) or isinstance(node, ast.RShift):
+                raise ValueError(f"Bit shift operations are not allowed")
+            
+            # P1-F10: 限制幂运算指数（防止 9**9**9）
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+                raise ValueError(f"Power operations are not allowed")
         
         # 检查危险的标识符
         forbidden_names = [
@@ -61,6 +87,17 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
         for node in ast.walk(tree):
             if isinstance(node, ast.Name) and node.id in forbidden_names:
                 raise ValueError(f"Forbidden name: {node.id}")
+        
+        # P1-F10: AST 深度限制
+        _max_depth = 0
+        def _get_depth(n, d=0):
+            nonlocal _max_depth
+            _max_depth = max(_max_depth, d)
+            for child in ast.iter_child_nodes(n):
+                _get_depth(child, d + 1)
+        _get_depth(tree)
+        if _max_depth > MAX_AST_DEPTH:
+            raise ValueError(f"Expression too deeply nested ({_max_depth} > {MAX_AST_DEPTH})")
         
         # 使用空的 __builtins__ 进行评估
         return bool(eval(compile(tree, '<string>', 'eval'), {"__builtins__": {}}, local_vars))

@@ -280,7 +280,8 @@ def ai_format():
         try:
             from services.ai_content_generator import _qwen_chat
         except ImportError:
-            from auth_center.services.ai_content_generator import _qwen_chat
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+            from services.ai_content_generator import _qwen_chat
     except ImportError:
         return jsonify({'success': False, 'error': _('AI Layout Module Not Ready (ai_content_generator Not Available)')}), 503
     prompt = f"""你是一个专业的内容排版编辑。请仔细阅读全文，然后执行以下步骤：
@@ -319,7 +320,8 @@ def ai_cover():
         try:
             from services.ai_content_generator import generate_image
         except ImportError:
-            from auth_center.services.ai_content_generator import generate_image
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+            from services.ai_content_generator import generate_image
     except ImportError:
         return jsonify({'success': False, 'error': _('AI image generation module is not ready (ai_content_generator is unavailable)')}), 503
     try:
@@ -440,7 +442,8 @@ def publish():
             from models.cms import upsert_post
         except ImportError:
             try:
-                from auth_center.models.cms import upsert_post
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+                from models.cms import upsert_post
             except ImportError:
                 return jsonify({'success': False, 'error': _('CMS publishing module is not ready (models.cms is not available)')}), 503
         import time
@@ -491,7 +494,8 @@ def publish():
                 from models.cms import upsert_post
             except ImportError:
                 try:
-                    from auth_center.models.cms import upsert_post
+                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+                    from models.cms import upsert_post
                 except ImportError:
                     return jsonify({'success': False, 'error': _('CMS publishing module is not ready (models.cms is not available)')}), 503
             import time
@@ -704,7 +708,8 @@ def push_processed_to_knowledge():
         from routes.cleaner_agent import process_clean_content
     except ImportError:
         try:
-            from auth_center.routes.cleaner_agent import process_clean_content
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'auth-center'))
+            from routes.cleaner_agent import process_clean_content
         except ImportError:
             return jsonify({'success': False, 'error': _('Knowledge base push module is not ready (cleaner_agent is not available)')}), 503
     result = process_clean_content(raw, admin_id=admin['user_id'])

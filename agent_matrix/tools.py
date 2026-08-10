@@ -567,7 +567,8 @@ def _tool_cms_create_post(args):
             'is_published': 0,
         }
 
-        from auth_center.models.cms import upsert_post
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
+        from models.cms import upsert_post
         result = upsert_post(post_data)
         post_id = result.get('id') if isinstance(result, dict) else result
         return f"Article created, ID: {post_id}, Title: {title}"
@@ -602,7 +603,8 @@ def _tool_cms_publish_post(args):
                 local_cats.append(ch.split(':', 1)[1])
 
         if local_cats:
-            from auth_center.models.cms import upsert_post
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
+        from models.cms import upsert_post
             post = dict(row)
             upsert_post({
                 'id': post_id,

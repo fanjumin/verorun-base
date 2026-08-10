@@ -446,7 +446,7 @@ def update_cron_job(job_id, data):
                 'next_run_at','max_runs','agent_type','agent_id',
                 'target_type','target_config','priority','worker_pool',
                 'max_retries','retry_delay','retry_backoff','timeout_seconds',
-                'is_active'):
+                'is_active','last_run_at','last_status','last_duration_ms'):
         if key in data:
             fields.append(f"{key}=%s")
             v = data[key]
