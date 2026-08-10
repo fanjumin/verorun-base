@@ -59,6 +59,7 @@ else
         exit 1
     fi
     # shellcheck disable=SC1090
+    chmod +x "${_tmp_common}"
     source "${_tmp_common}"
     rm -f "${_tmp_common}"
 fi

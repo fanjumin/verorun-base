@@ -1218,20 +1218,15 @@ do_install() {
         apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
-    # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
-    # 审计 Y-3 修复：mktemp 生成的临时文件 600 且属 root，postgres 用户无法读取，
-    # 导致 CREATE ROLE 被静默失败（2>/dev/null || true 吞掉 Permission denied）——
-    # 必须 chown 给 postgres 并保持 600，其余用户仍不可读。
-    _sql_tmp=$(mktemp)
-    chown postgres:postgres "${_sql_tmp}"
-    chmod 600 "${_sql_tmp}"
+    # 审计 C1 达标：密码经管道(stdin)传入 psql，不进入进程命令行（psql argv 仅 "-q"）
+    # 审计 Y-4 修复：服务器 fs.protected_regular=2（sticky 全局可写目录内禁止写他人
+    # 文件，连 root 也不例外）导致 mktemp→chown postgres→printf 写文件被内核 EACCES
+    # 拒绝。改用 stdin 管道，无文件、无属主、无 /tmp，与内核防护完全解耦。
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" | sudo -u postgres psql -q 2>/dev/null || true
     else
-        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" | sudo -u postgres psql -q 2>/dev/null || true
     fi
-    sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
-    rm -f "${_sql_tmp}"
     # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
     if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         echo -e "${FAIL} FATAL: PostgreSQL role 'app' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
