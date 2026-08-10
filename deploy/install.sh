@@ -86,7 +86,10 @@ prompt_domain() {
         return
     fi
     echo -e "${INFO} Domain is required to continue."
-    read -p "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " DOMAIN </dev/tty
+    # 提示符改用 echo -n > /dev/tty 输出——read -p 提示走 stderr，
+    # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
+    echo -n "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " > /dev/tty
+    read -r DOMAIN < /dev/tty
     if [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain skipped. Run after install:"
         echo -e "${INFO}   sudo bash deploy/${INSTALL_SCRIPT} configure-domain <your-domain>"

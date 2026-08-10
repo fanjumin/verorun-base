@@ -783,28 +783,35 @@ prompt_admin_creds() {
     echo -e "${INFO} Create the administrator account for VeroRun" > /dev/tty
 
     local _user="" _pass="" _pass2=""
-    read -r -p "  Admin username: " _user < /dev/tty
+    echo -n "  Admin username: " > /dev/tty
+    read -r _user < /dev/tty
     _user="${_user//[^a-zA-Z0-9._-]/}"
     while [ -z "${_user}" ]; do
         echo -e "${WARN} Username cannot be empty" > /dev/tty
-        read -r -p "  Admin username: " _user < /dev/tty
+        echo -n "  Admin username: " > /dev/tty
+    read -r _user < /dev/tty
     done
 
-    read -r -s -p "  Admin password: " _pass < /dev/tty
+    echo -n "  Admin password: " > /dev/tty
+    read -r -s _pass < /dev/tty
     echo "" > /dev/tty
     while [ -z "${_pass}" ]; do
         echo -e "${WARN} Password cannot be empty" > /dev/tty
-        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo -n "  Admin password: " > /dev/tty
+    read -r -s _pass < /dev/tty
         echo "" > /dev/tty
     done
 
-    read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+    echo -n "  Confirm password: " > /dev/tty
+    read -r -s _pass2 < /dev/tty
     echo "" > /dev/tty
     while [ "${_pass}" != "${_pass2}" ]; do
         echo -e "${WARN} Passwords do not match, try again" > /dev/tty
-        read -r -s -p "  Admin password: " _pass < /dev/tty
+        echo -n "  Admin password: " > /dev/tty
+    read -r -s _pass < /dev/tty
         echo "" > /dev/tty
-        read -r -s -p "  Confirm password: " _pass2 < /dev/tty
+        echo -n "  Confirm password: " > /dev/tty
+    read -r -s _pass2 < /dev/tty
         echo "" > /dev/tty
     done
 
@@ -1214,7 +1221,10 @@ do_install() {
         echo -e "${WARN} Some dependencies are missing (system or Python packages)"
         # 审计 H-2 修复：curl | sudo bash 管道执行时 stdin 已被脚本内容占用，
         # 必须 < /dev/tty 从终端读取，否则 read 会吞掉后续脚本内容。
-        read -r -p "Install dependencies now? [Y/n] " _ans < /dev/tty || _ans=""
+        # 提示符改用 echo -n > /dev/tty 输出——read -p 提示走 stderr，
+        # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
+        echo -n "Install dependencies now? [Y/n] " > /dev/tty
+        read -r _ans < /dev/tty || _ans=""
         case "${_ans}" in
             n|N) echo -e "${WARN} Skipping dependency installation"; SKIP_DEPS=1 ;;
             *)   echo -e "${OK} Will install missing dependencies" ;;
