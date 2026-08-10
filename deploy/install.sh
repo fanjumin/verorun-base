@@ -30,6 +30,9 @@ set -euo pipefail
 : "${REGION:=global}"                # cn | global
 # 审计 C-1：部署模式由各入口脚本在 source 本文件前定义；统一函数（lib/common.sh）据此区分行为
 : "${DEPLOY_TYPE:=production}"       # production | lan | code | dev
+: "${VR_ADMIN_USERNAME:=}"
+: "${VR_ADMIN_PASSWORD:=}"
+: "${SSL_EMAIL:=}"
 
 # ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
@@ -59,6 +62,7 @@ else
         exit 1
     fi
     # shellcheck disable=SC1090
+    chmod +x "${_tmp_common}"
     source "${_tmp_common}"
     rm -f "${_tmp_common}"
 fi
@@ -181,6 +185,12 @@ while [ $# -gt 0 ]; do
         --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
         --force) FORCE_UPDATE=1 ;;   # 审计 C-3：update 时允许覆盖本地修改（先备份 diff）
+        --admin-user=*) VR_ADMIN_USERNAME="${1#*=}" ;;
+        --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
+        --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;
+        --admin-pass) shift; [ $# -gt 0 ] && VR_ADMIN_PASSWORD="${1}" || { echo -e "${FAIL} --admin-pass requires a value"; exit 1; } ;;
+        --ssl-email=*) SSL_EMAIL="${1#*=}" ;;
+        --ssl-email) shift; [ $# -gt 0 ] && SSL_EMAIL="${1}" || { echo -e "${FAIL} --ssl-email requires a value"; exit 1; } ;;
         *)
             # 审计 H-1 修复：detect_domain("${2:-}") 只读 $2，当用户以
             # `install --region cn your-domain.com` 空格形式传参时，域名落在 $4，

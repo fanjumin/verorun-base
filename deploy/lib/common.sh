@@ -313,16 +313,20 @@ _setup_ssl_cert() {
         return 0  # 仅域名版 install.sh 触发；其余三脚本天然跳过
     fi
     step "HTTPS certificate (Let's Encrypt)"
-    if ! { exec 3<>/dev/tty; } 2>/dev/null; then
-        exec 3>&-
-        echo -e "${WARN} Non-interactive shell — skipping cert issuance."
-        echo -e "${INFO} Run later: sudo apt-get install -y certbot python3-certbot-nginx && sudo certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d platform.${DOMAIN} -d agent.${DOMAIN}"
-        return 0
-    fi
-    exec 3>&-
 
-    local _email=""
-    read -r -p "  Let's Encrypt email (for renewal notices, optional): " _email < /dev/tty
+    local _email="${SSL_EMAIL:-}"
+
+    # --ssl-email flag 传入：跳过 TTY 检查和交互输入
+    if [ -z "${_email}" ]; then
+        if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+            exec 3>&-
+            echo -e "${WARN} Non-interactive shell — skipping cert issuance."
+            echo -e "${INFO} Run later: sudo apt-get install -y certbot python3-certbot-nginx && sudo certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d platform.${DOMAIN} -d agent.${DOMAIN}"
+            return 0
+        fi
+        exec 3>&-
+        read -r -p "  Let's Encrypt email (for renewal notices, optional): " _email < /dev/tty
+    fi
 
     export DEBIAN_FRONTEND=noninteractive
     if ! apt-get install -y certbot python3-certbot-nginx 2>&1; then
@@ -378,6 +382,22 @@ resolve_directory_conflict() {
     echo -e "${WARN}    ${target_dir}"
     echo -e "${WARN}"
     echo -e "${WARN}  This directory exists but is NOT a VeroRun installation."
+
+    # 无 TTY（如 curl|sudo bash 管道）：自动删除，无需交互
+    if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+        exec 3>&-
+        echo -e "${WARN}  Non-interactive mode — auto-removing and proceeding."
+        echo -e "${WARN} ═══════════════════════════════════════════════════════"
+        if [ -z "${target_dir}" ] || [ "${target_dir}" = "/" ] || [ "${target_dir}" = "${HOME}" ]; then
+            echo -e "${FAIL} Refusing to remove dangerous path: ${target_dir}"
+            exit 1
+        fi
+        rm -rf "${target_dir}"
+        echo -e "${OK} Removed. Proceeding with installation."
+        return 0
+    fi
+    exec 3>&-
+
     echo -e "${WARN}  What would you like to do?"
     echo -e "${WARN}"
     echo -e "${INFO}  [1] Backup and reinstall"
@@ -742,6 +762,15 @@ detect_mode() {
 prompt_admin_creds() {
     case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
     [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
+
+    # --admin-user / --admin-pass flag 传入：直接写入凭据文件，跳过交互
+    if [ -n "${VR_ADMIN_USERNAME:-}" ] && [ -n "${VR_ADMIN_PASSWORD:-}" ]; then
+        printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${VR_ADMIN_USERNAME}" "${VR_ADMIN_PASSWORD}" > "${VR_ADMIN_CREDS_FILE}"
+        chmod 600 "${VR_ADMIN_CREDS_FILE}"
+        trap 'rm -f "${VR_ADMIN_CREDS_FILE}"' EXIT
+        echo -e "${OK} Admin credentials set via flag"
+        return 0
+    fi
 
     # 非交互管道（curl | sudo bash 无 TTY）：自动降级，凭据由 seed_data.py 生成
     if ! { exec 3<>/dev/tty; } 2>/dev/null; then
@@ -1218,20 +1247,15 @@ do_install() {
         apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
-    # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
-    # 审计 Y-3 修复：mktemp 生成的临时文件 600 且属 root，postgres 用户无法读取，
-    # 导致 CREATE ROLE 被静默失败（2>/dev/null || true 吞掉 Permission denied）——
-    # 必须 chown 给 postgres 并保持 600，其余用户仍不可读。
-    _sql_tmp=$(mktemp)
-    chown postgres:postgres "${_sql_tmp}"
-    chmod 600 "${_sql_tmp}"
+    # 审计 C1 达标：密码经管道(stdin)传入 psql，不进入进程命令行（psql argv 仅 "-q"）
+    # 审计 Y-4 修复：服务器 fs.protected_regular=2（sticky 全局可写目录内禁止写他人
+    # 文件，连 root 也不例外）导致 mktemp→chown postgres→printf 写文件被内核 EACCES
+    # 拒绝。改用 stdin 管道，无文件、无属主、无 /tmp，与内核防护完全解耦。
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" | sudo -u postgres psql -q 2>/dev/null || true
     else
-        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" | sudo -u postgres psql -q 2>/dev/null || true
     fi
-    sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
-    rm -f "${_sql_tmp}"
     # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
     if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         echo -e "${FAIL} FATAL: PostgreSQL role 'app' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
