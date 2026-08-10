@@ -32,7 +32,7 @@
 # 审计 H-5：Sparse-checkout 白名单（基础列表）。入口脚本可通过追加扩展，
 # 如 install-code.sh 在 source 后执行 SPARSE_DIRS="${SPARSE_DIRS} plugins"。
 # 审计 M-1：追加 scripts/（README 引用 scripts/dev_start.py 本地开发脚本）。
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy scripts}"
+: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy scripts plugins/site_domains}"
 : "${FORCE_UPDATE:=0}"              # 审计 C-3：update 时强制覆盖本地修改（配合 --force）
 : "${PIP_MIRROR:=}"
 : "${PIP_MIRROR_DETECTED:=}"
