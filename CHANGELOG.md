@@ -1,5 +1,13 @@
 # 修改记录
 
+## v0.55.7 — 2026-08-10
+
+### Changes
+
+- Version bump from v0.55.6
+- fix(deploy): 修复 PostgreSQL 角色创建静默失败——mktemp 临时文件 600 且属 root，postgres 用户无法读取导致 CREATE ROLE 被 2>/dev/null 吞掉，现 chown postgres:postgres 后保持 600 可读；补回 R4 重构丢失的建库逻辑（createdb -O app appdb），全新服务器一键安装可正常通过数据库阶段
+- fix(deploy): update_env 升级路径补默认值统一为 appdb/app，消除与 generate_env 的命名不一致；docker-compose mini_app 插件库默认用户同步为 app
+
 ## v0.55.6 — 2026-08-10
 
 ### Changes
