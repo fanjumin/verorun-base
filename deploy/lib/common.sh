@@ -193,6 +193,168 @@ ensure_git_auth() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# Git 仓库地址自动解析（审计 Y-1：一键部署跨网络可用，不假定用户预装 git）
+# - HTTPS 公开仓库（install.sh / install-local.sh）：用 curl 探测 git 智能
+#   HTTP 端点（等价 git ls-remote，但仅依赖 curl），直连 GitHub 不可达时
+#   自动降级到 ghfast.top / ghproxy.net 镜像（v0.45.0 的 ghproxy.com 已死，
+#   此处镜像为实测可用；支持多级降级）。
+# - SSH 私有仓库（install-code.sh / install-dev.sh）：自动配置 SSH over 443
+#   （ssh.github.com:443），绕过国内被封锁的 22 端口；仓库地址本身不变。
+# 在 do_install / do_update 拉码前调用，四个脚本经本公共函数统一生效。
+# ══════════════════════════════════════════════════════════════════════
+_probe_git_url() {
+    # 探测 git 智能 HTTP 端点（等价 git ls-remote 的 HTTP 侧，仅用 curl）
+    local _url="$1"
+    if command -v curl >/dev/null 2>&1; then
+        local _code
+        _code=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 \
+            "${_url}/info/refs?service=git-upload-pack" 2>/dev/null || echo "000")
+        case "${_code}" in
+            200|301|302|403) return 0 ;;
+        esac
+        return 1
+    fi
+    if command -v git >/dev/null 2>&1; then
+        if GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote "${_url}" >/dev/null 2>&1; then
+            return 0
+        fi
+        return 1
+    fi
+    # 无探测工具（极罕见）：无法判断，交给后续流程直接尝试
+    return 1
+}
+
+_setup_ssh_over_443() {
+    # SSH 22 端口国内常被封锁：不可达时自动改用 ssh.github.com:443
+    local _ssh_conf="/root/.ssh/config"
+    if grep -q "Host github.com" "${_ssh_conf}" 2>/dev/null; then
+        return 0  # 已配置，幂等
+    fi
+    if timeout 5 bash -c "exec 3<>/dev/tcp/github.com/22" 2>/dev/null; then
+        return 0  # 22 端口可达，无需改写
+    fi
+    mkdir -p /root/.ssh
+    cat >> "${_ssh_conf}" << 'SSHCONF'
+
+# VeroRun auto: SSH over 443 for CN networks (port 22 blocked)
+Host github.com
+    HostName ssh.github.com
+    Port 443
+    User git
+SSHCONF
+    chmod 600 "${_ssh_conf}" 2>/dev/null || true
+    echo -e "${WARN} GitHub SSH port 22 unreachable — switched to ssh.github.com:443"
+}
+
+_resolve_git_repo() {
+    # 仅 install/update 需要真实访问远端仓库，其余模式跳过
+    case "${DEPLOY_MODE:-}" in
+        install|update) ;;
+        *) return 0 ;;
+    esac
+
+    # SSH 私有仓库（install-code.sh / install-dev.sh）：SSH over 443 规避 22 封锁
+    if echo "${GIT_REPO}" | grep -q '^git@github.com:'; then
+        _setup_ssh_over_443
+        return 0
+    fi
+
+    # 仅处理 github.com 的 HTTPS 公开仓库；自定义镜像/Gitee 等地址不探测直接使用
+    if ! echo "${GIT_REPO}" | grep -q '^https://github.com/'; then
+        return 0
+    fi
+
+    local _direct="${GIT_REPO}"
+    local _candidates=()
+    # REGION=cn 时镜像优先（直连通常更慢/不可达）；global 直连优先，失败再降级
+    if [ "${REGION:-global}" = "cn" ]; then
+        _candidates=(
+            "https://ghfast.top/${_direct}"
+            "https://ghproxy.net/${_direct}"
+            "${_direct}"
+        )
+    else
+        _candidates=(
+            "${_direct}"
+            "https://ghfast.top/${_direct}"
+            "https://ghproxy.net/${_direct}"
+        )
+    fi
+
+    local _url
+    for _url in "${_candidates[@]}"; do
+        if _probe_git_url "${_url}"; then
+            if [ "${_url}" != "${_direct}" ]; then
+                if [ "${REGION:-global}" = "cn" ]; then
+                    echo -e "${INFO} Using git mirror: ${_url}"
+                else
+                    echo -e "${WARN} GitHub direct unreachable — switching to mirror: ${_url}"
+                fi
+            fi
+            GIT_REPO="${_url}"
+            return 0
+        fi
+    done
+    echo -e "${FAIL} Git repo unreachable (tried direct + mirrors)."
+    echo -e "${INFO} Fix network, or run with:"
+    echo -e "${INFO}   GIT_REPO=<reachable-url> sudo bash ${INSTALL_SCRIPT} ${DEPLOY_MODE}"
+    exit 1
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# HTTPS 证书自动签发（审计 Y-2：仅 production + 域名已配置时启用）
+# 流程：安装 certbot → certbot --nginx 签发（交互输入邮箱）→ 更新 .env
+# DEPLOY_PROTOCOL=https → 重载 nginx。失败不阻塞安装（Let's Encrypt 有
+# 频率限制；域名需已解析到本服务器）。无 TTY 时沿用脚本现有交互降级模式，
+# 跳过签发并给出手动命令。
+# ══════════════════════════════════════════════════════════════════════
+_setup_ssl_cert() {
+    if [ "${DEPLOY_TYPE:-}" != "production" ] || [ -z "${DOMAIN:-}" ]; then
+        return 0  # 仅域名版 install.sh 触发；其余三脚本天然跳过
+    fi
+    step "HTTPS certificate (Let's Encrypt)"
+    if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+        exec 3>&-
+        echo -e "${WARN} Non-interactive shell — skipping cert issuance."
+        echo -e "${INFO} Run later: sudo apt-get install -y certbot python3-certbot-nginx && sudo certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d platform.${DOMAIN} -d agent.${DOMAIN}"
+        return 0
+    fi
+    exec 3>&-
+
+    local _email=""
+    read -r -p "  Let's Encrypt email (for renewal notices, optional): " _email < /dev/tty
+
+    export DEBIAN_FRONTEND=noninteractive
+    if ! apt-get install -y certbot python3-certbot-nginx 2>&1; then
+        echo -e "${WARN} certbot install failed — skipping SSL (run manually later)."
+        return 0
+    fi
+
+    local _cert_args=()
+    if [ -z "${_email}" ]; then
+        _cert_args=("--register-unsafely-without-email")
+    else
+        _cert_args=("--agree-tos" "-m" "${_email}")
+    fi
+
+    # 签发失败不阻塞安装：证书频率限制 / 域名未解析 / 80 端口不可达等
+    if certbot --nginx --non-interactive "${_cert_args[@]}" \
+        -d "${DOMAIN}" -d "www.${DOMAIN}" -d "platform.${DOMAIN}" -d "agent.${DOMAIN}" \
+        --redirect 2>&1; then
+        if grep -q "^DEPLOY_PROTOCOL=" "${APP_HOME}/.env"; then
+            sed -i "s/^DEPLOY_PROTOCOL=.*/DEPLOY_PROTOCOL=https/" "${APP_HOME}/.env"
+        else
+            echo "DEPLOY_PROTOCOL=https" >> "${APP_HOME}/.env"
+        fi
+        nginx -t && systemctl reload nginx 2>/dev/null || true
+        done_step "HTTPS certificate issued — DEPLOY_PROTOCOL=https"
+    else
+        echo -e "${WARN} certbot failed (domain must resolve to this server). SSL skipped — run manually:"
+        echo -e "${INFO}   sudo certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d platform.${DOMAIN} -d agent.${DOMAIN}"
+    fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # 目录冲突处理（文档 verorun-deploy-guide.html §6.3：备份/删除/中止）
 # ══════════════════════════════════════════════════════════════════════
 resolve_directory_conflict() {
@@ -1087,6 +1249,9 @@ do_install() {
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
 
+    # Git 仓库自动解析（审计 Y-1）：HTTPS 直连不可达时自动切镜像；SSH 走 443
+    _resolve_git_repo
+
     ensure_git_auth
 
     # ── DEPLOY_TYPE 驱动：Pull code 步骤标签（commit hash 在拉取完成后动态求值） ──
@@ -1191,6 +1356,9 @@ do_install() {
         done_step "Services started"
     fi
 
+    # HTTPS 证书自动签发（审计 Y-2）：仅 production + 域名已配置时启用
+    _setup_ssl_cert
+
     step "Configure sudoers (one-click update permissions)"
     write_sudoers
     done_step "Sudoers configured"
@@ -1261,6 +1429,9 @@ do_update() {
     else
         done_step "Skipped (no .git directory)"
     fi
+
+    # Git 仓库自动解析（审计 Y-1）：HTTPS 直连不可达时自动切镜像；SSH 走 443
+    _resolve_git_repo
 
     ensure_git_auth
 

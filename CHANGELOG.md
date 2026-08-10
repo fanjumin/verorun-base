@@ -1,5 +1,19 @@
 # 修改记录
 
+## v0.55.6 — 2026-08-10
+
+### Changes
+
+- Version bump from v0.55.5
+- fix(deploy): 一键部署跨网络可用 — common.sh 新增 git 仓库自动解析（curl 探测直连 GitHub，不可达自动降级 ghfast.top / ghproxy.net，REGION=cn 镜像优先；SSH 私有仓库自动切 ssh.github.com:443 绕过 22 封锁），四脚本经公共函数统一生效
+- fix(deploy): production 域名模式自动签发 HTTPS 证书（certbot --nginx，交互要邮箱；失败不阻塞安装，无 TTY 降级给出手动命令），同步更新 deploy-guide.md
+
+## v0.55.5 — 2026-08-09
+
+### Changes
+
+- Version bump from v0.55.4
+
 ## v0.55.4 — 2026-08-09
 
 ### Changes
