@@ -22,13 +22,7 @@ ADMIN_DISPLAY  = "Administrator"
 # ── Seed data ─────────────────────────────────────────────────────────
 
 DEFAULT_PLUGIN_PRODUCTS = [
-    {"plugin_key": "content_factory",  "name": "Content Factory",      "category": "content",  "price_month_fen": 2900,  "price_year_fen": 29000,  "sort_order": 1, "is_featured": 1},
-    {"plugin_key": "analytics",        "name": "Advanced Analytics",    "category": "analytics", "price_month_fen": 4900,  "price_year_fen": 49000,  "sort_order": 2, "is_featured": 1},
-    {"plugin_key": "social_publisher", "name": "Social Publisher",      "category": "content",  "price_month_fen": 1900,  "price_year_fen": 19000,  "sort_order": 3, "is_featured": 0},
-    {"plugin_key": "automation",       "name": "Workflow Automation",   "category": "automation","price_month_fen": 3900,  "price_year_fen": 39000,  "sort_order": 4, "is_featured": 1},
-    {"plugin_key": "sms_gateway",      "name": "SMS Gateway",           "category": "comm",     "price_month_fen": 900,   "price_year_fen": 9000,   "sort_order": 5, "is_featured": 0},
-    {"plugin_key": "email_service",    "name": "Email Service",         "category": "comm",     "price_month_fen": 900,   "price_year_fen": 9000,   "sort_order": 6, "is_featured": 0},
-    {"plugin_key": "oauth_provider",   "name": "OAuth Provider",        "category": "auth",     "price_month_fen": 1900,  "price_year_fen": 19000,  "sort_order": 7, "is_featured": 0},
+    {"plugin_key": "site_domains",  "name": "Site Domains",  "category": "core",  "price_month_fen": 0,  "price_year_fen": 0,  "sort_order": 1, "is_featured": 0},
 ]
 
 DEFAULT_QUOTAS = [

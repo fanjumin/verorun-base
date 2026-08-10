@@ -1388,6 +1388,22 @@ do_install() {
         step "Start services"
         restart_services
         done_step "Services started"
+
+        # Wait for backends to be ready before SSL cert (avoid 502 on HTTP challenge)
+        _wait=0
+        _max_wait=30
+        while [ $_wait -lt $_max_wait ]; do
+            if curl -s --max-time 2 http://127.0.0.1:8081/ > /dev/null 2>&1 \
+               && curl -s --max-time 2 http://127.0.0.1:8083/ > /dev/null 2>&1; then
+                echo -e "${OK} Backend services ready"
+                break
+            fi
+            sleep 1
+            _wait=$((_wait + 1))
+        done
+        if [ $_wait -ge $_max_wait ]; then
+            echo -e "${WARN} Backends did not respond within ${_max_wait}s — SSL may fail"
+        fi
     fi
 
     # HTTPS 证书自动签发（审计 Y-2）：仅 production + 域名已配置时启用
