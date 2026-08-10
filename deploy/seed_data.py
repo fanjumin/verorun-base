@@ -86,8 +86,8 @@ class SeedDB:
             self.conn = psycopg2.connect(
                 host=pg_host,
                 port=int(self.env.get("PG_PORT", 5432)),
-                dbname=self.env.get("PG_DB", "verorun"),
-                user=self.env.get("PG_USER", "verorun"),
+                dbname=self.env.get("PG_DB", "appdb"),
+                user=self.env.get("PG_USER", "app"),
                 password=self.env.get("PG_PASSWORD", ""),
             )
             self.conn.autocommit = True
@@ -96,7 +96,7 @@ class SeedDB:
         else:
             # SQLite mode
             import sqlite3
-            db_path = self.sqlite_path or self.env.get("DB_PATH", "data/verorun.db")
+            db_path = self.sqlite_path or self.env.get("DB_PATH", "data/x7k2m9a4.db")
             os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
             self.conn = sqlite3.connect(db_path)
             self.conn.row_factory = sqlite3.Row

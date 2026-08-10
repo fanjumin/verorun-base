@@ -467,7 +467,7 @@ update_env() {
     done
 
     # ── 审计 H-2：必需的配置项（缺失则用默认值补齐，绝不覆盖已有值） ──
-    # 早期版本升级后可能缺少 DEPLOY_PROTOCOL / VERORUN_REGION / DEPLOY_MARKET 等，
+    # 早期版本升级后可能缺少 DEPLOY_PROTOCOL / APP_REGION / DEPLOY_MARKET 等，
     # 缺失会导致服务启动失败或运行时行为不一致，此处统一补齐。
     local _dom
     # 取最后一行 DEPLOY_DOMAIN，避免历史重复行导致多行变量污染
@@ -483,14 +483,14 @@ update_env() {
 DEPLOY_MARKET cn
 DEPLOY_DOMAIN ${_dom}
 DEPLOY_PROTOCOL http
-DB_PATH ${APP_HOME}/data/verorun.db
+DB_PATH ${APP_HOME}/data/x7k2m9a4.db
 PG_HOST localhost
 PG_PORT 5432
 PG_DB verorun
 PG_USER verorun
 APP_MODE main
 PLUGIN_AUTO_INSTALL 0
-VERORUN_REGION ${REGION:-global}
+APP_REGION ${REGION:-global}
 DASHSCOPE_TEXT_KEY 
 OPENAI_API_KEY 
 DEEPSEEK_API_KEY 
@@ -975,11 +975,11 @@ generate_env() {
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=${_deploy_domain}
 DEPLOY_PROTOCOL=${_deploy_protocol}
-DB_PATH=${APP_HOME}/data/verorun.db
+DB_PATH=${APP_HOME}/data/x7k2m9a4.db
 PG_HOST=localhost
 PG_PORT=5432
-PG_DB=verorun
-PG_USER=verorun
+PG_DB=appdb
+PG_USER=app
 PG_PASSWORD=${PG_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
@@ -1011,7 +1011,7 @@ OPENAI_API_KEY=
 DEEPSEEK_API_KEY=
 
 # Region routing (VeroRun 0.43.0+)
-VERORUN_REGION=${REGION}
+APP_REGION=${REGION}
 ENVEOF
 
     chown "${APP_USER}:${APP_USER}" "${env_file}"
@@ -1221,20 +1221,20 @@ do_install() {
     # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
     _sql_tmp=$(mktemp)
     chmod 600 "${_sql_tmp}"
-    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        printf "ALTER ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+    if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     else
-        printf "CREATE ROLE verorun WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
+        printf "CREATE ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
     fi
     sudo -u postgres psql -q -f "${_sql_tmp}" 2>/dev/null || true
     rm -f "${_sql_tmp}"
     # 审计 H-3：显式验证角色与数据库是否创建成功，失败立即中止（不再被静默吞掉）
-    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        echo -e "${FAIL} FATAL: PostgreSQL role 'verorun' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        echo -e "${FAIL} FATAL: PostgreSQL role 'app' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
         exit 1
     fi
-    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='verorun'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
-        echo -e "${FAIL} FATAL: PostgreSQL database 'verorun' not created."
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='appdb'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        echo -e "${FAIL} FATAL: PostgreSQL database 'appdb' not created."
         exit 1
     fi
     # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
@@ -1528,8 +1528,8 @@ import os, psycopg2
 conn = psycopg2.connect(
     host=os.getenv('PG_HOST', 'localhost'),
     port=os.getenv('PG_PORT', '5432'),
-    dbname=os.getenv('PG_DB', 'verorun'),
-    user=os.getenv('PG_USER', 'verorun'),
+    dbname=os.getenv('PG_DB', 'appdb'),
+    user=os.getenv('PG_USER', 'app'),
     password=os.getenv('PG_PASSWORD', ''),
 )
 conn.close()

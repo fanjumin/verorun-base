@@ -1,8 +1,8 @@
-# VeroRon 维洛智能 (verorun.com / verorun.cn)
+# VeroRun 维洛智能 (verorun.com / verorun.cn)
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 #!/usr/bin/env python3
-"""CMS Public Routes — pages served at VeroRon 维洛智能"""
+"""CMS Public Routes — pages served at VeroRun 维洛智能"""
 from flask import Blueprint, render_template, redirect, request, send_from_directory, jsonify
 from models.cms import get_page_blocks, get_posts, get_post_by_slug, get_setting, get_categories
 from models.cms import get_downloads, get_download_by_slug

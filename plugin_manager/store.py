@@ -20,7 +20,7 @@ from .discovery import parse_version
 
 # Store catalog URL (configurable via environment variable)
 STORE_CATALOG_URL = os.environ.get(
-    'VERORUN_STORE_CATALOG_URL',
+    'APP_STORE_CATALOG_URL',
     'https://raw.githubusercontent.com/fanjumin/verorun-store/main/store_catalog.json'
 )
 

@@ -421,8 +421,8 @@ sudo -u verorun /home/verorun/verorun/venv/bin/pip install -r /home/verorun/vero
 
 ```bash
 sudo systemctl enable --now postgresql
-sudo -u postgres psql -c "CREATE ROLE verorun WITH LOGIN PASSWORD 'change-me-in-production';"
-sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun;"
+sudo -u postgres psql -c "CREATE ROLE app WITH LOGIN PASSWORD 'change-me-in-production';"
+sudo -u postgres psql -c "CREATE DATABASE appdb OWNER app;"
 ```
 
 ### 6. Generate .env
@@ -431,11 +431,11 @@ sudo -u postgres psql -c "CREATE DATABASE verorun OWNER verorun;"
 sudo bash -c 'cat > /home/verorun/verorun/.env << EOF
 DEPLOY_MARKET=cn
 DEPLOY_DOMAIN=your-domain.com
-DB_PATH=/home/verorun/verorun/data/verorun.db
+DB_PATH=/home/verorun/verorun/data/x7k2m9a4.db
 PG_HOST=localhost
 PG_PORT=5432
-PG_DB=verorun
-PG_USER=verorun
+PG_DB=appdb
+PG_USER=app
 PG_PASSWORD=change-me-in-production
 JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 FLASK_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")

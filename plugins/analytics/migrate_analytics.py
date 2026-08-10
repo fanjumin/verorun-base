@@ -8,7 +8,7 @@ import psycopg2, psycopg2.extras, sys, os
 SQLITE = os.environ.get('ANALYTICS_SQLITE_PATH', '/path/to/analytics.db')
 PG_DSN = os.environ.get(
     'ANALYTICS_PG_DSN',
-    'host=localhost port=5432 dbname=verorun user=verorun password=your_password'
+    'host=localhost port=5432 dbname=appdb user=app password=your_password'
 )
 # 目标 PG schema（默认为 analytics，可通过环境变量覆盖，避免与 schema 名耦合）
 SCHEMA = os.environ.get('ANALYTICS_SCHEMA', 'analytics')

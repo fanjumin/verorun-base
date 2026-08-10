@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VeroRon 维洛智能 — 本地授权验证服务（运行在客户部署的实例上）
+VeroRun 维洛智能 — 本地授权验证服务（运行在客户部署的实例上）
 验证订阅状态，管理本地缓存
 
 使用方式：
@@ -20,8 +20,8 @@ from i18n import _
 _PG_CONFIG = {
     'host': os.environ.get('PG_HOST', 'localhost'),
     'port': int(os.environ.get('PG_PORT', 5432)),
-    'dbname': os.environ.get('PG_DB', 'verorun'),
-    'user': os.environ.get('PG_USER', 'verorun'),
+    'dbname': os.environ.get('PG_DB', 'appdb'),
+    'user': os.environ.get('PG_USER', 'app'),
     'password': os.environ.get('PG_PASSWORD', ''),
 }
 
@@ -86,7 +86,7 @@ class LicenseService:
             from plugin_manager.region import get_license_service_url
             return get_license_service_url()
         except ImportError:
-            region = os.environ.get('VERORUN_REGION', 'global')
+            region = os.environ.get('APP_REGION', 'global')
             if region == 'cn':
                 return 'https://api.verorun.cn/api/subscription/heartbeat'
             return 'https://api.verorun.com/api/subscription/heartbeat'

@@ -71,8 +71,8 @@ def get_raw_connection():
     return psycopg2.connect(
         host=os.environ.get('PG_HOST', ''),
         port=int(os.environ.get('PG_PORT', 5432)),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
+        dbname=os.environ.get('PG_DB', 'appdb'),
+        user=os.environ.get('PG_USER', 'app'),
         password=os.environ.get('PG_PASSWORD', ''),
         connect_timeout=10,  # 建连最多等 10 秒，避免低配机器上无限挂死
     )

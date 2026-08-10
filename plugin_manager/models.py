@@ -2,7 +2,7 @@
 """
 Plugin Manager — 数据库模型 & 数据类
 =======================================
-插件注册表 (plugin_registry) 存放于主库 data/verorun.db。
+插件注册表 (plugin_registry) 存放于主库 data/x7k2m9a4.db。
 
 状态图:
     UNKNOWN → INSTALLED ⇄ DISABLED
@@ -59,8 +59,8 @@ def get_registry_db():
     conn = psycopg2.connect(
         host=os.environ.get('PG_HOST', 'localhost'),
         port=os.environ.get('PG_PORT', '5432'),
-        dbname=os.environ.get('PG_DB', 'verorun'),
-        user=os.environ.get('PG_USER', 'verorun'),
+        dbname=os.environ.get('PG_DB', 'appdb'),
+        user=os.environ.get('PG_USER', 'app'),
         password=os.environ.get('PG_PASSWORD', ''),
     )
     wrapped = _PgConnection(conn)

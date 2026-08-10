@@ -130,8 +130,8 @@ class BackupEngine:
             cmd = [
                 'pg_dump', '-h', env.get('PG_HOST', 'localhost'),
                 '-p', env.get('PG_PORT', '5432'),
-                '-U', env.get('PG_USER', 'verorun'),
-                '-d', env.get('PG_DB', 'verorun'),
+                '-U', env.get('PG_USER', 'app'),
+                '-d', env.get('PG_DB', 'appdb'),
                 '--no-owner', '--no-acl', '-f', out_file,
             ]
             if tables:

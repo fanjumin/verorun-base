@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Force-load stdlib platform module before sys.path changes (prevents local platform/ shadowing)
 import platform as _stdlib_platform
-# VeroRon 维洛智能 (verorun.com / verorun.cn)
+# VeroRun 维洛智能 (verorun.com / verorun.cn)
 # 版权所有 (c) 2026 樊聚民 (fanjumin). All Rights Reserved.
 
 """Admin Panel — 管理后台 (独立端口 8084)"""

@@ -28,10 +28,10 @@ SHOP_TABLES = [
 PG_CONFIG = {
     'host': os.environ.get('PG_HOST', 'localhost'),
     'port': int(os.environ.get('PG_PORT', 5432)),
-    'dbname': os.environ.get('PG_DB', 'verorun'),
-    'user': os.environ.get('PG_USER', 'verorun'),
+    'dbname': os.environ.get('PG_DB', 'appdb'),
+    'user': os.environ.get('PG_USER', 'app'),
     'password': os.environ.get('PG_PASSWORD', ''),
-    'application_name': 'verorun',
+    'application_name': 'app',
     'connect_timeout': 10,  # 建连最多等 10 秒，避免低配机器上无限挂死
 }
 
@@ -1912,7 +1912,7 @@ def init_db():
     with get_db() as m:
         cols = get_table_columns(m, 'brand_settings')
         if 'software_name' not in cols:
-            m.execute("ALTER TABLE brand_settings ADD COLUMN software_name TEXT NOT NULL DEFAULT 'VeroRon 维洛智能'")
+            m.execute("ALTER TABLE brand_settings ADD COLUMN software_name TEXT NOT NULL DEFAULT 'VeroRun 维洛智能'")
             m.commit()
             print('[Migration] brand_settings.software_name added')
         if 'software_slogan' not in cols:
@@ -2612,7 +2612,7 @@ except Exception:
 
 # 默认主页站点在 site_configs 中创建（如不存在）
 _default_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
-_default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRon 维洛智能')
+_default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRun 维洛智能')
 try:
     with get_db() as m:
         m.execute(

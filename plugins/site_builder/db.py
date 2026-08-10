@@ -82,7 +82,7 @@ def get_raw_connection():
         host=os.environ.get('SITE_BUILDER_PG_HOST', os.environ.get('PG_HOST', '')),
         port=int(os.environ.get('SITE_BUILDER_PG_PORT', os.environ.get('PG_PORT', 5432))),
         dbname=os.environ.get('SITE_BUILDER_PG_DB', 'site_builder'),
-        user=os.environ.get('SITE_BUILDER_PG_USER', os.environ.get('PG_USER', 'verorun')),
+        user=os.environ.get('SITE_BUILDER_PG_USER', os.environ.get('PG_USER', 'app')),
         password=os.environ.get('SITE_BUILDER_PG_PASSWORD', os.environ.get('PG_PASSWORD', '')),
         connect_timeout=10,  # 建连最多等 10 秒，避免低配机器上无限挂死
     )

@@ -22,8 +22,8 @@ import psycopg2.extras
 PG_CONFIG = {
     'host': os.environ.get('PG_HOST', 'localhost'),
     'port': int(os.environ.get('PG_PORT', 5432)),
-    'dbname': os.environ.get('PG_DB', 'verorun'),
-    'user': os.environ.get('PG_USER', 'verorun'),
+    'dbname': os.environ.get('PG_DB', 'appdb'),
+    'user': os.environ.get('PG_USER', 'app'),
     'password': os.environ.get('PG_PASSWORD', ''),
 }
 

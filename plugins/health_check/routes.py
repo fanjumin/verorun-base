@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VeroRon Intelligent (verorun.com / verorun.cn)
+VeroRun Intelligent (verorun.com / verorun.cn)
 Copyright (c) 2026 Fan Jumin. All Rights Reserved.
 
 Health Check — Flask API Routes

@@ -335,7 +335,7 @@ def chat_public():
                     break
             if not has_system:
                 messages.insert(0, {'role': 'system',
-                    'content': f'你是VeroRon 维洛智能的商务助手。用户来自: {source}。'
+                    'content': f'你是VeroRun 维洛智能的商务助手。用户来自: {source}。'
                                f'请用中文友好地回答关于产品、价格、功能的问题。' + ctx})
 
     try:

@@ -2,7 +2,7 @@
 """
 Plugin Manager — License & Store 数据库模型
 =============================================
-存放于主库 data/verorun.db。
+存放于主库 data/x7k2m9a4.db。
 
 表:
   - plugin_licenses: 已激活的 License 记录

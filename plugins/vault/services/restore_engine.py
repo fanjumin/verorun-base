@@ -91,7 +91,7 @@ class RestoreEngine:
                     'file': os.path.basename(sql_file), 'size_mb': round(size_mb, 1)}
 
         env = get_pg_env()
-        target_db = target_db or env.get('PG_DB', 'verorun')
+        target_db = target_db or env.get('PG_DB', 'appdb')
 
         try:
             env_override = os.environ.copy()
@@ -100,7 +100,7 @@ class RestoreEngine:
             cmd = [
                 'psql', '-h', pg_host,
                 '-p', env.get('PG_PORT', '5432'),
-                '-U', env.get('PG_USER', 'verorun'),
+                '-U', env.get('PG_USER', 'app'),
                 '-d', target_db, '-f', sql_file,
                 '-v', 'ON_ERROR_STOP=1',
             ]
@@ -258,7 +258,7 @@ class RestoreEngine:
             cmd = [
                 'createdb', '-h', env.get('PG_HOST', 'localhost'),
                 '-p', env.get('PG_PORT', '5432'),
-                '-U', env.get('PG_USER', 'verorun'),
+                '-U', env.get('PG_USER', 'app'),
                 sandbox_db,
             ]
             proc = subprocess.run(cmd, env=env_override, capture_output=True,
@@ -279,7 +279,7 @@ class RestoreEngine:
             cmd = [
                 'dropdb', '-h', env.get('PG_HOST', 'localhost'),
                 '-p', env.get('PG_PORT', '5432'),
-                '-U', env.get('PG_USER', 'verorun'),
+                '-U', env.get('PG_USER', 'app'),
                 '--if-exists', sandbox_db,
             ]
             subprocess.run(cmd, env=env_override, capture_output=True, text=True, timeout=30)
@@ -384,7 +384,7 @@ class RestoreEngine:
                 verify_cmd = [
                     'psql', '-h', env.get('PG_HOST', 'localhost'),
                     '-p', env.get('PG_PORT', '5432'),
-                    '-U', env.get('PG_USER', 'verorun'),
+                    '-U', env.get('PG_USER', 'app'),
                     '-d', sandbox_db, '-t', '-c',
                     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'",
                 ]

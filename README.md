@@ -280,11 +280,11 @@ Local URLs: `http://localhost:8081/` (official site / unified login), `http://lo
 - **Plugin Standard v1.4** — Complete specification with model policy, agent registration, CI publishing pipeline, and store display guidelines
 
 ### Dual-Region Compliance Routing
-- **Region Router** (`region.py`) — Unified regional routing module. All remote service URLs are dynamically resolved based on `VERORUN_REGION` environment variable (`cn` or `global`)
+- **Region Router** (`region.py`) — Unified regional routing module. All remote service URLs are dynamically resolved based on `APP_REGION` environment variable (`cn` or `global`)
 - **API Endpoints** — `cn` routes to `api.verorun.cn`, `global` routes to `api.verorun.com`. Individual URL overrides available via environment variables
 - **VeroGuard Heartbeat** — Region-aware heartbeat reporting endpoint, with Nuitka-compilation-safe fallback
 - **License Service Heartbeat** — Subscription heartbeat API dynamically routed per region, with standalone deployment fallback
-- **Install Script** — `--region=cn|global` flag sets `VERORUN_REGION` in `.env` during deployment
+- **Install Script** — `--region=cn|global` flag sets `APP_REGION` in `.env` during deployment
 - **Backward Compatible** — All region-aware components support `REMOTE_LICENSE_URL` / `GUARDIAN_REMOTE_URL` / `APP_HEARTBEAT_URL` environment variable overrides
 
 ### VeroGuard — Unified Guardian

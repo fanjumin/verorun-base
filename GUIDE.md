@@ -128,7 +128,7 @@ sudo bash deploy/install.sh restart
 |----------|----------|-------------|
 | `DEPLOY_MARKET` | Yes | Market code (`cn` for China) |
 | `DEPLOY_DOMAIN` | Yes | Primary domain name |
-| `VERORUN_REGION` | Yes | API region routing (`cn` / `global`) |
+| `APP_REGION` | Yes | API region routing (`cn` / `global`) |
 | `PG_HOST` / `PG_PORT` | Yes | PostgreSQL host / port |
 | `PG_DB` / `PG_USER` / `PG_PASSWORD` | Yes | PostgreSQL database / user / password |
 | `JWT_SECRET` | Yes | JWT signing secret (64-char random hex) |

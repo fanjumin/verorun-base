@@ -1773,7 +1773,7 @@ class PluginStoreHealthCheck(BaseHealthCheck):
             from plugin_manager.region import get_api_base
             api_base = get_api_base()
         except (ImportError, Exception):
-            api_base = os.environ.get('VERORUN_API_URL', 'https://api.verorun.com/v1')
+            api_base = os.environ.get('APP_API_URL', 'https://api.verorun.com/v1')
 
         # 1. Plugin store ping
         store_url = f'{api_base}/store/ping'

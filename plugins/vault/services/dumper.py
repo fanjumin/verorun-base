@@ -41,8 +41,8 @@ def dump_database(output_dir: str, label: str) -> str:
     env = get_pg_env()
     pg_host = env.get('PG_HOST', 'localhost')
     pg_port = env.get('PG_PORT', '5432')
-    pg_db = env.get('PG_DB', 'verorun')
-    pg_user = env.get('PG_USER', 'verorun')
+    pg_db = env.get('PG_DB', 'appdb')
+    pg_user = env.get('PG_USER', 'app')
     pg_pass = env.get('PG_PASSWORD', '')
 
     out_file = os.path.join(output_dir, f'{label}_db.sql')
