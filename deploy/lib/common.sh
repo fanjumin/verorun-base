@@ -106,20 +106,37 @@ _detect_pip_mirror() {
 #      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
 _clone_with_timeout() {
     local _repo=$1 _dest=$2 _branch=$3
-    local _attempt=1 _max=3
-    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow, up to ${_max} attempts)..."
-    while [ "${_attempt}" -le "${_max}" ]; do
-        # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
-        if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
-            return 0
-        fi
-        echo -e "${WARN} git clone failed (attempt ${_attempt}/${_max})"
-        # 清理不完整克隆目录，避免下次 clone 报 "already exists"
-        rm -rf "${_dest}"
-        _attempt=$((_attempt + 1))
-        [ "${_attempt}" -le "${_max}" ] && sleep 5
+    local _attempt _max=2
+    # 候选列表：直连 → ghfast.top → ghproxy.net。
+    # 国内 GFW 常"小请求通、大流量掐断"：直连探测通过但 clone 中途断连
+    # （fetch-pack: unexpected disconnect），因此 clone 失败必须自动降级镜像，
+    # 而不是死磕同一地址。
+    local _candidates=("${_repo}")
+    if echo "${_repo}" | grep -q '^https://github.com/'; then
+        _candidates+=("https://ghfast.top/${_repo#https://}" "https://ghproxy.net/${_repo#https://}")
+    fi
+    local _url _cloned=""
+    for _url in "${_candidates[@]}"; do
+        _attempt=1
+        echo -e "${INFO} Cloning ${_url} (timeout 60s, shallow, up to ${_max} attempts)..."
+        while [ "${_attempt}" -le "${_max}" ]; do
+            # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
+            if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_url}" "${_dest}" 2>&1; then
+                _cloned="${_url}"
+                break 2
+            fi
+            echo -e "${WARN} git clone failed (${_url}, attempt ${_attempt}/${_max})"
+            # 清理不完整克隆目录，避免下次 clone 报 "already exists"
+            rm -rf "${_dest}"
+            _attempt=$((_attempt + 1))
+            [ "${_attempt}" -le "${_max}" ] && sleep 5
+        done
     done
-    echo -e "${FAIL} git clone failed after ${_max} attempts (timeout 60s each)"
+    if [ -n "${_cloned}" ]; then
+        GIT_REPO="${_cloned}"  # 记录实际可用地址，update 等后续操作沿用
+        return 0
+    fi
+    echo -e "${FAIL} git clone failed after ${#_candidates[@]} sources x ${_max} attempts (timeout 60s each)"
     echo -e "${INFO} Possible causes:"
     echo -e "${INFO}   1. GitHub unreachable (DNS pollution / GFW)"
     echo -e "${INFO}   2. SSH key not configured (private repo)"
