@@ -1358,12 +1358,18 @@ do_install() {
     else
         _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     fi
-    # 应用 sparse-checkout 白名单（幂等；拉取后立即收窄工作区，仅保留运行时目录）
-    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
-        if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-            echo -e "${WARN} sparse-checkout failed — working tree may include non-runtime files"
-        fi
+    # 应用 sparse-checkout 白名单（强制 cone 模式；幂等）。
+    # 审计 H6：旧仓库/手动模式残留（core.sparseCheckoutCone 未设置）会让 set 沿用 manual 模式，
+    # pattern 仅含目录、无 "/*" 根文件保留规则 → requirements.txt/VERSION/README 等根文件
+    # 被从工作区删除。先 disable 清除残留，再无条件 init --cone + set；
+    # 失败则回退全量检出（不删任何文件），安装继续。
+    git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+    if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
+        && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        :
+    else
+        git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+        echo -e "${WARN} sparse-checkout failed — keeping full working tree"
     fi
     # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
     if [ "${DEPLOY_TYPE}" = "production" ]; then
@@ -1556,12 +1562,15 @@ do_update() {
             }
         }
     fi
-    # 应用 sparse-checkout 白名单：老仓库立即移除 .github/CHANGELOG/docs 等非运行时文件
-    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
-        if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-            echo -e "${WARN} sparse-checkout failed — working tree may include non-runtime files"
-        fi
+    # 应用 sparse-checkout 白名单（强制 cone 模式）：先 disable 清手动模式残留，
+    # 再 init --cone + set；失败回退全量检出。详见 do_install 处审计 H6 注释。
+    git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+    if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
+        && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        :
+    else
+        git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+        echo -e "${WARN} sparse-checkout failed — keeping full working tree"
     fi
     # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
     if [ "${DEPLOY_TYPE}" = "production" ]; then
