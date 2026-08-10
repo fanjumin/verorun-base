@@ -106,20 +106,37 @@ _detect_pip_mirror() {
 #      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
 _clone_with_timeout() {
     local _repo=$1 _dest=$2 _branch=$3
-    local _attempt=1 _max=3
-    echo -e "${INFO} Cloning ${_repo} (timeout 60s, shallow, up to ${_max} attempts)..."
-    while [ "${_attempt}" -le "${_max}" ]; do
-        # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
-        if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_repo}" "${_dest}" 2>&1; then
-            return 0
-        fi
-        echo -e "${WARN} git clone failed (attempt ${_attempt}/${_max})"
-        # 清理不完整克隆目录，避免下次 clone 报 "already exists"
-        rm -rf "${_dest}"
-        _attempt=$((_attempt + 1))
-        [ "${_attempt}" -le "${_max}" ] && sleep 5
+    local _attempt _max=2
+    # 候选列表：直连 → ghfast.top → ghproxy.net。
+    # 国内 GFW 常"小请求通、大流量掐断"：直连探测通过但 clone 中途断连
+    # （fetch-pack: unexpected disconnect），因此 clone 失败必须自动降级镜像，
+    # 而不是死磕同一地址。
+    local _candidates=("${_repo}")
+    if echo "${_repo}" | grep -q '^https://github.com/'; then
+        _candidates+=("https://ghfast.top/${_repo#https://}" "https://ghproxy.net/${_repo#https://}")
+    fi
+    local _url _cloned=""
+    for _url in "${_candidates[@]}"; do
+        _attempt=1
+        echo -e "${INFO} Cloning ${_url} (timeout 60s, shallow, up to ${_max} attempts)..."
+        while [ "${_attempt}" -le "${_max}" ]; do
+            # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
+            if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_url}" "${_dest}" 2>&1; then
+                _cloned="${_url}"
+                break 2
+            fi
+            echo -e "${WARN} git clone failed (${_url}, attempt ${_attempt}/${_max})"
+            # 清理不完整克隆目录，避免下次 clone 报 "already exists"
+            rm -rf "${_dest}"
+            _attempt=$((_attempt + 1))
+            [ "${_attempt}" -le "${_max}" ] && sleep 5
+        done
     done
-    echo -e "${FAIL} git clone failed after ${_max} attempts (timeout 60s each)"
+    if [ -n "${_cloned}" ]; then
+        GIT_REPO="${_cloned}"  # 记录实际可用地址，update 等后续操作沿用
+        return 0
+    fi
+    echo -e "${FAIL} git clone failed after ${#_candidates[@]} sources x ${_max} attempts (timeout 60s each)"
     echo -e "${INFO} Possible causes:"
     echo -e "${INFO}   1. GitHub unreachable (DNS pollution / GFW)"
     echo -e "${INFO}   2. SSH key not configured (private repo)"
@@ -1341,12 +1358,18 @@ do_install() {
     else
         _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     fi
-    # 应用 sparse-checkout 白名单（幂等；拉取后立即收窄工作区，仅保留运行时目录）
-    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
-        if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-            echo -e "${WARN} sparse-checkout failed — working tree may include non-runtime files"
-        fi
+    # 应用 sparse-checkout 白名单（强制 cone 模式；幂等）。
+    # 审计 H6：旧仓库/手动模式残留（core.sparseCheckoutCone 未设置）会让 set 沿用 manual 模式，
+    # pattern 仅含目录、无 "/*" 根文件保留规则 → requirements.txt/VERSION/README 等根文件
+    # 被从工作区删除。先 disable 清除残留，再无条件 init --cone + set；
+    # 失败则回退全量检出（不删任何文件），安装继续。
+    git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+    if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
+        && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        :
+    else
+        git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+        echo -e "${WARN} sparse-checkout failed — keeping full working tree"
     fi
     # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
     if [ "${DEPLOY_TYPE}" = "production" ]; then
@@ -1539,12 +1562,15 @@ do_update() {
             }
         }
     fi
-    # 应用 sparse-checkout 白名单：老仓库立即移除 .github/CHANGELOG/docs 等非运行时文件
-    if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-        git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null || true
-        if ! git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-            echo -e "${WARN} sparse-checkout failed — working tree may include non-runtime files"
-        fi
+    # 应用 sparse-checkout 白名单（强制 cone 模式）：先 disable 清手动模式残留，
+    # 再 init --cone + set；失败回退全量检出。详见 do_install 处审计 H6 注释。
+    git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+    if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
+        && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+        :
+    else
+        git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+        echo -e "${WARN} sparse-checkout failed — keeping full working tree"
     fi
     # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
     if [ "${DEPLOY_TYPE}" = "production" ]; then

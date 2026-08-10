@@ -1,5 +1,12 @@
 # 修改记录
 
+## v0.55.10 — 2026-08-10
+
+### Changes
+
+- Version bump from v0.55.9
+- fix(deploy): 强制 cone 模式 sparse-checkout — 旧仓库 manual 残留（core.sparseCheckoutCone 未设置）会让 set 沿用 manual 模式、pattern 仅含目录导致 requirements.txt/VERSION/README 等根文件被从工作区删除（pip install -r requirements.txt 报文件不存在）；现先 disable 清残留再无条件 init --cone + set，失败回退全量检出不删任何文件（install/update 两处统一）
+
 ## v0.55.9 — 2026-08-10
 
 ### Changes
