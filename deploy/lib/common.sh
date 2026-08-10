@@ -486,8 +486,8 @@ DEPLOY_PROTOCOL http
 DB_PATH ${APP_HOME}/data/x7k2m9a4.db
 PG_HOST localhost
 PG_PORT 5432
-PG_DB verorun
-PG_USER verorun
+PG_DB appdb
+PG_USER app
 APP_MODE main
 PLUGIN_AUTO_INSTALL 0
 APP_REGION ${REGION:-global}
@@ -1219,7 +1219,11 @@ do_install() {
         systemctl enable --now postgresql
     fi
     # 审计 C1 加固：密码经临时 SQL 文件（600 权限）传入 psql -f，避免出现在进程命令行
+    # 审计 Y-3 修复：mktemp 生成的临时文件 600 且属 root，postgres 用户无法读取，
+    # 导致 CREATE ROLE 被静默失败（2>/dev/null || true 吞掉 Permission denied）——
+    # 必须 chown 给 postgres 并保持 600，其余用户仍不可读。
     _sql_tmp=$(mktemp)
+    chown postgres:postgres "${_sql_tmp}"
     chmod 600 "${_sql_tmp}"
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         printf "ALTER ROLE app WITH LOGIN PASSWORD '%s';\n" "${PG_PASSWORD}" > "${_sql_tmp}"
@@ -1232,6 +1236,11 @@ do_install() {
     if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='app'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         echo -e "${FAIL} FATAL: PostgreSQL role 'app' not created. Check pg_hba.conf auth method (md5/scram requires password auth)."
         exit 1
+    fi
+    # 审计 Y-3 修复：R4 重构时 CREATE DATABASE 被丢弃，全新服务器必然在此处失败——
+    # 补回建库逻辑（createdb -O app appdb，不存在才建），再复查，失败才报错退出。
+    if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='appdb'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
+        sudo -u postgres createdb -O app appdb 2>/dev/null || true
     fi
     if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='appdb'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
         echo -e "${FAIL} FATAL: PostgreSQL database 'appdb' not created."

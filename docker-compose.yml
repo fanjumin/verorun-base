@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: mini_app
-      POSTGRES_USER: ${MINI_APP_PG_USER:-verorun}
+      POSTGRES_USER: ${MINI_APP_PG_USER:-app}
       POSTGRES_PASSWORD: ${MINI_APP_PG_PASSWORD:-}
     ports:
       - "5433:5432"
@@ -59,7 +59,7 @@ services:
       - PG_HOST=db
       - PG_PORT=5432
       - APP_HEARTBEAT_URL=${APP_HEARTBEAT_URL:-https://localhost/api/subscription/heartbeat}
-      - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-verorun}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
+      - MINI_APP_DB_URL=postgres://${MINI_APP_PG_USER:-app}:${MINI_APP_PG_PASSWORD:-}@postgres_miniapp:5432/mini_app
     depends_on:
       db:
         condition: service_healthy
