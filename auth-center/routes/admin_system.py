@@ -153,7 +153,20 @@ _NGINX_CONF_DIR = os.environ.get(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     'nginx-domains', 'sites-enabled'
 )
-_SSL_CERT_DIR = '/etc/letsencrypt/live/your-domain.com-0001'
+
+
+def _resolve_cert_dir(full_domain):
+    """审计 M2：按域名实查证书目录（full_domain → 主域 DEPLOY_DOMAIN → None）。
+    修复原占位符 'your-domain.com-0001' 永不匹配真实证书的问题。"""
+    candidates = [full_domain]
+    main_domain = os.environ.get('DEPLOY_DOMAIN', '')
+    if main_domain and main_domain != full_domain:
+        candidates.append(main_domain)
+    for d in candidates:
+        p = os.path.join('/etc/letsencrypt/live', d)
+        if os.path.isfile(os.path.join(p, 'fullchain.pem')) and os.path.isfile(os.path.join(p, 'privkey.pem')):
+            return p
+    return None
 
 
 def _validate_service_port(port):
@@ -181,15 +194,28 @@ def _generate_domain_nginx_config(subdomain, full_domain, port):
     if not port:
         return None
     os.makedirs(_NGINX_CONF_DIR, exist_ok=True)
+    # 审计 M2：证书实查；无证书则纯 HTTP（不再生成指向不存在证书的 443 配置）
+    cert_dir = _resolve_cert_dir(full_domain)
+    if cert_dir:
+        _ssl_listen = (
+            f"    listen 443 ssl http2;\n"
+            f"    ssl_certificate     {cert_dir}/fullchain.pem;\n"
+            f"    ssl_certificate_key {cert_dir}/privkey.pem;\n"
+            f"    ssl_protocols TLSv1.2 TLSv1.3;\n"
+            f"    ssl_ciphers HIGH:!aNULL:!MD5;"
+        )
+        _http_redir = '    return 301 https://$host$request_uri;'
+    else:
+        _ssl_listen = '    # no certificate found — serving plain HTTP (审计 M2)'
+        _http_redir = ''
     conf = f"""# Auto-generated site domain — {datetime.now().strftime('%Y-%m-%d %H:%M')}
 # subdomain={subdomain}  port={port}
 
 server {{
-    listen 443 ssl http2;
+    listen 80;
     server_name {full_domain};
-
-    ssl_certificate     {_SSL_CERT_DIR}/fullchain.pem;
-    ssl_certificate_key {_SSL_CERT_DIR}/privkey.pem;
+    {_http_redir}
+    {_ssl_listen}
 
     location / {{
         proxy_pass http://127.0.0.1:{port};

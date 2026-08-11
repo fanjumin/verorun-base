@@ -692,6 +692,7 @@ ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-health
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-guardian
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
+${APP_USER} ALL=(root) NOPASSWD: /usr/sbin/nginx -s reload  # 审计 M2：auth-center 动态子域配置生效
 SUEOF
     chmod 440 "${sudoers_file}"
     visudo -c -f "${sudoers_file}" || {
@@ -1052,6 +1053,9 @@ JWT_SECRET=${JWT_SECRET}
 FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
+
+# 审计 M2：L2 子域 nginx snippet 输出目录（auth-center 动态子域配置落盘，被 nginx 默认 include）
+NGINX_SNIPPETS_DIR=/etc/nginx/sites-enabled
 
 # v2.1.0 — 内部服务令牌
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
