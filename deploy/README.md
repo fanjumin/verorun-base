@@ -46,38 +46,32 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 Fresh install in a single command — no `git` required (the script auto-fetches the shared
 `deploy/lib/common.sh` library from verorun-base when run via pipe):
 
-**With a domain:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
-```
-Replace `your-domain.com` with your actual domain name.
+### Unified Installer (v3.0+)
 
-**Local / LAN (no domain):**
-```bash
-curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-local.sh | sudo bash
-```
+A single `install.sh` replaces the previous four separate scripts. Choose your deployment
+type interactively or via the `INSTALL_TYPE` environment variable:
 
-**Team intranet server (private repo — requires SSH deploy key):**
 ```bash
-curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash
-```
+# Interactive (recommended) — select type from menu
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install
 
-**Developer workstation (private repo — requires SSH deploy key):**
-```bash
-curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-dev.sh | sudo bash
+# CI / automation — specify type via environment variable
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+
+# With domain (Website type)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
 ```
 
-**Script selector:**
+**Supported INSTALL_TYPE values:**
 
-| Scenario | Script | Domain | Code source | SSH deploy key |
-|----------|--------|--------|-------------|----------------|
-| Local / LAN (no domain) | `install-local.sh` | none | public `verorun-base` (HTTPS) | not required |
-| Production (with domain) | `install.sh` | yes | public `verorun-base` (HTTPS) | not required |
-| Team intranet (no domain, full plugins) | `install-code.sh` | none | private `verorun-code` (SSH) | required |
-| Developer workstation (no domain, no plugins) | `install-dev.sh` | none | private `verorun-code` (SSH) | required |
+| Value | DEPLOY_TYPE | Description | Old Script |
+|-------|-------------|-------------|------------|
+| `website` | production | Domain + HTTPS, public deployment | `install.sh` |
+| `professional` | lan | No domain, LAN access, verorun-base | `install-local.sh` |
+| `development` | code | Full plugins, verorun-code (SSH), requires deploy key | `install-code.sh` |
+| `educational` | edu | No domain, edu license required | (new) |
 
-The scripts auto-fetch `deploy/lib/common.sh` from verorun-base when run via pipe,
-so `git` is not required for the one-command install.
+> `install-code.sh` is preserved as an independent shortcut for Development deployments.
 
 **Alternatively — clone then run locally:**
 
@@ -107,14 +101,19 @@ sudo bash deploy/install.sh configure-domain your-domain.com
 
 ### `verorun-code` (private repo)
 
-> Use `install-code.sh` for `verorun-code` deployments — it defaults `GIT_REPO` to the SSH
-> private repository. Do NOT use `install.sh` for private repos, as it pulls the public
+> Use the Development type in `install.sh` for `verorun-code` deployments — it defaults `GIT_REPO`
+> to the SSH private repository. Or use `install-code.sh` as a standalone shortcut.
+> Do NOT use Website or Professional type for private repos — they pull the public
 > `verorun-base` repository (HTTPS).
 
 ```bash
+# Via unified installer
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
+
+# Or clone then run
 git clone git@github.com:fanjumin/verorun-code.git
 cd verorun-code
-sudo bash deploy/install-code.sh install
+sudo bash deploy/install.sh install     # select [3] Development in interactive menu
 ```
 
 ---

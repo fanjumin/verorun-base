@@ -1,9 +1,17 @@
 #!/bin/bash
 # ==========================================================================
-# VeroRun — One-command deploy script (v2.1)
+# VeroRun — One-command unified deploy script (v3.0)
 # ==========================================================================
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash   # one-command fresh install (public base)
+#   # Interactive (recommended)
+#   sudo bash deploy/install.sh install
+#
+#   # CI / automation (environment variable)
+#   sudo env INSTALL_TYPE=professional bash deploy/install.sh install
+#
+#   # curl|bash one-command
+#   curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+#
 #   sudo bash deploy/install.sh update           # update code, deps, and restart
 #   sudo bash deploy/install.sh restart          # restart services only
 #   sudo bash deploy/install.sh health           # health check
@@ -11,26 +19,36 @@
 #   sudo bash deploy/install.sh seed             # seed initial data (admin, plans, products)
 #   sudo bash deploy/install.sh configure-domain  # configure domain post-install
 #   --approve-migrate: explicitly approve DB migration + seed on install
-#   (skipped by default; run e.g. 'sudo bash deploy/install.sh install --approve-migrate')
 #   --skip-deps: skip system + Python dependency installation (existing env re-deploy)
-#   --region=cn|global: region routing (default global; also supports "--region cn")
+#   --region=cn|global: region routing (default global)
+#
+# Supported INSTALL_TYPE values: website | professional | development | educational
+#   website      → DEPLOY_TYPE=production (domain + HTTPS)
+#   professional → DEPLOY_TYPE=lan         (no domain, LAN access)
+#   development  → DEPLOY_TYPE=code        (verorun-code SSH, full plugins)
+#   educational  → DEPLOY_TYPE=edu         (no domain, edu license)
+#
+# install-code.sh is preserved as an independent shortcut (logic merged into Development option here).
+# install-local.sh and install-dev.sh have been removed (logic merged into Professional / Development).
 # ==========================================================================
 set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
-# 审计 P3-3：DEPLOY_MODE 由 detect_mode()（lib/common.sh）无条件覆盖，此处不设默认值（死代码）
-#             install | update | restart | health | rollback | seed | configure-domain
 : "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-: "${APP_HOME:=/home/${APP_USER}/verorun}"
+# APP_USER=root 时 home 为 /root（非 /home/root），与 install-code.sh / install-dev.sh 一致
+if [ "${APP_USER}" = "root" ]; then
+    : "${APP_HOME:=/root/verorun}"
+else
+    : "${APP_HOME:=/home/${APP_USER}/verorun}"
+fi
 : "${VENV_DIR:=${APP_HOME}/venv}"
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
-# 审计 C-1：部署模式由各入口脚本在 source 本文件前定义；统一函数（lib/common.sh）据此区分行为
-: "${DEPLOY_TYPE:=production}"       # production | lan | code | dev
+: "${DEPLOY_TYPE:=production}"       # production | lan | code | edu — 默认值，select_deploy_type 会覆盖
 : "${VR_ADMIN_USERNAME:=}"
 : "${VR_ADMIN_PASSWORD:=}"
 : "${SSL_EMAIL:=}"
@@ -72,6 +90,88 @@ else
     rm -f "${_tmp_common}"
 fi
 
+# ══════════════════════════════════════════════════════════════════════
+# 部署类型解析（统一入口 v3.0）
+# DEPLOY_TYPE: production | lan | code | edu
+# ══════════════════════════════════════════════════════════════════════
+select_deploy_type() {
+    # 1) 已安装环境：从 .env 读取（幂等，update/restart 等均走此路径）
+    if [ -f "${APP_HOME}/.env" ] && grep -q "^DEPLOY_TYPE=" "${APP_HOME}/.env"; then
+        DEPLOY_TYPE=$(grep "^DEPLOY_TYPE=" "${APP_HOME}/.env" | tail -1 | cut -d= -f2)
+        echo -e "${INFO} Deploy type from .env: ${DEPLOY_TYPE}"
+        return
+    fi
+
+    # 2) 旧版 .env 兼容：无 DEPLOY_TYPE 时按 DEPLOY_DOMAIN 推断
+    #    （有域名 -> production；无域名 -> lan。此逻辑仅对存量环境生效）
+    if [ -f "${APP_HOME}/.env" ]; then
+        local _old_dom
+        _old_dom=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
+        if [ -n "${_old_dom}" ]; then
+            DEPLOY_TYPE="production"
+        else
+            DEPLOY_TYPE="lan"
+        fi
+        echo -e "${INFO} Inferred DEPLOY_TYPE=${DEPLOY_TYPE} (pre-DEPLOY_TYPE .env)"
+        return
+    fi
+
+    # 3) 仅全新 install 且无 .env 时进入交互/兜底
+    if [ "${DEPLOY_MODE}" = "install" ]; then
+        # 3a) 环境变量优先（CI / curl|bash 管道）
+        if [ -n "${INSTALL_TYPE:-}" ]; then
+            case "${INSTALL_TYPE}" in
+                website)      DEPLOY_TYPE="production" ;;
+                professional) DEPLOY_TYPE="lan" ;;
+                development)  DEPLOY_TYPE="code" ;;
+                educational)  DEPLOY_TYPE="edu" ;;
+                *) echo -e "${FAIL} Unknown INSTALL_TYPE: ${INSTALL_TYPE}"; exit 1 ;;
+            esac
+            return
+        fi
+        # 3b) 无 TTY 兜底：默认 production
+        if [ ! -t 0 ]; then
+            echo -e "${WARN} Non-interactive shell, defaulting to production"
+            DEPLOY_TYPE="production"
+            return
+        fi
+        # 3c) 交互式菜单
+        echo ""
+        echo "  VeroRun 安装向导 - 请选择部署类型"
+        echo "  ----------------------------------------------"
+        echo "  [1] Website        生产部署（需域名 + HTTPS）"
+        echo "  [2] Professional   专业版（无域名，LAN 访问）"
+        echo "  [3] Development    开发版（verorun-code 全插件，需 SSH key）"
+        echo "  [4] Educational    教育版（无域名，需教育认证码）"
+        echo -n "  请输入 [1-4]: " > /dev/tty
+        read -r _choice < /dev/tty
+        case "${_choice}" in
+            1) DEPLOY_TYPE="production" ;;
+            2) DEPLOY_TYPE="lan" ;;
+            3) DEPLOY_TYPE="code" ;;
+            4) DEPLOY_TYPE="edu" ;;
+            *) echo -e "${FAIL} 无效选择，请重试"; exit 1 ;;
+        esac
+    fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# 部署类型应用：根据 DEPLOY_TYPE 调整 GIT_REPO / SPARSE_DIRS 等
+# ══════════════════════════════════════════════════════════════════════
+apply_deploy_type() {
+    case "${DEPLOY_TYPE}" in
+        code)
+            # 复用 install-code.sh 逻辑：verorun-code SSH + 全插件
+            GIT_REPO="git@github.com:fanjumin/verorun-code.git"
+            SPARSE_DIRS="${SPARSE_DIRS:-} plugins"
+            ;;
+        edu)
+            # 与 lan 一致：verorun-base HTTPS 无域名
+            GIT_REPO="https://github.com/fanjumin/verorun-base.git"
+            ;;
+    esac
+}
+
 # ── Mode / Domain detection ──────────────────────────────────────────
 
 detect_domain() {
@@ -102,11 +202,11 @@ prompt_domain() {
 }
 
 # ==========================================================================
-# Fresh install — 审计 C-1：do_install 已统一至 lib/common.sh（DEPLOY_TYPE=production 驱动）
+# Fresh install — 审计 C-1：do_install 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
 # ==========================================================================
 
 # ==========================================================================
-# Incremental update — 审计 C-1：do_update 已统一至 lib/common.sh（DEPLOY_TYPE=production 驱动）
+# Incremental update — 审计 C-1：do_update 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
 # ==========================================================================
 
 # ==========================================================================
@@ -155,16 +255,47 @@ do_configure_domain() {
 }
 
 # ==========================================================================
-# .env management — 审计 C-1：generate_env 已统一至 lib/common.sh（DEPLOY_TYPE=production 驱动）
+# .env management — 审计 C-1：generate_env 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
 # ==========================================================================
 
 # ==========================================================================
-# Nginx — 审计 C-1：write_nginx_config 已统一至 lib/common.sh（DEPLOY_TYPE=production 驱动）
+# Nginx — 审计 C-1：write_nginx_config 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
 # ==========================================================================
 
 # ==========================================================================
-# Summary — 审计 C-1：print_summary 已统一至 lib/common.sh（DEPLOY_TYPE=production 驱动）
+# Summary — 审计 C-1：print_summary 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
 # ==========================================================================
+
+# ── Educational 认证占位（拉口固定）────────────────────────────────
+# 后续邮箱验证/国内插件认证在此接入；部署层只做 ED-码 + check 校验
+_edu_license_check() {
+    if [ "${DEPLOY_TYPE}" != "edu" ] || [ "${DEPLOY_MODE}" != "install" ]; then
+        return 0
+    fi
+
+    echo -e "${INFO} 教育版认证 - 请输入教育版部署码 (ED-XXXX)"
+    echo -n "  部署码: " > /dev/tty
+    read -r EDU_CODE < /dev/tty
+    EDU_CODE="${EDU_CODE// /}"
+    if [ -z "${EDU_CODE}" ]; then
+        echo -e "${FAIL} 教育部署码不能为空"; exit 1
+    fi
+    # 区域感知校验接口（沿用 license_service 的区域路由约定）
+    local _edu_url
+    case "${REGION}" in
+        cn)     _edu_url="https://api.verorun.cn" ;;
+        *)      _edu_url="https://api.verorun.com" ;;
+    esac
+    local _edu_check
+    _edu_check=$(curl -fsSL --connect-timeout 10 --max-time 20 \
+        "${_edu_url}/api/subscription/check?code=${EDU_CODE}" 2>/dev/null \
+        || echo '{"success":false}')
+    if ! echo "${_edu_check}" | grep -q '"is_valid":true'; then
+        echo -e "${FAIL} 教育部署码校验失败，请检查后重试"; exit 1
+    fi
+    export EDU_CODE
+    echo -e "${OK} 教育部署码验证通过"
+}
 
 # ── Main entry ──────────────────────────────────────────────────────────
 
@@ -175,7 +306,13 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 detect_mode "${1:-}"
-# detect_domain 将在 while 参数解析完成后调用（审计 P0-1）
+
+# ── 统一入口：解析部署类型（.env 优先；全新 install 才交互）—— 所有模式执行 ──
+select_deploy_type
+apply_deploy_type
+
+# ── Educational 认证校验（仅 edu + install 模式） ──
+_edu_license_check
 
 # 审计 A-1：install 模式默认批准 DB 迁移与播种，装完即用（与 install-local.sh 一致）
 if [ "${DEPLOY_MODE}" = "install" ]; then

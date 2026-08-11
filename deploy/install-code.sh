@@ -32,6 +32,8 @@
 #
 # This script does NOT modify deploy/install.sh or deploy/install-local.sh.
 #
+# 逻辑已并入 deploy/install.sh 的 Development 选项（v3.0+），本脚本保留作为独立快捷入口。
+#
 # Limitations (expected, architecture-bound):
 #   - Online payment / OAuth / SMS unavailable (require public callback URLs)
 #   - Multi-tenant subdomains and SSL unavailable

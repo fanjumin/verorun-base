@@ -40,23 +40,36 @@
 
 ## One-Click Deployment
 
-`deploy/install.sh` installs everything from scratch on a fresh Ubuntu VPS: PostgreSQL, Python venv, `.env` with auto-generated secrets, 5 systemd services, and Nginx.
+A single unified `deploy/install.sh` handles all deployment types. Choose interactively or
+via the `INSTALL_TYPE` environment variable.
 
-**`verorun-base` (public):**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
-```
-
-**`verorun-code` (private):**
+**Interactive (recommended):**
 
 ```bash
-git clone git@github.com:fanjumin/verorun-code.git /tmp/verorun
-cd /tmp/verorun
-sudo bash deploy/install.sh install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install
 ```
+
+**CI / automation — specify type:**
+
+```bash
+# Website (production, domain + HTTPS)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
+
+# Professional (no domain, LAN access)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+
+# Development (verorun-code SSH, full plugins)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
+
+# Educational (edu license required)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=educational bash
+```
+
+**Supported types:** `website` | `professional` | `development` | `educational`
 
 For China deployments add `--region=cn`.
+
+> `install-code.sh` is preserved as an independent shortcut for Development deployments.
 
 ### What the script does
 
