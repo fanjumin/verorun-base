@@ -158,6 +158,35 @@ def get_db():
         db.close()
 
 
+# ── Module-level migration safe wrapper ──
+class _NoOpDb:
+    def execute(self, *a, **kw): return _NoOpCursor()
+    def commit(self): pass
+    def rollback(self): pass
+    def cursor(self): return _NoOpCursor()
+    def executescript(self, *a, **kw): pass
+    def fetchone(self, *a, **kw): return None
+    def fetchall(self, *a, **kw): return []
+    def __getattr__(self, name):
+        return lambda *a, **kw: (_NoOpCursor() if 'execute' in name else None)
+
+class _NoOpCursor:
+    def execute(self, *a, **kw): pass
+    def fetchone(self): return None
+    def fetchall(self): return []
+    def close(self): pass
+    def __enter__(self): return self
+    def __exit__(self, *a): pass
+
+@contextmanager
+def _safe_get_db_for_migration():
+    try:
+        with get_db() as db:
+            yield db
+    except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
+        logger.warning(f"Module-level migration skipped (DB not ready): {e}")
+        yield _NoOpDb()
+
 # ── 列信息兼容层：替代 PRAGMA table_info() ──
 def get_table_columns(conn, table: str) -> list[str]:
     """Return list of column names for a table (PG-compatible)."""
@@ -2325,7 +2354,7 @@ def _table_exists(m, table: str) -> bool:
 
 
 # ── Module-level: media_files table（防 init_db() 中途失败跳过）──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS media_files (
         id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         filename        TEXT NOT NULL,
@@ -2346,7 +2375,7 @@ with get_db() as m:
     print('[Migration] media_files table created (module-level)')
 
 # ── Module-level: article_comments table（防 init_db() 中途失败跳过）──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute("""
         CREATE TABLE IF NOT EXISTS article_comments (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -2371,7 +2400,7 @@ with get_db() as m:
 
 
 # ── Migration: deployment_codes 独立部署订阅表 (2026-06-27) ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
         id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         code            TEXT UNIQUE NOT NULL,
@@ -2395,7 +2424,7 @@ with get_db() as m:
 
 # ── Migration: 清理旧版套餐数据 (2026-06-27) ──
 try:
-    with get_db() as m:
+    with _safe_get_db_for_migration() as m:
         if not _table_exists(m, 'subscription_plans'):
             print('[Migration] subscription_plans not created yet, skip legacy plan cleanup')
         else:
@@ -2433,7 +2462,7 @@ def get_active_model(provider_slug='deepseek'):
 
 # ── 国际化: 市场特定表结构 (2026-06-29) ──
 if MARKET == 'intl':
-    with get_db() as m:
+    with _safe_get_db_for_migration() as m:
         # INTL 用户表补充 OAuth 字段（CN 已有的 wechat/douyin 字段在 INTL 中保持空值）
         intl_cols = get_table_columns(m, 'users')
         intl_additions = {
@@ -2492,7 +2521,7 @@ if MARKET == 'intl':
         print('[i18n] ✅ INTL-specific tables and data initialized')
 else:
     # CN 区: subscription_plans 增加 currency 字段（向后兼容）
-    with get_db() as m:
+    with _safe_get_db_for_migration() as m:
         if _table_exists(m, 'subscription_plans'):
             plan_cols = get_table_columns(m, 'subscription_plans')
             if 'currency' not in plan_cols:
@@ -2503,7 +2532,7 @@ else:
                     print(f'[i18n] subscription_plans.currency skipped: {e}')
 
 # ── Phase 2: 模块化订阅 — module_states 字段 ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     sub_cols = get_table_columns(m, 'subscriptions')
     if 'module_states' not in sub_cols:
         try:
@@ -2513,7 +2542,7 @@ with get_db() as m:
             print(f'[Phase2] subscriptions.module_states skipped: {e}')
 
 # ── Phase 4: 模块定价表（后台可修改）──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     try:
         m.execute('''
             CREATE TABLE IF NOT EXISTS module_pricing (
@@ -2563,7 +2592,7 @@ with get_db() as m:
         print(f'[Phase4] module_pricing skipped: {e}')
 
 # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     if not _table_exists(m, 'users'):
         print('[Migration] users table not created yet, skip enterprise/oauth fields')
     else:
@@ -2599,7 +2628,7 @@ with get_db() as m:
 
 
 # ── i18n 翻译表 (2026-06-30) ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS i18n_strings (
         id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         locale      TEXT NOT NULL DEFAULT 'zh-CN',
@@ -2617,7 +2646,7 @@ with get_db() as m:
 # ── Migration: site_domains 子域名管理表 (2026-07-06) ──
 # Note: 移除了 FOREIGN KEY 引用 site_configs，因为 site_configs 在 init_db() 中创建
 # 模块级 migration 执行时 site_configs 可能尚未建表
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS site_domains (
         id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         site_config_id  BIGINT NOT NULL DEFAULT 1,
@@ -2639,7 +2668,7 @@ with get_db() as m:
 
 # ── Migration: site_domains 新增 service_port 列 (2026-07-06) ──
 try:
-    with get_db() as m:
+    with _safe_get_db_for_migration() as m:
         m.execute("ALTER TABLE site_domains ADD COLUMN service_port BIGINT DEFAULT NULL")
         m.commit()
         print('[Migration] site_domains.service_port column added')
@@ -2650,7 +2679,7 @@ except Exception:
 _default_domain = os.environ.get('DEPLOY_DOMAIN', 'localhost')
 _default_brand = os.environ.get('DEPLOY_BRAND', 'VeroRun 维洛智能')
 try:
-    with get_db() as m:
+    with _safe_get_db_for_migration() as m:
         m.execute(
             "INSERT INTO site_configs (id, domain, name, industry, tier, features) OVERRIDING SYSTEM VALUE VALUES (1, %s, %s, 'ai', 'self_hosted', '[\"main\"]') ON CONFLICT (id) DO NOTHING",
             (_default_domain, _default_brand)
@@ -2666,7 +2695,7 @@ _defaults = [
     ('platform', f'platform.{_default_domain}', f'{_default_brand} 用户中心',   'default', 1, 3),
 ]
 try:
-    with get_db() as m:
+    with _safe_get_db_for_migration() as m:
         for sub, full, name, template, pub, so in _defaults:
             m.execute(
                 "INSERT INTO site_domains (site_config_id, subdomain, full_domain, display_name, template, is_published, sort_order) VALUES (1, %s, %s, %s, %s, %s, %s) ON CONFLICT (full_domain) DO NOTHING",
@@ -2679,7 +2708,7 @@ except Exception:
 
 
 # ── Site Builder 模块表 (2026-07-11) ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''CREATE TABLE IF NOT EXISTS site_builder_prompts (
         id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         identifier      TEXT UNIQUE NOT NULL,
@@ -2755,7 +2784,7 @@ TIERS = {
 
 # ── Migration: provider_api_keys 统一 LLM 供应商 Key 管理 ──
 # 注意：此表与用户 API Key 表 (api_keys) 不同，专用于管理 LLM 供应商的 API Key
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''
         CREATE TABLE IF NOT EXISTS provider_api_keys (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -2790,7 +2819,7 @@ with get_db() as m:
     m.commit()
     print('[Migration] provider_api_keys table + seed data created')
 
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     try:
         pm_cols = get_table_columns(m, 'provider_models')
         if 'api_key_id' not in pm_cols:
@@ -2801,7 +2830,7 @@ with get_db() as m:
         m.rollback()
 
 # ── Migration: llm_quotas 精细化配额管理 ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''
         CREATE TABLE IF NOT EXISTS llm_quotas (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -2845,7 +2874,7 @@ with get_db() as m:
 
 
 # ── Migration: unified_api_keys — Phase 3 unified API key management ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''
         CREATE TABLE IF NOT EXISTS unified_api_keys (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -2909,7 +2938,7 @@ with get_db() as m:
     print('[Migration] unified_api_keys + api_key_audit + usage_quotas tables created')
 
 # ── Migration: unified subscription — Phase 4 base plan + plugin addons ──
-with get_db() as m:
+with _safe_get_db_for_migration() as m:
     m.execute('''
         CREATE TABLE IF NOT EXISTS base_plans (
             id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

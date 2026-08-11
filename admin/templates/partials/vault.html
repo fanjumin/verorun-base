@@ -1,6 +1,5 @@
 {# Vault — Admin inline partial (Phase 3.3) #}
 {# V20260809: convert from iframe (vault.html + 5 sub-pages) to l_vault() dashboard #}
-<script>
 window.l_vault = function () {
   document.getElementById('pt').textContent = {{ _('Vault') | tojson }};
   var mc = document.getElementById('mc');
@@ -231,4 +230,4 @@ function vaultLoadPage(page) {
         '<button class="btn mt" onclick="l_vault()">⬅ {{ _('Back to Dashboard') }}</button></div>';
     });
 }
-</script>
+{# end of vault partial #}

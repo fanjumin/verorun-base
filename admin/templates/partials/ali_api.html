@@ -1,6 +1,5 @@
 {# 1688 Supply Chain — Admin entry panel (Phase 4) #}
 {# V20260809: replace iframe embed_url with l_ali_api() entry panel → window.open() #}
-<script>
 window.l_ali_api = function () {
   document.getElementById('pt').textContent = {{ _('1688 Supply Chain') | tojson }};
   document.getElementById('mc').innerHTML =
@@ -21,4 +20,4 @@ window.l_ali_api = function () {
       '</div>' +
     '</div>';
 };
-</script>
+{# end of ali_api partial #}

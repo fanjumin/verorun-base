@@ -947,9 +947,14 @@ class PluginManager:
     def get_plugin_menus(self) -> list:
         """收集所有已安装+已启用插件的菜单项"""
         from .base import localize_plugin_dict
+        import os
+        deploy_type = os.environ.get('DEPLOY_TYPE', 'production')
         menus = []
         for pid, pinfo in self._cache.items():
             if pinfo.status not in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
+                continue
+            # site_domains 仅网站版需要，企业版（lan/code/edu）不需要子域名管理
+            if pid == 'site_domains' and deploy_type in ('lan', 'code', 'edu'):
                 continue
             # 从 plugin.json 读取 menu 配置
             menu_cfg = pinfo.metadata.get('menu') if pinfo.metadata else None

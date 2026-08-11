@@ -101,6 +101,8 @@ function submitFirstPassword(){
 }
 
 var sectionMap={};
+// 从 GROUPS 自动填充：已知内联 section 给予 100 次重试（异步插件组件加载需更长时间）
+if(typeof GROUPS!=="undefined"){GROUPS.forEach(function(g){g[2].forEach(function(m){if(m[0]!=="_section")sectionMap[m[0]]=true})})}
 function go(s){
   document.querySelectorAll(".ni").forEach(function(n){n.classList.remove("sel")});
   var el=document.getElementById("n-"+s);if(el)el.classList.add("sel");
