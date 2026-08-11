@@ -44,6 +44,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      # 审计 D6：启用 HTTPS 时放开 443（配合下方证书挂载 + SSL_CERT_DIR 环境变量）
+      # - "443:443"
     volumes:
       - app_data:/app/data
       # 审计 M17：命名卷挂载点收窄到 uploads 子目录——
@@ -51,6 +53,9 @@ services:
       # 上传代码路径均为 .../static/uploads/{temp,draft,...}，位于卷内，持久化不受影响。
       - app_uploads:/app/admin/static/uploads
       - app_platform_uploads:/app/main_site/static/uploads
+      # 审计 D6：HTTPS 证书挂载（可选）。宿主已签发证书（Let's Encrypt 等）目录，
+      # 容器内 entrypoint 检测到即自动启用 443；并设置 SSL_CERT_DIR 指向具体证书目录。
+      # - /etc/letsencrypt/live:/etc/letsencrypt/live:ro
     env_file:
       # 审计 C-2 修复：全部安全密钥（JWT_SECRET / FLASK_SECRET_KEY / ENCRYPTION_KEY /
       # PLUGIN_LICENSE_SECRET / CAPTCHA_SECRET_KEY / DEV_ACCOUNTS_ENCRYPTION_KEY /

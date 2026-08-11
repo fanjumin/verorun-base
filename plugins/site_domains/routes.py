@@ -32,7 +32,9 @@ def _get_main_db():
 
 
 def _is_loopback_request():
-    ra = request.remote_addr or ''
+    # 审计 M10：反代后 remote_addr 恒为 127.0.0.1，必须读 nginx 强制覆盖的
+    # X-Real-IP（客户端不可伪造）判断真实来源，否则回环防线被外部请求架空。
+    ra = request.headers.get('X-Real-IP', '') or request.remote_addr or ''
     return ra in ('127.0.0.1', '::1', 'localhost')
 
 

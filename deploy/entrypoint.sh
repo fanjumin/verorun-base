@@ -36,5 +36,22 @@ fi
 mkdir -p /var/run/supervisor
 chmod 755 /var/run/supervisor
 
+# 审计 D6：Docker 变体 TLS —— 检测挂载证书（SSL_CERT_DIR，如宿主 /etc/letsencrypt/live）
+# 存在则启用 443 ssl + HSTS；无证书则删除占位符保持纯 HTTP（容器 nginx -t 通过）。
+_NGINX_CONF=/etc/nginx/sites-enabled/default
+_SSL_CERT_DIR="${SSL_CERT_DIR:-/etc/letsencrypt/live}"
+if [ -f "${_SSL_CERT_DIR}/fullchain.pem" ] && [ -f "${_SSL_CERT_DIR}/privkey.pem" ]; then
+    echo "[TLS] certificate found in ${_SSL_CERT_DIR} — enabling HTTPS 443"
+    sed -i 's|__SSL_LISTEN__|    listen 443 ssl http2;|' "${_NGINX_CONF}"
+    sed -i "s|__SSL_CERT__|    ssl_certificate     ${_SSL_CERT_DIR}/fullchain.pem;\\
+    ssl_certificate_key ${_SSL_CERT_DIR}/privkey.pem;\\
+    ssl_protocols TLSv1.2 TLSv1.3;\\
+    ssl_ciphers HIGH:!aNULL:!MD5;\\
+    add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;|" "${_NGINX_CONF}"
+else
+    echo "[TLS] no certificate in ${_SSL_CERT_DIR} — serving plain HTTP (set SSL_CERT_DIR to enable HTTPS)"
+    sed -i '/__SSL_LISTEN__/d; /__SSL_CERT__/d' "${_NGINX_CONF}"
+fi
+
 # 前台运行 Supervisor（nodaemon=true），接管容器 PID 1
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
