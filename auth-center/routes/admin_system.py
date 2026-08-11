@@ -195,7 +195,7 @@ server {{
         proxy_pass http://127.0.0.1:{port};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;  # 审计 M1：XFF 覆盖为直连 IP，不追加客户端伪造值
         proxy_set_header X-Forwarded-Proto $scheme;
     }}
 }}

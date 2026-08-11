@@ -60,4 +60,8 @@ RUN chown -R verorun:verorun /app/data
 
 EXPOSE 80
 
+# 审计 M13：容器级健康检查（探活 health-service，不依赖编排层额外配置）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8085/health >/dev/null || exit 1
+
 ENTRYPOINT ["/entrypoint.sh"]
