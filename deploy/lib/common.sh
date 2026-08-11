@@ -167,6 +167,102 @@ _pip_install() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# Python 版本保障（审计 P-1）：requirements.lock 需 Python >= 3.12
+# （numpy 2.4.x 等新依赖 Requires-Python >=3.12）。Ubuntu 22.04 默认
+# python3 为 3.10，直接建 venv 会因版本不符导致 pip 解析失败。
+# 本函数确保存在可用的 python3.12（24.04 自带；22.04 走 deadsnakes PPA），
+# 并把可执行文件全路径写入全局 PYTHON_BIN。幂等、非交互、超时保护。
+# ══════════════════════════════════════════════════════════════════════
+_ensure_python312() {
+    export DEBIAN_FRONTEND=noninteractive
+
+    # 已有 python3.12 → 直接使用
+    if command -v python3.12 >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python3.12)"
+        return 0
+    fi
+
+    # 系统默认 python3 已是 >=3.12 → 直接使用
+    local _cur=""
+    _cur="$(python3 -c 'import sys; print("%d.%d" % (sys.version_info.major, sys.version_info.minor))' 2>/dev/null || true)"
+    if [ -n "${_cur}" ]; then
+        local _maj="${_cur%%.*}"
+        local _min="${_cur#*.}"
+        if [ "${_maj}" -gt 3 ] || { [ "${_maj}" -eq 3 ] && [ "${_min}" -ge 12 ]; }; then
+            PYTHON_BIN="$(command -v python3)"
+            return 0
+        fi
+    fi
+
+    echo -e "${INFO} System Python ${_cur:-unknown} < 3.12 — installing python3.12 ..."
+
+    # 路线一：发行版自带（Ubuntu 24.04 及以上）
+    if timeout 300 apt-get install -y python3.12 python3.12-venv python3.12-dev 2>&1 && command -v python3.12 >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python3.12)"
+        return 0
+    fi
+
+    # 路线二：deadsnakes PPA（Ubuntu 22.04）
+    echo -e "${INFO} python3.12 not in distro repos — adding deadsnakes PPA ..."
+    timeout 300 apt-get install -y software-properties-common >/dev/null 2>&1 || {
+        echo -e "${FAIL} Failed to install software-properties-common (needed for PPA)."
+        return 1
+    }
+    timeout 300 add-apt-repository -y ppa:deadsnakes/ppa 2>&1 || {
+        echo -e "${FAIL} Failed to add deadsnakes PPA. Install python3.12 manually, then re-run."
+        return 1
+    }
+    timeout 300 apt-get update 2>&1 || {
+        echo -e "${FAIL} apt-get update failed after adding PPA."
+        return 1
+    }
+    timeout 300 apt-get install -y python3.12 python3.12-venv python3.12-dev 2>&1 || {
+        echo -e "${FAIL} Failed to install python3.12 from deadsnakes PPA."
+        return 1
+    }
+    command -v python3.12 >/dev/null 2>&1 || {
+        echo -e "${FAIL} python3.12 still unavailable after installation."
+        return 1
+    }
+    PYTHON_BIN="$(command -v python3.12)"
+    return 0
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# 虚拟环境保障（审计 P-1）：venv 缺失或其 Python < 3.12 时自动重建。
+# venv 仅含依赖包、无业务数据，删除重建安全且幂等。
+# 依赖 _ensure_python312 设置 PYTHON_BIN。
+# ══════════════════════════════════════════════════════════════════════
+_ensure_venv() {
+    if [ -x "${VENV_DIR}/bin/python" ]; then
+        local _vver=""
+        _vver="$("${VENV_DIR}/bin/python" -c 'import sys; print("%d.%d" % (sys.version_info.major, sys.version_info.minor))' 2>/dev/null || true)"
+        if [ -n "${_vver}" ]; then
+            local _maj="${_vver%%.*}"
+            local _min="${_vver#*.}"
+            if [ "${_maj}" -gt 3 ] || { [ "${_maj}" -eq 3 ] && [ "${_min}" -ge 12 ]; }; then
+                return 0
+            fi
+        fi
+        echo -e "${WARN} Existing venv Python ${_vver:-unknown} < 3.12 — rebuilding ..."
+    else
+        echo -e "${INFO} Creating Python venv ..."
+    fi
+
+    _ensure_python312 || return 1
+    if [ -z "${VENV_DIR}" ] || [ "${VENV_DIR}" = "/" ]; then
+        echo -e "${FAIL} Refusing to remove dangerous path: ${VENV_DIR}"
+        return 1
+    fi
+    rm -rf "${VENV_DIR}"
+    sudo -u "${APP_USER}" "${PYTHON_BIN}" -m venv "${VENV_DIR}" || {
+        echo -e "${FAIL} Failed to create venv with ${PYTHON_BIN}"
+        return 1
+    }
+    return 0
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # Git SSH auth setup（HTTPS 公开仓库自动跳过）
 # ══════════════════════════════════════════════════════════════════════
 ensure_git_auth() {
@@ -1495,6 +1591,11 @@ do_install() {
         apt-get update
         apt-get install -y python3 python3-venv python3-pip python3-dev \
             nginx git curl wget build-essential libpq-dev libssl-dev
+        # 审计 P-1：requirements.lock 需 Python >= 3.12（numpy 2.4.x），自动保障版本
+        _ensure_python312 || {
+            echo -e "${FAIL} Python 3.12 setup failed — fix the error above and re-run."
+            exit 1
+        }
     else
         if [ "${DEPLOY_TYPE}" = "production" ]; then
             echo -e "${WARN} --skip-deps: skipping system dependency installation"
@@ -1632,9 +1733,11 @@ do_install() {
 
     step "Python virtual environment"
     if [ "${SKIP_DEPS:-0}" != "1" ]; then
-        if [ ! -f "${VENV_DIR}/bin/python" ]; then
-            sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
-        fi
+        # 审计 P-1：venv 缺失或其 Python < 3.12 时自动重建（venv 无业务数据，安全）
+        _ensure_venv || {
+            echo -e "${FAIL} Python venv setup failed — fix the error above and re-run."
+            exit 1
+        }
         _pip_install --upgrade pip
         # 审计 M16：优先使用带哈希锁定的 requirements.lock（可复现构建），缺失时回退 requirements.txt
         local _req_file="${APP_HOME}/requirements.txt"
@@ -1853,6 +1956,11 @@ do_update() {
     assert_debug_disabled
 
     step "Update Python dependencies"
+    # 审计 P-1：venv 缺失或其 Python < 3.12 时自动重建（兼容旧 3.10 环境升级）
+    _ensure_venv || {
+        echo -e "${FAIL} Python venv setup failed — fix the error above and re-run."
+        exit 1
+    }
     # 审计 M16：优先使用带哈希锁定的 requirements.lock，缺失时回退 requirements.txt
     local _req_file="${APP_HOME}/requirements.txt"
     [ -f "${APP_HOME}/requirements.lock" ] && _req_file="${APP_HOME}/requirements.lock"
