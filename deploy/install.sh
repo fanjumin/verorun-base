@@ -95,30 +95,12 @@ fi
 # DEPLOY_TYPE: production | lan | code | edu
 # ══════════════════════════════════════════════════════════════════════
 select_deploy_type() {
-    # 1) 已安装环境：从 .env 读取（幂等，update/restart 等均走此路径）
-    if [ -f "${APP_HOME}/.env" ] && grep -q "^DEPLOY_TYPE=" "${APP_HOME}/.env"; then
-        DEPLOY_TYPE=$(grep "^DEPLOY_TYPE=" "${APP_HOME}/.env" | tail -1 | cut -d= -f2)
-        echo -e "${INFO} Deploy type from .env: ${DEPLOY_TYPE}"
-        return
-    fi
-
-    # 2) 旧版 .env 兼容：无 DEPLOY_TYPE 时按 DEPLOY_DOMAIN 推断
-    #    （有域名 -> production；无域名 -> lan。此逻辑仅对存量环境生效）
-    if [ -f "${APP_HOME}/.env" ]; then
-        local _old_dom
-        _old_dom=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
-        if [ -n "${_old_dom}" ]; then
-            DEPLOY_TYPE="production"
-        else
-            DEPLOY_TYPE="lan"
-        fi
-        echo -e "${INFO} Inferred DEPLOY_TYPE=${DEPLOY_TYPE} (pre-DEPLOY_TYPE .env)"
-        return
-    fi
-
-    # 3) 仅全新 install 且无 .env 时进入交互/兜底
+    # ================================================================
+    # install 模式：每次安装都强制走菜单/环境变量，不受 .env 是否存在影响
+    # 即使上次安装失败残留 .env，也会重新弹出选择菜单
+    # ================================================================
     if [ "${DEPLOY_MODE}" = "install" ]; then
-        # 3a) 环境变量优先（CI / curl|bash 管道）
+        # 1) 环境变量优先（CI / curl|bash 管道）
         if [ -n "${INSTALL_TYPE:-}" ]; then
             case "${INSTALL_TYPE}" in
                 website)      DEPLOY_TYPE="production" ;;
@@ -127,15 +109,16 @@ select_deploy_type() {
                 educational)  DEPLOY_TYPE="edu" ;;
                 *) echo -e "${FAIL} Unknown INSTALL_TYPE: ${INSTALL_TYPE}"; exit 1 ;;
             esac
+            echo -e "${INFO} Deploy type from INSTALL_TYPE: ${DEPLOY_TYPE}"
             return
         fi
-        # 3b) 无 TTY 兜底：必须显式指定 INSTALL_TYPE，否则报错退出（失败即退）
+        # 2) 无 TTY 兜底：必须显式指定 INSTALL_TYPE，否则报错退出（失败即退）
         if [ ! -t 0 ]; then
             echo -e "${FAIL} Non-interactive shell: must specify INSTALL_TYPE"
             echo -e "${INFO}   curl ... | sudo env INSTALL_TYPE=professional bash"
             exit 1
         fi
-        # 3c) 交互式菜单
+        # 3) 交互式菜单 — 每次 install 无条件显示
         echo ""
         echo "  VeroRun 安装向导 - 请选择部署类型"
         echo "  ----------------------------------------------"
@@ -152,7 +135,38 @@ select_deploy_type() {
             4) DEPLOY_TYPE="edu" ;;
             *) echo -e "${FAIL} 无效选择，请重试"; exit 1 ;;
         esac
+        echo -e "${INFO} Deploy type selected: ${DEPLOY_TYPE}"
+        return
     fi
+
+    # ================================================================
+    # 非 install 模式（update / restart / health / rollback / seed 等）：
+    # 从 .env 读取，无交互
+    # ================================================================
+
+    # 已安装环境：从 .env 读取 DEPLOY_TYPE（幂等）
+    if [ -f "${APP_HOME}/.env" ] && grep -q "^DEPLOY_TYPE=" "${APP_HOME}/.env"; then
+        DEPLOY_TYPE=$(grep "^DEPLOY_TYPE=" "${APP_HOME}/.env" | tail -1 | cut -d= -f2)
+        echo -e "${INFO} Deploy type from .env: ${DEPLOY_TYPE}"
+        return
+    fi
+
+    # 旧版 .env 兼容：无 DEPLOY_TYPE 时按 DEPLOY_DOMAIN 推断
+    # （有域名 -> production；无域名 -> lan。此逻辑仅对存量环境生效）
+    if [ -f "${APP_HOME}/.env" ]; then
+        local _old_dom
+        _old_dom=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
+        if [ -n "${_old_dom}" ]; then
+            DEPLOY_TYPE="production"
+        else
+            DEPLOY_TYPE="lan"
+        fi
+        echo -e "${INFO} Inferred DEPLOY_TYPE=${DEPLOY_TYPE} (pre-DEPLOY_TYPE .env)"
+        return
+    fi
+
+    # 兜底：如果没有任何 .env（极端情况，非 install 模式下几乎不会到达）
+    echo -e "${WARN} No .env found — defaulting DEPLOY_TYPE=${DEPLOY_TYPE}"
 }
 
 # ══════════════════════════════════════════════════════════════════════
