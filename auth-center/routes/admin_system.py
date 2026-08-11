@@ -156,8 +156,28 @@ _NGINX_CONF_DIR = os.environ.get(
 _SSL_CERT_DIR = '/etc/letsencrypt/live/your-domain.com-0001'
 
 
+def _validate_service_port(port):
+    """审计 D2：service_port 严格校验。
+    None/空 → content 模式（不生成 nginx 配置）；
+    否则必须为 1024-65535 整数，非法返回错误信息（调用方应拒绝请求）。"""
+    if port is None or str(port).strip() == '':
+        return None, None
+    try:
+        p = int(port)
+    except (TypeError, ValueError):
+        return None, _('service_port must be an integer')
+    if not (1024 <= p <= 65535):
+        return None, _('service_port must be between 1024 and 65535')
+    return p, None
+
+
 def _generate_domain_nginx_config(subdomain, full_domain, port):
     """生成本地 Nginx server block 配置文件"""
+    # 审计 D2 兜底：生成配置前强制校验端口，非法直接拒绝（防路由层绕过）
+    port, port_err = _validate_service_port(port)
+    if port_err is not None:
+        print(f'[Nginx Config Warning] invalid service_port: {port_err}', flush=True)
+        return None
     if not port:
         return None
     os.makedirs(_NGINX_CONF_DIR, exist_ok=True)
@@ -267,7 +287,10 @@ def admin_create_domain():
     subdomain = data.get('subdomain', '').strip().lower()
     display_name = data.get('display_name', '').strip()
     template = data.get('template', 'default')
-    service_port = data.get('service_port')
+    # 审计 D2：service_port 写入前严格校验（1024-65535），非法拒绝
+    service_port, port_err = _validate_service_port(data.get('service_port'))
+    if port_err:
+        return jsonify({'success': False, 'error': port_err}), 400
 
     if not subdomain or not display_name:
         return jsonify({'success': False, 'error': _('Subdomain and Display Name Cannot Be Empty')}), 400
@@ -322,6 +345,12 @@ def admin_update_domain(did):
     if not updates:
         return jsonify({'success': False, 'error': _('No Valid Update Fields')}), 400
 
+    # 审计 D2：service_port 写入前严格校验（1024-65535），非法拒绝
+    if 'service_port' in updates:
+        updates['service_port'], port_err = _validate_service_port(updates['service_port'])
+        if port_err:
+            return jsonify({'success': False, 'error': port_err}), 400
+
     # 先读取旧 full_domain
     with get_db() as conn:
         old_row = conn.execute("SELECT full_domain, subdomain FROM site_domains WHERE id=%s", (did,)).fetchone()
@@ -339,7 +368,7 @@ def admin_update_domain(did):
     if old_row:
         old_domain = old_row['full_domain']
         subdomain = old_row['subdomain']
-        new_port = data.get('service_port')
+        new_port = updates.get('service_port')
         if new_port is not None:
             _generate_domain_nginx_config(subdomain, old_domain, new_port)
         else:

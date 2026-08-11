@@ -702,50 +702,6 @@ def reset_password_page():
 def health():
     return jsonify({"status": "ok", "service": "admin-panel", "port": 8084})
 
-@app.route('/admin/debug-jwt')
-def debug_jwt():
-    """Debug JWT: validate a token from query param"""
-    import os
-    from services.jwt_service import validate_token, JWT_SECRET
-    token_param = request.args.get('token', '')
-    result = {
-        "jwt_secret_prefix": JWT_SECRET[:20] + "...",
-        "jwt_secret_len": len(JWT_SECRET),
-        "env_set": bool(os.environ.get('JWT_SECRET')),
-        "pyjwt_version": __import__('jwt').__version__,
-    }
-    if token_param:
-        payload = validate_token(token_param)
-        result['validate_ok'] = payload is not None
-        if payload:
-            result['user_id'] = payload['user_id']
-            result['is_admin'] = payload.get('is_admin')
-            # Also simulate _require_admin DB check
-            from models import get_db
-            with get_db() as conn:
-                user = conn.execute('SELECT id, is_admin FROM users WHERE id=%s', (payload['user_id'],)).fetchone()
-            result['db_user_exists'] = user is not None
-            result['db_is_admin'] = bool(user and user['is_admin'])
-        # Also test via actual request context
-        import flask
-        with flask.current_app.test_request_context(
-            '/admin/dashboard',
-            headers={'Authorization': f'Bearer {token_param}'}
-        ):
-            auth = flask.request.headers.get('Authorization', '')
-            token2 = auth.replace('Bearer ', '') if auth.startswith('Bearer ') else auth
-            result['received_token'] = token2[:20] + '...'
-            result['token_match'] = token2 == token_param
-            payload2 = validate_token(token2)
-            result['validate_via_header_ok'] = payload2 is not None
-    else:
-        from services.jwt_service import create_token
-        tok = create_token(7, phone='13910604299', is_admin=True, role='super_admin')
-        payload = validate_token(tok)
-        result['create_validate_ok'] = payload is not None
-    return jsonify(result)
-
-
 @app.route('/admin/<path:subpath>')
 def admin_spa_catchall(subpath):
     """SPA catch-all — /admin/xxx 全部渲染 admin SPA 壳，前端根据 pathname 路由"""

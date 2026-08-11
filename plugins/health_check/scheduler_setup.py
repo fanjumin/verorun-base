@@ -42,7 +42,8 @@ except ImportError:
 
 # Each schedule defines a cron job that calls the health check internal API.
 # The internal API uses X-Health-Secret header for auth.
-HEALTH_SECRET = os.environ.get('HEALTH_SECRET', 'health-monitor-internal')
+# 审计 D5：HEALTH_SECRET 未配置时为空（fail-closed），不再使用源码公开默认值
+HEALTH_SECRET = os.environ.get('HEALTH_SECRET', '')
 HEALTH_INTERNAL_URL = os.environ.get(
     'HEALTH_INTERNAL_URL',
     'http://127.0.0.1:8084/admin/health/api/internal/run'

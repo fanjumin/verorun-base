@@ -28,6 +28,11 @@ server_check.sh
 ssh_check.bat
 check_*.sh
 _*.py
+# 审计 D9：调试残留文件排除（_*.html 含真实 API Key / 业务数据）
+_*.html
+preview_admin.html
+ubprocess
+ubprocess, os
 out.txt
 test_out.txt
 *.log

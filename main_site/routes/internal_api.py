@@ -18,9 +18,11 @@ internal_api_bp = Blueprint('internal_api', __name__, url_prefix='/api/internal'
 
 
 def _authorized() -> bool:
+    # 审计 D4：未配置 INTERNAL_SERVICE_TOKEN 时默认拒绝（fail-closed），
+    # 禁止在无鉴权情况下开放内部 API
     token = os.environ.get('INTERNAL_SERVICE_TOKEN', '')
     if not token:
-        return True  # 未配置 token：默认放行（部署环境应配置）
+        return False
     return request.headers.get('X-Internal-Token', '') == token
 
 

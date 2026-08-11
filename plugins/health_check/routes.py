@@ -1214,8 +1214,9 @@ def api_internal_run():
     Request header must include X-Health-Secret
     """
     secret = request.headers.get('X-Health-Secret', '')
-    expected = os.environ.get('HEALTH_SECRET', 'health-monitor-internal')
-    if secret != expected:
+    # 审计 D5：HEALTH_SECRET 未配置时 fail-closed（拒绝），不再使用源码公开默认值
+    expected = os.environ.get('HEALTH_SECRET', '')
+    if not expected or secret != expected:
         return jsonify({'success': False, 'error': 'Forbidden'}), 403
 
     data = request.json or {}
