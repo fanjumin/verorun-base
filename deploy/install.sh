@@ -198,6 +198,15 @@ detect_domain() {
     fi
 }
 
+# 审计 M18：域名 FQDN 格式校验（拒绝 scheme/路径/端口/空格/连续点/边界连字符）
+_is_valid_fqdn() {
+    local d="$1"
+    case "${d}" in
+        *://*|*/*|*:*|*" "*|*..*|.*|*.-*|*-.*) return 1 ;;
+    esac
+    echo "${d}" | grep -qE '^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+}
+
 prompt_domain() {
     if [ -n "${DOMAIN}" ]; then
         return
@@ -207,11 +216,15 @@ prompt_domain() {
     # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
     echo -n "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " > /dev/tty
     read -r DOMAIN < /dev/tty
+    DOMAIN="$(echo "${DOMAIN}" | tr -d '[:space:]')"
     if [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain skipped. Run after install:"
         echo -e "${INFO}   sudo bash deploy/${INSTALL_SCRIPT} configure-domain <your-domain>"
-    else
+    elif _is_valid_fqdn "${DOMAIN}"; then
         echo -e "${OK} Domain set to: ${DOMAIN}"
+    else
+        echo -e "${WARN} 域名格式非法（${DOMAIN}），已跳过。请使用合法 FQDN，如 verorun.com"
+        DOMAIN=""
     fi
 }
 
@@ -230,6 +243,11 @@ do_configure_domain() {
     local domain="$1"
     if [ -z "$domain" ]; then
         echo -e "${FAIL} Usage: sudo bash deploy/install.sh configure-domain <your-domain>"
+        exit 1
+    fi
+    # 审计 M18：configure-domain 参数域名 FQDN 格式校验，非法直接拒绝
+    if ! _is_valid_fqdn "${domain}"; then
+        echo -e "${FAIL} 非法域名：${domain}（应为合法 FQDN，如 verorun.com）"
         exit 1
     fi
 
@@ -260,6 +278,26 @@ do_configure_domain() {
     write_nginx_config
     nginx -t && systemctl restart nginx
     done_step "Nginx configured"
+
+    # 审计 D3：configure-domain 后 TLS 存活校验（证书存在→探测 443；缺失→提示签发命令）
+    step "TLS check"
+    local _cert_dir="/etc/letsencrypt/live/${domain}"
+    if [ -f "${_cert_dir}/fullchain.pem" ] && [ -f "${_cert_dir}/privkey.pem" ]; then
+        if command -v curl >/dev/null 2>&1; then
+            local _tls_code
+            _tls_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "https://${domain}/" 2>/dev/null || echo "000")
+            if [ "${_tls_code}" = "000" ]; then
+                echo -e "${WARN} HTTPS 探测失败（HTTP ${_tls_code}），请检查 443 端口放行与证书有效性"
+            else
+                done_step "TLS OK (https://${domain} → HTTP ${_tls_code})"
+            fi
+        else
+            done_step "证书存在（未安装 curl，跳过在线探测）"
+        fi
+    else
+        echo -e "${WARN} 证书不存在：当前为纯 HTTP。如需启用 HTTPS，请运行："
+        echo "  sudo certbot --nginx -d ${domain} -d www.${domain} -d platform.${domain} -d agent.${domain}"
+    fi
 
     step "Start services"
     restart_services
