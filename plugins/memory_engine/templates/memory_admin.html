@@ -1,0 +1,42 @@
+// templates/memory_admin.html — bare JS partial (NO <script> tags allowed)
+// Rendered by admin SPA via window['l_memory_admin']() on menu click.
+window.l_memory_admin = function () {
+  var root = document.getElementById('page-content');
+  if (!root) return;
+  root.innerHTML =
+    '<div class="card"><div class="card-header">' + T('Agent Memory') +
+    '</div><div class="card-body">' +
+    '<div style="display:flex;gap:6px;margin-bottom:12px">' +
+    '<input id="mem-search" class="input" placeholder="' + T('Search memories...') + '"/> ' +
+    '<button class="btn" onclick="window.__memLoad()">' + T('Search') + '</button>' +
+    '</div>' +
+    '<table class="table" id="mem-table"><thead><tr><th>' + T('Type') + '</th><th>' +
+    T('Content') + '</th><th>' + T('Owner') + '</th><th>' + T('Quality') +
+    '</th><th></th></tr></thead><tbody></tbody></table></div></div>';
+
+  window.__memLoad = function () {
+    fetch('/admin/memory/memories?q=' + encodeURIComponent(
+      document.getElementById('mem-search').value || '')
+    ).then(function(r){return r.json();}).then(function(data){
+      var tb = document.querySelector('#mem-table tbody');
+      tb.innerHTML = '';
+      (data.rows || []).forEach(function(m){
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + esc(m.memory_type) + '</td>' +
+          '<td>' + esc(String(m.content).slice(0, 120)) + '</td>' +
+          '<td>' + esc(m.owner_id || '-') + '</td>' +
+          '<td>' + esc((m.quality_score || 0).toFixed(2)) + '</td>' +
+          '<td><button class="btn btn-danger" onclick="window.__memDel(\'' +
+          m.id + '\')">' + T('Delete') + '</button></td>';
+        tb.appendChild(tr);
+      });
+    });
+  };
+
+  window.__memDel = function (id) {
+    fetch('/admin/memory/memories/' + id, { method: 'DELETE' }).then(function(r){return r.json();})
+      .then(function(){ window.__memLoad(); });
+  };
+
+  window.__memLoad();
+};
