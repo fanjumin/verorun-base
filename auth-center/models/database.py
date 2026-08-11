@@ -183,8 +183,11 @@ def _safe_get_db_for_migration():
     try:
         with get_db() as db:
             yield db
-    except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
-        logger.warning(f"Module-level migration skipped (DB not ready): {e}")
+    except (psycopg2.InterfaceError, psycopg2.OperationalError, psycopg2.errors.UniqueViolation) as e:
+        # UniqueViolation：多 worker 并发执行模块级 CREATE TABLE IF NOT EXISTS 时，
+        # PostgreSQL 的 IF NOT EXISTS 非原子，双方同时通过存在性检查 → 一方撞
+        # pg_type_typname_nsp_index 唯一约束。此时表已由并发进程建好，安全跳过。
+        logger.warning(f"Module-level migration skipped (DB not ready / concurrent DDL): {e}")
         yield _NoOpDb()
 
 # ── 列信息兼容层：替代 PRAGMA table_info() ──
