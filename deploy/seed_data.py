@@ -210,10 +210,12 @@ def seed_admin_user(db: SeedDB, username: str = None, password: str = None):
     row = cur.fetchone()
     if row:
         user_id = row[0]
+        # 审计 M19：UPDATE 分支不再将 password_changed_at 置 NULL。
+        # 原逻辑会在每次 seed 时重置强制改密标记，导致管理员反复被要求改密。
         db.execute(
-            "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1, password_changed_at = NULL WHERE id = %s"
+            "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1 WHERE id = %s"
             if db._db_type == "postgresql" else
-            "UPDATE users SET username = ?, display_name = ?, password_hash = ?, is_admin = 1, active = 1, password_changed_at = NULL WHERE id = ?",
+            "UPDATE users SET username = ?, display_name = ?, password_hash = ?, is_admin = 1, active = 1 WHERE id = ?",
             (username, ADMIN_DISPLAY, pw_hash, user_id)
         )
         print(f"  [OK] admin user updated (id={user_id})")
