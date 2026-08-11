@@ -70,7 +70,7 @@ else
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-code/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-code@master/deploy/lib/common.sh}"
     # 发布时由 deploy/scripts/sign_release.py 计算并回填（LF 归一化哈希）
-    _COMMON_SHA256="${COMMON_SHA256:-c28d9aa143188fd5cf5119a2093f84e2e6e455dbd9e45bacb9b26350250935ef}"
+    _COMMON_SHA256="${COMMON_SHA256:-c07e4f2852fd2ee2591ee1c0fb76856460df5eacad7e8e59704359f1f85d3555}"
     _tmp_common="$(mktemp)"
     # 审计 P3-2：Ctrl+C 中断时清理临时文件
     trap 'rm -f "${_tmp_common}"' EXIT

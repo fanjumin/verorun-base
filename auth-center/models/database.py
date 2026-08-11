@@ -152,8 +152,10 @@ def get_db():
         conn.rollback()
         raise
     finally:
+        # 连接归还/关闭由 _DbWrapper.close() 统一处理：
+        # 池连接 → putconn 归还；非池连接 → close()。此处不得再 close，
+        # 否则会把已归还池的连接二次关闭，导致下次 getconn() 拿到 closed 连接。
         db.close()
-        conn.close()
 
 
 # ── 列信息兼容层：替代 PRAGMA table_info() ──

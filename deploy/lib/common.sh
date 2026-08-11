@@ -1164,7 +1164,7 @@ write_nginx_config() {
 # 审计 M5：认证/管理面 nginx 层限速（http 级 zone，供 server 内 location 引用）
 limit_req_zone \$binary_remote_addr zone=verorun_auth:10m rate=10r/s;
 
-# 审计 M9：access_log 脱敏——用 $uri（不含 query）替代 $request，
+# 审计 M9：access_log 脱敏——用 \$uri（不含 query）替代 \$request，
 # 避免 JWT/sso_token 等 URL 查询串 token 落入日志（日志泄露即会话劫持）
 log_format verorun_redact '\$remote_addr - \$remote_user [\$time_local] "\$request_method \$uri \$server_protocol" \$status \$body_bytes_sent "\$http_referer"';
 
@@ -1190,7 +1190,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
@@ -1233,7 +1233,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1242,7 +1242,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1254,7 +1254,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8081;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
@@ -1295,7 +1295,7 @@ ${_ssl_cert}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1320,7 +1320,7 @@ ${_ssl_cert}
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1339,7 +1339,7 @@ NGXEOF
 # 审计 M5：认证/管理面 nginx 层限速（http 级 zone，供 server 内 location 引用）
 limit_req_zone \$binary_remote_addr zone=verorun_auth:10m rate=10r/s;
 
-# 审计 M9：access_log 脱敏——用 $uri（不含 query）替代 $request，防 token 泄露日志
+# 审计 M9：access_log 脱敏——用 \$uri（不含 query）替代 \$request，防 token 泄露日志
 log_format verorun_redact '\$remote_addr - \$remote_user [\$time_local] "\$request_method \$uri \$server_protocol" \$status \$body_bytes_sent "\$http_referer"';
 
 server {
@@ -1361,7 +1361,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
@@ -1404,7 +1404,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1413,7 +1413,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1425,7 +1425,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8081;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
