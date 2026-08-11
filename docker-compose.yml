@@ -46,8 +46,11 @@ services:
       - "80:80"
     volumes:
       - app_data:/app/data
-      - app_uploads:/app/admin/static
-      - app_platform_uploads:/app/main_site/static
+      # 审计 M17：命名卷挂载点收窄到 uploads 子目录——
+      # static 根不再被命名卷遮蔽（镜像升级后内置静态资产随之更新，避免版本错乱/404）。
+      # 上传代码路径均为 .../static/uploads/{temp,draft,...}，位于卷内，持久化不受影响。
+      - app_uploads:/app/admin/static/uploads
+      - app_platform_uploads:/app/main_site/static/uploads
     env_file:
       # 审计 C-2 修复：全部安全密钥（JWT_SECRET / FLASK_SECRET_KEY / ENCRYPTION_KEY /
       # PLUGIN_LICENSE_SECRET / CAPTCHA_SECRET_KEY / DEV_ACCOUNTS_ENCRYPTION_KEY /

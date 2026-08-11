@@ -1158,6 +1158,32 @@ ${_ssl_cert}
         return 404;
     }
 
+    # 审计 M17：上传目录中的 HTML/SVG 强制下载，防存储型 XSS（regex 优先级最高）
+    location ~* ^/admin/static/uploads/.*\.(html?|svg)$ {
+        add_header Content-Disposition "attachment; filename=download" always;
+        proxy_pass http://127.0.0.1:8084;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location ~* ^/static/uploads/.*\.(html?|svg)$ {
+        add_header Content-Disposition "attachment; filename=download" always;
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location ~* ^/auth/static/uploads/.*\.(html?|svg)$ {
+        add_header Content-Disposition "attachment; filename=download" always;
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
     # ── Auth / subscribe ─────────────────────
     location /auth/ {
         limit_req zone=verorun_auth burst=20 nodelay;
@@ -1270,6 +1296,32 @@ server {
     # 审计 D1：debug-jwt 已删除，nginx 层纵深防御直接 404
     location = /admin/debug-jwt {
         return 404;
+    }
+
+    # 审计 M17：上传目录中的 HTML/SVG 强制下载，防存储型 XSS（regex 优先级最高）
+    location ~* ^/admin/static/uploads/.*\.(html?|svg)$ {
+        add_header Content-Disposition "attachment; filename=download" always;
+        proxy_pass http://127.0.0.1:8084;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location ~* ^/static/uploads/.*\.(html?|svg)$ {
+        add_header Content-Disposition "attachment; filename=download" always;
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location ~* ^/auth/static/uploads/.*\.(html?|svg)$ {
+        add_header Content-Disposition "attachment; filename=download" always;
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # ── User console / auth ─────────────────
