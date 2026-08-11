@@ -54,7 +54,7 @@ done_step() { echo -e "${OK} $1"; }
 fail_step() { echo -e "${FAIL} $1"; }
 
 # ══════════════════════════════════════════════════════════════════════
-# CN Network Auto-Adaptation (v1.0)
+# CN Network Auto-Adaptation
 # 中国网络环境优化：apt 镜像切换 / pip 多源竞速 / git 超时保护
 # 完全向后兼容：海外环境（默认源可达）不触发任何切换。
 # ══════════════════════════════════════════════════════════════════════
@@ -221,7 +221,7 @@ ensure_git_auth() {
 # Git 仓库地址自动解析（审计 Y-1：一键部署跨网络可用，不假定用户预装 git）
 # - HTTPS 公开仓库（install.sh / install-local.sh）：用 curl 探测 git 智能
 #   HTTP 端点（等价 git ls-remote，但仅依赖 curl），直连 GitHub 不可达时
-#   自动降级到 ghfast.top / ghproxy.net 镜像（v0.45.0 的 ghproxy.com 已死，
+#   自动降级到 ghfast.top / ghproxy.net 镜像（早期版本使用的 ghproxy.com 镜像已失效，
 #   此处镜像为实测可用；支持多级降级）。
 # - SSH 私有仓库（install-code.sh / install-dev.sh）：自动配置 SSH over 443
 #   （ssh.github.com:443），绕过国内被封锁的 22 端口；仓库地址本身不变。
@@ -1073,7 +1073,7 @@ NGINX_SNIPPETS_DIR=/etc/nginx/sites-enabled
 ADMIN_BASIC_AUTH=0
 ADMIN_BASIC_AUTH_USER=admin
 
-# v2.1.0 — 内部服务令牌
+# 内部服务令牌
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
 # Production defaults: DEBUG must stay disabled (assert_debug_disabled enforces on install/update)

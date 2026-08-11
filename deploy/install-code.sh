@@ -24,7 +24,7 @@
 # Key differences vs deploy/install-dev.sh:
 #   - Sparse-checkout INCLUDES plugins/ → full source with all plugins
 #   - Targeted at team intranet deployment (not developer workstations)
-#   - All v4.0 security audit fixes are built in from the start
+#   - All security audit fixes are built in from the start
 #
 # Key differences vs deploy/install-local.sh:
 #   - Pulls from verorun-code (SSH, private repo) with full plugins
@@ -32,7 +32,7 @@
 #
 # This script does NOT modify deploy/install.sh or deploy/install-local.sh.
 #
-# 逻辑已并入 deploy/install.sh 的 Development 选项（v3.0+），本脚本保留作为独立快捷入口。
+# 逻辑已并入 deploy/install.sh 的 Development 选项（build-2026.08.11+），本脚本保留作为独立快捷入口。
 #
 # Limitations (expected, architecture-bound):
 #   - Online payment / OAuth / SMS unavailable (require public callback URLs)

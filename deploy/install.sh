@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================================================
-# VeroRun — One-command unified deploy script (v3.0)
+# VeroRun — One-command unified deploy script (build-2026.08.11)
 # ==========================================================================
 # Usage:
 #   # Interactive (recommended)
@@ -70,7 +70,7 @@ else
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-code/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-code@master/deploy/lib/common.sh}"
     # 发布时由 deploy/scripts/sign_release.py 计算并回填（LF 归一化哈希）
-    _COMMON_SHA256="${COMMON_SHA256:-c07e4f2852fd2ee2591ee1c0fb76856460df5eacad7e8e59704359f1f85d3555}"
+    _COMMON_SHA256="${COMMON_SHA256:-47cbd1c7295f12b072c9568f1ae35901c5fa2e655ba3073a0046398479d88a9d}"
     _tmp_common="$(mktemp)"
     # 审计 P3-2：Ctrl+C 中断时清理临时文件
     trap 'rm -f "${_tmp_common}"' EXIT
@@ -108,7 +108,7 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════
-# 部署类型解析（统一入口 v3.0）
+# 部署类型解析（统一入口 build-2026.08.11）
 # DEPLOY_TYPE: production | lan | code | edu
 # ══════════════════════════════════════════════════════════════════════
 select_deploy_type() {

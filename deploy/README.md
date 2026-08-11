@@ -46,7 +46,7 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 Fresh install in a single command — no `git` required (the script auto-fetches the shared
 `deploy/lib/common.sh` library from verorun-base when run via pipe):
 
-### Unified Installer (v3.0+)
+### Unified Installer (build-2026.08.11+)
 
 A single `install.sh` replaces the previous four separate scripts. Choose your deployment
 type interactively or via the `INSTALL_TYPE` environment variable:
