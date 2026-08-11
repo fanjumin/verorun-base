@@ -408,18 +408,16 @@ resolve_directory_conflict() {
     echo -e "${WARN}"
     echo -e "${WARN}  This directory exists but is NOT a VeroRun installation."
 
-    # 无 TTY（如 curl|sudo bash 管道）：自动删除，无需交互
+    # 审计 M20：无 TTY（curl|sudo bash 管道）时不再自动删除——目录误判即不可逆数据丢失。
+    # 改为中止安装，要求用户交互处理。
     if ! { exec 3<>/dev/tty; } 2>/dev/null; then
         exec 3>&-
-        echo -e "${WARN}  Non-interactive mode — auto-removing and proceeding."
-        echo -e "${WARN} ═══════════════════════════════════════════════════════"
-        if [ -z "${target_dir}" ] || [ "${target_dir}" = "/" ] || [ "${target_dir}" = "${HOME}" ]; then
-            echo -e "${FAIL} Refusing to remove dangerous path: ${target_dir}"
-            exit 1
-        fi
-        rm -rf "${target_dir}"
-        echo -e "${OK} Removed. Proceeding with installation."
-        return 0
+        echo -e "${FAIL} ═══════════════════════════════════════════════════════"
+        echo -e "${FAIL}  Non-interactive mode detected. To avoid accidental data loss,"
+        echo -e "${FAIL}  installation aborted. Please resolve ${target_dir} manually"
+        echo -e "${FAIL}  (move or back it up), then re-run in an interactive terminal."
+        echo -e "${FAIL} ═══════════════════════════════════════════════════════"
+        exit 1
     fi
     exec 3>&-
 
