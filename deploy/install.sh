@@ -64,9 +64,13 @@ if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     source "${SCRIPT_DIR}/lib/common.sh"
 else
     # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
-    # → 自动从 verorun-base 拉取公共函数库到临时目录加载
-    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
-    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
+    # → 自动从 verorun-code 拉取公共函数库到临时目录加载
+    # 审计 D10：默认源固定为 verorun-code（与一键安装链接一致）；
+    # 拉取后做 SHA-256 白名单校验，防 CDN/仓库投毒。
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-code/master/deploy/lib/common.sh}"
+    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-code@master/deploy/lib/common.sh}"
+    # 发布时由 deploy/scripts/sign_release.py 计算并回填（LF 归一化哈希）
+    _COMMON_SHA256="${COMMON_SHA256:-e0979d5e4268cecf91fac3ba4ab0627daecab8fc72b9f33d635078fd1f7aebdd}"
     _tmp_common="$(mktemp)"
     # 审计 P3-2：Ctrl+C 中断时清理临时文件
     trap 'rm -f "${_tmp_common}"' EXIT
@@ -82,6 +86,19 @@ else
     fi
     if [ "${_ok}" != "1" ]; then
         echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
+        rm -f "${_tmp_common}"
+        exit 1
+    fi
+    # 审计 D10：SHA-256 白名单校验——不匹配即拒绝加载（防投毒）
+    _actual_sha=""
+    if command -v sha256sum >/dev/null 2>&1; then
+        _actual_sha="$(sha256sum "${_tmp_common}" | awk '{print $1}')"
+    elif command -v python3 >/dev/null 2>&1; then
+        _actual_sha="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${_tmp_common}")"
+    fi
+    if [ -z "${_actual_sha}" ] || [ "${_actual_sha}" != "${_COMMON_SHA256}" ]; then
+        echo "FATAL: common.sh checksum mismatch (got '${_actual_sha}', expected '${_COMMON_SHA256}')" >&2
+        echo "       refusing to load to prevent supply-chain tampering. Update install.sh or pin COMMON_SHA256." >&2
         rm -f "${_tmp_common}"
         exit 1
     fi
