@@ -68,7 +68,7 @@ else
     # 审计 D10：源固定为 verorun-base（verorun-code 为私有仓库，匿名用户无法访问）；
     # 拉取后做 SHA-256 白名单校验，防 CDN/仓库投毒。
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
-    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
+    _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
     # 发布时由 deploy/scripts/sign_release.py 计算并回填（LF 归一化哈希）
     _COMMON_SHA256="${COMMON_SHA256:-47cbd1c7295f12b072c9568f1ae35901c5fa2e655ba3073a0046398479d88a9d}"
     _tmp_common="$(mktemp)"
