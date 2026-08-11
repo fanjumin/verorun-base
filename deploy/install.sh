@@ -64,41 +64,47 @@ if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     source "${SCRIPT_DIR}/lib/common.sh"
 else
     # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
-    # → 自动从 verorun-code 拉取公共函数库到临时目录加载
-    # 审计 D10：默认源固定为 verorun-code（与一键安装链接一致）；
+    # → 自动从 verorun-base（公开仓库，与一键安装链接一致）拉取公共函数库到临时目录加载
+    # 审计 D10：源固定为 verorun-base（verorun-code 为私有仓库，匿名用户无法访问）；
     # 拉取后做 SHA-256 白名单校验，防 CDN/仓库投毒。
-    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-code/master/deploy/lib/common.sh}"
-    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-code@master/deploy/lib/common.sh}"
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
+    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
     # 发布时由 deploy/scripts/sign_release.py 计算并回填（LF 归一化哈希）
     _COMMON_SHA256="${COMMON_SHA256:-47cbd1c7295f12b072c9568f1ae35901c5fa2e655ba3073a0046398479d88a9d}"
     _tmp_common="$(mktemp)"
     # 审计 P3-2：Ctrl+C 中断时清理临时文件
     trap 'rm -f "${_tmp_common}"' EXIT
     _ok=0
-    if command -v curl >/dev/null 2>&1; then
-        # 审计 M-1：统一 --max-time 防握手卡死 + --retry 抗瞬时抖动
-        if curl -sSL --connect-timeout 15 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
-        # 官方源失败（如 GFW 封锁）→ 降级到 jsdelivr CDN 镜像
-        if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 10 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_MIRROR}" -o "${_tmp_common}"; then _ok=1; fi
-    elif command -v wget >/dev/null 2>&1; then
-        if wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
-        if [ "${_ok}" != "1" ] && wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_MIRROR}"; then _ok=1; fi
-    fi
+    _fetch_common() {
+        # 审计 D10：jsdelivr CDN 优先（国内可达，raw.githubusercontent.com 常被 GFW 阻断超时）；
+        # 拉取成功后再做 SHA-256 白名单校验，失败自动降级下一源。
+        local _url="$1"
+        if command -v curl >/dev/null 2>&1; then
+            curl -sSL --connect-timeout 5 --max-time 15 --retry 2 --retry-delay 2 "${_url}" -o "${_tmp_common}" 2>/dev/null
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q --timeout=15 --tries=3 -O "${_tmp_common}" "${_url}" 2>/dev/null
+        else
+            return 1
+        fi
+    }
+    _verify_common() {
+        local _actual_sha=""
+        if command -v sha256sum >/dev/null 2>&1; then
+            _actual_sha="$(sha256sum "${_tmp_common}" | awk '{print $1}')"
+        elif command -v python3 >/dev/null 2>&1; then
+            _actual_sha="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${_tmp_common}")"
+        fi
+        [ -n "${_actual_sha}" ] && [ "${_actual_sha}" = "${_COMMON_SHA256}" ]
+    }
+    # 顺序：CDN 镜像优先 → 官方源降级（各源均做 SHA-256 校验）
+    for _src in "${_COMMON_MIRROR}" "${_COMMON_REMOTE}"; do
+        if _fetch_common "${_src}" && _verify_common; then
+            _ok=1
+            break
+        fi
+    done
     if [ "${_ok}" != "1" ]; then
         echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
-        rm -f "${_tmp_common}"
-        exit 1
-    fi
-    # 审计 D10：SHA-256 白名单校验——不匹配即拒绝加载（防投毒）
-    _actual_sha=""
-    if command -v sha256sum >/dev/null 2>&1; then
-        _actual_sha="$(sha256sum "${_tmp_common}" | awk '{print $1}')"
-    elif command -v python3 >/dev/null 2>&1; then
-        _actual_sha="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${_tmp_common}")"
-    fi
-    if [ -z "${_actual_sha}" ] || [ "${_actual_sha}" != "${_COMMON_SHA256}" ]; then
-        echo "FATAL: common.sh checksum mismatch (got '${_actual_sha}', expected '${_COMMON_SHA256}')" >&2
-        echo "       refusing to load to prevent supply-chain tampering. Update install.sh or pin COMMON_SHA256." >&2
         rm -f "${_tmp_common}"
         exit 1
     fi
