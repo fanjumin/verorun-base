@@ -134,10 +134,8 @@ def set_preference():
 def geoip_detect():
     """根据访客 IP 自动检测推荐币种（无需登录）"""
     from .services import detect_currency_by_ip
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '')
-    # X-Forwarded-For 可能是 "client, proxy1, proxy2"
-    if ',' in ip:
-        ip = ip.split(',')[0].strip()
+    # 审计 M1：取 nginx 强制覆盖的 X-Real-IP，不再信任可伪造的 X-Forwarded-For 首段
+    ip = request.headers.get('X-Real-IP', request.remote_addr or '')
     result = detect_currency_by_ip(ip)
     return jsonify({'success': True, 'data': result})
 

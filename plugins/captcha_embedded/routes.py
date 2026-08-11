@@ -33,10 +33,8 @@ def init_i18n(t_func):
 
 
 def _client_ip():
-    """从请求中提取客户端 IP。"""
-    xff = request.headers.get('X-Forwarded-For', '')
-    if xff:
-        return xff.split(',')[0].strip()
+    """从请求中提取客户端 IP。审计 M1：优先取 nginx 强制覆盖的 X-Real-IP（客户端不可伪造），
+    不再信任可伪造的 X-Forwarded-For 首段。"""
     return request.headers.get('X-Real-IP', request.remote_addr or 'unknown')
 
 
