@@ -17,7 +17,7 @@
 
 # ── 脚本名（sudoers 声明 / 提示文案引用，参数化消除硬编码） ─────────────
 : "${INSTALL_SCRIPT:=$(basename "$0")}"
-[ "${INSTALL_SCRIPT}" = "bash" ] && INSTALL_SCRIPT="deploy/install.sh"
+[ "${INSTALL_SCRIPT}" = "bash" ] && INSTALL_SCRIPT="install.sh"
 
 # ── 幂等默认配置（脚本已设置则不覆盖） ─────────────────────────────────
 # 审计 C-2：GIT_REPO 由各入口脚本（install.sh / install-local.sh / install-code.sh /

@@ -129,11 +129,11 @@ select_deploy_type() {
             esac
             return
         fi
-        # 3b) 无 TTY 兜底：默认 production
+        # 3b) 无 TTY 兜底：必须显式指定 INSTALL_TYPE，否则报错退出（失败即退）
         if [ ! -t 0 ]; then
-            echo -e "${WARN} Non-interactive shell, defaulting to production"
-            DEPLOY_TYPE="production"
-            return
+            echo -e "${FAIL} Non-interactive shell: must specify INSTALL_TYPE"
+            echo -e "${INFO}   curl ... | sudo env INSTALL_TYPE=professional bash"
+            exit 1
         fi
         # 3c) 交互式菜单
         echo ""
