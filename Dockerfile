@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Python 依赖
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements.lock /app/
+# 审计 M16：安装带哈希锁定的依赖，构建可复现、防上游投毒
+RUN pip install --no-cache-dir -r requirements.lock
 
 # ── 运行时镜像 ──
 FROM python:3.11-slim-bookworm

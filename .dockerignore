@@ -21,6 +21,7 @@ node_modules
 package-lock.json
 *.txt
 !requirements.txt
+!requirements.lock
 _DEPRECATED/
 密钥*/
 test_*.sh

@@ -1486,7 +1486,10 @@ do_install() {
             sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
         fi
         _pip_install --upgrade pip
-        _pip_install -r "${APP_HOME}/requirements.txt"
+        # 审计 M16：优先使用带哈希锁定的 requirements.lock（可复现构建），缺失时回退 requirements.txt
+        local _req_file="${APP_HOME}/requirements.txt"
+        [ -f "${APP_HOME}/requirements.lock" ] && _req_file="${APP_HOME}/requirements.lock"
+        _pip_install -r "${_req_file}"
     else
         echo -e "${WARN} Skipped (deps already present or --skip-deps)"
     fi
@@ -1700,13 +1703,16 @@ do_update() {
     assert_debug_disabled
 
     step "Update Python dependencies"
-    req_hash=$(md5sum "${APP_HOME}/requirements.txt" | awk '{print $1}')
+    # 审计 M16：优先使用带哈希锁定的 requirements.lock，缺失时回退 requirements.txt
+    local _req_file="${APP_HOME}/requirements.txt"
+    [ -f "${APP_HOME}/requirements.lock" ] && _req_file="${APP_HOME}/requirements.lock"
+    req_hash=$(md5sum "${_req_file}" | awk '{print $1}')
     cached_hash=$(cat "${APP_HOME}/.requirements_hash" 2>/dev/null || echo "")
     if [ "${req_hash}" != "${cached_hash}" ]; then
-        _pip_install -r "${APP_HOME}/requirements.txt"
+        _pip_install -r "${_req_file}"
         echo "${req_hash}" > "${APP_HOME}/.requirements_hash"
     else
-        echo -e "${INFO} requirements.txt unchanged, skipping pip install"
+        echo -e "${INFO} ${_req_file} unchanged, skipping pip install"
     fi
     done_step "Dependencies updated"
 
