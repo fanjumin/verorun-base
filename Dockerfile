@@ -54,6 +54,10 @@ VOLUME ["/app/data"]
 # gunicorn 服务以 verorun 用户运行（最小权限原则）；nginx 保留 root 绑定 80 端口。
 RUN useradd -m -s /bin/bash verorun
 
+# 审计 D8：挂载卷 /app/data 属主修正为 verorun。
+# 未修正时，挂载宿主目录后属主随机，gunicorn 无法写入导致启动失败。
+RUN chown -R verorun:verorun /app/data
+
 EXPOSE 80
 
 ENTRYPOINT ["/entrypoint.sh"]
