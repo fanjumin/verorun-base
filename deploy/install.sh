@@ -135,13 +135,8 @@ select_deploy_type() {
             echo -e "${INFO} Deploy type from INSTALL_TYPE: ${DEPLOY_TYPE}"
             return
         fi
-        # 2) 无 TTY 兜底：必须显式指定 INSTALL_TYPE，否则报错退出（失败即退）
-        if [ ! -t 0 ]; then
-            echo -e "${FAIL} Non-interactive shell: must specify INSTALL_TYPE"
-            echo -e "${INFO}   curl ... | sudo env INSTALL_TYPE=professional bash"
-            exit 1
-        fi
-        # 3) 交互式菜单 — 每次 install 无条件显示
+        # 2) 交互式菜单 — 每次 install 无条件显示
+        # 菜单 read 使用 /dev/tty（真实终端），curl|bash 管道下仍可交互选择
         echo ""
         echo "  VeroRun 安装向导 - 请选择部署类型"
         echo "  ----------------------------------------------"
