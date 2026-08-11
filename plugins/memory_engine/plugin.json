@@ -75,7 +75,7 @@
   },
 
   "menu": {
-    "group": "AI & Memory",
+    "group": "System",
     "items": [
       {
         "key": "memory_admin",
