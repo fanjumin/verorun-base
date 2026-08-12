@@ -664,6 +664,112 @@ class UnifiedLLM:
                 return False
         return True
 
+    # ── Embedding（向量化） ──
+    # 供 memory_engine / project_workspace / visitor_profile 复用。
+    # 失败一律返回 None / [None,...]，由调用方降级为关键词检索。
+
+    def _resolve_embedding_model(self):
+        """从 provider_models 解析 embedding 模型配置。
+
+        Returns:
+            (model_id, base_url, api_key, dim)，任一不可用返回 (None, None, None, None)。
+            model_id 为 provider_models.id（仅用于日志/配额），
+            API 调用使用 model_name（缓存于 self._embed_model_name）。
+        """
+        try:
+            with self._get_conn() as conn:
+                row = conn.execute(
+                    """SELECT pm.id AS model_id, pm.model_name, pm.endpoint_url,
+                              pm.api_key_id, p.slug AS provider_slug,
+                              COALESCE(pm.embedding_dim, 1536) AS dim
+                       FROM provider_models pm
+                       JOIN providers p ON p.id = pm.provider_id
+                       WHERE pm.capabilities LIKE '%embedding%'
+                         AND pm.is_active = 1 AND p.is_active = 1
+                       ORDER BY pm.sort_order, pm.id LIMIT 1"""
+                ).fetchone()
+            if not row:
+                logger.warning('[Embedding] no active embedding model configured')
+                return (None, None, None, None)
+            row = dict(row)
+            base_url = row['endpoint_url'] or self._default_base_url(row['provider_slug'])
+            if not base_url:
+                logger.warning('[Embedding] no base_url for provider %s', row['provider_slug'])
+                return (None, None, None, None)
+            api_key = self._resolve_api_key(row['provider_slug'], row.get('api_key_id'))
+            if not api_key:
+                logger.warning('[Embedding] no API key for provider %s', row['provider_slug'])
+                return (None, None, None, None)
+            # 缓存用于日志记录
+            self._embed_model_name = row['model_name']
+            self._embed_provider = row['provider_slug']
+            return (row['model_id'], base_url, api_key, int(row['dim']))
+        except Exception as e:
+            logger.warning('[Embedding] model resolution failed: %s', e)
+            return (None, None, None, None)
+
+    def get_embedding(self, text, module='', user_id=None):
+        """返回文本 embedding 向量（list[float]）；失败返回 None（不抛异常）。"""
+        if not text or not str(text).strip():
+            return None
+        model_id, base_url, api_key, _dim = self._resolve_embedding_model()
+        if not model_id:
+            return None
+        allowed, reason = check_ai_budget('embedding')
+        if not allowed:
+            logger.warning('[Embedding] budget check blocked: %s', reason)
+            return None
+        try:
+            client = self._get_client(base_url, api_key)
+            start = _time.time()
+            resp = client.embeddings.create(
+                model=self._embed_model_name, input=str(text)
+            )
+            vec = [float(v) for v in resp.data[0].embedding]
+            self._log_usage(
+                model_id, self._embed_model_name, self._embed_provider,
+                len(str(text)), 0, len(str(text)),
+                call_type='embedding', module=module or 'embedding',
+                dimension='embedding',
+                elapsed_ms=int((_time.time() - start) * 1000),
+            )
+            return vec
+        except Exception as e:
+            logger.error('[Embedding] call failed: %s', e)
+            return None
+
+    def embed_batch(self, texts, module='', user_id=None):
+        """批量向量化。返回与输入等长的列表，单条失败为 None。"""
+        if not texts:
+            return []
+        model_id, base_url, api_key, _dim = self._resolve_embedding_model()
+        if not model_id:
+            return [None] * len(texts)
+        allowed, reason = check_ai_budget('embedding')
+        if not allowed:
+            logger.warning('[Embedding] budget check blocked (batch): %s', reason)
+            return [None] * len(texts)
+        try:
+            client = self._get_client(base_url, api_key)
+            start = _time.time()
+            resp = client.embeddings.create(
+                model=self._embed_model_name, input=[str(t) for t in texts]
+            )
+            # OpenAI-compatible 接口返回顺序与输入一致；按 index 防乱序
+            by_index = {d.index: [float(v) for v in d.embedding] for d in resp.data}
+            total = sum(len(str(t)) for t in texts)
+            self._log_usage(
+                model_id, self._embed_model_name, self._embed_provider,
+                total, 0, total,
+                call_type='embedding', module=module or 'embedding',
+                dimension='embedding',
+                elapsed_ms=int((_time.time() - start) * 1000),
+            )
+            return [by_index.get(i) for i in range(len(texts))]
+        except Exception as e:
+            logger.error('[Embedding] batch call failed: %s', e)
+            return [None] * len(texts)
+
     # ── 统一日志 ──
 
     def _log_usage(self, model_id, model_name, provider,

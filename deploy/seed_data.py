@@ -11,11 +11,11 @@ Usage:
 import os, sys, hashlib, secrets, json, argparse
 
 # ── Admin credentials ─────────────────────────────────────────────────
-# 默认超级管理员用户名 administrator；未显式提供密码时随机生成 10 位密码。
-# 凭据在安装输出打印一次，请用户立即保存。
+# Default super admin username is administrator; if no password is explicitly provided, a random 10-character one is generated.
+# Credentials are printed once in the install output; ask the user to save them immediately.
 import secrets as _secrets
 ADMIN_USERNAME = os.environ.get("VR_ADMIN_USERNAME", "administrator")
-# 未显式提供密码时随机生成 10 位密码（安装输出打印一次，请用户立即保存）
+# Generate a random 10-character password when none is explicitly provided (printed once in install output; save it immediately)
 ADMIN_PASSWORD = os.environ.get("VR_ADMIN_PASSWORD") or _secrets.token_urlsafe(8)
 ADMIN_DISPLAY  = "Administrator"
 
@@ -98,8 +98,8 @@ class SeedDB:
             os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
             self.conn = sqlite3.connect(db_path)
             self.conn.row_factory = sqlite3.Row
-            # 审计 M-7 修复：显式开启自动提交（isolation_level=None），与 PG 模式
-            # autocommit 对齐，避免 main() 中途抛出异常时已写入的 seed 数据丢失。
+            # 审计 M-7 修复：explicitly enable autocommit (isolation_level=None), aligned with the PG mode
+            # autocommit, so already-seeded data is not lost if main() raises an exception mid-way.
             self.conn.isolation_level = None
             self._db_type = "sqlite"
             self._param_style = "?"
@@ -191,7 +191,7 @@ def seed_site_domains(db: SeedDB, deploy_domain: str = None, brand: str = None):
 
 def seed_admin_user(db: SeedDB, username: str = None, password: str = None):
     """Create or update the admin user (no phone required)."""
-    # 审计 L7：凭据经参数传入，不再使用 global 修改模块级变量
+    # 审计 L7：credentials are passed via parameters; no longer mutate module-level variables with global
     username = username or ADMIN_USERNAME
     password = password or ADMIN_PASSWORD
     pw_hash = hash_password(password)
@@ -210,8 +210,8 @@ def seed_admin_user(db: SeedDB, username: str = None, password: str = None):
     row = cur.fetchone()
     if row:
         user_id = row[0]
-        # 审计 M19：UPDATE 分支不再将 password_changed_at 置 NULL。
-        # 原逻辑会在每次 seed 时重置强制改密标记，导致管理员反复被要求改密。
+        # 审计 M19：the UPDATE branch no longer sets password_changed_at to NULL.
+        # The old logic reset the force-password-change flag on every seed, repeatedly forcing admins to change passwords.
         db.execute(
             "UPDATE users SET username = %s, display_name = %s, password_hash = %s, is_admin = 1, active = 1 WHERE id = %s"
             if db._db_type == "postgresql" else
@@ -261,7 +261,7 @@ def seed_quotas(db: SeedDB):
 
 def seed_admin_profile(db: SeedDB, user_id: int, username: str = None):
     """Create admin_profiles row for the admin user."""
-    # 审计 L7：用户名经参数传入
+    # 审计 L7：username is passed via parameter
     username = username or ADMIN_USERNAME
     db.insert_on_conflict("admin_profiles", {
         "user_id": user_id,
@@ -296,7 +296,7 @@ def main():
     parser.add_argument("--admin-pass", default=None, help="Admin password (overrides env var)")
     args = parser.parse_args()
 
-    # 审计 L7：凭据解析为局部变量，经参数传递给 seed 函数（不再使用 global）
+    # 审计 L7：credentials are resolved into local variables and passed to seed functions (no more global)
     username = args.admin_user or ADMIN_USERNAME
     password = args.admin_pass or ADMIN_PASSWORD
 

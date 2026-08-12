@@ -32,7 +32,7 @@
 #
 # This script does NOT modify deploy/install.sh or deploy/install-local.sh.
 #
-# 逻辑已并入 deploy/install.sh 的 Development 选项（build-2026.08.11+），本脚本保留作为独立快捷入口。
+# Logic has been merged into the Development option of deploy/install.sh (build-2026.08.11+); this script is kept as a standalone shortcut entry.
 #
 # Limitations (expected, architecture-bound):
 #   - Online payment / OAuth / SMS unavailable (require public callback URLs)
@@ -44,7 +44,7 @@ set -euo pipefail
 : "${GIT_REPO:=git@github.com:fanjumin/verorun-code.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-# 审计 P1-8：APP_USER=root 时 home 为 /root（非 /home/root）
+# Audit P1-8: home is /root when APP_USER=root (not /home/root)
 if [ "${APP_USER}" = "root" ]; then
     : "${APP_HOME:=/root/verorun}"
 else
@@ -55,36 +55,36 @@ fi
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${REGION:=global}"                # cn | global
 
-# 审计 C-1：部署模式（code）——统一函数（lib/common.sh）据此区分行为，必须在 source 前定义
+# Audit C-1: deploy mode (code) — unified functions (lib/common.sh) branch on this; must be defined before source
 DEPLOY_TYPE="code"
 
-# ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
+# ── Load shared function library (lib/common.sh: logging / CN network adaptation / git / systemd / health check, etc.) ──
 SCRIPT_DIR=""
 if [ -n "${BASH_SOURCE[0]:-}" ]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 fi
 if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
-    # 实体文件执行（git clone 后本地执行）→ 直接加载
+    # Executed from a real file (e.g., after git clone) → load directly
     # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/lib/common.sh"
 else
-    # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
-    # → 自动从 verorun-base 拉取公共函数库到临时目录加载
+    # One-command install (curl | sudo bash): script runs from stdin, no real path
+    # → fetch the shared library from verorun-base into a temp file and load it
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
     _tmp_common="$(mktemp)"
     _ok=0
     if command -v curl >/dev/null 2>&1; then
-        # 审计 M-1：统一 --max-time 防握手卡死 + --retry 抗瞬时抖动
+        # Audit M-1: unified --max-time to prevent handshake hangs + --retry against transient flakiness
         if curl -sSL --connect-timeout 15 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
-        # 官方源失败（如 GFW 封锁）→ 降级到 jsdelivr CDN 镜像
+        # Official source failed (e.g., blocked by GFW) → fall back to jsdelivr CDN mirror
         if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 10 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_MIRROR}" -o "${_tmp_common}"; then _ok=1; fi
     elif command -v wget >/dev/null 2>&1; then
         if wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
         if [ "${_ok}" != "1" ] && wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_MIRROR}"; then _ok=1; fi
     fi
     if [ "${_ok}" != "1" ]; then
-        echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
+        echo "FATAL: cannot fetch deploy/lib/common.sh (check network, or use the git clone method)" >&2
         rm -f "${_tmp_common}"
         exit 1
     fi
@@ -93,18 +93,18 @@ else
     rm -f "${_tmp_common}"
 fi
 
-# 审计 H-5：基础 SPARSE_DIRS 由 common.sh 定义，本脚本（团队内网 / 全量含插件）在此基础上追加 plugins
+# Audit H-5: base SPARSE_DIRS is defined in common.sh; this script (team intranet / full source with plugins) appends plugins
 SPARSE_DIRS="${SPARSE_DIRS} plugins"
 
-# ── .env generation — 审计 C-1：generate_env 已统一至 lib/common.sh（DEPLOY_TYPE=code 驱动，全插件 LAN 模式） ──
+# ── .env generation — Audit C-1: generate_env unified into lib/common.sh (driven by DEPLOY_TYPE=code, full-plugin LAN mode) ──
 
-# ── Nginx — 审计 C-1：write_nginx_config 已统一至 lib/common.sh（DEPLOY_TYPE=code 驱动，无域名 default_server 模板） ──
+# ── Nginx — Audit C-1: write_nginx_config unified into lib/common.sh (driven by DEPLOY_TYPE=code, domain-less default_server template) ──
 
-# ── Fresh install — 审计 C-1：do_install 已统一至 lib/common.sh（DEPLOY_TYPE=code 驱动，全插件） ──
+# ── Fresh install — Audit C-1: do_install unified into lib/common.sh (driven by DEPLOY_TYPE=code, full plugins) ──
 
-# ── Summary — 审计 C-1：print_summary 已统一至 lib/common.sh（DEPLOY_TYPE=code 驱动，显示插件/代码大小） ──
+# ── Summary — Audit C-1: print_summary unified into lib/common.sh (driven by DEPLOY_TYPE=code, shows plugin/code sizes) ──
 
-# ── Incremental update — 审计 C-1：do_update 已统一至 lib/common.sh（DEPLOY_TYPE=code 驱动） ──
+# ── Incremental update — Audit C-1: do_update unified into lib/common.sh (driven by DEPLOY_TYPE=code) ──
 
 # ── Main entry ──────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
@@ -114,7 +114,7 @@ fi
 
 detect_mode "${1:-}"
 
-# 审计 A-1：install 模式默认批准 DB 迁移与播种，装完即用（与 install-local.sh 一致）
+# Audit A-1: install mode approves DB migration and seed by default, ready to use after install (same as install-local.sh)
 if [ "${DEPLOY_MODE}" = "install" ]; then
     APPROVE_MIGRATE=1
 fi
@@ -126,7 +126,7 @@ while [ $# -gt 0 ]; do
         --region) shift; [ $# -gt 0 ] && REGION="${1}" || { echo -e "${FAIL} --region requires a value (cn|global)"; exit 1; } ;;
         --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
-        --force) FORCE_UPDATE=1 ;;   # 审计 C-3：update 时允许覆盖本地修改（先备份 diff）
+        --force) FORCE_UPDATE=1 ;;   # Audit C-3: allow overwriting local changes on update (back up the diff first)
         --admin-user=*) VR_ADMIN_USERNAME="${1#*=}" ;;
         --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
         --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;

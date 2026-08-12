@@ -261,7 +261,7 @@ def _check_domain_quota(user_id):
             (user_id,)
         ).fetchone()
         if not sub:
-            limit = 20  # 无订阅时给默认限额
+            limit = 3  # 无订阅（免费）限额 3 个域名
         else:
             limit = _PLAN_DOMAIN_LIMITS.get(sub['plan_key'], 20)
         used = conn.execute(

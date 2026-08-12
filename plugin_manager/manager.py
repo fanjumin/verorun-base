@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import time
+import shutil
 import importlib
 import importlib.util
 import threading
@@ -24,7 +25,7 @@ from .models import (
     PluginInfo, PluginStatus,
     init_plugin_registry_table, get_registry_db,
 )
-from .discovery import PluginDiscovery, version_satisfies
+from .discovery import PluginDiscovery, version_satisfies, parse_version
 from .exceptions import (
     PluginNotFoundError, PluginNotInstalledError,
     PluginNotEnabledError, PluginDependencyError,
@@ -475,6 +476,174 @@ class PluginManager:
 
             self._emit('plugin.uninstalled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} uninstalled')
+
+    # ── 在线升级 ─────────────────────────────────────────────────────────
+
+    def upgrade(self, identifier: str) -> dict:
+        """从商店升级插件到最新版本（在线更新）。
+
+        流程：版本/兼容/License 校验 → 下载+SHA256 → 解压 staging →
+        校验 plugin.json → 备份旧目录 → 原子替换 → 更新 registry →
+        清理旧备份（保留最近 N=3 份）。任何一步失败自动回滚。
+
+        Returns:
+            {'identifier', 'old_version', 'new_version', 'needs_restart'}
+
+        Raises:
+            PluginNotFoundError: 插件未安装
+            PluginStateError: 状态不允许升级 / License 无效
+            PluginVersionError: 目标版本不高于当前版本 / min_app_version 不满足
+            ValueError: 商店无更新包 / 包内 identifier 不一致 / 包损坏
+        """
+        with self._lock:
+            info = self._get_cached(identifier)
+            if info.status not in (PluginStatus.INSTALLED, PluginStatus.ENABLED,
+                                   PluginStatus.ACTIVE):
+                raise PluginStateError(identifier, info.status.value, 'upgrade')
+
+            # 商店目标信息
+            if not self._store_client:
+                raise PluginStateError(identifier, 'store', 'store client not available')
+            detail = self._store_client.get_detail(identifier)
+            if not detail or not detail.get('download_url'):
+                raise ValueError(f'商店中不存在 {identifier} 的更新包')
+            latest = str(detail.get('version') or '').strip()
+            old_version = str(info.version or '').strip()
+            if not latest:
+                raise ValueError(f'商店未提供 {identifier} 的目标版本号')
+
+            # 版本比较：拒绝降级/同版本
+            latest_ver = parse_version(latest)
+            installed_ver = parse_version(old_version)
+            if latest_ver is not None and installed_ver is not None:
+                if latest_ver <= installed_ver:
+                    raise PluginVersionError(identifier, f'>{old_version}', latest)
+            elif latest == old_version:
+                raise PluginVersionError(identifier, f'>{old_version}', latest)
+
+            # min_app_version 兼容校验
+            min_app = str(detail.get('min_app_version') or '')
+            if min_app and hasattr(self.app, 'version'):
+                if not version_satisfies(self.app.version, f'>={min_app}'):
+                    raise PluginVersionError(
+                        identifier, min_app, getattr(self.app, 'version', '?'))
+
+            # License 校验（付费插件）
+            if self._license_mgr and self._license_mgr.is_paid_plugin(identifier):
+                lic_result = self._license_mgr.validate(identifier)
+                if not lic_result.get('valid'):
+                    raise PluginStateError(
+                        identifier, 'unlicensed',
+                        f'upgrade failed: {lic_result.get("error", "no license")}')
+
+            plugin_dir = os.path.join(self.plugins_dir, identifier)
+            staging_dir = os.path.join(self.plugins_dir, '.staging', identifier)
+            backup_root = os.path.join(self.plugins_dir, '.backup', identifier)
+            backup_dir = os.path.join(
+                backup_root, f'v{old_version}-{time.strftime("%Y%m%d%H%M%S")}')
+            swapped = False
+
+            try:
+                # 1. 下载 + SHA256 校验 + 解压到 staging（download_plugin 内完成）
+                if os.path.exists(staging_dir):
+                    shutil.rmtree(staging_dir)
+                os.makedirs(os.path.dirname(staging_dir), exist_ok=True)
+                self._store_client.download_package(identifier, staging_dir)
+
+                # 2. 校验 staging 内 plugin.json（JSON 合法 + identifier 一致）
+                json_path = os.path.join(staging_dir, 'plugin.json')
+                if not os.path.isfile(json_path):
+                    raise ValueError('插件包缺少 plugin.json')
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        new_meta = json.load(f)
+                except (json.JSONDecodeError, IOError) as e:
+                    raise ValueError(f'插件包 plugin.json 解析失败: {e}')
+                if new_meta.get('identifier') != identifier:
+                    raise ValueError(
+                        f'包内 identifier {new_meta.get("identifier")!r} '
+                        f'与目标 {identifier!r} 不一致，拒绝替换')
+
+                # 3. 备份旧目录
+                if os.path.isdir(plugin_dir):
+                    os.makedirs(backup_root, exist_ok=True)
+                    shutil.copytree(plugin_dir, backup_dir)
+
+                # 4. 原子替换
+                if os.path.exists(plugin_dir):
+                    shutil.rmtree(plugin_dir)
+                shutil.move(staging_dir, plugin_dir)
+                swapped = True
+
+                # 5. 清理空 staging 根目录
+                staging_root = os.path.dirname(staging_dir)
+                if os.path.isdir(staging_root) and not os.listdir(staging_root):
+                    os.rmdir(staging_root)
+
+                # 6. 用磁盘新 plugin.json 刷新 registry
+                disk_info = self._discovery.discover_one(identifier)
+                if disk_info is None:
+                    raise ValueError(f'替换后无法从磁盘发现 {identifier}')
+                info.metadata = disk_info.metadata
+                info.version = disk_info.version
+                info.name = disk_info.name
+                info.min_app_version = disk_info.min_app_version
+                info.path = disk_info.path
+                info.updated_at = datetime.now().isoformat()
+                info.last_error = None
+                self._save_to_db(info)
+
+                # 7. 清理旧备份（保留最近 N=3 份）
+                self._prune_backups(identifier, keep=3)
+
+                needs_restart = info.status in (PluginStatus.ENABLED, PluginStatus.ACTIVE)
+                self._emit('plugin.updated', plugin_id=identifier)
+                print(f'[PluginManager] 🔄 {identifier} upgraded '
+                      f'{old_version} → {info.version}'
+                      + (' (restart required)' if needs_restart else ''))
+                return {
+                    'identifier': identifier,
+                    'old_version': old_version,
+                    'new_version': info.version,
+                    'needs_restart': needs_restart,
+                }
+
+            except Exception:
+                # ── 失败回滚：已替换则恢复旧版，未替换则保持现状 ──
+                if swapped and os.path.isdir(backup_dir):
+                    try:
+                        if os.path.isdir(plugin_dir):
+                            shutil.rmtree(plugin_dir)
+                        shutil.copytree(backup_dir, plugin_dir)
+                        print(f'[PluginManager] 🔁 {identifier} 升级失败，已回滚到 v{old_version}')
+                    except Exception as e:
+                        print(f'[PluginManager] ⚠️ {identifier} 回滚失败（保留备份 {backup_dir}）: {e}')
+                # 清理残留 staging（备份保留供人工处理）
+                if os.path.isdir(staging_dir):
+                    try:
+                        shutil.rmtree(staging_dir)
+                    except OSError:
+                        pass
+                import traceback
+                traceback.print_exc()
+                raise
+
+    def _prune_backups(self, identifier: str, keep: int = 3):
+        """清理插件旧版本备份，仅保留最近 keep 份（按 v<版本>-<时间戳> 字典序）"""
+        backup_root = os.path.join(self.plugins_dir, '.backup', identifier)
+        if not os.path.isdir(backup_root):
+            return
+        entries = sorted(os.listdir(backup_root))
+        for name in entries[:-keep]:
+            path = os.path.join(backup_root, name)
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.unlink(path)
+                print(f'[PluginManager] 🧹 清理旧备份 {identifier}/{name}')
+            except OSError as e:
+                print(f'[PluginManager] ⚠️ 清理备份 {path} 失败: {e}')
 
     # ── 批量操作 ────────────────────────────────────────────────────────
 

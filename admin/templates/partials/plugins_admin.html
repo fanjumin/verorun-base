@@ -63,6 +63,12 @@ window.__I18N_PLUGINS__ = {
   "Refresh Store": "{{ _('Refresh Store') }}",
   "Refreshing": "{{ _('Refreshing') }}...",
   "Upgrade available": "{{ _('Upgrade available') }}",
+  "Upgrade": "{{ _('Upgrade') }}",
+  "Upgrading": "{{ _('Upgrading') }}...",
+  "Upgrade failed": "{{ _('Upgrade failed') }}",
+  "Upgrade to latest version?": "{{ _('Upgrade to latest version?') }}",
+  "Upgraded": "{{ _('Upgraded') }}",
+  "Restarting service": "{{ _('Restarting service') }}...",
   "Upload Plugin": "{{ _('Upload Plugin') }}",
   "Uploading": "{{ _('Uploading') }}...",
   "Custom": "{{ _('Custom') }}"
@@ -159,6 +165,7 @@ function _renderInstalledTab(plugins){
     if(s==='installed'||s==='disabled'||s==='error') h+='<button class="btn bp bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'enable\')">'+_('Enable')+'</button>';
     if(s==='enabled') h+='<button class="btn bp bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'activate\')">'+_('Activate')+'</button>';
     if(s==='active'||s==='enabled') h+='<button class="btn bo bs" onclick="pluginAction(\''+escAttr(p.identifier)+'\',\'disable\')">'+_('Disable')+'</button>';
+    if(p.has_update) h+='<button class="btn bp bs" style="color:#3fb950" onclick="pluginUpgrade(\''+escAttr(p.identifier)+'\')">&#x1F504; '+_('Upgrade')+'</button>';
     if(s!=='unknown'&&s!=='uninstalled') h+='<button class="btn bo bs" style="color:#f85149" onclick="showUninstallConfirm(\''+escAttr(p.identifier)+'\')">'+_('Uninstall')+'</button>';
     h+='</td></tr>';
     h+='<tr id="detail-'+p.identifier+'" style="display:none"><td colspan="5" style="padding:10px 16px;background:var(--bg2)">';
@@ -339,6 +346,27 @@ function pluginAction(id,action){
   fetch("/admin/plugins/"+encodeURIComponent(id)+"/"+action,{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast(action+" "+esc(id)+" "+_('Success'),"success");renderPluginPage()}
     else{act.innerHTML='<div class="em">'+esc(d.error||action+' '+_('Failed'))+'</div>'}
+  }).catch(function(){act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
+}
+
+/* ── Store upgrade (online update) ─────────────────── */
+function pluginUpgrade(id){
+  if(!confirm(_('Upgrade to latest version?')+" "+esc(id)+" ?"))return;
+  var act=document.getElementById("pluginActionForm");
+  act.innerHTML='<div class="lo"><div class="s"></div>'+_('Upgrading')+'</div>';
+  fetch("/admin/plugins/store/"+encodeURIComponent(id)+"/upgrade",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){act.innerHTML='<div class="em">'+esc(d.error||_('Upgrade failed'))+'</div>';return}
+    var oldV=d.data.old_version||'';
+    var newV=d.data.new_version||'';
+    act.innerHTML='';
+    if(d.data.needs_restart){
+      /* 升级成功且插件处于启用/激活状态：后台将重启 admin 服务，
+         连接会短暂中断，提示用户稍后自动恢复。 */
+      showToast(_('Upgraded')+" "+esc(id)+" v"+oldV+" → v"+newV+" ("+_('Restarting service')+")",_('Success'));
+    }else{
+      showToast(_('Upgraded')+" "+esc(id)+" v"+oldV+" → v"+newV,_('Success'));
+    }
+    setTimeout(function(){renderPluginPage()},1500);
   }).catch(function(){act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
 }
 function showUninstallConfirm(id){

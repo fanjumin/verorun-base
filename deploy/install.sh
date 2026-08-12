@@ -37,7 +37,7 @@ set -euo pipefail
 : "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
-# APP_USER=root 时 home 为 /root（非 /home/root），与 install-code.sh / install-dev.sh 一致
+# home is /root when APP_USER=root (not /home/root), consistent with install-code.sh / install-dev.sh
 if [ "${APP_USER}" = "root" ]; then
     : "${APP_HOME:=/root/verorun}"
 else
@@ -48,36 +48,36 @@ fi
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
-: "${DEPLOY_TYPE:=production}"       # production | lan | code | edu — 默认值，select_deploy_type 会覆盖
+: "${DEPLOY_TYPE:=production}"       # production | lan | code | edu — default; select_deploy_type may override
 : "${VR_ADMIN_USERNAME:=}"
 : "${VR_ADMIN_PASSWORD:=}"
 : "${SSL_EMAIL:=}"
 
-# ── 加载公共函数库（lib/common.sh，含日志/CN网络适配/git/systemd/健康检查等） ──
+# ── Load shared function library (lib/common.sh: logging / CN network adaptation / git / systemd / health check, etc.) ──
 SCRIPT_DIR=""
 if [ -n "${BASH_SOURCE[0]:-}" ]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 fi
 if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
-    # 实体文件执行（git clone 后本地执行）→ 直接加载
+    # Executed from a real file (e.g., after git clone) → load directly
     # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/lib/common.sh"
 else
-    # 一键部署（curl | sudo bash）：脚本从 stdin 执行，无实体路径
-    # → 自动从 verorun-base（公开仓库，与一键安装链接一致）拉取公共函数库到临时目录加载
-    # 审计 D10：源固定为 verorun-base（verorun-code 为私有仓库，匿名用户无法访问）；
-    # 拉取后做 SHA-256 白名单校验，防 CDN/仓库投毒。
+    # One-command install (curl | sudo bash): script runs from stdin, no real path
+    # → fetch the shared library from verorun-base (public repo, matching the one-command install link) into a temp file and load it
+    # Audit D10: source is fixed to verorun-base (verorun-code is a private repo, inaccessible to anonymous users);
+    # Verify against a SHA-256 allowlist after fetching, to guard against CDN/repo poisoning.
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
-    # 发布时由 deploy/scripts/sign_release.py 计算并回填（LF 归一化哈希）
-    _COMMON_SHA256="${COMMON_SHA256:-09eb1e8cfb1e02427e8218c4a345b165b2b437c85a4685d793ef51ca8af3bb68}"
+    # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
+    _COMMON_SHA256="${COMMON_SHA256:-6107bea8d2c4a74b0ecdeae641b02b5381027600ef7c55414f606d0680a178d1}"
     _tmp_common="$(mktemp)"
-    # 审计 P3-2：Ctrl+C 中断时清理临时文件
+    # Audit P3-2: clean up the temp file on Ctrl+C interruption
     trap 'rm -f "${_tmp_common}"' EXIT
     _ok=0
     _fetch_common() {
-        # 审计 D10：jsdelivr CDN 优先（国内可达，raw.githubusercontent.com 常被 GFW 阻断超时）；
-        # 拉取成功后再做 SHA-256 白名单校验，失败自动降级下一源。
+        # Audit D10: jsdelivr CDN preferred (reachable in China; raw.githubusercontent.com is often blocked by GFW and times out);
+        # After a successful fetch, verify against the SHA-256 allowlist; on failure, automatically fall back to the next source.
         local _url="$1"
         if command -v curl >/dev/null 2>&1; then
             curl -sSL --connect-timeout 5 --max-time 15 --retry 2 --retry-delay 2 "${_url}" -o "${_tmp_common}" 2>/dev/null
@@ -96,7 +96,7 @@ else
         fi
         [ -n "${_actual_sha}" ] && [ "${_actual_sha}" = "${_COMMON_SHA256}" ]
     }
-    # 顺序：CDN 镜像优先 → 官方源降级（各源均做 SHA-256 校验）
+    # Order: CDN mirror first → official source as fallback (SHA-256 verified for every source)
     for _src in "${_COMMON_MIRROR}" "${_COMMON_REMOTE}"; do
         if _fetch_common "${_src}" && _verify_common; then
             _ok=1
@@ -104,7 +104,7 @@ else
         fi
     done
     if [ "${_ok}" != "1" ]; then
-        echo "FATAL: 无法获取 deploy/lib/common.sh（检查网络，或改用 git clone 方式）" >&2
+        echo "FATAL: cannot fetch deploy/lib/common.sh (check network, or use the git clone method)" >&2
         rm -f "${_tmp_common}"
         exit 1
     fi
@@ -114,16 +114,16 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════
-# 部署类型解析（统一入口 build-2026.08.11）
+# Deploy type resolution (unified entry, build-2026.08.11)
 # DEPLOY_TYPE: production | lan | code | edu
 # ══════════════════════════════════════════════════════════════════════
 select_deploy_type() {
     # ================================================================
-    # install 模式：每次安装都强制走菜单/环境变量，不受 .env 是否存在影响
-    # 即使上次安装失败残留 .env，也会重新弹出选择菜单
+    # install mode: always go through the menu / environment variable, regardless of whether .env exists
+    # Even if a leftover .env from a failed install exists, the selection menu is shown again
     # ================================================================
     if [ "${DEPLOY_MODE}" = "install" ]; then
-        # 1) 环境变量优先（CI / curl|bash 管道）
+        # 1) Environment variable takes precedence (CI / curl|bash pipe)
         if [ -n "${INSTALL_TYPE:-}" ]; then
             case "${INSTALL_TYPE}" in
                 website)      DEPLOY_TYPE="production" ;;
@@ -135,42 +135,42 @@ select_deploy_type() {
             echo -e "${INFO} Deploy type from INSTALL_TYPE: ${DEPLOY_TYPE}"
             return
         fi
-        # 2) 交互式菜单 — 每次 install 无条件显示
-        # 菜单 read 使用 /dev/tty（真实终端），curl|bash 管道下仍可交互选择
+        # 2) Interactive menu — always shown on every install
+        # Menu read uses /dev/tty (real terminal); remains interactive even under a curl|bash pipe
         echo ""
-        echo "  VeroRun 安装向导 - 请选择部署类型"
+        echo "  VeroRun installer wizard - select a deployment type"
         echo "  ----------------------------------------------"
-        echo "  [1] Website        生产部署（需域名 + HTTPS）"
-        echo "  [2] Professional   专业版（无域名，LAN 访问）"
-        echo "  [3] Development    开发版（verorun-code 全插件，需 SSH key）"
-        echo "  [4] Educational    教育版（无域名，需教育认证码）"
-        echo -n "  请输入 [1-4]: " > /dev/tty
+        echo "  [1] Website        Production (requires domain + HTTPS)"
+        echo "  [2] Professional   Pro edition (no domain, LAN access)"
+        echo "  [3] Development    Dev edition (verorun-code full plugins, requires SSH key)"
+        echo "  [4] Educational    Edu edition (no domain, requires edu license code)"
+        echo -n "  Enter your choice [1-4]: " > /dev/tty
         read -r _choice < /dev/tty
         case "${_choice}" in
             1) DEPLOY_TYPE="production" ;;
             2) DEPLOY_TYPE="lan" ;;
             3) DEPLOY_TYPE="code" ;;
             4) DEPLOY_TYPE="edu" ;;
-            *) echo -e "${FAIL} 无效选择，请重试"; exit 1 ;;
+            *) echo -e "${FAIL} Invalid choice, please try again"; exit 1 ;;
         esac
         echo -e "${INFO} Deploy type selected: ${DEPLOY_TYPE}"
         return
     fi
 
     # ================================================================
-    # 非 install 模式（update / restart / health / rollback / seed 等）：
-    # 从 .env 读取，无交互
+    # Non-install modes (update / restart / health / rollback / seed, etc.):
+    # Read from .env, no interaction
     # ================================================================
 
-    # 已安装环境：从 .env 读取 DEPLOY_TYPE（幂等）
+    # Installed environment: read DEPLOY_TYPE from .env (idempotent)
     if [ -f "${APP_HOME}/.env" ] && grep -q "^DEPLOY_TYPE=" "${APP_HOME}/.env"; then
         DEPLOY_TYPE=$(grep "^DEPLOY_TYPE=" "${APP_HOME}/.env" | tail -1 | cut -d= -f2)
         echo -e "${INFO} Deploy type from .env: ${DEPLOY_TYPE}"
         return
     fi
 
-    # 旧版 .env 兼容：无 DEPLOY_TYPE 时按 DEPLOY_DOMAIN 推断
-    # （有域名 -> production；无域名 -> lan。此逻辑仅对存量环境生效）
+    # Legacy .env compatibility: infer from DEPLOY_DOMAIN when DEPLOY_TYPE is absent
+    # (Domain present -> production; no domain -> lan. This logic only applies to existing environments)
     if [ -f "${APP_HOME}/.env" ]; then
         local _old_dom
         _old_dom=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2)
@@ -183,22 +183,22 @@ select_deploy_type() {
         return
     fi
 
-    # 兜底：如果没有任何 .env（极端情况，非 install 模式下几乎不会到达）
+    # Fallback: if there is no .env at all (edge case, almost unreachable outside install mode)
     echo -e "${WARN} No .env found — defaulting DEPLOY_TYPE=${DEPLOY_TYPE}"
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 部署类型应用：根据 DEPLOY_TYPE 调整 GIT_REPO / SPARSE_DIRS 等
+# Apply deploy type: adjust GIT_REPO / SPARSE_DIRS etc. based on DEPLOY_TYPE
 # ══════════════════════════════════════════════════════════════════════
 apply_deploy_type() {
     case "${DEPLOY_TYPE}" in
         code)
-            # 复用 install-code.sh 逻辑：verorun-code SSH + 全插件
+            # Reuse install-code.sh logic: verorun-code over SSH + full plugins
             GIT_REPO="git@github.com:fanjumin/verorun-code.git"
             SPARSE_DIRS="${SPARSE_DIRS:-} plugins"
             ;;
         edu)
-            # 与 lan 一致：verorun-base HTTPS 无域名
+            # Same as lan: verorun-base over HTTPS, no domain
             GIT_REPO="https://github.com/fanjumin/verorun-base.git"
             ;;
     esac
@@ -207,8 +207,8 @@ apply_deploy_type() {
 # ── Mode / Domain detection ──────────────────────────────────────────
 
 detect_domain() {
-    # 审计 P0-1：移除 flag 前缀判断。函数仅在 while 参数解析完成后调用，
-    # 位置参数中的域名已由 while 循环的 *) catchall 写入 DOMAIN。
+    # Audit P0-1: removed the flag-prefix check. The function is called only after the while loop has finished parsing arguments,
+    # The domain in the positional argument is already captured into DOMAIN by the while loop's *) catchall.
     if [ -n "${1:-}" ]; then
         DOMAIN="$1"
     elif [ -z "${DOMAIN:-}" ] && [ -f "${APP_HOME}/.env" ]; then
@@ -216,7 +216,7 @@ detect_domain() {
     fi
 }
 
-# 审计 M18：域名 FQDN 格式校验（拒绝 scheme/路径/端口/空格/连续点/边界连字符）
+# Audit M18: FQDN format validation for domains (rejects scheme/path/port/spaces/consecutive dots/leading or trailing hyphens)
 _is_valid_fqdn() {
     local d="$1"
     case "${d}" in
@@ -230,8 +230,8 @@ prompt_domain() {
         return
     fi
     echo -e "${INFO} Domain is required to continue."
-    # 提示符改用 echo -n > /dev/tty 输出——read -p 提示走 stderr，
-    # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
+    # Prompt uses echo -n > /dev/tty — read -p writes the prompt to stderr,
+    # and under a 2>&1 | tail pipe it gets swallowed by buffering, making the prompt appear hung.
     echo -n "  Enter your domain (e.g., verorun.com) — leave empty to configure later: " > /dev/tty
     read -r DOMAIN < /dev/tty
     DOMAIN="$(echo "${DOMAIN}" | tr -d '[:space:]')"
@@ -241,17 +241,17 @@ prompt_domain() {
     elif _is_valid_fqdn "${DOMAIN}"; then
         echo -e "${OK} Domain set to: ${DOMAIN}"
     else
-        echo -e "${WARN} 域名格式非法（${DOMAIN}），已跳过。请使用合法 FQDN，如 verorun.com"
+        echo -e "${WARN} Invalid domain format (${DOMAIN}), skipped. Use a valid FQDN such as verorun.com"
         DOMAIN=""
     fi
 }
 
 # ==========================================================================
-# Fresh install — 审计 C-1：do_install 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
+# Fresh install — Audit C-1: do_install unified into lib/common.sh (driven by DEPLOY_TYPE)
 # ==========================================================================
 
 # ==========================================================================
-# Incremental update — 审计 C-1：do_update 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
+# Incremental update — Audit C-1: do_update unified into lib/common.sh (driven by DEPLOY_TYPE)
 # ==========================================================================
 
 # ==========================================================================
@@ -263,9 +263,9 @@ do_configure_domain() {
         echo -e "${FAIL} Usage: sudo bash deploy/install.sh configure-domain <your-domain>"
         exit 1
     fi
-    # 审计 M18：configure-domain 参数域名 FQDN 格式校验，非法直接拒绝
+    # Audit M18: FQDN validation for the configure-domain argument; reject immediately if invalid
     if ! _is_valid_fqdn "${domain}"; then
-        echo -e "${FAIL} 非法域名：${domain}（应为合法 FQDN，如 verorun.com）"
+        echo -e "${FAIL} Invalid domain: ${domain} (should be a valid FQDN, e.g., verorun.com)"
         exit 1
     fi
 
@@ -297,7 +297,7 @@ do_configure_domain() {
     nginx -t && systemctl restart nginx
     done_step "Nginx configured"
 
-    # 审计 D3：configure-domain 后 TLS 存活校验（证书存在→探测 443；缺失→提示签发命令）
+    # Audit D3: TLS liveness check after configure-domain (cert present → probe 443; absent → suggest issuance command)
     step "TLS check"
     local _cert_dir="/etc/letsencrypt/live/${domain}"
     if [ -f "${_cert_dir}/fullchain.pem" ] && [ -f "${_cert_dir}/privkey.pem" ]; then
@@ -305,15 +305,15 @@ do_configure_domain() {
             local _tls_code
             _tls_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "https://${domain}/" 2>/dev/null || echo "000")
             if [ "${_tls_code}" = "000" ]; then
-                echo -e "${WARN} HTTPS 探测失败（HTTP ${_tls_code}），请检查 443 端口放行与证书有效性"
+                echo -e "${WARN} HTTPS probe failed (HTTP ${_tls_code}); check that port 443 is open and the certificate is valid"
             else
                 done_step "TLS OK (https://${domain} → HTTP ${_tls_code})"
             fi
         else
-            done_step "证书存在（未安装 curl，跳过在线探测）"
+            done_step "Certificate present (curl not installed, skipped online probe)"
         fi
     else
-        echo -e "${WARN} 证书不存在：当前为纯 HTTP。如需启用 HTTPS，请运行："
+        echo -e "${WARN} Certificate not found: currently plain HTTP. To enable HTTPS, run:"
         echo "  sudo certbot --nginx -d ${domain} -d www.${domain} -d platform.${domain} -d agent.${domain}"
     fi
 
@@ -325,32 +325,32 @@ do_configure_domain() {
 }
 
 # ==========================================================================
-# .env management — 审计 C-1：generate_env 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
+# .env management — Audit C-1: generate_env unified into lib/common.sh (driven by DEPLOY_TYPE)
 # ==========================================================================
 
 # ==========================================================================
-# Nginx — 审计 C-1：write_nginx_config 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
+# Nginx — Audit C-1: write_nginx_config unified into lib/common.sh (driven by DEPLOY_TYPE)
 # ==========================================================================
 
 # ==========================================================================
-# Summary — 审计 C-1：print_summary 已统一至 lib/common.sh（DEPLOY_TYPE 驱动）
+# Summary — Audit C-1: print_summary unified into lib/common.sh (driven by DEPLOY_TYPE)
 # ==========================================================================
 
-# ── Educational 认证占位（拉口固定）────────────────────────────────
-# 后续邮箱验证/国内插件认证在此接入；部署层只做 ED-码 + check 校验
+# ── Educational license placeholder (interface fixed)────────────────────────────────
+# Future email verification / CN plugin licensing plugs in here; the deploy layer only performs ED-code + check validation
 _edu_license_check() {
     if [ "${DEPLOY_TYPE}" != "edu" ] || [ "${DEPLOY_MODE}" != "install" ]; then
         return 0
     fi
 
-    echo -e "${INFO} 教育版认证 - 请输入教育版部署码 (ED-XXXX)"
-    echo -n "  部署码: " > /dev/tty
+    echo -e "${INFO} Educational license - enter your edu deployment code (ED-XXXX)"
+    echo -n "  Deployment code: " > /dev/tty
     read -r EDU_CODE < /dev/tty
     EDU_CODE="${EDU_CODE// /}"
     if [ -z "${EDU_CODE}" ]; then
-        echo -e "${FAIL} 教育部署码不能为空"; exit 1
+        echo -e "${FAIL} Educational deployment code must not be empty"; exit 1
     fi
-    # 区域感知校验接口（沿用 license_service 的区域路由约定）
+    # Region-aware validation endpoint (follows license_service's region routing convention)
     local _edu_url
     case "${REGION}" in
         cn)     _edu_url="https://api.verorun.cn" ;;
@@ -361,10 +361,10 @@ _edu_license_check() {
         "${_edu_url}/api/subscription/check?code=${EDU_CODE}" 2>/dev/null \
         || echo '{"success":false}')
     if ! echo "${_edu_check}" | grep -q '"is_valid":true'; then
-        echo -e "${FAIL} 教育部署码校验失败，请检查后重试"; exit 1
+        echo -e "${FAIL} Educational deployment code validation failed, please check and retry"; exit 1
     fi
     export EDU_CODE
-    echo -e "${OK} 教育部署码验证通过"
+    echo -e "${OK} Educational deployment code verified"
 }
 
 # ── Main entry ──────────────────────────────────────────────────────────
@@ -377,27 +377,27 @@ fi
 
 detect_mode "${1:-}"
 
-# ── 统一入口：解析部署类型（.env 优先；全新 install 才交互）—— 所有模式执行 ──
+# ── Unified entry: resolve deploy type (.env first; interactive only on fresh install) — run for all modes ──
 select_deploy_type
 apply_deploy_type
 
-# ── Educational 认证校验（仅 edu + install 模式） ──
+# ── Educational license validation (only in edu + install modes) ──
 _edu_license_check
 
-# 审计 A-1：install 模式默认批准 DB 迁移与播种，装完即用（与 install-local.sh 一致）
+# Audit A-1: install mode approves DB migration and seed by default, ready to use after install (same as install-local.sh)
 if [ "${DEPLOY_MODE}" = "install" ]; then
     APPROVE_MIGRATE=1
 fi
 
 # Parse flags: --region cn / --region=cn / --skip-deps / --approve-migrate
-# 审计 H4 修复：原 --region) 分支为空操作，--region cn 空格分隔形式的值被丢弃
+# Audit H4 fix: the old --region) branch was a no-op, so the value of the space-separated form --region cn was dropped
 while [ $# -gt 0 ]; do
     case "${1}" in
         --region=*) REGION="${1#*=}" ;;
         --region) shift; [ $# -gt 0 ] && REGION="${1}" || { echo -e "${FAIL} --region requires a value"; exit 1; } ;;
         --skip-deps) SKIP_DEPS=1 ;;
         --approve-migrate) APPROVE_MIGRATE=1 ;;
-        --force) FORCE_UPDATE=1 ;;   # 审计 C-3：update 时允许覆盖本地修改（先备份 diff）
+        --force) FORCE_UPDATE=1 ;;   # Audit C-3: allow overwriting local changes on update (back up the diff first)
         --admin-user=*) VR_ADMIN_USERNAME="${1#*=}" ;;
         --admin-user) shift; [ $# -gt 0 ] && VR_ADMIN_USERNAME="${1}" || { echo -e "${FAIL} --admin-user requires a value"; exit 1; } ;;
         --admin-pass=*) VR_ADMIN_PASSWORD="${1#*=}" ;;
@@ -405,10 +405,10 @@ while [ $# -gt 0 ]; do
         --ssl-email=*) SSL_EMAIL="${1#*=}" ;;
         --ssl-email) shift; [ $# -gt 0 ] && SSL_EMAIL="${1}" || { echo -e "${FAIL} --ssl-email requires a value"; exit 1; } ;;
         *)
-            # 审计 H-1 修复：detect_domain("${2:-}") 只读 $2，当用户以
-            # `install --region cn your-domain.com` 空格形式传参时，域名落在 $4，
-            # 此前会被 while 循环静默丢弃。此处将"非 flag、非 DEPLOY_MODE、
-            # 且 DOMAIN 尚未确定"的剩余参数捕获为域名。
+            # Audit H-1 fix: detect_domain("${2:-}") only read $2, so when the user passes
+            # `install --region cn your-domain.com` in space-separated form, the domain lands in $4,
+            # and was previously silently dropped by the while loop. Here, remaining args that are "not a flag, not DEPLOY_MODE,
+            # and DOMAIN not yet set" are captured as the domain.
             if [ -z "${DOMAIN}" ] && [[ "${1}" != --* ]] && [ "${1}" != "${DEPLOY_MODE}" ]; then
                 DOMAIN="${1}"
                 echo -e "${INFO} Domain detected: ${DOMAIN}"
@@ -420,7 +420,7 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
-# 审计 P0-1：while 参数解析完成后统一解析域名（.env 仅作兜底；命令行域名优先，不被覆盖）
+# Audit P0-1: resolve the domain once after the while loop finishes (the .env is only a fallback; the CLI domain takes precedence and is not overridden)
 detect_domain ""
 # Validate region
 if [ "${REGION}" != "cn" ] && [ "${REGION}" != "global" ]; then
@@ -452,7 +452,7 @@ case "${DEPLOY_MODE}" in
         do_seed
         ;;
     configure-domain)
-        # 审计 R1 修复：while 循环已 shift 清空 $2，改用 detect_domain 写入的全局 DOMAIN
+        # Audit R1 fix: the while loop has already shifted past $2, so use the global DOMAIN written by detect_domain
         do_configure_domain "${DOMAIN}"
         ;;
     *)

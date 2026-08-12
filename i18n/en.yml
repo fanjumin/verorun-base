@@ -1386,6 +1386,12 @@ Update successful: Update successful
 Updated: Updated
 Updated data cannot be empty: Updated data cannot be empty
 Upgrade: Upgrade
+Upgrade available: Upgrade available
+Upgrade failed: Upgrade failed
+Upgrade to latest version?: Upgrade to latest version?
+Upgraded: Upgraded
+Upgrading...: Upgrading...
+Restarting service: Restarting service
 Upgrade discount: Upgrade discount
 Upload AccessKey.csv: Upload AccessKey.csv
 Upload failed: Upload failed

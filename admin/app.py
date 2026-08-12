@@ -32,8 +32,6 @@ from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
 from models.cms import init_cms_tables
 from routes.douyin_miniprogram import douyin_mp_bp
-from routes.subscription import sub_bp
-from routes.cleaner_agent import cleaner_bp
 from routes.deployment_api import deploy_bp, init_deployment_tables
 from routes.renewal import renew_bp
 from routes.knowledge_admin import knowledge_bp

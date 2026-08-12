@@ -129,6 +129,33 @@ class StoreAPIClient:
                     return None
             return row['download_url']
 
+    def download_package(self, identifier: str, dest_dir: str) -> str:
+        """下载插件包并解压到 dest_dir（自动读取 download_url + package_hash 强校验）。
+
+        Args:
+            identifier: 插件标识符（从 store_plugins 表读取下载地址与 SHA256）
+            dest_dir: 解压目标目录（应为独立 staging 目录）
+
+        Returns:
+            解压后的插件目录绝对路径
+
+        Raises:
+            ValueError: 商店无下载地址 / SHA256 不匹配 / 压缩包不合法
+            URLError: 网络错误
+            HTTPError: 远端 HTTP 错误
+        """
+        with get_registry_db() as conn:
+            row = conn.execute(
+                'SELECT download_url, package_hash FROM store_plugins WHERE identifier=%s',
+                (identifier,)
+            ).fetchone()
+        if not row or not row.get('download_url'):
+            raise ValueError(f'商店中不存在 {identifier} 的下载地址')
+        from .downloader import download_plugin
+        return download_plugin(
+            row['download_url'], dest_dir,
+            expected_hash=row.get('package_hash') or '')
+
     @staticmethod
     def _version_compatible(current: str, required: str) -> bool:
         """检查当前版本是否满足最低版本要求（semver）"""

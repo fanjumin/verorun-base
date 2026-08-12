@@ -47,7 +47,7 @@ TODAY="$(date +%Y-%m-%d)"
 TMP_FILE="$(mktemp)"
 trap 'rm -f "${TMP_FILE}"' EXIT
 {
-    echo "# 修改记录"
+    echo "# Changelog"
     echo
     echo "## v${NEW} — ${TODAY}"
     echo
@@ -57,7 +57,7 @@ trap 'rm -f "${TMP_FILE}"' EXIT
     echo
     # Keep all existing entries (skip title line and following blank line)
     if [ -f CHANGELOG.md ]; then
-        # 审计 L3：校验前两行为"标题+空行"，格式异常时保留全部内容，避免旧条目被截断
+        # 审计 L3：verify the first two lines are "title + blank line"; keep the full content on format anomalies to avoid truncating old entries
         if head -2 CHANGELOG.md | grep -qE '^# ' && [ -z "$(sed -n '2p' CHANGELOG.md | tr -d '[:space:]')" ]; then
             tail -n +3 CHANGELOG.md
         else

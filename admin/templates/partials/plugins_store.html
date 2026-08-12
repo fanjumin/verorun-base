@@ -78,6 +78,20 @@ function storeInstallPlugin(id){
   }).catch(function(){showToast("{{ _('Network error') }}","error")});
 }
 
+/* ── Store upgrade (online update) ─────────────────── */
+function storeUpgradePlugin(id){
+  if(!confirm("{{ _('Upgrade to latest version?') }} "+esc(id)+" ?"))return;
+  fetch("/admin/plugins/store/"+encodeURIComponent(id)+"/upgrade",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){showToast(d.error||"{{ _('Upgrade failed') }}","error");return}
+    var oldV=d.data.old_version||'';
+    var newV=d.data.new_version||'';
+    var msg=esc(id)+" v"+oldV+" → v"+newV;
+    if(d.data.needs_restart){msg+=" ({{ _('Restarting service') }})"}
+    showToast(msg,"success");
+    setTimeout(function(){renderStoreList&&renderStoreList()},1500);
+  }).catch(function(){showToast("{{ _('Network error') }}","error")});
+}
+
 /* ── License Management ── */
 window.l_plugins_licenses=function(){
   document.getElementById("pt").textContent="{{ _('License Management') }}";
@@ -446,7 +460,7 @@ function showPluginDetail(pid){
     if(p.installed){
       actionHtml+='<span class="bdg" style="background:rgba(88,166,255,.12);color:#58a6ff;padding:6px 16px">✅ {{ _('Installed') }}</span>';
     }else if(p.has_update){
-      actionHtml+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">🔄 {{ _('Upgrade') }}</button>';
+      actionHtml+='<button class="btn bp bs" onclick="storeUpgradePlugin(\''+escAttr(p.identifier)+'\')">🔄 {{ _('Upgrade') }}</button>';
     }else if(p.price_type==='free'){
       actionHtml+='<button class="btn bp bs" onclick="storeInstallPlugin(\''+escAttr(p.identifier)+'\')">{{ _('Install') }}</button>';
     }else{

@@ -13,8 +13,8 @@ APP_HOME="${VR_APP_HOME:-}"
 LOG_DIR="/var/log/verorun"
 SERVICE_DIR="/etc/systemd/system"
 
-# 审计 H-3 修复：安装支持通过环境变量自定义 APP_HOME，卸载不得硬编码默认路径。
-# 优先从 systemd 服务文件解析实际 WorkingDirectory，解析失败才回退默认路径。
+# 审计 H-3 修复：install supports customizing APP_HOME via environment variables; uninstall must not hardcode the default path.
+# Resolve the actual WorkingDirectory from the systemd service file first; fall back to the default path only on failure.
 if [ -z "${APP_HOME}" ] && [ -f "${SERVICE_DIR}/verorun-main.service" ]; then
     APP_HOME=$(grep '^WorkingDirectory=' "${SERVICE_DIR}/verorun-main.service" 2>/dev/null | head -1 | cut -d= -f2)
 fi
@@ -38,8 +38,8 @@ echo -e "${RED}║  WARNING: This will remove ALL VeroRun data & services.  ║$
 echo -e "${RED}║  This action is IRREVERSIBLE. Databases will be DROPPED. ║${NC}"
 echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
-# 审计 M8 修复：非交互一键卸载（curl | sudo bash）必须支持 VR_UNINSTALL_YES=1 跳过确认；
-# 无 TTY 且未显式授权时明确报错退出（禁止 read </dev/tty 在管道下静默卡死）。
+# 审计 M8 修复：non-interactive one-shot uninstall (curl | sudo bash) must support VR_UNINSTALL_YES=1 to skip confirmation;
+# Without a TTY and explicit authorization, exit with a clear error (no silent hang of read </dev/tty under a pipe).
 if [ "${VR_UNINSTALL_YES:-0}" = "1" ]; then
     echo -e "${INFO} VR_UNINSTALL_YES=1 — skipping confirmation"
 elif [ -t 0 ]; then
@@ -76,16 +76,16 @@ done_step "Nginx config removed"
 
 # 3. Directories (reverse of mkdir; do NOT touch the login user)
 step "User & files"
-# 审计 M8 修复：APP_USER 即 SSH 登录用户（如 ***REMOVED***），安装脚本从不创建系统用户，
-# 原 userdel 会误删登录账号导致服务器无法再 SSH 登录。卸载只清理安装脚本创建的目录。
+# 审计 M8 修复：APP_USER is the SSH login user (e.g. ***REMOVED***); the install script never creates a system user,
+# so the former userdel would wrongly delete the login account and lock out SSH. Uninstall only cleans directories created by the install script.
 rm -rf "${LOG_DIR}" 2>/dev/null || true
 rm -rf "${APP_HOME}" 2>/dev/null || true
 done_step "User & directories cleaned"
 
 # 4. PostgreSQL (reverse of CREATE ROLE + CREATE DATABASE)
 step "PostgreSQL"
-# 审计 M8 修复：先断开 appdb 上的残留连接（服务进程/守护进程占用时 DROP DATABASE 会失败），
-# DROP 结果显式判断并输出可执行的手工修复命令，不再静默吞错。
+# 审计 M8 修复：terminate lingering connections to appdb first (DROP DATABASE fails while service/guardian processes hold it),
+# Check the DROP result explicitly and print executable manual repair commands instead of swallowing errors silently.
 sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='appdb' AND pid <> pg_backend_pid()" >/dev/null 2>&1 || true
 if sudo -u postgres psql -c "DROP DATABASE IF EXISTS appdb" 2>&1; then
     done_step "Database appdb dropped"

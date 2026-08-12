@@ -1386,6 +1386,12 @@ Update successful: 更新成功
 Updated: 已更新
 Updated data cannot be empty: 更新数据不能为空
 Upgrade: 升级
+Upgrade available: 有新版本可升级
+Upgrade failed: 升级失败
+Upgrade to latest version?: 升级到最新版本？
+Upgraded: 已升级
+Upgrading...: 升级中...
+Restarting service: 正在重启服务
 Upgrade discount: 升级优惠
 Upload AccessKey.csv: 上传 AccessKey.csv
 Upload failed: 上传失败

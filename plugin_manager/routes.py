@@ -17,6 +17,10 @@ Plugin Manager — 管理 API（供 Admin 后台调用）
 """
 
 import json
+import os
+import subprocess
+import threading
+import time
 import traceback
 from datetime import datetime
 from flask import Blueprint, jsonify, request
@@ -662,6 +666,45 @@ def store_install(identifier: str):
     except Exception as e:
         traceback.print_exc()
         return _json_result(False, error=f'Install failed: {e}', code=500)
+
+
+# ── 商店在线升级 ──────────────────────────────────
+
+@bp.route('/store/<identifier>/upgrade', methods=['POST'])
+def store_upgrade(identifier: str):
+    """从商店在线升级已安装插件到最新版本。
+
+    升级成功后若插件处于启用/激活状态，需要重启 admin 服务
+    使新代码生效（返回 needs_restart=true，并触发后台延迟重启）。
+    """
+    mgr = _get_manager()
+    if not mgr:
+        return _json_result(False, error='PluginManager not initialized', code=503)
+    if not mgr.store_client:
+        return _json_result(False, error='Store not available', code=503)
+
+    try:
+        result = mgr.upgrade(identifier)
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=f'Upgrade failed: {e}', code=500)
+
+    # 需要重启时：后台延迟 3 秒重启 admin 服务（sudo 免密已配置）
+    if result.get('needs_restart'):
+        def _restart():
+            time.sleep(3)
+            try:
+                subprocess.Popen(
+                    ['sudo', 'systemctl', 'restart', 'verorun-admin'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+            except Exception as e:
+                print(f'[PluginManager] ⚠️ restart verorun-admin failed: {e}')
+        threading.Thread(target=_restart, daemon=True).start()
+
+    return _json_result(True, data=result)
 
 
 # ── 版本兼容性检查 ──────────────────────────────────

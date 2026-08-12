@@ -1,27 +1,27 @@
 #!/bin/bash
 # ==========================================================================
 # VeroRun — deploy/lib/common.sh
-# 公共函数库：被 deploy/install.sh / install-local.sh / install-dev.sh / install-code.sh
-# 通过 `source` 引用。只定义函数与幂等默认值，无任何顶层执行副作用。
+# Shared function library: sourced by deploy/install.sh / install-local.sh / install-dev.sh / install-code.sh
+# via `source`. Defines only functions and idempotent defaults, with no top-level side effects.
 # ==========================================================================
-# 使用约定（各脚本必须遵守）：
-#   1. 在自身 default config（GIT_REPO / GIT_BRANCH / APP_HOME / SPARSE_DIRS 等）
-#      定义完成之后、调用任何公共函数之前 source 本文件。
-#   2. 本文件的默认值均为 : "${VAR:=...}" 形式——脚本已设置则不覆盖。
-#   3. 修改公共函数只需改本文件一处，四个脚本自动生效。
-#   4. install.sh（域名版）保留 B 类函数（generate_env / write_nginx_config /
+# Usage conventions (must be followed by every script):
+#   1. Source this file AFTER the script's own default config (GIT_REPO / GIT_BRANCH / APP_HOME / SPARSE_DIRS etc.)
+#      is defined, and BEFORE calling any shared function.
+#   2. All defaults in this file use the : "${VAR:=...}" form — they do not override values already set by the script.
+#   3. Modifying a shared function only requires changing this file in one place; all four scripts pick it up automatically.
+#   4. install.sh (domain edition) keeps the B-class functions (generate_env / write_nginx_config /
 #      print_summary / do_install / do_update / detect_domain / prompt_domain /
-#      do_configure_domain）；无域名三脚本保留 generate_env / write_nginx_config /
-#      print_summary / do_install / do_update。
+#      do_configure_domain); the three no-domain scripts keep generate_env / write_nginx_config /
+#      print_summary / do_install / do_update.
 # ==========================================================================
 
-# ── 脚本名（sudoers 声明 / 提示文案引用，参数化消除硬编码） ─────────────
+# ── Script name (referenced by the sudoers declaration / prompt text; parameterized to avoid hardcoding) ─────────────
 : "${INSTALL_SCRIPT:=$(basename "$0")}"
 [ "${INSTALL_SCRIPT}" = "bash" ] && INSTALL_SCRIPT="install.sh"
 
-# ── 幂等默认配置（脚本已设置则不覆盖） ─────────────────────────────────
-# 审计 C-2：GIT_REPO 由各入口脚本（install.sh / install-local.sh / install-code.sh /
-# install-dev.sh）在 source 本文件之前自行定义 —— common.sh 不定义仓库地址，避免来源混淆。
+# ── Idempotent default config (does not override values already set by the script) ─────────────────────────────────
+# 审计 C-2：GIT_REPO is defined by each entry script (install.sh / install-local.sh / install-code.sh /
+# install-dev.sh) before sourcing this file — common.sh does not define the repo URL, avoiding source confusion.
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 : "${APP_HOME:=/home/${APP_USER}/verorun}"
@@ -29,11 +29,11 @@
 : "${LOG_DIR:=/var/log/verorun}"
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${REGION:=global}"                # cn | global
-# 审计 H-5：Sparse-checkout 白名单（基础列表）。入口脚本可通过追加扩展，
-# 如 install-code.sh 在 source 后执行 SPARSE_DIRS="${SPARSE_DIRS} plugins"。
-# 审计 M-1：追加 scripts/（README 引用 scripts/dev_start.py 本地开发脚本）。
+# 审计 H-5：Sparse-checkout whitelist (base list). Entry scripts can extend it by appending,
+# e.g. install-code.sh runs SPARSE_DIRS="${SPARSE_DIRS} plugins" after sourcing.
+# 审计 M-1：appends scripts/ (the README references the scripts/dev_start.py local dev script).
 : "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n captcha-service shared providers themes static deploy scripts plugins/site_domains}"
-: "${FORCE_UPDATE:=0}"              # 审计 C-3：update 时强制覆盖本地修改（配合 --force）
+: "${FORCE_UPDATE:=0}"              # 审计 C-3：force-overwrite local modifications during update (used with --force)
 : "${PIP_MIRROR:=}"
 : "${PIP_MIRROR_DETECTED:=}"
 : "${VR_ADMIN_CREDS_FILE:=/root/.verorun-creds}"
@@ -42,12 +42,12 @@
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 
-# 审计 F-3：全局抑制 git 交互式凭据提示（update/rollback/configure-domain 等所有 git 调用点生效），
-# 任何凭据请求立即失败而非交互挂起，杜绝 origin 指向镜像时无限卡死。
+# 审计 F-3：globally suppress git interactive credential prompts (applies to all git call sites, e.g. update/rollback/configure-domain);
+# any credential request fails immediately instead of hanging interactively, preventing infinite stalls when origin points to a mirror.
 export GIT_TERMINAL_PROMPT=0
 
 # ══════════════════════════════════════════════════════════════════════
-# 日志
+# Logging
 # ══════════════════════════════════════════════════════════════════════
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
@@ -55,11 +55,11 @@ fail_step() { echo -e "${FAIL} $1"; }
 
 # ══════════════════════════════════════════════════════════════════════
 # CN Network Auto-Adaptation
-# 中国网络环境优化：apt 镜像切换 / pip 多源竞速 / git 超时保护
-# 完全向后兼容：海外环境（默认源可达）不触发任何切换。
+# China network environment tuning: apt mirror switching / pip multi-source speed race / git timeout protection
+# Fully backward compatible: no switching is triggered in overseas environments (default sources reachable).
 # ══════════════════════════════════════════════════════════════════════
 
-# 1. apt 镜像：检测默认源 3s 内不可达 → 自动切换阿里云（幂等，marker 文件控制）
+# 1. apt mirror: if the default source is unreachable within 3s → auto-switch to Aliyun (idempotent, marker-file controlled)
 _ensure_apt_mirror() {
     local _marker="/etc/apt/.verorun_mirror_applied"
     [ -f "${_marker}" ] && return 0
@@ -75,7 +75,7 @@ _ensure_apt_mirror() {
     echo -e "${OK} apt mirror → Aliyun"
 }
 
-# 2. pip 镜像：多源竞速（阿里云 → 清华 → 官方）选响应最快，仅检测一次
+# 2. pip mirror: multi-source speed race (Aliyun → Tsinghua → official) picks the fastest; detected only once
 _detect_pip_mirror() {
     [ -n "${PIP_MIRROR_DETECTED:-}" ] && return 0
     echo -e "${INFO} Detecting fastest pip mirror..."
@@ -101,16 +101,16 @@ _detect_pip_mirror() {
     echo -e "${OK} pip mirror → ${PIP_MIRROR:-default}"
 }
 
-# 3. git clone 超时保护（60s）+ 浅克隆加速；失败给出明确指引
-# 注意：不执行 fetch --unshallow —— sparse-checkout 不依赖完整历史，
-#      补全历史反而在 CN 网络下重新下载全量数据，违背加速目的。
+# 3. git clone timeout protection (60s) + shallow clone acceleration; clear guidance on failure
+# Note: fetch --unshallow is not run — sparse-checkout does not depend on full history,
+#      and fetching full history re-downloads all data on CN networks, defeating the acceleration purpose.
 _clone_with_timeout() {
     local _repo=$1 _dest=$2 _branch=$3
     local _attempt _max=2
-    # 候选列表：直连 → ghfast.top → ghproxy.net。
-    # 国内 GFW 常"小请求通、大流量掐断"：直连探测通过但 clone 中途断连
-    # （fetch-pack: unexpected disconnect），因此 clone 失败必须自动降级镜像，
-    # 而不是死磕同一地址。
+    # Candidate list: direct → ghfast.top → ghproxy.net.
+    # The domestic GFW often allows small requests but kills high-traffic transfers: direct probing succeeds
+    # yet clone disconnects mid-way (fetch-pack: unexpected disconnect), so a failed clone must
+    # automatically fall back to mirrors instead of stubbornly retrying the same URL.
     local _candidates=("${_repo}")
     if echo "${_repo}" | grep -q '^https://github.com/'; then
         _candidates+=("https://ghfast.top/${_repo#https://}" "https://ghproxy.net/${_repo#https://}")
@@ -120,20 +120,20 @@ _clone_with_timeout() {
         _attempt=1
         echo -e "${INFO} Cloning ${_url} (timeout 60s, shallow, up to ${_max} attempts)..."
         while [ "${_attempt}" -le "${_max}" ]; do
-            # 审计 M-2：--no-single-branch 让浅克隆（--depth 1）同时携带标签，git describe --tags 可正常用于版本检测
+            # 审计 M-2：--no-single-branch makes the shallow clone (--depth 1) also carry tags, so git describe --tags works for version detection
             if timeout 60 git clone --depth 1 --no-single-branch -b "${_branch}" "${_url}" "${_dest}" 2>&1; then
                 _cloned="${_url}"
                 break 2
             fi
             echo -e "${WARN} git clone failed (${_url}, attempt ${_attempt}/${_max})"
-            # 清理不完整克隆目录，避免下次 clone 报 "already exists"
+            # Remove the incomplete clone directory to avoid "already exists" on the next clone
             rm -rf "${_dest}"
             _attempt=$((_attempt + 1))
             [ "${_attempt}" -le "${_max}" ] && sleep 5
         done
     done
     if [ -n "${_cloned}" ]; then
-        GIT_REPO="${_cloned}"  # 记录实际可用地址，update 等后续操作沿用
+        GIT_REPO="${_cloned}"  # record the actually reachable URL for subsequent operations such as update
         return 0
     fi
     echo -e "${FAIL} git clone failed after ${#_candidates[@]} sources x ${_max} attempts (timeout 60s each)"
@@ -149,7 +149,7 @@ _clone_with_timeout() {
 }
 
 # --prefer-binary: prefer wheels, fall back to source build
-# 审计 C-4：安装失败显式报错 + 最多重试 3 次（网络抖动 / 镜像临时超时可自动恢复）
+# 审计 C-4：installation failures are reported explicitly + retried up to 3 times (recovers from network jitter / temporary mirror timeouts)
 _pip_install() {
     _detect_pip_mirror
     local _attempt=1 _max=3
@@ -167,22 +167,22 @@ _pip_install() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# Python 版本保障（审计 P-1）：requirements.lock 需 Python >= 3.12
-# （numpy 2.4.x 等新依赖 Requires-Python >=3.12）。Ubuntu 22.04 默认
-# python3 为 3.10，直接建 venv 会因版本不符导致 pip 解析失败。
-# 本函数确保存在可用的 python3.12（24.04 自带；22.04 走 deadsnakes PPA），
-# 并把可执行文件全路径写入全局 PYTHON_BIN。幂等、非交互、超时保护。
+# Python version guarantee (审计 P-1：) — requirements.lock requires Python >= 3.12
+# (new dependencies such as numpy 2.4.x have Requires-Python >=3.12). Ubuntu 22.04 defaults
+# python3 to 3.10, and creating the venv directly would fail pip resolution due to the version mismatch.
+# This function ensures a usable python3.12 exists (built-in on 24.04; 22.04 uses the deadsnakes PPA),
+# and writes the full executable path to the global PYTHON_BIN. Idempotent, non-interactive, timeout-protected.
 # ══════════════════════════════════════════════════════════════════════
 _ensure_python312() {
     export DEBIAN_FRONTEND=noninteractive
 
-    # 已有 python3.12 → 直接使用
+    # python3.12 already available → use it directly
     if command -v python3.12 >/dev/null 2>&1; then
         PYTHON_BIN="$(command -v python3.12)"
         return 0
     fi
 
-    # 系统默认 python3 已是 >=3.12 → 直接使用
+    # system default python3 is already >=3.12 → use it directly
     local _cur=""
     _cur="$(python3 -c 'import sys; print("%d.%d" % (sys.version_info.major, sys.version_info.minor))' 2>/dev/null || true)"
     if [ -n "${_cur}" ]; then
@@ -196,13 +196,13 @@ _ensure_python312() {
 
     echo -e "${INFO} System Python ${_cur:-unknown} < 3.12 — installing python3.12 ..."
 
-    # 路线一：发行版自带（Ubuntu 24.04 及以上）
+    # Route 1: shipped with the distro (Ubuntu 24.04 and above)
     if timeout 300 apt-get install -y python3.12 python3.12-venv python3.12-dev 2>&1 && command -v python3.12 >/dev/null 2>&1; then
         PYTHON_BIN="$(command -v python3.12)"
         return 0
     fi
 
-    # 路线二：deadsnakes PPA（Ubuntu 22.04）
+    # Route 2: deadsnakes PPA (Ubuntu 22.04)
     echo -e "${INFO} python3.12 not in distro repos — adding deadsnakes PPA ..."
     timeout 300 apt-get install -y software-properties-common >/dev/null 2>&1 || {
         echo -e "${FAIL} Failed to install software-properties-common (needed for PPA)."
@@ -229,9 +229,9 @@ _ensure_python312() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 虚拟环境保障（审计 P-1）：venv 缺失或其 Python < 3.12 时自动重建。
-# venv 仅含依赖包、无业务数据，删除重建安全且幂等。
-# 依赖 _ensure_python312 设置 PYTHON_BIN。
+# Virtualenv guarantee (审计 P-1)：automatically rebuilds when the venv is missing or its Python < 3.12.
+# The venv contains only dependencies, no business data, so deleting and rebuilding is safe and idempotent.
+# Depends on _ensure_python312 to set PYTHON_BIN.
 # ══════════════════════════════════════════════════════════════════════
 _ensure_venv() {
     if [ -x "${VENV_DIR}/bin/python" ]; then
@@ -263,11 +263,11 @@ _ensure_venv() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# Git SSH auth setup（HTTPS 公开仓库自动跳过）
+# Git SSH auth setup (auto-skipped for HTTPS public repos)
 # ══════════════════════════════════════════════════════════════════════
 ensure_git_auth() {
     if echo "${GIT_REPO}" | grep -q '^https://'; then
-        # 审计 F-1：HTTPS 公开仓库同样校验已存在的 origin，防止被改为 ghfast.top/ghproxy 等镜像后 fetch 卡死
+        # 审计 F-1：HTTPS public repos also validate the existing origin, preventing fetch stalls after it is switched to mirrors such as ghfast.top/ghproxy
         if [ -d "${APP_HOME}/.git" ]; then
             local current_url
             current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
@@ -314,17 +314,17 @@ ensure_git_auth() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# Git 仓库地址自动解析（审计 Y-1：一键部署跨网络可用，不假定用户预装 git）
-# - HTTPS 公开仓库（install.sh / install-local.sh）：用 curl 探测 git 智能
-#   HTTP 端点（等价 git ls-remote，但仅依赖 curl），直连 GitHub 不可达时
-#   自动降级到 ghfast.top / ghproxy.net 镜像（早期版本使用的 ghproxy.com 镜像已失效，
-#   此处镜像为实测可用；支持多级降级）。
-# - SSH 私有仓库（install-code.sh / install-dev.sh）：自动配置 SSH over 443
-#   （ssh.github.com:443），绕过国内被封锁的 22 端口；仓库地址本身不变。
-# 在 do_install / do_update 拉码前调用，四个脚本经本公共函数统一生效。
+# Git repo URL auto-resolution (审计 Y-1：one-click deployment works across networks without assuming git is pre-installed)
+# - HTTPS public repos (install.sh / install-local.sh): probe the git smart
+#   HTTP endpoint with curl (equivalent to git ls-remote but relies only on curl); when direct GitHub is unreachable,
+#   automatically fall back to ghfast.top / ghproxy.net mirrors (the ghproxy.com mirror used by earlier versions is dead;
+#   the mirrors here are verified usable; multi-level fallback supported).
+# - SSH private repos (install-code.sh / install-dev.sh): automatically configure SSH over 443
+#   (ssh.github.com:443), bypassing the domestically blocked port 22; the repo URL itself is unchanged.
+# Called before do_install / do_update pull the code; all four scripts take effect through this shared function.
 # ══════════════════════════════════════════════════════════════════════
 _probe_git_url() {
-    # 探测 git 智能 HTTP 端点（等价 git ls-remote 的 HTTP 侧，仅用 curl）
+    # Probe the git smart HTTP endpoint (the HTTP-side equivalent of git ls-remote, curl only)
     local _url="$1"
     if command -v curl >/dev/null 2>&1; then
         local _code
@@ -341,18 +341,18 @@ _probe_git_url() {
         fi
         return 1
     fi
-    # 无探测工具（极罕见）：无法判断，交给后续流程直接尝试
+    # No probing tool (extremely rare): cannot determine, let the following flow try directly
     return 1
 }
 
 _setup_ssh_over_443() {
-    # SSH 22 端口国内常被封锁：不可达时自动改用 ssh.github.com:443
+    # SSH port 22 is often blocked domestically: when unreachable, automatically switch to ssh.github.com:443
     local _ssh_conf="/root/.ssh/config"
     if grep -q "Host github.com" "${_ssh_conf}" 2>/dev/null; then
-        return 0  # 已配置，幂等
+        return 0  # already configured, idempotent
     fi
     if timeout 5 bash -c "exec 3<>/dev/tcp/github.com/22" 2>/dev/null; then
-        return 0  # 22 端口可达，无需改写
+        return 0  # port 22 reachable, no rewrite needed
     fi
     mkdir -p /root/.ssh
     cat >> "${_ssh_conf}" << 'SSHCONF'
@@ -368,26 +368,26 @@ SSHCONF
 }
 
 _resolve_git_repo() {
-    # 仅 install/update 需要真实访问远端仓库，其余模式跳过
+    # Only install/update need real access to the remote repo; other modes skip
     case "${DEPLOY_MODE:-}" in
         install|update) ;;
         *) return 0 ;;
     esac
 
-    # SSH 私有仓库（install-code.sh / install-dev.sh）：SSH over 443 规避 22 封锁
+    # SSH private repos (install-code.sh / install-dev.sh): SSH over 443 to bypass the port-22 block
     if echo "${GIT_REPO}" | grep -q '^git@github.com:'; then
         _setup_ssh_over_443
         return 0
     fi
 
-    # 仅处理 github.com 的 HTTPS 公开仓库；自定义镜像/Gitee 等地址不探测直接使用
+    # Only github.com HTTPS public repos are handled; custom mirrors/Gitee etc. are used directly without probing
     if ! echo "${GIT_REPO}" | grep -q '^https://github.com/'; then
         return 0
     fi
 
     local _direct="${GIT_REPO}"
     local _candidates=()
-    # REGION=cn 时镜像优先（直连通常更慢/不可达）；global 直连优先，失败再降级
+    # Mirrors take priority when REGION=cn (direct is usually slower/unreachable); global prefers direct and falls back on failure
     if [ "${REGION:-global}" = "cn" ]; then
         _candidates=(
             "https://ghfast.top/${_direct#https://}"
@@ -423,21 +423,21 @@ _resolve_git_repo() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# HTTPS 证书自动签发（审计 Y-2：仅 production + 域名已配置时启用）
-# 流程：安装 certbot → certbot --nginx 签发（交互输入邮箱）→ 更新 .env
-# DEPLOY_PROTOCOL=https → 重载 nginx。失败不阻塞安装（Let's Encrypt 有
-# 频率限制；域名需已解析到本服务器）。无 TTY 时沿用脚本现有交互降级模式，
-# 跳过签发并给出手动命令。
+# Automatic HTTPS certificate issuance (审计 Y-2：enabled only for production + when the domain is configured)
+# Flow: install certbot → certbot --nginx issuance (interactive email input) → update .env
+# DEPLOY_PROTOCOL=https → reload nginx. Failure does not block installation (Let's Encrypt has
+# rate limits; the domain must already resolve to this server). Without a TTY, the script's existing
+# interactive fallback applies: skip issuance and print manual commands.
 # ══════════════════════════════════════════════════════════════════════
 _setup_ssl_cert() {
     if [ "${DEPLOY_TYPE:-}" != "production" ] || [ -z "${DOMAIN:-}" ]; then
-        return 0  # 仅域名版 install.sh 触发；其余三脚本天然跳过
+        return 0  # only triggered by the domain edition install.sh; the other three scripts naturally skip
     fi
     step "HTTPS certificate (Let's Encrypt)"
 
     local _email="${SSL_EMAIL:-}"
 
-    # --ssl-email flag 传入：跳过 TTY 检查和交互输入
+    # --ssl-email flag passed: skip the TTY check and interactive input
     if [ -z "${_email}" ]; then
         if ! { exec 3<>/dev/tty; } 2>/dev/null; then
             exec 3>&-
@@ -462,7 +462,7 @@ _setup_ssl_cert() {
         _cert_args=("--agree-tos" "-m" "${_email}")
     fi
 
-    # 签发失败不阻塞安装：证书频率限制 / 域名未解析 / 80 端口不可达等
+    # Issuance failure does not block installation: cert rate limits / domain not resolved / port 80 unreachable etc.
     if certbot --nginx --non-interactive "${_cert_args[@]}" \
         -d "${DOMAIN}" -d "www.${DOMAIN}" -d "platform.${DOMAIN}" -d "agent.${DOMAIN}" \
         --redirect 2>&1; then
@@ -480,23 +480,23 @@ _setup_ssl_cert() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 目录冲突处理（文档 verorun-deploy-guide.html §6.3：备份/删除/中止）
+# Directory conflict handling (docs verorun-deploy-guide.html §6.3: backup/delete/abort)
 # ══════════════════════════════════════════════════════════════════════
 resolve_directory_conflict() {
     local target_dir="$1"
 
-    # 目录不存在 → 正常流程
+    # Directory does not exist → normal flow
     if [ ! -d "${target_dir}" ]; then
         return 0
     fi
 
-    # 已是 git 仓库 → 可以安全更新
+    # Already a git repo → can update safely
     if [ -d "${target_dir}/.git" ]; then
         echo -e "${OK} Existing VeroRun installation detected at ${target_dir}"
         return 0
     fi
 
-    # 目录存在但不是 git 仓库 → 交互式选择
+    # Directory exists but is not a git repo → interactive choice
     echo ""
     echo -e "${WARN} ═══════════════════════════════════════════════════════"
     echo -e "${WARN}  Directory conflict detected:"
@@ -504,8 +504,8 @@ resolve_directory_conflict() {
     echo -e "${WARN}"
     echo -e "${WARN}  This directory exists but is NOT a VeroRun installation."
 
-    # 审计 M20：无 TTY（curl|sudo bash 管道）时不再自动删除——目录误判即不可逆数据丢失。
-    # 改为中止安装，要求用户交互处理。
+    # 审计 M20：no longer auto-deletes without a TTY (curl|sudo bash pipe) — a misjudged directory means irreversible data loss.
+    # Instead, abort the installation and require the user to resolve it interactively.
     if ! { exec 3<>/dev/tty; } 2>/dev/null; then
         exec 3>&-
         echo -e "${FAIL} ═══════════════════════════════════════════════════════"
@@ -539,7 +539,7 @@ resolve_directory_conflict() {
                 return 0
                 ;;
             2)
-                # 安全防护：拒绝删除危险路径
+                # Safety guard: refuse to delete dangerous paths
                 if [ -z "${target_dir}" ] || [ "${target_dir}" = "/" ] || [ "${target_dir}" = "${HOME}" ]; then
                     echo -e "${FAIL} Refusing to remove dangerous path: ${target_dir}"
                     exit 1
@@ -561,7 +561,7 @@ resolve_directory_conflict() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# DEBUG 强制禁用（生产门禁：install/update 前必须 APP_DEBUG=false 且 FLASK_DEBUG=0）
+# DEBUG forced off (production gate: APP_DEBUG=false and FLASK_DEBUG=0 are required before install/update)
 # ══════════════════════════════════════════════════════════════════════
 assert_debug_disabled() {
     local _dbg
@@ -584,7 +584,7 @@ assert_debug_disabled() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# .env 补齐缺失密钥（幂等）
+# .env: fill in missing keys (idempotent)
 # ══════════════════════════════════════════════════════════════════════
 update_env() {
     local env_file="${APP_HOME}/.env"
@@ -595,7 +595,7 @@ update_env() {
 
     local missing=()
 
-    # ── 必需的密钥（缺失则随机生成） ──
+    # ── Required keys (randomly generated if missing) ──
     for key in PLUGIN_LICENSE_SECRET CAPTCHA_SECRET_KEY DEV_ACCOUNTS_ENCRYPTION_KEY LICENSE_SERVER_SECRET PROBE_SECRET INTERNAL_SERVICE_TOKEN HEALTH_SECRET; do
         if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
             local val
@@ -605,14 +605,14 @@ update_env() {
         fi
     done
 
-    # ── 审计 H-2：必需的配置项（缺失则用默认值补齐，绝不覆盖已有值） ──
-    # 早期版本升级后可能缺少 DEPLOY_PROTOCOL / APP_REGION / DEPLOY_MARKET 等，
-    # 缺失会导致服务启动失败或运行时行为不一致，此处统一补齐。
+    # ── 审计 H-2：required config items (filled with defaults if missing, never overwriting existing values) ──
+    # Upgrades from earlier versions may lack DEPLOY_PROTOCOL / APP_REGION / DEPLOY_MARKET etc.;
+    # missing them can cause service startup failures or inconsistent runtime behavior, so they are filled in uniformly here.
     local _dom
-    # 取最后一行 DEPLOY_DOMAIN，避免历史重复行导致多行变量污染
+    # Take the last DEPLOY_DOMAIN line to avoid multi-line variable pollution from historical duplicate lines
     _dom=$(grep "^DEPLOY_DOMAIN=" "${env_file}" 2>/dev/null | tail -1 | cut -d= -f2)
-    # 审计 NEW-H3：DEPLOY_PROTOCOL 不做自动推断（有域名 ≠ 已配 HTTPS 证书）。
-    # 缺失时默认 http，由用户根据实际 TLS 配置自行修改 .env。
+    # 审计 NEW-H3：DEPLOY_PROTOCOL is not auto-inferred (having a domain ≠ having an HTTPS cert configured).
+    # Defaults to http when missing; the user adjusts .env according to the actual TLS setup.
     while read -r _k _v; do
         if ! grep -q "^${_k}=" "${env_file}" 2>/dev/null; then
             echo "${_k}=${_v}" >> "${env_file}"
@@ -653,13 +653,13 @@ EOF
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# systemd 服务（四服务 + guardian 守护进程）
+# systemd services (four services + the guardian daemon)
 # ══════════════════════════════════════════════════════════════════════
 write_systemd_services() {
     local env_file="${APP_HOME}/.env"
-    # 审计 H-4 修复：gunicorn worker 数不再硬编码 -w 2。
-    # 默认保持 2（向后兼容，不改变现有部署资源占用）；
-    # 高并发场景可用 VR_WORKERS 环境变量覆盖，例如：
+    # 审计 H-4 fix：the gunicorn worker count is no longer hardcoded as -w 2.
+    # The default stays 2 (backward compatible, no change to existing deployment resource usage);
+    # high-concurrency scenarios can override it with the VR_WORKERS env var, e.g.:
     #   VR_WORKERS=4 sudo bash deploy/install.sh update
     local _workers="${VR_WORKERS:-2}"
     write_one_service() {
@@ -756,13 +756,13 @@ write_guardian_env() {
     if [ -f "${APP_HOME}/.env" ]; then
         probe_secret=$(grep "^PROBE_SECRET=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2) || true
         [ -n "${probe_secret}" ] && probe_secret="PROBE_SECRET=${probe_secret}"
-        # 审计 M21：GUARDIAN_REMOTE_URL / DEPLOYMENT_CODE 允许 .env 覆盖，
-        # 不再单一硬编码 global 地址（CN 区域部署在 .env 显式配置区域 API 地址）
+        # 审计 M21：GUARDIAN_REMOTE_URL / DEPLOYMENT_CODE can be overridden in .env,
+        # no longer hardcoding a single global address (CN-region deployments explicitly configure the regional API address in .env)
         guardian_remote=$(grep "^GUARDIAN_REMOTE_URL=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2-) || true
         deployment_code=$(grep "^DEPLOYMENT_CODE=" "${APP_HOME}/.env" 2>/dev/null | cut -d= -f2-) || true
     fi
     if [ -z "${guardian_remote}" ]; then
-        # 审计 M21：未在 .env 配置时回退 global 默认地址
+        # 审计 M21：fall back to the global default address when not configured in .env
         guardian_remote="https://api.verorun.com"
     fi
     cat > "${env_file}" << GENVEOF
@@ -783,7 +783,7 @@ GENVEOF
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# sudoers — 一键更新权限（声明式、幂等）
+# sudoers — one-click update permissions (declarative, idempotent)
 # ══════════════════════════════════════════════════════════════════════
 write_sudoers() {
     local sudoers_file="/etc/sudoers.d/verorun"
@@ -798,7 +798,7 @@ ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-admin
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-health
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart verorun-guardian
 ${APP_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
-${APP_USER} ALL=(root) NOPASSWD: /usr/sbin/nginx -s reload  # 审计 M2：auth-center 动态子域配置生效
+${APP_USER} ALL=(root) NOPASSWD: /usr/sbin/nginx -s reload  # 审计 M2：applies the auth-center dynamic subdomain configuration
 SUEOF
     chmod 440 "${sudoers_file}"
     visudo -c -f "${sudoers_file}" || {
@@ -809,7 +809,7 @@ SUEOF
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 服务重启（含启动等待轮询 + nginx）
+# Service restart (with startup-wait polling + nginx)
 # ══════════════════════════════════════════════════════════════════════
 restart_services() {
     local services=("verorun-admin" "verorun-auth" "verorun-main" "verorun-health" "verorun-guardian")
@@ -839,7 +839,7 @@ restart_services() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 依赖扫描
+# Dependency scan
 # ══════════════════════════════════════════════════════════════════════
 check_system_deps() {
     local pkg
@@ -859,21 +859,21 @@ check_python_deps() {
     freeze=$("${VENV_DIR}/bin/pip" list --format=freeze 2>/dev/null) || return 1
     while read -r line; do
         [ -z "${line}" ] && continue
-        # 审计 H-6：跳过注释 / pip 选项 / -e 可编辑安装 / git+ / http(s) / file: 等非普通包行
+        # 审计 H-6：skip comment / pip option / -e editable install / git+ / http(s) / file: etc. non-regular package lines
         case "${line}" in
             \#*|--*|-e*|git+*|http://*|https://*|file:*|[-!+]*|.) continue ;;
         esac
         pkg="${line%%[<>=!~;@]*}"
-        pkg="${pkg%%\[*}"   # 去掉 extras（如 flask[async]）
+        pkg="${pkg%%\[*}"   # strip extras (e.g. flask[async])
         pkg=$(printf '%s' "${pkg}" | tr 'A-Z' 'a-z' | tr '_' '-')
-        # 精确匹配已安装包名（^ 锚定行首，避免前缀误匹配如 discord.py 命中 discord）
+        # Exact-match installed package names (^ anchors the line start, avoiding prefix mismatches such as discord.py matching discord)
         printf '%s\n' "${freeze}" | grep -qi "^${pkg}==\|^${pkg} @ " || return 1
     done < "${APP_HOME}/requirements.txt"
     return 0
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 模式检测
+# Mode detection
 # ══════════════════════════════════════════════════════════════════════
 detect_mode() {
     local mode="${1:-}"
@@ -888,13 +888,13 @@ detect_mode() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 管理员凭据交互创建（install 模式、TTY 存活时调用）
+# Interactive admin credential creation (called in install mode when a TTY is available)
 # ══════════════════════════════════════════════════════════════════════
 prompt_admin_creds() {
     case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
     [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
 
-    # --admin-user / --admin-pass flag 传入：直接写入凭据文件，跳过交互
+    # --admin-user / --admin-pass flags passed: write directly to the credentials file, skipping interaction
     if [ -n "${VR_ADMIN_USERNAME:-}" ] && [ -n "${VR_ADMIN_PASSWORD:-}" ]; then
         printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${VR_ADMIN_USERNAME}" "${VR_ADMIN_PASSWORD}" > "${VR_ADMIN_CREDS_FILE}"
         chmod 600 "${VR_ADMIN_CREDS_FILE}"
@@ -903,7 +903,7 @@ prompt_admin_creds() {
         return 0
     fi
 
-    # 非交互管道（curl | sudo bash 无 TTY）：自动降级，凭据由 seed_data.py 生成
+    # Non-interactive pipe (curl | sudo bash without TTY): auto-fallback, credentials generated by seed_data.py
     if ! { exec 3<>/dev/tty; } 2>/dev/null; then
         echo -e "${INFO} Non-interactive shell — admin credentials auto-generated"
         return 0
@@ -948,13 +948,13 @@ prompt_admin_creds() {
 
     printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${_user}" "${_pass}" > "${VR_ADMIN_CREDS_FILE}"
     chmod 600 "${VR_ADMIN_CREDS_FILE}"
-    # 审计 C2 加固：脚本异常退出时清理凭据文件（prompt 仅在 install 模式调用，无 EXIT trap 冲突）
+    # 审计 C2 hardening：cleans up the credentials file when the script exits abnormally (prompt is only called in install mode, no EXIT trap conflict)
     trap 'rm -f "${VR_ADMIN_CREDS_FILE}"' EXIT
     echo -e "${OK} Admin credentials saved"
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 健康检查
+# Health check
 # ══════════════════════════════════════════════════════════════════════
 health_check() {
     echo ""
@@ -963,7 +963,7 @@ health_check() {
     check_port() {
         local port=$1 name=$2
         local code
-        # 审计 H-7：--max-time 10 防止服务接受连接但永不响应时 curl 挂起导致健康检查卡死
+        # 审计 H-7：--max-time 10 prevents curl from hanging when a service accepts connections but never responds, which would stall the health check
         code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://127.0.0.1:${port}/" 2>/dev/null || echo "000")
         if [ "$code" != "000" ]; then
             echo -e "  ${OK} ${name} (:${port}) -> HTTP ${code}"
@@ -1000,12 +1000,12 @@ health_check() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# VeroGuard 完整性清单构建（审计 NEW-H1：四种部署模式统一调用）
+# VeroGuard integrity manifest build (审计 NEW-H1：called uniformly by all four deployment modes)
 # ══════════════════════════════════════════════════════════════════════
 build_veroguard_manifest() {
     step "Build integrity manifest (VeroGuard)"
-    # 用 .env 中的 PROBE_SECRET 生成守护进程完整性基准清单。
-    # 官方端依赖该清单校验客户端文件完整性；文件缺失时降级跳过（不中断安装）。
+    # Generate the daemon integrity baseline manifest using PROBE_SECRET from .env.
+    # The official side relies on this manifest to verify client file integrity; if the file is missing, degrade and skip (without interrupting installation).
     if [ -f "${APP_HOME}/veroguard/tools/build_manifest.py" ]; then
         sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; set +a; cd ${APP_HOME} && PYTHONPATH=${APP_HOME} ${VENV_DIR}/bin/python veroguard/tools/build_manifest.py --project-dir ${APP_HOME} --output ${APP_HOME}/veroguard/data/manifest.json.enc --secret \"\${PROBE_SECRET}\"" \
             || echo -e "${WARN} Manifest build failed — VeroGuard integrity check unavailable"
@@ -1016,7 +1016,7 @@ build_veroguard_manifest() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 种子数据
+# Seed data
 # ══════════════════════════════════════════════════════════════════════
 do_seed() {
     step "Seed initial data"
@@ -1047,8 +1047,8 @@ do_seed() {
         rm -f "${VR_ADMIN_CREDS_FILE}"
     fi
 
-    # 审计 NEW-M1：凭据在此处统一确定，保证 print_summary 展示与 seed_data.py 实际写入的密码一致。
-    # 无凭据时生成默认管理员（administrator + 随机密码），并始终经环境变量传入 seed_data.py。
+    # 审计 NEW-M1：credentials are finalized here, ensuring print_summary shows the same password that seed_data.py actually writes.
+    # With no credentials, generate a default admin (administrator + random password) and always pass it to seed_data.py via environment variables.
     if [ -z "${VR_ADMIN_USERNAME}" ]; then
         VR_ADMIN_USERNAME="administrator"
     fi
@@ -1056,14 +1056,14 @@ do_seed() {
         VR_ADMIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(8))")
     fi
 
-    # 审计 C1：管理员凭据经环境变量传入 seed_data.py，避免出现在进程命令行
+    # 审计 C1：admin credentials are passed to seed_data.py via environment variables, avoiding exposure in the process command line
     sudo -u "${APP_USER}" env VR_ADMIN_USERNAME="${VR_ADMIN_USERNAME}" VR_ADMIN_PASSWORD="${VR_ADMIN_PASSWORD}" \
         "${VENV_DIR}/bin/python" "${APP_HOME}/deploy/seed_data.py"
     echo -e "${OK} Seed data injected"
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# 回滚（统一使用 before_commit 保存点，缺失时 fallback HEAD~1）
+# Rollback (uniformly uses the before_commit save point; falls back to HEAD~1 when missing)
 # ══════════════════════════════════════════════════════════════════════
 do_rollback() {
     step "Rollback to previous version"
@@ -1086,14 +1086,14 @@ do_rollback() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# C-1 统一部署函数（审计 R4 激活：四入口脚本共用，DEPLOY_TYPE 驱动）
+# C-1 unified deployment functions (审计 R4 enabled: shared by the four entry scripts, driven by DEPLOY_TYPE)
 # DEPLOY_TYPE: production | lan | code | dev
-# 由各入口脚本在 source 本文件前定义（install.sh=production, install-local=lan,
-# install-code=code, install-dev=dev）。四个入口脚本不再各自定义同名函数，
-# Bash 不再发生"后定义覆盖先定义"，此处统一版本直接生效。
+# Defined by each entry script before sourcing this file (install.sh=production, install-local=lan,
+# install-code=code, install-dev=dev). The four entry scripts no longer define same-named functions themselves,
+# so Bash no longer has "later definitions overriding earlier ones"; the unified versions here take effect directly.
 # ══════════════════════════════════════════════════════════════════════
 
-# ── .env 生成：注释头 / DEPLOY_DOMAIN / DEPLOY_PROTOCOL 由 DEPLOY_TYPE 驱动 ──
+# ── .env generation: header comment / DEPLOY_DOMAIN / DEPLOY_PROTOCOL driven by DEPLOY_TYPE ──
 generate_env() {
     local env_file="${APP_HOME}/.env"
     local force="${1:-}"
@@ -1122,10 +1122,10 @@ generate_env() {
     LICENSE_SERVER_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     PROBE_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     INTERNAL_SERVICE_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    # 审计 D5：HEALTH_SECRET 随机生成，避免使用源码公开的默认值
+    # 审计 D5：HEALTH_SECRET is randomly generated to avoid the publicly hardcoded default from the source
     HEALTH_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
-    # ── DEPLOY_TYPE 驱动：注释头 / DOMAIN / PROTOCOL ──
+    # ── DEPLOY_TYPE driven: header comment / DOMAIN / PROTOCOL ──
     local _env_header="VeroRun config — auto-generated by ${INSTALL_SCRIPT} (no-domain / LAN mode)"
     local _deploy_domain=""
     local _deploy_protocol="http"
@@ -1160,16 +1160,16 @@ FLASK_SECRET_KEY=${FLASK_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 APP_MODE=main
 
-# 审计 M2：L2 子域 nginx snippet 输出目录（auth-center 动态子域配置落盘，被 nginx 默认 include）
+# 审计 M2：output directory for L2 subdomain nginx snippets (auth-center dynamic subdomain config written to disk, included by nginx by default)
 NGINX_SNIPPETS_DIR=/etc/nginx/sites-enabled
 
-# 审计 M7：管理后台 nginx 层 Basic Auth（纵深防御，默认关闭）。
-# 启用：改 1 + 设置用户名，然后执行
+# 审计 M7：Basic Auth for the admin panel at the nginx layer (defense in depth, disabled by default).
+# To enable: change to 1 + set the username, then run
 #   sudo htpasswd -c /etc/nginx/.verorun-admin ${ADMIN_BASIC_AUTH_USER:-admin}
 ADMIN_BASIC_AUTH=0
 ADMIN_BASIC_AUTH_USER=admin
 
-# 内部服务令牌
+# Internal service token
 INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
 # Production defaults: DEBUG must stay disabled (assert_debug_disabled enforces on install/update)
@@ -1188,11 +1188,11 @@ PLUGIN_AUTO_INSTALL=0
 # VeroGuard — daemon encrypted communication key (official side and client must match)
 PROBE_SECRET=${PROBE_SECRET}
 
-# Health check internal secret — 审计 D5：随机生成，不再使用源码公开默认值
+# Health check internal secret — 审计 D5：randomly generated, no longer using the publicly hardcoded default from the source
 HEALTH_SECRET=${HEALTH_SECRET}
 
-# 审计 M21：VeroGuard 回传地址与部署码（按区域配置；CN 部署请填写你的区域 API 地址，
-# 留空时使用 global 默认 https://api.verorun.com）
+# 审计 M21：VeroGuard report-back address and deployment code (configure by region; CN deployments: fill in your regional API address,
+# leave empty to use the global default https://api.verorun.com)
 GUARDIAN_REMOTE_URL=
 DEPLOYMENT_CODE=
 
@@ -1205,7 +1205,7 @@ DEEPSEEK_API_KEY=
 APP_REGION=${REGION}
 ENVEOF
 
-    # 教育版：持久化部署码供 VeroGuard / 认证插件读取（仅 edu 类型写入）
+    # Education edition: persist the deployment code for VeroGuard / auth plugins to read (written only for the edu type)
     if [ "${DEPLOY_TYPE}" = "edu" ]; then
         echo "EDU_CODE=${EDU_CODE:-}" >> "${env_file}"
     fi
@@ -1214,13 +1214,13 @@ ENVEOF
     chmod 600 "${env_file}"
 }
 
-# ── Nginx：DOMAIN 非空→域名多 server；空→LAN 单 server ──
+# ── Nginx: DOMAIN non-empty → multi-server for the domain; empty → single LAN server ──
 write_nginx_config() {
     local nginx_conf="/etc/nginx/sites-available/verorun.conf"
     local nginx_enabled="/etc/nginx/sites-enabled/verorun.conf"
 
-    # 审计 M7：管理后台 nginx 层 Basic Auth（纵深防御，默认关闭）。
-    # 启用：.env 设 ADMIN_BASIC_AUTH=1 + ADMIN_BASIC_AUTH_USER，并生成 htpasswd：
+    # 审计 M7：Basic Auth for the admin panel at the nginx layer (defense in depth, disabled by default).
+    # To enable: set ADMIN_BASIC_AUTH=1 + ADMIN_BASIC_AUTH_USER in .env, and generate htpasswd:
     #   sudo htpasswd -c /etc/nginx/.verorun-admin <ADMIN_BASIC_AUTH_USER>
     local _auth_basic_on=""
     if [ -f "${APP_HOME}/.env" ]; then
@@ -1236,8 +1236,8 @@ write_nginx_config() {
     fi
 
     if [ -n "${DOMAIN:-}" ]; then
-        # ── 域名模式：主域 / platform / agent 三 server ──
-        # 审计 D3：证书存在时内建 443 + 80→443 跳转（update/configure-domain 覆写后 TLS 不丢失）
+        # ── Domain mode: three servers for main / platform / agent ──
+        # 审计 D3：built-in 443 + 80→443 redirect when a cert exists (TLS is not lost after update/configure-domain rewrites)
         local _cert_dir="/etc/letsencrypt/live/${DOMAIN}"
         local _ssl_listen=""
         local _ssl_cert=""
@@ -1250,19 +1250,19 @@ write_nginx_config() {
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 1d;
-    # 审计 M3：HSTS 仅在证书存在时输出
+    # 审计 M3：HSTS is only emitted when a certificate exists
     add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;"
-            # 审计 D3+：redirect 限定仅 HTTP 生效（若与 listen 443 同块，https 请求会被 301 跳回自己 → 死循环）
+            # 审计 D3+：redirect restricted to HTTP only (if in the same block as listen 443, https requests get 301-redirected to themselves → infinite loop)
             _http_redirect="    if (\$scheme != \"https\") { return 301 https://\$host\$request_uri; }"
         fi
         cat > "${nginx_conf}" << NGXEOF
 # VeroRun Nginx — auto-generated by ${INSTALL_SCRIPT}
 
-# 审计 M5：认证/管理面 nginx 层限速（http 级 zone，供 server 内 location 引用）
+# 审计 M5：rate limiting for the auth/admin surfaces at the nginx layer (http-level zone, referenced by locations inside servers)
 limit_req_zone \$binary_remote_addr zone=verorun_auth:10m rate=10r/s;
 
-# 审计 M9：access_log 脱敏——用 \$uri（不含 query）替代 \$request，
-# 避免 JWT/sso_token 等 URL 查询串 token 落入日志（日志泄露即会话劫持）
+# 审计 M9：access_log redaction — use \$uri (without query) instead of \$request,
+# preventing URL query-string tokens such as JWT/sso_token from landing in logs (log leakage equals session hijacking)
 log_format verorun_redact '\$remote_addr - \$remote_user [\$time_local] "\$request_method \$uri \$server_protocol" \$status \$body_bytes_sent "\$http_referer"';
 
 # ── Main domain ────────────────────────────────
@@ -1287,18 +1287,18 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
     }
 
-    # 审计 D1：debug-jwt 已删除，nginx 层纵深防御直接 404
+    # 审计 D1：debug-jwt removed; nginx-layer defense in depth returns 404 directly
     location = /admin/debug-jwt {
         return 404;
     }
 
-    # 审计 M17：上传目录中的 HTML/SVG 强制下载，防存储型 XSS（regex 优先级最高）
+    # 审计 M17：HTML/SVG in upload directories forced to download, preventing stored XSS (regex has the highest priority)
     location ~* ^/admin/static/uploads/.*\.(html?|svg)$ {
         add_header Content-Disposition "attachment; filename=download" always;
         proxy_pass http://127.0.0.1:8084;
@@ -1330,7 +1330,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1339,25 +1339,25 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # ── Main site ───────────────────────────────
     location / {
-        # 审计 M4：主站上传（头像 2MB 等）需 > nginx 默认 1M，与后端上限一致
+        # 审计 M4：main-site uploads (avatars up to 2MB etc.) need > nginx's default 1M, consistent with the backend limit
         client_max_body_size 100M;
         proxy_pass http://127.0.0.1:8081;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
     }
 
-    # 审计 M8：WebSocket 支持（小程序 wss 握手需 HTTP/1.1 + Upgrade 头）
+    # 审计 M8：WebSocket support (mini-program wss handshake requires HTTP/1.1 + Upgrade headers)
     location ~ ^/(ws|socket\.io)(/|$) {
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -1387,12 +1387,12 @@ ${_ssl_cert}
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
-        # 审计 M4：platform 上传与主站一致，body 限制 100M
+        # 审计 M4：platform uploads consistent with the main site, body limit 100M
         client_max_body_size 100M;
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1417,15 +1417,15 @@ ${_ssl_cert}
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 NGXEOF
     else
-        # ── 无域名模式：default_server 单 server（/admin/ 统一含 client_max_body_size 100M，审计 R4 L-B） ──
-        # 审计 M11：检测本机 LAN IP 用于 server_name 白名单（未知 Host 将命中 444 拒绝）
+        # ── No-domain mode: single default_server server (/admin/ uniformly includes client_max_body_size 100M, 审计 R4 L-B) ──
+        # 审计 M11：detect local LAN IPs for the server_name whitelist (unknown Hosts hit a 444 rejection)
         local _lan_ips=""
         _lan_ips=$(hostname -I 2>/dev/null | tr -s ' ' | sed 's/^ //;s/ $//')
         local _lan_server_name="localhost"
@@ -1433,15 +1433,15 @@ NGXEOF
         cat > "${nginx_conf}" << NGXEOF
 # VeroRun Nginx — no-domain mode (auto-generated by ${INSTALL_SCRIPT})
 
-# 审计 M5：认证/管理面 nginx 层限速（http 级 zone，供 server 内 location 引用）
+# 审计 M5：rate limiting for the auth/admin surfaces at the nginx layer (http-level zone, referenced by locations inside servers)
 limit_req_zone \$binary_remote_addr zone=verorun_auth:10m rate=10r/s;
 
-# 审计 M9：access_log 脱敏——用 \$uri（不含 query）替代 \$request，防 token 泄露日志
+# 审计 M9：access_log redaction — use \$uri (without query) instead of \$request, preventing token leakage into logs
 log_format verorun_redact '\$remote_addr - \$remote_user [\$time_local] "\$request_method \$uri \$server_protocol" \$status \$body_bytes_sent "\$http_referer"';
 
 server {
     listen 80;
-    # 审计 M11：限定 server_name 为本机 localhost/LAN IP，未知 Host 不再命中本块
+    # 审计 M11：restrict server_name to the local localhost/LAN IPs; unknown Hosts no longer hit this block
     server_name ${_lan_server_name};
     server_tokens off;
     access_log /var/log/nginx/verorun-access.log verorun_redact;
@@ -1458,18 +1458,18 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8084;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
     }
 
-    # 审计 D1：debug-jwt 已删除，nginx 层纵深防御直接 404
+    # 审计 D1：debug-jwt removed; nginx-layer defense in depth returns 404 directly
     location = /admin/debug-jwt {
         return 404;
     }
 
-    # 审计 M17：上传目录中的 HTML/SVG 强制下载，防存储型 XSS（regex 优先级最高）
+    # 审计 M17：HTML/SVG in upload directories forced to download, preventing stored XSS (regex has the highest priority)
     location ~* ^/admin/static/uploads/.*\.(html?|svg)$ {
         add_header Content-Disposition "attachment; filename=download" always;
         proxy_pass http://127.0.0.1:8084;
@@ -1501,7 +1501,7 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -1510,25 +1510,25 @@ ${_auth_basic_on}
         proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # ── Main site (default route) ───────────
     location / {
-        # 审计 M4：LAN 主站上传与后端上限一致
+        # 审计 M4：LAN main-site uploads consistent with the backend limit
         client_max_body_size 100M;
         proxy_pass http://127.0.0.1:8081;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        # 审计 M1：XFF 覆盖为直连 IP（\$remote_addr），不追加客户端伪造值
+        # 审计 M1：XFF overwritten with the direct IP (\$remote_addr), not appending client-forged values
         proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
     }
 
-    # 审计 M8：WebSocket 支持（小程序 wss 握手需 HTTP/1.1 + Upgrade 头）
+    # 审计 M8：WebSocket support (mini-program wss handshake requires HTTP/1.1 + Upgrade headers)
     location ~ ^/(ws|socket\.io)(/|$) {
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -1543,7 +1543,7 @@ ${_auth_basic_on}
     }
 }
 
-# 审计 M11：未知 Host 拒绝连接（防 Host 头注入/缓存投毒）——default_server 兜底
+# 审计 M11：unknown Hosts rejected (prevents Host-header injection / cache poisoning) — default_server as the catch-all
 server {
     listen 80 default_server;
     server_name _;
@@ -1553,8 +1553,8 @@ server {
 NGXEOF
     fi
 
-    # 审计 M-2 修复：删除 default 站点前先备份（幂等——已有备份不覆盖），
-    # 避免同机运行的其他 Web 服务（phpMyAdmin/Grafana 等）依赖 default 配置时被误伤。
+    # 审计 M-2 fix：back up the default site before removing it (idempotent — an existing backup is not overwritten),
+    # avoiding collateral damage to other web services on the same host (phpMyAdmin/Grafana etc.) that depend on the default config.
     if [ -f /etc/nginx/sites-available/default ] && [ ! -f /etc/nginx/sites-available/default.bak.verorun ]; then
         cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak.verorun
     fi
@@ -1562,7 +1562,7 @@ NGXEOF
     ln -sf "${nginx_conf}" "${nginx_enabled}"
 }
 
-# ── Fresh install：DEPLOY_TYPE 驱动域名询问 / 拉取文案 / 清理 / 服务启动 ──
+# ── Fresh install: DEPLOY_TYPE drives domain prompt / pull messaging / cleanup / service startup ──
 do_install() {
     step "Dependency check"
     if [ "${SKIP_DEPS:-0}" = "1" ]; then
@@ -1572,10 +1572,10 @@ do_install() {
         SKIP_DEPS=1
     else
         echo -e "${WARN} Some dependencies are missing (system or Python packages)"
-        # 审计 H-2 修复：curl | sudo bash 管道执行时 stdin 已被脚本内容占用，
-        # 必须 < /dev/tty 从终端读取，否则 read 会吞掉后续脚本内容。
-        # 提示符改用 echo -n > /dev/tty 输出——read -p 提示走 stderr，
-        # 在 2>&1 | tail 管道下会被缓冲吞掉导致"看似卡死"。
+        # 审计 H-2 fix：when run via a curl | sudo bash pipe, stdin is already consumed by the script content,
+        # so reads must use < /dev/tty or read will swallow the rest of the script.
+        # The prompt uses echo -n > /dev/tty instead — read -p prompts go to stderr,
+        # and under a 2>&1 | tail pipe they get swallowed by buffering, appearing to hang.
         echo -n "Install dependencies now? [Y/n] " > /dev/tty
         read -r _ans < /dev/tty || _ans=""
         case "${_ans}" in
@@ -1592,7 +1592,7 @@ do_install() {
         apt-get update
         apt-get install -y python3 python3-venv python3-pip python3-dev \
             nginx git curl wget build-essential libpq-dev libssl-dev
-        # 审计 P-1：requirements.lock 需 Python >= 3.12（numpy 2.4.x），自动保障版本
+        # 审计 P-1：requirements.lock needs Python >= 3.12 (numpy 2.4.x); the version is guaranteed automatically
         _ensure_python312 || {
             echo -e "${FAIL} Python 3.12 setup failed — fix the error above and re-run."
             exit 1
@@ -1617,15 +1617,15 @@ do_install() {
         apt-get install -y postgresql postgresql-client
         systemctl enable --now postgresql
     fi
-    # 审计 C1 达标：密码经管道(stdin)传入 psql，不进入进程命令行（psql argv 仅 "-q"）
-    # 审计 Y-4 修复：服务器 fs.protected_regular=2（sticky 全局可写目录内禁止写他人
-    # 文件，连 root 也不例外）导致 mktemp→chown postgres→printf 写文件被内核 EACCES
-    # 拒绝。改用 stdin 管道，无文件、无属主、无 /tmp，与内核防护完全解耦。
+    # 审计 C1 satisfied：password passed to psql via pipe (stdin), never appearing in the process command line (psql argv is only "-q")
+    # 审计 Y-4 fix：the server's fs.protected_regular=2 (writing other users' files inside sticky world-writable
+    # directories is forbidden, even for root) made mktemp→chown postgres→printf file writes fail with kernel EACCES.
+    # Switch to a stdin pipe instead — no file, no owner, no /tmp, fully decoupled from the kernel protection.
     local _pwd="${PG_PASSWORD//\'/\'\'}"
     local _db="appdb" _role="app" _tries=0
-    # 审计 M8 修复：建角色/改密码/建库不再静默吞错 —— 每一步显式判断输出，且成功后必须
-    # 用 .env 的 PG_PASSWORD 实测 TCP 连接（pg_hba 对 host 规则强制密码认证，与应用运行
-    # 方式一致），失败自动断连→DROP→重建重试，彻底根治 "password authentication failed"。
+    # 审计 M8 fix：creating the role / changing the password / creating the database no longer swallow errors silently — each step
+    # checks its output explicitly, and on success a real TCP connection must be tested with the .env PG_PASSWORD (pg_hba enforces
+    # password auth for host rules, same as the app runs); on failure, disconnect→DROP→recreate and retry, permanently fixing "password authentication failed".
     while [ "${_tries}" -lt 2 ]; do
         if sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${_role}'" 2>/dev/null | grep -qE '^\s*1\s*$'; then
             printf "ALTER ROLE %s WITH LOGIN PASSWORD '%s';\n" "${_role}" "${_pwd}" | sudo -u postgres psql -q 2>&1 \
@@ -1638,7 +1638,7 @@ do_install() {
             sudo -u postgres createdb -O "${_role}" "${_db}" 2>&1 \
                 || echo -e "${WARN} createdb failed (attempt $((_tries + 1))/2)"
         fi
-        # 密码实测：与应用同样的 TCP 认证路径连接，验证 .env 密码与数据库实际密码一致
+        # Real password test: connect via the same TCP auth path as the application to verify the .env password matches the actual DB password
         if PGPASSWORD="${PG_PASSWORD}" psql -h localhost -p "${PG_PORT:-5432}" -U "${_role}" -d "${_db}" -tAc "SELECT 1" >/dev/null 2>&1; then
             break
         fi
@@ -1660,7 +1660,7 @@ do_install() {
         echo -e "${INFO}     CREATE DATABASE appdb OWNER app;"
         exit 1
     fi
-    # 铁律：安装脚本只允许创建系统库，插件数据库一律不建
+    # Iron rule: the install script only creates the system database; plugin databases are never created
     done_step "PostgreSQL is running"
 
     step "Create directories"
@@ -1672,14 +1672,14 @@ do_install() {
     chown -R "${APP_USER}:${APP_USER}" "${LOG_DIR}" 2>/dev/null || true
     done_step "Directories ready"
 
-    # Git 仓库自动解析（审计 Y-1）：HTTPS 直连不可达时自动切镜像；SSH 走 443
+    # Git repo auto-resolution (审计 Y-1)：automatically switch to a mirror when HTTPS direct is unreachable; SSH uses 443
     _resolve_git_repo
 
     ensure_git_auth
 
-    # ── DEPLOY_TYPE 驱动：Pull code 步骤标签（commit hash 在拉取完成后动态求值） ──
+    # ── DEPLOY_TYPE driven: Pull code step label (commit hash evaluated dynamically after the pull completes) ──
     local _pull_step="Pull code"
-    local _pull_suffix=""           # 审计 R5 BUG-1：仅存格式后缀，此处不做命令替换
+    local _pull_suffix=""           # 审计 R5 BUG-1：stores only the format suffix; no command substitution here
     case "${DEPLOY_TYPE}" in
         code)
             _pull_step="Pull code (full — includes all plugins)"
@@ -1691,12 +1691,12 @@ do_install() {
             ;;
     esac
     step "${_pull_step}"
-    # 审计 H3 修复：目录冲突时交互式三选一（备份/删除/中止），不再直接 rm -rf
+    # 审计 H3 fix：interactive three-way choice on directory conflict (backup/delete/abort), no longer a direct rm -rf
     resolve_directory_conflict "${APP_HOME}"
     if [ -d "${APP_HOME}/.git" ]; then
         git config --global --add safe.directory "${APP_HOME}" 2>/dev/null || true
         cd "${APP_HOME}"
-        # 审计 F-2：抑制 git 交互式凭据提示 + 超时保护，避免 origin 指向镜像时无限卡死
+        # 审计 F-2：suppress git interactive credential prompts + timeout protection, avoiding infinite stalls when origin points to a mirror
         git remote set-url origin "${GIT_REPO}"
         export GIT_TERMINAL_PROMPT=0
         if ! timeout 60 git fetch origin "${GIT_BRANCH}" 2>&1; then
@@ -1710,11 +1710,11 @@ do_install() {
     else
         _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     fi
-    # 应用 sparse-checkout 白名单（强制 cone 模式；幂等）。
-    # 审计 H6：旧仓库/手动模式残留（core.sparseCheckoutCone 未设置）会让 set 沿用 manual 模式，
-    # pattern 仅含目录、无 "/*" 根文件保留规则 → requirements.txt/VERSION/README 等根文件
-    # 被从工作区删除。先 disable 清除残留，再无条件 init --cone + set；
-    # 失败则回退全量检出（不删任何文件），安装继续。
+    # Apply the sparse-checkout whitelist (enforce cone mode; idempotent).
+    # 审计 H6：leftovers from old repos/manual mode (core.sparseCheckoutCone not set) make set follow manual mode,
+    # where patterns contain only directories with no "/*" root-file keep rule → root files such as
+    # requirements.txt/VERSION/README get deleted from the working tree. First disable to clear leftovers, then unconditionally init --cone + set;
+    # on failure fall back to a full checkout (no files deleted) and continue installation.
     git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
     if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
         && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
@@ -1723,7 +1723,7 @@ do_install() {
         git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
         echo -e "${WARN} sparse-checkout failed — keeping full working tree"
     fi
-    # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
+    # 审计 NEW-H2：only production uniformly removes the three no-domain scripts
     if [ "${DEPLOY_TYPE}" = "production" ]; then
         rm -f "${APP_HOME}/deploy/install-local.sh" "${APP_HOME}/deploy/install-code.sh" "${APP_HOME}/deploy/install-dev.sh"
     fi
@@ -1734,13 +1734,13 @@ do_install() {
 
     step "Python virtual environment"
     if [ "${SKIP_DEPS:-0}" != "1" ]; then
-        # 审计 P-1：venv 缺失或其 Python < 3.12 时自动重建（venv 无业务数据，安全）
+        # 审计 P-1：automatically rebuilds when the venv is missing or its Python < 3.12 (venv holds no business data, safe)
         _ensure_venv || {
             echo -e "${FAIL} Python venv setup failed — fix the error above and re-run."
             exit 1
         }
         _pip_install --upgrade pip
-        # 审计 M16：优先使用带哈希锁定的 requirements.lock（可复现构建），缺失时回退 requirements.txt
+        # 审计 M16：prefer the hash-locked requirements.lock (reproducible builds), fall back to requirements.txt when missing
         local _req_file="${APP_HOME}/requirements.txt"
         [ -f "${APP_HOME}/requirements.lock" ] && _req_file="${APP_HOME}/requirements.lock"
         _pip_install -r "${_req_file}"
@@ -1749,7 +1749,7 @@ do_install() {
     fi
     done_step "Python dependencies installed"
 
-    # 仅 production 需要域名
+    # Only production requires a domain
     if [ "${DEPLOY_TYPE}" = "production" ]; then
         prompt_domain
     fi
@@ -1762,13 +1762,13 @@ do_install() {
         done_step ".env generated (DEPLOY_DOMAIN empty, DEPLOY_PROTOCOL=http)"
     fi
 
-    # 审计 NEW-H1：与四脚本一致的 VeroGuard 完整性清单构建
+    # 审计 NEW-H1：VeroGuard integrity manifest build consistent with the four scripts
     build_veroguard_manifest
 
     # Production gate: refuse to continue if DEBUG got enabled in .env
     assert_debug_disabled
 
-    # 仅 production：DOMAIN 未配置时不启动 systemd / nginx
+    # Only production: do not start systemd / nginx when DOMAIN is not configured
     if [ "${DEPLOY_TYPE}" = "production" ] && [ -z "${DOMAIN}" ]; then
         echo -e "${WARN} Domain not configured. System and nginx not started."
         echo -e "${INFO} After install, run:"
@@ -1808,7 +1808,7 @@ do_install() {
         fi
     fi
 
-    # HTTPS 证书自动签发（审计 Y-2）：仅 production + 域名已配置时启用
+    # Automatic HTTPS certificate issuance (审计 Y-2)：enabled only for production + when the domain is configured
     _setup_ssl_cert
 
     step "Configure sudoers (one-click update permissions)"
@@ -1825,14 +1825,14 @@ do_install() {
     fi
 
     step "Seed data"
-    # 审计 NEW-M1：凭据由 common.sh do_seed 统一生成并回显（此处不再用全局变量传递）
+    # 审计 NEW-M1：credentials are uniformly generated and echoed by common.sh do_seed (no longer passed via global variables here)
     do_seed
     done_step "Seed data injected"
 
     print_summary
 }
 
-# ── Incremental update：production 从 .env 读域名；.git 缺失按模式处理；self-update 用 ${INSTALL_SCRIPT} ──
+# ── Incremental update: production reads the domain from .env; missing .git handled per mode; self-update uses ${INSTALL_SCRIPT} ──
 do_update() {
     # ── Trap: write failure status on any early exit ──
     # /run/verorun/ is tmpfs managed by systemd RuntimeDirectory (verorun-admin.service).
@@ -1845,7 +1845,7 @@ do_update() {
     # Self-update tracking: md5 of currently-running ${INSTALL_SCRIPT}
     UPDATE_MD5=$(md5sum "${APP_HOME}/deploy/${INSTALL_SCRIPT}" 2>/dev/null | awk '{print $1}') || UPDATE_MD5=""
 
-    # 仅 production 从 .env 读取域名；无域名模式保持 DOMAIN 为空（write_nginx_config 走 default_server）
+    # Only production reads the domain from .env; no-domain modes keep DOMAIN empty (write_nginx_config uses default_server)
     if [ "${DEPLOY_TYPE}" = "production" ]; then
         DOMAIN=$(grep "^DEPLOY_DOMAIN=" "${APP_HOME}/.env" 2>/dev/null | tail -1 | cut -d= -f2) || true
     fi
@@ -1860,7 +1860,7 @@ do_update() {
     done_step "Environment backed up"
 
     step "Restore locally modified files"
-    # 审计 C-3：默认拒绝覆盖本地修改（防止销毁用户定制/热修复）；--force 时先备份 diff 再恢复
+    # 审计 C-3：by default refuse to overwrite local modifications (prevents destroying user customizations/hot fixes); with --force, back up the diff first, then restore
     if [ -d "${APP_HOME}/.git" ]; then
         if ! git -C "${APP_HOME}" diff --quiet; then
             if [ "${FORCE_UPDATE:-0}" != "1" ]; then
@@ -1882,7 +1882,7 @@ do_update() {
         done_step "Skipped (no .git directory)"
     fi
 
-    # Git 仓库自动解析（审计 Y-1）：HTTPS 直连不可达时自动切镜像；SSH 走 443
+    # Git repo auto-resolution (审计 Y-1)：automatically switch to a mirror when HTTPS direct is unreachable; SSH uses 443
     _resolve_git_repo
 
     ensure_git_auth
@@ -1891,11 +1891,11 @@ do_update() {
     if [ ! -d "${APP_HOME}/.git" ]; then
         if [ "${DEPLOY_TYPE}" = "production" ]; then
             echo -e "${WARN} .git missing — re-cloning repository"
-            # 审计 H3 修复：复用交互式冲突处理，禁止直接 rm -rf
+            # 审计 H3 fix：reuse the interactive conflict handler; direct rm -rf is forbidden
             resolve_directory_conflict "${APP_HOME}"
             _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
         else
-            # 审计 R4 L-A：错误消息使用 ${INSTALL_SCRIPT}，不再硬编码脚本名
+            # 审计 R4 L-A：error messages use ${INSTALL_SCRIPT}, no longer hardcoding the script name
             echo -e "${FAIL} .git missing — cannot update. Re-install with ${INSTALL_SCRIPT}."
             exit 1
         fi
@@ -1919,8 +1919,8 @@ do_update() {
             }
         }
     fi
-    # 应用 sparse-checkout 白名单（强制 cone 模式）：先 disable 清手动模式残留，
-    # 再 init --cone + set；失败回退全量检出。详见 do_install 处审计 H6 注释。
+    # Apply the sparse-checkout whitelist (enforce cone mode): first disable to clear manual-mode leftovers,
+    # then init --cone + set; on failure fall back to a full checkout. See the 审计 H6 note in do_install for details.
     git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
     if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
         && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
@@ -1929,7 +1929,7 @@ do_update() {
         git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
         echo -e "${WARN} sparse-checkout failed — keeping full working tree"
     fi
-    # 审计 NEW-H2：仅 production 统一清理三个无域名脚本
+    # 审计 NEW-H2：only production uniformly removes the three no-domain scripts
     if [ "${DEPLOY_TYPE}" = "production" ]; then
         rm -f "${APP_HOME}/deploy/install-local.sh" "${APP_HOME}/deploy/install-code.sh" "${APP_HOME}/deploy/install-dev.sh"
     fi
@@ -1950,19 +1950,19 @@ do_update() {
     update_env
     done_step ".env synced"
 
-    # 审计 R3-M2：代码更新后重建 VeroGuard 完整性清单，避免基准过时触发误报
+    # 审计 R3-M2：rebuild the VeroGuard integrity manifest after a code update, preventing stale baselines from triggering false positives
     build_veroguard_manifest
 
     # Production gate: refuse to continue if DEBUG got enabled in .env
     assert_debug_disabled
 
     step "Update Python dependencies"
-    # 审计 P-1：venv 缺失或其 Python < 3.12 时自动重建（兼容旧 3.10 环境升级）
+    # 审计 P-1：automatically rebuilds when the venv is missing or its Python < 3.12 (compatible with upgrades from older 3.10 environments)
     _ensure_venv || {
         echo -e "${FAIL} Python venv setup failed — fix the error above and re-run."
         exit 1
     }
-    # 审计 M16：优先使用带哈希锁定的 requirements.lock，缺失时回退 requirements.txt
+    # 审计 M16：prefer the hash-locked requirements.lock, fall back to requirements.txt when missing
     local _req_file="${APP_HOME}/requirements.txt"
     [ -f "${APP_HOME}/requirements.lock" ] && _req_file="${APP_HOME}/requirements.lock"
     req_hash=$(md5sum "${_req_file}" | awk '{print $1}')
@@ -1990,7 +1990,7 @@ do_update() {
     done_step "Nginx config updated"
 
     step "Pre-flight check"
-    # 验证数据库可连接（直接 psycopg2 连接，不依赖 plugins 包）
+    # Verify the database is reachable (connect directly with psycopg2, independent of the plugins package)
     _db_preflight() {
         sudo -u "${APP_USER}" bash -c "set -a; source ${APP_HOME}/.env; ${VENV_DIR}/bin/python -c \"
 import os, psycopg2
@@ -2008,9 +2008,9 @@ print('DB OK')
     if _db_preflight; then
         :
     else
-        # 审计 M8 修复：历史遗留的高发问题是 .env 密码与数据库实际密码不一致
-        # （password authentication failed）。读取 .env 的 PG_PASSWORD 自动
-        # ALTER ROLE 同步数据库密码后重试（幂等自愈，失败才报错退出）。
+        # 审计 M8 fix：a historically frequent issue is the .env password not matching the actual DB password
+        # (password authentication failed). Read PG_PASSWORD from .env and automatically
+        # ALTER ROLE to sync the DB password, then retry (idempotent self-healing; only errors out on failure).
         echo -e "${WARN} Database connection failed — attempting to sync role password from .env"
         local _pg_user _pg_db _pg_pwd
         _pg_user=$(sudo -u "${APP_USER}" bash -c "source ${APP_HOME}/.env; echo \${PG_USER:-app}")
@@ -2035,7 +2035,7 @@ print('DB OK')
             exit 1
         fi
     fi
-    # 验证 Python 语法无致命错误
+    # Verify the Python syntax has no fatal errors
     if ! sudo -u "${APP_USER}" bash -c "${VENV_DIR}/bin/python -m py_compile ${APP_HOME}/admin/app.py"; then
         echo -e "${FAIL} Syntax error in new code — aborting update"
         exit 1
@@ -2061,7 +2061,7 @@ print('DB OK')
     fi
 }
 
-# ── Summary：按 DEPLOY_TYPE 条件渲染 ──
+# ── Summary: rendered conditionally by DEPLOY_TYPE ──
 print_summary() {
     local PUBLIC_IP
     case "${DEPLOY_TYPE}" in
@@ -2082,7 +2082,7 @@ print_summary() {
             echo "  ║  WARNING: Admin account NOT created — admin panel inaccessible"
             echo "  ║  To fix: sudo bash deploy/${INSTALL_SCRIPT} seed                      ║"
             fi
-            # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+            # 审计 R3-M3：consistent with install-local.sh, show the admin credentials
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
             echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
@@ -2137,7 +2137,7 @@ print_summary() {
             fi
             echo "  ║  Plugins:     $(ls -d ${APP_HOME}/plugins/*/ 2>/dev/null | wc -l) directories installed                    ║"
             echo "  ║  Code size:   $(du -sh ${APP_HOME} 2>/dev/null | cut -f1)                              ║"
-            # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+            # 审计 R3-M3：consistent with install-local.sh, show the admin credentials
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
             echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
@@ -2186,7 +2186,7 @@ print_summary() {
             echo "  ║  LAN access:  http://${PUBLIC_IP}/  (same paths)              ║"
             fi
             echo "  ║  Plugins:     NOT installed (install via Admin panel)          ║"
-            # 审计 R3-M3：与 install-local.sh 一致，展示管理员凭据
+            # 审计 R3-M3：consistent with install-local.sh, show the admin credentials
             if [ "${APPROVE_MIGRATE:-0}" = "1" ]; then
             echo "  ╠══════════════════════════════════════════════════════════════╣"
             echo "  ║  Admin login: ${VR_ADMIN_USERNAME:-administrator} / ***HIDDEN***"
