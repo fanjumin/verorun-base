@@ -113,6 +113,45 @@ class WorkerPool:
                    f'📤 Task Submitted: [{task_type}] {task_id} (Priority: {priority})')
         return task_id
 
+    def submit_task(self, task_type: str, task_data: dict,
+                    priority: str = 'normal', task_id: str = None) -> str:
+        """
+        提交任务到 Worker 池（支持自定义 task_id，供插件复用）。
+
+        Args:
+            task_type: 'workflow' | 'cron' | 'node' | 'script' | 'python'
+            task_data: 任务参数（'python' 类型需包含 callable 'func' 与 'kwargs'）
+            priority: 'critical' | 'high' | 'normal' | 'low'
+            task_id: 自定义任务标识（可选，默认自动生成）
+
+        Returns:
+            task_id: 任务唯一标识
+        """
+        import uuid
+        task_id = task_id or f"{task_type}_{int(time.time()*1000)}_{uuid.uuid4().hex[:8]}"
+        prio = Priority.__members__.get(priority.upper(), Priority.NORMAL).value
+
+        with self._lock:
+            if prio <= Priority.HIGH:
+                future = self._dedicated_pool.submit(
+                    self._run_task, task_id, task_type, task_data
+                )
+            else:
+                future = self._shared_pool.submit(
+                    self._run_task, task_id, task_type, task_data
+                )
+            self._active_tasks[task_id] = {
+                'future': future,
+                'type': task_type,
+                'priority': priority,
+                'started_at': time.time(),
+                'status': 'running'
+            }
+
+        m.add_log('system', 0, 'info',
+                   f'📤 Task Submitted: [{task_type}] {task_id} (Priority: {priority})')
+        return task_id
+
     def _run_task(self, task_id: str, task_type: str, task_data: dict):
         """实际运行任务"""
         try:
@@ -124,6 +163,8 @@ class WorkerPool:
                 self._execute_node(task_data)
             elif task_type == 'script':
                 self._execute_script_job(task_data)
+            elif task_type == 'python':
+                self._execute_python_task(task_data)
 
             with self._lock:
                 if task_id in self._active_tasks:
@@ -265,6 +306,21 @@ class WorkerPool:
             node_def, task_data.get('node_inst', {}),
             task_data.get('inst_id', 0), input_data.get('node_outputs', {})
         )
+
+    def _execute_python_task(self, task_data: dict):
+        """执行插件提交的 Python 可调用任务。
+
+        约定 task_data: {'func': callable, 'kwargs': dict}，
+        供 project_workspace 等插件做后台处理（如文档向量化）。
+        异常由 _run_task 统一捕获并标记任务 failed。
+        """
+        if not isinstance(task_data, dict):
+            raise ValueError('python task requires a dict task_data')
+        func = task_data.get('func')
+        kwargs = task_data.get('kwargs') or {}
+        if not callable(func):
+            raise ValueError('python task requires a callable "func" in task_data')
+        func(**kwargs)
 
     # ---- 状态和监控 ----
 

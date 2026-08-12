@@ -2840,6 +2840,24 @@ with _safe_get_db_for_migration() as m:
     except Exception:
         m.rollback()
 
+# ── Migration: provider_models.embedding_dim（embedding 向量维度）──
+with _safe_get_db_for_migration() as m:
+    try:
+        pm_cols = get_table_columns(m, 'provider_models')
+        if 'embedding_dim' not in pm_cols:
+            m.execute('ALTER TABLE provider_models ADD COLUMN embedding_dim INTEGER NOT NULL DEFAULT 1536')
+            print('[Migration] provider_models.embedding_dim added')
+        # Google text-embedding-004 实际输出 768 维，更新种子数据
+        m.execute(
+            "UPDATE provider_models SET embedding_dim = 768"
+            " WHERE model_name = 'text-embedding-004'"
+            " AND capabilities LIKE '%embedding%'"
+            " AND embedding_dim <> 768"
+        )
+        m.commit()
+    except Exception:
+        m.rollback()
+
 # ── Migration: llm_quotas 精细化配额管理 ──
 with _safe_get_db_for_migration() as m:
     m.execute('''

@@ -10,6 +10,7 @@ i18n: plugins use their own i18n/{locale}.yml files,
 """
 
 import os
+import sys
 import yaml
 from typing import List, Dict, Any, Optional, Callable
 from abc import ABC, abstractmethod
@@ -124,8 +125,8 @@ class BasePlugin(ABC):
 
     def _get_i18n_dir(self) -> str:
         """Return absolute path to this plugin's i18n/ directory."""
-        return os.path.join(os.path.dirname(
-            __import__(self.__class__.__module__).__file__), 'i18n')
+        module = sys.modules.get(self.__class__.__module__)
+        return os.path.join(os.path.dirname(getattr(module, '__file__', '')), 'i18n')
 
     def _load_i18n(self):
         """Pre-load this plugin's translation files.

@@ -142,6 +142,16 @@ def verify_offline_token(token: str, plugin_id: str, site_id: str) -> Tuple[bool
 from .region import get_api_base
 
 
+def _is_official_edition() -> bool:
+    """官方版判定：VR_EDITION=official（由官方独立部署脚本写入 .env）
+
+    官方版拥有全部插件权限，无需单独激活 License。
+    客户版（customer）走正常付费校验。本地标志仅为加速判断，
+    官方身份由私有仓库分发 + 独立部署脚本保证（客户无法获取）。
+    """
+    return os.environ.get('VR_EDITION', '').strip().lower() == 'official'
+
+
 def _get_license_url() -> str:
     """获取 License 服务 API 基础 URL（区域感知）。
     环境变量 REMOTE_LICENSE_URL 覆盖优先（向后兼容）。
@@ -315,6 +325,10 @@ class LicenseManager:
         Returns:
             {'valid': bool, 'status': str, 'expires_at': str, 'error': str}
         """
+        # 官方版：全部插件直接授权（无需激活/续费）
+        if _is_official_edition():
+            return {'valid': True, 'status': 'official',
+                    'expires_at': '', 'error': ''}
         record = self._get_license(plugin_id)
         if not record:
             return {'valid': False, 'status': 'unlicensed',
@@ -412,7 +426,12 @@ class LicenseManager:
     # ── 检查是否付费（供 PluginManager 集成） ─────────────────────────
 
     def is_paid_plugin(self, plugin_id: str) -> bool:
-        """检查插件是否是付费插件。用户上传的自研插件始终免费。"""
+        """检查插件是否是付费插件。用户上传的自研插件始终免费。
+        官方版：无付费概念，全部视为已授权（enable/upgrade 自动跳过 License 检查）。
+        """
+        # 官方版：所有插件免 License
+        if _is_official_edition():
+            return False
         with get_registry_db() as conn:
             # ★ v1.4: 用户上传的自研插件不接入付费体系
             row = conn.execute(
