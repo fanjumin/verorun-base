@@ -1222,6 +1222,9 @@ def _activate_license_after_payment(order, order_no: str):
         )
         if not lic_result.get('success'):
             print(f'[Payment] License activation failed for {order.plugin_id}')
+        else:
+            # 订阅闭环：License 激活成功后自动安装+启用插件，菜单随之注册
+            _auto_install_enable_plugin(mgr, order.plugin_id)
 
         store = mgr.store_client
         if store:
@@ -1524,3 +1527,47 @@ def _fire_payment_hook(plugin_id: str, event: str, order_no: str):
             })
     except Exception as e:
         print(f'[Payment] Hook error: {e}')
+
+
+def _auto_install_enable_plugin(mgr, identifier: str):
+    """支付成功后自动安装 + 启用插件（订阅闭环）。
+
+    License 激活成功后调用，使插件进入 ENABLED 状态——
+    PluginManager.get_plugin_menus() 仅收集 ENABLED/ACTIVE 插件，
+    启用后插件菜单即自动注册到管理后台侧边栏。
+
+    幂等：已启用直接跳过；失败只记日志，不阻断支付回调（License 已激活）。
+    """
+    try:
+        # 已启用 → 跳过
+        if mgr.is_enabled(identifier):
+            print(f'[Payment] {identifier} already enabled, skip auto-enable')
+            return
+
+        # 未安装 → 从商店下载到 plugins/<id>/
+        if mgr.get_info(identifier) is None:
+            store = mgr.store_client
+            if not store:
+                print(f'[Payment] Store client unavailable, skip download for {identifier}')
+                return
+            detail = store.get_detail(identifier)
+            if not detail:
+                print(f'[Payment] Plugin "{identifier}" not found in store, skip')
+                return
+            app_version = getattr(mgr.app, 'version', '')
+            download_url = store.get_download_url(identifier, app_version)
+            if not download_url:
+                print(f'[Payment] No download URL for "{identifier}", skip')
+                return
+            from .downloader import download_plugin
+            plugin_dest = os.path.join(mgr.plugins_dir, identifier)
+            download_plugin(download_url, plugin_dest,
+                            expected_hash=detail.get('package_hash', ''))
+            mgr.install(identifier)
+
+        # 启用（License 已在支付回调中激活）
+        mgr.enable(identifier)
+        print(f'[Payment] ✅ {identifier} auto-enabled after payment')
+    except Exception as e:
+        traceback.print_exc()
+        print(f'[Payment] Auto install/enable failed for {identifier}: {e}')
