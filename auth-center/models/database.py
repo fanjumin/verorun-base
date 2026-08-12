@@ -180,6 +180,7 @@ class _NoOpCursor:
 
 @contextmanager
 def _safe_get_db_for_migration():
+    db = None
     try:
         with get_db() as db:
             yield db
@@ -188,7 +189,14 @@ def _safe_get_db_for_migration():
         # PostgreSQL 的 IF NOT EXISTS 非原子，双方同时通过存在性检查 → 一方撞
         # pg_type_typname_nsp_index 唯一约束。此时表已由并发进程建好，安全跳过。
         logger.warning(f"Module-level migration skipped (DB not ready / concurrent DDL): {e}")
-        yield _NoOpDb()
+        if db is None:
+            # 连接阶段就失败（DB 未就绪/已关闭）→ 用 no-op 实现走完模块级语句
+            yield _NoOpDb()
+        # 异常来自 with 体（并发 DDL UniqueViolation 等）→ 停止生成器，
+        # contextlib 判定正常结束并吞掉异常，模块正常导入；下次启动自动补迁移。
+        # 注意：此处绝不能再次 yield，否则 contextlib 抛
+        # "generator didn't stop after throw()" 导致 worker 启动崩溃。
+        return
 
 # ── 列信息兼容层：替代 PRAGMA table_info() ──
 def get_table_columns(conn, table: str) -> list[str]:
