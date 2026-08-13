@@ -27,7 +27,7 @@ if AUTH_DIR not in sys.path:
 from flask import Flask
 
 # plugins/health_check 仅在 verorun-code（完整版）中存在；
-# verorun-base 精简版无 plugins 目录，跳过 health check blueprint 注册。
+# verorun-pro 精简版无 plugins 目录，跳过 health check blueprint 注册。
 try:
     from plugins.health_check.routes import health_bp
     from plugins.health_check.models import init_health_tables, migrate_alert_schema

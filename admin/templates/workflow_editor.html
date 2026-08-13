@@ -1,9 +1,9 @@
-﻿{# VeroRun — 工作流拖拽编辑器 #}
+{# VeroRun — 工作流拖拽编辑器 #}
 {#
   独立 React 页面，通过 CDN 加载以下库：
     - React 18.3.1 (production UMD)
     - ReactDOM 18.3.1 (production UMD)
-    - react-flow-renderer 10.3.17 (UMD)
+    - React Flow v12 (reactflow.umd.js)
 
   路由: /admin/workflow-editor
   JWT SSO Token 通过 sso_token cookie 或 URL 参数传递
@@ -22,7 +22,7 @@
 {# 编辑器专用样式 #}
 <link rel="stylesheet" href="{{ url_for('static_files', filename='css/workflow_editor.css') }}?v=2"/>
 
-{# React Flow v11 样式 #}
+{# React Flow v12 样式 #}
 <link rel="stylesheet" href="{{ url_for('static_files', filename='lib/workflow/reactflow.css') }}"/>
 
 {# JS 库：按加载顺序 #}

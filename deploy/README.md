@@ -36,15 +36,35 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 
 | Distribution | Repository | When to use |
 |--------------|-----------|-------------|
-| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. Install by cloning the repo (see below). |
+| `verorun-pro` | `https://github.com/fanjumin/verorun-pro` (public) | Standard enterprise package, open download. Install by cloning the repo (see below). |
 | `verorun-code` | `https://github.com/fanjumin/verorun-code` (private) | Official site / enterprise customization. Requires SSH access to the private repository. |
 
-`verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-base`, SSH for `verorun-code`), so `update` always pulls from the correct source.
+`verorun-pro` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-pro`, SSH for `verorun-code`), so `update` always pulls from the correct source.
+
+### Official Edition（官方版）
+
+The Official Edition is a **private, licensed deployment** of `verorun-code` reserved for
+official sites / enterprise customization. It MUST be deployed only with `install-official.sh`,
+which lives in `deploy/` of `verorun-code` and is NOT exported to `verorun-pro`.
+
+```bash
+git clone git@github.com:fanjumin/verorun-code.git /tmp/verorun-official
+cd /tmp/verorun-official
+sudo bash deploy/install-official.sh install your-domain.com
+```
+
+> ⚠️ **NEVER run `install.sh` on an official server** — it pulls the public `verorun-pro`.
+> After a correct official install:
+> - `.env` contains `VR_EDITION=official` — `install.sh` refuses to run on such a server
+> - `git remote -v` points to `verorun-code` (SSH)
+> - `deploy/` no longer contains `install.sh` / `install-code.sh` / `uninstall.sh`
+> - `git log` shows a `verorun-code` dev commit, **not** a `Sync from verorun-code` commit
+>   (a `Sync from...` commit means the code actually came from `verorun-pro` via CI sync)
 
 ## Quick Install (One Command)
 
 Fresh install in a single command — no `git` required (the script auto-fetches the shared
-`deploy/lib/common.sh` library from verorun-base when run via pipe):
+`deploy/lib/common.sh` library from verorun-pro when run via pipe):
 
 ### Unified Installer (build-2026.08.11+)
 
@@ -53,13 +73,13 @@ type interactively or via the `INSTALL_TYPE` environment variable:
 
 ```bash
 # Interactive (recommended) — select type from menu
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo bash -s -- install
 
 # CI / automation — specify type via environment variable
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
 
 # With domain (Website type)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
 ```
 
 **Supported INSTALL_TYPE values:**
@@ -67,7 +87,7 @@ curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy
 | Value | DEPLOY_TYPE | Description | Old Script |
 |-------|-------------|-------------|------------|
 | `website` | production | Domain + HTTPS, public deployment | `install.sh` |
-| `professional` | lan | No domain, LAN access, verorun-base | `install-local.sh` |
+| `professional` | lan | No domain, LAN access, verorun-pro | `install-local.sh` |
 | `development` | code | Full plugins, verorun-code (SSH), requires deploy key | `install-code.sh` |
 | `educational` | edu | No domain, edu license required | (new) |
 
@@ -78,8 +98,8 @@ curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy
 ### With a domain
 
 ```bash
-git clone https://github.com/fanjumin/verorun-base.git
-cd verorun-base
+git clone https://github.com/fanjumin/verorun-pro.git
+cd verorun-pro
 sudo bash deploy/install.sh install your-domain.com
 ```
 
@@ -88,8 +108,8 @@ Replace `your-domain.com` with your actual domain name.
 ### Without a domain (configure later)
 
 ```bash
-git clone https://github.com/fanjumin/verorun-base.git
-cd verorun-base
+git clone https://github.com/fanjumin/verorun-pro.git
+cd verorun-pro
 sudo bash deploy/install.sh install
 ```
 
@@ -104,11 +124,11 @@ sudo bash deploy/install.sh configure-domain your-domain.com
 > Use the Development type in `install.sh` for `verorun-code` deployments — it defaults `GIT_REPO`
 > to the SSH private repository. Or use `install-code.sh` as a standalone shortcut.
 > Do NOT use Website or Professional type for private repos — they pull the public
-> `verorun-base` repository (HTTPS).
+> `verorun-pro` repository (HTTPS).
 
 ```bash
 # Via unified installer
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
 
 # Or clone then run
 git clone git@github.com:fanjumin/verorun-code.git
@@ -125,7 +145,7 @@ On a fresh install (`install` mode), the script:
 1. **System dependencies** — Installs Python 3, Nginx, Git, build tools, PostgreSQL
 2. **PostgreSQL** — Installs and starts PostgreSQL, creates the `verorun` database role and database
 3. **User & directories** — Creates the `verorun` system user, workspace directory, and log directory
-4. **Pull code** — Clones the latest code from GitHub into `/home/verorun/verorun/` (via SSH deploy key for `verorun-code`, HTTPS for `verorun-base`)
+4. **Pull code** — Clones the latest code from GitHub into `/home/verorun/verorun/` (via SSH deploy key for `verorun-code`, HTTPS for `verorun-pro`)
 5. **Python virtual environment** — Creates a venv and installs all Python dependencies
 6. **Environment file** — Generates `.env` with auto-generated secrets (JWT, encryption keys, etc.)
 7. **systemd services** — Writes 5 service files:
@@ -366,7 +386,7 @@ it back to the official repository on the next run. To inspect / fix manually:
 
 ```bash
 git -C /home/verorun/verorun remote -v
-sudo git -C /home/verorun/verorun remote set-url origin https://github.com/fanjumin/verorun-base.git
+sudo git -C /home/verorun/verorun remote set-url origin https://github.com/fanjumin/verorun-pro.git
 sudo bash deploy/install.sh update
 ```
 
@@ -394,10 +414,10 @@ sudo chown -R verorun:verorun /home/verorun/verorun /var/log/verorun
 
 ### 3. Clone Code
 
-**`verorun-base` (public):**
+**`verorun-pro` (public):**
 
 ```bash
-sudo git clone -b master https://github.com/fanjumin/verorun-base.git /home/verorun/verorun
+sudo git clone -b master https://github.com/fanjumin/verorun-pro.git /home/verorun/verorun
 sudo chown -R verorun:verorun /home/verorun/verorun
 ```
 

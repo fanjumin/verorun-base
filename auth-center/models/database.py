@@ -2305,6 +2305,38 @@ def init_db():
         m.commit()
         print('[Migration] knowledge_history table created')
 
+    # ── Migration: knowledge_blocks 向量化（RAG 混合检索 — 2026-08-12）──
+    # 向量路：pgvector 余弦检索。列不固定维度（生产 embedding 模型维度可能不同，
+    # 种子默认 text-embedding-004 = 768）。当前知识库数据量小，顺序扫描足够；
+    # 后续量大时再固定维度并建 HNSW 索引（见下方注释 SQL）。
+    # pgvector 扩展缺失时优雅降级：不建向量列，检索自动走关键词路。
+    with _safe_get_db_for_migration() as m:
+        try:
+            m.execute('CREATE EXTENSION IF NOT EXISTS vector')
+            kb_cols = get_table_columns(m, 'knowledge_blocks')
+            if 'embedding' not in kb_cols:
+                m.execute('ALTER TABLE knowledge_blocks ADD COLUMN embedding vector')
+                print('[Migration] knowledge_blocks.embedding added')
+            # 升级到固定维度 + HNSW 索引（数据量大后执行，维度须与 embedding 模型一致）：
+            # ALTER TABLE knowledge_blocks ALTER COLUMN embedding TYPE vector(768);
+            # CREATE INDEX idx_kb_embedding ON knowledge_blocks USING hnsw (embedding vector_cosine_ops);
+            m.commit()
+            print('[Migration] knowledge_blocks pgvector column ready')
+        except Exception as e:
+            m.rollback()
+            print(f'[Migration] knowledge_blocks embedding skipped (pgvector unavailable): {e}')
+
+        # 关键词路：trigram 全文索引（PG16 内置 pg_trgm，中文 3-gram 可用）。
+        try:
+            m.execute('CREATE EXTENSION IF NOT EXISTS pg_trgm')
+            m.execute("CREATE INDEX IF NOT EXISTS idx_kb_content_trgm "
+                      "ON knowledge_blocks USING gin (content gin_trgm_ops)")
+            m.commit()
+            print('[Migration] knowledge_blocks pg_trgm index created')
+        except Exception as e:
+            m.rollback()
+            print(f'[Migration] knowledge_blocks pg_trgm index skipped: {e}')
+
     # ── Migration: system_kb_version 系统知识库版本追踪 (2026-07-24) ──
     with get_db() as m:
         m.execute('''CREATE TABLE IF NOT EXISTS system_kb_version (

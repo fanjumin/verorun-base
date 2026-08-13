@@ -144,7 +144,7 @@ _clone_with_timeout() {
     echo -e "${INFO} Workarounds:"
     echo -e "${INFO}   • Use a proxy: export https_proxy=... && re-run"
     echo -e "${INFO}   • Pre-clone manually: git clone ${_repo} ${_dest}"
-    echo -e "${INFO}   • For public base: use the HTTPS installer from verorun-base"
+    echo -e "${INFO}   • For public base: use the HTTPS installer from verorun-pro"
     exit 1
 }
 
@@ -272,6 +272,14 @@ ensure_git_auth() {
             local current_url
             current_url=$(git -C "${APP_HOME}" remote get-url origin 2>/dev/null || echo "")
             if [ -n "${current_url}" ] && [ "${current_url}" != "${GIT_REPO}" ]; then
+                # 审计 official-edition guard：VR_EDITION=official 的官方服务器禁止被公开入口
+                # （install.sh / curl|bash）重新指向公开仓库 verorun-pro，防止官方版被降级覆盖。
+                if [ -f "${APP_HOME}/.env" ] && grep -q "^VR_EDITION=official" "${APP_HOME}/.env"; then
+                    echo -e "${FAIL} Official edition detected (VR_EDITION=official)."
+                    echo -e "${FAIL} Refusing to re-point origin to public repo: ${GIT_REPO}"
+                    echo -e "${FAIL} Use: sudo bash deploy/install-official.sh update"
+                    exit 1
+                fi
                 echo -e "${WARN} Git origin mismatch detected — correcting:"
                 echo -e "${WARN}   was: ${current_url}"
                 echo -e "${WARN}   now: ${GIT_REPO}"
@@ -1205,8 +1213,9 @@ DEEPSEEK_API_KEY=
 APP_REGION=${REGION}
 ENVEOF
 
-    # Education edition: persist the deployment code for VeroGuard / auth plugins to read (written only for the edu type)
+    # Education edition: mark edition + persist the deployment code for VeroGuard / auth plugins to read (written only for the edu type)
     if [ "${DEPLOY_TYPE}" = "edu" ]; then
+        echo "VR_EDITION=edu" >> "${env_file}"
         echo "EDU_CODE=${EDU_CODE:-}" >> "${env_file}"
     fi
 
@@ -1576,8 +1585,8 @@ do_install() {
         # so reads must use < /dev/tty or read will swallow the rest of the script.
         # The prompt uses echo -n > /dev/tty instead — read -p prompts go to stderr,
         # and under a 2>&1 | tail pipe they get swallowed by buffering, appearing to hang.
-        echo -n "Install dependencies now? [Y/n] " > /dev/tty
-        read -r _ans < /dev/tty || _ans=""
+        echo -n "Install dependencies now? [Y/n] " > /dev/tty 2>/dev/null || true
+        read -r _ans < /dev/tty 2>/dev/null || _ans=""
         case "${_ans}" in
             n|N) echo -e "${WARN} Skipping dependency installation"; SKIP_DEPS=1 ;;
             *)   echo -e "${OK} Will install missing dependencies" ;;

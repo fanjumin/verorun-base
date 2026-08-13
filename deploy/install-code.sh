@@ -3,7 +3,7 @@
 # VeroRun — Team intranet deployment script (no domain, full plugins)
 # ==========================================================================
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install-code.sh | sudo bash   # one-command install (pulls verorun-code, needs deploy key)
+#   curl -sSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install-code.sh | sudo bash   # one-command install (pulls verorun-code, needs deploy key)
 #   sudo bash deploy/install-code.sh install                     # fresh install (when .env absent)
 #   sudo bash deploy/install-code.sh install --approve-migrate   # install + DB migration + seed
 #   sudo bash deploy/install-code.sh update                      # update code, deps, and restart
@@ -28,7 +28,7 @@
 #
 # Key differences vs deploy/install-local.sh:
 #   - Pulls from verorun-code (SSH, private repo) with full plugins
-#   - install-local.sh pulls from verorun-base (HTTPS, public repo) without plugins
+#   - install-local.sh pulls from verorun-pro (HTTPS, public repo) without plugins
 #
 # This script does NOT modify deploy/install.sh or deploy/install-local.sh.
 #
@@ -69,9 +69,9 @@ if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     source "${SCRIPT_DIR}/lib/common.sh"
 else
     # One-command install (curl | sudo bash): script runs from stdin, no real path
-    # → fetch the shared library from verorun-base into a temp file and load it
-    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
-    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-base@master/deploy/lib/common.sh}"
+    # → fetch the shared library from verorun-pro into a temp file and load it
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
+    _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-pro@master/deploy/lib/common.sh}"
     _tmp_common="$(mktemp)"
     _ok=0
     if command -v curl >/dev/null 2>&1; then

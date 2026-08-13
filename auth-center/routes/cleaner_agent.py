@@ -378,6 +378,13 @@ Clean and output JSON per rules above."""
         conn.execute("UPDATE knowledge_queue SET status='done', cleaned_id=%s WHERE id=%s", (qid, qid))
         conn.commit()
 
+    # 入库后生成 embedding（向量检索路；失败静默，不影响入库结果）
+    try:
+        from agent_matrix.rag_retriever import store_embedding
+        store_embedding(kb_id, new_title, new_content)
+    except Exception:
+        pass
+
     # === Category eviction check ===
     _evict_if_over_limit(new_category)
 
@@ -412,6 +419,13 @@ def _merge_entry(old_entry: dict, new_title: str, new_content: str, new_keywords
             (qid, qid)
         )
         conn.commit()
+
+    # 合并更新后重新生成 embedding（向量路；失败静默）
+    try:
+        from agent_matrix.rag_retriever import store_embedding
+        store_embedding(old_entry['id'], new_title, new_content)
+    except Exception:
+        pass
 
     import logging
     logging.getLogger(__name__).info(

@@ -28,5 +28,5 @@ try:
         CONFIG_DEFS,
     )
 except ImportError:
-    # verorun-base 精简版无 plugins 目录
+    # verorun-pro 精简版无 plugins 目录
     CONFIG_DEFS = []

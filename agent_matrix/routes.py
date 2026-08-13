@@ -40,65 +40,21 @@ def _m():
 def _inject_knowledge(user_message: str, top_k: int = 5, scope: str = None) -> str:
     """
     基于用户输入实时检索 knowledge_blocks，拼入 system prompt。
-    复用 platform/api_v1.py 的中文双字组合评分算法。
+    已升级为混合检索（向量+关键词+RRF），实现委托 agent_matrix/rag_retriever.py。
     返回格式化的知识文本，无结果返回空字符串。
     scope: 可选 'system' | 'user'，默认 None（检索全部）
     """
     try:
+        from agent_matrix.rag_retriever import rag_search
+        top = rag_search(user_message, top_k=top_k, scope=scope)
+
+        if not top:
+            return ''
+
+        # 更新命中计数
         with _m().get_db() as conn:
-            sql = """SELECT id, title, content, keywords, category
-                    FROM knowledge_blocks
-                    WHERE deleted_at IS NULL"""
-            params = []
-            if scope:
-                sql += " AND scope=%s"
-                params.append(scope)
-            sql += " ORDER BY priority DESC, quality_score DESC"
-            blocks = conn.execute(sql, params).fetchall()
-
-            if not blocks:
-                return ''
-
-            # 中文双字组合 + 字符评分（与 _rag_search 一致）
-            query = (user_message or '').replace(' ', '')
-            chars = list(query)
-            bigrams = [query[i:i+2] for i in range(len(query)-1)]
-            search_terms = set(chars + bigrams)
-
-            scored = []
-            for block in blocks:
-                score = 0.0
-                keywords = (block['keywords'] or '').split(',')
-                content = block['content'] or ''
-                title = block['title'] or ''
-
-                # 关键词匹配
-                kw_matches = sum(1 for kw in keywords if kw and kw in query)
-                if kw_matches > 0:
-                    score += min(kw_matches / len(keywords), 1.0) * 0.6
-
-                # 字符重叠度
-                content_chars = set(content)
-                title_chars = set(title)
-                char_overlap = len(search_terms & content_chars) / max(len(search_terms), 1)
-                title_overlap = len(search_terms & title_chars) / max(len(search_terms), 1)
-                score += char_overlap * 0.25 + title_overlap * 0.15
-
-                # 精确匹配加分
-                if query in content:
-                    score += 0.3
-                if query in title:
-                    score += 0.2
-
-                if score > 0:
-                    scored.append((block, score))
-
-            scored.sort(key=lambda x: -x[1])
-            top = scored[:top_k]
-
-            # 更新命中计数和质量分
-            for block, score in top:
-                if score > 0.3:
+            for block in top:
+                if block.get('score', 0) > 0.3:
                     try:
                         conn.execute(
                             "UPDATE knowledge_blocks SET hit_count = hit_count + 1 WHERE id = %s",
@@ -106,20 +62,20 @@ def _inject_knowledge(user_message: str, top_k: int = 5, scope: str = None) -> s
                         )
                     except Exception:
                         pass
-
-            # 拼成文本
-            lines = []
-            for block, score in top:
-                if score > 0.3:
-                    lines.append(
-                        f"- [{block['category']}] {block['title']}: {block['content'][:200]}"
-                    )
-
-            if not lines:
-                return ''
-
             conn.commit()
-            return '\n\n=== 知识库（自动检索） ===\n' + '\n'.join(lines) + '\n=== 知识库结束 ==='
+
+        # 拼成文本
+        lines = []
+        for block in top:
+            if block.get('score', 0) > 0.3:
+                lines.append(
+                    f"- [{block['category']}] {block['title']}: {block['content'][:200]}"
+                )
+
+        if not lines:
+            return ''
+
+        return '\n\n=== 知识库（自动检索） ===\n' + '\n'.join(lines) + '\n=== 知识库结束 ==='
 
     except Exception as e:
         import logging

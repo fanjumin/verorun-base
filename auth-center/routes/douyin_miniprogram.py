@@ -10,7 +10,7 @@ from services.name_validator import sanitize_name
 try:
     from plugins.oauth_config.services.douyin_service import code2session, miniprogram_is_stub
 except ImportError:
-    # verorun-base 精简版无 plugins 目录
+    # verorun-pro 精简版无 plugins 目录
     code2session = None
     miniprogram_is_stub = True
 

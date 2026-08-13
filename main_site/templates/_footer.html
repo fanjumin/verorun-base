@@ -1,4 +1,4 @@
-﻿<!-- 统一页脚 — 所有站点共用（自包含 CSS） -->
+<!-- 统一页脚 — 所有站点共用（自包含 CSS） -->
 <style>
 .site-footer{position:relative;padding:40px 0 0;border-top:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.2);margin-top:60px;overflow:hidden}
 .site-footer .ftr-main{max-width:1200px;margin:0 auto;display:flex;gap:48px;justify-content:space-between;flex-wrap:wrap;padding:0 20px}
@@ -79,6 +79,10 @@
   </div>
   <div class="ftr-bottom" style="display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap">
     <span>{{ (brand.copyright | safe) if brand else '&copy; 2026 VeroRun. All rights reserved.' }}</span>
+    {% if edition == 'edu' %}
+    <span class="ftr-bottom-sep">|</span>
+    <span>VeroRun EDU Edition</span>
+    {% endif %}
     {% if deploy.market == 'cn' %}
       {% if brand and brand.icp_number %}
       <span class="ftr-bottom-sep">|</span>

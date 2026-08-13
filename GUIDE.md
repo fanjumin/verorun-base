@@ -31,10 +31,10 @@
 
 | Distribution | Repository | When to use |
 |--------------|-----------|-------------|
-| `verorun-base` | `https://github.com/fanjumin/verorun-base` (public) | Standard enterprise package, open download. |
+| `verorun-pro` | `https://github.com/fanjumin/verorun-pro` (public) | Standard enterprise package, open download. |
 | `verorun-code` | `https://github.com/fanjumin/verorun-code` (private) | Official site / enterprise customization; requires SSH access. |
 
-`verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow.
+`verorun-pro` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow.
 
 ---
 
@@ -46,23 +46,23 @@ via the `INSTALL_TYPE` environment variable.
 **Interactive (recommended):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo bash -s -- install
 ```
 
 **CI / automation — specify type:**
 
 ```bash
 # Website (production, domain + HTTPS)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
 
 # Professional (no domain, LAN access)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
 
 # Development (verorun-code SSH, full plugins)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
 
 # Educational (edu license required)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=educational bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=educational bash
 ```
 
 **Supported types:** `website` | `professional` | `development` | `educational`
@@ -75,7 +75,7 @@ For China deployments add `--region=cn`.
 
 1. Installs system dependencies (Python 3, Nginx, Git, build tools, PostgreSQL)
 2. Creates the `verorun` system user and application directory at `/home/verorun/verorun`
-3. Clones the repository (HTTPS for `verorun-base`, SSH deploy key for `verorun-code`) and installs Python dependencies
+3. Clones the repository (HTTPS for `verorun-pro`, SSH deploy key for `verorun-code`) and installs Python dependencies
 4. Generates a `.env` configuration file with auto-generated secrets (`JWT_SECRET`, `PLUGIN_LICENSE_SECRET`, `CAPTCHA_SECRET_KEY`, `PROBE_SECRET`, ...)
 5. Configures Nginx with proper reverse proxy rules for all subdomains
 6. Writes and starts 5 systemd services (main / auth / admin / health / guardian)
@@ -95,10 +95,10 @@ sudo apt install -y python3 python3-venv python3-pip python3-dev \
 
 ### 2. Clone & Setup
 
-**`verorun-base` (public):**
+**`verorun-pro` (public):**
 
 ```bash
-sudo git clone -b master https://github.com/fanjumin/verorun-base.git /home/verorun/verorun
+sudo git clone -b master https://github.com/fanjumin/verorun-pro.git /home/verorun/verorun
 ```
 
 **`verorun-code` (private):**

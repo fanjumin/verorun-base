@@ -43,57 +43,14 @@ def require_auth():
 
 def _rag_search(query: str, top_k: int = 5, category: str = None, scope: str = None) -> list:
     """检索 knowledge_blocks，返回排序后的知识片段列表
-    scope: 可选 'system' | 'user'，默认 None（检索全部）"""
+    scope: 可选 'system' | 'user'，默认 None（检索全部）
+    已升级为混合检索：向量路(pgvector) + 关键词路(pg_trgm+字符评分) + RRF 融合。
+    实现委托 agent_matrix/rag_retriever.py，返回结构向下兼容
+    {title, content, category, score}，额外含 id/similarity 字段。
+    """
     try:
-        from models import get_db
-        with get_db() as conn:
-            chars = list(query.replace(' ', ''))
-            bigrams = [query[i:i+2] for i in range(len(query)-1)]
-            search_terms = set(chars + bigrams)
-
-            sql = "SELECT * FROM knowledge_blocks WHERE deleted_at IS NULL"
-            params = []
-            if scope:
-                sql += " AND scope=%s"
-                params.append(scope)
-            if category:
-                sql += " AND category=%s"
-                params.append(category)
-            sql += " ORDER BY priority DESC, quality_score DESC"
-            all_blocks = [dict(r) for r in conn.execute(sql, params).fetchall()]
-
-        results = []
-        for block in all_blocks:
-            score = 0.0
-            keywords = (block['keywords'] or '').split(',')
-            content = block['content'] or ''
-            title = block['title'] or ''
-
-            kw_matches = sum(1 for kw in keywords if kw and kw in query)
-            if kw_matches > 0:
-                score += min(kw_matches / len(keywords), 1.0) * 0.6
-
-            content_chars = set(content)
-            title_chars = set(title)
-            char_overlap = len(search_terms & content_chars) / max(len(search_terms), 1)
-            title_overlap = len(search_terms & title_chars) / max(len(search_terms), 1)
-            score += char_overlap * 0.25 + title_overlap * 0.15
-
-            if query in content:
-                score += 0.3
-            if query in title:
-                score += 0.2
-
-            if score > 0:
-                results.append({
-                    'title': block['title'],
-                    'content': block['content'],
-                    'category': block['category'],
-                    'score': round(score, 4),
-                })
-
-        results.sort(key=lambda x: -x['score'])
-        return results[:min(top_k, 20)]
+        from agent_matrix.rag_retriever import rag_search
+        return rag_search(query, top_k=top_k, category=category, scope=scope)
     except Exception as e:
         print(f'[RAG] Search error: {e}')
         return []
@@ -852,6 +809,12 @@ def save_knowledge():
                 """, (title, content, keywords_str, category, priority,
                       scope, owner_id, kb_id))
                 db.commit()
+                # 更新后重新生成 embedding（向量路；失败静默）
+                try:
+                    from agent_matrix.rag_retriever import store_embedding
+                    store_embedding(kb_id, title, content)
+                except Exception:
+                    pass
                 return api_ok({'id': kb_id, 'message': '知识块已更新'})
             else:
                 # 新增
@@ -860,6 +823,12 @@ def save_knowledge():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (kb_id, title, content, keywords_str, category, priority, scope, owner_id))
                 db.commit()
+                # 新增后生成 embedding（向量路；失败静默）
+                try:
+                    from agent_matrix.rag_retriever import store_embedding
+                    store_embedding(kb_id, title, content)
+                except Exception:
+                    pass
                 return api_ok({'id': kb_id, 'message': '知识块已创建'})
     except Exception as e:
         import logging

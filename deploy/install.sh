@@ -10,7 +10,7 @@
 #   sudo env INSTALL_TYPE=professional bash deploy/install.sh install
 #
 #   # curl|bash one-command
-#   curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+#   curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
 #
 #   sudo bash deploy/install.sh update           # update code, deps, and restart
 #   sudo bash deploy/install.sh restart          # restart services only
@@ -34,7 +34,7 @@
 set -euo pipefail
 
 # ── Default config ────────────────────────────────────────────────────
-: "${GIT_REPO:=https://github.com/fanjumin/verorun-base.git}"
+: "${GIT_REPO:=https://github.com/fanjumin/verorun-pro.git}"
 : "${GIT_BRANCH:=master}"
 : "${APP_USER:=${SUDO_USER:-$(whoami)}}"
 # home is /root when APP_USER=root (not /home/root), consistent with install-code.sh / install-dev.sh
@@ -64,13 +64,13 @@ if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     source "${SCRIPT_DIR}/lib/common.sh"
 else
     # One-command install (curl | sudo bash): script runs from stdin, no real path
-    # → fetch the shared library from verorun-base (public repo, matching the one-command install link) into a temp file and load it
-    # Audit D10: source is fixed to verorun-base (verorun-code is a private repo, inaccessible to anonymous users);
+    # → fetch the shared library from verorun-pro (public repo, matching the one-command install link) into a temp file and load it
+    # Audit D10: source is fixed to verorun-pro (verorun-code is a private repo, inaccessible to anonymous users);
     # Verify against a SHA-256 allowlist after fetching, to guard against CDN/repo poisoning.
-    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
-    _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/lib/common.sh}"
+    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
+    _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
     # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
-    _COMMON_SHA256="${COMMON_SHA256:-6107bea8d2c4a74b0ecdeae641b02b5381027600ef7c55414f606d0680a178d1}"
+    _COMMON_SHA256="${COMMON_SHA256:-7c6434cfa17bd91c471e5aa2b230bd2227d291cdc9dfa4d9a60a80525350b0f8}"
     _tmp_common="$(mktemp)"
     # Audit P3-2: clean up the temp file on Ctrl+C interruption
     trap 'rm -f "${_tmp_common}"' EXIT
@@ -198,8 +198,8 @@ apply_deploy_type() {
             SPARSE_DIRS="${SPARSE_DIRS:-} plugins"
             ;;
         edu)
-            # Same as lan: verorun-base over HTTPS, no domain
-            GIT_REPO="https://github.com/fanjumin/verorun-base.git"
+            # Educational edition: verorun-edu over HTTPS, no domain, bundled plugins
+            GIT_REPO="https://github.com/fanjumin/verorun-edu.git"
             ;;
     esac
 }
@@ -380,6 +380,15 @@ detect_mode "${1:-}"
 # ── Unified entry: resolve deploy type (.env first; interactive only on fresh install) — run for all modes ──
 select_deploy_type
 apply_deploy_type
+
+# 审计 official-edition guard：VR_EDITION=official 的官方服务器禁止用 install.sh 操作
+# （含 curl|bash 一键入口），必须改用 install-official.sh，防止官方版被覆盖为 verorun-pro。
+if [ -f "${APP_HOME}/.env" ] && grep -q "^VR_EDITION=official" "${APP_HOME}/.env"; then
+    echo -e "${FAIL} This server is the OFFICIAL edition (VR_EDITION=official)."
+    echo -e "${FAIL} install.sh cannot be used here — it would re-pull the public verorun-pro."
+    echo -e "${FAIL} Use: sudo bash deploy/install-official.sh"
+    exit 1
+fi
 
 # ── Educational license validation (only in edu + install modes) ──
 _edu_license_check

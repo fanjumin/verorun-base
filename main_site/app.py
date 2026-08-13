@@ -63,7 +63,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
 @app.context_processor
 def inject_deploy():
-    return dict(deploy=deploy)
+    return dict(deploy=deploy, edition=os.environ.get('VR_EDITION', ''))
 
 
 # ══ i18n ══

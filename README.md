@@ -6,7 +6,7 @@ VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations,
 
 > **Version:** 0.55.6
 > **Code Repository (private):** https://github.com/fanjumin/verorun-code
-> **Base Repository (open download):** https://github.com/fanjumin/verorun-base
+> **Base Repository (open download):** https://github.com/fanjumin/verorun-pro
 
 [![Version](https://img.shields.io/badge/version-0.55.6-blue)](https://github.com/fanjumin/verorun-code/releases)
 [![Python](https://img.shields.io/badge/python-3.11+-green)](https://www.python.org/)
@@ -76,31 +76,31 @@ VeroRun integrates multi-vendor AI engines (9 providers), e-commerce operations,
 
 VeroRun ships as **two repositories** with **two distribution modes**:
 
-| | `verorun-code` | `verorun-base` |
+| | `verorun-code` | `verorun-pro` |
 |---|---|---|
 | **Type** | Private repository | Public repository |
 | **Usage** | Official site, enterprise customization | Standard enterprise package, open download |
-| **URL** | `https://github.com/fanjumin/verorun-code` | `https://github.com/fanjumin/verorun-base` |
+| **URL** | `https://github.com/fanjumin/verorun-code` | `https://github.com/fanjumin/verorun-pro` |
 | **Content** | Full source (all built-in plugins, license & unified auth) | Streamlined core export (plugins installed from store) |
 | **Install** | SSH access + `install.sh` (Development type, `INSTALL_TYPE=development`) | One-line `curl \| bash` or HTTPS `git clone` |
 
-`verorun-base` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow, using `git archive` plus the `.gitattributes` export rules.
+`verorun-pro` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow, using `git archive` plus the `.gitattributes` export rules.
 
 ## Quick Start
 
-### Deploy `verorun-base` (public, open download)
+### Deploy `verorun-pro` (public, open download)
 
 One-command install on a fresh Ubuntu 22.04/24.04 server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo bash -s -- install your-domain.com
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo bash -s -- install your-domain.com
 ```
 
 Or via git clone:
 
 ```bash
-git clone https://github.com/fanjumin/verorun-base.git
-cd verorun-base
+git clone https://github.com/fanjumin/verorun-pro.git
+cd verorun-pro
 sudo bash deploy/install.sh install your-domain.com
 ```
 
@@ -114,7 +114,7 @@ cd verorun-code
 sudo env GIT_REPO=git@github.com:fanjumin/verorun-code.git bash deploy/install.sh install your-domain.com
 ```
 
-By default `install.sh` uses **HTTPS** against the public `verorun-base` repository (`GIT_REPO=https://github.com/fanjumin/verorun-base.git`) — **no SSH key is required**. For private-repo deployments, use the **Development** install type (`INSTALL_TYPE=development`), which defaults `GIT_REPO` to the private `verorun-code` over SSH.
+By default `install.sh` uses **HTTPS** against the public `verorun-pro` repository (`GIT_REPO=https://github.com/fanjumin/verorun-pro.git`) — **no SSH key is required**. For private-repo deployments, use the **Development** install type (`INSTALL_TYPE=development`), which defaults `GIT_REPO` to the private `verorun-code` over SSH.
 
 #### Region Selection
 
@@ -132,14 +132,14 @@ For detailed instructions, see [deploy/README.md](deploy/README.md).
 
 ### Local / LAN Deployment (no domain required)
 
-For local development, testing, or LAN access **without a public domain**, use the unified installer with an install type. One-command install (no git required — the script auto-fetches `deploy/lib/common.sh` from verorun-base when run via pipe):
+For local development, testing, or LAN access **without a public domain**, use the unified installer with an install type. One-command install (no git required — the script auto-fetches `deploy/lib/common.sh` from verorun-pro when run via pipe):
 
 ```bash
-# 1) Professional — Local / LAN deployment (public verorun-base, no SSH key required)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
+# 1) Professional — Local / LAN deployment (public verorun-pro, no SSH key required)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=professional bash
 
 # 2) Development — full source incl. plugins (private verorun-code, requires SSH deploy key)
-curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-base/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh | sudo env INSTALL_TYPE=development bash
 ```
 
 Equivalent local invocation (from a checkout):
