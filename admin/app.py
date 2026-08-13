@@ -64,7 +64,7 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 @app.context_processor
 def inject_deploy():
-    return dict(deploy=deploy)
+    return dict(deploy=deploy, edition=_os.environ.get('VR_EDITION', ''))
 
 
 # ══ i18n 国际化注入 ══

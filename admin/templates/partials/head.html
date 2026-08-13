@@ -163,6 +163,7 @@ a:hover{text-decoration:underline}
     <div>
       <div class="logo-text" style="font-size:13px">{{ _('Admin') }}</div>
       <div class="logo-sub" style="font-size:10px;text-transform:none;letter-spacing:0;margin-top:0">{{ _('Dashboard') }}</div>
+      {% if edition == 'edu' %}<div class="logo-sub" style="font-size:9px;color:#ffd700;text-transform:none;letter-spacing:0;margin-top:0;font-weight:700">EDU Edition</div>{% endif %}
     </div>
   </div>
   <nav id="nav"></nav>
