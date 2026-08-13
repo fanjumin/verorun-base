@@ -1560,7 +1560,7 @@ function loadBilling(){
   h+='<div class="field"><label>{{ _("Today's Calls") }}</label><div class="val" id="blDay">-</div></div>';
   h+='<div class="field"><label>{{ _('Total Calls') }}</label><div class="val" id="blTotal">-</div></div>';
   h+='</div>';
-  h+='<div style="margin-top:12px;margin-bottom:24px"><a href="/subscribe" class="btn btn-primary">{{ _('Manage Subscription') }}</a></div>';
+  h+='<div style="margin-top:12px;margin-bottom:24px"><a href="/plugin/subscription/portal" class="btn btn-primary">{{ _('Manage Subscription') }}</a></div>';
   h+='<div id="blOrders"><div class="card"><h3>{{ _('Order History') }}</h3><div class="spinner" style="margin:20px auto"></div></div></div>';
   document.getElementById('mainContent').innerHTML=h;
   api('/user/profile').then(function(d){
@@ -1606,7 +1606,7 @@ function loadBilling(){
         if(o.status==='pending'&&!o.sub){
           act='<button class="btn btn-sm" onclick="payShopOrder(\''+o.id+'\')">{{ _('Pay Now') }}</button>';
         }else if(o.status==='pending'&&o.sub){
-          act='<a href="/subscribe" class="btn btn-sm">{{ _('Pay Now') }}</a>';
+          act='<a href="/plugin/subscription/portal" class="btn btn-sm">{{ _('Pay Now') }}</a>';
         }
         oh+='<tr><td style="font-family:monospace;font-size:10px">'+esc(o.id)+'</td><td>'+typeTxt+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+itemsTxt+'</td><td>¥'+finalAmt.toFixed(2)+(o.discount>0?' <span style="color:var(--muted);font-size:10px">('+{{ _('Discounted') | tojson }}+'¥'+o.discount.toFixed(2)+')</span>':'')+'</td><td><span class="badge badge-'+(o.status==='paid'||o.status==='completed'?'green':o.status==='pending'?'yellow':'red')+'">'+(stLabels[o.status]||o.status)+'</span></td><td style="font-size:10px;color:var(--muted)">'+(o.time||'').slice(0,16).replace('T',' ')+'</td><td>'+act+'</td></tr>';
       });

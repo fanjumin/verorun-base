@@ -24,16 +24,7 @@ from services.brand_service import get_brand_settings
 from services.notification_service import get_unread_count, mark_read
 # ══ routes 包名冲突处理 ══
 from auth_blueprint import register_auth
-from routes.subscription import sub_bp
 from routes.douyin_miniprogram import douyin_mp_bp
-try:
-    from routes.deployment_api import deploy_bp, init_deployment_tables
-    _HAS_DEPLOY_API = True
-except ImportError:
-    _HAS_DEPLOY_API = False
-    deploy_bp = None
-    init_deployment_tables = None
-    print('[Platform] ⚠️ deployment_api 未找到，跳过独立部署功能')
 
 from models import get_db
 
@@ -128,24 +119,10 @@ except Exception as e:
 
 # ── Blueprint 注册 ──
 register_auth(app, exclude_blueprints=['admin', 'cms_admin'])
-app.register_blueprint(sub_bp, name='platform_subscription')
 app.register_blueprint(api_v1_bp)
 app.register_blueprint(douyin_mp_bp)
 app.register_blueprint(internal_api_bp)  # 内部服务 API（插件数据解耦后共享数据获取）
 # mini_program_bp 已由 PluginManager 挂载（plugins/mini_app_builder）
-# 独立部署API — 仅主服务器模式注册
-if _HAS_DEPLOY_API:
-    _MODE = os.environ.get('APP_MODE', 'main')
-    if _MODE == 'main':
-        app.register_blueprint(deploy_bp)
-        try:
-            init_deployment_tables()
-        except Exception:
-            print('[Deploy] ⚠️ deployment_tables init skipped')
-    else:
-        print('[Deploy] 客户端模式，跳过部署API注册')
-else:
-    print('[Deploy] deployment_api 不可用，跳过注册')
 
 # ── 旧用户中心路由重定向到 SPA ──
 @app.route('/user-console/')

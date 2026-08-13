@@ -163,11 +163,13 @@ class PluginManager:
                     needs_db_sync = (
                         cached.version != disk_info.version or
                         cached.metadata.get('version') != disk_info.metadata.get('version') or
-                        cached.name != disk_info.name
+                        cached.name != disk_info.name or
+                        cached.min_app_version != disk_info.min_app_version
                     )
                     cached.metadata = disk_info.metadata
                     cached.version = disk_info.version
                     cached.name = disk_info.name
+                    cached.min_app_version = disk_info.min_app_version
                     if needs_db_sync:
                         self._save_to_db(cached)
                         print(f'[PluginManager] 🔄 {disk_info.identifier}: synced v{disk_info.version} to DB')
@@ -190,6 +192,11 @@ class PluginManager:
         except Exception as e:
             print(f'[PluginManager] ⚠️ 自动禁用弃用插件失败: {e}')
 
+        # ── 预注册已启用/激活插件的蓝图与钩子 ──────────────────
+        # Flask 不允许 app 处理首个请求后调用 register_blueprint，
+        # 因此必须在此（app 首个请求前）一次性挂载所有 ENABLED/ACTIVE 插件的路由。
+        self._preload_routes()
+
         # 记录到 app 扩展
         if not hasattr(app, 'extensions'):
             app.extensions = {}
@@ -197,6 +204,79 @@ class PluginManager:
 
         print(f'[PluginManager] ✅ 已初始化 (plugins: {self.plugins_dir}, '
               f'cached: {len(self._cache)})')
+
+    # ── 预注册 ───────────────────────────────────────────────────────────
+
+    def _preload_routes(self):
+        """启动时预注册 DB 中 ENABLED/ACTIVE 插件的蓝图与钩子（幂等）。
+
+        背景: Flask 的 register_blueprint 在 app 处理首个请求后不可用，
+        因此插件路由必须在 init_app 阶段（首个请求前）静态挂载。
+        运行时 enable()/activate() 只做状态/钩子/任务挂载，
+        新启用插件的路由在下次服务重启后生效。
+        """
+        if self.app is None:
+            return
+        try:
+            with get_registry_db() as conn:
+                rows = conn.execute(
+                    "SELECT identifier FROM plugin_registry "
+                    "WHERE status IN ('enabled','active') ORDER BY identifier"
+                ).fetchall()
+        except Exception as e:
+            print(f'[PluginManager] ⚠️ _preload_routes db query failed: {e}')
+            return
+
+        for row in rows:
+            pid = row['identifier']
+            info = self._cache.get(pid)
+            if info is None:
+                continue
+            # 已加载实例直接复用；否则按启用流程加载（setup）
+            instance = self._instances.get(pid)
+            if instance is None:
+                try:
+                    instance = self._load_instance(info)
+                    if hasattr(instance, 'setup') and callable(instance.setup):
+                        instance.setup()
+                    self._instances[pid] = instance
+                except Exception as e:
+                    print(f'[PluginManager] ⚠️ {pid}: preload instance failed: {e}')
+                    continue
+            # ACTIVE 插件重启后恢复运行时订阅（事件监听/过滤器/后台任务）。
+            # _preload_routes 每进程启动仅执行一次且实例已缓存（_instances），
+            # 补调 activate() 是幂等的；否则 memory_engine 等依赖 activate()
+            # 注册 AGENT_TASK_COMPLETED 监听的插件在服务重启后事件订阅丢失。
+            if info.status == PluginStatus.ACTIVE and hasattr(instance, 'activate'):
+                try:
+                    instance.activate()
+                except Exception as e:
+                    print(f'[PluginManager] ⚠️ {pid}: preload activate failed: {e}')
+            try:
+                # 注册路由（如插件提供 Blueprint）
+                if hasattr(instance, 'register_routes'):
+                    for bp in instance.register_routes():
+                        if bp.name in self.app.blueprints:
+                            continue
+                        prefix = self._get_route_prefix(pid, bp)
+                        # 与 mount_all_routes 一致：插件不得抢占 admin 核心根前缀
+                        if prefix in ('', '/', '/admin', '/admin/'):
+                            print(f'[PluginManager] ⚠️ {pid}: 插件前缀 {prefix!r} 抢占 admin 核心域，跳过预挂载')
+                            continue
+                        self.app.register_blueprint(bp, url_prefix=prefix)
+                        print(f'[PluginManager] {pid}: preloaded {prefix}')
+                # 注册钩子
+                if self._hook_registry and hasattr(instance, 'get_event_handlers'):
+                    for event, handler in instance.get_event_handlers().items():
+                        self._hook_registry.add_action(event, handler)
+                # ENABLED 状态下预注册成功 → 提升为 ACTIVE
+                if info.status == PluginStatus.ENABLED:
+                    info.status = PluginStatus.ACTIVE
+                    info.updated_at = datetime.now().isoformat()
+                    self._save_to_db(info)
+                    print(f'[PluginManager] ✅ {pid} active (preloaded)')
+            except Exception as e:
+                print(f'[PluginManager] ⚠️ {pid}: preload warning: {e}')
 
     # ── 发现 ────────────────────────────────────────────────────────────
 
@@ -281,6 +361,9 @@ class PluginManager:
                 print(f'[PluginManager] {identifier}: license valid ({lic_result.get("status")})')
 
             # 执行插件 setup()
+            # 降级策略：setup() 失败不置 ERROR、不抛异常（如 chatbot 在运行期
+            # 调 register_blueprint 会被 Flask 拒绝），保持 ENABLED 并记录
+            # last_error；插件路由由启动时 _preload_routes() 预注册，重启后生效。
             try:
                 instance = self._load_instance(info)
                 if hasattr(instance, 'setup') and callable(instance.setup):
@@ -289,12 +372,11 @@ class PluginManager:
                         raise RuntimeError('setup() returned False')
 
                 self._instances[identifier] = instance
+                info.last_error = None
             except Exception as e:
                 info.last_error = f'setup error: {e}'
-                info.status = PluginStatus.ERROR
                 self._save_to_db(info)
-                print(f'[PluginManager] ❌ {identifier} setup failed: {e}')
-                raise
+                print(f'[PluginManager] ⚠️ {identifier} setup degraded (ENABLED, restart to load routes): {e}')
 
             info.status = PluginStatus.ENABLED
             info.updated_at = datetime.now().isoformat()
@@ -312,25 +394,16 @@ class PluginManager:
                 except ImportError as e:
                     print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过角色注册 ({e})')
 
-            # ── 自动激活: enable 后立即注册路由/钩子 ────────────
+            # ── 自动激活: enable 后立即挂载钩子/任务 ────────────
+            # Flask 不允许 app 处理首个请求后动态注册蓝图，因此不再在此 register_blueprint；
+            # 插件路由统一由启动时 _preload_routes() 预注册，新启用插件的路由在重启后生效。
             try:
                 instance = self._instances.get(identifier)
                 if instance:
                     if hasattr(instance, 'activate') and callable(instance.activate):
                         instance.activate()
 
-                    # 注册路由
-                    if self.app and hasattr(instance, 'register_routes'):
-                        bps = instance.register_routes()
-                        for bp in bps:
-                            if bp.name in self.app.blueprints:
-                                print(f'[PluginManager] {identifier}: blueprint {bp.name} already mounted, skip')
-                                continue
-                            prefix = self._get_route_prefix(identifier, bp)
-                            self.app.register_blueprint(bp, url_prefix=prefix)
-                            print(f'[PluginManager] {identifier}: mounted {prefix}')
-
-                    # 注册钩子
+                    # 注册钩子（如果启用了钩子系统）
                     if self._hook_registry and hasattr(instance, 'get_event_handlers'):
                         handlers = instance.get_event_handlers()
                         for event, handler in handlers.items():
@@ -370,18 +443,9 @@ class PluginManager:
                 if hasattr(instance, 'activate') and callable(instance.activate):
                     instance.activate()
 
-                # 注册路由（如果插件提供了 Blueprint）
-                if self.app and hasattr(instance, 'register_routes'):
-                    bps = instance.register_routes()
-                    for bp in bps:
-                        if bp.name in self.app.blueprints:
-                            print(f'[PluginManager] {identifier}: blueprint {bp.name} already mounted, skip')
-                            continue
-                        prefix = self._get_route_prefix(identifier, bp)
-                        self.app.register_blueprint(bp, url_prefix=prefix)
-                        print(f'[PluginManager] {identifier}: mounted {prefix}')
-
                 # 注册钩子（如果启用了钩子系统）
+                # 注意: Flask 不允许 app 处理首个请求后动态注册蓝图，
+                # 插件路由统一由启动时 _preload_routes() 预注册。
                 if self._hook_registry and hasattr(instance, 'get_event_handlers'):
                     handlers = instance.get_event_handlers()
                     for event, handler in handlers.items():
@@ -782,6 +846,11 @@ class PluginManager:
                 if hasattr(instance, 'register_routes'):
                     for bp in instance.register_routes():
                         prefix = self._get_route_prefix(identifier, bp)
+                        # 插件不得抢占 admin 核心根前缀（/admin），否则门卫会把整个
+                        # /admin 域误判为插件路径（曾导致 admin 登录页/插件管理全部 404）
+                        if prefix in ('', '/', '/admin', '/admin/'):
+                            print(f'[PluginManager] ⚠️ {identifier}: 插件前缀 {prefix!r} 抢占 admin 核心域，跳过挂载（请改用专属前缀）')
+                            continue
                         self._plugin_prefixes[prefix] = identifier
                         if bp.name in self.app.blueprints:
                             continue  # 已挂载，跳过
@@ -873,7 +942,41 @@ class PluginManager:
 
         local_ids = set(self._cache.keys())
         from .base import localize_plugin_dict
-        local = [p.to_dict() for p in self._cache.values()]
+
+        # ── 以 DB 为成员真相源：跨 worker 统一（增/删/状态一致）──────
+        # 旧实现以 _cache 派生成员集：启动后新装/卸载的插件在不同 worker
+        # 的内存 _cache 不一致（_cache 只在本 worker 弹出/从未进入），
+        # 导致 unified 列表跨 worker 抖动。改为成员集 = DB 全表。
+        db_plugins = {}
+        try:
+            with get_registry_db() as conn:
+                db_rows = conn.execute(
+                    'SELECT * FROM plugin_registry'
+                ).fetchall()
+            for row in db_rows:
+                r = dict(row)
+                db_plugins[r['identifier']] = r
+            local = []
+            for identifier, row in db_plugins.items():
+                info = self._cache.get(identifier)
+                if info is not None:
+                    local.append(info.to_dict())
+                else:
+                    local.append(self._row_to_info(row).to_dict())
+            local_ids = set(db_plugins.keys())
+        except Exception as e:
+            print(f'[PluginManager] get_unified_list db load failed: {e}')
+            local = [p.to_dict() for p in self._cache.values()]
+
+        # 以 DB 状态覆盖 status / last_error（多 worker 下内存状态可能滞后）
+        for p in local:
+            row = db_plugins.get(p['identifier'])
+            if row:
+                if row.get('status'):
+                    p['status'] = row['status']
+                if row.get('last_error'):
+                    p['last_error'] = row['last_error']
+
         for p in local:
             if isinstance(p.get('status'), PluginStatus):
                 p['status'] = p['status'].value
@@ -1114,22 +1217,44 @@ class PluginManager:
         return deps_module.get_dependents_tree(identifier, reverse_plugins)
 
     def get_plugin_menus(self) -> list:
-        """收集所有已安装+已启用插件的菜单项"""
+        """收集所有已启用+已激活插件的菜单项
+
+        状态以数据库 plugin_registry 为准（多 worker 下内存缓存可能滞后，
+        直接查 DB 保证各 worker 返回一致结果）。
+        """
         from .base import localize_plugin_dict
         import os
+        import json as _json
         deploy_type = os.environ.get('DEPLOY_TYPE', 'production')
         menus = []
-        for pid, pinfo in self._cache.items():
-            if pinfo.status not in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
-                continue
+        try:
+            with get_registry_db() as conn:
+                rows = conn.execute(
+                    "SELECT identifier, metadata, path FROM plugin_registry "
+                    "WHERE status IN ('enabled','active') ORDER BY identifier"
+                ).fetchall()
+        except Exception as e:
+            print(f'[PluginManager] get_plugin_menus db query failed: {e}')
+            return menus
+
+        for row in rows:
+            pid = row['identifier']
             # site_domains 仅网站版需要，企业版（lan/code/edu）不需要子域名管理
             if pid == 'site_domains' and deploy_type in ('lan', 'code', 'edu'):
                 continue
+            # metadata 优先取数据库中的最新值（插件安装/更新时同步写入）
+            try:
+                meta = row.get('metadata')
+                if isinstance(meta, str):
+                    meta = _json.loads(meta or '{}')
+                meta = meta or {}
+            except Exception:
+                meta = {}
             # 从 plugin.json 读取 menu 配置
-            menu_cfg = pinfo.metadata.get('menu') if pinfo.metadata else None
+            menu_cfg = meta.get('menu') if meta else None
             if not menu_cfg:
                 # 尝试从插件实例获取
-                inst = getattr(pinfo, 'instance', None)
+                inst = getattr(self._cache.get(pid), 'instance', None)
                 if inst and hasattr(inst, 'get_menu'):
                     menu_cfg = inst.get_menu()
             if not menu_cfg:
@@ -1137,7 +1262,7 @@ class PluginManager:
             # i18n: 按当前语言翻译菜单 label（label_i18n_key 机制）
             localize_plugin_dict({
                 'identifier': pid,
-                'path': pinfo.path,
+                'path': row.get('path') or '',
                 'metadata': {'menu': menu_cfg},
             })
             # Support items array for sub-menus (e.g., shop plugin with 4 items)
@@ -1146,15 +1271,17 @@ class PluginManager:
                 for item in menu_cfg['items']:
                     item['group'] = group
                     item['_plugin_id'] = pid
+                    item.setdefault('key', pid)
                     # 子菜单项同样支持 label_i18n_key 翻译
                     localize_plugin_dict({
                         'identifier': pid,
-                        'path': pinfo.path,
+                        'path': row.get('path') or '',
                         'metadata': {'menu': item},
                     })
                     menus.append(item)
             else:
                 menu_cfg['_plugin_id'] = pid
+                menu_cfg.setdefault('key', pid)
                 menus.append(menu_cfg)
         return menus
 
@@ -1288,19 +1415,42 @@ class PluginManager:
                     raise PluginCircularDependencyError([identifier, dep_id, identifier])
 
         # 检查每个依赖
+        # python / python_optional 为"宿主 Python 环境"依赖，由部署环境保证，非插件依赖
+        env_dep_keys = ('python', 'python_optional')
         missing = []
         for dep_id, version_spec in deps.items():
+            if dep_id in env_dep_keys:
+                continue
+
+            # 依赖状态以 DB 为准（多 worker 下内存状态可能滞后）
             dep_info = self._cache.get(dep_id)
-            if dep_info is None:
-                missing.append(dep_id)
+            dep_status = None
+            dep_version = None
+            try:
+                with get_registry_db() as conn:
+                    row = conn.execute(
+                        'SELECT status, version FROM plugin_registry WHERE identifier=?',
+                        (dep_id,)
+                    ).fetchone()
+                if row is None:
+                    missing.append(dep_id)
+                    continue
+                dep_status = row['status']
+                dep_version = row['version']
+            except Exception as e:
+                print(f'[PluginManager] _resolve_dependencies db query failed ({dep_id}): {e}')
+                if dep_info is None:
+                    missing.append(dep_id)
+                    continue
+                dep_status = dep_info.status.value
+                dep_version = dep_info.version
+
+            if dep_status not in ('enabled', 'active'):
+                missing.append(f'{dep_id} (status: {dep_status})')
                 continue
 
-            if dep_info.status not in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
-                missing.append(f'{dep_id} (status: {dep_info.status.value})')
-                continue
-
-            if version_spec and not version_satisfies(dep_info.version, version_spec):
-                raise PluginVersionError(dep_id, version_spec, dep_info.version)
+            if version_spec and not version_satisfies(dep_version, version_spec):
+                raise PluginVersionError(dep_id, version_spec, dep_version)
 
         if missing:
             raise PluginDependencyError(identifier, missing)

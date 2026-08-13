@@ -28,12 +28,9 @@ from routes.footer_admin import footer_bp
 from routes.header_admin import header_bp
 from routes.comments import comments_bp
 from routes.theme_admin import theme_bp
-from routes.subscription import sub_bp
 from routes.cleaner_agent import cleaner_bp
 from models.cms import init_cms_tables
 from routes.douyin_miniprogram import douyin_mp_bp
-from routes.deployment_api import deploy_bp, init_deployment_tables
-from routes.renewal import renew_bp
 from routes.knowledge_admin import knowledge_bp
 import time as _time
 
@@ -135,17 +132,8 @@ app.register_blueprint(header_bp)
 app.register_blueprint(comments_bp)
 app.register_blueprint(theme_bp)
 app.register_blueprint(douyin_mp_bp)  # Douyin Mini-Program API
-app.register_blueprint(sub_bp)
 app.register_blueprint(cleaner_bp)     # 数据清洗智能体
 app.register_blueprint(knowledge_bp)   # 知识库管理后台
-app.register_blueprint(renew_bp)     # 订阅续费页面
-# 独立部署订阅管理API — 仅在主服务器模式注册
-_APP_MODE = os.environ.get('APP_MODE', 'main')
-if _APP_MODE == 'main':
-    app.register_blueprint(deploy_bp)
-    init_deployment_tables()
-else:
-    print('[Deploy] 客户端模式，跳过部署API注册')
 # 自动注册 Cleaner 为矩阵子 Agent
 try:
     from routes.cleaner_agent import auto_register_sub_agent
@@ -159,21 +147,23 @@ try:
 except Exception as e:
     print(f'[KnowledgeMaintenance] ⚠️ 调度器启动失败: {e}')
 
-# ===== 自动续费引擎（旧体系，唯一调度入口）=====
-# T07: 主站订阅链路（auth-center/routes/subscription/renewal.py）为唯一自动续费引擎，
-#      另两套实现（plugins/subscription/scheduler.py、plugin_manager/subscription.py）已弃用。
+# ===== 自动续费引擎（插件订阅体系，唯一调度入口）=====
+# 订阅系统已整体迁移至 plugins/subscription（subscription schema），
+# 调度由插件 SUBSCRIPTION_JOBS 的 4 个任务接管。
 try:
-    from routes.subscription.renewal import run_renewal_scan, run_dunning_scan
+    from plugins.subscription.scheduler import run_renewal_scan, run_dunning_scan, check_expired_subscriptions, cleanup_old_orders
     from apscheduler.schedulers.background import BackgroundScheduler
     _renew_sched = BackgroundScheduler(timezone='Asia/Shanghai')
-    _renew_sched.add_job(run_renewal_scan, 'cron', hour=3, minute=0)    # 每日 03:00 扫描到期
-    _renew_sched.add_job(run_dunning_scan, 'cron', hour=3, minute=10)   # 每日 03:10 重试失败扣款
+    _renew_sched.add_job(run_renewal_scan, 'cron', hour=2, minute=0)                 # 每日 02:00 扫描到期代扣
+    _renew_sched.add_job(check_expired_subscriptions, 'cron', hour=2, minute=30)     # 每日 02:30 过期标记
+    _renew_sched.add_job(run_dunning_scan, 'cron', hour=3, minute=0)                 # 每日 03:00 dunning 重试
+    _renew_sched.add_job(cleanup_old_orders, 'cron', hour=3, minute=30)              # 每日 03:30 清理旧订单
     _renew_sched.start()
-    print('[Renewal] ✅ 自动续费调度已启动（每日 03:00 扫描到期 / 03:10 重试扣款）')
+    print('[Subscription] ✅ 插件订阅自动续费调度已启动（02:00 续费 / 02:30 过期 / 03:00 dunning / 03:30 清理）')
 except ImportError:
-    print('[Renewal] ⚠️ APScheduler 未安装，自动续费调度跳过')
+    print('[Subscription] ⚠️ APScheduler 未安装，订阅调度跳过')
 except Exception as e:
-    print(f'[Renewal] ⚠️ 自动续费调度启动失败: {e}')
+    print(f'[Subscription] ⚠️ 订阅调度启动失败: {e}')
 
 init_cms_tables()
 
@@ -1113,6 +1103,38 @@ def admin_update_status():
     return jsonify({'success': True, **_status})
 
 
+def _verify_frontend_lib_integrity():
+    """Part A: 校验 admin/static/lib/ 前端库文件哈希与 MANIFEST.json 是否一致。
+
+    只记录告警，不阻断启动。清单由 admin/static/lib/MANIFEST.json 维护，
+    升级库文件后必须同步更新对应 sha256，否则将产生误报。
+    """
+    import json
+    import hashlib as _hashlib
+    _manifest_path = os.path.join(os.path.dirname(__file__), 'static', 'lib', 'MANIFEST.json')
+    if not os.path.exists(_manifest_path):
+        print('[Integrity] MANIFEST.json not found, skip frontend lib check')
+        return
+    try:
+        with open(_manifest_path, 'r', encoding='utf-8') as f:
+            _manifest = json.load(f)
+    except Exception as e:
+        print(f'[Integrity] MANIFEST.json parse failed: {e}')
+        return
+    for entry in _manifest.get('libraries', []):
+        _rel = entry.get('path', '')
+        _abs = os.path.join(os.path.dirname(_manifest_path), _rel)
+        _expected = entry.get('sha256', '')
+        if not os.path.exists(_abs):
+            print(f'[Integrity] WARN frontend lib missing: {_rel}')
+            continue
+        with open(_abs, 'rb') as f:
+            _actual = _hashlib.sha256(f.read()).hexdigest()
+        if _actual != _expected:
+            print(f'[Integrity] WARN frontend lib MODIFIED: {_rel} (sha256 mismatch)')
+
+
 if __name__ == '__main__':
+    _verify_frontend_lib_integrity()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8084
     app.run(host='0.0.0.0', port=port, debug=False)

@@ -20,7 +20,6 @@ except ImportError:
     payment_bp = None
 from routes.admin import admin_bp
 from routes.cms_admin import cms_admin_bp
-from routes.subscription import sub_bp
 from routes.agents import agent_bp
 from routes.sessions import session_bp
 
@@ -43,7 +42,6 @@ def register_auth(app, exclude_blueprints=None):
         ('user', user_bp),
         ('admin', admin_bp),
         ('cms_admin', cms_admin_bp),
-        ('subscription', sub_bp),
         ('agent', agent_bp),
         ('session', session_bp),
     ]

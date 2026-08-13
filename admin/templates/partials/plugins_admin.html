@@ -391,11 +391,11 @@ function showUninstallConfirm(id){
 function pluginUninstall(id){
   document.querySelector(".modal-overlay")&&document.querySelector(".modal-overlay").remove();
   var act=document.getElementById("pluginActionForm");
-  act.innerHTML='<div class="lo"><div class="s"></div>'+_('Uninstalling')+'</div>';
+  if(act) act.innerHTML='<div class="lo"><div class="s"></div>'+_('Uninstalling')+'</div>';
   fetch("/admin/plugins/"+encodeURIComponent(id)+"/uninstall",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({confirm:true})}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast(_('Uninstalled')+" "+esc(id),_('Success'));renderPluginPage()}
-    else{act.innerHTML='<div class="em">'+esc(d.error||_('Uninstall failed'))+'</div>'}
-  }).catch(function(){act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
+    else{if(act)act.innerHTML='<div class="em">'+esc(d.error||_('Uninstall failed'))+'</div>';else showToast(esc(d.error||_('Uninstall failed')),'error')}
+  }).catch(function(){if(act)act.innerHTML='<div class="em">'+_('Network error')+'</div>';else showToast(_('Network error'),'error')});
 }
 function togglePluginDetail(id){
   var el=document.getElementById('detail-'+id);

@@ -78,15 +78,6 @@ var GROUPS=[
   ["{{ _('System') }}",true,[["ai_hub",I.matrix,"{{ _('AI Hub') }}"],["admins",I.admins,"{{ _('Admins') }}"]]],
   ["{{ _('AI & Content') }}",true,[["all_content",I.all_content,"{{ _('All Content') }}"],["cms",I.cms,"{{ _('Create Article') }}"],["downloads",I.downloads,"{{ _('Download Management') }}"],["media_library",I.media_library,"{{ _('Media Library') }}"],["knowledge",I.knowledge,"{{ _('RAG Knowledge') }}"],["cleaner",I.cleaner,"{{ _('Cleaner') }}"]]],
   {% if edition != 'edu' %}["{{ _('Business Center') }}",true,[
-    ["_section","","{{ _('Subscription') }}"],
-    ["plans",I.plans,"{{ _('Plans') }}"],
-    ["subscriptions",I.subscriptions,"{{ _('Subscription List') }}"],
-    ["sub_orders",I.sub_orders,"{{ _('Plan Orders') }}"],
-    ["feature_orders",I.feature_orders,"{{ _('Feature Orders') }}"],
-    ["sub_stats",I.sub_stats,"{{ _('Revenue Dashboard') }}"],
-    ["sub_events",I.sub_events,"{{ _('Billing Log') }}"],
-    ["module_pricing",I.config,"Module Pricing"],
-    ["deploy",I.deploy,"{{ _('Deploy Codes') }}"],
     ["_section","","{{ _('Operations') }}"]
   ]],{% endif %}
   ["{{ _('Publishing') }}",true,[["automation",I.automation,"{{ _('Auto Schedule') }}"],["publish_history",I.logs,"{{ _('Publish History') }}"]]],
@@ -113,7 +104,7 @@ function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(fu
       var itemsHtml='';
       items.forEach(function(m){
         var iconHtml=I[m.icon]||I.plugins||'';
-        itemsHtml+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
+        itemsHtml+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key||m._plugin_id)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key||m._plugin_id)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
       });
       // 若插件 group 匹配现有组（英文标识），插入该组 body，避免新建重复组
       var existIdx=GROUP_KEYS.indexOf(gn);

@@ -646,23 +646,17 @@ class UnifiedLLM:
         yield from self.chat_stream(messages, temperature=temperature, module='ask_history')
 
     def is_ready(self):
-        """P2-F17: 检查 AI 引擎是否就绪（provider 存在且有 API key 配置）。"""
+        """P2-F17: 检查 AI 引擎是否就绪（provider 存在且能解析出 API key）。
+
+        与 _resolve_api_key 全链对齐（provider_api_keys → env → system_config），
+        避免旧判定（只查 DASHSCOPE_API_KEY/LLM_API_KEY 与 system_config）漏判。
+        """
         if not (self._provider or self._clients):
             return False
-        # 检查 API key 是否配置
-        api_key = os.environ.get('DASHSCOPE_API_KEY', '') or os.environ.get('LLM_API_KEY', '')
-        if not api_key:
-            try:
-                from models import get_db
-                with get_db() as conn:
-                    row = conn.execute(
-                        "SELECT value FROM system_config WHERE key IN ('dashscope_api_key','dashscope_text_key') AND value != ''"
-                    ).fetchone()
-                    if not row:
-                        return False
-            except Exception:
-                return False
-        return True
+        try:
+            return bool(self._resolve_api_key(self._provider))
+        except Exception:
+            return False
 
     # ── Embedding（向量化） ──
     # 供 memory_engine / project_workspace / visitor_profile 复用。

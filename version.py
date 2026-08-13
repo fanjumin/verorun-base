@@ -1,10 +1,10 @@
-"""版本管理 — 唯一版本源"""
+"""Version management — single source of truth for the version string."""
 import os
 
 _VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'VERSION')
 
 def get_version() -> str:
-    """从 VERSION 文件读取当前版本号"""
+    """Read the current version number from the VERSION file."""
     try:
         with open(_VERSION_FILE, 'r') as f:
             return f.read().strip()

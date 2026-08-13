@@ -72,7 +72,7 @@ function _render_dashboard(ds){
   h+='<div class="card-nav-icon">↗</div></div>';
 
   // --- Revenue ---
-  h+='<div class="kpi-card" id="kpi-revenue" onclick="_nav(\'sub_stats\')">';
+  h+='<div class="kpi-card" id="kpi-revenue" onclick="_navPlugin(\'subscription_admin\',\'/plugin/subscription/admin/\')">';
   h+='<div class="kpi-label">{{ _('Monthly Revenue') }}<span class="refresh-badge" w="revenue" onclick="_navStop(event);_refreshWidget(\'revenue\',_updateRevenueKPI)" title="{{ _('Refresh') }}" style="margin-left:6px">↻</span></div>';
   h+='<div class="kpi-value c">\u00a5'+tf(ds.monthly_revenue||0)+'</div>';
   h+='<div class="kpi-sub">'+ds.active_subscriptions+' {{ _('active subs') }}</div>';
@@ -161,7 +161,7 @@ function _render_dashboard(ds){
   h+='</div></div>';
 
   // Subscriptions
-  h+='<div class="dash-card" style="flex:1" onclick="_nav(\'subscriptions\')"><div class="card-title">{{ _('Subscriptions') }}<span class="refresh-badge" w="revenue" onclick="_navStop(event);_refreshWidget(\'revenue\',function(d){_updateChartData(\'revenue\',d)})" title="{{ _('Refresh') }}">↻</span><span class="card-nav-icon">↗</span></div><div id="chartSubs" style="width:100%;height:180px"></div></div>';
+  h+='<div class="dash-card" style="flex:1" onclick="_navPlugin(\'subscription_admin\',\'/plugin/subscription/admin/\')"><div class="card-title">{{ _('Subscriptions') }}<span class="refresh-badge" w="revenue" onclick="_navStop(event);_refreshWidget(\'revenue\',function(d){_updateChartData(\'revenue\',d)})" title="{{ _('Refresh') }}">↻</span><span class="card-nav-icon">↗</span></div><div id="chartSubs" style="width:100%;height:180px"></div></div>';
 
   h+='</div>'; // end Right
   h+='</div>'; // end Tier 2
@@ -173,9 +173,9 @@ function _render_dashboard(ds){
 
   // Revenue Trend 30d
   if(ds.revenue_trend_30d && ds.revenue_trend_30d.length){
-    h+='<div class="dash-card" onclick="_nav(\'sub_stats\')"><div class="card-title">{{ _('Revenue Trend') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span><span class="card-nav-icon">↗</span></div><div id="revenueChart" style="width:100%;height:240px"></div></div>';
+    h+='<div class="dash-card" onclick="_navPlugin(\'subscription_admin\',\'/plugin/subscription/admin/\')"><div class="card-title">{{ _('Revenue Trend') }} <span style="font-size:10px;color:var(--dim)">30{{ _('d') }}</span><span class="card-nav-icon">↗</span></div><div id="revenueChart" style="width:100%;height:240px"></div></div>';
   }else{
-    h+='<div class="dash-card" onclick="_nav(\'sub_stats\')"><div class="card-title">{{ _('Revenue Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="height:240px">{{ _('No Data') }}</div></div>';
+    h+='<div class="dash-card" onclick="_navPlugin(\'subscription_admin\',\'/plugin/subscription/admin/\')"><div class="card-title">{{ _('Revenue Trend') }}<span class="card-nav-icon">↗</span></div><div class="chart-empty" style="height:240px">{{ _('No Data') }}</div></div>';
   }
 
   // Popular Pages
@@ -216,7 +216,7 @@ function _render_dashboard(ds){
   h+=_svcCard(ds.services);
 
   // Recent Orders
-  h+='<div class="dash-card" onclick="_nav(\'sub_orders\')"><div class="card-title">{{ _('Recent Orders') }}<span class="card-nav-icon">↗</span></div>';
+  h+='<div class="dash-card" onclick="_navPlugin(\'subscription_admin\',\'/plugin/subscription/admin/\')"><div class="card-title">{{ _('Recent Orders') }}<span class="card-nav-icon">↗</span></div>';
   h+='<table style="font-size:12px;width:100%">';
   h+='<tr><th style="text-align:left;padding:4px 6px;color:var(--dim);font-weight:400">ID</th><th style="text-align:left;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Plan') }}</th><th style="text-align:right;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Amount') }}</th><th style="text-align:right;padding:4px 6px;color:var(--dim);font-weight:400">{{ _('Status') }}</th></tr>';
   if(ds.recent_orders && ds.recent_orders.length){

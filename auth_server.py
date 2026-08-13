@@ -26,8 +26,8 @@ from auth_blueprint import register_auth
 
 app = Flask(__name__)
 
-# 主站(www)模板位于 site/templates 与 platform/templates，非本文件同级 templates，
-# 因此显式挂载到 jinja loader，避免 public_home.html 等模板 TemplateNotFound。
+# Main site (www) templates live under site/templates and platform/templates, not beside this file.
+# Mount them explicitly on the jinja loader to avoid TemplateNotFound for public_home.html etc.
 import jinja2
 app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'site', 'templates')),
@@ -49,21 +49,21 @@ try:
     from plugin_manager.manager import PluginManager
     app.plugins_dir = os.path.join(_SCRIPT_DIR, 'plugins')
     PluginManager(app)
-    print('[PluginManager] ✅ Auth 服务插件管理器已初始化')
+    print('[PluginManager] ✅ Auth service plugin manager initialized')
 except Exception as e:
-    print(f'[PluginManager] ⚠️ Auth 服务初始化失败: {e}')
+    print(f'[PluginManager] ⚠️ Auth service initialization failed: {e}')
 
 register_auth(app)
 
-# ── OAuth Plugin 第三方登录路由 ──
+# ── OAuth Plugin third-party login routes ──
 try:
     from plugins.oauth_config.routes.auth import oauth_bp
     app.register_blueprint(oauth_bp)
-    print('[OAuth Plugin] ✅ 已注册第三方登录路由')
+    print('[OAuth Plugin] ✅ Third-party login routes registered')
 except ImportError:
-    print('[OAuth Plugin] ⚠️ OAuth 插件未安装，第三方登录不可用')
+    print('[OAuth Plugin] ⚠️ OAuth plugin not installed, third-party login unavailable')
 except Exception as e:
-    print(f'[OAuth Plugin] ⚠️ 加载失败: {e}')
+    print(f'[OAuth Plugin] ⚠️ Load failed: {e}')
 
 try:
     from flask_cors import CORS
@@ -192,7 +192,7 @@ def inject_globals():
 
 @app.route('/health')
 def health():
-    """Liveness probe — 供健康检查/看门狗探测 8081 主站服务存活。"""
+    """Liveness probe — used by health checks/watchdog to probe 8081 main site liveness."""
     return jsonify({'status': 'ok', 'service': 'auth-center+site'})
 
 

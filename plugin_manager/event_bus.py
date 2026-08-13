@@ -45,6 +45,8 @@ class EventName:
     PLUGIN_ENABLED = 'plugin.enabled'
     PLUGIN_DISABLED = 'plugin.disabled'
     PLUGIN_UNINSTALLED = 'plugin.uninstalled'
+    # Kernel patch B: emitted after each agent run completes (success or failure)
+    AGENT_TASK_COMPLETED = 'agent.task.completed'
 
 
 class EventBus:

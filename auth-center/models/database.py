@@ -243,6 +243,8 @@ def init_db():
         cur.execute('SELECT pg_try_advisory_lock(%s)', (_INIT_DB_LOCK_KEY,))
         if not cur.fetchone()[0]:
             print('[init_db] skipped (another process holds migration lock)')
+            cur.close()
+            fresh_conn.close()
             return
         cur.close()
         _INIT_DB_RUNNING = True
@@ -899,120 +901,8 @@ def init_db():
             c_th.execute("INSERT INTO site_theme_config (site_key) VALUES ('admin') ON CONFLICT (site_key) DO NOTHING")
             # community site key removed (智体广场已下线)
             c_th.commit()
-        with get_db() as cs:
-            cs.execute('''
-                CREATE TABLE IF NOT EXISTS subscription_plans (
-                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    plan_key        TEXT UNIQUE NOT NULL,
-                    name            TEXT NOT NULL,
-                    description     TEXT DEFAULT '',
-                    price_month     BIGINT NOT NULL DEFAULT 0,
-                    price_year      BIGINT NOT NULL DEFAULT 0,
-                    trial_days      BIGINT DEFAULT 0,
-                    tier            TEXT NOT NULL DEFAULT 'premium',
-                    features_json   TEXT DEFAULT '[]',
-                    sort_order      BIGINT DEFAULT 0,
-                    is_active       BIGINT DEFAULT 1,
-                    currency        TEXT DEFAULT 'CNY',
-                    created_at      TIMESTAMP DEFAULT NOW(),
-                    updated_at      TIMESTAMP DEFAULT NOW()
-                )
-            ''')
-            cs.execute(
-                "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (plan_key) DO NOTHING",
-                ('deploy_basic', '基础版', '个人创业者/小微企业快速建站', 19900, 199900, 0, 'basic', '["AI智能建站(响应式+自定义域名)","AI智能客服(基础问答)","AI内容生成","基础SEO优化","CMS内容管理","多AI供应商切换(可自配APIKey)","AI分析报告","赠送¥50 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 1))
-            cs.execute(
-                "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (plan_key) DO NOTHING",
-                ('deploy_pro', '专业版', '小微企业/电商卖家线上业务首选', 39900, 399900, 0, 'popular', '["AI智能建站","AI客服RAG知识库","CMS内容管理","完整电商商城(商品/购物车/订单/支付)","1688供应链对接(采集→AI优化→商城发布)","知识库+RAG检索","AI持续SEO+排名跟踪","用户画像+分析报告","赠送¥80 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 2))
-            cs.execute(
-                "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (plan_key) DO NOTHING",
-                ('deploy_enterprise', '企业版', '品牌企业全链路AI运营', 69900, 699900, 0, 'premium', '["AI智能建站","AI高级客服(多轮对话+CRM+飞书通知)","AI内容工厂(RSS→AI加工→CMS→社媒推送)","Agent矩阵(1+12智能体协作)","1688批量供应链管理+自动铺货","社媒自动发布(微信/微博/头条/抖音)","云服务自动开通","12维用户画像+意向分级","数据看板+AI洞察报告","月度巡检+专属客服","赠送¥120 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 3))
-            cs.execute('''
-                CREATE TABLE IF NOT EXISTS subscriptions (
-                    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    user_id             BIGINT NOT NULL UNIQUE,
-                    plan_key            TEXT NOT NULL,
-                    period              TEXT NOT NULL,
-                    status              TEXT NOT NULL DEFAULT 'active',
-                    current_period_start TEXT NOT NULL,
-                    current_period_end   TEXT NOT NULL,
-                    trial_end           TIMESTAMP,
-                    canceled_at         TIMESTAMP,
-                    cancel_reason       TEXT DEFAULT '',
-                    cancel_feedback     TEXT DEFAULT '',
-                    auto_renew          BIGINT DEFAULT 1,
-                    payment_method      TEXT,
-                    alipay_agreement_id TEXT,
-                    wechat_contract_id  TEXT,
-                    pending_plan_key    TEXT,
-                    pending_period      TEXT,
-                    pending_at          TIMESTAMP,
-                    module_states       TEXT DEFAULT '{}',
-                    created_at          TIMESTAMP DEFAULT NOW(),
-                    updated_at          TIMESTAMP DEFAULT NOW()
-                )
-            ''')
-            cs.execute('''
-                CREATE TABLE IF NOT EXISTS subscription_orders (
-                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    order_no        TEXT UNIQUE NOT NULL,
-                    user_id         BIGINT NOT NULL,
-                    sub_id          BIGINT REFERENCES subscriptions(id),
-                    amount_fen      BIGINT NOT NULL,
-                    currency        TEXT DEFAULT 'CNY',
-                    item_type       TEXT NOT NULL,
-                    plan_key        TEXT NOT NULL,
-                    period          TEXT NOT NULL,
-                    payment_method  TEXT,
-                    channel_order_id TEXT,
-                    status          TEXT NOT NULL DEFAULT 'pending',
-                    paid_at         TIMESTAMP,
-                    fail_reason     TEXT,
-                    notify_id       TEXT,
-                    notify_raw      TEXT,
-                    created_at      TIMESTAMP DEFAULT NOW(),
-                    updated_at      TIMESTAMP DEFAULT NOW()
-                )
-            ''')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_orders_user ON subscription_orders(user_id)')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_orders_status ON subscription_orders(status)')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_orders_notify ON subscription_orders(notify_id)')
-            cs.execute('''
-                CREATE TABLE IF NOT EXISTS payment_events (
-                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    user_id         BIGINT NOT NULL,
-                    sub_id          BIGINT REFERENCES subscriptions(id),
-                    event_type      TEXT NOT NULL,
-                    channel         TEXT NOT NULL,
-                    channel_event_id TEXT,
-                    amount_fen      BIGINT,
-                    result          TEXT,
-                    fail_reason     TEXT,
-                    raw_response    TEXT,
-                    created_at      TIMESTAMP DEFAULT NOW()
-                )
-            ''')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_pay_events_sub ON payment_events(sub_id)')
-
-            cs.execute('''
-                CREATE TABLE IF NOT EXISTS subscription_audit_log (
-                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    user_id         BIGINT NOT NULL,
-                    sub_id          BIGINT,
-                    action          TEXT NOT NULL,
-                    detail          TEXT,
-                    ip_address      TEXT,
-                    admin_id        BIGINT,
-                    created_at      TIMESTAMP DEFAULT NOW()
-                )
-            ''')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_sub_audit_user ON subscription_audit_log(user_id)')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status)')
-            cs.execute('CREATE INDEX IF NOT EXISTS idx_subs_canceled_at ON subscriptions(status, canceled_at, created_at)')
-            cs.commit()
+        # [P3] 旧订阅 DDL 已移除：subscription_plans / subscriptions / subscription_orders /
+        # payment_events / subscription_audit_log 已随订阅解耦下线（插件 subscription schema 接管）
         fresh_conn.commit()
     except Exception as e:
         print(f'[init_db] ⚠️ Mega DDL block failed (non-critical): {e}')
@@ -2015,74 +1905,8 @@ def init_db():
         m.commit()
         print('[Migration] ✅ cluster_services table dropped (merged into site_domains)')
 
-    # ── Migration: 合并 service_plans → subscription_plans（订阅SaaS归类 — 2026-06-10）──
-    with get_db() as m:
-        # 迁移套餐：service_plans → subscription_plans（不覆盖已有）
-        old_plans = m.execute("SELECT * FROM service_plans").fetchall()
-        migrated_plans = 0
-        for p in old_plans:
-            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key = %s", (p['plan_key'],)).fetchone()
-            if not exists:
-                # daily_limit 合并到 features_json
-                import json as _j
-                old_features = _j.loads(p['features']) if p['features'] else []
-                old_features.append(f"每日{p['daily_limit']}次调用")
-                m.execute(
-                    "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, tier, features_json, sort_order, is_active, created_at) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (plan_key) DO NOTHING",
-                    (p['plan_key'], p['name'], p['description'],
-                     int(p['price_month'] * 100), int(p['price_year'] * 100),
-                     'premium', _j.dumps(old_features, ensure_ascii=False),
-                     p['sort_order'], p['is_active'], p['created_at'])
-                )
-                migrated_plans += 1
-        m.commit()
-        if migrated_plans:
-            print(f'[Migration] service_plans → subscription_plans: migrated {migrated_plans} plans')
-        else:
-            print('[Migration] service_plans → subscription_plans: no new plans to migrate')
-
-        # 迁移订单：billing_orders → subscription_orders
-        old_bills = m.execute("SELECT * FROM billing_orders").fetchall()
-        migrated_bills = 0
-        for b in old_bills:
-            exists = m.execute("SELECT id FROM subscription_orders WHERE order_no = %s", (b['order_no'],)).fetchone()
-            if not exists:
-                m.execute(
-                    "INSERT INTO subscription_orders (order_no, user_id, amount_fen, currency, item_type, plan_key, period, status, payment_method, created_at, paid_at) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (order_no) DO NOTHING",
-                    (b['order_no'], b['user_id'], int(b['amount'] * 100), b['currency'],
-                     b['item_type'], 'unknown', 'once', b['status'],
-                     b['payment_method'] or '', b['created_at'], b['paid_at'])
-                )
-                migrated_bills += 1
-        m.commit()
-        if migrated_bills:
-            print(f'[Migration] billing_orders → subscription_orders: migrated {migrated_bills} orders')
-        else:
-            print('[Migration] billing_orders → subscription_orders: no orders to migrate')
-
-        # 迁移订单：orders → subscription_orders
-        old_orders = m.execute("SELECT * FROM orders").fetchall()
-        migrated_ord = 0
-        for o in old_orders:
-            exists = m.execute("SELECT id FROM subscription_orders WHERE order_no = %s", (o['order_id'],)).fetchone()
-            if not exists:
-                m.execute(
-                    "INSERT INTO subscription_orders (order_no, user_id, amount_fen, currency, item_type, plan_key, period, status, payment_method, created_at, paid_at) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (order_no) DO NOTHING",
-                    (o['order_id'], o['user_id'], int((o['amount'] or 0) * 100), 'CNY',
-                     'subscription', o['tier_bought'] or 'unknown', 'once', o['status'],
-                     o['pay_method'] or '', o['created_at'], o['paid_at'])
-                )
-                migrated_ord += 1
-        m.commit()
-        if migrated_ord:
-            print(f'[Migration] orders → subscription_orders: migrated {migrated_ord} orders')
-        else:
-            print('[Migration] orders → subscription_orders: no orders to migrate')
-
-        print('[Migration] Legacy table merge complete. service_plans/billing_orders/orders retained for backward compatibility; new code should use subscription_* tables')
+    # ── Migration: 合并 service_plans → subscription_plans（订阅SaaS归类）已随订阅解耦移除（P3）──
+    # subscription_plans / subscription_orders 表已下线，订阅数据由插件 subscription schema 接管。
 
     # ── 抖音小程序支持：chat_messages + mp_profiles (2026-06-11) ──
     with get_db() as m:
@@ -2140,74 +1964,12 @@ def init_db():
     # ── products.images / categories / product_specs / product_skus / carts.sku_id ──
     # All handled by init_shop_db() with full column set.
 
-    # ── Migration: 独立部署套餐 subscription_plans (2026-06-27) ──
-
-    # ── Migration: 独立部署套餐 subscription_plans (2026-06-27) ──
-    with get_db() as m:
-        site_plans = [
-            ('deploy_basic', '基础版',
-             '个人创业者/小微企业快速建站',
-             19900, 199900, 0, 'basic',
-             '["AI智能建站(响应式+自定义域名)","AI智能客服(基础问答)","AI内容生成","基础SEO优化","CMS内容管理","多AI供应商切换(可自配APIKey)","AI分析报告","赠送¥50 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 1),
-            ('deploy_pro', '专业版',
-             '小微企业/电商卖家线上业务首选',
-             39900, 399900, 0, 'popular',
-             '["AI智能建站","AI客服RAG知识库","CMS内容管理","完整电商商城(商品/购物车/订单/支付)","1688供应链对接(采集→AI优化→商城发布)","知识库+RAG检索","AI持续SEO+排名跟踪","用户画像+分析报告","赠送¥80 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 2),
-            ('deploy_enterprise', '企业版',
-             '品牌企业全链路AI运营',
-             69900, 699900, 0, 'premium',
-             '["AI智能建站","AI高级客服(多轮对话+CRM+飞书通知)","AI内容工厂(RSS→AI加工→CMS→社媒推送)","Agent矩阵(1+12智能体协作)","1688批量供应链管理+自动铺货","社媒自动发布(微信/微博/头条/抖音)","云服务自动开通","12维用户画像+意向分级","数据看板+AI洞察报告","月度巡检+专属客服","赠送¥120 AI金(额度,用尽可自购)","小程序增值入口(定制费另计)"]', 3),
-        ]
-        for pk, nm, desc, pm, py, td, tier, feats, so in site_plans:
-            exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key = %s", (pk,)).fetchone()
-            if exists:
-                m.execute(
-                    "UPDATE subscription_plans SET name = %s, description = %s, price_month = %s, price_year = %s, trial_days = %s, tier = %s, features_json = %s, sort_order = %s WHERE plan_key = %s",
-                    (nm, desc, pm, py, td, tier, feats, so, pk))
-            else:
-                m.execute(
-                    "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (plan_key) DO NOTHING",
-                    (pk, nm, desc, pm, py, td, tier, feats, so))
-        m.commit()
-        print(f'[Migration] Standalone deployment subscription_plans updated')
+    # ── Migration: 独立部署套餐 subscription_plans 已随订阅解耦移除（P3）──
 
     # ── pricing_rules / order_items payment+shipping / express_companies ──
     # All handled by init_shop_db() with full column set.
 
-    # ── Migration: invoices 发票系统 ──
-    with get_db() as m:
-        m.execute("""
-            CREATE TABLE IF NOT EXISTS invoices (
-                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                invoice_no      TEXT UNIQUE NOT NULL,
-                order_no        TEXT NOT NULL,
-                user_id         BIGINT NOT NULL REFERENCES users(id),
-                amount_fen      BIGINT NOT NULL DEFAULT 0,
-                amount_yuan     DOUBLE PRECISION NOT NULL DEFAULT 0,
-                plan_name       TEXT DEFAULT '',
-                period_text     TEXT DEFAULT '',
-                status          TEXT NOT NULL DEFAULT 'issued',
-                                -- issued / cancelled
-                pdf_path        TEXT DEFAULT '',
-                created_at      TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        m.execute('CREATE INDEX IF NOT EXISTS idx_inv_user ON invoices(user_id)')
-        m.execute('CREATE INDEX IF NOT EXISTS idx_inv_order ON invoices(order_no)')
-        m.commit()
-        print('[Migration] invoices table created')
-
-    # ── Migration: orders user_deleted soft-delete ──
-    with get_db() as m:
-        for table in ['subscription_orders']:  # order_items user_deleted handled by init_shop_db()
-            cols = get_table_columns(m, table)
-            if 'user_deleted' not in cols:
-                try:
-                    m.execute(f"ALTER TABLE {table} ADD COLUMN user_deleted BIGINT DEFAULT 0")
-                    print(f'[Migration] {table}.user_deleted added')
-                except Exception as e:
-                    print(f'[Migration] {table}.user_deleted skipped: {e}')
-        m.commit()
+    # ── Migration: invoices 发票系统 已随订阅解耦移除（P3）──
 
     # ── Migration: chatbot_sessions AI 顾问对话元数据 (2026-07-12) ──
     with get_db() as m:
@@ -2442,48 +2204,6 @@ with _safe_get_db_for_migration() as m:
     print('[Migration] article_comments table created (module-level)')
 
 
-# ── Migration: deployment_codes 独立部署订阅表 (2026-06-27) ──
-with _safe_get_db_for_migration() as m:
-    m.execute('''CREATE TABLE IF NOT EXISTS deployment_codes (
-        id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-        code            TEXT UNIQUE NOT NULL,
-        code_hash       TEXT NOT NULL,
-        user_id         BIGINT NOT NULL,
-        plan_key        TEXT NOT NULL DEFAULT 'deploy_basic',
-        duration_days   BIGINT NOT NULL DEFAULT 365,
-        expires_at      TEXT NOT NULL,
-        status          TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
-        last_heartbeat  TEXT,
-        last_hostname   TEXT DEFAULT '',
-        last_version    TEXT DEFAULT '',
-        created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
-    )''')
-    m.execute('CREATE INDEX IF NOT EXISTS idx_dc_code ON deployment_codes(code)')
-    m.execute('CREATE INDEX IF NOT EXISTS idx_dc_user ON deployment_codes(user_id)')
-    m.execute('CREATE INDEX IF NOT EXISTS idx_dc_status ON deployment_codes(status)')
-    m.commit()
-    print('[Migration] deployment_codes (standalone deployment subscriptions) table created')
-
-# ── Migration: 清理旧版套餐数据 (2026-06-27) ──
-try:
-    with _safe_get_db_for_migration() as m:
-        if not _table_exists(m, 'subscription_plans'):
-            print('[Migration] subscription_plans not created yet, skip legacy plan cleanup')
-        else:
-            old_plan_keys = ['free', 'standard', 'pro', 'site_basic', 'site_standard', 'site_pro']
-            for pk in old_plan_keys:
-                m.execute("DELETE FROM subscription_plans WHERE plan_key = %s", (pk,))
-            # 更新已存在的老 plan_key 的订阅记录
-            m.execute("UPDATE subscription_orders SET plan_key='deploy_basic' WHERE plan_key IN ('site_basic','free')")
-            m.execute("UPDATE subscription_orders SET plan_key='deploy_pro' WHERE plan_key IN ('site_pro','site_standard','standard')")
-            m.execute("UPDATE subscription_orders SET plan_key='deploy_enterprise' WHERE plan_key='site_enterprise'")
-            m.commit()
-            print('[Migration] Legacy plan data cleaned up')
-except Exception as e:
-    print(f'[Migration] Legacy plan data migration skipped: {e}')
-
-
 def get_active_model(provider_slug='deepseek'):
     """从 AI Hub (provider_models) 查询指定 provider 的第一个活跃模型。
     返回 (provider_model_id, model_name, base_url) 或 (None, None, None)。
@@ -2542,98 +2262,7 @@ if MARKET == 'intl':
         )''')
         m.execute('CREATE INDEX IF NOT EXISTS idx_addr_intl_user ON user_addresses_intl(user_id)')
 
-        # INTL subscription_plans 种子数据（美元计价）
-        intl_plans = [
-            ('deploy_basic', 'Starter', 'For entrepreneurs and small businesses', 999, 9999, 0, 'basic',
-             '["AI Site Builder","AI Chat Assistant (basic)","AI Content Generator","Basic SEO","CMS","Multi AI provider switching","AI Analytics Report","$5 AI Credits included"]', 1),
-            ('deploy_pro', 'Professional', 'For growing businesses and online sellers', 2999, 29999, 0, 'popular',
-             '["AI Site Builder","AI Chat with RAG Knowledge Base","CMS","Full eCommerce","Knowledge Base + RAG","AI SEO + Ranking Tracking","User Analytics","$8 AI Credits included"]', 2),
-            ('deploy_enterprise', 'Enterprise', 'Full-stack AI-powered business operations', 5999, 59999, 0, 'premium',
-             '["AI Site Builder","AI Chat (multi-turn + CRM)","Content Factory (RSS→AI→CMS→Social)","Agent Matrix (1+12 agents)","Social auto-publish","Cloud service auto-provisioning","User profiling + intent scoring","Analytics dashboard + AI insights","$12 AI Credits included"]', 3),
-        ]
-        try:
-            for pk, nm, desc, pm, py, td, tier, feats, so in intl_plans:
-                exists = m.execute("SELECT id FROM subscription_plans WHERE plan_key = %s", (pk,)).fetchone()
-                if not exists:
-                    m.execute(
-                        "INSERT INTO subscription_plans (plan_key, name, description, price_month, price_year, trial_days, tier, features_json, sort_order, currency) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'USD') ON CONFLICT (plan_key) DO NOTHING",
-                        (pk, nm, desc, pm, py, td, tier, feats, so))
-            m.commit()
-        except Exception as e:
-            print(f'[i18n] INTL plans seed skipped: {e}')
         print('[i18n] ✅ INTL-specific tables and data initialized')
-else:
-    # CN 区: subscription_plans 增加 currency 字段（向后兼容）
-    with _safe_get_db_for_migration() as m:
-        if _table_exists(m, 'subscription_plans'):
-            plan_cols = get_table_columns(m, 'subscription_plans')
-            if 'currency' not in plan_cols:
-                try:
-                    m.execute("ALTER TABLE subscription_plans ADD COLUMN currency TEXT DEFAULT 'CNY'")
-                    print('[i18n] subscription_plans.currency added (CNY)')
-                except Exception as e:
-                    print(f'[i18n] subscription_plans.currency skipped: {e}')
-
-# ── Phase 2: 模块化订阅 — module_states 字段 ──
-with _safe_get_db_for_migration() as m:
-    sub_cols = get_table_columns(m, 'subscriptions')
-    if 'module_states' not in sub_cols:
-        try:
-            m.execute("ALTER TABLE subscriptions ADD COLUMN module_states TEXT DEFAULT '{}'")
-            print('[Phase2] subscriptions.module_states added')
-        except Exception as e:
-            print(f'[Phase2] subscriptions.module_states skipped: {e}')
-
-# ── Phase 4: 模块定价表（后台可修改）──
-with _safe_get_db_for_migration() as m:
-    try:
-        m.execute('''
-            CREATE TABLE IF NOT EXISTS module_pricing (
-                id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                module_key      TEXT UNIQUE NOT NULL,
-                name            TEXT DEFAULT '',
-                description     TEXT DEFAULT '',
-                pattern         TEXT DEFAULT 'interactive',
-                price_month_fen BIGINT DEFAULT 0,
-                price_year_fen  BIGINT DEFAULT 0,
-                trial_days      BIGINT DEFAULT 14,
-                trial_daily_limit BIGINT DEFAULT NULL,
-                post_trial_action TEXT DEFAULT 'lock',
-                refund_days     BIGINT DEFAULT 0,
-                limit_even_byok BIGINT DEFAULT 0,
-                is_active       BIGINT DEFAULT 1,
-                sort_order      BIGINT DEFAULT 0,
-                created_at      TIMESTAMP DEFAULT NOW(),
-                updated_at      TIMESTAMP DEFAULT NOW()
-            )
-        ''')
-        m.commit()
-
-        # 种子数据（幂等，已存在则跳过）
-        seeds = [
-            ('site_builder', 'Site Builder Pro', 'LLM 一键生成多页面品牌官网', 'one_shot', 19900, 199900, 14, None, 'lock', 14, 0),
-            ('content_factory', 'Content Factory', 'AI 内容工厂，批量生成文章', 'interactive', 9900, 99000, 14, 3, 'lock', 0, 1),
-            ('cms', 'AI CMS', '智能内容管理，对话生成+编辑+发布', 'interactive', 9900, 99000, 14, 5, 'lock', 0, 1),
-            ('commerce_plus', 'Commerce Plus', '1688 供应链采集 + 电商商城', 'interactive', 19900, 199900, 14, None, 'lock', 0, 0),
-            ('service_hub', 'Service Hub', '智能客服 + FAQ + 工单系统', 'interactive', 9900, 99000, 14, None, 'lock', 0, 0),
-            ('workflow', 'Workflow Engine', '自动化工作流 + 定时任务', 'continuous', 14900, 149900, 14, None, 'pause', 0, 0),
-            ('social_push', 'Social Media Suite', '多平台一键内容分发', 'publish', 4900, 49000, 14, None, 'pay_per_use', 0, 0),
-            ('mini_app', 'Mini-App Generator', '抖音/微信小程序源码生成', 'one_shot', 29900, 299900, 14, None, 'lock', 14, 0),
-        ]
-        for s in seeds:
-            m.execute(
-                """INSERT INTO module_pricing
-                   (module_key, name, description, pattern, price_month_fen, price_year_fen,
-                    trial_days, trial_daily_limit, post_trial_action, refund_days, limit_even_byok)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (module_key) DO NOTHING""",
-                s
-            )
-        m.commit()
-        print('[Phase4] module_pricing table + seed data created')
-    except Exception as e:
-        print(f'[Phase4] module_pricing skipped: {e}')
-
 # ── 客户管理: 企业认证字段 + 审核表 (CN/INTL通用) ──
 with _safe_get_db_for_migration() as m:
     if not _table_exists(m, 'users'):

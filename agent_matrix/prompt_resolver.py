@@ -41,18 +41,12 @@ class PromptResolver:
     # ============================================================
 
     def resolve(self, agent_config, task_context):
-        """解析 Agent 的完整 System Prompt。
+        """解析 Agent 的完整 System Prompt（入口：组装后统一应用 before_prompt_resolve 过滤器）。"""
+        prompt = self._resolve_raw(agent_config, task_context)
+        return self._apply_prompt_filters(prompt, agent_config, task_context or {})
 
-        agent_config: agent_matrix 表的一行 dict
-        task_context: {
-            'domain': str,
-            'task_type': str,
-            'mode': str,
-            'user_query': str
-        }
-
-        返回组装后的完整 System Prompt 文本。
-        """
+    def _resolve_raw(self, agent_config, task_context):
+        """原 resolve 主体：四层组装 + 降级。"""
         if not agent_config:
             return ''
         # 全局开关
@@ -63,6 +57,23 @@ class PromptResolver:
         except Exception as e:
             logger.error(f'PromptResolver failed, falling back to legacy: {e}')
             return self._legacy_load(agent_config)
+
+    def _apply_prompt_filters(self, prompt, agent_config, task_context):
+        """应用内核 before_prompt_resolve 过滤器链（memory_engine 等在此注入记忆）。
+
+        ctx 传入 user_id / agent_id / user_query，供过滤器做隐私门控与检索。
+        """
+        try:
+            from plugin_manager.hooks import get_hook_registry
+            ctx = {
+                'user_id': task_context.get('user_id'),
+                'agent_id': agent_config.get('id') if agent_config else None,
+                'user_query': task_context.get('user_query', ''),
+            }
+            return get_hook_registry().apply_filters('before_prompt_resolve', prompt, ctx=ctx)
+        except Exception as e:
+            logger.warning(f'before_prompt_resolve filter failed: {e}')
+            return prompt
 
     # ============================================================
     # 四层组装

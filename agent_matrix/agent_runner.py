@@ -40,6 +40,12 @@ class AgentRunner:
         return self._engine_ready
 
     def execute(self, task: dict, history: list = None):
+        """执行一次 Agent 任务（wrapper：结束后发射 AGENT_TASK_COMPLETED 事件）。"""
+        result = self._execute_impl(task, history)
+        self._emit_task_completed(task, result)
+        return result
+
+    def _execute_impl(self, task: dict, history: list = None):
         """
         执行一次 Agent 任务
 
@@ -171,6 +177,21 @@ class AgentRunner:
             err_msg = f'After {retries} retries, confidence={confidence} is still below threshold'
             self._log(task_id, 'error', 'execution', err_msg)
             return self._fail(err_msg, logs, confidence)
+
+    def _emit_task_completed(self, task, result):
+        """发射 agent.task.completed 事件（内核补丁 B），供 memory_engine 等订阅。
+
+        成功/失败路径都会触发；任何异常仅告警，不影响原执行流程。
+        """
+        try:
+            from plugin_manager.event_bus import get_event_bus, EventName
+            ev = getattr(EventName, 'AGENT_TASK_COMPLETED', None)
+            if ev is None:
+                return
+            get_event_bus().emit(ev, task=task, result=result or {},
+                                 agent_id=self.agent_id, agent_name=self.name)
+        except Exception as e:
+            logger.warning(f'[{self.name}] emit task completed failed: {e}')
 
     def _get_tools(self):
         """按 Agent 的 allowed_tools 返回可用工具 schema，无则返回 []"""
