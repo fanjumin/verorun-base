@@ -72,19 +72,33 @@ else
     # → fetch the shared library from verorun-pro into a temp file and load it
     _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
     _COMMON_MIRROR="${COMMON_MIRROR:-https://cdn.jsdelivr.net/gh/fanjumin/verorun-pro@master/deploy/lib/common.sh}"
+    # Audit F-03: verify against a SHA-256 allowlist after fetching (guards against CDN/repo poisoning)
+    # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash, same as install.sh)
+    _COMMON_SHA256="${COMMON_SHA256:-24372b3c2554fc2b2651ad3cda39e679c38ee4021ff048ea41b7ec94684d8c38}"
     _tmp_common="$(mktemp)"
+    trap 'rm -f "${_tmp_common}"' EXIT
     _ok=0
+    _verify_common() {
+        local _actual_sha=""
+        if command -v sha256sum >/dev/null 2>&1; then
+            _actual_sha="$(sha256sum "${_tmp_common}" | awk '{print $1}')"
+        elif command -v python3 >/dev/null 2>&1; then
+            _actual_sha="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "${_tmp_common}")"
+        fi
+        [ -n "${_actual_sha}" ] && [ "${_actual_sha}" = "${_COMMON_SHA256}" ]
+    }
     if command -v curl >/dev/null 2>&1; then
         # Audit M-1: unified --max-time to prevent handshake hangs + --retry against transient flakiness
-        if curl -sSL --connect-timeout 15 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_REMOTE}" -o "${_tmp_common}"; then _ok=1; fi
-        # Official source failed (e.g., blocked by GFW) → fall back to jsdelivr CDN mirror
-        if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 10 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_MIRROR}" -o "${_tmp_common}"; then _ok=1; fi
+        # Audit S-1: mirror first (jsdelivr CDN reachable in CN; raw.githubusercontent.com often GFW-blocked),
+        # official source as fallback — order now matches install.sh; SHA-256 verification guards stale CDN content
+        if curl -sSL --connect-timeout 10 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_MIRROR}" -o "${_tmp_common}" && _verify_common; then _ok=1; fi
+        if [ "${_ok}" != "1" ] && curl -sSL --connect-timeout 15 --max-time 25 --retry 3 --retry-delay 2 "${_COMMON_REMOTE}" -o "${_tmp_common}" && _verify_common; then _ok=1; fi
     elif command -v wget >/dev/null 2>&1; then
-        if wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_REMOTE}"; then _ok=1; fi
-        if [ "${_ok}" != "1" ] && wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_MIRROR}"; then _ok=1; fi
+        if wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_MIRROR}" && _verify_common; then _ok=1; fi
+        if [ "${_ok}" != "1" ] && wget -q --timeout=25 --tries=4 -O "${_tmp_common}" "${_COMMON_REMOTE}" && _verify_common; then _ok=1; fi
     fi
     if [ "${_ok}" != "1" ]; then
-        echo "FATAL: cannot fetch deploy/lib/common.sh (check network, or use the git clone method)" >&2
+        echo "FATAL: cannot fetch or verify deploy/lib/common.sh (check network / CDN reachability, or use the git clone method)" >&2
         rm -f "${_tmp_common}"
         exit 1
     fi

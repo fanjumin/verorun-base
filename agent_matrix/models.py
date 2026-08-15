@@ -638,6 +638,137 @@ def unregister_plugin_roles(plugin_id, declare_roles_list):
         conn.commit()
 
 
+# ============================================================
+# 统一 Agent 声明注册（§4 — agents + declare_roles 合并）
+# ============================================================
+
+def _merged_agent_slugs(metadata: dict) -> list:
+    """收集插件声明的全部 Agent slug（agents.identifier / declare_roles.slug）。"""
+    slugs = set()
+    for decl in metadata.get('declare_roles') or []:
+        slugs.add(decl.get('slug') or decl.get('name', '').lower().replace(' ', '-'))
+    for decl in metadata.get('agents') or []:
+        slugs.add(decl.get('identifier') or decl.get('name', '').lower().replace(' ', '-'))
+    return sorted(slugs)
+
+
+def _merge_agent_declarations(plugin_dir: str, metadata: dict) -> list:
+    """合并 agents + declare_roles 两种声明，按 slug 归一，agents 字段优先。
+
+    agents（推荐）：identifier/prompt_file/model_policy/capabilities/enabled_by_default
+    declare_roles（兼容别名）：slug/role_type/description/managed_modules/...
+    declare_roles 仅补齐 agents 未提供的字段（如 description）。
+    """
+    merged = {}
+    for decl in metadata.get('declare_roles') or []:
+        slug = decl.get('slug') or decl.get('name', '').lower().replace(' ', '-')
+        role_type = decl.get('role_type', 'sub')
+        if role_type not in ('master', 'sub'):
+            print(f'[PluginRoles] WARNING: {slug} invalid role_type {role_type!r}, coerced to "sub"')
+            role_type = 'sub'
+        merged[slug] = {
+            'slug': slug,
+            'name': decl.get('name', slug),
+            'role_type': role_type,
+            'description': decl.get('description', ''),
+            'domain': decl.get('domain', 'general'),
+            'system_prompt': decl.get('system_prompt', ''),
+            'capabilities': json.dumps(decl.get('capabilities', [])),
+            'is_active': _to_int(decl.get('is_active', 1)),
+        }
+    for decl in metadata.get('agents') or []:
+        slug = decl.get('identifier') or decl.get('name', '').lower().replace(' ', '-')
+        prev = merged.get(slug, {})
+        name = decl.get('name', slug)
+        domain = decl.get('domain', prev.get('domain', 'general'))
+        role_type = decl.get('role_type', prev.get('role_type', 'sub'))
+        if role_type not in ('master', 'sub'):
+            print(f'[PluginRoles] WARNING: {slug} invalid role_type {role_type!r}, coerced to "sub"')
+            role_type = 'sub'
+        system_prompt = ''
+        prompt_file = decl.get('prompt_file', '')
+        if prompt_file and plugin_dir:
+            prompt_path = os.path.join(plugin_dir, prompt_file)
+            if not os.path.isfile(prompt_path):
+                print(f'[PluginRoles] WARNING: {slug} prompt_file not found: {prompt_file}')
+            try:
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    system_prompt = f.read().strip()
+            except OSError:
+                pass
+        merged[slug] = {
+            'slug': slug,
+            'name': name,
+            'role_type': role_type,
+            'description': prev.get('description') or f'{name} — {domain}',
+            'domain': domain,
+            'system_prompt': system_prompt,
+            'capabilities': json.dumps(decl.get('capabilities', [])),
+            'is_active': 1 if decl.get('enabled_by_default', True) else 0,
+        }
+    return list(merged.values())
+
+
+def register_plugin_agents(plugin_id: str, plugin_dir: str, metadata: dict) -> int:
+    """统一注册插件声明的 Agent 到 agent_matrix（幂等，§4）。
+
+    合并 agents + declare_roles 声明；已存在（同 slug 且非系统角色）则更新字段，
+    否则插入。所有权以 slug + is_system=0 追踪（不依赖 source_plugin 列）。
+    """
+    roles = _merge_agent_declarations(plugin_dir, metadata or {})
+    count = 0
+    with get_db() as conn:
+        for r in roles:
+            slug = r['slug']
+            exists = conn.execute(
+                "SELECT id FROM agent_matrix WHERE slug=%s AND is_system=0",
+                (slug,)
+            ).fetchone()
+            if exists:
+                conn.execute("""
+                    UPDATE agent_matrix SET
+                        name=%s, role_type=%s, description=%s, domain=%s,
+                        system_prompt=%s, capabilities=%s, is_active=%s,
+                        updated_at=NOW()
+                    WHERE slug=%s AND is_system=0
+                """, (
+                    r['name'], r['role_type'], r['description'], r['domain'],
+                    r['system_prompt'], r['capabilities'], r['is_active'], slug
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO agent_matrix
+                    (name, slug, role_type, description, domain,
+                     system_prompt, capabilities, is_active, is_system)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,0)
+                """, (
+                    r['name'], slug, r['role_type'], r['description'],
+                    r['domain'], r['system_prompt'], r['capabilities'],
+                    r['is_active']
+                ))
+            count += 1
+            print(f'[PluginRoles] Register plugin agent: {slug} (from {plugin_id})')
+        if count:
+            conn.commit()
+    return count
+
+
+def unregister_plugin_agents(plugin_id: str, metadata: dict) -> int:
+    """注销插件声明的全部 Agent（按 slug 列表，兼容无 source_plugin 列的旧数据）。"""
+    slugs = _merged_agent_slugs(metadata or {})
+    if not slugs:
+        return 0
+    with get_db() as conn:
+        placeholders = ','.join(['%s'] * len(slugs))
+        conn.execute(
+            f"DELETE FROM agent_matrix WHERE slug IN ({placeholders}) AND is_system=0",
+            tuple(slugs)
+        )
+        conn.commit()
+        print(f'[PluginRoles] Unregister {len(slugs)} plugin agents (from {plugin_id})')
+    return len(slugs)
+
+
 def list_agents(role_type=None, domain=None, active_only=False):
     """列出 Agent，支持筛选"""
     with get_db() as conn:

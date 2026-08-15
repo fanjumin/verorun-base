@@ -165,6 +165,11 @@ class PluginDiscovery:
             config=meta.get('config', {}),
             admin_url=meta.get('admin_url', ''),
             admin_label=meta.get('admin_label', ''),
+            # ★ v1.5 展示与分类字段（§5.1/§6.1）
+            category=meta.get('category', 'other'),
+            icon=meta.get('icon', 'plugin'),
+            tags=meta.get('tags', []),
+            dashboard_meta=meta.get('dashboard', {}),
         )
         if info.admin_url and str(info.admin_url).startswith('/'):
             print(f'[PluginDiscovery] WARNING: {identifier} uses deprecated admin_url field. Use menu.items[].key + l_<key>() instead.')

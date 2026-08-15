@@ -1959,7 +1959,7 @@ def init_db():
         import logging
         logging.debug(f"[Migration] chat_messages platform index may already exist: {e}")
 
-    # ── oauth_providers 已迁移至 plugins/oauth_config/models.py（独立数据库） ──
+    # ── oauth_providers 回归主库 public schema（§12.10，由 plugins/oauth_config 幂等建表） ──
 
     # ── products.images / categories / product_specs / product_skus / carts.sku_id ──
     # All handled by init_shop_db() with full column set.

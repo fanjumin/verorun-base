@@ -85,6 +85,21 @@ def list_plugins():
     return _json_result(True, data=[_info_to_dict(p) for p in plugins])
 
 
+# ── 1b. 聚合统计（§6.4 / §10.5）────────────────────────────────────
+
+@bp.route('/metrics', methods=['GET'])
+def plugin_metrics():
+    """聚合所有 ACTIVE 插件的 Dashboard 统计指标"""
+    mgr = _get_manager()
+    if not mgr:
+        return _json_result(False, error='PluginManager not initialized', code=503)
+    try:
+        stats = mgr.get_all_stats()
+        return _json_result(True, data={'plugins': stats})
+    except Exception as e:
+        return _json_result(False, error=str(e), code=500)
+
+
 # ── 1a. 统一列表：本地 + 商店 ─────────────────────────────────────
 
 @bp.route('/unified', methods=['GET'])

@@ -1,4 +1,17 @@
-# 修改记录
+# Changelog
+
+## v0.57.1 — 2026-08-15
+
+### Changes
+
+- Version bump from v0.57.0
+- chore(plugins): 统一升级全部 30 个真实插件版本号 +0.1.0（发布 8-14 audit 系列插件改动）
+
+## v0.57.0 — 2026-08-14
+
+### Changes
+
+- Version bump from v0.56.5
 
 ## v0.55.11 — 2026-08-10
 

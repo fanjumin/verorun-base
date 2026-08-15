@@ -21,11 +21,20 @@ fi
 # 审计 v3 M2 修复：Supervisor programs lack secret env vars such as JWT_SECRET
 # Export .env into the environment before starting; supervisord child processes (gunicorn/nginx) inherit it automatically
 if [ -f /app/.env ]; then
-    # 审计 P2-5：verify .env contains no shell metacharacters before sourcing, to prevent injection
-    if grep -q '[;&|`$()]' /app/.env 2>/dev/null; then
-        echo "FATAL: /app/.env contains shell metacharacters" >&2
-        exit 1
-    fi
+    # 审计 F-12：whitelist-style .env validation — every non-empty, non-comment line must be KEY=SAFE_VALUE
+    # (safe charset only). The old blacklist '[;&|`$()]' missed < > * ? [ ] { } and newline injection,
+    # while also rejecting legitimate passwords containing those characters.
+    _env_line_no=0
+    while IFS= read -r _env_line || [ -n "${_env_line}" ]; do
+        _env_line_no=$((_env_line_no + 1))
+        case "${_env_line}" in
+            ''|\#*) continue ;;
+        esac
+        if ! printf '%s' "${_env_line}" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_.:@%/+=,-]*$'; then
+            echo "FATAL: /app/.env line ${_env_line_no} contains disallowed characters" >&2
+            exit 1
+        fi
+    done < /app/.env
     set -a
     # shellcheck disable=SC1091
     source /app/.env
@@ -35,6 +44,21 @@ fi
 # Ensure the Supervisor runtime directory exists
 mkdir -p /var/run/supervisor
 chmod 755 /var/run/supervisor
+
+# 审计 F-16：VR_WORKERS overrides the hardcoded -w 2 in supervisord.conf (consistent with systemd edition)
+if [ -n "${VR_WORKERS:-}" ]; then
+    case "${VR_WORKERS}" in
+        ''|*[!0-9]*|0*)  # empty, non-numeric, or zero/leading-zero value → keep default
+            echo "WARN: invalid VR_WORKERS='${VR_WORKERS}' — keeping default -w 2" >&2 ;;
+        *)
+            if sed -i "s/-w 2 /-w ${VR_WORKERS} /g" /etc/supervisor/conf.d/supervisord.conf; then
+                echo "[VR_WORKERS] gunicorn workers set to ${VR_WORKERS}"
+            else
+                echo "WARN: failed to apply VR_WORKERS — keeping default -w 2" >&2
+            fi
+            ;;
+    esac
+fi
 
 # 审计 D6：Docker variant TLS —— detect mounted certificates (SSL_CERT_DIR, e.g. host /etc/letsencrypt/live)
 # If present, enable 443 ssl + HSTS; otherwise delete the placeholders to stay plain HTTP (container nginx -t passes).

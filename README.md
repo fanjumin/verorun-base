@@ -1,28 +1,28 @@
-# VeroRun — Multi-Agent AI Engine Operating System
+# VeroRun — Enterprise Multi-Core AI Operating System
 
-[![Version](https://img.shields.io/badge/version-0.56.5-blue.svg)](CHANGELOG.md)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.57.0-blue.svg)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-EULA%20v1.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Plugins](https://img.shields.io/badge/plugins-30-orange.svg)]()
 
-**VeroRun is a Multi-Agent AI engine operating system deployed on a customer-owned server — a general-purpose intelligent execution engine designed for enterprise on-premises deployment.**
+**VeroRun is a multi-core AI operating system that makes intelligent execution trustworthy, verifiable, and traceable — driven by core capabilities including agent collaboration, knowledge retrieval, content generation, and process orchestration, deployed on customer-owned servers.**
 
-The engine core provides five universal intelligent execution primitives — **agent collaboration, knowledge retrieval, process orchestration, model access, and asset protection** — via six core kernel components. Knowledge-base customer service, content production, business operations, and any other business form run as plugins on top of the kernel, as application instances carried by the base. The same base supports multiple intelligent front-ends (WWW websites, mini programs, IM bots, internal business portals, data dashboards, and more).
+The engine core provides five intelligent execution primitives: **Multi-Agent collaboration** (role matrix + task decomposition + parallel dispatch + self-evaluating retry + Reflexion memory evolution), **knowledge retrieval** (RAG hybrid search: pgvector vectors + pg_trgm keywords + RRF fusion + hierarchical memory), **process orchestration** (DAG workflow engine + event-bus triggers + Cron scheduling), **model access** (UnifiedLLM gateway, provider-agnostic, transparent routing + automatic failover), and **asset protection** (VeroGuard integrity verification + offline HMAC-SHA256 licensing). Primitives are triggered via HTTP API, Cron, or the event bus; the Master Agent decomposes instructions into subtasks, dispatches them to specialized Agents for parallel execution, and aggregates the results — producing PPTX/DOCX/Markdown documents, images, structured data, knowledge-base embeddings, or alert notifications. Business capabilities are assembled on top of the kernel as plugins — a plugin is an application, a plugin is an industry.
 
 ---
 
 ## Key Features
 
-- **Orchestrable Multi-Role Agent Matrix**: Athena (master) + 8 sub-roles, a multi-specialist agent team with role division and task-decomposition orchestration, plus auto-registration of extended agents.
-- **Four-Stage Discussion Protocol (Agent Discussion v2.0)**: Planner → Reviewer → Revise → Decider, separating generation from review so that errors are intercepted before they happen.
-- **Dynamic Prompt System**: a database-driven `PromptResolver` with four-layer assembly, scenario differentiation, and multi-version management.
-- **Knowledge Base & Memory Engine (CogEvolution)**: vector retrieval (RAG), layered memory, Reflexion learning, and Prompt Evolution, forming a "memory → reflection → optimization → behavioral evolution" loop.
-- **Visual Workflow Engine**: DAG node orchestration, Cron scheduling, and tiered worker pools — a general execution carrier for any process.
-- **Multi-Provider LLM Gateway (UnifiedLLM)**: a provider-agnostic unified API, 7 native + 2 dynamically resolved providers, transparent model substitution, automatic failover, model addressing, key management, budget gate, and 4-level quota.
-- **VeroGuard Guard Layer**: health monitoring + integrity verification + encrypted heartbeat, dual-process mutual protection, and client-side asset protection.
-- **Plugin Ecosystem**: 30 built-in plugins carry any business form, with full lifecycle management, plugin marketplace, and licensing engine.
+- **Orchestrable Multi-Role Agent Matrix**: Athena (master) + 8 sub-roles, role division + task-decomposition orchestration, auto-registration of extended agents.
+- **Four-Stage Discussion Protocol (Agent Discussion v2.0)**: Planner → Reviewer → Revise → Decider, separating generation from review, intercepting plans before they land.
+- **Dynamic Prompt System**: database-driven `PromptResolver`, four-layer assembly + scenario differentiation + multi-version management.
+- **Cognitive Evolution Engine (CogEvolution)**: RAG vector retrieval, layered memory, Reflexion learning, Prompt Evolution, forming a "memory → reflection → optimization → behavioral evolution" loop.
+- **Visual Workflow Engine**: DAG node orchestration, Cron scheduling, tiered worker pools — a general execution carrier for any process.
+- **Multi-Provider LLM Gateway (UnifiedLLM)**: provider-agnostic unified API, 7 native + 2 dynamically resolved providers, transparent model substitution, automatic failover, key management, budget gate, 4-level quota.
+- **VeroGuard Guard Layer**: health monitoring + integrity verification + encrypted heartbeat, dual-process mutual protection, client-side asset protection.
+- **Plugin Ecosystem**: 30 built-in plugins carry any business form, full lifecycle management, plugin marketplace, licensing engine.
 
-The kernel's design principle is **business semantics never invade the kernel**: business rules are declared entirely by plugins, and adding a business capability is equivalent to assembling a plugin — never touching kernel code.
+Kernel design principle: **business semantics are declared entirely by plugins** — adding a business capability is equivalent to assembling a plugin, keeping the kernel stable.
 
 ---
 
@@ -56,10 +56,9 @@ The kernel's design principle is **business semantics never invade the kernel**:
 | 8083 | `platform.*` | `verorun-auth` | `main_site` (Platform Console) | User console, subscription |
 | 8084 | `admin.*` | `verorun-admin` | `admin.app` | Admin panel, Agent matrix, automation, CMS |
 | 8085 | — | `verorun-health` | `health_service.app` | Internal health check endpoint |
-| 8090 | — | standalone | `captcha-service` | Puzzle captcha + behavior analysis |
 | — | — | `verorun-guardian` | `veroguard.guardian` | Unified daemon (health + integrity + heartbeat) |
 
-> Note: `auth-center/` is a **shared code library** (models / services / routes) imported by each service, not a standalone service on 8083; port 8083 actually runs the `main_site` app.
+> Note: `auth-center/` is a **shared code library** (models / services / routes) imported by each service; port 8083 actually runs the `main_site` app.
 
 ### Tech Stack
 
@@ -78,34 +77,44 @@ The kernel's design principle is **business semantics never invade the kernel**:
 
 ## Quick Start
 
+### Deployment Types
+
+| `INSTALL_TYPE` | Scenario | Repository | Domain/HTTPS |
+|---|---|---|---|
+| `website` | Production site (domain + HTTPS) | `verorun-pro` | Yes |
+| `professional` | Enterprise intranet (LAN access) | `verorun-pro` | No |
+| `development` | Development (full source, requires SSH key) | `verorun-code` | No |
+| `educational` | Education edition (requires ED deploy code) | `verorun-edu` | No |
+
 ### One-command Deployment (Ubuntu 22.04 / 24.04)
 
 ```bash
+# Production site (with domain)
 curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh \
-  | sudo bash -s -- install your-domain.com
+  | sudo env INSTALL_TYPE=website bash -s -- install your-domain.com
+
+# Enterprise intranet (IP-based access)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/install.sh \
+  | sudo env INSTALL_TYPE=professional bash
 ```
 
-Region selection:
+Region selection: `--region=cn` (Mainland China, defaults to `api.verorun.cn`) / `--region=global` (international, defaults to `api.verorun.com`).
 
-```bash
-sudo bash deploy/install.sh install your-domain.com --region=cn       # Mainland China
-sudo bash deploy/install.sh install your-domain.com --region=global    # International (default)
-```
-
-After install, run `deploy/install.sh seed` to initialize data, `deploy/install.sh configure-domain` to configure the domain; certbot issues SSL automatically.
+The install mode runs automatically: system deps → PostgreSQL → user/dirs → clone → venv → `.env` → systemd services → Nginx → start → **DB migration + seed (automatic)**. SSL requires manually running certbot after DNS resolves.
 
 ### Docker
 
 ```bash
-docker compose up -d
+# PG_PASSWORD and MINI_APP_PG_PASSWORD must be set in .env first
+docker compose up -d          # exposes port 80, single container (supervisord orchestrates all services)
 ```
 
 ### Local Development
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
-python scripts/dev_start.py
+cp .env .env.local            # create local config from existing .env
+flask run --port 8081
 ```
 
 ---
@@ -114,7 +123,7 @@ python scripts/dev_start.py
 
 ### AI Engine — Multi-Role Agent Matrix (9 Roles)
 
-Unlike a single large-model application, VeroRun does not push a complex task onto one conversation; it hands it to a group of specialized, reviewable Agent roles: the master decomposes tasks, sub-roles each do their part, the reviewer challenges the plan, and the decider signs off on the conclusion.
+VeroRun hands complex tasks to a group of specialized, reviewable Agent roles: the master decomposes tasks, sub-roles each do their part, the reviewer challenges the plan, and the decider signs off on the conclusion.
 
 | Role | Slug | Type | Model | Responsibility |
 |---|---|---|---|---|
@@ -145,7 +154,7 @@ Separating generation from review transplants the discipline of "plan review + s
 
 ### Dynamic Prompt System
 
-VeroRun has upgraded from static `.md` text prompts to a **database-driven, tag-matching, chained-assembly dynamic prompt system**. At runtime, `PromptResolver` assembles the System Prompt in real time from the task context. `agent_matrix/prompts/*.md` files serve only as initialization seeds (migrated to the `agent_prompts` table by `seed_prompts.py`).
+The dynamic prompt system uses a **database-driven, tag-matching, chained-assembly** architecture. At runtime, `PromptResolver` assembles the System Prompt in real time from the task context; prompts are stored in the `agent_prompts` table, with `agent_matrix/prompts/*.md` as initialization seeds (migrated by `seed_prompts.py`).
 
 **Four-Layer Assembly**:
 
@@ -156,7 +165,7 @@ VeroRun has upgraded from static `.md` text prompts to a **database-driven, tag-
 
 **Data Model**: `agent_prompts` (version, is_active, priority, tags, task_triggers) + `agent_prompt_bindings`; the `prompts_db.html` admin page offers visual management, and multiple versions of the same slug are supported with switch and rollback.
 
-**Toggle & Fallback**: controlled by `system_config.prompt_resolver_enabled`, which takes effect only when the key exists and holds a truthy value; a missing key or a read error returns a safe fallback. Fallback spans three layers: toggle off → read `agent_matrix.system_prompt` (file path or inline text, with path-traversal protection); any assembly exception → likewise falls back to legacy; no matching entry after four-layer lookup → falls back to the original `system_prompt` logic. This follows the "availability-first" principle — the default failure direction is degraded-but-available, not business outage.
+**Toggle & Fallback**: controlled by `system_config.prompt_resolver_enabled`; active when the key holds a truthy value, with safe fallback to legacy mode on toggle-off or read error (reads `agent_matrix.system_prompt`, with path-traversal protection). Three-layer fallback: toggle off → legacy; assembly exception → legacy; no match after four-layer lookup → original `system_prompt` logic. Follows the "availability-first" principle.
 
 **Integration with Cognitive Evolution**: dynamic prompts are injected with memory through the kernel `before_prompt_resolve` filter chain, and support Prompt Evolution's per-version metric aggregation and one-click application of new versions.
 
@@ -166,9 +175,9 @@ Since v0.56.4, `memory_engine` has been upgraded into a cognitive evolution engi
 
 - **Vector retrieval (RAG)**: retrieves context from a document knowledge base; AI Q&A includes source citations.
 - **Reflexion**: triggered on task failure or low confidence; extracts failure context → root-cause analysis → generates structured reflection → persists to long-term memory, auto-retrieved for later similar tasks to avoid repeating mistakes.
-- **Prompt Evolution**: aggregates execution metrics per prompt version and generates optimization suggestions when statistically significant; admins apply a new version in one click. **Note: disabled by default** (`prompt_evolution_enabled: false`); must be explicitly enabled.
+- **Prompt Evolution**: aggregates execution metrics per prompt version and generates optimization suggestions when statistically significant; admins apply a new version in one click. Requires explicit enablement (`prompt_evolution_enabled`).
 - **Evolution-loop visualization**: a pure-SVG interactive component rendering decision paths, reflection trigger points, and prompt-version switches in a ring topology, with replay and drill-down.
-- **Layered memory**: working memory (in-process) + long-term vector memory (pgvector); supports user / global / agent scopes; privacy-first (user-level opt-in, PII auto-filtering, isolated schema); falls back to keyword retrieval when pgvector is unavailable.
+- **Layered memory**: working memory (in-process) + long-term vector memory (pgvector); supports user / global / agent scopes; privacy-first (user-level opt-in, PII auto-filtering, isolated schema); falls back to keyword retrieval when pgvector is absent.
 
 ### Project Workspace (Knowledge Retrieval in Practice)
 
@@ -185,7 +194,7 @@ The engine's "knowledge retrieval" primitive is realized as a project-level know
 Any task drivable by agent collaboration and process orchestration can be arranged on a visual DAG:
 
 - **DAG orchestration**: 12 registered node types — `ai_agent`, `data_collect`, `ai_process`, `condition`, `approval`, `publish`, `notify`, `wait`, `sub_workflow`, `market_check`, `http_request`, `script`.
-- **Implementation caveat**: `approval`, `sub_workflow`, and `script` currently only have placeholder handlers with no real logic — confirm before use.
+- **Implementation caveat**: `approval`, `sub_workflow`, and `script` currently have placeholder handlers only — confirm implementation status before use.
 - **Cron scheduling**: APScheduler-based, supporting Cron / Interval / Date triggers, pause / resume, priorities (critical / high / normal / low), exponential-backoff retry, and natural-language cron parsing.
 - **Tiered worker pools**: `dedicated_pool` (4 threads) + `shared_pool` (8 threads); priorities ≤ HIGH go to dedicated, otherwise to shared.
 
@@ -204,7 +213,7 @@ Any task drivable by agent collaboration and process orchestration can be arrang
 | Budget gate | daily token cap (default 2M) + per-minute rate limit (default 30 calls / 60s), fail-open |
 | 4-level quota | priority User > Model > Module > Global |
 
-**Orchestration**: UnifiedLLM shields provider differences from upper layers — applications all talk the same API shape while the gateway handles interface translation, model routing, and automatic failover behind the scenes. Models are addressed dynamically by capability and cost, enabling transparent substitution and automatic degradation while avoiding vendor lock-in; onboarding a new provider or switching models requires no changes to business code.
+**Orchestration**: UnifiedLLM shields provider differences from upper layers — applications all talk the same API shape while the gateway handles interface translation, model routing, and automatic failover behind the scenes. Models are addressed dynamically by capability and cost, enabling transparent substitution and automatic degradation; onboarding a new provider or switching models is transparent to business code.
 
 ---
 
@@ -223,40 +232,57 @@ Unifies health monitoring, code-integrity verification, and encrypted heartbeat 
 
 ---
 
-## Plugin Ecosystem ("What Runs")
+## Plugin Ecosystem
 
-Full lifecycle management (6 states: `UNKNOWN → INSTALLED → ENABLED → ACTIVE → DISABLED → UNINSTALLED`) plus an `ERROR` state. Plugins cover six directions by domain:
+Full lifecycle management (6 states: `UNKNOWN → INSTALLED → ENABLED → ACTIVE → DISABLED → UNINSTALLED`) plus an `ERROR` state.
+
+### Kernel-Related Plugins
+
+| Plugin | Related Primitive | Summary |
+|---|---|---|
+| `memory_engine` | Agent collaboration / Knowledge retrieval | Cognitive evolution engine: RAG + layered memory + Reflexion + Prompt Evolution |
+| `project_workspace` | Knowledge retrieval | Project-level document RAG, schema isolation, semantic retrieval with citations |
+| `content_factory` | Process orchestration | Multi-source collection → AI processing → review → publish, listens to `cron.tick` |
+| `health_check` | Asset protection | Auto health inspection + AI Fixer fault analysis + alerts |
+| `analytics` | Process orchestration | Server-side privacy-first analytics, workflow nodes: report / AI insight / alert / CSV |
+| `vault` | Asset protection | Full/incremental backup, AES-256-GCM encryption, multi-target storage |
+
+### Domain Plugins
 
 | Domain | Plugins |
 |---|---|
-| Business operations | `shop`, `payment`, `logistics`, `order_notify`, `reviews`, `wishlist`, `ali_api`, `subscription` |
-| Content publishing | `content_factory`, `site_builder`, `mini_app_builder`, `ads`, `coupons`, `social_push` |
-| Knowledge management | `memory_engine`, `chatbot`, `project_workspace` |
+| Knowledge management | `chatbot`, `memory_engine`, `project_workspace` |
+| Content publishing | `content_factory`, `site_builder`, `mini_app_builder`, `ads`, `social_push`, etc. |
+| Business operations | `shop`, `payment`, `logistics`, `subscription`, `coupons`, etc. |
 | Communications | `im_gateway`, `email`, `sms`, `oauth_config` |
-| Ops & security | `health_check`, `vault`, `verification`, `captcha_embedded`, `enterprise_verify` |
-| Data & utilities | `currency_converter`, `site_domains`, `visitor_profile`, `analytics` |
+| Ops & security | `health_check`, `vault`, `captcha_embedded`, `enterprise_verify`, etc. |
+| Data & utilities | `visitor_profile`, `analytics`, `currency_converter`, `site_domains`, etc. |
 
-**Plugin Manager Mechanics**: auto-scans `plugins/` and parses `plugin.json`; dependency resolution via Kahn topological sort with cycle detection; an event bus with 31 system events (thread-pool async dispatch); WordPress-style Action / Filter hooks with priority; JSON Schema Draft-07 config validation (with type-coercion fallback); per-plugin isolated logs (rotating 5MB × 3).
+**Plugin Manager**: auto-scans `plugins/` and parses `plugin.json`; dependency resolution via Kahn topological sort with cycle detection; event bus with 31 system events (thread-pool async dispatch); WordPress-style Action / Filter hooks with priority; JSON Schema Draft-07 config validation; per-plugin isolated logs (rotating 5MB × 3).
 
-**Plugin Marketplace**: browse / search (remote API + local cache), one-click install (SHA256 integrity + Zip Slip protection), Alipay QR payment, subscriptions (monthly / yearly) and coupons. Licensing: online validation (HMAC-signed requests) + offline token (**HMAC-SHA256**, 72h grace + 7-day validity, bound to Site ID) + free plugins skip validation.
+**Plugin Marketplace**: browse / search (remote API + local cache), one-click install (SHA256 integrity + Zip Slip protection), Alipay QR payment, subscriptions and coupons. Licensing: online HMAC-signed validation + offline token (HMAC-SHA256, 72h grace + 7-day validity, bound to Site ID).
+
+### Custom Plugins
+
+Plugin contract: create a directory under `plugins/`, provide `plugin.json` (metadata + dependencies + config schema) and implement `register_routes()` / hooks. The manager auto-scans and registers it, integrating via the event bus and Action/Filter hooks. Custom plugins enjoy the same capabilities as built-in ones: route mounting, workflow node registration, event subscription, and agent tool exposure.
 
 ---
 
 ## Content Generation
 
-Content generation is one of the general capabilities carried by the engine, covering the batch production and distribution of diverse content forms such as articles, images, and marketing assets. Leveraging the same engine, content can also be delivered directly to front-ends such as websites and mini programs:
+Content generation is one of the general capabilities carried by the engine, covering the batch production and distribution of diverse content forms such as articles, images, and marketing assets. Leveraging the same engine, content can be delivered directly to front-ends such as websites and mini programs:
 
 - **Content production** (`content_factory`): batch generation and distribution of articles, images, and marketing assets.
 - **AI site building** (`site_builder`): generates websites, themes, and pages, presenting content in site form.
 - **Mini programs** (`mini_app_builder`): extends content capabilities to the mini-program front-end.
 
-Content generation is independent of the knowledge retrieval, process orchestration, model access, and asset protection primitives — all of which can be combined on demand by business plugins to form complete applications.
+Content generation and the knowledge retrieval, process orchestration, model access, and asset protection primitives can be combined on demand by business plugins to form complete applications.
 
 ---
 
 ## Business Model & Regional Routing
 
-**Three-stage funnel**: open-source core for lead generation (the public `verorun-base` repository) → plugin purchases, subscriptions, and commercial licenses for recurring revenue → VeroGuard protects code assets and licensing rights on the customer side. **Data-flywheel vision**: centered on domain knowledge assets, knowledge bases self-evolve through business usage, powering domain-model fine-tuning and intelligent-device training.
+**Three-stage funnel**: free distribution of the standard enterprise package and the education edition for lead generation (public `verorun-pro` and `verorun-edu` repositories) → plugin purchases, subscriptions, and commercial licenses for recurring revenue → VeroGuard protects code assets and licensing rights on the customer side. **Data-flywheel vision**: centered on domain knowledge assets, knowledge bases self-evolve through business usage, powering domain-model fine-tuning and intelligent-device training.
 
 **Regional routing**: `VERORUN_REGION=cn` → `api.verorun.cn`; `=global` → `api.verorun.com`. All remote services (licensing / heartbeat / daemon) resolve dynamically by region, with single-URL environment-variable override.
 
@@ -279,7 +305,7 @@ Content generation is independent of the knowledge retrieval, process orchestrat
 ```text
 verorun-pro/
 ├── admin/                  # Admin panel (8084)
-├── auth-center/            # Shared auth/model/services/routes (not a standalone service)
+├── auth-center/            # Shared auth/model/services/routes (shared code library)
 ├── main_site/              # Main site backend (8081)
 ├── agent_matrix/           # AI Engine: multi-agent orchestration
 │   ├── roles/              # 9 role YAML definitions
@@ -294,7 +320,7 @@ verorun-pro/
 ├── veroguard/              # VeroGuard guard layer (7 modules)
 ├── providers/              # Pluggable provider abstraction
 ├── sdks/                   # JavaScript SDKs (5 packages)
-├── captcha-service/        # Standalone puzzle captcha service (8090)
+├── captcha-service/        # Legacy standalone service (migrated to plugins/captcha_embedded)
 ├── health_service/         # Health check service (8085)
 ├── i18n/                   # Internationalization (en, zh-CN)
 ├── deploy/                 # Deployment scripts, Nginx config
@@ -305,7 +331,7 @@ verorun-pro/
 └── LICENSE
 ```
 
-> Note: business directories such as `site_builder/` are concrete realizations of content-generation capability — they belong to the application layer carried by the engine, not the engine itself.
+> Note: business directories such as `site_builder/` belong to the application layer carried by the engine.
 
 ---
 
@@ -332,6 +358,18 @@ verorun-pro/
 
 ## License
 
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+VeroRun is distributed under a **source-available proprietary license** per the [VeroRun Base EULA v1.0](LICENSE).
 
-Copyright (c) 2026 Fan Jumin. See [LICENSE](LICENSE) for details.
+**Distribution matrix**:
+
+| Repository | Nature | Content | Governing terms |
+|---|---|---|---|
+| `verorun-pro` | Public | Standard enterprise package (general engine, plugins installed on demand via the marketplace) | EULA v1.0 |
+| `verorun-code` | Private | Full source (all plugins, licensing components, and VeroGuard) | Private distribution terms |
+| `verorun-edu` | Public | Education edition (EDU plugin allowlist, education modules only) | EULA v1.0 |
+
+**EULA v1.0 highlights**: visible Python source may be read and modified (for customization and integration); precompiled binaries (.pyd/.so/.dll/executables) may not be decompiled, disassembled, or reverse-engineered; no redistribution, resale, or sublicensing; no use to build competing products; no removal of copyright notices, license keys, or DRM mechanisms; production commercial deployment requires a valid commercial license.
+
+**Consistency with VeroGuard**: VeroGuard's health monitoring, integrity verification, self-protection, and remote-command capabilities are the operational enforcement of EULA §2.2 (no decompiling binaries) and §3 (no removing licensing/DRM mechanisms), guarding the license boundary and commercial assets. The EULA proprietary license makes the asset-protection mechanism legally self-consistent.
+
+Copyright (c) 2024-2026 VeroRun AI. All rights reserved. See [LICENSE](LICENSE) for details.

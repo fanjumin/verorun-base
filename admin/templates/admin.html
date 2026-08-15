@@ -24,12 +24,14 @@
 {% include 'partials/orders.html' %}
 {% include 'plugins/subscription/templates/subscribe_admin_partial.html' ignore missing %}
 {% include 'plugins/oauth_config/templates/admin_oauth.html' ignore missing %}
+{% include 'plugins/captcha_embedded/templates/captcha_stats.html' ignore missing %}
+{% include 'plugins/reviews/templates/reviews_admin_partial.html' ignore missing %}
 {% include 'partials/config.html' %}
 {% include 'partials/logs.html' %}
 {% include 'partials/matrix.html' %}
 {% include 'partials/prompts_db.html' %}
 {% include 'partials/ai_chat.html' %}
-{% include 'partials/site_builder.html' %}
+{% include 'plugins/site_builder/templates/admin_site_builder.html' ignore missing %}
 {% include 'plugins/email/templates/admin_email.html' ignore missing %}
 {% include 'partials/downloads.html' %}
 {% include 'partials/sms.html' %}
@@ -42,8 +44,8 @@
 {% include 'plugins/verification/templates/admin_verification.html' ignore missing %}
 {% include 'plugins/chatbot/templates/admin_chatbot.html' ignore missing %}
 {% include 'partials/automation.html' %}
-{% include 'partials/analytics.html' ignore missing %}
-{% include 'partials/health.html' ignore missing %}
+{% include 'plugins/analytics/templates/admin_analytics.html' ignore missing %}
+{% include 'plugins/health_check/templates/admin_health.html' ignore missing %}
 {% include 'partials/i18n_translations.html' %}
 {% include 'partials/comments.html' %}
 {% include 'partials/admins.html' %}
@@ -54,8 +56,8 @@
 {% include 'partials/media_library.html' %}
 {% include 'partials/cleaner.html' %}
 {% include 'partials/knowledge.html' %}
-{% include 'partials/vault.html' %}
-{% include 'partials/ali_api.html' %}
+{% include 'plugins/vault/templates/admin_vault.html' ignore missing %}
+{% include 'plugins/ali_api/templates/admin_ali_api.html' ignore missing %}
 {% include 'plugins/site_domains/templates/admin_sitedomains.html' ignore missing %}
 {% include 'plugins/logistics/templates/admin_logistics.html' ignore missing %}
 {% include 'plugins/coupons/templates/admin_coupons.html' ignore missing %}

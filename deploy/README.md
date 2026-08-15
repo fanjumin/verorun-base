@@ -14,6 +14,8 @@
 - [Post-Install Configuration](#post-install-configuration)
 - [Troubleshooting](#troubleshooting)
 - [Manual Step-by-Step Installation](#manual-step-by-step-installation)
+- [Educational Edition（教育版）](#educational-edition教育版)
+- [Release Signing（发布签名）](#release-signing发布签名)
 
 ---
 
@@ -39,7 +41,7 @@ VeroRun is distributed through two repositories — pick the one that matches yo
 | `verorun-pro` | `https://github.com/fanjumin/verorun-pro` (public) | Standard enterprise package, open download. Install by cloning the repo (see below). |
 | `verorun-code` | `https://github.com/fanjumin/verorun-code` (private) | Official site / enterprise customization. Requires SSH access to the private repository. |
 
-`verorun-pro` is generated automatically from `verorun-code` on every version tag by the `sync-to-base` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-pro`, SSH for `verorun-code`), so `update` always pulls from the correct source.
+`verorun-pro` is generated automatically from `verorun-code` on every version tag by the `sync-to-pro` CI workflow. `install.sh` sets the `GIT_REPO` variable per distribution (HTTPS for `verorun-pro`, SSH for `verorun-code`), so `update` always pulls from the correct source.
 
 ### Official Edition（官方版）
 
@@ -88,10 +90,31 @@ curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/
 |-------|-------------|-------------|------------|
 | `website` | production | Domain + HTTPS, public deployment | `install.sh` |
 | `professional` | lan | No domain, LAN access, verorun-pro | `install-local.sh` |
-| `development` | code | Full plugins, verorun-code (SSH), requires deploy key | `install-code.sh` |
+| `development` | dev | No plugins, verorun-code (SSH), requires deploy key | `install-dev.sh` |
 | `educational` | edu | No domain, edu license required | (new) |
 
-> `install-code.sh` is preserved as an independent shortcut for Development deployments.
+> `install-code.sh` is preserved as an independent shortcut for Team (code) deployments (full plugins).
+
+### Educational Edition（教育版）
+
+```bash
+# One-command edu install (no domain, edu license code required)
+curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/install.sh | sudo env INSTALL_TYPE=educational bash
+```
+
+> **common.sh 同步依赖（audit F-02）：** 教育版一键安装从 `verorun-edu` 拉取
+> `deploy/lib/common.sh`，其校验哈希 `EDU_COMMON_SHA256` 与 `verorun-pro` 的
+> `COMMON_SHA256` **默认 pin 同一值**。两仓库的 common.sh 内容由
+> `sync-to-pro.yml` / `sync-to-edu.yml`（`git archive` 按 tag 导出）自动保持同步；
+> 若不同步，教育版一键安装会因哈希不匹配而**校验失败中止**。
+>
+> 如需独立 pin（例如 edu 仓库 fork 出不同内容），用环境变量覆盖：
+>
+> ```bash
+> # 实际哈希可用 sha256sum deploy/lib/common.sh 计算（LF 归一化）
+> curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/install.sh \
+>   | sudo env INSTALL_TYPE=educational EDU_COMMON_SHA256=<64-hex> bash
+> ```
 
 **Alternatively — clone then run locally:**
 
@@ -498,6 +521,29 @@ sudo ln -sf /etc/nginx/sites-available/verorun.conf /etc/nginx/sites-enabled/ver
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl restart nginx
 ```
+
+---
+
+## Release Signing（发布签名）
+
+`deploy/lib/common.sh` 被三个入口脚本（`install.sh` / `install-code.sh` / `install-official.sh`）
+在 curl|bash 一键安装时远程拉取，并通过内嵌的 SHA-256 pin 校验，防止 CDN / 仓库投毒。
+
+**每次修改 `deploy/lib/common.sh` 后必须重新回填哈希**，否则发布后一键安装会因校验失败而损坏：
+
+```bash
+# 在仓库根目录运行（幂等）
+python3 deploy/scripts/sign_release.py
+
+# CI 门禁：校验全部 pin（含 EDU_COMMON_SHA256）是否与当前 common.sh 一致，不一致则退出码非 0
+python3 deploy/scripts/sign_release.py --check
+```
+
+- 哈希按 **LF 归一化**计算（匹配 GitHub raw 内容；Windows CRLF 检出不影响）。
+- `install.sh` 内含两个 pin：`COMMON_SHA256`（verorun-pro）与 `EDU_COMMON_SHA256`（verorun-edu），
+  均由 `sign_release.py` 回填同一值（两仓库 common.sh 内容需同步）。
+- `.github/workflows/tests.yml` 已接入 `sign_release.py --check` 作为发布质量门禁：
+  若 common.sh 被修改但未回填，CI 直接失败。
 
 ---
 

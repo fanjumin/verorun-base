@@ -149,6 +149,12 @@ class PluginInfo:
     # ★ v1.4 插件来源：store(官方商店) / upload(用户上传自研)
     source: str = 'store'
 
+    # ★ v1.5 展示与分类字段（§5.1/§6.1，与 metadata 冗余、列化以便 SQL 筛选）
+    category: str = 'other'
+    icon: str = 'plugin'
+    tags: List[str] = field(default_factory=list)
+    dashboard_meta: Dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> dict:
         """序列化为 dict（用于 API 响应）"""
         result = asdict(self)
@@ -217,6 +223,12 @@ CREATE TABLE IF NOT EXISTS plugin_registry (
 
 /* ★ v1.4 新增插件来源列 */
 ALTER TABLE plugin_registry ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'store';
+
+/* ★ v1.5 展示与分类字段（§5.1/§6.1） */
+ALTER TABLE plugin_registry ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'other';
+ALTER TABLE plugin_registry ADD COLUMN IF NOT EXISTS icon TEXT DEFAULT 'plugin';
+ALTER TABLE plugin_registry ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '[]';
+ALTER TABLE plugin_registry ADD COLUMN IF NOT EXISTS dashboard_meta TEXT DEFAULT '{}';
 
 CREATE INDEX IF NOT EXISTS idx_plugin_registry_status
     ON plugin_registry(status);

@@ -50,6 +50,14 @@ from .logger import get_plugin_logger, init_plugin_logging
 from .license import LicenseManager, get_license_manager
 from .store import StoreAPIClient, get_store_client
 
+# 敏感权限集合（软执行门卫，§10.2/§11.1）：声明即需管理员启用前审查
+SENSITIVE_PERMISSIONS = {
+    'network:request',
+    'filesystem:read',
+    'filesystem:write',
+    'admin:access',
+}
+
 
 class PluginManager:
     """插件管理器核心类"""
@@ -385,14 +393,21 @@ class PluginManager:
             self._emit('plugin.enabled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} enabled')
 
-            # ── 注册插件角色到 agent_matrix ──────────────────────
-            declare_roles = info.metadata.get('declare_roles', [])
-            if declare_roles:
+            # ── 注册插件 Agent 到 agent_matrix（§4）──────────────────
+            _meta = info.metadata or {}
+            if _meta.get('agents') or _meta.get('declare_roles'):
                 try:
-                    from agent_matrix.models import register_plugin_roles
-                    register_plugin_roles(identifier, declare_roles)
+                    from agent_matrix.models import register_plugin_agents
+                    register_plugin_agents(identifier, info.path, _meta)
                 except ImportError as e:
-                    print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过角色注册 ({e})')
+                    print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过 Agent 注册 ({e})')
+
+            # ── 敏感权限软检查（软执行：仅警告，不阻断）────────────
+            sensitive = [p for p in (_meta.get('permissions') or [])
+                         if p in SENSITIVE_PERMISSIONS]
+            if sensitive:
+                print(f'[PluginManager] ⚠️ {identifier} 声明敏感权限 {sensitive}，'
+                      f'请管理员启用前审查（软执行：仅提醒）')
 
             # ── 自动激活: enable 后立即挂载钩子/任务 ────────────
             # Flask 不允许 app 处理首个请求后动态注册蓝图，因此不再在此 register_blueprint；
@@ -502,14 +517,14 @@ class PluginManager:
             self._emit('plugin.disabled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} disabled')
 
-            # ── 卸载插件角色 ──────────────────────────────────────
-            declare_roles = info.metadata.get('declare_roles', [])
-            if declare_roles:
+            # ── 注销插件 Agent（§4）─────────────────────────────
+            _meta = info.metadata or {}
+            if _meta.get('agents') or _meta.get('declare_roles'):
                 try:
-                    from agent_matrix.models import unregister_plugin_roles
-                    unregister_plugin_roles(identifier, declare_roles)
+                    from agent_matrix.models import unregister_plugin_agents
+                    unregister_plugin_agents(identifier, _meta)
                 except ImportError as e:
-                    print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过角色清理 ({e})')
+                    print(f'[PluginManager] ⚠️ {identifier}: agent_matrix.models 不可用, 跳过 Agent 清理 ({e})')
 
             return info
 
@@ -531,6 +546,15 @@ class PluginManager:
                     instance.on_uninstall()
                 except Exception as e:
                     print(f'[PluginManager] {identifier} uninstall warning: {e}')
+
+            # 兜底：注销插件声明的 Agent（即使插件从未 enable 过）
+            _meta = info.metadata or {}
+            if _meta.get('agents') or _meta.get('declare_roles'):
+                try:
+                    from agent_matrix.models import unregister_plugin_agents
+                    unregister_plugin_agents(identifier, _meta)
+                except ImportError:
+                    pass
 
             # 从数据库中移除记录
             self._delete_from_db(identifier)
@@ -708,6 +732,30 @@ class PluginManager:
                 print(f'[PluginManager] 🧹 清理旧备份 {identifier}/{name}')
             except OSError as e:
                 print(f'[PluginManager] ⚠️ 清理备份 {path} 失败: {e}')
+
+    # ── Dashboard 统计聚合（§6.4 / §10.5）──────────────────────────
+
+    def get_all_stats(self) -> dict:
+        """聚合所有 ACTIVE 插件的 get_dashboard_stats()。
+
+        每插件最多上报 10 个指标；单插件异常不影响整体聚合。
+        """
+        result = {}
+        for pid, instance in self._instances.items():
+            info = self._cache.get(pid)
+            if not info or info.status != PluginStatus.ACTIVE:
+                continue
+            if not hasattr(instance, 'get_dashboard_stats'):
+                continue
+            try:
+                stats = instance.get_dashboard_stats() or {}
+                if not isinstance(stats, dict):
+                    continue
+                result[pid] = dict(list(stats.items())[:10])
+            except Exception as e:
+                result[pid] = {'error': str(e)}
+                print(f'[PluginManager] {pid}: get_dashboard_stats() failed: {e}')
+        return result
 
     # ── 批量操作 ────────────────────────────────────────────────────────
 
@@ -1531,8 +1579,9 @@ class PluginManager:
                     min_app_version, path, metadata, status, config,
                     dependencies, provides_hooks, listens_hooks,
                     permissions, settings_schema, installed_at,
-                    updated_at, last_error, source
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    updated_at, last_error, source,
+                    category, icon, tags, dashboard_meta
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(identifier) DO UPDATE SET
                     name=excluded.name,
                     version=excluded.version,
@@ -1550,7 +1599,11 @@ class PluginManager:
                     settings_schema=excluded.settings_schema,
                     updated_at=excluded.updated_at,
                     last_error=excluded.last_error,
-                    source=excluded.source
+                    source=excluded.source,
+                    category=excluded.category,
+                    icon=excluded.icon,
+                    tags=excluded.tags,
+                    dashboard_meta=excluded.dashboard_meta
             """, (
                 info.identifier, info.name, info.version,
                 info.author, info.description,
@@ -1567,6 +1620,10 @@ class PluginManager:
                 info.updated_at or datetime.now().isoformat(),
                 info.last_error,
                 getattr(info, 'source', 'store'),
+                info.category,
+                info.icon,
+                json.dumps(info.tags, ensure_ascii=False),
+                json.dumps(info.dashboard_meta, ensure_ascii=False),
             ))
             conn.commit()
 
@@ -1604,4 +1661,9 @@ class PluginManager:
             updated_at=row.get('updated_at'),
             last_error=row.get('last_error', ''),
             source=row.get('source', 'store'),
+            # ★ v1.5 展示与分类字段（列值优先，空则回退 metadata）
+            category=row.get('category') or meta.get('category', 'other'),
+            icon=row.get('icon') or meta.get('icon', 'plugin'),
+            tags=json.loads(row.get('tags', '[]') or '[]'),
+            dashboard_meta=json.loads(row.get('dashboard_meta', '{}') or '{}'),
         )

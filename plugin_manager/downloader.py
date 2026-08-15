@@ -15,9 +15,12 @@ import tarfile
 import zipfile
 import tempfile
 import logging
+import ipaddress
+import socket
 from typing import Optional
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,27 @@ logger = logging.getLogger(__name__)
 MAX_DOWNLOAD_SIZE = 200 * 1024 * 1024
 # Download timeout: 120 seconds
 DOWNLOAD_TIMEOUT = 120
+
+
+def _validate_public_url(url: str) -> None:
+    """SSRF 防护（§11.3）：仅允许 http/https，且目标主机必须解析为公网地址。
+
+    拒绝：私网（10/8、172.16/12、192.168/16）、回环（127/8、::1）、
+    链路本地（169.254/16、fe80::/10）、保留地址与组播地址。
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f'仅允许 http/https 协议，当前: {parsed.scheme!r}')
+    host = parsed.hostname
+    if not host:
+        raise ValueError(f'无效 URL（缺少主机名）: {url}')
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(host))
+    except (socket.gaierror, ValueError) as e:
+        raise ValueError(f'无法解析插件下载主机: {host}') from e
+    if (ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast):
+        raise ValueError(f'拒绝下载: 目标为内网/保留地址 {host} ({ip})')
 
 
 def download_plugin(download_url: str, dest_dir: str,
@@ -51,6 +75,10 @@ def download_plugin(download_url: str, dest_dir: str,
         os.close(fd)
 
         logger.info(f'Downloading {download_url} -> {tmp_path}')
+
+        # ── SSRF 防护：仅允许公网地址 ──────────────────────────
+        _validate_public_url(download_url)
+
         req = Request(download_url, headers={
             'User-Agent': 'VeroRun-PluginManager/1.0',
         })

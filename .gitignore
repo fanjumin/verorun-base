@@ -70,7 +70,6 @@ verify_*.py
 backups/
 data/*.db
 data/*.mmdb
-captcha-service/*.db
 
 # Runtime SQLite databases (plugins own DBs are created at runtime)
 plugins/*/*.db

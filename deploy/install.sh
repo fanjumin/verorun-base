@@ -25,10 +25,10 @@
 # Supported INSTALL_TYPE values: website | professional | development | educational
 #   website      → DEPLOY_TYPE=production (domain + HTTPS)
 #   professional → DEPLOY_TYPE=lan         (no domain, LAN access)
-#   development  → DEPLOY_TYPE=code        (verorun-code SSH, full plugins)
+#   development  → DEPLOY_TYPE=dev         (verorun-code SSH, no plugins)
 #   educational  → DEPLOY_TYPE=edu         (no domain, edu license)
 #
-# install-code.sh is preserved as an independent shortcut (logic merged into Development option here).
+# install-code.sh is the team full-plugin (code) shortcut; Development maps to dev (no plugins).
 # install-local.sh and install-dev.sh have been removed (logic merged into Professional / Development).
 # ==========================================================================
 set -euo pipefail
@@ -48,7 +48,7 @@ fi
 : "${SERVICE_DIR:=/etc/systemd/system}"
 : "${DOMAIN:=}"
 : "${REGION:=global}"                # cn | global
-: "${DEPLOY_TYPE:=production}"       # production | lan | code | edu — default; select_deploy_type may override
+: "${DEPLOY_TYPE:=production}"       # production | lan | code | dev | edu — default; select_deploy_type may override
 : "${VR_ADMIN_USERNAME:=}"
 : "${VR_ADMIN_PASSWORD:=}"
 : "${SSL_EMAIL:=}"
@@ -65,12 +65,23 @@ if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/lib/common.sh" ]; then
 else
     # One-command install (curl | sudo bash): script runs from stdin, no real path
     # → fetch the shared library from verorun-pro (public repo, matching the one-command install link) into a temp file and load it
-    # Audit D10: source is fixed to verorun-pro (verorun-code is a private repo, inaccessible to anonymous users);
+    # 审计 D10: source is fixed to verorun-pro (verorun-code is a private repo, inaccessible to anonymous users);
     # Verify against a SHA-256 allowlist after fetching, to guard against CDN/repo poisoning.
-    _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
-    _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
-    # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
-    _COMMON_SHA256="${COMMON_SHA256:-7c6434cfa17bd91c471e5aa2b230bd2227d291cdc9dfa4d9a60a80525350b0f8}"
+    # 审计 F-02：教育版（INSTALL_TYPE=educational）从 verorun-edu 拉取 common.sh 并用其哈希校验。
+    # 注意：EDU_COMMON_SHA256 与 COMMON_SHA256 默认 pin 同一哈希——两仓库 common.sh 必须由 CI
+    # （sync-to-pro / sync-to-edu 的 git archive）同步保持一致，否则教育版一键安装会因哈希不匹配而失败；
+    # 如需独立 pin，可用 EDU_COMMON_SHA256 环境变量覆盖。
+    if [ "${INSTALL_TYPE:-}" = "educational" ]; then
+        _COMMON_REMOTE="${EDU_COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/lib/common.sh}"
+        _COMMON_MIRROR="${EDU_COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/lib/common.sh}"
+        # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
+        _COMMON_SHA256="${EDU_COMMON_SHA256:-24372b3c2554fc2b2651ad3cda39e679c38ee4021ff048ea41b7ec94684d8c38}"
+    else
+        _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
+        _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
+        # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
+        _COMMON_SHA256="${COMMON_SHA256:-24372b3c2554fc2b2651ad3cda39e679c38ee4021ff048ea41b7ec94684d8c38}"
+    fi
     _tmp_common="$(mktemp)"
     # Audit P3-2: clean up the temp file on Ctrl+C interruption
     trap 'rm -f "${_tmp_common}"' EXIT
@@ -128,7 +139,7 @@ select_deploy_type() {
             case "${INSTALL_TYPE}" in
                 website)      DEPLOY_TYPE="production" ;;
                 professional) DEPLOY_TYPE="lan" ;;
-                development)  DEPLOY_TYPE="code" ;;
+                development)  DEPLOY_TYPE="dev" ;;
                 educational)  DEPLOY_TYPE="edu" ;;
                 *) echo -e "${FAIL} Unknown INSTALL_TYPE: ${INSTALL_TYPE}"; exit 1 ;;
             esac
@@ -137,19 +148,27 @@ select_deploy_type() {
         fi
         # 2) Interactive menu — always shown on every install
         # Menu read uses /dev/tty (real terminal); remains interactive even under a curl|bash pipe
+        # 审计 S-7：无 TTY（CI / 纯管道）时优雅退出，提示用 INSTALL_TYPE 环境变量，避免 read 读到 EOF 后误报 Invalid choice
+        if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+            echo -e "${FAIL} No interactive terminal available — pass INSTALL_TYPE explicitly:"
+            echo -e "${INFO}   curl ... | sudo env INSTALL_TYPE=professional bash"
+            echo -e "${INFO}   INSTALL_TYPE: website | professional | development | educational"
+            exit 1
+        fi
+        exec 3>&-
         echo ""
         echo "  VeroRun installer wizard - select a deployment type"
         echo "  ----------------------------------------------"
         echo "  [1] Website        Production (requires domain + HTTPS)"
         echo "  [2] Professional   Pro edition (no domain, LAN access)"
-        echo "  [3] Development    Dev edition (verorun-code full plugins, requires SSH key)"
+        echo "  [3] Development    Dev edition (verorun-code, no plugins, requires SSH key)"
         echo "  [4] Educational    Edu edition (no domain, requires edu license code)"
         echo -n "  Enter your choice [1-4]: " > /dev/tty
         read -r _choice < /dev/tty
         case "${_choice}" in
             1) DEPLOY_TYPE="production" ;;
             2) DEPLOY_TYPE="lan" ;;
-            3) DEPLOY_TYPE="code" ;;
+            3) DEPLOY_TYPE="dev" ;;
             4) DEPLOY_TYPE="edu" ;;
             *) echo -e "${FAIL} Invalid choice, please try again"; exit 1 ;;
         esac
@@ -192,9 +211,22 @@ select_deploy_type() {
 # ══════════════════════════════════════════════════════════════════════
 apply_deploy_type() {
     case "${DEPLOY_TYPE}" in
+        dev)
+            # Developer edition: verorun-code over SSH, plugins EXCLUDED (requirement "dev = no plugins").
+            # F-10: GIT_REPO env-injectable — a user-provided value (≠ script default) is respected.
+            # 审计 2026-08-15：短路赋值 `[ ] && assign` 在 set -e 下当 GIT_REPO 非默认值（如离线本地 bare）时
+            # 会因 [ ] 返回非零导致整条语句退出码非零 → set -e 静默退出安装。改写为 if 形式，行为等价但防截断。
+            if [ "${GIT_REPO}" = "https://github.com/fanjumin/verorun-pro.git" ]; then
+                GIT_REPO="git@github.com:fanjumin/verorun-code.git"
+            fi
+            ;;
         code)
-            # Reuse install-code.sh logic: verorun-code over SSH + full plugins
-            GIT_REPO="git@github.com:fanjumin/verorun-code.git"
+            # Team full-plugin edition (install-code.sh) + back-compat: existing code-type .env updates.
+            # F-10: env-injectable — a user-provided value (≠ script default) is respected.
+            # 审计 2026-08-15：与 dev 分支同源加固（见上）。
+            if [ "${GIT_REPO}" = "https://github.com/fanjumin/verorun-pro.git" ]; then
+                GIT_REPO="git@github.com:fanjumin/verorun-code.git"
+            fi
             SPARSE_DIRS="${SPARSE_DIRS:-} plugins"
             ;;
         edu)
@@ -360,7 +392,8 @@ _edu_license_check() {
     _edu_check=$(curl -fsSL --connect-timeout 10 --max-time 20 \
         "${_edu_url}/api/subscription/check?code=${EDU_CODE}" 2>/dev/null \
         || echo '{"success":false}')
-    if ! echo "${_edu_check}" | grep -q '"is_valid":true'; then
+    # 审计 F-17：用 python 解析 JSON 而非 grep 文本匹配（字段顺序/空白/嵌套变化不再误判）
+    if ! echo "${_edu_check}" | python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get("is_valid") else 1)' 2>/dev/null; then
         echo -e "${FAIL} Educational deployment code validation failed, please check and retry"; exit 1
     fi
     export EDU_CODE

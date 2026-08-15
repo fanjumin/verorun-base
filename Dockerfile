@@ -2,7 +2,7 @@
 # 易站AI — 独立部署 Docker 镜像
 # 单容器运行所有服务（platform/admin/auth-center/captcha）
 # ============================================================
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY requirements.txt requirements.lock /app/
 RUN pip install --no-cache-dir -r requirements.lock
 
 # ── 运行时镜像 ──
-FROM python:3.11-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx-light supervisor curl ca-certificates \
@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 从 builder 复制 Python 包
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # 复制项目代码（排除不需要的文件）
