@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>{{ brand.site_name_cn if brand and brand.site_name_cn else brand.software_name if brand else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="/static/css/fonts.css" rel="stylesheet"/>
 <link rel="stylesheet" href="/static/css/landing.css">
 <link rel="stylesheet" href="/static/puzzle-captcha.css">
 <link rel="stylesheet" href="/static/css/login.css">

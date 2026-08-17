@@ -7,9 +7,7 @@
 <title>{{ _('{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档') }}</title>
 <meta content="{{ category.name }} — 技术文档与教程。" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;family=Orbitron:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="/static/css/fonts.css" rel="stylesheet"/>
 <link href="/static/css/landing.css" rel="stylesheet"/>
 <style>
 .page-header{max-width:900px;margin:0 auto;padding:120px 32px 40px}
@@ -129,7 +127,7 @@
 </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+<script src="/static/js/tsparticles.bundle.min.js"></script>
 <script src="/static/js/app.js"></script>
 <script>function toggleMobileNav(){document.getElementById("navLinks").classList.toggle("open")}</script>
 </body>

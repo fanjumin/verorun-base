@@ -7,9 +7,7 @@
 <title>{{ _('VeroRun — AI-Powered Website Platform | One-Stop Intelligent Operations') }}</title>
 <meta content="{{ _('VeroRun Platform. AI-powered website building, customer service, content generation, SEO, supply chain integration, and e-commerce — all in one.') }}" name="description"/>
 <link href="/static/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;family=Orbitron:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="/static/css/fonts.css" rel="stylesheet"/>
 <link href="/static/css/landing.css" rel="stylesheet"/>
 <style>
 /* ═══ Unified Globals ═══ */
@@ -326,7 +324,7 @@
 <div class="ft-b">© 2026 <a href="/">{{ brand.site_name_en if brand else '' }}</a> · All rights reserved.</div>
 </footer>
 <!-- ═══ SCRIPTS ═══ -->
-<script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+<script src="/static/js/tsparticles.bundle.min.js"></script>
 <script>
 // ── Mobile Nav ──
 function tNM(){document.getElementById('mb-menu').classList.toggle('nav-open')}

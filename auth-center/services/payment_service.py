@@ -6,7 +6,7 @@ Shop Payment Service — 商城支付服务
 配置优先级：
 1. system_config 表（alipay_app_id / alipay_private_key / alipay_public_key）
 2. 环境变量（ALIPAY_APP_ID / NOTIFY_BASE）
-3. 未配置 → 桩模式（stub, 用于开发/测试）
+3. 未配置 → fail-closed 返回失败（不再 mock 假成功，VR-PAY-003 修复）
 """
 
 import os, sys
@@ -29,47 +29,45 @@ def _resolve_notify_base():
 
 def create_shop_payment(order_id: str, total_amount: float, subject: str = '商城订单') -> dict:
     """
-    为商城订单创建支付宝支付，委托 gateway/alipay.py 处理实际签名通信
+    为商城订单创建支付宝扫码支付，委托 plugins/subscription/gateways/alipay.py
 
     Returns:
-        {'success': bool, 'stub': bool, 'pay_url': str, 'order_id': str, ...}
+        {'success': bool, 'qr_code': str, 'order_id': str, 'amount': str, ...}
+        未配置时返回失败（fail-closed，不再 mock 假成功）
     """
-    from routes.subscription.gateway.alipay import call_alipay_page_pay
+    from plugins.subscription.gateways.alipay import create_alipay_order
 
     amount_fen = int(round(total_amount * 100))
-    result = call_alipay_page_pay(order_id, subject, amount_fen)
+    notify_base = _resolve_notify_base()
+    shop_notify_url = f'{notify_base}/shop/api/pay/notify' if notify_base else ''
 
-    if result.get('stub', False):
+    result = create_alipay_order(order_id, amount_fen, subject, subject,
+                                 notify_url=shop_notify_url)
+
+    if not result.get('success'):
         return {
-            'success': True,
-            'stub': True,
+            'success': False,
+            'qr_code': '',
             'pay_url': '',
             'order_id': order_id,
-            'note': result.get('note', '开发模式 — 支付宝未配置'),
-            'stub_auto_confirm': True,
+            'error': result.get('error', '支付宝网关未配置'),
         }
 
     return {
         'success': True,
-        'stub': False,
-        'pay_url': result.get('pay_url', ''),
-        'form_html': result.get('form_html', ''),
-        'gateway': 'https://openapi.alipay.com/gateway.do',
+        'qr_code': result.get('qr_code', ''),
+        'pay_url': '',
         'order_id': order_id,
-        'amount': result.get('amount', f'{amount_fen/100:.2f}'),
-        'note': '请使用支付宝完成支付',
+        'amount': f'{amount_fen/100:.2f}',
+        'note': '请使用支付宝扫码完成支付',
     }
 
 
 def verify_notify(data: dict) -> bool:
-    """验证支付宝异步通知签名，委托 gateway/alipay.py"""
-    from routes.subscription.gateway.alipay import _get_alipay_public_key, _verify_sign
-    pub_key = _get_alipay_public_key()
-    if not pub_key:
-        return False
-    sign = data.pop('sign', '')
-    data.pop('sign_type', '')
-    return _verify_sign(data, sign, pub_key)
+    """验证支付宝异步通知签名，委托 plugins/subscription/gateways/alipay.py"""
+    from plugins.subscription.gateways.alipay import verify_alipay_notify
+    is_valid, _ = verify_alipay_notify(data, {})
+    return is_valid
 
 
 def confirm_shop_order(order_id: str, trade_no: str = '', payment_method: str = 'alipay'):

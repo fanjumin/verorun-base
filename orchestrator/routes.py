@@ -532,22 +532,61 @@ def cancel_instance(inst_id):
 @automation_bp.route('/instances/<int:inst_id>/nodes/<int:node_inst_id>/approve',
                      methods=['POST'])
 def approve_node(inst_id, node_inst_id):
-    """审批工作流节点"""
+    """审批工作流节点（角色鉴权 + 审批备注）"""
     admin = _require_admin()
     if not admin:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
     data = request.get_json() or {}
     approved = data.get('approved', True)
+    note = data.get('note', '')
 
-    if _worker_pool:
-        ok = _worker_pool.workflow_engine.approve_node(
-            inst_id, node_inst_id,
-            approved=approved,
-            reviewer=admin.get('id', 0)
+    if not _worker_pool:
+        return _error(_('Worker pool not initialized'), 500)
+    engine = _worker_pool.workflow_engine
+
+    # 审批鉴权：读取节点配置中的 approver_ids / approver_role
+    try:
+        node_insts = m.get_node_instances_by_workflow(inst_id)
+        node_inst = next((n for n in node_insts if n['id'] == node_inst_id), None)
+        if not node_inst:
+            return _error(_('Node does not exist'), 404)
+        inst = m.get_workflow_instance(inst_id)
+        if not inst:
+            return _error(_('Instance Does Not Exist'), 404)
+        wf = m.get_workflow(inst['workflow_id'])
+        definition = m.from_json(wf.get('definition', '{}')) if wf else {}
+        node_def = next(
+            (n for n in definition.get('nodes', []) if n.get('id') == node_inst.get('node_id')),
+            None
         )
-        if ok:
-            return _success(None, _('Approval') + (_('Approved') if approved else _('Reject')))
+        cfg = (node_def or {}).get('config', {}) or {}
+    except Exception as e:
+        return _error(f'Approval config lookup failed: {e}', 400)
+
+    approver_ids = cfg.get('approver_ids') or []
+    if approver_ids:
+        # 指定审批人列表：仅列表内的管理员可审批
+        try:
+            if int(admin.get('id', 0)) not in [int(x) for x in approver_ids]:
+                return _error(_('You are not authorized to approve this node'), 403)
+        except (TypeError, ValueError):
+            return _error(_('Invalid approver_ids in node config'), 400)
+    else:
+        # 角色鉴权：super_admin 可审批任意角色；'admin' = 任意管理员
+        role = cfg.get('approver_role', 'admin')
+        reviewer_role = admin.get('role', '') or ''
+        if role != 'admin' and role != reviewer_role and reviewer_role != 'super_admin':
+            return _error(_('You are not authorized to approve this node'), 403)
+
+    ok = engine.approve_node(
+        inst_id, node_inst_id,
+        approved=approved,
+        reviewer=admin.get('id', 0),
+        note=note
+    )
+    if ok:
+        return _success(None, _('Approval') + (_('Approved') if approved else _('Reject')))
     return _error(_('Operation Failed'), 400)
 
 

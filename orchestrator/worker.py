@@ -257,35 +257,13 @@ class WorkerPool:
 
     def _execute_script_job(self, job: dict, target_config: dict = None,
                              timeout: int = 300) -> dict:
-        """执行脚本类型的任务"""
+        """执行脚本类型的任务（复用安全脚本执行器，Cron/DAG 共用）"""
         config = target_config or (job.get('target_config', {}) if isinstance(job, dict) else {})
         script_path = config.get('script_path', '')
         script_args = config.get('args', [])
 
         if script_path:
-            import subprocess
-            # 安全校验：script_path 必须在 SCRIPTS_DIR 内
-            SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'scripts')
-            real_script = os.path.realpath(os.path.join(SCRIPTS_DIR, os.path.basename(script_path)))
-            if not real_script.startswith(os.path.realpath(SCRIPTS_DIR)):
-                return {'success': False, 'error': f'Script path rejected: {script_path}'}
-            if not os.path.isfile(real_script):
-                return {'success': False, 'error': f'Script not found: {script_path}'}
-            try:
-                result = subprocess.run(
-                    [sys.executable, real_script] + script_args,
-                    capture_output=True, text=True, timeout=timeout
-                )
-                return {
-                    'success': result.returncode == 0,
-                    'stdout': result.stdout[-2000:],
-                    'stderr': result.stderr[-1000:],
-                    'returncode': result.returncode
-                }
-            except subprocess.TimeoutExpired:
-                return {'success': False, 'error': f'Script Execution Timeout ({timeout}s)'}
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
+            return node_handlers.run_script_safely(script_path, script_args, timeout)
 
         return {'success': True, 'message': _('No Script Path, Skip')}
 

@@ -35,6 +35,14 @@ from . import models as m
 from .safe_eval import safe_eval
 
 
+class ApprovalRequiredError(RuntimeError):
+    """节点请求人工审批。
+
+    处理器抛出此异常 → 节点进入 waiting_approval，工作流暂停等待人工审批。
+    对齐 Temporal Human-in-the-Loop 模式：等待是持久化的（DB 状态），非内存线程挂起。
+    """
+
+
 class WorkflowEngine:
     """DAG 工作流执行引擎"""
 
@@ -44,6 +52,7 @@ class WorkflowEngine:
     def __init__(self, max_workers: int = 4):
         self._running_instances: dict = {}
         self._lock = threading.Lock()
+        self._resume_locks: set = set()  # 审批恢复防重入
         self._max_workers = max_workers
         self._node_executor_map: dict = {}  # node_type -> handler
 
@@ -224,10 +233,11 @@ class WorkflowEngine:
                         execution_queue.append(edge.get('to'))
 
                 elif result['status'] == 'waiting_approval':
-                    # 暂停工作流，等待审批
+                    # 暂停工作流，等待审批（审批后由 _resume_after_approval 恢复）
                     m.update_workflow_instance(inst_id, {'status': 'paused'})
                     m.add_log('workflow', inst_id, 'info',
                                _('⏸️ Workflow paused: Waiting for manual approval'))
+                    return
 
                 elif result['status'] == 'failed':
                     error_msg = result.get('output', {}).get('error', _('Node Execution Failed'))
@@ -308,6 +318,7 @@ class WorkflowEngine:
             # 准备输入数据
             input_data = {}
             input_data['config'] = config
+            input_data['_instance_id'] = inst_id
 
             # 从上下文获取数据
             inst = m.get_workflow_instance(inst_id)
@@ -359,7 +370,8 @@ class WorkflowEngine:
             error_msg = str(e)
 
             # 检查是否需要审批（例如，某些条件触发人工审批）
-            if 'approval_required' in str(e).lower() or \
+            if isinstance(e, ApprovalRequiredError) or \
+               'approval_required' in str(e).lower() or \
                config.get('require_approval_on_error', False):
                 m.update_node_instance(node_inst_id, {
                     'status': 'waiting_approval',
@@ -381,7 +393,8 @@ class WorkflowEngine:
             })
             m.add_log('node', node_inst_id, 'error',
                        f'❌ Node [{node_name}] Failed: {error_msg}')
-            return {'status': 'failed', 'output': {'error': error_msg}}
+            # VR-ENG-001：failed 分支 output 补 status 字段，避免条件边误判
+            return {'status': 'failed', 'output': {'error': error_msg, 'status': 'failed'}}
 
     def execute_node(self, node_def: dict, node_inst: dict,
                      inst_id: int, node_outputs: dict) -> dict:
@@ -543,9 +556,21 @@ class WorkflowEngine:
         return False
 
     def approve_node(self, inst_id: int, node_inst_id: int,
-                      approved: bool, reviewer: int = 0) -> bool:
-        """审批节点"""
+                      approved: bool, reviewer: int = 0, note: str = '') -> bool:
+        """审批节点（幂等：仅 waiting_approval 状态可审批）
+
+        通过 → 标记节点完成并恢复工作流执行。
+        拒绝 → 节点 failed，未执行节点 skipped，实例直接 failed 收尾（避免永远停在 paused）。
+        """
         now = m.now_str()
+
+        node_insts = m.get_node_instances_by_workflow(inst_id)
+        node_inst = next((n for n in node_insts if n['id'] == node_inst_id), None)
+        if not node_inst:
+            return False
+        if node_inst.get('status') != 'waiting_approval':
+            return False  # 幂等：非等待审批状态不可重复审批
+
         m.update_node_instance(node_inst_id, {
             'approval_status': 'approved' if approved else 'rejected',
             'approved_by': reviewer,
@@ -553,16 +578,15 @@ class WorkflowEngine:
         })
 
         if approved:
-            # 标记为完成，继续执行
             m.update_node_instance(node_inst_id, {
                 'status': 'completed',
+                'log_snippet': (note or '')[:500],
                 'finished_at': now
             })
             m.add_log('node', node_inst_id, 'info', _('✅ Node Approved'))
 
             # 恢复工作流执行
             self.resume_instance(inst_id)
-            # 重新触发现有流程
             thread = threading.Thread(
                 target=self._resume_after_approval,
                 args=(inst_id,),
@@ -571,95 +595,140 @@ class WorkflowEngine:
             thread.start()
             return True
         else:
-            # 标记为失败
+            # 拒绝：节点 failed + 实例 failed 收尾，未执行节点标记 skipped
             m.update_node_instance(node_inst_id, {
+                'status': 'failed',
+                'error_message': _('Approval Not Approved'),
+                'log_snippet': (note or '')[:500],
+                'finished_at': now
+            })
+            m.add_log('node', node_inst_id, 'info', _('❌ Node Approval Not Passed'))
+
+            for ni in node_insts:
+                if ni['status'] in ('pending', 'waiting'):
+                    m.update_node_instance(ni['id'], {
+                        'status': 'skipped',
+                        'output_data': m.to_json({'skipped': True, 'reason': 'Approval rejected'})
+                    })
+            m.update_workflow_instance(inst_id, {
                 'status': 'failed',
                 'error_message': _('Approval Not Approved'),
                 'finished_at': now
             })
-            m.add_log('node', node_inst_id, 'info', _('❌ Node Approval Not Passed'))
+            m.add_log('workflow', inst_id, 'error', _('❌ Workflow failed: approval not approved'))
             return False
 
     def _resume_after_approval(self, inst_id: int):
-        """审批通过后恢复执行"""
-        inst = m.get_workflow_instance(inst_id)
-        if not inst or inst['status'] == 'cancelled':
-            return
+        """审批通过后恢复执行（幂等：防并发审批重复恢复）"""
+        # 防重入：同一实例同一时刻只允许一个恢复线程
+        with self._lock:
+            if inst_id in self._resume_locks:
+                return
+            self._resume_locks.add(inst_id)
 
-        # P2-7: 审批超时检查（默认 72 小时）
-        approval_timeout_hours = int(os.environ.get('APPROVAL_TIMEOUT_HOURS', '72'))
-        created_at = inst.get('created_at', '')
-        if created_at:
-            from datetime import datetime, timedelta
-            try:
-                created_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
-                if datetime.now() - created_dt > timedelta(hours=approval_timeout_hours):
-                    m.update_workflow_instance(inst_id, {
-                        'status': 'timeout',
-                        'error_message': f'Approval timed out after {approval_timeout_hours} hours',
-                        'finished_at': m.now_str()
+        try:
+            inst = m.get_workflow_instance(inst_id)
+            if not inst or inst['status'] == 'cancelled':
+                return
+
+            wf = m.get_workflow(inst['workflow_id'])
+            if not wf:
+                return
+            definition = m.from_json(wf.get('definition', '{}'))
+            nodes = definition.get('nodes', [])
+            edges = definition.get('edges', [])
+            current_node_id = inst.get('current_node_id', '')
+
+            # P2-7: 审批超时检查（节点级 timeout_minutes 优先，默认全局 72h）
+            timeout_minutes = int(os.environ.get('APPROVAL_TIMEOUT_HOURS', '72')) * 60
+            node_def_now = next((n for n in nodes if n.get('id') == current_node_id), None)
+            if node_def_now and (node_def_now.get('config') or {}).get('timeout_minutes'):
+                timeout_minutes = int(node_def_now['config']['timeout_minutes'])
+            started_at = ''
+            node_insts = m.get_node_instances_by_workflow(inst_id)
+            for ni in node_insts:
+                if ni['node_id'] == current_node_id and ni.get('started_at'):
+                    started_at = ni['started_at']
+                    break
+            if timeout_minutes > 0 and started_at:
+                from datetime import datetime, timedelta
+                try:
+                    start_dt = datetime.strptime(started_at, '%Y-%m-%d %H:%M:%S')
+                    if datetime.now() - start_dt > timedelta(minutes=timeout_minutes):
+                        m.update_workflow_instance(inst_id, {
+                            'status': 'timeout',
+                            'error_message': f'Approval timed out after {timeout_minutes} minutes',
+                            'finished_at': m.now_str()
+                        })
+                        m.add_log('workflow', inst_id, 'warn', _('⏰ Workflow approval timed out'))
+                        return
+                except ValueError:
+                    pass
+
+            # 收集已完成的节点输出
+            node_outputs = {}
+            for ni in node_insts:
+                if ni['status'] == 'completed':
+                    node_outputs[ni['node_id']] = m.from_json(ni.get('output_data', '{}'))
+
+            execution_queue = deque([current_node_id])
+            visited = {ni['node_id'] for ni in node_insts if ni['status'] == 'completed'}
+
+            while execution_queue:
+                node_id = execution_queue.popleft()
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+
+                node_def = next((n for n in nodes if n.get('id') == node_id), None)
+                if not node_def:
+                    continue
+
+                node_inst = next(
+                    (ni for ni in node_insts if ni['node_id'] == node_id),
+                    None
+                )
+                if not node_inst:
+                    continue
+
+                # 校验前置边条件（对齐主循环逻辑）
+                incoming_edges = [e for e in edges if e.get('to') == node_id]
+                all_satisfied = True
+                for edge in incoming_edges:
+                    from_output = node_outputs.get(edge.get('from'), {})
+                    if not self._check_edge_condition(from_output, edge.get('condition', 'success')):
+                        all_satisfied = False
+                        break
+                if not all_satisfied:
+                    m.update_node_instance(node_inst['id'], {
+                        'status': 'skipped',
+                        'output_data': m.to_json({'skipped': True, 'reason': 'Predecessor condition not met'})
                     })
-                    m.add_log('workflow', inst_id, 'warn', _('⏰ Workflow approval timed out'))
-                    return
-            except ValueError:
-                pass
+                    continue
 
-        wf = m.get_workflow(inst['workflow_id'])
-        definition = m.from_json(wf.get('definition', '{}'))
-        nodes = definition.get('nodes', [])
+                result = self._execute_node(node_def, node_inst, inst_id, node_outputs)
+                node_outputs[node_id] = result.get('output', {})
 
-        current_node_id = inst.get('current_node_id', '')
+                if result['status'] == 'completed':
+                    outgoing = [e for e in edges if e.get('from') == node_id]
+                    for edge in outgoing:
+                        execution_queue.append(edge.get('to'))
+                else:
+                    break
 
-        # 从当前节点继续
-        edges = definition.get('edges', [])
-        node_outputs = {}
-
-        # 收集已完成的节点输出
-        node_insts = m.get_node_instances_by_workflow(inst_id)
-        for ni in node_insts:
-            if ni['status'] == 'completed':
-                node_outputs[ni['node_id']] = m.from_json(ni.get('output_data', '{}'))
-
-        execution_queue = deque([current_node_id])
-        visited = {ni['node_id'] for ni in node_insts if ni['status'] == 'completed'}
-
-        while execution_queue:
-            node_id = execution_queue.popleft()
-            if node_id in visited:
-                continue
-            visited.add(node_id)
-
-            node_def = next((n for n in nodes if n.get('id') == node_id), None)
-            if not node_def:
-                continue
-
-            node_inst = next(
-                (ni for ni in node_insts if ni['node_id'] == node_id),
-                None
-            )
-            if not node_inst:
-                continue
-
-            result = self._execute_node(node_def, node_inst, inst_id, node_outputs)
-            node_outputs[node_id] = result.get('output', {})
-
-            if result['status'] == 'completed':
-                outgoing = [e for e in edges if e.get('from') == node_id]
-                for edge in outgoing:
-                    execution_queue.append(edge.get('to'))
-            else:
-                break
-
-        # 检查是否全部完成
-        all_node_ids = {n.get('id') for n in nodes}
-        completed_ids = {ni['node_id'] for ni in m.get_node_instances_by_workflow(inst_id)
-                         if ni['status'] in ('completed', 'skipped')}
-        if all_node_ids <= completed_ids:
-            m.update_workflow_instance(inst_id, {
-                'status': 'completed',
-                'finished_at': m.now_str()
-            })
-            m.add_log('workflow', inst_id, 'info', _('✅ Workflow completed (after approval resume)'))
+            # 检查是否全部完成
+            all_node_ids = {n.get('id') for n in nodes}
+            completed_ids = {ni['node_id'] for ni in m.get_node_instances_by_workflow(inst_id)
+                             if ni['status'] in ('completed', 'skipped')}
+            if all_node_ids <= completed_ids:
+                m.update_workflow_instance(inst_id, {
+                    'status': 'completed',
+                    'finished_at': m.now_str()
+                })
+                m.add_log('workflow', inst_id, 'info', _('✅ Workflow completed (after approval resume)'))
+        finally:
+            with self._lock:
+                self._resume_locks.discard(inst_id)
 
 
 # ============================================================

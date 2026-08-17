@@ -64,7 +64,7 @@ AI Description Optimization Failed: AI描述优化失败
 AI Engine Not Initialized: AI引擎未初始化
 AI Engine Not Ready (Check API Key): AI 引擎未就绪（检查 API Key）
 AI Experience: AI体验
-AI Experience — YiZhan AI · Free AI Website Building Trial: AI体验 — 易站AI · 免费体验AI建站
+AI Experience — VeroRun AI · Free AI Website Building Trial: AI体验 — VeroRun · 免费体验AI建站
 AI Interpretation: AI解读
 AI Layout Module Not Ready (ai_content_generator Not Available): AI 排版模块未就绪（ai_content_generator 不可用）
 AI Marketing Copy Generation: AI 营销文案生成
@@ -193,6 +193,8 @@ AppKey and AppSecret cannot be empty: AppKey 和 AppSecret 不能为空
 AppKey not configured: 未配置AppKey
 Approval: 审批
 Approval Not Approved: 审批未通过
+Approval Note (optional): 审批备注（可选）
+Approve: 通过
 Approved: 通过
 Article: 文章
 Article Management: 文章管理
@@ -968,7 +970,7 @@ Poster: 海报
 Preview: 预览
 'Preview mode — admin only': 预览模式 — 仅管理员可见
 Price: 价格
-Price Calculator - Yizhan AI · AI Website Builder Platform: 价格计算器 — 易站AI · AI智能建站平台
+Price Calculator - VeroRun AI · AI Website Builder Platform: 价格计算器 — VeroRun · AI智能建站平台
 Privacy Policy: 隐私政策
 Processed: 已处理
 Processed Content Does Not Exist: 加工内容不存在
@@ -1066,6 +1068,7 @@ Registered Capital: 注册资本/Registered Capital
 Registration Time: 注册时间
 Reject: 驳回
 Rejected: 已拒收
+Rejection Reason: 拒绝原因
 Removed from favorites: 已取消收藏
 Renewal: 续费
 Renewal Exclusive: 续费专享
@@ -1527,9 +1530,8 @@ Yichang: 宜昌
 Yichang City: 宜昌市
 Yinchuan: 银川
 Yinchuan City: 银川市
-Yizhan AI: 易站AI
-Yizhan AI Intelligent Customer Service: 易站AI 智能客服
-Yizhan AI Smart Website Building Platform allows your website to attract customers 24/7.: 易站AI智能建站平台，让您的网站24小时在线获客。
+VeroRun AI Intelligent Customer Service: VeroRun 智能客服
+VeroRun AI Smart Website Building Platform allows your website to attract customers 24/7.: VeroRun智能建站平台，让您的网站24小时在线获客。
 You are an agent assistant. Output only JSON.: 你是坐席助手。只输出 JSON。
 You can find the product ID in the Alibaba product detail page URL: 在阿里巴巴商品详情页URL中可以找到商品ID
 You have already reviewed this product: 您已评价过该商品
@@ -1564,7 +1566,6 @@ ad_id required: ad_id 必填
 avg_response_time (Average response ms): avg_response_time (平均响应ms)
 mock channel disabled: mock 通道已禁用
 stub confirm is disabled outside dev: stub 确认仅限开发模式
-© 2026 YizhanAI. All rights reserved.: © 2026 易站AI. All rights reserved.
 · Online: · 在线
 • Configure DNS resolution according to our help guide: • 按照我们的帮助指南配置DNS解析
 • Free trial of the full AI website building process: • 免费体验AI建站全流程

@@ -257,7 +257,7 @@ def _check_domain_quota(user_id):
     """检查用户是否还能添加子域名"""
     with get_db() as conn:
         sub = conn.execute(
-            "SELECT plan_key FROM subscriptions WHERE user_id=%s AND status='active'",
+            "SELECT plan_key FROM user_subscriptions WHERE user_id=%s AND status='active'",
             (user_id,)
         ).fetchone()
         if not sub:

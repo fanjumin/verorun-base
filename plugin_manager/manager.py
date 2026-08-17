@@ -18,6 +18,7 @@ import shutil
 import importlib
 import importlib.util
 import threading
+import inspect
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 
@@ -335,6 +336,9 @@ class PluginManager:
     def enable(self, identifier: str) -> PluginInfo:
         """启用插件: 检查依赖 + 执行 setup(), 状态 → ENABLED"""
         with self._lock:
+            # VR-PLG-002：以 DB 状态为权威，避免多 worker 下内存缓存滞后
+            # 导致「disable 后 enable 报 cannot transition from active」。
+            self.refresh_status_from_db()
             info = self._get_cached(identifier)
 
             # 验证状态转换
@@ -440,6 +444,8 @@ class PluginManager:
     def activate(self, identifier: str) -> PluginInfo:
         """激活插件: 加载模块 + 注册路由/钩子, 状态 → ACTIVE"""
         with self._lock:
+            # VR-PLG-002：以 DB 状态为权威，避免多 worker 下内存缓存滞后
+            self.refresh_status_from_db()
             info = self._get_cached(identifier)
 
             if not info.status.can_transition_to(PluginStatus.ACTIVE):
@@ -487,6 +493,8 @@ class PluginManager:
     def disable(self, identifier: str) -> PluginInfo:
         """禁用插件: 反注册路由/钩子, 状态 → DISABLED"""
         with self._lock:
+            # VR-PLG-002：以 DB 状态为权威，避免多 worker 下内存缓存滞后
+            self.refresh_status_from_db()
             info = self._get_cached(identifier)
 
             if not info.status.can_transition_to(PluginStatus.DISABLED):
@@ -543,7 +551,14 @@ class PluginManager:
             instance = self._instances.pop(identifier, None)
             if instance and hasattr(instance, 'on_uninstall'):
                 try:
-                    instance.on_uninstall()
+                    # 兼容两种签名：on_uninstall(registry) 与 on_uninstall()。
+                    # 历史版本 manager 曾无参调用，导致含 registry 参数的插件
+                    # 抛 TypeError 被吞，DROP SCHEMA 从未执行（数据残留）。
+                    _sig = inspect.signature(instance.on_uninstall)
+                    if 'registry' in _sig.parameters:
+                        instance.on_uninstall(info)
+                    else:
+                        instance.on_uninstall()
                 except Exception as e:
                     print(f'[PluginManager] {identifier} uninstall warning: {e}')
 

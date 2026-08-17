@@ -42,7 +42,7 @@
 
   /* Typography */
   --font-en:     'Inter', 'Satoshi', system-ui, -apple-system, sans-serif;
-  --font-cn:     'Noto Sans SC', 'PingFang SC', system-ui, sans-serif;
+  --font-cn:     'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-display:'Orbitron', 'Inter', monospace;
 
   /* Spacing */

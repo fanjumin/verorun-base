@@ -23,6 +23,10 @@ def _get_key():
     raw = os.environ.get('ENCRYPTION_KEY') or os.environ.get('DEV_ACCOUNTS_ENCRYPTION_KEY')
     if not raw:
         raise RuntimeError("ENCRYPTION_KEY environment variable is not set")
+    # VR-SEC-011: 校验主密钥强度，杜绝空/过短密钥静默使用
+    if len(raw) < 16:
+        raise RuntimeError("ENCRYPTION_KEY is too weak (minimum 16 characters). "
+                           "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\"")
     salt = _get_or_create_salt()
     kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
     return base64.urlsafe_b64encode(kdf.derive(raw.encode()))

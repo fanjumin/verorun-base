@@ -500,10 +500,13 @@ def main():
 
     _init_db()
     port = int(os.getenv('PORT', 8089))
+    # VR-SEC-002: debug 默认关闭（仅 FLASK_DEBUG=1 显式开启）；host 默认仅本机回环
+    debug = os.getenv('FLASK_DEBUG', '').strip() == '1'
+    host = os.getenv('HOST', '127.0.0.1')
     app = create_app()
-    print(f'[LicenseServer] Starting on :{port}')
+    print(f'[LicenseServer] Starting on {host}:{port} (debug={debug})')
     print(f'[LicenseServer] API: http://localhost:{port}/api/v1')
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == '__main__':

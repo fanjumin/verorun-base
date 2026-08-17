@@ -7,7 +7,7 @@ import platform as _stdlib_platform
 """Admin Panel — 管理后台 (独立端口 8084)"""
 """VeroRun — Multi-agent AI Content & Commerce Hub"""
 
-import sys, os, re, secrets, time as _time
+import sys, os, re, secrets, time as _time, threading
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -85,9 +85,9 @@ def add_security_headers(response):
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "img-src 'self' data: blob: https:; "
-        "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; "
+        "font-src 'self' data: https://cdn.jsdelivr.net; "
         "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://api.github.com http://agent.verorun.com; "
         "frame-ancestors 'self';"
     )
@@ -390,12 +390,13 @@ def admin_login_action():
     # ── IP 限流 ──
     now = int(_time_module.time())
     attempt_key = f'admin_login_{ip}'
-    attempts = _admin_login_attempts.get(attempt_key, {'count': 0, 'first': now, 'banned_until': 0})
-    if attempts.get('banned_until', 0) > now:
-        remaining = attempts['banned_until'] - now
-        return jsonify({'success': False, 'error': f'登录被临时锁定，{remaining // 60 + 1} 分钟后重试'}), 429
-    if now - attempts['first'] > 900:
-        attempts = {'count': 0, 'first': now, 'banned_until': 0}
+    with _admin_login_lock:
+        attempts = _admin_login_attempts.get(attempt_key, {'count': 0, 'first': now, 'banned_until': 0})
+        if attempts.get('banned_until', 0) > now:
+            remaining = attempts['banned_until'] - now
+            return jsonify({'success': False, 'error': f'登录被临时锁定，{remaining // 60 + 1} 分钟后重试'}), 429
+        if now - attempts['first'] > 900:
+            attempts = {'count': 0, 'first': now, 'banned_until': 0}
 
     # ── 验证码登录分支 (桌面/移动端) ──
     if code:
@@ -441,8 +442,9 @@ def admin_login_action():
             conn.commit()
 
         if not user:
-            attempts['count'] += 1
-            _admin_login_attempts[attempt_key] = attempts
+            with _admin_login_lock:
+                attempts['count'] += 1
+                _admin_login_attempts[attempt_key] = attempts
             return jsonify({'success': False, 'error': 'Account not found or not an admin account'}), 400
 
         user = dict(user)
@@ -455,7 +457,8 @@ def admin_login_action():
                     admin_role = prof['role']
         except Exception:
             pass
-        _admin_login_attempts.pop(attempt_key, None)
+        with _admin_login_lock:
+            _admin_login_attempts.pop(attempt_key, None)
         token = create_token(user['id'], phone=user.get('phone'), app_name='trademind', is_admin=True, role=admin_role)
         _log_admin_action(user['id'], 'login_success_code', ip, f'user={username} client={client_type}')
 
@@ -473,17 +476,19 @@ def admin_login_action():
         ).fetchone()
 
     if not user:
-        attempts['count'] += 1
-        if attempts['count'] >= 5:
-            attempts['banned_until'] = now + 1800
-        _admin_login_attempts[attempt_key] = attempts
+        with _admin_login_lock:
+            attempts['count'] += 1
+            if attempts['count'] >= 5:
+                attempts['banned_until'] = now + 1800
+            _admin_login_attempts[attempt_key] = attempts
         _log_admin_action(None, 'login_failed', ip, f'user={username} not_found')
         return jsonify({'success': False, 'error': 'Account not found or not an admin account'}), 400
 
     stored = user['password_hash']
     if not stored:
-        attempts['count'] += 1
-        _admin_login_attempts[attempt_key] = attempts
+        with _admin_login_lock:
+            attempts['count'] += 1
+            _admin_login_attempts[attempt_key] = attempts
         return jsonify({'success': False, 'error': '该账号未设置密码，请使用验证码登录'}), 400
 
     pw_ok = False
@@ -502,14 +507,16 @@ def admin_login_action():
             pass
 
     if not pw_ok:
-        attempts['count'] += 1
-        if attempts['count'] >= 5:
-            attempts['banned_until'] = now + 1800
-        _admin_login_attempts[attempt_key] = attempts
+        with _admin_login_lock:
+            attempts['count'] += 1
+            if attempts['count'] >= 5:
+                attempts['banned_until'] = now + 1800
+            _admin_login_attempts[attempt_key] = attempts
         _log_admin_action(user['id'], 'login_failed', ip, f'user={username} bad_password')
         return jsonify({'success': False, 'error': '密码错误'}), 400
 
-    _admin_login_attempts.pop(attempt_key, None)
+    with _admin_login_lock:
+        _admin_login_attempts.pop(attempt_key, None)
     # Query admin role
     admin_role = 'user'
     try:
@@ -561,11 +568,12 @@ def admin_send_code():
     # IP 频控：每分钟最多 2 次
     code_key = f'code_{ip}'
     now = int(_time_module.time())
-    last = _admin_login_attempts.get(code_key, 0)
-    if now - last < 60:
-        remaining = 60 - (now - last)
-        return jsonify({'success': False, 'error': f'发送过于频繁，请 {remaining} 秒后再试'}), 429
-    _admin_login_attempts[code_key] = now
+    with _admin_login_lock:
+        last = _admin_login_attempts.get(code_key, 0)
+        if now - last < 60:
+            remaining = 60 - (now - last)
+            return jsonify({'success': False, 'error': f'发送过于频繁，请 {remaining} 秒后再试'}), 429
+        _admin_login_attempts[code_key] = now
 
     market = os.environ.get('DEPLOY_MARKET', 'cn')
     code = ''.join(secrets.choice(string.digits) for _ in range(6))
@@ -630,6 +638,8 @@ def admin_send_code():
 
 # ── 内存限流存储（服务重启后清空，可接受）──
 _admin_login_attempts = {}
+# 审计 PERF-001：gthread 多线程下保护内存限流 dict 的原子读写（sync worker 下无需）
+_admin_login_lock = threading.Lock()
 
 
 def _log_admin_action(admin_id, action, ip, detail=''):

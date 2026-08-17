@@ -1,4 +1,4 @@
-﻿window.l_comments=function(){
+window.l_comments=function(){
   document.getElementById("pt").textContent="{{ _('Comment Management') }}";
   var h='<div style="margin-bottom:12px;display:flex;gap:4px">';
   h+='<button class="btn bp" onclick="comLoad(&quot;&quot;)" id="com-t0">{{ _('All') }}</button>';
@@ -367,13 +367,35 @@ function aIDetail(id){
     h+='<div class="st">{{ _('Node Execution Details') }}</div><table><tr><th>{{ _('Node') }}</th><th>{{ _('Type') }}</th><th>{{ _('Status') }}</th><th>{{ _('Duration') }}</th><th>{{ _('Error') }}</th></tr>';
     nodes.forEach(function(n){
       var s=n.status=='completed'?'<span class="bdg on">{{ _('Complete') }}</span>':n.status=='running'?'<span class="bdg pd">{{ _('Running') }}</span>':n.status=='failed'?'<span class="bdg off">{{ _('Failed') }}</span>':n.status=='waiting_approval'?'<span class="bdg pd">{{ _('Pending Approval') }}</span>':'<span class="bdg off">'+n.status+'</span>';
-      h+='<tr><td>'+esc(n.node_name||n.node_id)+'</td><td>'+n.node_type+'</td><td>'+s+'</td><td>'+(n.duration_ms?Math.round(n.duration_ms/1000)+'s':'-')+'</td><td style="color:#f85149;font-size:11px">'+(n.error_message?esc(n.error_message).slice(0,50):'')+'</td></tr>';
+      var note=(n.log_snippet&&n.approval_status)?'<div style="font-size:11px;color:var(--text-dim)">'+(n.approval_status=='approved'?'✅ ':'❌ ')+esc(n.log_snippet)+'</div>':'';
+      var act='';
+      if(n.status=='waiting_approval'){
+        act='<button class="btn on" onclick="aNApprove('+inst.id+','+n.id+',true)">✅ {{ _('Approve') }}</button> <button class="btn off" onclick="aNApprove('+inst.id+','+n.id+',false)">❌ {{ _('Reject') }}</button>';
+      }
+      h+='<tr><td>'+esc(n.node_name||n.node_id)+'</td><td>'+n.node_type+'</td><td>'+s+note+'</td><td>'+(n.duration_ms?Math.round(n.duration_ms/1000)+'s':'-')+'</td><td style="color:#f85149;font-size:11px">'+(n.error_message?esc(n.error_message).slice(0,50):'')+(act?'<div style="margin-top:4px">'+act+'</div>':'')+'</td></tr>';
     });
     h+='</table>';
     h+='<div style="margin-top:12px"><button class="btn bo" onclick="this.closest(\'.modal-overlay\').remove()">{{ _('Close') }}</button></div>';
     h+='</div></div>';
     document.body.insertAdjacentHTML("beforeend",h);
   }).catch(function(){});
+}
+
+// 审批：通过/拒绝工作流审批节点
+function aNApprove(instId,nodeInstId,approved){
+  var msg=approved?'{{ _('Approval Note (optional)') }}':'{{ _('Rejection Reason') }}';
+  var note=prompt(msg,'');
+  if(note===null)return;
+  fetch("/admin/automation/instances/"+instId+"/nodes/"+nodeInstId+"/approve",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},
+    body:JSON.stringify({approved:approved,note:note||''})
+  }).then(function(r){return r.json()}).then(function(d){
+    showToast(d.message||d.error||'{{ _('Done') }}',d.success?'success':'error');
+    var overlay=document.querySelector('.modal-overlay');
+    if(overlay)overlay.remove();
+    aLInstances();
+  }).catch(function(){showToast('{{ _('Request Failed') }}','error')});
 }
 
 // ===== {{ _('Log') }} =====

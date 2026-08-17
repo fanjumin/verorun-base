@@ -1,4 +1,4 @@
-﻿window.l_cleaner=function(){
+window.l_cleaner=function(){
   var c=document.getElementById("mc"),h='';
   h+='<div style="max-width:960px;margin:0 auto;padding:20px">';
   h+='<h2 style="margin-bottom:20px">🧹 {{ _('Data Cleaning Agent') }}</h2>';
@@ -32,7 +32,7 @@ function cleanerSubmit(){
   var input=document.getElementById("cleanerInput");
   var txt=(input.value||'').trim();
   if(!txt){showToast("{{ _('Content cannot be empty') }}","error");return}
-  fetch("/shop/cleaner/submit",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({content:txt})}).then(function(r){return r.json()}).then(function(d){
+  fetch("/admin/cleaner/submit",{method:"POST",headers:{"Authorization":"Bearer "+T,"Content-Type":"application/json"},body:JSON.stringify({content:txt})}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("✅ {{ _('Added to Cleaning Queue') }} (#"+d.data.id+")","success");input.value='';cleanerLoad()}
     else showToast(d.error||"{{ _('Submit Failed') }}","error")
   }).catch(function(){showToast("{{ _('Submit Failed') }}","error")})
@@ -40,21 +40,21 @@ function cleanerSubmit(){
 
 function cleanerRunAll(){
   if(!confirm("{{ _('Batch clean all pending items?') }}"))return;
-  fetch("/shop/cleaner/run-all",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+  fetch("/admin/cleaner/run-all",{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("✅ "+d.message,"success");cleanerLoad()}
     else showToast(d.error||"{{ _('Batch cleanup failed') }}","error")
   }).catch(function(){showToast("{{ _('Batch cleanup failed') }}","error")})
 }
 
 function cleanerRun(id){
-  fetch("/shop/cleaner/run/"+id,{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+  fetch("/admin/cleaner/run/"+id,{method:"POST",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(d.success){showToast("✅ "+d.message,"success");cleanerLoad()}
     else showToast(d.error||"{{ _('Cleanup failed') }}","error")
   }).catch(function(){showToast("{{ _('Cleanup failed') }}","error")})
 }
 
 function cleanerViewResult(id){
-  fetch("/shop/cleaner/list?status=",{method:"GET",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+  fetch("/admin/cleaner/list?status=",{method:"GET",headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var item=d.data.find(function(x){return x.id===id});
     if(!item){showToast("{{ _('Record not found') }}","error");return}
@@ -68,7 +68,7 @@ function cleanerLoad(){
   var filter=document.getElementById("cleanerFilter");
   var statusParam=filter?filter.value:'';
   list.innerHTML='<div class="em">{{ _('Loading...') }}...</div>';
-  fetch("/shop/cleaner/list"+(statusParam?'?status='+statusParam:''),{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
+  fetch("/admin/cleaner/list"+(statusParam?'?status='+statusParam:''),{headers:{"Authorization":"Bearer "+T}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.data){list.innerHTML='<div class="em">{{ _('No data') }}</div>';return}
     var items=d.data;
     if(!items.length){list.innerHTML='<div class="em">{{ _('No data') }}</div>';return}

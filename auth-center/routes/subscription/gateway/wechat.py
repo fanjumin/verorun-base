@@ -484,7 +484,7 @@ def handle_notify():
             with get_db() as conn:
                 # 根据订单号查找订阅并更新 contract_id
                 result = conn.execute(
-                    "UPDATE subscriptions SET wechat_contract_id=%s WHERE order_no=%s",
+                    "UPDATE subscription.user_subscriptions SET agreement_id=%s WHERE order_no=%s",
                     (contract_id, out_contract_code)
                 )
                 conn.commit()

@@ -184,7 +184,7 @@ class DashboardService:
         }
         try:
             with get_db() as conn:
-                row = self._safe_execute(conn, "SELECT COUNT(*) as c FROM subscriptions WHERE status='active'")
+                row = self._safe_execute(conn, "SELECT COUNT(*) as c FROM subscription.user_subscriptions WHERE status='active'")
                 data['active_subscriptions'] = row.get('c', 0) if row else 0
 
                 row = self._safe_execute(conn, "SELECT COUNT(*) as c FROM billing_orders")
@@ -199,7 +199,7 @@ class DashboardService:
                     "WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,))
                 revenue += float(row.get('c', 0)) if row else 0
                 row = self._safe_execute(conn,
-                    "SELECT COALESCE(SUM(amount_fen)/100.0,0) as c FROM subscription_orders "
+                    "SELECT COALESCE(SUM(amount_fen)/100.0,0) as c FROM subscription.sub_orders "
                     "WHERE status='paid' AND paid_at>=%s", (thirty_days_ago,))
                 revenue += float(row.get('c', 0)) if row else 0
                 row = self._safe_execute(conn,
@@ -218,7 +218,7 @@ class DashboardService:
                     "SELECT date(paid_at) as date, SUM(amount) as revenue "
                     "FROM billing_orders WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
                     "SELECT date(paid_at) as date, COALESCE(SUM(amount_fen)/100.0,0) as revenue "
-                    "FROM subscription_orders WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
+                    "FROM subscription.sub_orders WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
                     "SELECT date(paid_at) as date, COALESCE(SUM(subtotal),0) as revenue "
                     "FROM order_items WHERE status='paid' AND paid_at>=%s GROUP BY date(paid_at)",
                 ]

@@ -56,6 +56,21 @@ def _json_result(success: bool, data=None, error: str = None, code: int = 200):
     return jsonify(resp), code
 
 
+def _require_admin():
+    """VR-SEC-013: 管理端点必须由管理员调用（JWT is_admin 校验）。
+
+    返回 None 表示通过；否则返回 (jsonify, 403) 供视图直接 return。
+    """
+    from services.jwt_service import validate_token
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token')
+    payload = validate_token(token) if token else None
+    if not payload or not payload.get('is_admin'):
+        return jsonify({'success': False, 'error': '需要管理员权限'}), 403
+    return None
+
+
 def _info_to_dict(info) -> dict:
     """PluginInfo → dict，用于 JSON 序列化"""
     d = info.to_dict()
@@ -76,6 +91,10 @@ def _info_to_dict(info) -> dict:
 @bp.route('', methods=['GET'])
 def list_plugins():
     """列出所有插件（含状态、版本信息）"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -90,6 +109,10 @@ def list_plugins():
 @bp.route('/metrics', methods=['GET'])
 def plugin_metrics():
     """聚合所有 ACTIVE 插件的 Dashboard 统计指标"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -105,6 +128,10 @@ def plugin_metrics():
 @bp.route('/unified', methods=['GET'])
 def list_plugins_unified():
     """合并本地已安装插件 + 商店目录中未安装的插件"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -122,6 +149,10 @@ def list_plugins_unified():
 @bp.route('/discover', methods=['GET'])
 def discover_plugins():
     """扫描 plugins/ 目录，返回所有插件（含已安装的）"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -152,6 +183,10 @@ def discover_plugins():
 @bp.route('/<identifier>/install', methods=['POST'])
 def install_plugin(identifier: str):
     """安装插件"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -171,6 +206,10 @@ def install_plugin(identifier: str):
 @bp.route('/<identifier>/enable', methods=['POST'])
 def enable_plugin(identifier: str):
     """启用插件（执行 setup）"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -190,6 +229,10 @@ def enable_plugin(identifier: str):
 @bp.route('/<identifier>/disable', methods=['POST'])
 def disable_plugin(identifier: str):
     """禁用插件"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -209,6 +252,10 @@ def disable_plugin(identifier: str):
 @bp.route('/<identifier>/activate', methods=['POST'])
 def activate_plugin(identifier: str):
     """激活插件（加载模块 + 注册路由）"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -228,6 +275,10 @@ def activate_plugin(identifier: str):
 @bp.route('/<identifier>/uninstall', methods=['POST'])
 def uninstall_plugin(identifier: str):
     """卸载插件（需要确认）"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -252,6 +303,10 @@ def uninstall_plugin(identifier: str):
 @bp.route('/<identifier>/config', methods=['GET'])
 def get_plugin_config(identifier: str):
     """读取插件配置"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -272,6 +327,10 @@ def get_plugin_config(identifier: str):
 @bp.route('/<identifier>/config', methods=['POST'])
 def set_plugin_config(identifier: str):
     """保存插件配置"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -374,6 +433,10 @@ def validate_plugin_config(identifier: str):
 @bp.route('/<identifier>/config/batch', methods=['POST'])
 def batch_save_config(identifier: str):
     """批量保存配置（带 Schema 校验 + 类型转换）"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -401,6 +464,10 @@ def batch_save_config(identifier: str):
 @bp.route('/<identifier>/log', methods=['GET'])
 def plugin_log(identifier: str):
     """读取插件日志最后 N 行"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -423,6 +490,10 @@ def plugin_log(identifier: str):
 @bp.route('/<identifier>/log', methods=['DELETE'])
 def clear_plugin_log(identifier: str):
     """清空插件日志"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -440,6 +511,10 @@ def clear_plugin_log(identifier: str):
 @bp.route('/store/admin', methods=['GET'])
 def store_admin_list():
     """管理员：列出所有商店插件商品"""
+    err = _require_admin()
+    if err:
+        return err
+
     with get_registry_db() as conn:
         rows = conn.execute('SELECT * FROM store_plugins ORDER BY created_at DESC').fetchall()
         plugins = [dict(r) for r in rows]
@@ -451,6 +526,10 @@ def store_admin_list():
 @bp.route('/store/admin', methods=['POST'])
 def store_admin_save():
     """管理员：创建或更新商店插件商品"""
+    err = _require_admin()
+    if err:
+        return err
+
     data = request.json if request.is_json else {}
     identifier = data.get('identifier', '')
     if not identifier:
@@ -520,6 +599,10 @@ def store_admin_save():
 @bp.route('/store/admin/<identifier>', methods=['DELETE'])
 def store_admin_delete(identifier: str):
     """管理员：删除商店插件商品"""
+    err = _require_admin()
+    if err:
+        return err
+
     with get_registry_db() as conn:
         conn.execute('DELETE FROM store_plugins WHERE identifier=%s', (identifier,))
         conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=%s', (identifier,))
@@ -532,6 +615,10 @@ def store_admin_delete(identifier: str):
 @bp.route('/store/admin/<identifier>/toggle', methods=['POST'])
 def store_admin_toggle(identifier: str):
     """管理员：切换插件上架/下架状态"""
+    err = _require_admin()
+    if err:
+        return err
+
     with get_registry_db() as conn:
         row = conn.execute('SELECT enabled FROM store_plugins WHERE identifier=%s', (identifier,)).fetchone()
         if not row:
@@ -626,6 +713,10 @@ def store_detail(identifier: str):
 @bp.route('/store/<identifier>/install', methods=['POST'])
 def store_install(identifier: str):
     """从商店下载并安装插件"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -692,6 +783,10 @@ def store_upgrade(identifier: str):
     升级成功后若插件处于启用/激活状态，需要重启 admin 服务
     使新代码生效（返回 needs_restart=true，并触发后台延迟重启）。
     """
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -757,31 +852,68 @@ def store_check_compatibility(identifier: str):
 # ★ v1.4 用户上传自研插件
 # ====================================================================
 
+_UPLOAD_LIMIT = 5      # 每 token 每分钟最多上传次数
+_UPLOAD_WINDOW = 60    # 限流窗口（秒）
+_UPLOAD_CLEANUP_TS = 0
+
+
+def _upload_rate_limited(token: str) -> bool:
+    """VR-SEC-012: DB 共享限流（多 worker 生效），True = 超过限制。
+
+    利用现有 system_config 表原子递增计数，替代原先进程内 defaultdict（可被多 worker 绕过）。
+    DB 异常时 fail-open 并打印日志，避免限流模块自身导致上传不可用。
+    """
+    import hashlib as _hashlib
+    global _UPLOAD_CLEANUP_TS
+    window = int(time.time() // _UPLOAD_WINDOW)
+    key = f'upload_rl_{_hashlib.md5(token.encode()).hexdigest()[:16]}_{window}'
+    try:
+        from .models import get_registry_db
+        with get_registry_db() as conn:
+            cur = conn.execute(
+                "INSERT INTO system_config (key, value) VALUES (%s, '1') "
+                "ON CONFLICT (key) DO UPDATE SET value=(system_config.value::int + 1), updated_at=NOW() "
+                "RETURNING value::int",
+                (key,),
+            )
+            row = cur.fetchone()
+            conn.commit()
+        count = int(row['value']) if row else 0
+
+        # 机会式清理过期窗口记录（每分钟至多一次，幂等）
+        if time.time() - _UPLOAD_CLEANUP_TS > _UPLOAD_WINDOW:
+            _UPLOAD_CLEANUP_TS = time.time()
+            with get_registry_db() as conn:
+                conn.execute(
+                    "DELETE FROM system_config WHERE key LIKE 'upload_rl_%' "
+                    "AND updated_at < NOW() - INTERVAL '10 minutes'"
+                )
+                conn.commit()
+        return count > _UPLOAD_LIMIT
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
 @bp.route('/upload', methods=['POST'])
 def upload_plugin():
     """用户上传自研插件 zip 包 → 校验 → 安装。
 
     Multipart form: file=<plugin.zip>
-    要求 zip 根目录含 plugin.json（identifier/name/version 必填）。
-    上传的插件 source='upload'，不接入商店付费 / License 系统。
     """
+    err = _require_admin()
+    if err:
+        return err
+
     import os as _os
     import zipfile as _zipfile
     import tempfile as _tempfile
     import time as _time
-    from collections import defaultdict
 
-    # ★ P2: 简单 rate limiting（每 token 每分钟最多 5 次上传）
-    _now = _time.time()
+    # ★ VR-SEC-012: DB 共享限流（每 token 每分钟最多 5 次上传，多 worker 生效）
     _token = request.headers.get('Authorization', '')
-    _rl_key = 'upload_plugins'
-    if not hasattr(upload_plugin, '_rl'):
-        upload_plugin._rl = defaultdict(list)
-    _windows = upload_plugin._rl[_token]
-    _windows[:] = [t for t in _windows if _now - t < 60]
-    if len(_windows) >= 5:
+    if _upload_rate_limited(_token):
         return _json_result(False, error='Too many uploads. Please wait.', code=429)
-    _windows.append(_now)
 
     mgr = _get_manager()
     if not mgr:
@@ -927,6 +1059,10 @@ def upload_plugin():
 @bp.route('/license/activate', methods=['POST'])
 def license_activate():
     """激活 License"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr or not mgr.license_manager:
         return _json_result(False, error='License manager not available', code=503)
@@ -963,6 +1099,10 @@ def license_validate(plugin_id: str):
 @bp.route('/license/<plugin_id>/deactivate', methods=['POST'])
 def license_deactivate(plugin_id: str):
     """反激活 License"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr or not mgr.license_manager:
         return _json_result(False, error='License manager not available', code=503)
@@ -978,6 +1118,10 @@ def license_deactivate(plugin_id: str):
 @bp.route('/licenses', methods=['GET'])
 def license_list():
     """列出所有 License"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr or not mgr.license_manager:
         return _json_result(False, error='License manager not available', code=503)
@@ -996,6 +1140,10 @@ def license_list():
 @bp.route('/coupons', methods=['POST'])
 def coupon_create():
     """创建优惠券"""
+    err = _require_admin()
+    if err:
+        return err
+
     data = request.json if request.is_json else {}
     code = data.get('code', '').strip()
     if not code:
@@ -1039,6 +1187,10 @@ def coupon_validate():
 @bp.route('/coupons', methods=['GET'])
 def coupon_list():
     """列出所有优惠券"""
+    err = _require_admin()
+    if err:
+        return err
+
     cm = get_coupon_manager()
     coupons = cm.list_coupons()
     return _json_result(True, data={'coupons': coupons})
@@ -1170,7 +1322,7 @@ def payment_order_status(order_no: str):
 def payment_notify(channel: str):
     """Unified payment webhook entry (alipay / wechat / stripe / paypal / mock)."""
     # mock channel is only available in dev environment
-    if channel == 'mock' and os.environ.get('DEPLOY_ENV', 'dev') != 'dev':
+    if channel == 'mock' and os.environ.get('DEPLOY_ENV', '') != 'dev':
         return _json_result(False, error=_('mock channel disabled'), code=403)
     router = get_payment_router()
     try:
@@ -1305,6 +1457,10 @@ def _activate_license_after_payment(order, order_no: str):
 @bp.route('/payment/<order_no>/refund', methods=['POST'])
 def payment_refund(order_no: str):
     """退款"""
+    err = _require_admin()
+    if err:
+        return err
+
     order = get_payment_order(order_no)
     if not order:
         return _json_result(False, error='Order not found', code=404)
@@ -1338,6 +1494,10 @@ def payment_refund(order_no: str):
 @bp.route('/subscriptions', methods=['GET'])
 def list_subscriptions():
     """列出所有订阅"""
+    err = _require_admin()
+    if err:
+        return err
+
     sm = get_subscription_manager()
     subs = [s.to_dict() for s in sm.list_subscriptions()]
     return _json_result(True, data={'subscriptions': subs})
@@ -1348,6 +1508,10 @@ def list_subscriptions():
 @bp.route('/subscriptions/<plugin_id>/cancel', methods=['POST'])
 def cancel_subscription(plugin_id: str):
     """取消订阅"""
+    err = _require_admin()
+    if err:
+        return err
+
     sm = get_subscription_manager()
     body = request.json or {}
     immediate = body.get('immediate', False)
@@ -1363,6 +1527,10 @@ def cancel_subscription(plugin_id: str):
 @bp.route('/subscriptions/<plugin_id>/renew', methods=['POST'])
 def renew_subscription(plugin_id: str):
     """手动续费"""
+    err = _require_admin()
+    if err:
+        return err
+
     sm = get_subscription_manager()
     ok = sm.renew(plugin_id)
     if ok:

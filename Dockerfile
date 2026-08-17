@@ -1,5 +1,5 @@
 # ============================================================
-# 易站AI — 独立部署 Docker 镜像
+# VeroRun — 独立部署 Docker 镜像
 # 单容器运行所有服务（platform/admin/auth-center/captcha）
 # ============================================================
 FROM python:3.12-slim-bookworm AS builder

@@ -6,9 +6,7 @@
 <title>快速开始 — {{ brand.site_name_en if brand else '' }}</title>
 <meta name="description" content="5 步让 智能体 拥有金融分析能力。安装 Hermes → 获取 API Key → 安装 Skills → 开始分析。">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="/static/css/fonts.css" rel="stylesheet"/>
 <link rel="stylesheet" href="/static/css/landing.css">
 <style>
 /* ── Start Page Specific ── */
@@ -53,7 +51,7 @@
 <!-- ═══ NAVIGATION ═══ -->
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-logo"><div class="icon">AI</div><span>易站AI</span></a>
+    <a href="/" class="nav-logo"><div class="icon">AI</div><span>VeroRun</span></a>
     <div class="nav-links" id="nl">
       <a href="/">首页</a>
       <a href="/ai-matrix">AI矩阵</a>
@@ -182,7 +180,7 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+<script src="/static/js/tsparticles.bundle.min.js"></script>
 <script src="/static/js/app.js"></script>
 <script>
 function tNM(){document.getElementById('mb-menu').classList.toggle('nav-open')}

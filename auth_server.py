@@ -28,10 +28,18 @@ app = Flask(__name__)
 
 # Main site (www) templates live under site/templates and platform/templates, not beside this file.
 # Mount them explicitly on the jinja loader to avoid TemplateNotFound for public_home.html etc.
+# Also mount every plugin's templates/ dir so plugin routes (shop, subscription, ...) can render.
 import jinja2
+import glob as _glob
+
+_plugin_tpl_dirs = sorted(
+    d for d in _glob.glob(os.path.join(_SCRIPT_DIR, 'plugins', '*', 'templates'))
+    if os.path.isdir(d)
+)
 app.jinja_loader = jinja2.ChoiceLoader([
     jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'site', 'templates')),
     jinja2.FileSystemLoader(os.path.join(_SCRIPT_DIR, 'main_site', 'templates')),
+] + [jinja2.FileSystemLoader(d) for d in _plugin_tpl_dirs] + [
     app.jinja_loader,
 ])
 
@@ -55,6 +63,14 @@ except Exception as e:
 
 register_auth(app)
 
+# ── Main site CMS public routes (/services, /cases, ...) ──
+try:
+    from main_site.cms_public import cms_bp
+    app.register_blueprint(cms_bp)
+    print('[CMS Public] ✅ Main site public CMS routes registered')
+except Exception as e:
+    print(f'[CMS Public] ⚠️ Main site public CMS routes failed: {e}')
+
 # ── OAuth Plugin third-party login routes ──
 try:
     from plugins.oauth_config.routes.auth import oauth_bp
@@ -72,15 +88,35 @@ except Exception:
     pass
 
 
+def _get_site_plans():
+    """站点套餐列表（真实数据源：插件 subscription/sub_items 表）。
+    优先 site_% 建站套餐；若为空则回退全量 SKU，保证定价区有卡片。
+    `subscription_plans` 旧表已随订阅解耦下线，禁止再查询它。"""
+    plans = []
+    try:
+        from plugins.subscription.services import get_subscription_service
+        svc = get_subscription_service()
+        items = svc.list_site_plans() or []
+        if not items:
+            items = svc.list_items() or []
+        for it in items:
+            plans.append({
+                'name': it.get('name', ''),
+                'description': it.get('description', ''),
+                'price_year': (it.get('price_year') or 0) // 100,   # 分 → 元
+                'price_month': (it.get('price_month') or 0) // 100,
+                'tier': it.get('tier', ''),
+                'features': it.get('features', []) or [],
+            })
+    except Exception as e:
+        print(f'[Site Plans] fallback empty: {e}')
+    return plans
+
+
 @app.route('/')
 def site_home():
     """Render the main landing page using the existing theme template."""
-    site_plans = []
-    try:
-        from services.subscription_service import get_all_plans
-        site_plans = get_all_plans() or []
-    except Exception:
-        pass
+    site_plans = _get_site_plans()
     resp = make_response(render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans))
     # Set cross-subdomain SSO cookie if token present in URL
     token = request.args.get('token', '')
@@ -101,35 +137,46 @@ def site_home():
 
 @app.route('/pricing')
 def site_pricing():
-    """Redirect pricing to the main page (anchor) or render the home page."""
-    site_plans = []
+    """独立定价页：渲染 site_pricing.html，套餐卡片来自插件 sub_items（DB 驱动）。"""
+    import json as _json
+    site_plans = _get_site_plans()
+    brand = {}
     try:
-        from services.subscription_service import get_all_plans
-        site_plans = get_all_plans() or []
+        from services.brand_service import get_brand_settings
+        brand = get_brand_settings() or {}
     except Exception:
         pass
-    return render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans)
+    site = {
+        'name': brand.get('site_name_en') or brand.get('site_name_cn') or 'VeroRun',
+        'theme_color': brand.get('theme_color') or '#6366f1',
+        'accent_color': brand.get('accent_color') or '#8b5cf6',
+    }
+    # 适配 site_pricing.html 的 plans 字段（price 元 / period / features 为 JSON 字符串）
+    plans = []
+    for p in site_plans:
+        try:
+            feats = _json.dumps(p.get('features', []), ensure_ascii=False)
+        except Exception:
+            feats = '[]'
+        plans.append({
+            'name': p.get('name', ''),
+            'price': p.get('price_year', 0),
+            'period': 'year',
+            'features': feats,
+            'tier': p.get('tier', ''),
+        })
+    return render_template('site_pricing.html', lang=deploy.LANG, site=site, plans=plans, tiers={})
 
 
 @app.route('/features')
 def site_features():
-    site_plans = []
-    try:
-        from services.subscription_service import get_all_plans
-        site_plans = get_all_plans() or []
-    except Exception:
-        pass
+    site_plans = _get_site_plans()
     return render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans)
 
 
 @app.route('/contact')
 def site_contact():
-    site_plans = []
-    try:
-        from services.subscription_service import get_all_plans
-        site_plans = get_all_plans() or []
-    except Exception:
-        pass
+    site_plans = _get_site_plans()
     return render_template('public_home.html', LANG=deploy.LANG, site_plans=site_plans)
 
 

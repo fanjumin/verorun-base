@@ -60,6 +60,21 @@ if [ -n "${VR_WORKERS:-}" ]; then
     esac
 fi
 
+# 审计 PERF-001：VR_THREADS overrides the default --threads 4 (gthread worker threads)
+if [ -n "${VR_THREADS:-}" ]; then
+    case "${VR_THREADS}" in
+        ''|*[!0-9]*|0*)  # empty, non-numeric, or zero/leading-zero value → keep default
+            echo "WARN: invalid VR_THREADS='${VR_THREADS}' — keeping default --threads 4" >&2 ;;
+        *)
+            if sed -i "s/--threads 4 /--threads ${VR_THREADS} /g" /etc/supervisor/conf.d/supervisord.conf; then
+                echo "[VR_THREADS] gunicorn threads set to ${VR_THREADS}"
+            else
+                echo "WARN: failed to apply VR_THREADS — keeping default --threads 4" >&2
+            fi
+            ;;
+    esac
+fi
+
 # 审计 D6：Docker variant TLS —— detect mounted certificates (SSL_CERT_DIR, e.g. host /etc/letsencrypt/live)
 # If present, enable 443 ssl + HSTS; otherwise delete the placeholders to stay plain HTTP (container nginx -t passes).
 _NGINX_CONF=/etc/nginx/sites-enabled/default

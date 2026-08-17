@@ -37,3 +37,16 @@ ubprocess, os
 out.txt
 test_out.txt
 *.log
+
+# ── 部署脚本互斥（镜像层）：镜像内只保留 Docker 运行时所需文件 ──
+deploy/install.sh
+deploy/install-official.sh
+deploy/install-code.sh
+deploy/mac-mini-deploy.sh
+deploy/intranet/
+deploy/bump_version.sh
+deploy/bump_plugin_version.sh
+deploy/uninstall.sh
+deploy/health_check.sh
+deploy/scripts/
+deploy/lib/

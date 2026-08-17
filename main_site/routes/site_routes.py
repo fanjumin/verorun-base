@@ -17,8 +17,10 @@ def _get_site_tiers():
         from models import get_db
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT plan_key, name, description, price_month, price_year, tier, features_json "
-                "FROM subscription_plans WHERE is_active=1 AND plan_key LIKE 'site_%' ORDER BY sort_order"
+                "SELECT item_key AS plan_key, COALESCE(name_zh, name_en) AS name, "
+                "COALESCE(description_zh, description_en) AS description, "
+                "price_month, price_year, tier, features_json "
+                "FROM subscription.sub_items WHERE is_active=1 AND item_key LIKE 'site_%' ORDER BY sort_order"
             ).fetchall()
         for r in rows:
             try:

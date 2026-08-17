@@ -73,8 +73,21 @@ def _is_jti_revoked(jti):
                 with _blacklist_lock:
                     _token_blacklist[jti] = expires_at
                 return True
+            # VR-SEC-005: 过期吊销记录一并从 DB 清理，防止 system_config 无限膨胀
+            try:
+                from models import get_db as _db2
+                with _db2() as conn:
+                    conn.execute(
+                        "DELETE FROM system_config WHERE key=%s",
+                        (f'revoked_jti_{jti}',)
+                    )
+                    conn.commit()
+            except Exception as e:
+                logger.error(f"Failed to purge expired revoked jti {jti}: {e}")
     except Exception as e:
+        # VR-SEC-004: DB 异常时 fail-closed，与 user revocation 检查（L169）保持一致
         logger.error(f"DB check for revoked jti failed: {e}")
+        return True
     return False
 
 
@@ -167,6 +180,20 @@ def validate_token(token):
         except Exception as e:
             logger.error(f"User revocation DB check failed for user={user_id}: {e}")
             return None  # P1-F03: fail-closed — DB 异常时拒绝 token
+
+    # VR-AUTH-007：冻结账号（active=0）的存量 token 立即失效（fail-closed）。
+    # 管理员封禁后无需等待 token 自然过期，鉴权链路直接拒绝。
+    if user_id:
+        try:
+            with get_db() as conn:
+                row = conn.execute(
+                    "SELECT active FROM users WHERE id=%s", (user_id,)
+                ).fetchone()
+            if row is None or row['active'] != 1:
+                return None  # 账号不存在或已冻结
+        except Exception as e:
+            logger.error(f"User active-status DB check failed for user={user_id}: {e}")
+            return None  # fail-closed: DB 异常时拒绝 token
 
     return payload
 

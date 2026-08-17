@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ lang }}">
 <head>
 <meta charset="UTF-8">
@@ -6,9 +6,7 @@
 <title>文档中心 — {{ brand.site_name_en if brand else '' }}</title>
 <meta name="description" content="文档中心 — 快速入门、金融分析、帮助中心一站式技术文档。">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="/static/css/fonts.css" rel="stylesheet"/>
 <link rel="stylesheet" href="/static/css/landing.css">
 <style>
 .docs-hero{max-width:900px;margin:0 auto;padding:140px 32px 60px;text-align:center}
@@ -62,7 +60,7 @@
     <h3>{{ cat.name }}</h3>
     <p>{{ {
       'getting-started': '安装 Hermes 客户端、获取 API Key、创建第一个 Agent — 5 分钟即可上手。',
-      'finance': '易站 (TradeMind) A股智能分析使用指南、技术指标详解与量化策略实战。',
+      'finance': 'VeroRun (TradeMind) A股智能分析使用指南、技术指标详解与量化策略实战。',
       'insights': '产品更新、版本发布、新功能公告与路线图。',
       'help': '常见问题、故障排除、账号管理与计费说明。',
       'legal': '隐私政策、服务条款、AI 服务说明等法律合规文件。'
@@ -105,7 +103,7 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+<script src="/static/js/tsparticles.bundle.min.js"></script>
 <script src="/static/js/app.js"></script>
 <script>function toggleMobileNav(){document.getElementById("navLinks").classList.toggle("open")}</script>
 </body>

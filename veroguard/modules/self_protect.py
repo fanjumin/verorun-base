@@ -28,7 +28,8 @@ def start_watchdog(pidfile: str = '/var/run/verorun-guardian/guardian.pid'):
         # 父进程：记录子进程 PID，继续正常执行
         os.makedirs(os.path.dirname(pidfile), exist_ok=True)
         with open(pidfile, 'w') as f:
-            f.write(str(os.getpid()))
+            # VR-REL-003: 写入 watchdog 子进程 PID（而非父进程自身 PID）
+            f.write(str(pid))
         logging.info("Self-protect watchdog started (child PID: %d)", pid)
         return
 

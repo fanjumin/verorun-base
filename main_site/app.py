@@ -62,8 +62,8 @@ from i18n import _, get_lang, get_all_translations
 
 @app.context_processor
 def inject_i18n():
-    return {'_(': _, ')LANG': get_lang(), 'lang': get_lang(), 'translations': get_all_translations()}
-app.jinja_env.globals['_('] = _
+    return {'_': _, ')LANG': get_lang(), 'lang': get_lang(), 'translations': get_all_translations()}
+app.jinja_env.globals['_'] = _
 
 
 # ══ CSP ══

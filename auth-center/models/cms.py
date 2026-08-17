@@ -159,23 +159,30 @@ def get_page_blocks(page: str):
 
 
 def upsert_block(data: dict):
-    """Insert or update a content block."""
+    """Insert or update a content block.
+
+    编辑采用字段级合并（PATCH 语义）：仅更新请求中显式提供的字段，
+    避免 PUT 增量提交时未传字段被重置为默认值（VR-CMS-001）。
+    """
     with get_db() as conn:
         if data.get('id'):
-            conn.execute("""
-                UPDATE cms_blocks SET
-                    page=%s, section=%s, block_type=%s, position=%s,
-                    title=%s, subtitle=%s, content=%s, image_url=%s,
-                    link_url=%s, link_text=%s, icon=%s, extra_json=%s,
-                    is_published=%s, updated_at=NOW()
-                WHERE id=%s
-            """, (
-                data.get('page', ''), data.get('section', ''), data.get('block_type', 'text'),
-                data.get('position', 0), data.get('title', ''), data.get('subtitle', ''),
-                data.get('content', ''), data.get('image_url', ''), data.get('link_url', ''),
-                data.get('link_text', ''), data.get('icon', ''), data.get('extra_json', '{}'),
-                data.get('is_published', 1), data['id']
-            ))
+            # 动态 UPDATE：仅更新请求中显式提供的字段，避免全量覆盖
+            updates = []
+            params = []
+            for f in ('page', 'section', 'block_type', 'position',
+                      'title', 'subtitle', 'content', 'image_url',
+                      'link_url', 'link_text', 'icon', 'extra_json',
+                      'is_published'):
+                if f not in data:
+                    continue
+                updates.append(f'{f}=%s')
+                params.append(data[f])
+            updates.append('updated_at=NOW()')
+            params.append(data['id'])
+            conn.execute(
+                f'UPDATE cms_blocks SET {", ".join(updates)} WHERE id=%s',
+                params
+            )
         else:
             cur = conn.execute("""
                 INSERT INTO cms_blocks (page, section, block_type, position, title, subtitle,
@@ -337,7 +344,11 @@ def sanitize_html(raw: str) -> str:
                 if attr_name not in SAFE_ATTRS:
                     continue
                 lowered_val = attr_val.strip().lower()
-                if any(lowered_val.startswith(p) for p in ['javascript:', 'vbscript:', 'data:', 'expression']):
+                # 先做 HTML 实体解码再校验危险协议，防止
+                # `&#106;avascript:` 之类编码绕过（解码后为 javascript:）
+                import html as _html
+                decoded_val = _html.unescape(lowered_val).replace('\x00', '')
+                if any(decoded_val.startswith(p) for p in ['javascript:', 'vbscript:', 'data:', 'expression']):
                     continue
                 cleaned_attrs.append(f'{attr_name}="{attr_val}"')
 
@@ -369,28 +380,37 @@ def upsert_post(data: dict):
     tags_json = json.dumps(data.get('tags', []), ensure_ascii=False) if isinstance(data.get('tags'), list) else data.get('tags', '[]')
     with get_db() as conn:
         if data.get('id'):
-            conn.execute("""
-                UPDATE cms_posts SET
-                    slug=%s, category=%s, title=%s, excerpt=%s, content=%s,
-                    content_format=%s, cover_image=%s, author=%s,
-                    tags=%s, audience=%s,
-                    is_published=%s,
-                    publish_channels=%s,
-                    source=%s, source_id=%s,
-                    published_at=COALESCE(%s, published_at),
-                    updated_at=NOW()
-                WHERE id=%s
-            """, (
-                data.get('slug', ''), data.get('category', 'insights'),
-                data.get('title', ''), data.get('excerpt', ''), data.get('content', ''),
-                data.get('content_format', 'html'), data.get('cover_image', ''), data.get('author', ''),
-                tags_json, data.get('audience', 'public'),
-                data.get('is_published', 0),
-                channels_json,
-                data.get('source', 'manual'), data.get('source_id'),
-                data.get('published_at') if data.get('is_published') in (1, True) else None,
-                data['id']
-            ))
+            # 动态 UPDATE：仅更新请求中显式提供的字段，避免 PUT 增量提交
+            # 时未传字段被重置（content 清空 / category 回退 / is_published 归 0）。
+            updates = []
+            params = []
+            for f in ('slug', 'category', 'title', 'excerpt', 'content',
+                      'content_format', 'cover_image', 'author', 'tags',
+                      'audience', 'is_published', 'publish_channels',
+                      'source', 'source_id', 'published_at'):
+                if f not in data:
+                    continue
+                if f == 'published_at':
+                    updates.append('published_at=COALESCE(%s, published_at)')
+                    params.append(data['published_at'] if data.get('is_published') in (1, True) else None)
+                elif f == 'content':
+                    updates.append('content=%s')
+                    params.append(data['content'])
+                elif f == 'tags':
+                    updates.append('tags=%s')
+                    params.append(json.dumps(data['tags'], ensure_ascii=False) if isinstance(data['tags'], list) else data.get('tags', '[]'))
+                elif f == 'publish_channels':
+                    updates.append('publish_channels=%s')
+                    params.append(json.dumps(data['publish_channels'], ensure_ascii=False))
+                else:
+                    updates.append(f'{f}=%s')
+                    params.append(data[f])
+            updates.append('updated_at=NOW()')
+            params.append(data['id'])
+            conn.execute(
+                f'UPDATE cms_posts SET {", ".join(updates)} WHERE id=%s',
+                params
+            )
         else:
             cur = conn.execute("""
                 INSERT INTO cms_posts (slug, category, title, excerpt, content, content_format, cover_image, author, tags, audience, is_published, publish_channels, source, source_id, published_at)

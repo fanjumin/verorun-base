@@ -88,12 +88,17 @@ window.editor = (function() {
       { key: 'email_to', type: 'text', label: 'Email To', default: '', placeholder: 'user@example.com' }
     ],
     approval: [
-      { key: 'approver_role', type: 'select', label: 'Approver Role', options: ['admin','manager','editor'], default: 'admin' },
+      { key: 'approver_role', type: 'select', label: 'Approver Role', options: ['admin','super_admin','operator'], default: 'admin' },
+      { key: 'approver_ids', type: 'tags', label: 'Approver User IDs', default: [], placeholder: 'User IDs, comma-separated (empty = any by role)' },
+      { key: 'timeout_minutes', type: 'number', label: 'Approval Timeout (minutes, 0=global 72h)', default: 0 },
+      { key: 'message', type: 'text', label: 'Approval Message', default: '', placeholder: 'Describe why approval is needed' },
       { key: 'require_approval_on_error', type: 'checkbox', label: 'Require Approval on Error', default: false }
     ],
     script: [
-      { key: 'script', type: 'text', label: 'Script Name', default: '', placeholder: 'script_name' },
-      { key: 'lang', type: 'select', label: 'Language', options: ['python','shell','builtin'], default: 'python' }
+      { key: 'script', type: 'text', label: 'Script Name', default: '', placeholder: 'builtin: check_new_posts / generate_static_incremental, or file name in scripts/' },
+      { key: 'lang', type: 'select', label: 'Language', options: ['builtin','python','shell'], default: 'builtin' },
+      { key: 'args', type: 'tags', label: 'Script Args', default: [], placeholder: 'Arguments, comma-separated' },
+      { key: 'timeout_seconds', type: 'number', label: 'Timeout (seconds)', default: 120 }
     ],
     http_request: [
       { key: 'url', type: 'text', label: 'URL', default: '', placeholder: 'https://api.example.com/endpoint' },
@@ -108,7 +113,7 @@ window.editor = (function() {
       { key: 'threshold', type: 'number', label: 'Threshold', default: 0 }
     ],
     sub_workflow: [
-      { key: 'workflow_id', type: 'number', label: 'Target Workflow ID', default: 0, placeholder: 'Enter workflow ID' }
+      { key: 'workflow_id', type: 'number', label: 'Target Workflow ID', default: 0, placeholder: 'Enter workflow ID from the Workflows list' }
     ]
   };
 

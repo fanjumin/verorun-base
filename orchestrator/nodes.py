@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
 from . import models as m
 from .safe_eval import safe_eval
+from .workflow_engine import ApprovalRequiredError
 
 # ============================================================
 # 智能体 节点 — 调用 智能体（系统/用户）
@@ -653,6 +654,220 @@ def _get_market_data(symbol: str) -> dict:
 
 
 # ============================================================
+# 审批节点 — Human-in-the-Loop（对齐 Temporal Signal 模式）
+# ============================================================
+
+def handle_approval(node_def: dict, input_data: dict) -> dict:
+    """
+    审批节点处理器。
+    配置:
+      - approver_role:    'admin'（任意管理员）| 'super_admin' | 'operator'
+      - approver_ids:     指定审批人用户 ID 列表（可选，优先于角色）
+      - timeout_minutes:  审批超时（0=使用全局 APPROVAL_TIMEOUT_HOURS，默认 72h）
+      - message:          审批说明（可选）
+
+    通过抛出 ApprovalRequiredError 使节点进入 waiting_approval，
+    工作流实例暂停，等待管理员在实例详情中通过/拒绝。
+    """
+    cfg = node_def.get('config', {})
+    role = cfg.get('approver_role', 'admin')
+    if role not in ('admin', 'super_admin', 'operator'):
+        raise ValueError(f'Invalid approver_role: {role}')
+
+    # 消息内嵌 approval_required 关键字，兼容引擎既有字符串检测路径
+    raise ApprovalRequiredError(
+        f'approval_required (role={role}, timeout_minutes={cfg.get("timeout_minutes", 0)}, '
+        f'approver_ids={cfg.get("approver_ids", [])}, message={cfg.get("message", "")})'
+    )
+
+
+# ============================================================
+# 子工作流节点 — 对齐 Airflow TriggerDagRunOperator / Temporal ChildWorkflow
+# ============================================================
+
+def make_sub_workflow_handler(engine):
+    """创建子工作流节点处理器（闭包捕获 engine 引用）"""
+    def handle_sub_workflow(node_def: dict, input_data: dict) -> dict:
+        cfg = node_def.get('config', {})
+        child_id = int(cfg.get('workflow_id') or 0)
+        if child_id <= 0:
+            raise ValueError('子工作流节点：必须配置 workflow_id')
+
+        context = input_data.get('context', {}) or {}
+        chain = list(context.get('__subflow_chain__', []))
+
+        # 递归防护：防 A→B→A 环
+        if child_id in chain:
+            raise ValueError(f'子工作流递归检测失败：工作流 #{child_id} 已在执行链 {chain} 中')
+        # 深度限制
+        if len(chain) >= 5:
+            raise ValueError('子工作流深度超限（最多嵌套 5 层）')
+
+        child_wf = m.get_workflow(child_id)
+        if not child_wf or not child_wf.get('is_active'):
+            raise ValueError(f'子工作流 #{child_id} 不存在或已停用')
+
+        # 传入子流程的初始上下文（含递归链），子流程可继续嵌套
+        ctx = dict(context)
+        ctx['__subflow_chain__'] = chain + [child_id]
+
+        child_inst_id = engine.run_workflow(
+            child_id,
+            trigger_type='sub_workflow',
+            trigger_config={'parent_instance_id': input_data.get('_instance_id', 0)},
+            initial_context=ctx
+        )
+
+        # 轮询子实例直至终结（有界等待：子实例自身 timeout_minutes + 5 分钟兜底）
+        timeout_sec = int(child_wf.get('timeout_minutes', 60)) * 60 + 300
+        deadline = time.time() + timeout_sec
+        inst = None
+        status = 'pending'
+        while time.time() < deadline:
+            inst = m.get_workflow_instance(child_inst_id)
+            status = inst['status'] if inst else 'unknown'
+            if status in ('completed', 'failed', 'cancelled', 'timeout'):
+                break
+            time.sleep(2)
+        else:
+            raise RuntimeError(f'等待子工作流 #{child_id} 执行超时')
+
+        if status != 'completed':
+            err = (inst or {}).get('error_message', '') or status
+            raise RuntimeError(f'子工作流 #{child_id} 执行失败：{err}')
+
+        return {
+            'success': True,
+            'child_instance_id': child_inst_id,
+            'child_status': status,
+            'child_output': m.from_json((inst or {}).get('context_data', '{}'))
+        }
+    return handle_sub_workflow
+
+
+# ============================================================
+# 脚本节点 — 对齐 Airflow BashOperator / Temporal Activity
+# ============================================================
+
+def run_script_safely(script_path: str, script_args: list = None,
+                      timeout: int = 300) -> dict:
+    """安全执行 scripts/ 目录下的 Python 脚本（路径白名单 + 超时），供 Cron/DAG 共用。"""
+    import subprocess
+    SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts')
+    real_script = os.path.realpath(os.path.join(SCRIPTS_DIR, os.path.basename(script_path)))
+    if not real_script.startswith(os.path.realpath(SCRIPTS_DIR)):
+        return {'success': False, 'error': f'脚本路径被拒绝：{script_path}'}
+    if not os.path.isfile(real_script):
+        return {'success': False, 'error': f'脚本不存在：{script_path}'}
+    try:
+        result = subprocess.run(
+            [sys.executable, real_script] + list(script_args or []),
+            capture_output=True, text=True, timeout=timeout
+        )
+        return {
+            'success': result.returncode == 0,
+            'stdout': result.stdout[-2000:],
+            'stderr': result.stderr[-1000:],
+            'returncode': result.returncode
+        }
+    except subprocess.TimeoutExpired:
+        return {'success': False, 'error': f'脚本执行超时（{timeout}s）'}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def _run_builtin_script(func, ctx: dict, cfg: dict, timeout: int = 120) -> dict:
+    """在守护线程中执行内置脚本，超时抛错。
+
+    说明：内置脚本在进程内执行，无法强制 kill 挂起的线程，
+    因此内置脚本必须保证在 timeout 内自行返回（纯计算/快速 IO）。
+    """
+    import threading
+    box = {}
+    def target():
+        try:
+            box['result'] = func(ctx, cfg)
+        except Exception as e:
+            box['error'] = str(e)
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        raise RuntimeError(f'内置脚本执行超时（{timeout}s）')
+    if 'error' in box:
+        raise RuntimeError(box['error'])
+    return box['result']
+
+
+def _script_check_new_posts(ctx: dict, cfg: dict) -> dict:
+    """检查最近发布的新文章（模板 '定时全站静态生成' 使用）"""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'auth-center'))
+        from models.cms import get_posts
+        limit = int(cfg.get('limit', 50))
+        posts = get_posts(published_only=True, limit=limit) or []
+        return {
+            'success': True,
+            'new_count': len(posts),
+            'slugs': [p.get('slug', '') for p in posts]
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def _script_generate_static_incremental(ctx: dict, cfg: dict) -> dict:
+    """增量生成全站静态页（复用 main_site.staticgen.generate_all）"""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'main_site'))
+        from staticgen import generate_all
+        results = generate_all() or []
+        ok = sum(1 for r in results if r.get('ok'))
+        fail = sum(1 for r in results if not r.get('ok'))
+        return {'success': fail == 0, 'ok': ok, 'fail': fail}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+# 内置脚本注册表（白名单，禁止任意路径执行）
+BUILTIN_SCRIPTS = {
+    'check_new_posts': _script_check_new_posts,
+    'generate_static_incremental': _script_generate_static_incremental,
+}
+
+
+def handle_script(node_def: dict, input_data: dict) -> dict:
+    """
+    脚本节点处理器。
+    配置:
+      - script:          内置脚本名（lang=builtin）或 scripts/ 目录下的文件名
+      - lang:            'builtin' | 'python' | 'shell'
+      - args:            参数列表（subprocess 路径）
+      - timeout_seconds: 超时秒数（默认 120s）
+    """
+    cfg = node_def.get('config', {})
+    name = cfg.get('script', '')
+    lang = cfg.get('lang', 'builtin')
+    timeout = int(cfg.get('timeout_seconds') or 120)
+
+    if not name:
+        raise ValueError('脚本节点：必须配置 script 名称')
+
+    if lang == 'builtin':
+        if name not in BUILTIN_SCRIPTS:
+            raise ValueError(f'未知的内置脚本：{name}')
+        return _run_builtin_script(BUILTIN_SCRIPTS[name],
+                                   input_data.get('context', {}) or {}, cfg, timeout)
+
+    if lang in ('python', 'shell'):
+        res = run_script_safely(name, cfg.get('args', []), timeout)
+        if not res.get('success'):
+            raise RuntimeError(res.get('error', '脚本执行失败'))
+        return res
+
+    raise ValueError(f'不支持的脚本语言：{lang}')
+
+
+# ============================================================
 # 节点处理器注册表
 # ============================================================
 
@@ -664,11 +879,18 @@ NODE_HANDLERS = {
     'publish': handle_publish,
     'notify': handle_notify,
     'market_check': handle_market_check,
-    # wait, approval, sub_workflow, http_request, script 由 WorkflowEngine 内置处理
+    # wait / http_request 由 WorkflowEngine 内置处理
+    'approval': handle_approval,
+    'sub_workflow': None,  # 需 engine 引用，在 register_all 中工厂注册
+    'script': handle_script,
 }
 
 
 def register_all(engine):
     """将所有节点处理器注册到工作流引擎"""
     for node_type, handler in NODE_HANDLERS.items():
+        if handler is None:
+            continue
         engine.register_node_handler(node_type, handler)
+    # 子工作流处理器需要 engine 引用（闭包），单独工厂注册
+    engine.register_node_handler('sub_workflow', make_sub_workflow_handler(engine))

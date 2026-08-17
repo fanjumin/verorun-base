@@ -1906,6 +1906,7 @@ def generate_and_save_image():
     try:
         from services.ai_content_generator import generate_image as gen_img
         from services.ai_content_generator import generate_cover_image
+        from services.ai_content_generator import _validate_image_url
 
         if use_for_cover and title:
             image_url = generate_cover_image(title, prompt or title)
@@ -1914,6 +1915,10 @@ def generate_and_save_image():
 
         if not image_url:
             return _error(_('Picture generation failed: No image address returned'))
+
+        # SSRF 防护（VR-SSRF-002）：LLM 返回的图片 URL 必须先校验协议/公网地址，
+        # 再下载到本地，防止 LLM 输出内网/私网/元数据地址被 urlopen 直接访问。
+        _validate_image_url(image_url)
 
         # 下载图片到本地
         import uuid, urllib.request

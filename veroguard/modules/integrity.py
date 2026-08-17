@@ -26,15 +26,15 @@ def _derive_key(secret: str, purpose: str) -> bytes:
 
 
 def load_manifest() -> dict:
-    """加载并解密完整性基准清单"""
+    """加载并解密完整性基准清单
+    VR-SEC-007: 清单缺失/解密失败视为「无法校验」，向上抛出由 run() 按 fail-closed 处理。
+    """
     manifest_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'data', 'manifest.json.enc'
     )
     if not os.path.exists(manifest_path):
-        logging.warning("Manifest not found: %s — skipping integrity check",
-                        manifest_path)
-        return {'files': []}
+        raise ValueError(f"Manifest not found: {manifest_path}")
 
     key = _derive_key(config.PROBE_SECRET, 'integrity_manifest')
     with open(manifest_path, 'rb') as f:
@@ -46,8 +46,7 @@ def load_manifest() -> dict:
         plaintext = aesgcm.decrypt(nonce, ciphertext, None)
         return json.loads(plaintext)
     except Exception as e:
-        logging.error("Failed to decrypt manifest: %s", e)
-        return {'files': []}
+        raise ValueError(f"Failed to decrypt manifest: {e}")
 
 
 def run() -> list:
@@ -67,12 +66,40 @@ def run() -> list:
         ]
     """
     if not config.PROBE_SECRET:
-        logging.warning("PROBE_SECRET not set — skipping integrity check")
-        return []
+        logging.warning("PROBE_SECRET not set — integrity check unavailable")
+        return [{
+            'file': 'integrity/unavailable',
+            'type': 'unavailable',
+            'severity': 'critical',
+            'expected_hash': '',
+            'actual_hash': '',
+            'reason': 'PROBE_SECRET not set',
+        }]
 
-    manifest = load_manifest()
+    try:
+        manifest = load_manifest()
+    except ValueError as e:
+        # VR-SEC-007: 无法校验 = 视为违规，上报 critical，禁止静默放行
+        logging.error("Integrity check unavailable: %s", e)
+        return [{
+            'file': 'integrity/unavailable',
+            'type': 'unavailable',
+            'severity': 'critical',
+            'expected_hash': '',
+            'actual_hash': '',
+            'reason': str(e),
+        }]
+
     if not manifest.get('files'):
-        return []
+        logging.warning("Manifest has no files — integrity check unavailable")
+        return [{
+            'file': 'integrity/unavailable',
+            'type': 'unavailable',
+            'severity': 'critical',
+            'expected_hash': '',
+            'actual_hash': '',
+            'reason': 'Manifest has no files',
+        }]
 
     violations = []
     for entry in manifest['files']:

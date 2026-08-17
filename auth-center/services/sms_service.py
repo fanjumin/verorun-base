@@ -97,13 +97,13 @@ def check_rate_limit(phone, max_per_hour=5):
     hour_bucket = datetime.now().strftime('%Y%m%d_%H')
     with get_db() as conn:
         row = conn.execute(
-            'SELECT count FROM sms_rate_limits WHERE phone=? AND hour_bucket=?',
+            'SELECT count FROM sms_rate_limits WHERE phone=%s AND hour_bucket=%s',
             (phone, hour_bucket)
         ).fetchone()
         if row and row['count'] >= max_per_hour:
             return False
         if row:
-            conn.execute('UPDATE sms_rate_limits SET count=count+1 WHERE phone=? AND hour_bucket=?',
+            conn.execute('UPDATE sms_rate_limits SET count=count+1 WHERE phone=%s AND hour_bucket=%s',
                          (phone, hour_bucket))
         else:
             conn.execute('INSERT INTO sms_rate_limits (phone, hour_bucket, count) VALUES (%s,%s,1)',

@@ -27,7 +27,7 @@ def resolve_current_site():
                 "sc.logo_url, sc.favicon_url, sc.tier "
                 "FROM site_domains sd "
                 "JOIN site_configs sc ON sc.id = sd.site_config_id "
-                "WHERE sd.full_domain = ? AND sd.is_published = 1",
+                "WHERE sd.full_domain = %s AND sd.is_published = 1",
                 (host,)
             ).fetchone()
     except Exception:

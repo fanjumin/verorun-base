@@ -64,7 +64,7 @@ AI Description Optimization Failed: AI Description Optimization Failed
 AI Engine Not Initialized: AI Engine Not Initialized
 AI Engine Not Ready (Check API Key): AI Engine Not Ready (Check API Key)
 AI Experience: AI Experience
-AI Experience — YiZhan AI · Free AI Website Building Trial: AI Experience — YiZhan AI · Free AI Website Building Trial
+AI Experience — VeroRun AI · Free AI Website Building Trial: AI Experience — VeroRun AI · Free AI Website Building Trial
 AI Interpretation: AI Interpretation
 AI Layout Module Not Ready (ai_content_generator Not Available): AI Layout Module Not Ready (ai_content_generator Not Available)
 AI Marketing Copy Generation: AI Marketing Copy Generation
@@ -193,6 +193,8 @@ AppKey and AppSecret cannot be empty: AppKey and AppSecret cannot be empty
 AppKey not configured: AppKey not configured
 Approval: Approval
 Approval Not Approved: Approval Not Approved
+Approval Note (optional): Approval Note (optional)
+Approve: Approve
 Approved: Approved
 Article: Article
 Article Management: Article Management
@@ -968,7 +970,7 @@ Poster: Poster
 Preview: Preview
 'Preview mode — admin only': 'Preview mode — admin only'
 Price: Price
-Price Calculator - Yizhan AI · AI Website Builder Platform: Price Calculator - Yizhan AI · AI Website Builder Platform
+Price Calculator - VeroRun AI · AI Website Builder Platform: Price Calculator - VeroRun AI · AI Website Builder Platform
 Privacy Policy: Privacy Policy
 Processed: Processed
 Processed Content Does Not Exist: Processed Content Does Not Exist
@@ -1066,6 +1068,7 @@ Registered Capital: Registered Capital
 Registration Time: Registration Time
 Reject: Reject
 Rejected: Rejected
+Rejection Reason: Rejection Reason
 Removed from favorites: Removed from favorites
 Renewal: Renewal
 Renewal Exclusive: Renewal Exclusive
@@ -1527,9 +1530,8 @@ Yichang: Yichang
 Yichang City: Yichang City
 Yinchuan: Yinchuan
 Yinchuan City: Yinchuan City
-Yizhan AI: Yizhan AI
-Yizhan AI Intelligent Customer Service: Yizhan AI Intelligent Customer Service
-Yizhan AI Smart Website Building Platform allows your website to attract customers 24/7.: Yizhan AI Smart Website Building Platform allows your website to attract customers 24/7.
+VeroRun AI Intelligent Customer Service: VeroRun AI Intelligent Customer Service
+VeroRun AI Smart Website Building Platform allows your website to attract customers 24/7.: VeroRun AI Smart Website Building Platform allows your website to attract customers 24/7.
 You are an agent assistant. Output only JSON.: You are an agent assistant. Output only JSON.
 You can find the product ID in the Alibaba product detail page URL: You can find the product ID in the Alibaba product detail page URL
 You have already reviewed this product: You have already reviewed this product
@@ -1564,7 +1566,6 @@ ad_id required: ad_id required
 avg_response_time (Average response ms): avg_response_time (Average response ms)
 mock channel disabled: mock channel disabled
 stub confirm is disabled outside dev: stub confirm is disabled outside dev
-© 2026 YizhanAI. All rights reserved.: © 2026 YizhanAI. All rights reserved.
 · Online: · Online
 • Configure DNS resolution according to our help guide: • Configure DNS resolution according to our help guide
 • Free trial of the full AI website building process: • Free trial of the full AI website building process

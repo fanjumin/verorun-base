@@ -189,7 +189,11 @@ class ModulePolicyEngine:
         try:
             with self._get_main_db() as conn:
                 rows = conn.execute(
-                    "SELECT * FROM module_pricing WHERE is_active = 1 ORDER BY sort_order"
+                    "SELECT item_key AS module_key, name_zh AS name, description_zh AS description, "
+                    "billing_mode AS pattern, trial_days, trial_daily_limit, "
+                    "post_trial_action, refund_days, limit_even_byok, "
+                    "price_month AS price_month_fen, price_year AS price_year_fen "
+                    "FROM subscription.sub_items WHERE category='module' AND is_active = 1 ORDER BY sort_order"
                 ).fetchall()
 
                 policies = {}
@@ -430,7 +434,7 @@ class ModulePolicyEngine:
         try:
             with self._get_main_db() as conn:
                 rows = conn.execute(
-                    """SELECT user_id, module_states FROM subscriptions
+                    """SELECT user_id, module_states FROM subscription.user_subscriptions
                        WHERE module_states IS NOT NULL AND module_states != '{}'"""
                 ).fetchall()
 
@@ -478,7 +482,7 @@ class ModulePolicyEngine:
 
                     if changed:
                         conn.execute(
-                            "UPDATE subscriptions SET module_states = %s, updated_at = NOW() WHERE user_id = %s",
+                            "UPDATE subscription.user_subscriptions SET module_states = %s, updated_at = NOW() WHERE user_id = %s",
                             (json.dumps(states), user_id)
                         )
                 if rows:
@@ -497,7 +501,7 @@ class ModulePolicyEngine:
         try:
             with self._get_main_db() as conn:
                 row = conn.execute(
-                    "SELECT module_states FROM subscriptions WHERE user_id = %s",
+                    "SELECT module_states FROM subscription.user_subscriptions WHERE user_id = %s",
                     (user_id,)
                 ).fetchone()
                 if not row or not row['module_states']:
@@ -515,7 +519,7 @@ class ModulePolicyEngine:
         try:
             with self._get_main_db() as conn:
                 row = conn.execute(
-                    "SELECT module_states FROM subscriptions WHERE user_id = %s",
+                    "SELECT module_states FROM subscription.user_subscriptions WHERE user_id = %s",
                     (user_id,)
                 ).fetchone()
 
@@ -525,10 +529,10 @@ class ModulePolicyEngine:
                     # 用户还没有 subscriptions 记录 → 创建一条占位记录
                     now_iso = datetime.now().isoformat()
                     conn.execute(
-                        """INSERT INTO subscriptions
-                           (user_id, plan_key, period, status, current_period_start, current_period_end, module_states)
-                           VALUES (%s, 'free', 'month', 'active', %s, %s, '{}')
-                           ON CONFLICT (user_id) DO NOTHING""",
+                        """INSERT INTO subscription.user_subscriptions
+                           (user_id, item_key, interval_type, amount_fen, status, period_start, period_end, module_states)
+                           VALUES (%s, 'free', 'month', 0, 'active', %s, %s, '{}')
+                           ON CONFLICT (user_id, item_key) DO NOTHING""",
                         (user_id, now_iso, (datetime.now() + timedelta(days=36500)).isoformat())
                     )
                     conn.commit()
@@ -536,7 +540,7 @@ class ModulePolicyEngine:
 
                 states[module_key] = state
                 conn.execute(
-                    "UPDATE subscriptions SET module_states = %s, updated_at = NOW() WHERE user_id = %s",
+                    "UPDATE subscription.user_subscriptions SET module_states = %s, updated_at = NOW() WHERE user_id = %s",
                     (json.dumps(states), user_id)
                 )
                 conn.commit()

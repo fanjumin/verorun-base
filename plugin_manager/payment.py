@@ -468,15 +468,10 @@ class WechatProvider(PaymentProvider):
         return cfg
 
     def _get_gateway_appid(self) -> str:
-        """尝试从已加载的 gateway 模块获取 app_id"""
+        """尝试从新版订阅网关模块获取 app_id"""
         try:
-            import sys as _sys
-            _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            _gw_path = os.path.join(_base, 'auth-center', 'routes', 'subscription', 'gateway')
-            if _gw_path not in _sys.path:
-                _sys.path.insert(0, _gw_path)
-            import wechat as _w
-            return getattr(_w, 'WECHAT_APPID', '')
+            from plugins.subscription.gateways.wechat import _get_wechat_v3_config
+            return _get_wechat_v3_config().get('app_id', '')
         except Exception:
             return ''
 
@@ -486,14 +481,7 @@ class WechatProvider(PaymentProvider):
 
         notify_url = f'{self._config["notify_base"]}/admin/plugins/payment/notify/wechat' if self._config.get('notify_base') else ''
 
-        # 动态导入 gateway 模块 — 避免启动时 sys.path 污染
-        import sys as _sys
-        _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        _gw_path = os.path.join(_base, 'auth-center', 'routes', 'subscription', 'gateway')
-        if _gw_path not in _sys.path:
-            _sys.path.insert(0, _gw_path)
-
-        from wechat import call_native_pay
+        from plugins.subscription.gateways.wechat import call_native_pay
         result = call_native_pay(
             order_no=order.order_no,
             description=order.subject,
@@ -501,7 +489,7 @@ class WechatProvider(PaymentProvider):
             notify_url=notify_url,
         )
 
-        if result.get('stub') or result.get('code_url'):
+        if result.get('code_url') and not result.get('error'):
             return PaymentResult(
                 success=True,
                 order_no=order.order_no,
@@ -531,13 +519,7 @@ class WechatProvider(PaymentProvider):
         if self._is_stub:
             return MockProvider().refund(order_no)
 
-        import sys as _sys
-        _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        _gw_path = os.path.join(_base, 'auth-center', 'routes', 'subscription', 'gateway')
-        if _gw_path not in _sys.path:
-            _sys.path.insert(0, _gw_path)
-
-        from wechat import refund_order as wx_refund
+        from plugins.subscription.gateways.wechat import refund_order as wx_refund
         amt = amount_fen or 0
         result = wx_refund(order_no, amt)
         return PaymentResult(
@@ -787,7 +769,7 @@ class PaymentRouter:
             channel = self.default_channel
         provider = self._providers.get(channel)
         if provider is None:
-            if os.environ.get('DEPLOY_ENV', 'dev') == 'dev':
+            if os.environ.get('DEPLOY_ENV', '') == 'dev':
                 provider = self._providers['mock']
             else:
                 raise PaymentChannelNotConfigured(
@@ -795,7 +777,7 @@ class PaymentRouter:
         # Detect stub fallback
         stub_check = getattr(provider, '_is_stub', None)
         if callable(stub_check) and stub_check():
-            if os.environ.get('DEPLOY_ENV', 'dev') == 'dev':
+            if os.environ.get('DEPLOY_ENV', '') == 'dev':
                 print(f'[Payment] {channel} not configured, falling back to mock')
                 return self._providers['mock']
             raise PaymentChannelNotConfigured(

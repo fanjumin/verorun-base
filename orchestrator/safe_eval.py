@@ -6,6 +6,26 @@ import ast
 MAX_AST_NODES = 200
 MAX_AST_DEPTH = 20
 MAX_EXPR_LENGTH = 2000
+# VR-REL-005: 容器（字符串/列表等）乘法结果上限，防内存放大 DoS
+MAX_MULT_RESULT = 100000
+
+
+def _operand_magnitude(node, local_vars: dict):
+    """估算乘法操作数：返回 (是否容器, 数量级)。未知类型保守按上限处理。"""
+    if isinstance(node, ast.Constant):
+        v = node.value
+        if isinstance(v, (str, bytes, list, dict, set, tuple)):
+            return True, max(len(v), 1)
+        if isinstance(v, int):
+            return False, abs(v)
+        return False, 1
+    if isinstance(node, ast.Name) and node.id in local_vars:
+        v = local_vars[node.id]
+        if isinstance(v, (str, bytes, list, dict, set, tuple)):
+            return True, max(len(v), 1)
+        if isinstance(v, int):
+            return False, abs(v)
+    return True, MAX_MULT_RESULT
 
 def safe_eval(expression: str, local_vars: dict) -> bool:
     """
@@ -75,6 +95,16 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
             # P1-F10: 限制幂运算指数（防止 9**9**9）
             if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
                 raise ValueError(f"Power operations are not allowed")
+
+            # VR-REL-005: 限制 容器 * 整数 乘法，防 'a'*10**8 内存放大
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+                l_is_container, l_mag = _operand_magnitude(node.left, local_vars)
+                r_is_container, r_mag = _operand_magnitude(node.right, local_vars)
+                if l_is_container != r_is_container:
+                    container_len = l_mag if l_is_container else r_mag
+                    multiplier = r_mag if l_is_container else l_mag
+                    if container_len * multiplier > MAX_MULT_RESULT:
+                        raise ValueError("Multiplication result too large")
         
         # 检查危险的标识符
         forbidden_names = [
@@ -100,7 +130,11 @@ def safe_eval(expression: str, local_vars: dict) -> bool:
             raise ValueError(f"Expression too deeply nested ({_max_depth} > {MAX_AST_DEPTH})")
         
         # 使用空的 __builtins__ 进行评估
-        return bool(eval(compile(tree, '<string>', 'eval'), {"__builtins__": {}}, local_vars))
+        result = eval(compile(tree, '<string>', 'eval'), {"__builtins__": {}}, local_vars)
+        # VR-REL-005: 结果尺寸兜底校验（防御动态变量乘法绕过静态检查）
+        if isinstance(result, (str, bytes, list, dict, set, tuple)) and len(result) > MAX_MULT_RESULT:
+            raise ValueError("Evaluation result too large")
+        return bool(result)
     
     except SyntaxError as e:
         raise ValueError(f"Invalid expression syntax: {e}")

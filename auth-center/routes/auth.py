@@ -238,12 +238,21 @@ def sms_login():
     now = now_iso()
     with get_db() as conn:
         cur = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
-            (phone, code, 'login', now))
+            'SELECT * FROM sms_codes WHERE phone=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
+            (phone, 'login', now))
         row = cur.fetchone()
         if not row:
             return api_err('Invalid or expired verification code')
         row = dict(row)
+        # VR-AUTH-005：猜码失败递增计数，达到 5 次作废验证码（防暴力枚举）
+        if row['code'] != code:
+            new_attempts = row['attempts'] + 1
+            if new_attempts >= 5:
+                conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
+            else:
+                conn.execute('UPDATE sms_codes SET attempts=%s WHERE id=%s', (new_attempts, row['id']))
+            conn.commit()
+            return api_err('Invalid or expired verification code')
         if row['attempts'] >= 5:
             return api_err('Too many attempts, please request a new code')
         conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
@@ -252,6 +261,9 @@ def sms_login():
         user = cur.fetchone()
         if user:
             user = dict(user)
+            # VR-AUTH-007：冻结账号（active=0）禁止登录
+            if user.get('active', 1) != 1:
+                return api_err(_('Account is disabled'), 403)
             conn.execute('UPDATE users SET last_login=%s WHERE id=%s', (now, user['id']))
         else:
             user_id = conn.execute(
@@ -632,16 +644,24 @@ def email_verify():
 # =============================================
 @auth_bp.route('/logout', methods=['POST'])
 def auth_logout():
-    """Logout: mark current session inactive + clear cookie"""
+    """Logout: revoke JWT + mark current session inactive + clear cookie"""
     token = _get_token_from_request()
-    # Mark current session as inactive
     if token:
+        # VR-AUTH-004：吊销当前 token 的 jti（校验链路立即拒绝旧 token，不再等自然过期）
+        try:
+            from services.jwt_service import revoke_token
+            revoke_token(token)
+        except Exception:
+            pass
+        # Mark current session as inactive
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         with get_db() as conn:
             conn.execute("UPDATE user_sessions SET is_current=0 WHERE token_hash=%s", (token_hash,))
             conn.commit()
     # Clear all related cookies
-    cd_val = _get_cookie_domain()
+    # VR-AUTH-008：_get_cookie_domain 已迁移至 oauth_config 插件，auth.py 不再持有该函数。
+    # 改用与登录路径一致的 env 驱动计算（.DEPLOY_DOMAIN），修复 NameError → 500。
+    cd_val = ('.' + os.environ['DEPLOY_DOMAIN']) if os.environ.get('DEPLOY_DOMAIN') else None
     resp = jsonify({'success': True})
     for cookie_name in ('sso_token', 'tm_token', 'token'):
         if cd_val:

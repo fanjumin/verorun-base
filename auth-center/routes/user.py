@@ -38,6 +38,35 @@ def _require_auth():
     return payload, None
 
 
+def _verify_sms_code(phone, code, purpose, error_msg='Invalid or expired verification code'):
+    """验证短信验证码（VR-AUTH-005：猜码失败递增计数，达到 5 次作废）
+
+    Returns:
+        (ok: bool, err: str)
+    """
+    now = now_iso()
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM sms_codes WHERE phone=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
+            (phone, purpose, now)).fetchone()
+        if not row:
+            return False, error_msg
+        row = dict(row)
+        if row['code'] != code:
+            new_attempts = row['attempts'] + 1
+            if new_attempts >= 5:
+                conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
+            else:
+                conn.execute('UPDATE sms_codes SET attempts=%s WHERE id=%s', (new_attempts, row['id']))
+            conn.commit()
+            return False, error_msg
+        if row['attempts'] >= 5:
+            return False, 'Too many attempts, please request a new code'
+        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
+        conn.commit()
+    return True, ''
+
+
 def _get_user_app(payload):
     user_id = payload['user_id']
     app_name = payload.get('app_name', 'platform')
@@ -356,37 +385,31 @@ def set_password():
     v = validate_password(password)
     if not v['valid']:
         return jsonify({'success': False, 'error': '；'.join(v['errors'])}), 400
-    # Verify SMS code
-    now = now_iso()
+    # Verify SMS code (VR-AUTH-005: 猜码失败递增计数，达到 5 次作废)
+    ok, verr = _verify_sms_code(phone, code, 'modify_password')
+    if not ok:
+        return jsonify({'success': False, 'error': verr}), 400
     with get_db() as conn:
-        row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
-            (phone, code, 'modify_password', now)).fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': 'Invalid or expired verification code'}), 400
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (row['id'],))
         # Hash password
         salt = secrets.token_hex(16)
         pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 600000).hex()
         stored = f'pbkdf2:sha256:600000:{salt}:{pw_hash}'
         conn.execute('UPDATE users SET password_hash=%s WHERE phone=%s', (stored, phone))
-        # IAM v2: force logout all other sessions, update password_changed_at
+        # IAM v2: update password_changed_at
         user_row = conn.execute('SELECT id FROM users WHERE phone=%s', (phone,)).fetchone()
-        if user_row:
-            user_id = user_row['id']
-            auth_hdr = request.headers.get('Authorization', '')
-            cur_token = auth_hdr.replace('Bearer ', '') if auth_hdr.startswith('Bearer ') else auth_hdr
-            if cur_token:
-                cur_token_hash = hashlib.sha256(cur_token.encode()).hexdigest()
-                conn.execute("DELETE FROM user_sessions WHERE user_id=%s AND token_hash!=%s",
-                             (user_id, cur_token_hash))
-            else:
-                conn.execute("DELETE FROM user_sessions WHERE user_id=%s",
-                             (user_id,))
+        user_id = user_row['id'] if user_row else None
+        if user_id:
             conn.execute("UPDATE users SET password_changed_at=%s WHERE id=%s",
-                         (now, user_id))
+                         (now_iso(), user_id))
         conn.commit()
-    return jsonify({'success': True, 'message': 'Password changed, other devices logged out'})
+    # VR-AUTH-004：改密后吊销该用户全部 token（含当前会话，强制重新登录）
+    if user_id:
+        try:
+            from services.jwt_service import revoke_all_user_tokens
+            revoke_all_user_tokens(user_id)
+        except Exception:
+            pass
+    return jsonify({'success': True, 'message': 'Password changed, please login again'})
 
 
 # =============================================
@@ -405,27 +428,18 @@ def change_phone():
     new_code = data.get('new_code', '').strip()
     if not all([old_phone, old_code, new_phone, new_code]):
         return jsonify({'success': False, 'error': 'Incomplete parameters'}), 400
-    now = now_iso()
+    # VR-AUTH-005：新旧验证码均猜码失败递增计数，达到 5 次作废
+    ok, verr = _verify_sms_code(old_phone, old_code, 'change_phone', 'Invalid old phone verification code')
+    if not ok:
+        return jsonify({'success': False, 'error': verr}), 400
+    ok, verr = _verify_sms_code(new_phone, new_code, 'change_phone', 'Invalid new phone verification code')
+    if not ok:
+        return jsonify({'success': False, 'error': verr}), 400
     with get_db() as conn:
-        # Verify old phone code
-        old_row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
-            (old_phone, old_code, 'change_phone', now)).fetchone()
-        if not old_row:
-            return jsonify({'success': False, 'error': 'Invalid old phone verification code'}), 400
-        # Verify new phone code
-        new_row = conn.execute(
-            'SELECT * FROM sms_codes WHERE phone=%s AND code=%s AND purpose=%s AND used=0 AND expires_at>%s ORDER BY id DESC LIMIT 1',
-            (new_phone, new_code, 'change_phone', now)).fetchone()
-        if not new_row:
-            return jsonify({'success': False, 'error': 'Invalid new phone verification code'}), 400
         # Check if new phone already taken
         existing = conn.execute('SELECT id FROM users WHERE phone=%s AND id!=%s', (new_phone, payload['user_id'])).fetchone()
         if existing:
             return jsonify({'success': False, 'error': 'This phone is already bound'}), 400
-        # Mark codes used
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (old_row['id'],))
-        conn.execute('UPDATE sms_codes SET used=1 WHERE id=%s', (new_row['id'],))
         # Update phone
         conn.execute('UPDATE users SET phone=%s, phone_verified=1 WHERE id=%s', (new_phone, payload['user_id']))
         conn.commit()
@@ -446,10 +460,14 @@ def password_login():
         return jsonify({'success': False, 'error': 'Please enter account and password'}), 400
     ip = request.remote_addr or 'unknown'
     with get_db() as conn:
-        recent = conn.execute(
+        # VR-AUTH-002：爆破防护增加账号维度（login_attempts.phone 已有索引）
+        recent_ip = conn.execute(
             "SELECT COUNT(*) as c FROM login_attempts WHERE ip=%s AND success=0 AND created_at > NOW() - INTERVAL '15 minutes'",
             (ip,)).fetchone()
-        need_captcha = recent['c'] >= 10
+        recent_acct = conn.execute(
+            "SELECT COUNT(*) as c FROM login_attempts WHERE phone=%s AND success=0 AND created_at > NOW() - INTERVAL '15 minutes'",
+            (login_field,)).fetchone()
+        need_captcha = recent_ip['c'] >= 10 or recent_acct['c'] >= 5
     captcha_id = data.get('captcha_id', '')
     if need_captcha and not captcha_id:
         return jsonify({'success': False, 'error': 'Please complete the CAPTCHA challenge'}), 400
@@ -464,16 +482,18 @@ def password_login():
             if not result.get('valid'):
                 return jsonify({'success': False, 'error': 'CAPTCHA expired or incomplete, please retry'}), 400
         except Exception:
-            pass
-    if recent['c'] >= 10:
-        return jsonify({'success': False, 'error': 'Too many login attempts, please retry in 15 minutes'}), 429
+            # VR-AUTH-001：验证码服务异常 fail-closed（不再静默放行）
+            return jsonify({'success': False, 'error': 'CAPTCHA service unavailable, please retry'}), 503
+    # VR-AUTH-001：验证码通过后不再无条件 429（验证码校验本身即爆破防护）
     with get_db() as conn:
-        user = conn.execute('SELECT * FROM users WHERE username=%s OR email=%s OR phone=%s', (login_field, login_field, login_field)).fetchone()
+        # VR-AUTH-007：冻结账号（active=0）禁止登录
+        user = conn.execute('SELECT * FROM users WHERE active=1 AND (username=%s OR email=%s OR phone=%s)', (login_field, login_field, login_field)).fetchone()
         if not user:
-            return jsonify({'success': False, 'error': 'Account not found'}), 400
+            # VR-AUTH-003：统一错误消息，消除账号存在性枚举
+            return jsonify({'success': False, 'error': 'Invalid account or password'}), 400
         stored = user['password_hash']
         if not stored:
-            return jsonify({'success': False, 'error': 'No password set for this account, please use SMS login'}), 400
+            return jsonify({'success': False, 'error': 'Invalid account or password'}), 400
         # Try pbkdf2:sha256:salt:hash format first, fallback to werkzeug
         import hashlib, hmac
         pw_ok = False
@@ -495,7 +515,8 @@ def password_login():
             conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (%s,%s,0)',
                          (login_field, request.remote_addr or 'unknown'))
             conn.commit()
-            return jsonify({'success': False, 'error': 'Incorrect password'}), 400
+            # VR-AUTH-003：统一错误消息
+            return jsonify({'success': False, 'error': 'Invalid account or password'}), 400
         now = now_iso()
         conn.execute('UPDATE users SET last_login=%s WHERE id=%s', (now, user['id']))
         conn.execute('INSERT INTO login_attempts (phone, ip, success) VALUES (%s,%s,1)',

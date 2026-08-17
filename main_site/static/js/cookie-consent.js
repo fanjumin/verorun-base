@@ -1,5 +1,5 @@
 /**
- * Cookie Consent Banner — 易站智能
+ * Cookie Consent Banner — VeroRun
  * Self-contained GDPR/CCPA compliant consent management.
  *
  * Usage: include <script src="/static/js/cookie-consent.js"></script> before </body>.

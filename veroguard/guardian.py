@@ -82,6 +82,15 @@ def main():
     while True:
         now = time.time()
 
+        # VR-REL-001: 执行已到期/已过期的计划停机（由 executor 写入的宽限期调度）
+        scheduled = health.read_status('scheduled_shutdown', {})
+        if scheduled and isinstance(scheduled, dict):
+            deadline = scheduled.get('deadline', 0)
+            if deadline and now >= float(deadline):
+                logging.warning("Scheduled shutdown deadline reached, stopping services")
+                executor._stop_services()
+                health.write_status('scheduled_shutdown', {'deadline': 0, 'executed_at': now})
+
         # 冷却期跳过
         if now < cooldown_until:
             remaining = int(cooldown_until - now)

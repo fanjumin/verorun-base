@@ -99,13 +99,8 @@ def _cmd_lock_full(command_id: str, params: dict) -> str:
     return "full system locked"
 
 
-def _cmd_shutdown(command_id: str, params: dict) -> str:
-    """停止所有 verorun-* systemd 服务"""
-    grace_hours = params.get('grace_period_hours', 0)
-    if grace_hours > 0:
-        logging.warning("Shutdown scheduled in %d hours", grace_hours)
-        _time.sleep(grace_hours * 3600)
-
+def _stop_services() -> list:
+    """停止所有 verorun-* systemd 服务，返回已停止的服务名列表。"""
     stopped = []
     for service_name in config.SERVICE_MAP.values():
         try:
@@ -116,8 +111,24 @@ def _cmd_shutdown(command_id: str, params: dict) -> str:
             stopped.append(service_name)
         except Exception as e:
             logging.error("Failed to stop %s: %s", service_name, e)
-
     logging.warning("Shutdown executed: %s", stopped)
+    return stopped
+
+
+def _cmd_shutdown(command_id: str, params: dict) -> str:
+    """停止所有 verorun-* systemd 服务。
+    VR-REL-001: 宽限期改为写入状态文件由主循环调度，禁止在子线程阻塞 sleep。
+    """
+    grace_hours = params.get('grace_period_hours', 0)
+    if grace_hours > 0:
+        from . import health
+        deadline = _time.time() + grace_hours * 3600
+        health.write_status('scheduled_shutdown', {'deadline': deadline})
+        logging.warning("Shutdown scheduled for deadline %s (grace %dh)",
+                        deadline, grace_hours)
+        return f"Scheduled shutdown at {deadline}"
+
+    stopped = _stop_services()
     return f"Stopped: {stopped}"
 
 

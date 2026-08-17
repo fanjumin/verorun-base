@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request
 from models import get_db
 
-cleaner_bp = Blueprint('cleaner', __name__, url_prefix='/shop/cleaner')
+cleaner_bp = Blueprint('cleaner', __name__, url_prefix='/admin/cleaner')
 
 CLEANER_AGENT_NAME = 'Data Cleaner Agent'
 CLEANER_AGENT_DOMAIN = 'cleaner'

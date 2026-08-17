@@ -37,12 +37,20 @@ def parse_version(version: str) -> Optional[tuple]:
 
 
 def version_satisfies(version: str, spec: str) -> bool:
-    """检查 version 是否满足 spec（支持 >=, <=, >, <, ==, ^, ~）"""
+    """检查 version 是否满足 spec（支持 >=, <=, >, <, ==, ^, ~ 及逗号分隔复合约束）"""
     v = parse_version(version)
     if v is None:
         return False
 
-    spec = spec.strip()
+    # VR-PLG-001：支持逗号分隔的复合约束，如 ">=1.2.3, <2.0.0"
+    for sub_spec in spec.split(','):
+        if not _satisfies_single(v, sub_spec.strip()):
+            return False
+    return True
+
+
+def _satisfies_single(v: tuple, spec: str) -> bool:
+    """单个版本约束判断（内部函数）"""
     if spec.startswith('>='):
         op, target = '>=', spec[2:].strip()
     elif spec.startswith('<='):

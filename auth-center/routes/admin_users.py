@@ -54,7 +54,7 @@ def user_list():
            "'' as tier, '' as tier_expire_at, "
            "u.verified_by, u.verified_at, "
            "COALESCE(p.industry,'') as industry, COALESCE(p.occupation,'') as occupation "
-           + from_sql + ' ' + wsql + ' GROUP BY u.id ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
+           + from_sql + ' ' + wsql + ' GROUP BY u.id, p.industry, p.occupation ORDER BY u.created_at DESC LIMIT %s OFFSET %s')
     csql = 'SELECT COUNT(DISTINCT u.id) as c ' + from_sql + ' ' + wsql
     try:
         with get_db() as conn:

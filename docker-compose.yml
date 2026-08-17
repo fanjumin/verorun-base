@@ -3,7 +3,9 @@ version: "3.8"
 services:
   # 主 PostgreSQL（核心库，所有服务共用）
   db:
-    image: postgres:16
+    # VR-PLG-003：改用带 pgvector 扩展的官方镜像，否则 project_workspace 的
+    # vector(1536) 列无法创建，插件迁移必失败。
+    image: pgvector/pgvector:pg16
     container_name: verorun_pg
     restart: unless-stopped
     environment:
@@ -16,6 +18,8 @@ services:
     #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # VR-PLG-003：首启时以超级用户执行 CREATE EXTENSION vector（仅空数据卷时生效）
+      - ./deploy/pg/init/00-init-extensions.sql:/docker-entrypoint-initdb.d/00-init-extensions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-app} -d ${PG_DB:-appdb}"]
       interval: 5s

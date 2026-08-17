@@ -5,7 +5,7 @@
 <title>{{ _('Admin') }} — {{ brand.site_name_en if brand else '' }}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link rel="icon" type="image/png" sizes="16x16" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-16x16.png' }}">
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<link href="/static/lib/quill.snow.css" rel="stylesheet">
 <style>
 :root{--w:200px;--bg:#0a0a0f;--card:#111118;--border:#1a1a2e;--text:#e0e0e0;--muted:#8b8b8b;--dim:#555;--accent:#00d4aa;--radius:8px}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -80,7 +80,7 @@ a:hover{text-decoration:underline}
   <div class="con" id="mc"><div class="lo"><div class="s"></div>{{ _('Verifying...') }}</div></div>
 </div>
 <div class="toast" id="adminToast"></div>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="/static/lib/quill.min.js"></script>
 <script>
 var T=localStorage.getItem("sso_token")||localStorage.getItem("tm_token")||localStorage.getItem("token");
 if(T)document.cookie="sso_token="+T+"; path=/; max-age=604800";
