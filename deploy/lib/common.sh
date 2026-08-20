@@ -954,8 +954,13 @@ prompt_admin_creds() {
     case "${DEPLOY_MODE}" in install) ;; *) return 0 ;; esac
     [ -f "${VR_ADMIN_CREDS_FILE}" ] && return 0
 
-    # --admin-user / --admin-pass flags passed: write directly to the credentials file, skipping interaction
-    if [ -n "${VR_ADMIN_USERNAME:-}" ] && [ -n "${VR_ADMIN_PASSWORD:-}" ]; then
+    # --admin-user / --admin-pass flags: both must be provided together.
+    # 审计 F3 修复：只传其一 → 显式失败退出，而非静默落入自动生成覆盖用户输入。
+    if [ -n "${VR_ADMIN_USERNAME:-}" ] || [ -n "${VR_ADMIN_PASSWORD:-}" ]; then
+        if [ -z "${VR_ADMIN_USERNAME:-}" ] || [ -z "${VR_ADMIN_PASSWORD:-}" ]; then
+            echo -e "${FAIL} --admin-user and --admin-pass must be provided together"
+            exit 1
+        fi
         printf 'VR_ADMIN_USERNAME="%s"\nVR_ADMIN_PASSWORD="%s"\n' "${VR_ADMIN_USERNAME}" "${VR_ADMIN_PASSWORD}" > "${VR_ADMIN_CREDS_FILE}"
         chmod 600 "${VR_ADMIN_CREDS_FILE}"
         trap 'rm -f "${VR_ADMIN_CREDS_FILE}"' EXIT
@@ -1398,7 +1403,7 @@ ${_http_redirect}
 ${_ssl_listen}
 ${_ssl_cert}
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'; frame-ancestors 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss: https:; frame-ancestors 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
@@ -1515,7 +1520,7 @@ ${_http_redirect}
 ${_ssl_listen}
 ${_ssl_cert}
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'; frame-ancestors 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss: https:; frame-ancestors 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
@@ -1542,7 +1547,7 @@ ${_ssl_listen}
 ${_ssl_cert}
     client_max_body_size 100M;
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'; frame-ancestors 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss: https:; frame-ancestors 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
@@ -1584,7 +1589,7 @@ server {
     server_tokens off;
     access_log /var/log/nginx/verorun-access.log verorun_redact;
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'; frame-ancestors 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss: https:; frame-ancestors 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
@@ -1743,6 +1748,35 @@ do_install() {
         fi
     fi
     done_step "System dependencies installed"
+
+    step "Node.js runtime + miniprogram-ci (WeChat auto-upload)"
+    # miniprogram-ci 需 Node >= 16；缺失或安装失败时微信上传自动降级为手动指引，
+    # 不阻断主安装。幂等：node/npm 与 node_modules 已存在时直接跳过。
+    local _node_ok=0 _node_major=""
+    if command -v node >/dev/null 2>&1; then
+        _node_major="$(node --version 2>/dev/null | sed 's/^v//; s/\..*//')"
+        [ -n "${_node_major}" ] && [ "${_node_major}" -ge 16 ] 2>/dev/null && _node_ok=1
+    fi
+    if [ "${_node_ok}" != "1" ] && [ "${SKIP_DEPS:-0}" = "1" ]; then
+        echo -e "${WARN} --skip-deps: Node.js >= 16 missing — WeChat auto-upload will degrade to manual upload (run: sudo apt-get install -y nodejs npm)"
+    elif [ "${_node_ok}" != "1" ]; then
+        if ! timeout 300 apt-get install -y nodejs npm 2>&1; then
+            echo -e "${WARN} nodejs install failed — WeChat auto-upload will degrade to manual upload"
+        elif command -v node >/dev/null 2>&1 && [ "$(node --version | sed 's/^v//; s/\..*//')" -ge 16 ]; then
+            _node_ok=1
+        fi
+    fi
+    if [ "${_node_ok}" = "1" ]; then
+        local _mp_ci_dir="${APP_HOME}/plugins/mini_app_builder/submodules/publish/services"
+        if [ -d "${_mp_ci_dir}/node_modules/miniprogram-ci" ]; then
+            echo -e "${OK} miniprogram-ci already installed"
+        elif timeout 600 npm install --prefix "${_mp_ci_dir}" miniprogram-ci 2>&1; then
+            echo -e "${OK} miniprogram-ci installed for WeChat auto-upload"
+        else
+            echo -e "${WARN} miniprogram-ci install failed — WeChat auto-upload will degrade to manual upload"
+        fi
+    fi
+    done_step "Node.js/miniprogram-ci ready"
 
     : "${PG_PASSWORD:=$(python3 -c "import secrets; print(secrets.token_hex(16))")}"
 

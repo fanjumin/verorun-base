@@ -115,6 +115,11 @@ curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/
 > curl -fsSL https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/install.sh \
 >   | sudo env INSTALL_TYPE=educational EDU_COMMON_SHA256=<64-hex> bash
 > ```
+>
+> **许可端点（audit F5）：** 校验前脚本会对许可端点做一次可达性预检。默认端点按
+> `REGION` 选择：`cn` → `https://api.verorun.cn`，其余 → `https://api.verorun.com`。
+> 离网/内网部署可用 `EDU_LICENSE_ENDPOINT` 环境变量覆盖为内网 license 服务地址；
+> 端点不可达时会先打印 `[WARN]` 提示（而非运行期静默失败）。
 
 **Alternatively — clone then run locally:**
 
@@ -219,28 +224,27 @@ sudo bash deploy/install.sh seed
 
 ## Clean Uninstall
 
-Remove everything (services, database, code, logs) for a complete fresh start:
+Remove everything (services, databases, code, logs) for a complete fresh start —
+use the dedicated uninstall script (idempotent and re-runnable):
 
 ```bash
-# 1. Stop and disable all services
-sudo systemctl stop verorun-main verorun-auth verorun-admin verorun-health verorun-guardian 2>/dev/null
-sudo systemctl disable verorun-main verorun-auth verorun-admin verorun-health verorun-guardian 2>/dev/null
-
-# 2. Remove systemd service files
-sudo rm -f /etc/systemd/system/verorun-*.service
-sudo systemctl daemon-reload
-
-# 3. Remove Nginx config
-sudo rm -f /etc/nginx/sites-enabled/verorun.conf /etc/nginx/sites-available/verorun.conf
-sudo systemctl restart nginx
-
-# 4. Drop database and role
-sudo -u postgres dropdb verorun
-sudo -u postgres dropuser verorun
-
-# 5. Remove code, venv, and logs
-sudo rm -rf ~/verorun /var/log/verorun
+sudo env VR_UNINSTALL_YES=1 bash deploy/uninstall.sh
 ```
+
+`uninstall.sh` performs, in order:
+
+1. Stop & disable all `verorun-*.service` units, remove their files, then `daemon-reload` + `reset-failed`
+2. Remove the Nginx `verorun.conf` config and reload nginx
+3. Remove code directories and logs
+4. Drop the `appdb` **and** `site_builder` databases, then the `app` role
+   (lingering connections to either DB are terminated first, so the drop never
+   blocks on the role-owner dependency)
+5. Force-clean leftover processes (`gunicorn` workers / `health_check.sh`)
+6. Final verification — if any VeroRun process or `verorun-*.service` file still
+   exists the script prints `[FAIL] Uninstall INCOMPLETE` and exits non-zero
+   (no more misleading "Server is clean" when it is not)
+
+System packages (python3, nginx, postgresql, git) are **not** removed.
 
 After this, you can run the install command again for a clean install.
 
@@ -297,6 +301,10 @@ sudo bash deploy/install.sh seed
 Admin credentials are set interactively during installation via `prompt_admin_creds()`.
 You will be prompted to enter a username and password. If not provided, a random
 password is generated and displayed once — **save it immediately**.
+
+**Non-interactive flags:** `--admin-user` and `--admin-pass` must be provided
+**together**. Passing only one of them fails the install explicitly instead of
+silently falling back to a random password.
 
 **Important:** Change the admin password after first login.
 

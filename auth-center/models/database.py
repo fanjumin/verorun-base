@@ -2099,6 +2099,43 @@ def init_db():
             m.rollback()
             print(f'[Migration] knowledge_blocks pg_trgm index skipped: {e}')
 
+    # ── Migration: knowledge_blocks 科研增强字段（科研版 — 2026-08-20）──
+    # 学科/子学科分类、项目绑定、密级、元数据。project_id 为 UUID，
+    # 逻辑关联 project_workspace.projects.id（不建硬 FK，避免与插件 schema 强耦合）。
+    with get_db() as m:
+        kb_cols = get_table_columns(m, 'knowledge_blocks')
+        for col_name, col_def in [
+            ('discipline',      "TEXT DEFAULT ''"),
+            ('sub_discipline',  "TEXT DEFAULT ''"),
+            ('project_id',      "UUID DEFAULT NULL"),
+            ('confidentiality', "VARCHAR(20) NOT NULL DEFAULT 'internal'"),
+            ('metadata',        "JSONB DEFAULT '{}'::jsonb"),
+        ]:
+            if col_name not in kb_cols:
+                try:
+                    m.execute(f"ALTER TABLE knowledge_blocks ADD COLUMN {col_name} {col_def}")
+                    print(f'[Migration] knowledge_blocks.{col_name} added')
+                except Exception as e:
+                    m.rollback()
+                    print(f'[Migration] knowledge_blocks.{col_name} skipped: {e}')
+        m.commit()
+
+        for idx_name, idx_col in [
+            ('idx_kb_discipline',      'discipline'),
+            ('idx_kb_sub_discipline',  'sub_discipline'),
+            ('idx_kb_project',         'project_id'),
+            ('idx_kb_confidentiality', 'confidentiality'),
+        ]:
+            try:
+                m.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON knowledge_blocks({idx_col})")
+            except Exception as e:
+                print(f'[Migration] {idx_name} skipped: {e}')
+        try:
+            m.execute('CREATE INDEX IF NOT EXISTS idx_kb_meta ON knowledge_blocks USING gin(metadata)')
+        except Exception as e:
+            print(f'[Migration] idx_kb_meta skipped: {e}')
+        m.commit()
+
     # ── Migration: system_kb_version 系统知识库版本追踪 (2026-07-24) ──
     with get_db() as m:
         m.execute('''CREATE TABLE IF NOT EXISTS system_kb_version (

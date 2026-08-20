@@ -523,6 +523,76 @@ def store_admin_list():
 
 # ── 38. 商店管理：创建/更新插件商品 ───────────────────────
 
+# ── 商店 i18n：identifier/键 → 名称 本地化（自动继承系统语言）──────────
+
+_STORE_I18N_CACHE = {}
+
+
+def _load_store_i18n(locale: str) -> dict:
+    """读取 i18n/store/{locale}.yml，返回 {identifier_or_key: text}（带缓存）。"""
+    if locale in _STORE_I18N_CACHE:
+        return _STORE_I18N_CACHE[locale]
+    result = {}
+    try:
+        import yaml
+        base = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'store')
+        fpath = os.path.join(base, f'{locale}.yml')
+        if os.path.isfile(fpath):
+            with open(fpath, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+            if isinstance(data, dict):
+                result = data
+    except Exception as _e:
+        print(f'[store] load i18n failed: {_e}')
+    _STORE_I18N_CACHE[locale] = result
+    return result
+
+
+def _localize(p: dict, lang: str = None) -> dict:
+    """按当前语言本地化商店插件名称/宣传语（in-place 修改并返回）。"""
+    if not lang:
+        try:
+            from i18n import get_lang
+            lang = get_lang()
+        except Exception:
+            lang = 'zh-CN'
+    d = dict(p)
+    store_i18n = _load_store_i18n(lang)
+    nk = d.get('name_i18n_key')
+    if nk and nk in store_i18n:
+        d['name'] = store_i18n[nk]
+    elif d.get('identifier') and d['identifier'] in store_i18n:
+        d['name'] = store_i18n[d['identifier']]
+    tk = d.get('tagline_i18n_key')
+    if tk and tk in store_i18n:
+        d['tagline'] = store_i18n[tk]
+    return d
+
+
+def _readme_text(readme_url: str) -> str:
+    """拉取 README 文本（前 3000 字符），失败返回空串。"""
+    try:
+        import requests
+        r = requests.get(readme_url, timeout=8)
+        return r.text[:3000] if r.ok else ''
+    except Exception:
+        return ''
+
+
+def _ensure_tagline(pdata: dict, lang: str = 'zh-CN') -> str:
+    """空 tagline 时由 AI 从 README 提取；失败降级（build_tagline 内部兜底）。"""
+    t = (pdata.get('tagline') or '').strip()
+    if t:
+        return t
+    try:
+        readme = _readme_text(pdata.get('readme_url', ''))
+        from .tagline import build_tagline
+        return build_tagline(pdata, readme, lang)
+    except Exception as _e:
+        print(f'[store] tagline ensure failed: {_e}')
+        return ''
+
+
 @bp.route('/store/admin', methods=['POST'])
 def store_admin_save():
     """管理员：创建或更新商店插件商品"""
@@ -535,17 +605,26 @@ def store_admin_save():
     if not identifier:
         return _json_result(False, error='identifier required', code=400)
 
+    # 空 tagline 时由 AI 从 README 自动提取（失败自动降级，不阻断上架）
+    try:
+        from i18n import get_lang
+        _lang = get_lang()
+    except Exception:
+        _lang = 'zh-CN'
+    tagline = _ensure_tagline(data, lang=_lang)
+
     with get_registry_db() as conn:
         conn.execute("""
             INSERT INTO store_plugins (
-                identifier, name, description, version, author,
+                identifier, name, name_i18n_key, description, version, author,
                 author_url, icon_url, price_type, price_amount,
                 price_interval, trial_days, download_url, package_hash,
                 file_size, category, tags, screenshots, readme_url,
-                min_app_version, depends_on, enabled
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                tagline, tagline_i18n_key, min_app_version, depends_on, enabled
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT(identifier) DO UPDATE SET
                 name=excluded.name,
+                name_i18n_key=excluded.name_i18n_key,
                 description=excluded.description,
                 version=excluded.version,
                 author=excluded.author,
@@ -562,6 +641,8 @@ def store_admin_save():
                 tags=excluded.tags,
                 screenshots=excluded.screenshots,
                 readme_url=excluded.readme_url,
+                tagline=excluded.tagline,
+                tagline_i18n_key=excluded.tagline_i18n_key,
                 min_app_version=excluded.min_app_version,
                 depends_on=excluded.depends_on,
                 enabled=excluded.enabled,
@@ -569,6 +650,7 @@ def store_admin_save():
         """, (
             identifier,
             data.get('name', ''),
+            data.get('name_i18n_key', ''),
             data.get('description', ''),
             data.get('version', '0.1.0'),
             data.get('author', ''),
@@ -585,6 +667,8 @@ def store_admin_save():
             json.dumps(data.get('tags', [])),
             json.dumps(data.get('screenshots', [])),
             data.get('readme_url', ''),
+            tagline,
+            data.get('tagline_i18n_key', ''),
             data.get('min_app_version', '0.10.0'),
             json.dumps(data.get('depends_on', {})),
             int(data.get('enabled', 1)),
@@ -680,6 +764,9 @@ def store_browse():
     page_size = int(request.args.get('page_size', 20))
 
     data = mgr.store_client.search(query, category, price_type, page, page_size, sort_by)
+    # 本地化：名称/宣传语自动继承系统语言
+    for _pl in data.get('plugins', []):
+        _localize(_pl)
     # 版本发现：标记已安装 / 可升级状态
     try:
         _annotate_store_plugins(mgr, data.get('plugins', []))
@@ -700,6 +787,8 @@ def store_detail(identifier: str):
     detail = mgr.store_client.get_detail(identifier)
     if not detail:
         return _json_result(False, error=f'Plugin "{identifier}" not found in store', code=404)
+    # 本地化：名称/宣传语自动继承系统语言
+    _localize(detail)
     # 版本发现：标记已安装 / 可升级状态
     try:
         _annotate_store_plugins(mgr, [detail])

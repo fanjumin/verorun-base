@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS store_plugins (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     identifier      TEXT NOT NULL UNIQUE,            -- 插件标识
     name            TEXT NOT NULL,                   -- 显示名称
+    name_i18n_key   TEXT DEFAULT '',                 -- 名称 i18n 查找键（商店展示名按 identifier 解析）
     description     TEXT DEFAULT '',
     version         TEXT NOT NULL DEFAULT '0.1.0',
     author          TEXT DEFAULT '',
@@ -106,6 +107,8 @@ CREATE TABLE IF NOT EXISTS store_plugins (
     depends_on      TEXT DEFAULT '{}',               -- JSON
     screenshots     TEXT DEFAULT '[]',
     readme_url      TEXT DEFAULT '',
+    tagline         TEXT DEFAULT '',                 -- 宣传语（AI 提取/手写）
+    tagline_i18n_key TEXT DEFAULT '',                -- 宣传语 i18n 查找键
     downloads       BIGINT DEFAULT 0,
     rating          DOUBLE PRECISION DEFAULT 0.0,
     review_count    BIGINT DEFAULT 0,               -- 评价总数
@@ -183,6 +186,22 @@ _SUBMISSIONS_COLUMN_MIGRATIONS = [
     "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS wm_reason TEXT DEFAULT ''",
 ]
 
+# ── 商店表幂等补列迁移（tagline / i18n 键）──────────────────────────
+_STORE_COLUMN_MIGRATIONS = [
+    "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS name_i18n_key TEXT DEFAULT ''",
+    "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS tagline TEXT DEFAULT ''",
+    "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS tagline_i18n_key TEXT DEFAULT ''",
+]
+
+
+def _migrate_store_columns(conn):
+    """幂等补列：对已存在的旧 store_plugins 表补齐新列。"""
+    for stmt in _STORE_COLUMN_MIGRATIONS:
+        try:
+            conn.execute(stmt)
+        except Exception as _e:
+            print(f'[PluginManager] ⚠️ store migration skipped: {_e}')
+
 
 def _migrate_submissions_columns(conn):
     """幂等补列：对已存在的旧 plugin_submissions 表补齐新列。"""
@@ -198,6 +217,7 @@ def init_license_store_tables():
     with get_registry_db() as conn:
         conn.executescript(LICENSE_STORE_DDL)
         _migrate_submissions_columns(conn)
+        _migrate_store_columns(conn)
         print(f'[PluginManager] ✅ plugin_licenses + store_plugins tables ready')
         conn.commit()
 
@@ -269,6 +289,7 @@ class LicenseRecord:
 class StorePlugin:
     identifier: str
     name: str
+    name_i18n_key: str = ''
     description: str = ''
     version: str = '0.1.0'
     author: str = ''
@@ -287,6 +308,8 @@ class StorePlugin:
     depends_on: Dict[str, str] = field(default_factory=dict)
     screenshots: List[str] = field(default_factory=list)
     readme_url: str = ''
+    tagline: str = ''
+    tagline_i18n_key: str = ''
     downloads: int = 0
     rating: float = 0.0
     review_count: int = 0
@@ -305,6 +328,7 @@ class StorePlugin:
             id=row['id'],
             identifier=row['identifier'],
             name=row['name'],
+            name_i18n_key=row.get('name_i18n_key', ''),
             description=row.get('description', ''),
             version=row.get('version', '0.1.0'),
             author=row.get('author', ''),
@@ -323,6 +347,8 @@ class StorePlugin:
             depends_on=json.loads(row.get('depends_on', '{}')),
             screenshots=json.loads(row.get('screenshots', '[]')),
             readme_url=row.get('readme_url', ''),
+            tagline=row.get('tagline', ''),
+            tagline_i18n_key=row.get('tagline_i18n_key', ''),
             downloads=row.get('downloads', 0),
             rating=row.get('rating', 0.0),
             review_count=row.get('review_count', 0),

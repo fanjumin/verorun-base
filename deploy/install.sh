@@ -75,12 +75,12 @@ else
         _COMMON_REMOTE="${EDU_COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/lib/common.sh}"
         _COMMON_MIRROR="${EDU_COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-edu/master/deploy/lib/common.sh}"
         # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
-        _COMMON_SHA256="${EDU_COMMON_SHA256:-4e2cf7a37d1ca86838095bb386fa9814c52d71e7b691670f16e0cfdf6a21a4ef}"
+        _COMMON_SHA256="${EDU_COMMON_SHA256:-eb64ae5f6c4b4bd2881f19a6bf833dfbc80ccbbeb121f647a6ab688efb5168cc}"
     else
         _COMMON_REMOTE="${COMMON_REMOTE:-https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
         _COMMON_MIRROR="${COMMON_MIRROR:-https://ghfast.top/https://raw.githubusercontent.com/fanjumin/verorun-pro/master/deploy/lib/common.sh}"
         # Computed and backfilled at release time by deploy/scripts/sign_release.py (LF-normalized hash)
-        _COMMON_SHA256="${COMMON_SHA256:-4e2cf7a37d1ca86838095bb386fa9814c52d71e7b691670f16e0cfdf6a21a4ef}"
+        _COMMON_SHA256="${COMMON_SHA256:-eb64ae5f6c4b4bd2881f19a6bf833dfbc80ccbbeb121f647a6ab688efb5168cc}"
     fi
     _tmp_common="$(mktemp)"
     # Audit P3-2: clean up the temp file on Ctrl+C interruption
@@ -116,6 +116,8 @@ else
     done
     if [ "${_ok}" != "1" ]; then
         echo "FATAL: cannot fetch deploy/lib/common.sh (check network, or use the git clone method)" >&2
+        echo "  INFO: common.sh signature mismatch often means it was edited without re-signing." >&2
+        echo "  INFO: Maintainer: run 'python3 deploy/scripts/sign_release.py' and commit." >&2
         rm -f "${_tmp_common}"
         exit 1
     fi
@@ -382,12 +384,21 @@ _edu_license_check() {
     if [ -z "${EDU_CODE}" ]; then
         echo -e "${FAIL} Educational deployment code must not be empty"; exit 1
     fi
-    # Region-aware validation endpoint (follows license_service's region routing convention)
-    local _edu_url
-    case "${REGION}" in
-        cn)     _edu_url="https://api.verorun.cn" ;;
-        *)      _edu_url="https://api.verorun.com" ;;
-    esac
+    # Region-aware validation endpoint (follows license_service's region routing convention);
+    # 审计 F5 修复：EDU_LICENSE_ENDPOINT 允许离网/内网部署覆盖云端端点
+    local _edu_url="${EDU_LICENSE_ENDPOINT:-}"
+    if [ -z "${_edu_url}" ]; then
+        case "${REGION}" in
+            cn)     _edu_url="https://api.verorun.cn" ;;
+            *)      _edu_url="https://api.verorun.com" ;;
+        esac
+    fi
+    # 审计 F5 修复：校验前先做端点可达性预检，不可达时显式告警并给出降级指引（而非运行期静默失败）
+    if ! curl -fsS --connect-timeout 6 --max-time 12 "${_edu_url}/health" >/dev/null 2>&1; then
+        echo -e "${WARN} Edu license endpoint unreachable: ${_edu_url}"
+        echo -e "${WARN}   - 离网/内网部署请通过 EDU_LICENSE_ENDPOINT 指定内网 license 服务地址"
+        echo -e "${WARN}   - 或先配置 DNS / 放行出网后再安装，以免许可证校验失败"
+    fi
     local _edu_check
     _edu_check=$(curl -fsSL --connect-timeout 10 --max-time 20 \
         "${_edu_url}/api/subscription/check?code=${EDU_CODE}" 2>/dev/null \

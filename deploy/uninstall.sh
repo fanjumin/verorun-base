@@ -21,8 +21,8 @@ fi
 APP_HOME="${APP_HOME:-/home/${APP_USER}/verorun}"
 
 # ── Colors ────────────────────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
-OK="${GREEN}[OK]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+OK="${GREEN}[OK]${NC}"; WARN="${YELLOW}[WARN]${NC}"; FAIL="${RED}[FAIL]${NC}"; INFO="${BLUE}[i]${NC}"
 step() { echo -e "\n${BLUE}═══ $1 ═══${NC}"; }
 done_step() { echo -e "${OK} $1"; }
 
@@ -95,6 +95,17 @@ else
     echo -e "${INFO}   sudo -u postgres psql -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='appdb'\""
     echo -e "${INFO}   sudo -u postgres psql -c \"DROP DATABASE appdb\""
 fi
+# 审计 F2 修复：site_builder 内置插件库在卸载时一并 DROP（先解除连接占用再删库），
+# 否则其 owner 依赖 app 角色会导致 DROP ROLE app 失败，卸载后环境不纯净。
+if sudo -u postgres psql -lqt 2>/dev/null | cut -d'|' -f1 | grep -qw site_builder; then
+    sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='site_builder' AND pid <> pg_backend_pid()" >/dev/null 2>&1 || true
+    if sudo -u postgres psql -c "DROP DATABASE IF EXISTS site_builder" 2>&1; then
+        done_step "Database site_builder dropped"
+    else
+        echo -e "${FAIL} DROP DATABASE site_builder failed — manual command:"
+        echo -e "${INFO}   sudo -u postgres psql -c \"DROP DATABASE site_builder\""
+    fi
+fi
 if sudo -u postgres psql -c "DROP ROLE IF EXISTS app" 2>&1; then
     done_step "Role app dropped"
 else
@@ -102,16 +113,51 @@ else
     echo -e "${INFO}   sudo -u postgres psql -c \"DROP ROLE app\""
 fi
 
-# 5. Residual config files (sudoers + guardian env)
+# 5. Residual processes — systemd stop 超时或 worker 幸存时的兜底清理
+step "Residual processes"
+# 审计 F1 修复：systemctl stop 默认仅等待 15s，gunicorn worker / health_check.sh 可能幸存；
+# pgrep 兜底清理，先温和 kill，若 2s 后仍未退出则 kill -9。
+for _pat in "${APP_HOME}" "gunicorn" "health_check.sh"; do
+    _pids=$(pgrep -f "${_pat}" 2>/dev/null || true)
+    if [ -n "${_pids}" ]; then
+        echo "  leftover '${_pat}': ${_pids}"
+        if ! echo "${_pids}" | xargs -r kill 2>/dev/null; then
+            sleep 2
+            pgrep -f "${_pat}" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+            echo -e "${WARN} force-killed leftover: ${_pat}"
+        fi
+    fi
+done
+done_step "Residual processes cleaned"
+
+# 6. systemd again: clear failed / lingering unit state after service files are gone
+systemctl daemon-reload 2>/dev/null || true
+systemctl reset-failed 2>/dev/null || true
+done_step "systemd state reset"
+
+# 7. Residual config files (sudoers + guardian env)
 step "Config files"
 rm -f /etc/default/verorun-guardian /etc/sudoers.d/verorun
 done_step "Config files removed"
 
-step "Done"
-echo -e "${OK} VeroRun fully uninstalled."
+step "Verify"
+_issue=0
+if pgrep -f "${APP_HOME}" >/dev/null 2>&1; then
+    echo -e "${FAIL} VeroRun processes still running"
+    _issue=1
+fi
+if ls /etc/systemd/system/verorun-*.service >/dev/null 2>&1; then
+    echo -e "${FAIL} verorun-*.service files still present"
+    _issue=1
+fi
+if [ "${_issue}" = "1" ]; then
+    echo -e "${FAIL} Uninstall INCOMPLETE — see messages above"
+    exit 1
+fi
+done_step "Nothing left; server clean for fresh install"
 echo ""
 echo -e "${INFO} System packages (python3, nginx, postgresql, git) are NOT removed."
-echo -e "${INFO} Server is clean. Ready for fresh install:"
+echo -e "${INFO} Ready for fresh install:"
 echo -e "${INFO}   git clone https://github.com/fanjumin/verorun-pro.git"
 echo -e "${INFO}   cd verorun-pro"
 echo -e "${INFO}   sudo bash deploy/install.sh install your-domain.com"

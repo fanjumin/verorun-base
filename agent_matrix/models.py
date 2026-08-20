@@ -12,6 +12,10 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROLES_DIR = os.path.join(BASE_DIR, 'roles')
 
+# ── 科研版(edu) 商务/电商角色白名单屏蔽（复用 install.sh 既有 DEPLOY_TYPE=edu 机制）──
+HIDDEN_BUSINESS_SLUGS = {'business', 'finance'}
+SCIENCE_EDITION = os.getenv('DEPLOY_TYPE', '').strip().lower() == 'edu'
+
 # ── 复用主应用 PostgreSQL 连接 ──
 sys.path.append(os.path.join(BASE_DIR, '..', 'auth-center', 'models'))
 from database import get_db, get_table_columns
@@ -73,6 +77,10 @@ def _load_all_role_yamls():
         try:
             with open(fpath, 'r', encoding='utf-8') as f:
                 raw = _parse_role_yaml(f.read())
+            # 科研版跳过商务角色（其余逻辑不变）
+            if SCIENCE_EDITION and raw.get('slug') in HIDDEN_BUSINESS_SLUGS:
+                print(f'[RoleYAML] EDU edition skips business role: {raw.get("slug")}')
+                continue
             # 类型转换
             raw['is_active'] = _to_int(raw.get('is_active', 1))
             raw['is_system'] = _to_int(raw.get('is_system', 0))

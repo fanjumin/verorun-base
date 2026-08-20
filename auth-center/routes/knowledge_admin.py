@@ -54,6 +54,35 @@ def _dw():
     return _DW
 
 
+def _is_private_ip(ip: str) -> bool:
+    """SSRF 防护：判断 IP 是否内网/回环/链路本地/CGNAT"""
+    if ip.startswith('::ffff:'):
+        ip = ip[7:]
+    if ':' in ip:  # IPv6
+        return ip == '::1' or ip.lower().startswith(('fc', 'fd', 'fe80'))
+    parts = ip.split('.')
+    if len(parts) != 4:
+        return True
+    a, b = int(parts[0]), int(parts[1])
+    if a == 10 or a == 127: return True
+    if a == 169 and b == 254: return True
+    if a == 172 and 16 <= b <= 31: return True
+    if a == 192 and b == 168: return True
+    if a == 100 and 64 <= b <= 127: return True  # CGNAT
+    return False
+
+
+def _extract_html(html: str):
+    """stdlib 抽取 <title> 与正文文本（去除 script/style/nav/footer 等噪音）"""
+    import re
+    m = re.search(r'<title[^>]*>(.*?)</title>', html, re.I | re.S)
+    title = re.sub(r'\s+', ' ', m.group(1)).strip() if m else ''
+    text = re.sub(r'(?is)<(script|style|nav|footer|header|iframe|form|svg)[^>]*>.*?</\1>', ' ', html)
+    text = re.sub(r'(?s)<[^>]+>', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return title, text
+
+
 # ── 0. 知识库概览 ──
 
 @knowledge_bp.route('/', methods=['GET'])
@@ -207,6 +236,9 @@ def kb_create():
                 (kb_id, title, content, keywords, category, priority, scope, source, admin.get('user_id'))
             )
             db.commit()
+        # 通用向量回写：新建/更新后自动生成 embedding（幂等，失败静默降级）
+        from agent_matrix.rag_retriever import store_embedding
+        store_embedding(kb_id, title, content)
         return _success({'id': kb_id}, _('Knowledge entry saved'))
     except Exception as e:
         logger.exception('kb_create failed')
@@ -244,10 +276,155 @@ def kb_update(entry_id):
         with get_db() as db:
             sql = f"UPDATE knowledge_blocks SET {', '.join(fields)} WHERE id=%s AND " + _dw()
             db.execute(sql, params)
+            if 'title' in data or 'content' in data:
+                row = db.execute(
+                    "SELECT title, content FROM knowledge_blocks WHERE id=%s AND " + _dw(),
+                    (entry_id,)
+                ).fetchone()
+            else:
+                row = None
             db.commit()
+        # 通用向量回写：内容变更后重算 embedding（幂等，失败静默降级）
+        if row:
+            from agent_matrix.rag_retriever import store_embedding
+            store_embedding(entry_id, row['title'], row['content'])
         return _success(None, _('Updated'))
     except Exception as e:
         logger.exception('kb_update failed')
+        return _error(str(e), 500)
+
+
+# ── 4.5 批量导入知识条目（通用能力，scope 由调用方指定）──
+
+@knowledge_bp.route('/import', methods=['POST'])
+def kb_import():
+    """批量导入知识条目。
+
+    Request body:
+    {
+        "blocks": [{"title": "...", "content": "...", "keywords": "", "category": ""}],
+        "scope": "system"      # 默认 system（与单条创建一致）；小程序知识请显式传 "user"
+    }
+    """
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    blocks = data.get('blocks', [])
+    if not isinstance(blocks, list) or not blocks:
+        return _error(_('blocks must be a non-empty list'))
+
+    scope = data.get('scope', 'system')
+    from agent_matrix.rag_retriever import store_embedding
+    count, failed = 0, 0
+    with get_db() as db:
+        for b in blocks:
+            try:
+                title = (b.get('title') or '').strip()
+                content = (b.get('content') or '').strip()
+                if not title or not content:
+                    failed += 1
+                    continue
+                kb_id = b.get('id') or f'kb_admin_{uuid.uuid4().hex[:12]}'
+                keywords = b.get('keywords', '')
+                if isinstance(keywords, (list, tuple)):
+                    keywords = ','.join(keywords)
+                category = b.get('category', 'general')
+                priority = b.get('priority', 5)
+                db.execute(
+                    """INSERT INTO knowledge_blocks (id, title, content, keywords, category, priority, scope, source, owner_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (id) DO UPDATE SET
+                           title=excluded.title, content=excluded.content,
+                           keywords=excluded.keywords, category=excluded.category,
+                           priority=excluded.priority, scope=excluded.scope,
+                           updated_at=NOW()""",
+                    (kb_id, title, content, keywords, category, priority, scope, 'manual', admin.get('user_id'))
+                )
+                db.commit()
+                store_embedding(kb_id, title, content)
+                count += 1
+            except Exception:
+                failed += 1
+    return _success({'imported': count, 'failed': failed})
+
+
+# ── 4.6 URL 入库（通用能力：抓取网页 → 正文 → 知识块）──
+
+@knowledge_bp.route('/import-url', methods=['POST'])
+def kb_import_url():
+    """从 URL 抓取网页并入库为知识条目（通用能力，scope 由调用方指定）。"""
+    admin, err = _require_admin()
+    if err: return err
+
+    data = request.get_json(force=True, silent=True) or {}
+    url = (data.get('url') or '').strip()
+    if not url:
+        return _error(_('url is required'))
+    scope = data.get('scope', 'system')
+    category = data.get('category', 'general')
+    keywords = data.get('keywords', '')
+
+    # ── SSRF 防护：仅 http/https，拒绝内网/回环/链路本地 ──
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            return _error(_('invalid url'))
+        import socket
+        resolved = socket.getaddrinfo(parsed.hostname, 80, proto=socket.IPPROTO_TCP)
+        if not resolved:
+            return _error(_('invalid url'))
+        for _info in resolved:
+            if _is_private_ip(_info[4][0]):
+                return _error(_('url not allowed'))
+    except Exception:
+        return _error(_('invalid url'))
+
+    # ── 抓取（超时 + 2MB 上限，重定向后重新校验目标）──
+    import requests
+    try:
+        resp = requests.get(url, timeout=10, stream=True, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        })
+        if resp.status_code != 200:
+            return _error(_('fetch failed'), 502)
+        if urlparse(resp.url).scheme not in ('http', 'https'):
+            return _error(_('url not allowed'))
+        content = ''
+        for chunk in resp.iter_content(4096):
+            content += chunk.decode('utf-8', errors='ignore')
+            if len(content) > 2 * 1024 * 1024:
+                return _error(_('content too large'), 413)
+    except Exception:
+        return _error(_('fetch failed'), 502)
+
+    # ── 抽取 title/正文（stdlib，零新依赖）──
+    title, text = _extract_html(content)
+    title = (title or url)[:200]
+    text = text.strip()[:50000]
+    if len(text) < 20:
+        return _error(_('no extractable content'))
+
+    kb_id = f'kb_admin_{uuid.uuid4().hex[:12]}'
+    try:
+        with get_db() as db:
+            db.execute(
+                """INSERT INTO knowledge_blocks (id, title, content, keywords, category, scope, source, owner_id)
+                   VALUES (%s, %s, %s, %s, %s, %s, 'url', %s)
+                   ON CONFLICT (id) DO UPDATE SET
+                       title=excluded.title, content=excluded.content,
+                       keywords=excluded.keywords, category=excluded.category,
+                       scope=excluded.scope, updated_at=NOW()""",
+                (kb_id, title, text, keywords, category, scope, admin.get('user_id'))
+            )
+            db.commit()
+        from agent_matrix.rag_retriever import store_embedding
+        store_embedding(kb_id, title, text)
+        return _success({'id': kb_id, 'title': title, 'chars': len(text)}, _('Knowledge entry saved'))
+    except Exception as e:
+        logger.exception('kb_import_url failed')
         return _error(str(e), 500)
 
 

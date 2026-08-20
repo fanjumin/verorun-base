@@ -17,7 +17,7 @@ function renderStoreList(){
     var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
     h+='<div style="display:flex;gap:8px;align-items:center">';
     h+='<input class="in" id="storeSearch" placeholder="{{ _('Search') }}..." style="width:200px" onkeydown="if(event.key===\'Enter\')renderStoreList()">';
-    h+='<select class="in" id="storeCategory" onchange="renderStoreList()"><option value="">{{ _('All Categories') }}</option><option value="marketing">{{ _('Marketing') }}</option><option value="supply-chain">{{ _('Supply Chain') }}</option><option value="content">{{ _('Content') }}</option><option value="tool">{{ _('Tools') }}</option></select>';
+    h+='<select class="in" id="storeCategory" onchange="renderStoreList()"><option value="">{{ _('All Categories') }}</option><option value="system">{{ _('System') }}</option><option value="shop">{{ _('Shop') }}</option><option value="content">{{ _('Content') }}</option><option value="ai_agent">{{ _('AI Agent') }}</option><option value="social">{{ _('Social') }}</option><option value="tools">{{ _('Tools') }}</option><option value="supply_chain">{{ _('Supply Chain') }}</option></select>';
     h+='<select class="in" id="storePrice" onchange="renderStoreList()"><option value="">{{ _('All') }}</option><option value="free">{{ _('Free') }}</option><option value="onetime">{{ _('Paid (One-time)') }}</option><option value="sub">{{ _('Subscription') }}</option></select>';
     h+='<select class="in" id="storeSort" onchange="renderStoreList()"><option value="downloads">{{ _('Most Downloaded') }}</option><option value="rating">{{ _('Highest Rated') }}</option><option value="newest">{{ _('Newest') }}</option><option value="price_asc">{{ _('Price: Low to High') }}</option><option value="price_desc">{{ _('Price: High to Low') }}</option></select>';
     h+='</div>';
@@ -37,17 +37,15 @@ function renderStoreList(){
         /* 版本发现：商店有更高版本时显示升级徽标 */
         vHtml+=' <span class="bdg" style="background:rgba(63,185,80,.15);color:#3fb950">&#x1F504; v'+esc(p.latest_version||p.version)+' {{ _('Upgrade available') }}</span>';
       }
-      /* ★ 改动1：卡片缩略图 — icon_url 或分类占位符 */
+      /* ★ 改动1：卡片缩略图 — icon_url 优先，否则规范渐变 Banner（方案 §2.4） */
       var iconHtml='';
       if(p.icon_url){
         iconHtml='<div style="width:100%;height:120px;overflow:hidden;border-radius:6px 6px 0 0;margin:-1rem -1rem 0.5rem -1rem;width:calc(100% + 2rem)">'+
           '<img src="'+escAttr(p.icon_url)+'" style="width:100%;height:100%;object-fit:cover" '+
-          'onerror="this.parentElement.innerHTML=\'<div style=&quot;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;background:\'+_pluginColor(p.identifier)+\'&quot;>\'+_categoryEmoji(p.category)+\'</div>\'"'+
+          'onerror="_imgIconFallback(this,\''+escAttr(p.identifier)+'\',\''+escAttr(p.category)+'\')"'+
           '></div>';
       }else{
-        iconHtml='<div style="width:100%;height:120px;display:flex;align-items:center;justify-content:center;'+
-          'font-size:2.5rem;background:'+_pluginColor(p.identifier)+';color:#fff;border-radius:6px 6px 0 0;margin:-1rem -1rem 0.5rem -1rem;width:calc(100% + 2rem)">'+
-          _categoryEmoji(p.category)+'</div>';
+        iconHtml=_pluginBanner(p,120,true);
       }
       h+='<div class="cd" style="display:flex;flex-direction:column">';
       h+=iconHtml;
@@ -372,6 +370,11 @@ function _categoryEmoji(category){
   return map[category]||'🧩';
 }
 
+/* 图标加载失败兜底：渲染规范类别渐变 Banner（修复 inline onerror 中 p 未定义） */
+function _imgIconFallback(el, identifier, category){
+  el.parentElement.innerHTML=_pluginBanner({identifier:identifier,category:category},120,true);
+}
+
 /* 色块占位：无图标/无截图时渲染确定性色块（v0.50.1） */
 var _PLUGIN_COLORS=['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#06b6d4','#84cc16','#f97316','#6366f1','#14b8a6','#d946ef'];
 function _pluginColor(id){
@@ -382,6 +385,42 @@ function _pluginColor(id){
 function _colorBlockHtml(id,emoji,extraStyle){
   var st=extraStyle||'width:100%;height:120px';
   return '<div style="'+st+';display:flex;align-items:center;justify-content:center;font-size:2.5rem;background:'+_pluginColor(id)+';color:#fff">'+emoji+'</div>';
+}
+
+/* ── 规范类别渐变 Banner（方案 §2.1-2.3，前端实时生成，零静态图）── */
+var _CAT_GRADS={
+  'system':'linear-gradient(135deg,#4F6EF7,#1E2A78)',
+  'shop':'linear-gradient(135deg,#12B886,#0B7285)',
+  'content':'linear-gradient(135deg,#FF6B35,#E0316B)',
+  'ai_agent':'linear-gradient(135deg,#845EF7,#D6336C)',
+  'social':'linear-gradient(135deg,#22B8CF,#4C6EF5)',
+  'tools':'linear-gradient(135deg,#748FFC,#364FC7)',
+  'supply_chain':'linear-gradient(135deg,#F59F00,#E8590C)'
+};
+function _catGrad(cat){return _CAT_GRADS[cat]||_CAT_GRADS['system']}
+var _CAT_ICONS={
+  'system':'<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
+  'shop':'<circle cx="9" cy="21" r="2"/><circle cx="20" cy="21" r="2"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
+  'content':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  'ai_agent':'<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M12 8v5"/><path d="M9 11h6"/>',
+  'social':'<circle cx="12" cy="12" r="9"/>',
+  'tools':'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>',
+  'supply_chain':'<path d="M3 21V8l7-4 7 4v10"/><rect x="3" y="8" width="18" height="6"/>'
+};
+function _catIcon(cat,size){
+  var p=_CAT_ICONS[cat]||'<circle cx="12" cy="12" r="9"/>';
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+}
+/* 生成 Banner：渐变底 + 居中图标 + 左上角宣传语，整卡可点进详情
+   card=true 时按卡片缩略图做边缘出血（负 margin），其余上下文为普通块 */
+function _pluginBanner(p,h,card){
+  var tag=esc(p.tagline||'');
+  var grad=_catGrad(p.category||'system');
+  var bleed=card?'margin:-1rem -1rem 0.5rem -1rem;width:calc(100% + 2rem)':'width:100%';
+  return '<div onclick="showPluginDetail(\''+escAttr(p.identifier)+'\')" style="cursor:pointer;position:relative;width:100%;height:'+(h||120)+'px;border-radius:6px;'+bleed+';overflow:hidden;background:'+grad+';display:flex;align-items:center;justify-content:center;user-select:none">'
+    +(tag?'<span style="position:absolute;top:8px;left:12px;right:12px;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tag+'</span>':'')
+    +_catIcon(p.category||'system',46)
+    +'</div>';
 }
 
 /* ── Plugin Detail Modal ── */
@@ -416,7 +455,7 @@ function showPluginDetail(pid){
     if(p.icon_url){
       detailIconHtml='<img src="'+escAttr(p.icon_url)+'" style="width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid var(--bd)">';
     }else{
-      detailIconHtml='<div style="width:64px;height:64px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;background:'+_pluginColor(p.identifier)+';color:#fff">'+_categoryEmoji(p.category)+'</div>';
+      detailIconHtml='<div style="width:64px;height:64px;border-radius:8px;overflow:hidden;flex:none">'+_pluginBanner(p,64)+'</div>';
     }
 
     box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'+
@@ -443,7 +482,7 @@ function showPluginDetail(pid){
     // Description tab content
     box.innerHTML+='<div id="detailTabDesc" class="detail-tab-content" style="font-size:13px;color:var(--text);line-height:1.6">'+
       '<p>'+(p.description||'{{ _('No description') }}')+'</p>'+
-      (p.screenshots&&p.screenshots.length>0?'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+p.screenshots.map(function(s){return '<img src="'+escAttr(s)+'" style="max-width:100%;border-radius:6px;max-height:200px">'}).join('')+'</div>':_colorBlockHtml(p.identifier,_categoryEmoji(p.category),'width:100%;height:200px;border-radius:6px'))+
+      (p.screenshots&&p.screenshots.length>0?'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+p.screenshots.map(function(s){return '<img src="'+escAttr(s)+'" style="max-width:100%;border-radius:6px;max-height:200px">'}).join('')+'</div>':_pluginBanner(p,200))+
       '</div>';
 
     /* ★ 改动3：README tab content (默认隐藏) */
@@ -661,7 +700,7 @@ function _renderStoreForm(container, title, p){
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Name') }} *</label><input class="in" id="sai_name" value="'+escAttr(p.name||'')+'" style="width:100%"></div>'+
     '<div style="grid-column:1/3"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Description') }}</label><textarea class="in" id="sai_desc" style="width:100%;min-height:60px">'+esc(p.description||'')+'</textarea></div>'+
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Version') }}</label><input class="in" id="sai_version" value="'+escAttr(p.version||'0.1.0')+'" style="width:100%"></div>'+
-    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Category') }}</label><select class="in" id="sai_category" style="width:100%"><option value="">-</option><option value="marketing"'+(p.category==='marketing'?' selected':'')+'>{{ _('Marketing') }}</option><option value="supply-chain"'+(p.category==='supply-chain'?' selected':'')+'>{{ _('Supply Chain') }}</option><option value="content"'+(p.category==='content'?' selected':'')+'>{{ _('Content') }}</option><option value="tool"'+(p.category==='tool'?' selected':'')+'>{{ _('Tools') }}</option></select></div>'+
+    '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Category') }}</label><select class="in" id="sai_category" style="width:100%"><option value="">-</option><option value="system"'+(p.category==='system'?' selected':'')+'>{{ _('System') }}</option><option value="shop"'+(p.category==='shop'?' selected':'')+'>{{ _('Shop') }}</option><option value="content"'+(p.category==='content'?' selected':'')+'>{{ _('Content') }}</option><option value="ai_agent"'+(p.category==='ai_agent'?' selected':'')+'>{{ _('AI Agent') }}</option><option value="social"'+(p.category==='social'?' selected':'')+'>{{ _('Social') }}</option><option value="tools"'+(p.category==='tools'?' selected':'')+'>{{ _('Tools') }}</option><option value="supply_chain"'+(p.category==='supply_chain'?' selected':'')+'>{{ _('Supply Chain') }}</option></select></div>'+
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Price Type') }}</label><select class="in" id="sai_price_type" style="width:100%" onchange="document.getElementById(\'sai_price_interval_row\').style.display=this.value===\'sub\'?\'\':\'none\'"><option value="free"'+(p.price_type==='free'?' selected':'')+'>{{ _('Free') }}</option><option value="onetime"'+(p.price_type==='onetime'?' selected':'')+'>{{ _('One-time') }}</option><option value="sub"'+(p.price_type==='sub'?' selected':'')+'>{{ _('Subscription') }}</option></select></div>'+
     '<div><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Price') }} ({{ _('cents') }})</label><input class="in" id="sai_price" type="number" value="'+(p.price_amount||0)+'" style="width:100%"></div>'+
     '<div id="sai_price_interval_row" style="display:'+(p.price_type==='sub'?'':'none')+'"><label style="display:block;font-size:12px;margin-bottom:4px">{{ _('Interval') }}</label><select class="in" id="sai_interval" style="width:100%"><option value="month"'+(p.price_interval==='month'?' selected':'')+'>{{ _('Monthly') }}</option><option value="year"'+(p.price_interval==='year'?' selected':'')+'>{{ _('Yearly') }}</option></select></div>'+
@@ -717,21 +756,46 @@ function deleteStorePlugin(identifier){
   }).catch(function(){showToast("{{ _('Network error') }}","error")});
 }
 
-/* ★ 插件商店改造：异步加载 README 内容 */
+/* ★ 插件商店改造：异步加载 README 内容（按系统语言动态选择，英文默认 README.md，中文 README.cn.md） */
+function _uiLang(){return (document.documentElement.getAttribute('lang')||'en').toLowerCase();}
+function _localizedReadmeUrl(readmeUrl){
+  var lg=_uiLang();
+  if(lg==='cn'||lg.indexOf('zh')===0){
+    return readmeUrl.replace(/README\.md$/, 'README.cn.md');
+  }
+  return readmeUrl;
+}
+function _renderReadmeTab(tab,text){
+  var html=_simpleMarkdown(text);
+  tab.innerHTML='<div style="max-height:400px;overflow-y:auto;padding-right:8px">'+html+'</div>';
+}
+function _renderReadmeFail(tab,readmeUrl){
+  tab.innerHTML='<div style="padding:20px;text-align:center;color:var(--dim)">'+
+    '{{ _('README load failed') }}<br>'+
+    '<a href="'+escAttr(readmeUrl)+'" target="_blank" style="color:var(--accent)">{{ _('Open in new tab') }}</a>'+
+    '</div>';
+}
 function loadReadme(readmeUrl){
   var tab=document.getElementById('detailTabReadme');
   if(!tab)return;
-  fetch(readmeUrl).then(function(r){
+  var finalUrl=_localizedReadmeUrl(readmeUrl);
+  fetch(finalUrl).then(function(r){
     if(!r.ok)throw new Error('HTTP '+r.status);
     return r.text();
   }).then(function(text){
-    var html=_simpleMarkdown(text);
-    tab.innerHTML='<div style="max-height:400px;overflow-y:auto;padding-right:8px">'+html+'</div>';
+    _renderReadmeTab(tab,text);
   }).catch(function(e){
-    tab.innerHTML='<div style="padding:20px;text-align:center;color:var(--dim)">'+
-      '{{ _('README load failed') }}: '+esc(e.message)+'<br>'+
-      '<a href="'+escAttr(readmeUrl)+'" target="_blank" style="color:var(--accent)">{{ _('Open in new tab') }}</a>'+
-      '</div>';
+    /* 中文 README 不存在时回退英文默认 */
+    if(finalUrl!==readmeUrl){
+      fetch(readmeUrl).then(function(r2){
+        if(!r2.ok)throw new Error('HTTP '+r2.status);
+        return r2.text();
+      }).then(function(text2){
+        _renderReadmeTab(tab,text2);
+      }).catch(function(){_renderReadmeFail(tab,readmeUrl);});
+      return;
+    }
+    _renderReadmeFail(tab,readmeUrl);
   });
 }
 

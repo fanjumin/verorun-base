@@ -71,3 +71,49 @@ def check_kb_permission(scope: str, owner_id: int, action: str,
         'success': False,
         'error': '未知的知识库作用域'
     }), 400)
+
+
+# ═══ 科研版扩展：密级判定（纯逻辑，无 DB 依赖）═══════════
+# 密级 -> 最小可用机构角色（super_admin 全通过）
+_CONF_ROLE = {
+    'public':   ('super_admin', 'admin', 'operator', 'user'),
+    'internal': ('super_admin', 'admin', 'operator'),
+    'secret':   ('super_admin',),
+}
+
+
+def check_confidentiality(conf: str, role: str, membership: str = '') -> bool:
+    """科研密级判定：密级 + 机构角色 + 项目成员角色 双条件。
+
+    参数:
+        conf:       'public' | 'internal' | 'secret'（缺省回落 'internal'）
+        role:       机构角色 'super_admin'|'admin'|'operator'|'user'
+        membership: 项目成员角色（'owner'|'member'|'reviewer'|'viewer' 或 ''）
+    返回: 是否允许访问
+    """
+    conf = (conf or 'internal').strip().lower()
+    if conf not in _CONF_ROLE:
+        conf = 'internal'
+    if role in _CONF_ROLE[conf]:
+        return True
+    # 公开条目：项目成员（含外部访客）可只读协作
+    if conf == 'public' and membership in ('owner', 'member', 'reviewer', 'viewer'):
+        return True
+    return False
+
+
+def is_project_member(project_id, user_id, lookup) -> str:
+    """查询用户的项目成员角色（由调用方注入查询实现，保持解耦）。
+
+    参数:
+        project_id: 项目 UUID 或 None
+        user_id:    用户 ID
+        lookup:     lookup(project_id, user_id) -> 成员角色字符串或 ''
+    返回: 成员角色字符串，或 ''（非成员/查询异常）
+    """
+    if not project_id or not user_id:
+        return ''
+    try:
+        return lookup(project_id, user_id) or ''
+    except Exception:
+        return ''

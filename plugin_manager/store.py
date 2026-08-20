@@ -234,17 +234,21 @@ class StoreAPIClient:
             with get_registry_db() as conn:
                 conn.execute("""
                     INSERT INTO store_plugins (
-                        identifier, name, description, version, author,
+                        identifier, name, name_i18n_key, description, version, author,
                         author_url, icon_url, price_type, price_amount,
                         price_interval, trial_days, download_url, package_hash,
                         file_size, category, tags, min_app_version, depends_on,
-                        screenshots, readme_url, downloads, rating, review_count, enabled
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
-                    -- ★ ON CONFLICT: 仅更新商店侧管理的字段。author/author_url/icon_url/trial_days/
-                    --    min_app_version/depends_on/screenshots/readme_url 不在更新列表中，
+                        screenshots, readme_url, tagline, tagline_i18n_key,
+                        downloads, rating, review_count, enabled
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
+                    -- ★ ON CONFLICT: 更新商店侧管理的字段 + 展示资源 URL（icon_url/readme_url/
+                    --    screenshots）。展示资源由发布工具自动生成真实 CDN URL，需随同步覆盖。
+                    --    tagline 用 COALESCE 保护：目录有值才覆盖，AI 生成/手写的 tagline 得以保留。
+                    --    author/author_url/trial_days/min_app_version/depends_on 不在更新列表中，
                     --    以防止缓存同步覆盖 Store Admin 手动录入的内容。
                     ON CONFLICT(identifier) DO UPDATE SET
                         name=excluded.name,
+                        name_i18n_key=excluded.name_i18n_key,
                         description=excluded.description,
                         version=excluded.version,
                         price_type=excluded.price_type,
@@ -258,10 +262,16 @@ class StoreAPIClient:
                         downloads=excluded.downloads,
                         rating=excluded.rating,
                         review_count=excluded.review_count,
+                        icon_url=excluded.icon_url,
+                        screenshots=excluded.screenshots,
+                        readme_url=excluded.readme_url,
+                        tagline=COALESCE(NULLIF(excluded.tagline,''), store_plugins.tagline),
+                        tagline_i18n_key=excluded.tagline_i18n_key,
                         updated_at=NOW()
                 """, (
                     pdata.get('identifier', ''),
                     pdata.get('name', ''),
+                    pdata.get('name_i18n_key', ''),
                     pdata.get('description', ''),
                     pdata.get('version', '0.1.0'),
                     pdata.get('author', ''),
@@ -280,6 +290,8 @@ class StoreAPIClient:
                     json.dumps(pdata.get('depends_on', {})),
                     json.dumps(pdata.get('screenshots', [])),
                     pdata.get('readme_url', ''),
+                    pdata.get('tagline', ''),
+                    pdata.get('tagline_i18n_key', ''),
                     pdata.get('downloads', 0),
                     pdata.get('rating', 0.0),
                     pdata.get('review_count', 0),

@@ -1661,6 +1661,11 @@ def matrix_dashboard():
     recent = _m().get_recent_tasks(limit=10)
     agents = _m().list_agents(active_only=True)
 
+    # 科研版兜底：拒绝展示商务/电商域 Agent
+    if getattr(_m(), 'SCIENCE_EDITION', False):
+        agents = [a for a in agents
+                  if a.get('domain') not in ('business', 'finance')]
+
     return _success({
         'stats': stats,
         'recent_tasks': recent,

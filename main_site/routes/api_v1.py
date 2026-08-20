@@ -716,6 +716,30 @@ def list_knowledge():
             params.extend([page_size, offset])
             
             rows = db.execute(query, params).fetchall()
+
+            # 科研版密级过滤（仅 edu 生效；非 edu 行为不变）
+            if os.getenv('DEPLOY_TYPE', '').strip().lower() == 'edu' and rows:
+                from services.kb_permission import check_confidentiality
+                role = payload.get('role', 'user')
+                user_id = payload.get('user_id')
+                # 批量查询项目成员角色（避免逐行查询）
+                project_ids = {str(r['project_id']) for r in rows if r.get('project_id')}
+                memberships = {}
+                if project_ids:
+                    try:
+                        phs = ','.join(['%s'] * len(project_ids))
+                        ms = db.execute(
+                            f'SELECT project_id, role FROM project_workspace.project_members '
+                            f'WHERE user_id=%s AND project_id IN ({phs})',
+                            [str(user_id)] + sorted(project_ids)).fetchall()
+                        memberships = {str(m['project_id']): m['role'] for m in ms}
+                    except Exception:
+                        memberships = {}
+                rows = [r for r in rows
+                        if r.get('scope') == 'user' and str(r.get('owner_id')) == str(user_id)
+                        or role == 'super_admin'
+                        or check_confidentiality(r.get('confidentiality') or 'internal',
+                                                 role, memberships.get(str(r.get('project_id')), ''))]
             
             # 获取总数
             count_query = "SELECT COUNT(*) as total FROM knowledge_blocks WHERE deleted_at IS NULL"
@@ -741,6 +765,10 @@ def list_knowledge():
                 'priority': row['priority'],
                 'scope': row.get('scope', 'system'),
                 'owner_id': row.get('owner_id'),
+                'discipline': row.get('discipline', ''),
+                'sub_discipline': row.get('sub_discipline', ''),
+                'confidentiality': row.get('confidentiality', 'internal'),
+                'project_id': str(row['project_id']) if row.get('project_id') else None,
                 'updatedAt': str(row['updated_at']) if row.get('updated_at') else None,
                 'createdAt': row['created_at']
             } for row in rows]
@@ -773,6 +801,14 @@ def save_knowledge():
     priority = data.get('priority', 0)
     scope = data.get('scope', 'user')  # 默认用户KB
     owner_id = data.get('owner_id') or payload['user_id']
+    # 科研版增强字段（可选）
+    confidentiality = data.get('confidentiality', 'internal')
+    discipline = data.get('discipline', '')
+    sub_discipline = data.get('sub_discipline', '')
+    project_id = data.get('project_id')  # UUID 字符串或 None
+    metadata = data.get('metadata') or {}
+    if confidentiality not in ('public', 'internal', 'secret'):
+        confidentiality = 'internal'
     
     if not kb_id or not title or not content:
         return api_err('id, title和content是必需的', 400)
@@ -782,6 +818,10 @@ def save_knowledge():
     allowed, err = check_kb_permission(scope, owner_id, 'write', payload)
     if not allowed:
         return err
+    
+    # 科研版密级约束：secret 仅超级管理员可授予
+    if confidentiality == 'secret' and payload.get('role') != 'super_admin':
+        return api_err('保密级(secret)知识仅超级管理员可设置', 403)
     
     # 知识块保存逻辑
     try:
@@ -804,10 +844,12 @@ def save_knowledge():
                 db.execute("""
                     UPDATE knowledge_blocks 
                     SET title=%s, content=%s, keywords=%s, category=%s, priority=%s,
-                        scope=%s, owner_id=%s, updated_at=NOW()
+                        scope=%s, owner_id=%s, discipline=%s, sub_discipline=%s,
+                        project_id=%s, confidentiality=%s, metadata=%s::jsonb, updated_at=NOW()
                     WHERE id=%s
                 """, (title, content, keywords_str, category, priority,
-                      scope, owner_id, kb_id))
+                      scope, owner_id, discipline, sub_discipline,
+                      project_id, confidentiality, json.dumps(metadata, ensure_ascii=False), kb_id))
                 db.commit()
                 # 更新后重新生成 embedding（向量路；失败静默）
                 try:
@@ -819,9 +861,12 @@ def save_knowledge():
             else:
                 # 新增
                 db.execute("""
-                    INSERT INTO knowledge_blocks (id, title, content, keywords, category, priority, scope, owner_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (kb_id, title, content, keywords_str, category, priority, scope, owner_id))
+                    INSERT INTO knowledge_blocks (id, title, content, keywords, category, priority, scope, owner_id,
+                                                 discipline, sub_discipline, project_id, confidentiality, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (kb_id, title, content, keywords_str, category, priority, scope, owner_id,
+                      discipline, sub_discipline, project_id, confidentiality,
+                      json.dumps(metadata, ensure_ascii=False)))
                 db.commit()
                 # 新增后生成 embedding（向量路；失败静默）
                 try:
