@@ -1894,18 +1894,26 @@ do_install() {
     else
         _clone_with_timeout "${GIT_REPO}" "${APP_HOME}" "${GIT_BRANCH}"
     fi
-    # Apply the sparse-checkout whitelist (enforce cone mode; idempotent).
-    # 审计 H6：leftovers from old repos/manual mode (core.sparseCheckoutCone not set) make set follow manual mode,
-    # where patterns contain only directories with no "/*" root-file keep rule → root files such as
-    # requirements.txt/VERSION/README get deleted from the working tree. First disable to clear leftovers, then unconditionally init --cone + set;
-    # on failure fall back to a full checkout (no files deleted) and continue installation.
-    git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
-    if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
-        && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-        :
+    # Apply the sparse-checkout whitelist ONLY when SPARSE_DIRS is non-empty.
+    # 根治 2026-08-20：SPARSE_DIRS 为空 = 全量检出（官方版/源码版），只执行 disable，
+    # 绝不 init --cone + set —— 否则旧白名单会在 git pull 时删除 cone 外的被跟踪文件
+    # （曾导致官方版 26 个插件被清空、服务加载失败）。
+    if [ -n "${SPARSE_DIRS:-}" ]; then
+        # 审计 H6：leftovers from old repos/manual mode (core.sparseCheckoutCone not set) make set follow manual mode,
+        # where patterns contain only directories with no "/*" root-file keep rule → root files such as
+        # requirements.txt/VERSION/README get deleted from the working tree. First disable to clear leftovers, then init --cone + set;
+        # on failure fall back to a full checkout (no files deleted) and continue installation.
+        git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+        if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
+            && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+            :
+        else
+            git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+            echo -e "${WARN} sparse-checkout failed — keeping full working tree"
+        fi
     else
         git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
-        echo -e "${WARN} sparse-checkout failed — keeping full working tree"
+        echo -e "${INFO} SPARSE_DIRS empty — full checkout, sparse-checkout disabled"
     fi
     # No-domain scripts (install-local/code/dev) are kept on disk: deleting
     # git-tracked files leaves unstaged changes that break `git pull` / update.
@@ -2116,15 +2124,23 @@ do_update() {
             }
         }
     fi
-    # Apply the sparse-checkout whitelist (enforce cone mode): first disable to clear manual-mode leftovers,
-    # then init --cone + set; on failure fall back to a full checkout. See the 审计 H6 note in do_install for details.
-    git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
-    if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
-        && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
-        :
+    # Apply the sparse-checkout whitelist ONLY when SPARSE_DIRS is non-empty.
+    # 根治 2026-08-20：同 do_install——SPARSE_DIRS 为空 = 全量检出，只执行 disable，绝不 set，
+    # 杜绝 git pull 按旧白名单删除 cone 外的被跟踪文件。
+    if [ -n "${SPARSE_DIRS:-}" ]; then
+        # first disable to clear manual-mode leftovers, then init --cone + set;
+        # on failure fall back to a full checkout. See the 审计 H6 note in do_install for details.
+        git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+        if git -C "${APP_HOME}" sparse-checkout init --cone 2>/dev/null \
+            && git -C "${APP_HOME}" sparse-checkout set ${SPARSE_DIRS} 2>/dev/null; then
+            :
+        else
+            git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
+            echo -e "${WARN} sparse-checkout failed — keeping full working tree"
+        fi
     else
         git -C "${APP_HOME}" sparse-checkout disable 2>/dev/null || true
-        echo -e "${WARN} sparse-checkout failed — keeping full working tree"
+        echo -e "${INFO} SPARSE_DIRS empty — full checkout, sparse-checkout disabled"
     fi
     # No-domain scripts (install-local/code/dev) are kept on disk: deleting
     # git-tracked files leaves unstaged changes that break `git pull` / update.
