@@ -77,9 +77,7 @@ var GROUPS=[
   ["{{ _('Command Console') }}",false,[["ai_chat",I.ai_chat,"{{ _('Command Console') }}"]]],
   ["{{ _('System') }}",true,[["ai_hub",I.matrix,"{{ _('AI Hub') }}"],["admins",I.admins,"{{ _('Admins') }}"]]],
   ["{{ _('AI & Content') }}",true,[["all_content",I.all_content,"{{ _('All Content') }}"],["cms",I.cms,"{{ _('Create Article') }}"],["downloads",I.downloads,"{{ _('Download Management') }}"],["media_library",I.media_library,"{{ _('Media Library') }}"],["knowledge",I.knowledge,"{{ _('RAG Knowledge') }}"],["cleaner",I.cleaner,"{{ _('Cleaner') }}"]]],
-  {% if edition != 'edu' %}["{{ _('Business Center') }}",true,[
-    ["_section","","{{ _('Operations') }}"]
-  ]],{% endif %}
+  {% if edition != 'edu' %}["{{ _('Business Center') }}",true,[]],{% endif %}
   ["{{ _('Publishing') }}",true,[["automation",I.automation,"{{ _('Auto Schedule') }}"],["publish_history",I.logs,"{{ _('Publish History') }}"]]],
   ["{{ _('Users & Support') }}",true,[["customers",I.customers,"{{ _('All Customers') }}"],["customer_agents",I.agents,"{{ _('Customer Agents') }}"],["api_keys",I.keys,"{{ _('API Tokens') }}"],["notifications",I.notifications,"{{ _('Notifications') }}"],["tickets",I.tickets,"{{ _('User Tickets') }}"],["reward_rules",I.reward_rules,"{{ _('Rewards') }}"]]],
   ["{{ _('Security & Compliance') }}",true,[["posts",I.posts,"{{ _('Post Audit') }}"],["comments",I.comments,"{{ _('Comment Moderation') }}"]]],
@@ -99,12 +97,26 @@ function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(fu
     pm.forEach(function(m){var g=m.group||"Plugins";if(!groups[g])groups[g]=[];groups[g].push(m)});
     var ph='';
     var gIdx=GROUPS.length;
+    var childSeq=0;
     Object.keys(groups).forEach(function(gn){
       var items=groups[gn];
       var itemsHtml='';
       items.forEach(function(m){
-        var iconHtml=I[m.icon]||I.plugins||'';
-        itemsHtml+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key||m._plugin_id)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key||m._plugin_id)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
+        // 多子项插件 → 可展开插件入口（父项 + 缩进子项，如 Shop）
+        if(m.children&&m.children.length){
+          var cid='np-'+(++childSeq);
+          var pIconHtml=I[m.icon]||I.plugins||'';
+          itemsHtml+='<div class="ni ni-plugin" onclick="togglePlugin(\''+cid+'\',this)"><span class="ns-arrow">▶</span>'+pIconHtml+'<span>'+esc(m.label||m._plugin_id)+'</span></div>';
+          itemsHtml+='<div class="ni-children collapsed" id="'+cid+'">';
+          m.children.forEach(function(c){
+            var iconHtml=I[c.icon]||I.plugins||'';
+            itemsHtml+='<div class="ni ni-child" onclick="goPlugin(\''+escAttr(c.key||c._plugin_id)+'\',\''+escAttr(c.embed_url||'')+'\')" id="n-'+escAttr(c.key||c._plugin_id)+'">'+iconHtml+'<span>'+esc(c.label)+'</span></div>';
+          });
+          itemsHtml+='</div>';
+        } else {
+          var iconHtml=I[m.icon]||I.plugins||'';
+          itemsHtml+='<div class="ni" onclick="goPlugin(\''+escAttr(m.key||m._plugin_id)+'\',\''+escAttr(m.embed_url||'')+'\')" id="n-'+escAttr(m.key||m._plugin_id)+'">'+iconHtml+'<span>'+esc(m.label)+'</span></div>';
+        }
       });
       // 若插件 group 匹配现有组（英文标识），插入该组 body，避免新建重复组
       var existIdx=GROUP_KEYS.indexOf(gn);
@@ -117,10 +129,8 @@ function renderNav(){var e=document.getElementById("nav"),h='';GROUPS.forEach(fu
       gIdx++;
     });
     if(ph)e.insertAdjacentHTML('beforeend',ph);
-    // 清理空 _section 标题
-    var bi=GROUP_KEYS.indexOf("Business Center");
-    if(bi>=0){var bb=document.getElementById("ngb-"+bi);if(bb){var ls=bb.querySelector(".ns-section:last-of-type");if(ls&&!ls.nextElementSibling)ls.style.display="none"}}
   }).catch(function(){});
 }
 function toggleGroup(i){var b=document.getElementById("ngb-"+i),a=document.querySelector("#ng-"+i+" .ns-arrow");b.classList.contains("collapsed")?(b.classList.remove("collapsed"),a.textContent="▼"):(b.classList.add("collapsed"),a.textContent="▶")}
+function togglePlugin(id,el){var b=document.getElementById(id),a=el.querySelector(".ns-arrow");if(!b)return;b.classList.contains("collapsed")?(b.classList.remove("collapsed"),a.textContent="▼"):(b.classList.add("collapsed"),a.textContent="▶")}
 renderNav();

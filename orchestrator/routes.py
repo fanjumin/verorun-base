@@ -128,7 +128,7 @@ def get_stats():
             stats['worker_pool'] = {
                 'dedicated_queue': pool_stats.get('dedicated_queue', 0),
                 'shared_queue': pool_stats.get('shared_queue', 0),
-                'active_count': len(active) if isinstance(active, dict) else 0
+                'active_count': len(active)
             }
     except Exception:
         stats['worker_pool'] = {'error': 'unavailable'}

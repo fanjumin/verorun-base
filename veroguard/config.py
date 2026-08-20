@@ -76,9 +76,13 @@ DEPLOYMENT_CODE    = os.getenv('DEPLOYMENT_CODE', '')
 def _get_remote_url() -> str:
     """获取 VeroGuard 远程端点（区域感知）。
     环境变量 GUARDIAN_REMOTE_URL 覆盖优先（向后兼容）。
+    GUARDIAN_REMOTE_URL=off|disabled|none → 返回空串，心跳上报被跳过（企业完全离线场景）。
     容错：Nuitka 编译时 plugin_manager 不可导入，回退直接读环境变量。
     """
-    override = os.getenv('GUARDIAN_REMOTE_URL', '')
+    override = os.getenv('GUARDIAN_REMOTE_URL', '').strip().lower()
+    if override in ('off', 'disabled', 'none'):
+        # 完全离线：REMOTE_URL 置空后 communicator.send_heartbeat 检测空值即跳过上报
+        return ''
     if override:
         return override
     try:

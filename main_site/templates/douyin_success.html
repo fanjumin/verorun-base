@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="{{ lang }}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>登录成功</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0d1117;color:#c9d1d9}.card{text-align:center;padding:40px}</style></head><body><div class="card"><h2>登录成功</h2><p>正在跳转...</p></div><script>
+<!DOCTYPE html><html lang="{{ lang }}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>{{ _('Login Successful') }}</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0d1117;color:#c9d1d9}.card{text-align:center;padding:40px}</style></head><body><div class="card"><h2>{{ _('Login Successful') }}</h2><p>{{ _('Redirecting...') }}</p></div><script>
 (function(){
   var p = new URLSearchParams(window.location.search);
   var token = p.get('token');

@@ -99,6 +99,60 @@ def _source_hash(text: str) -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]
 
 
+# ─── 语言协商（规范 §5） ──────────────────────────────────
+
+SUPPORTED_LOCALES = ('en', 'zh-CN')
+
+
+def _normalize_locale(value) -> str:
+    """将任意语言标识规范化：zh* → 'zh-CN'，en* → 'en'，未知返回 None。"""
+    value = (value or '').strip().lower().replace('_', '-')
+    if not value:
+        return None
+    if value.startswith('zh'):
+        return 'zh-CN'
+    if value.startswith('en'):
+        return 'en'
+    return None
+
+
+def resolve_locale(lang_param=None, cookie=None, accept_header=None,
+                   user_pref=None, fallback=None) -> str:
+    """按规范 §5 优先级解析请求语言：
+    ?lang= → Cookie lang → Accept-Language → 用户偏好 → 部署默认。"""
+    loc = _normalize_locale(lang_param)
+    if loc:
+        return loc
+    loc = _normalize_locale(cookie)
+    if loc:
+        return loc
+    if accept_header:
+        for part in accept_header.split(','):
+            loc = _normalize_locale(part.split(';')[0])
+            if loc:
+                return loc
+    loc = _normalize_locale(user_pref)
+    if loc:
+        return loc
+    loc = _normalize_locale(fallback)
+    if loc:
+        return loc
+    return DEPLOY_LANG
+
+
+def _current_locale() -> str:
+    """返回当前语言：请求上下文内优先 g.lang_code，否则部署默认。"""
+    try:
+        from flask import g, has_request_context
+        if has_request_context():
+            lang = getattr(g, 'lang_code', None)
+            if lang:
+                return lang
+    except Exception:
+        pass
+    return DEPLOY_LANG
+
+
 # ─── 核心翻译函数 ───
 
 def _(text: str, locale: str = None, **kwargs) -> str:
@@ -110,7 +164,7 @@ def _(text: str, locale: str = None, **kwargs) -> str:
     if not text:
         return ''
 
-    locale = locale or DEPLOY_LANG
+    locale = locale or _current_locale()
 
     # 从内存缓存字典取（get_all_translations 带 lru_cache，
     # 内部已按 YAML 打底 + DB 覆盖，结果与逐条查 DB 等价）。
@@ -132,6 +186,75 @@ def _(text: str, locale: str = None, **kwargs) -> str:
 def _t(text: str, locale: str = None, **kwargs) -> str:
     """别名，同 _()"""
     return _(text, locale, **kwargs)
+
+
+# ─── 复数与区域化格式（规范 §6） ──────────────────────────
+
+def _plural(singular: str, plural: str, count) -> str:
+    """按 count 选择单/复数形态并替换 {count} 占位符。
+
+    zh-CN 无复数形态恒用 singular；en 中 count==1 用 singular，其余用 plural。
+    用法：_plural('{count} item', '{count} items', count)
+    """
+    text = singular
+    if _current_locale() == 'en' and count != 1:
+        text = plural
+    return text.format(count=count) if '{count}' in text else text
+
+
+def format_number(value, locale: str = None, decimals: int = None) -> str:
+    """按 locale 输出数字（千分位逗号分隔）。
+
+    format_number(1234567.891, decimals=2) -> '1,234,567.89'
+    """
+    locale = locale or _current_locale()
+    try:
+        if decimals is not None:
+            value = round(float(value), decimals)
+            if decimals == 0:
+                value = int(value)
+        return f'{value:,}'
+    except Exception:
+        return str(value)
+
+
+def format_date(value, locale: str = None, fmt: str = '%Y-%m-%d') -> str:
+    """按 locale 格式化日期（支持 datetime/date/ISO 字符串）。
+
+    zh-CN -> '2026年08月18日'；en（或自定义 fmt）-> '2026-08-18'
+    """
+    locale = locale or _current_locale()
+    from datetime import datetime
+    from datetime import date as _date_cls
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except Exception:
+            return value
+    if isinstance(value, (_date_cls, datetime)):
+        if locale == 'zh-CN':
+            return value.strftime('%Y年%m月%d日')
+        return value.strftime(fmt)
+    return str(value)
+
+
+def format_currency(value, locale: str = None, currency: str = None) -> str:
+    """按 locale/currency 输出货币金额。
+
+    locale 决定默认币种（zh-CN→CNY ¥，其余→USD $）；currency 显式指定时优先。
+    format_currency(1234.5, 'zh-CN') -> '¥1,234.50'
+    format_currency(1234.5, 'en')    -> '$1,234.50'
+    """
+    locale = locale or _current_locale()
+    try:
+        if currency is None:
+            currency = 'CNY' if locale == 'zh-CN' else 'USD'
+        s = f'{float(value):,.2f}'
+        if currency in ('CNY', 'RMB'):
+            return f'¥{s}'
+        return f'${s}'
+    except Exception:
+        return str(value)
 
 
 # ─── 管理函数 ───
@@ -262,7 +385,7 @@ def seed_from_yaml(locale: str = None) -> int:
         acquired = conn.execute(
             'SELECT pg_try_advisory_lock(%s)', (lock_id,)
         ).fetchone()
-        if not acquired or not acquired[0]:
+        if not acquired or not list(acquired.values())[0]:
             return 0  # 其他进程正在播种，跳过
         for source, translation in yml.items():
             if not source or not translation or source == translation:
@@ -298,8 +421,8 @@ def seed_from_yaml(locale: str = None) -> int:
 
 
 def get_lang() -> str:
-    """返回当前语言代码"""
-    return DEPLOY_LANG
+    """返回当前语言代码（请求上下文内优先 g.lang_code，否则部署默认）"""
+    return _current_locale()
 
 
 # ─── 插件翻译支持 ──────────────────────────────────────────
@@ -330,7 +453,7 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
             acquired = conn.execute(
                 'SELECT pg_try_advisory_lock(%s)', (lock_id,)
             ).fetchone()
-            if not acquired or not acquired[0]:
+            if not acquired or not list(acquired.values())[0]:
                 continue  # 其他进程正在播种，跳过
             for source, translation in data.items():
                 if not source or not translation:
@@ -361,4 +484,5 @@ def seed_plugin_translations(plugin_id: str, locale_dir: str) -> int:
                     pass
     if count:
         print(f'[i18n] plugin {plugin_id}: seeded {count} translations')
+    get_all_translations.cache_clear()  # 无论播种/跳过都清缓存，防多 worker 竞态缓存空字典
     return count

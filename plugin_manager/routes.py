@@ -1006,26 +1006,87 @@ def upload_plugin():
         _os.makedirs(dest_dir, exist_ok=True)
         _extract_archive(tmp_path, dest_dir)
 
-        # 7. 扫描安装
-        discovered = mgr._discovery.discover_one(identifier)
-        if discovered is None:
+        # ★ 6a. 解压后护栏（M1 修复）：解压体积/文件数上限，防解压炸弹
+        _guard_total = 0
+        _guard_count = 0
+        for _gdp, _gdns, _gfns in _os.walk(dest_dir):
+            for _gfn in _gfns:
+                _guard_count += 1
+                _guard_total += _os.path.getsize(_os.path.join(_gdp, _gfn))
+                if _guard_count > 2000 or _guard_total > 200 * 1024 * 1024:
+                    import shutil as _shutil_guard
+                    _shutil_guard.rmtree(dest_dir, ignore_errors=True)
+                    return _json_result(False, error='插件解压后体积或文件数超限，已拒绝', code=400)
+
+        # ★ 6b. 官方插件水印检测（VeroRun 官方插件水印体系）
+        # M2/M3 修复：仅「签名验签通过」为不可辩驳 → 上传即硬拒；
+        # manifest/注释水印/_wm 字段/白名单 → 降级进审核队列，由 AI 复核 + 人工兜底。
+        from .watermark import detect_official_watermark, WM_HARD
+        _wm = detect_official_watermark(dest_dir)
+        if _wm.get('official') and _wm.get('method') in WM_HARD:
             # 回滚：删除已解压的目录
-            import shutil as _shutil
-            _shutil.rmtree(dest_dir, ignore_errors=True)
-            return _json_result(False, error=f'Failed to discover plugin: {identifier}. Check plugin.json structure.', code=500)
+            import shutil as _shutil_wm
+            _shutil_wm.rmtree(dest_dir, ignore_errors=True)
+            return _json_result(False, error=(
+                f'检测到官方插件二次打包'
+                f'（identifier={_wm.get("identifier") or "未知"}，'
+                f'命中方式：{_wm.get("reason", "")}）。'
+                '官方插件请从插件商店安装，禁止重新打包上传。'
+            ), code=400)
 
-        # 8. 标记为 upload 来源 + 安装
-        discovered.source = 'upload'
-        mgr.install(discovered.identifier)
-        mgr.enable(discovered.identifier)
-        mgr.activate(discovered.identifier)
+        # ★ 6c. 进入审核队列（两阶段审核 · 批次2：pending → AI 规则审核 → 批准后安装）
+        import shutil as _shutil_sub
+        pending_root = _os.path.join(plugins_root, '.pending')
+        _os.makedirs(pending_root, exist_ok=True)
+        pending_dir = _os.path.join(pending_root, identifier)
+        if _os.path.exists(pending_dir):
+            _shutil_sub.rmtree(pending_dir, ignore_errors=True)
+        _shutil_sub.move(dest_dir, pending_dir)
 
-        # 重新读取确认最终状态
-        installed = mgr.get(identifier)
-        result = _info_to_dict(installed) if installed else {'identifier': identifier, 'name': name, 'version': version}
-        result['source'] = 'upload'
+        # 上传者信息（JWT payload）
+        _submitter = ''
+        _submitter_id = ''
+        try:
+            from services.jwt_service import validate_token
+            _tok = request.headers.get('Authorization', '').replace('Bearer ', '')
+            if not _tok:
+                _tok = request.args.get('token') or request.cookies.get('sso_token') or request.cookies.get('tm_token')
+            _pl = validate_token(_tok) if _tok else None
+            if _pl:
+                _submitter = str(_pl.get('username') or _pl.get('name') or '')
+                _submitter_id = str(_pl.get('user_id') or '')
+        except Exception:
+            pass
 
-        return _json_result(True, data=result)
+        # 写入审核记录
+        from .models import get_registry_db
+        _sub_id = None
+        try:
+            with get_registry_db() as conn:
+                _cur = conn.execute(
+                    "INSERT INTO plugin_submissions "
+                    "(identifier, name, version, status, submitter, submitter_id, "
+                    " file_path, file_size, wm_method, wm_reason) "
+                    "VALUES (%s, %s, %s, 'pending', %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (identifier, name, version, _submitter, _submitter_id,
+                     pending_dir, _file_size, _wm.get('method', ''), _wm.get('reason', ''))
+                )
+                _row = _cur.fetchone()
+                conn.commit()
+            _sub_id = _row['id'] if _row else None
+        except Exception:
+            traceback.print_exc()
+            _shutil_sub.rmtree(pending_dir, ignore_errors=True)
+            return _json_result(False, error='Failed to create submission record', code=500)
+
+        return _json_result(True, data={
+            'submission_id': _sub_id,
+            'identifier': identifier,
+            'name': name,
+            'version': version,
+            'status': 'pending',
+            'message': '插件已提交审核，审核通过后将自动安装。',
+        })
 
     except json.JSONDecodeError:
         return _json_result(False, error='plugin.json is not valid JSON', code=400)
@@ -1048,6 +1109,200 @@ def upload_plugin():
                 _os.unlink(tmp_path)
             except OSError:
                 pass
+
+
+# ====================================================================
+# ★ 批次2 插件审核队列（AI 审核网关 · 插件标准 §16）
+# ====================================================================
+
+def _submission_row_to_dict(row) -> dict:
+    """DB row → dict，并将 JSON 字段解析为对象。"""
+    try:
+        d = dict(row)
+    except Exception:
+        d = {k: row[k] for k in row.keys()}
+    for key, fallback in (('audit_report', {}), ('audit_reasons', [])):
+        raw = d.get(key)
+        if isinstance(raw, str):
+            try:
+                d[key] = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                d[key] = fallback
+    return d
+
+
+@bp.route('/submissions', methods=['GET'])
+def list_submissions():
+    """列出插件审核队列（默认 pending；支持 ?status=pending|approved|rejected）"""
+    err = _require_admin()
+    if err:
+        return err
+    status = request.args.get('status', 'pending')
+    _limit = request.args.get('limit', default=200, type=int)
+    _limit = max(1, min(_limit, 500))
+    _offset = request.args.get('offset', default=0, type=int)
+    _offset = max(0, _offset)
+    try:
+        from .models import get_registry_db
+        with get_registry_db() as conn:
+            cur = conn.execute(
+                "SELECT * FROM plugin_submissions WHERE status = %s "
+                "ORDER BY id DESC LIMIT %s OFFSET %s",
+                (status, _limit, _offset),
+            )
+            rows = cur.fetchall()
+        return _json_result(True, data=[_submission_row_to_dict(r) for r in rows])
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=f'Failed to list submissions: {e}', code=500)
+
+
+@bp.route('/submissions/<int:sub_id>/review', methods=['POST'])
+def review_submission(sub_id):
+    """执行规则引擎审核（AI 辅助），产出结构化报告"""
+    err = _require_admin()
+    if err:
+        return err
+    try:
+        from .models import get_registry_db
+        with get_registry_db() as conn:
+            cur = conn.execute(
+                "SELECT * FROM plugin_submissions WHERE id = %s", (sub_id,))
+            row = cur.fetchone()
+        if not row:
+            return _json_result(False, error='Submission not found', code=404)
+        if row['status'] != 'pending':
+            return _json_result(False, error=f'Submission already {row["status"]}', code=400)
+
+        from .audit import review_plugin
+        result = review_plugin(row['file_path'])
+        with get_registry_db() as conn:
+            conn.execute(
+                "UPDATE plugin_submissions SET audit_status=%s, audit_report=%s, "
+                "audit_reasons=%s, reviewed_at=NOW(), updated_at=NOW() WHERE id=%s",
+                (result['status'],
+                 json.dumps(result['report'], ensure_ascii=False),
+                 json.dumps(result['reasons'], ensure_ascii=False),
+                 sub_id),
+            )
+            conn.commit()
+        return _json_result(True, data=result)
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=f'Review failed: {e}', code=500)
+
+
+@bp.route('/submissions/<int:sub_id>/approve', methods=['POST'])
+def approve_submission(sub_id):
+    """批准安装：pending 目录移入正式目录 → discover → install → enable → activate"""
+    err = _require_admin()
+    if err:
+        return err
+    try:
+        import shutil as _shutil_app
+        from .models import get_registry_db
+        with get_registry_db() as conn:
+            cur = conn.execute(
+                "SELECT * FROM plugin_submissions WHERE id = %s", (sub_id,))
+            row = cur.fetchone()
+        if not row:
+            return _json_result(False, error='Submission not found', code=404)
+        if row['status'] != 'pending':
+            return _json_result(False, error=f'Submission already {row["status"]}', code=400)
+
+        # ★ H1 修复：强制审计状态校验
+        #  - audit_status='reject'（含危险代码）→ 禁止安装，除非显式 override=true 强制放行
+        #  - audit_status='pending'（从未执行 AI 审核）→ 必须先 /review
+        _audit_status = row.get('audit_status') or 'pending'
+        _override = bool((request.get_json(silent=True) or {}).get('override'))
+        if _audit_status == 'reject' and not _override:
+            return _json_result(False, error=(
+                '审计未通过（audit_status=reject），含危险代码特征，禁止安装；'
+                '如需强制放行请显式传递 override=true'), code=400)
+        if _audit_status == 'pending':
+            return _json_result(False, error='该提交尚未执行 AI 审核，请先调用 /review 后再批准', code=400)
+
+        mgr = _get_manager()
+        if not mgr:
+            return _json_result(False, error='PluginManager not initialized', code=503)
+        plugins_root = getattr(mgr, '_plugins_root', os.path.join(os.path.dirname(__file__), '..', 'plugins'))
+        plugins_root = os.path.abspath(plugins_root)
+        identifier = row['identifier']
+        pending_dir = row['file_path']
+        dest_dir = os.path.join(plugins_root, identifier)
+
+        if os.path.exists(dest_dir):
+            return _json_result(False, error=f'Plugin directory already exists: {identifier}', code=409)
+        if not os.path.isdir(pending_dir):
+            return _json_result(False, error=f'Pending directory missing: {pending_dir}', code=500)
+
+        # 安装前最终安全复核：官方签名验签通过 → 拒绝
+        from .watermark import detect_official_watermark, WM_HARD
+        _wm_final = detect_official_watermark(pending_dir)
+        if _wm_final.get('official') and _wm_final.get('method') in WM_HARD:
+            return _json_result(False, error=(
+                f'安装前复核命中官方插件签名（{_wm_final.get("reason", "")}），拒绝安装。'), code=400)
+
+        _shutil_app.move(pending_dir, dest_dir)
+        discovered = mgr._discovery.discover_one(identifier)
+        if discovered is None:
+            _shutil_app.rmtree(dest_dir, ignore_errors=True)
+            return _json_result(False, error=f'Failed to discover plugin: {identifier}. Check plugin.json structure.', code=500)
+
+        # 标记为 upload 来源 + 安装
+        discovered.source = 'upload'
+        mgr.install(discovered.identifier)
+        mgr.enable(discovered.identifier)
+        mgr.activate(discovered.identifier)
+
+        with get_registry_db() as conn:
+            conn.execute(
+                "UPDATE plugin_submissions SET status='approved', updated_at=NOW() WHERE id=%s",
+                (sub_id,))
+            conn.commit()
+
+        installed = mgr.get(identifier)
+        result = _info_to_dict(installed) if installed else {'identifier': identifier}
+        result['submission_id'] = sub_id
+        return _json_result(True, data=result)
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=f'Approve failed: {e}', code=500)
+
+
+@bp.route('/submissions/<int:sub_id>/reject', methods=['POST'])
+def reject_submission(sub_id):
+    """拒绝：清理 pending 目录，标记 rejected"""
+    err = _require_admin()
+    if err:
+        return err
+    try:
+        import shutil as _shutil_rej
+        from .models import get_registry_db
+        with get_registry_db() as conn:
+            cur = conn.execute(
+                "SELECT * FROM plugin_submissions WHERE id = %s", (sub_id,))
+            row = cur.fetchone()
+        if not row:
+            return _json_result(False, error='Submission not found', code=404)
+        if row['status'] != 'pending':
+            return _json_result(False, error=f'Submission already {row["status"]}', code=400)
+
+        pending_dir = row['file_path']
+        if os.path.isdir(pending_dir):
+            _shutil_rej.rmtree(pending_dir, ignore_errors=True)
+
+        comment = (request.get_json(silent=True) or {}).get('comment', '')
+        with get_registry_db() as conn:
+            conn.execute(
+                "UPDATE plugin_submissions SET status='rejected', review_comment=%s, "
+                "updated_at=NOW() WHERE id=%s",
+                (comment, sub_id))
+            conn.commit()
+        return _json_result(True, data={'submission_id': sub_id, 'status': 'rejected'})
+    except Exception as e:
+        traceback.print_exc()
+        return _json_result(False, error=f'Reject failed: {e}', code=500)
 
 
 # ====================================================================

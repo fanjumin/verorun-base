@@ -4,7 +4,7 @@
 加载 Agent 配置 → 注入 System Prompt → 执行 LLM 调用 → 自检。
 """
 from i18n import _
-import json, os, sys, logging
+import json, os, sys, time, logging
 logger = logging.getLogger(__name__)
 
 
@@ -87,26 +87,37 @@ class AgentRunner:
                    f'Call {self.config.get("provider")}/{self.config.get("model_name")}')
 
         # 按 allowed_tools 白名单决定是否启用 ReAct 工具循环
+        # B-03: 模型/上游错误（401/5xx/网络异常/Error 前缀）走有限重试，受 max_retries 约束
         tools = self._get_tools()
-        try:
-            if tools:
-                logs.append(f'[Tools] Enabled {len(tools)} tools, entering ReAct loop')
-                response = self._run_react_loop(engine, user_query, history, tools, logs, task_id)
-            elif history:
-                response = engine.ask_with_history(history, user_query)
-            else:
-                response = engine.ask(user_query)
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            logger.error(f"[{self.name}] LLM execute failed: {e}\n{tb}")
-            logs.append(f'[ERROR] {e}')
-            logs.append(f'[TRACEBACK] {tb[:500]}')
-            return self._fail(f'{e}', logs)
+        api_max_retries = task.get('max_retries', 2)
+        response = None
+        for attempt in range(api_max_retries + 1):
+            try:
+                if tools:
+                    logs.append(f'[Tools] Enabled {len(tools)} tools, entering ReAct loop')
+                    response = self._run_react_loop(engine, user_query, history, tools, logs, task_id)
+                elif history:
+                    response = engine.ask_with_history(history, user_query)
+                else:
+                    response = engine.ask(user_query)
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                logger.error(f"[{self.name}] LLM execute failed (attempt {attempt + 1}): {e}\n{tb}")
+                logs.append(f'[ERROR] attempt {attempt + 1}: {e}')
+                logs.append(f'[TRACEBACK] {tb[:500]}')
+                response = f'Error: {e}'
 
-        if response.startswith('Error:'):
-            self._log(task_id, 'error', 'execution', response)
-            return self._fail(response, logs)
+            if isinstance(response, str) and response.startswith('Error:'):
+                self._log(task_id, 'warn', 'api_call',
+                          f'LLM error (attempt {attempt + 1}): {response[:200]}')
+                if attempt < api_max_retries:
+                    logs.append(f'[Retry #{attempt + 1}] upstream/model error, retrying')
+                    time.sleep(min(2 * (attempt + 1), 8))
+                    continue
+                self._log(task_id, 'error', 'execution', response)
+                return self._fail(f'{response} (after {attempt + 1} attempts)', logs)
+            break
 
         logs.append(f'[LLM] Response length: {len(response)} characters')
         self._log(task_id, 'info', 'execution', f'LLM Response Completed ({len(response)} characters)')
@@ -120,7 +131,8 @@ class AgentRunner:
                 'confidence': 1.0,
                 'self_review': 'Direct reply (auto-passed)',
                 'logs': logs,
-                'retries': 0
+                'retries': 0,
+                'failed': False
             }
 
         self_review = self._self_critique(response, task)
@@ -171,7 +183,8 @@ class AgentRunner:
                 'confidence': confidence,
                 'self_review': self_review.get('review', ''),
                 'logs': logs,
-                'retries': retries
+                'retries': retries,
+                'failed': False
             }
         else:
             err_msg = f'After {retries} retries, confidence={confidence} is still below threshold'
@@ -411,5 +424,6 @@ class AgentRunner:
             'response': error,
             'confidence': confidence,
             'self_review': '',
-            'logs': logs + [f'[FAIL] {error}']
+            'logs': logs + [f'[FAIL] {error}'],
+            'failed': True
         }

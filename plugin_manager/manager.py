@@ -372,6 +372,26 @@ class PluginManager:
                     )
                 print(f'[PluginManager] {identifier}: license valid ({lic_result.get("status")})')
 
+            # ── 官方签名包完整性校验（VeroRun 水印体系 · 批次3）──
+            # 仅校验携带 verorun.manifest 的官方签名包；无清单的旧包放行（向后兼容）。
+            # 二次打包/篡改的官方插件 → 完整性校验失败 → 拒绝启用。
+            try:
+                from .watermark import verify_manifest
+                _vm = verify_manifest(info.path)
+                if _vm.get('checked') and not _vm.get('valid'):
+                    _mism = ', '.join(_vm.get('mismatched', [])[:5])
+                    info.last_error = f'Integrity check failed: modified files: {_mism}'
+                    info.status = PluginStatus.ERROR
+                    self._save_to_db(info)
+                    raise PluginStateError(
+                        identifier, 'integrity_failed',
+                        f'enable failed: official plugin package modified: {_mism}'
+                    )
+            except PluginStateError:
+                raise
+            except Exception as _e:
+                print(f'[PluginManager] ⚠️ {identifier}: integrity check skipped: {_e}')
+
             # 执行插件 setup()
             # 降级策略：setup() 失败不置 ERROR、不抛异常（如 chatbot 在运行期
             # 调 register_blueprint 会被 Flask 拒绝），保持 ENABLED 并记录
@@ -1294,7 +1314,8 @@ class PluginManager:
             with get_registry_db() as conn:
                 rows = conn.execute(
                     "SELECT identifier, metadata, path FROM plugin_registry "
-                    "WHERE status IN ('enabled','active') ORDER BY identifier"
+                    "WHERE status IN ('enabled','active') "
+                    "ORDER BY CASE WHEN identifier IN ('shop','subscription') THEN 0 ELSE 1 END, identifier"
                 ).fetchall()
         except Exception as e:
             print(f'[PluginManager] get_plugin_menus db query failed: {e}')
@@ -1331,7 +1352,33 @@ class PluginManager:
             # Support items array for sub-menus (e.g., shop plugin with 4 items)
             if 'items' in menu_cfg:
                 group = menu_cfg.get('group', 'Plugins')
-                for item in menu_cfg['items']:
+                items = menu_cfg['items']
+                if len(items) > 1:
+                    # 多子项插件 → 嵌套父项（前端渲染为可展开插件入口，如 Shop）
+                    children = []
+                    for it in items:
+                        child = dict(it)
+                        child['_plugin_id'] = pid
+                        child.setdefault('key', pid)
+                        # 子菜单项同样支持 label_i18n_key 翻译
+                        localize_plugin_dict({
+                            'identifier': pid,
+                            'path': row.get('path') or '',
+                            'metadata': {'menu': child},
+                        })
+                        children.append(child)
+                    menus.append({
+                        'group': group,
+                        '_plugin_id': pid,
+                        'key': pid,
+                        'label': menu_cfg.get('label') or meta.get('name') or pid,
+                        'icon': menu_cfg.get('icon') or meta.get('icon') or (items[0].get('icon') or 'plugins'),
+                        'plugin_menu': True,
+                        'children': children,
+                    })
+                else:
+                    # 单子项插件 → 平铺（避免"父项+子项"重复，如 Subscription）
+                    item = dict(items[0])
                     item['group'] = group
                     item['_plugin_id'] = pid
                     item.setdefault('key', pid)

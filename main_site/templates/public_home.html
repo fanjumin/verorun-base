@@ -1,6 +1,6 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
-<html lang="{{ LANG }}">
+<html lang="{{ lang }}">
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1.0" name="viewport"/>
@@ -79,7 +79,7 @@
 .p3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start}
 .pcard{position:relative;background:var(--bg-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px 28px;display:flex;flex-direction:column;transition:all .35s var(--ease-out)}.pcard:hover{border-color:rgba(0,245,255,.18);transform:translateY(-4px);box-shadow:0 0 0 1px rgba(0,245,255,.06),0 12px 48px rgba(0,245,255,.06)}
 .pcard.pop{border-color:rgba(0,245,255,.35);box-shadow:0 0 0 1px rgba(0,245,255,.12),0 0 48px rgba(0,245,255,.10);transform:translateY(-8px)}.pcard.pop:hover{transform:translateY(-10px)}
-.pcard.pop::before{content:'最受欢迎';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gradient-primary);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:20px;z-index:2}
+.pcard.pop::before{content:"{{ _('Most Popular') }}";position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gradient-primary);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:20px;z-index:2}
 .pcard .nm{font-size:18px;font-weight:700;color:var(--text-high);margin-bottom:4px}.pcard .ds{font-size:13px;color:var(--text-dim);margin-bottom:20px;min-height:36px;line-height:1.5}
 .pcard .pr{font-size:42px;font-weight:800;font-family:var(--font-display);letter-spacing:-1px;color:var(--text-high);line-height:1;margin-bottom:2px}
 .pcard .pd{font-size:14px;color:var(--text-dim);font-weight:400;margin-bottom:12px}.pcard .pd .pdd{font-size:12px;color:var(--text-muted);margin-left:4px}
@@ -282,7 +282,7 @@
 <div class="nm">{{ plan.name }}</div>
 <div class="ds">{{ plan.description }}</div>
 <div class="pr">¥{{ '{:,}'.format(plan.price_year) }}</div>
-<div class="pd">{{ _('/ Year') }}{% if plan.price_month > 0 %}<span class="pdd">（¥{{ '{:,}'.format(plan.price_month) }}/月）</span>{% endif %}</div>
+<div class="pd">{{ _('/ Year') }}{% if plan.price_month > 0 %}<span class="pdd">{{ _('(¥{price}/month)', price='{:,}'.format(plan.price_month)) }}</span>{% endif %}</div>
 <ul class="fl">
           {% for f in plan.features %}
           <li><span class="ck">✓</span> {{ f }}</li>

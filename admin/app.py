@@ -70,7 +70,7 @@ import os as _os
 
 @app.context_processor
 def inject_i18n():
-    return {'_': _, ')LANG': get_lang(), 'lang': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
+    return {'_': _, 'lang': get_lang(), 'translations': get_all_translations(), 'MARKET': _os.environ.get('DEPLOY_MARKET', 'cn')}
 
 app.jinja_env.globals['_'] = _
 

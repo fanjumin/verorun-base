@@ -121,26 +121,26 @@
                     {% for plan in plans %}
                         <div class="pricing-card {% if plan.tier == 'enterprise' %}enterprise{% endif %}">
 <h3>{{ plan.name }}</h3>
-<div class="price">{% if plan.price > 0 %}¥{{ plan.price }}/{{ plan.period }}{% else %}免费{% endif %}</div>
+<div class="price">{% if plan.price > 0 %}¥{{ plan.price }}/{{ plan.period }}{% else %}{{ _('Free') }}{% endif %}</div>
 <ul>
                                 {% for feature in (plan.features_list if plan.features_list else []) %}
                                     <li>✓ {{ feature }}</li>
                                 {% endfor %}
                             </ul>
-<a class="btn {% if plan.tier == 'free' %}btn-outline{% endif %}" href="/pricing">{% if plan.tier == 'free' %}免费试用{% else %}立即购买{% endif %}</a>
+<a class="btn {% if plan.tier == 'free' %}btn-outline{% endif %}" href="/pricing">{% if plan.tier == 'free' %}{{ _('Free Trial') }}{% else %}{{ _('Buy Now') }}{% endif %}</a>
 </div>
                     {% endfor %}
                 {% else %}
                     {% for tier, config in tiers.items() %}
                         <div class="pricing-card {% if tier == 'enterprise' %}enterprise{% endif %}">
 <h3>{{ config.name }}</h3>
-<div class="price">{% if config.price > 0 %}¥{{ config.price }}/月{% else %}免费{% endif %}</div>
+<div class="price">{% if config.price > 0 %}¥{{ config.price }}{{ _('/month') }}{% else %}{{ _('Free') }}{% endif %}</div>
 <ul>
                                 {% for feature in config.features %}
                                     <li>✓ {{ feature }}</li>
                                 {% endfor %}
                             </ul>
-<a class="btn {% if tier == 'free' %}btn-outline{% endif %}" href="/pricing">{% if tier == 'free' %}免费试用{% else %}立即购买{% endif %}</a>
+<a class="btn {% if tier == 'free' %}btn-outline{% endif %}" href="/pricing">{% if tier == 'free' %}{{ _('Free Trial') }}{% else %}{{ _('Buy Now') }}{% endif %}</a>
 </div>
                     {% endfor %}
                 {% endif %}

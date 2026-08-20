@@ -3,10 +3,8 @@
 (HTTPS).: (HTTPS).
 (No input content): (No input content)
 (No specific issue list): (No specific issue list)
-+ Add Attachment: + Add Attachment
 + Add Download Item: + Add Download Item
 + Add Template: + Add Template
-+ Create Agent: + Create Agent
 /Month: /Month
 /Year: /Year
 /admin/content-factory/ai-cover — AI Image: /admin/content-factory/ai-cover — AI Image
@@ -37,7 +35,6 @@
 3 Years: 3 Years
 3-7 Days: 3-7 Days
 3. 🎨 Personalization Adjustment (1-2 Days): 3. 🎨 Personalization Adjustment (1-2 Days)
-30-Day Revenue Trend: 30-Day Revenue Trend
 3️⃣ Or: 3️⃣ Or
 4. 🚀 Bind Domain and Go Live (Instantly): 4. 🚀 Bind Domain and Go Live (Instantly)
 5 Minutes to Understand Platform Basics: 5 Minutes to Understand Platform Basics
@@ -48,13 +45,13 @@
 8 PM: 8 PM
 9 AM: 9 AM
 A user with the same name Agent already exists: A user with the same name Agent already exists
+AI: AI
 AI Analysis: AI Analysis
 AI Analysis in Progress...: AI Analysis in Progress...
 AI Application Tips: AI Application Tips
 AI Applications: AI Applications
 AI Cleaning: AI Cleaning
 AI Configuration: AI Configuration
-AI Content Generation: AI Content Generation
 AI Content Optimization: AI Content Optimization
 AI Continuous Monitoring + Keyword Suggestions + Ranking Tracking: AI Continuous Monitoring + Keyword Suggestions + Ranking Tracking
 AI Continuous SEO: AI Continuous SEO
@@ -63,12 +60,10 @@ AI Copywriting Generation (API configuration required): AI Copywriting Generatio
 AI Description Optimization Failed: AI Description Optimization Failed
 AI Engine Not Initialized: AI Engine Not Initialized
 AI Engine Not Ready (Check API Key): AI Engine Not Ready (Check API Key)
-AI Experience: AI Experience
 AI Experience — VeroRun AI · Free AI Website Building Trial: AI Experience — VeroRun AI · Free AI Website Building Trial
 AI Interpretation: AI Interpretation
 AI Layout Module Not Ready (ai_content_generator Not Available): AI Layout Module Not Ready (ai_content_generator Not Available)
 AI Marketing Copy Generation: AI Marketing Copy Generation
-AI Matrix: AI Matrix
 AI Optimization: AI Optimization
 AI Optimization Failed: AI Optimization Failed
 AI Processing: AI Processing
@@ -79,8 +74,6 @@ AI Review Passed: AI Review Passed
 AI Selling Point Generation Failed: AI Selling Point Generation Failed
 AI Service Description: AI Service Description
 AI Service Unavailable: AI Service Unavailable
-AI Services: AI Services
-AI Smart Customer Service: AI Smart Customer Service
 AI Smart Website Building: AI Smart Website Building
 AI Title Generation Failed: AI Title Generation Failed
 AI Title Options: AI Title Options
@@ -100,30 +93,21 @@ ALIBABA_APP_KEY not configured: ALIBABA_APP_KEY not configured
 ALIBABA_APP_SECRET not configured: ALIBABA_APP_SECRET not configured
 API Call: API Call
 API Call Token: API Call Token
-API Documentation: API Documentation
-API Endpoint: API Endpoint
 API Endpoint Filter: API Endpoint Filter
 API Gateway: API Gateway
-API Key: API Key
 API Key Management: API Key Management
 API Logs: API Logs
-API Management: API Management
 API Response Cache: API Response Cache
 API User Count: API User Count
 API Version: API Version
 API returned no product information: API returned no product information
-About: About
-About Us: About Us
 Accuracy 1-5: Accuracy 1-5
-Action: Action
 Activate Now: Activate Now
 Activated: Activated
 Activating: Activating
 Activation failed: Activation failed
 Active Products: Active Products
-Active Subscriptions: Active Subscriptions
 Active Subscriptions in Last 30 Days: Active Subscriptions in Last 30 Days
-Active Users: Active Users
 Activity: Activity
 Ad Position: Ad Position
 Add Advertisement: Add Advertisement
@@ -141,8 +125,6 @@ Advertisement: Advertisement
 Advertisement does not exist: Advertisement does not exist
 Advertisement name cannot be empty: Advertisement name cannot be empty
 Agent Community: Agent Community
-Agent Management: Agent Management
-Agent Matrix: Agent Matrix
 Agent configuration does not exist: Agent configuration does not exist
 Agent does not exist: Agent does not exist
 Agent does not exist or does not belong to the current user: Agent does not exist or does not belong to the current user
@@ -157,7 +139,6 @@ Alibaba AppKey and AppSecret must be configured: Alibaba AppKey and AppSecret mu
 Alibaba Configuration: Alibaba Configuration
 Alibaba Product ID: Alibaba Product ID
 Alibaba client initialized successfully: Alibaba client initialized successfully
-Alipay: Alipay
 Alipay API Error: Alipay API Error
 Alipay App ID: Alipay App ID
 Alipay Payment Private Key: Alipay Payment Private Key
@@ -169,7 +150,6 @@ Aliyun Real-time Speech Recognition: Aliyun Real-time Speech Recognition
 Aliyun SMS AccessKey ID: Aliyun SMS AccessKey ID
 Aliyun SMS AccessKey Secret: Aliyun SMS AccessKey Secret
 Aliyun Speech Synthesis (1 million characters free per month): Aliyun Speech Synthesis (1 million characters free per month)
-All: All
 All Caches: All Caches
 All Packages: All Packages
 All Products: All Products
@@ -179,7 +159,6 @@ All support binding custom domains and automatic configuration: All support bind
 Allowed Management Backend Domains: Allowed Management Backend Domains
 Already: Already
 Already processed: Already processed
-Amount: Amount
 Analyze Ad: Analyze Ad
 Analyze the collected content and output a Chinese summary: Analyze the collected content and output a Chinese summary
 Anhui Province: Anhui Province
@@ -199,11 +178,8 @@ Approved: Approved
 Article: Article
 Article Management: Article Management
 Article does not exist: Article does not exist
-Attachment: Attachment
-Attachment : Attachment 
 Attachment does not exist: Attachment does not exist
 Audit Completed: Audit Completed
-Audit Log: Audit Log
 Australia: Australia
 Authentication service temporarily unavailable: Authentication service temporarily unavailable
 Auto Enter Knowledge Graph: Auto Enter Knowledge Graph
@@ -216,7 +192,6 @@ Auto-optimize Title/Description/Structured Data: Auto-optimize Title/Description
 Automation System: Automation System
 Available only to new users: Available only to new users
 Average: Average
-Back: Back
 Backend Access Control: Backend Access Control
 Background Removal: Background Removal
 Baoding: Baoding
@@ -241,9 +216,6 @@ Browse All →: Browse All →
 Build Website: Build Website
 Build a website: Build a website
 Build financial analysis and collaboration for the agent: Build financial analysis and collaboration for the agent
-Business Scope: Business Scope
-Buy Now: Buy Now
-CMS Management: CMS Management
 CMS Page: CMS Page
 CMS publishing module is not ready (models.cms is not available): CMS publishing module is not ready (models.cms is not available)
 CMS/Community Content/Comment Review: CMS/Community Content/Comment Review
@@ -256,20 +228,16 @@ Cache Status: Cache Status
 Call: Call
 Campaign: Campaign
 Canada: Canada
-Cancel: Cancel
 Cancel Renewal: Cancel Renewal
 Cancel sign-up: Cancel sign-up
 Cancellation Failed: Cancellation Failed
-Cancelled: Cancelled
 Cancelled this month: Cancelled this month
 Cannot delete as there are items in this category: Cannot delete as there are items in this category
 Cannot delete default topic: Cannot delete default topic
 Cannot delete main Agent: Cannot delete main Agent
 Cannot downgrade yourself to non-super admin: Cannot downgrade yourself to non-super admin
-Capabilities: Capabilities
 Capture: Capture
 Case: Case
-Category: Category
 Category Statistics: Category Statistics
 Category created: Category created
 Category name cannot be empty: Category name cannot be empty
@@ -302,7 +270,6 @@ Cleanup Type: Cleanup Type
 Clear Cache: Clear Cache
 Client: Client
 Client Secret cannot be empty (first configuration): Client Secret cannot be empty (first configuration)
-Close: Close
 Cloud service: Cloud service
 Code: Code
 Code is required: Code is required
@@ -310,36 +277,24 @@ Collected: Collected
 Column Name cannot be empty: Column Name cannot be empty
 Comment cannot exceed 500 characters: Comment cannot exceed 500 characters
 Community: Community
-Community Content: Community Content
 Community Section/System Configuration/Operation Log: Community Section/System Configuration/Operation Log
-Company: Company
-Company Name: Company Name
 Company name or tax number is empty: Company name or tax number is empty
-Completed: Completed
 Compress: Compress
 Compressed (quality=60): Compressed (quality=60)
 Configuration Info: Configuration Info
 Configuration saved successfully. Some changes require restarting the service to take effect.: Configuration saved successfully. Some changes require restarting the service to take effect.
-Confirm: Confirm
-Confirm Create: Confirm Create
 Confirm Issue: Confirm Issue
-Confirm Payment: Confirm Payment
 Confirm Selection: Confirm Selection
 Confirm to delete the check item: Confirm to delete the check item
 Confirmation Failed: Confirmation Failed
-Console: Console
-Contact: Contact
 Contact Email: Contact Email
 Contact Information: Contact Information
-Content: Content
-Content Factory: Content Factory
 Content Management: Content Management
 Content Source: Content Source
 Content cannot be empty: Content cannot be empty
 Content does not exist: Content does not exist
 Content site does not require Nginx configuration: Content site does not require Nginx configuration
 Copied: Copied
-Core Framework: Core Framework
 Core Mission (64 characters): Core Mission (64 characters)
 Coupon code already exists: Coupon code already exists
 Coupon has been created: Coupon has been created
@@ -350,13 +305,11 @@ Coupon has expired: Coupon has expired
 Coupon has not taken effect: Coupon has not taken effect
 Coupon is invalid: Coupon is invalid
 Cover: Cover
-Create Agent: Create Agent
 Create CMS Article: Create CMS Article
 Create Coupon: Create Coupon
 Create Order...: Create Order...
 Create Website: Create Website
 Create Workflow: Create Workflow
-Creating payment...: Creating payment...
 Creation failed: Creation failed
 Creation successful: Creation successful
 Crop: Crop
@@ -373,12 +326,10 @@ Daily Content Collection and Processing: Daily Content Collection and Processing
 Daily call count for the key has been reset: Daily call count for the key has been reset
 DashScope (Tongyi Qianwen): DashScope (Tongyi Qianwen)
 DashScope Text Key is not configured: DashScope Text Key is not configured
-Dashboard: Dashboard
 Data Package: Data Package
 Data analysis: Data analysis
 Data cannot be empty: Data cannot be empty
 Data error: Data error
-Day: Day
 Days Remaining: Days Remaining
 Deactivate: Deactivate
 Decrease: Decrease
@@ -386,7 +337,6 @@ Deduction plan ID (WECHAT_PLAN_ID) not configured: Deduction plan ID (WECHAT_PLA
 Deep AI Interpretation: Deep AI Interpretation
 Default: Default
 Default Sound: Default Sound
-Delete: Delete
 Deleted: Deleted
 Deletion Failed: Deletion Failed
 Deletion Successful: Deletion Successful
@@ -394,10 +344,7 @@ Delivered: Delivered
 Denomination: Denomination
 Deployment code does not exist: Deployment code does not exist
 Deployment code has been revoked: Deployment code has been revoked
-Description: Description
-Deselect All: Deselect All
 Destroyed: Destroyed
-Details: Details
 Detecting...: Detecting...
 Development mode - Alipay not configured: Development mode - Alipay not configured
 Development mode - WeChat Pay not configured: Development mode - WeChat Pay not configured
@@ -405,9 +352,6 @@ Device: Device
 Deyang: Deyang
 Digital accessories: Digital accessories
 Digital human video: Digital human video
-Disable: Disable
-Disabled: Disabled
-Discount: Discount
 Discount Coupon: Discount Coupon
 Distribute: Distribute
 Distribute to All: Distribute to All
@@ -417,20 +361,16 @@ Domain and Client Key cannot be empty: Domain and Client Key cannot be empty
 Dongguan: Dongguan
 Dongguan City: Dongguan City
 Downgrade: Downgrade
-Download: Download
 Download failed: Download failed
 Download management: Download management
 Download — VeroRun: Download — VeroRun
-Draft: Draft
 Drag image here or click to upload: Drag image here or click to upload
 Draw: Draw
 Drop Shipping Orders: Drop Shipping Orders
 Dynamic: Dynamic
 Each trading day: Each trading day
-Edit: Edit
 Edit Template: Edit Template
 Edit — : Edit — 
-Email: Email
 Email (optional): Email (optional)
 Email Verification: Email Verification
 Email management: Email management
@@ -449,7 +389,6 @@ Enterprise Certification: Enterprise Certification
 Enterprise ID and Secret cannot be empty: Enterprise ID and Secret cannot be empty
 Error: Error
 Every Monday: Every Monday
-Executed: Executed
 Executing: Executing
 Expected output field name: Expected output field name
 Expire This Month: Expire This Month
@@ -485,7 +424,6 @@ File size: File size
 File upload not supported: File upload not supported
 Filled in : Filled in 
 Filter: Filter
-Finance: Finance
 Financial Analysis: Financial Analysis
 Financial Management: Financial Management
 First of each month: First of each month
@@ -494,7 +432,6 @@ Five: Five
 Fixed Amount: Fixed Amount
 Flip: Flip
 Forbidden: Forbidden
-Form: Form
 Format Conversion: Format Conversion
 Format validated and automatically certified: Format validated and automatically certified
 Forward: Forward
@@ -522,11 +459,9 @@ Generate Image: Generate Image
 Generate Website: Generate Website
 Generate Weekly Report: Generate Weekly Report
 Generating payment order...: Generating payment order...
-Generating...: Generating...
 Generation Failed: Generation Failed
 Germany: Germany
 Get New Articles: Get New Articles
-Get Started: Get Started
 Gift for Referral: Gift for Referral
 Global Concurrency Limit: Global Concurrency Limit
 Global Concurrency Limit Must Be Greater Than 0: Global Concurrency Limit Must Be Greater Than 0
@@ -557,7 +492,6 @@ Hebei Province: Hebei Province
 Hefei: Hefei
 Hefei City: Hefei City
 Heilongjiang Province: Heilongjiang Province
-Help: Help
 Help Center: Help Center
 Help Documents: Help Documents
 Help me build a website: Help me build a website
@@ -568,7 +502,6 @@ Hide: Hide
 High: High
 Hohhot: Hohhot
 Hohhot City: Hohhot City
-Home: Home
 Hong Kong: Hong Kong
 Hong Kong Special Administrative Region: Hong Kong Special Administrative Region
 Hourly: Hourly
@@ -594,7 +527,6 @@ Improvement suggestion (in one sentence): Improvement suggestion (in one sentenc
 Improvement suggestions: Improvement suggestions
 In Customs Clearance: In Customs Clearance
 Inactive product: Inactive product
-Inbox: Inbox
 Includes AI configuration + training + continuous optimization: Includes AI configuration + training + continuous optimization
 Includes implementation fee + annual technical service: Includes implementation fee + annual technical service
 Income: Income
@@ -605,7 +537,6 @@ Independent Database + Primary Database Read-Only: Independent Database + Primar
 Index out of range: Index out of range
 India: India
 Indonesia: Indonesia
-Industry Insights: Industry Insights
 Industry News: Industry News
 Initialization Failed: Initialization Failed
 Initialize Configuration Items: Initialize Configuration Items
@@ -688,7 +619,6 @@ Launch Agent: Launch Agent
 Law: Law
 Learn more: Learn more
 Leave empty to clear all product cache: Leave empty to clear all product cache
-Legal Representative: Legal Representative
 Level: Level
 Lhasa: Lhasa
 Lhasa City: Lhasa City
@@ -702,7 +632,6 @@ Linyi City: Linyi City
 Liuzhou: Liuzhou
 Loading Configuration...: Loading Configuration...
 Loading Failed: Loading Failed
-Loading...: Loading...
 Local order: Local order
 Location: Location
 Log in to the VeroRun console and create your key on the API Key page. All Skills are accessed through a unified API Key.: Log in to the VeroRun console and create your key on the API Key page. All Skills are accessed through a unified API Key.
@@ -720,11 +649,8 @@ Luzhou: Luzhou
 Maanshan: Maanshan
 Macau: Macau
 Macau Special Administrative Region: Macau Special Administrative Region
-Main Agent: Main Agent
-Main Agent : Main Agent 
 Main site: Main site
 Malaysia: Malaysia
-Mall: Mall
 Mall general: Mall general
 Mall order: Mall order
 Manage: Manage
@@ -738,11 +664,9 @@ Marked as completed: Marked as completed
 Master Agent does not exist: Master Agent does not exist
 Matrix Dialogue Engine (Master Agent): Matrix Dialogue Engine (Master Agent)
 Memory Cache Size: Memory Cache Size
-Menu: Menu
 Merged and updated existing entry (version history saved): Merged and updated existing entry (version history saved)
 Message cannot be empty: Message cannot be empty
 Message is required: Message is required
-Method: Method
 Mianyang: Mianyang
 Mianyang City: Mianyang City
 Midday: Midday
@@ -769,16 +693,11 @@ Missing theme.json file: Missing theme.json file
 Missing user message: Missing user message
 Missing user_id: Missing user_id
 Missing workflow_id: Missing workflow_id
-Mission: Mission
 Mobile Electronics: Mobile Electronics
 Mode: Mode
-Model: Model
-Model Name: Model Name
-Model Provider: Model Provider
 Modify Information: Modify Information
 Modify email: Modify email
 Modify phone number: Modify phone number
-Month: Month
 Monthly (Yuan): Monthly (Yuan)
 Monthly churn rate: Monthly churn rate
 Monthly churn rate trend (last 12 months): Monthly churn rate trend (last 12 months)
@@ -786,7 +705,6 @@ Monthly payment: Monthly payment
 Monthly revenue: Monthly revenue
 Most actively discussed stocks in the market heat map: Most actively discussed stocks in the market heat map
 My Voice: My Voice
-Name: Name
 Name (12 characters): Name (12 characters)
 Name and Audio URL cannot be empty: Name and Audio URL cannot be empty
 Name and Category cannot be empty: Name and Category cannot be empty
@@ -804,7 +722,6 @@ Nantong: Nantong
 Nantong City: Nantong City
 Nanyang: Nanyang
 Netherlands: Netherlands
-Network error: Network error
 New Subscription: New Subscription
 New Taipei: New Taipei
 New User Coupon: New User Coupon
@@ -812,11 +729,105 @@ New User Exclusive: New User Exclusive
 New content has been synced with the knowledge base: New content has been synced with the knowledge base
 New content pending review: New content pending review
 New this month: New this month
-Nickname: Nickname
 Ningbo: Ningbo
 Ningbo City: Ningbo City
 Ningxia Hui Autonomous Region: Ningxia Hui Autonomous Region
-No: No
+'(¥{price}/month)': '(¥{price}/month)'
+'5 Steps to Give Your Agent': '5 Steps to Give Your Agent'
+'A-share real-time quotes & multi-factor stock selection': 'A-share real-time quotes & multi-factor stock selection'
+'AI Customer Service': 'AI Customer Service'
+'AI copywriting (API must be configured by yourself)': 'AI copywriting (API must be configured by yourself)'
+'Advanced Multi-turn Dialogue': 'Advanced Multi-turn Dialogue'
+'Agent First Market Analysis': 'Agent First Market Analysis'
+'All Skills code is open-source, auditable and customizable.': 'All Skills code is open-source, auditable and customizable.'
+'Auto-redirect to console': 'Auto-redirect to console'
+'Automatic optimization of titles/descriptions/structured data': 'Automatic optimization of titles/descriptions/structured data'
+'Automatic replies to common questions': 'Automatic replies to common questions'
+'Automatically Enter the Cognitive Graph': 'Automatically Enter the Cognitive Graph'
+'Basic Plan': 'Basic Plan'
+'Browse All': 'Browse All'
+'Comment posted successfully': 'Comment posted successfully'
+'Confirm login on your phone': 'Confirm login on your phone'
+'Consensus or conflict with other Agents views': 'Consensus or conflict with other Agents views'
+'Continuous AI monitoring + keyword suggestions + ranking tracking': 'Continuous AI monitoring + keyword suggestions + ranking tracking'
+'Continuously updating': 'Continuously updating'
+'Custom Calculation': 'Custom Calculation'
+'Customize your AI website solution based on your needs and view real-time quotes.': 'Customize your AI website solution based on your needs and view real-time quotes.'
+'Document-based intelligent Q&A + intent recognition': 'Document-based intelligent Q&A + intent recognition'
+'Documentation Center': 'Documentation Center'
+'Documentation Center — all-in-one technical documentation for getting started, financial analysis and help center.': 'Documentation Center — all-in-one technical documentation for getting started, financial analysis and help center.'
+'Documentation is being prepared, please stay tuned.': 'Documentation is being prepared, please stay tuned.'
+'Douyin Login': 'Douyin Login'
+'Douyin QR Login': 'Douyin QR Login'
+'Each of your Agent predictions is automatically submitted to the cognitive graph system. You can view it through the community:': 'Each of your Agent predictions is automatically submitted to the cognitive graph system. You can view it through the community:'
+'Explore website building guides, AI application tips, SEO strategies and industry insights': 'Explore website building guides, AI application tips, SEO strategies and industry insights'
+'Financial Analysis Capabilities': 'Financial Analysis Capabilities'
+'First Year Total': 'First Year Total'
+'From zero to your first market analysis in just 5 minutes.': 'From zero to your first market analysis in just 5 minutes.'
+'Fundamental analysis & market alerts': 'Fundamental analysis & market alerts'
+'Get started free, no credit card required.': 'Get started free, no credit card required.'
+'Getting Started': 'Getting Started'
+'Hermes is an open-source CLI Agent runtime supporting multiple models and backends. One-line install:': 'Hermes is an open-source CLI Agent runtime supporting multiple models and backends. One-line install:'
+'Implementation Fee (one-time)': 'Implementation Fee (one-time)'
+'In 5 steps, give your Agent financial analysis capabilities. Install Hermes → get an API Key → install Skills → start analyzing.': 'In 5 steps, give your Agent financial analysis capabilities. Install Hermes → get an API Key → install Skills → start analyzing.'
+'Includes AI setup + training + continuous optimization': 'Includes AI setup + training + continuous optimization'
+'Includes implementation fee + full-year technical service': 'Includes implementation fee + full-year technical service'
+'Industry Updates': 'Industry Updates'
+'Install Skills': 'Install Skills'
+'Install the Hermes client, get an API Key and create your first Agent — up and running in 5 minutes.': 'Install the Hermes client, get an API Key and create your first Agent — up and running in 5 minutes.'
+'Learn about this platform from scratch and quickly get started with Agent development and financial analysis.': 'Learn about this platform from scratch and quickly get started with Agent development and financial analysis.'
+'Log in to the console and create your key on the API Key page. All Skills connect through a unified API Key.': 'Log in to the console and create your key on the API Key page. All Skills connect through a unified API Key.'
+'Login Successful': 'Login Successful'
+'Login failed:': 'Login failed:'
+'Login to Get API Key': 'Login to Get API Key'
+'Match:': 'Match:'
+'Most Popular': 'Most Popular'
+'Most actively discussed stocks in the market heatmap': 'Most actively discussed stocks in the market heatmap'
+'Multi-turn dialogue + Feishu notifications + CRM integration': 'Multi-turn dialogue + Feishu notifications + CRM integration'
+'Multiple Platforms': 'Multiple Platforms'
+'No': 'No'
+'No AI application tips yet': 'No AI application tips yet'
+'No articles yet': 'No articles yet'
+'No comments yet': 'No comments yet'
+'No industry insights yet': 'No industry insights yet'
+'No website guides yet': 'No website guides yet'
+'Not Needed': 'Not Needed'
+'Number of Pages': 'Number of Pages'
+'Once installed, your Agent can immediately execute market analysis tasks:': 'Once installed, your Agent can immediately execute market analysis tasks:'
+'Please enter comment content': 'Please enter comment content'
+'Please enter your question or suggestion': 'Please enter your question or suggestion'
+'Price Calculator': 'Price Calculator'
+'Privacy policy, terms of service, AI disclosure and other legal compliance documents.': 'Privacy policy, terms of service, AI disclosure and other legal compliance documents.'
+'Pro': 'Pro'
+'Product Updates': 'Product Updates'
+'Product updates, version releases, new feature announcements and roadmap.': 'Product updates, version releases, new feature announcements and roadmap.'
+'Public Security Filing': 'Public Security Filing'
+'Ready to let your Agent start working?': 'Ready to let your Agent start working?'
+'Recommended': 'Recommended'
+'Search articles, tutorials or questions...': 'Search articles, tutorials or questions...'
+'Select features on demand, the system will automatically recommend the best plan for you': 'Select features on demand, the system will automatically recommend the best plan for you'
+'Selected Add-ons': 'Selected Add-ons'
+'Stock Analysis Skill includes:': 'Stock Analysis Skill includes:'
+'Supports Python 3.10+, macOS / Linux / Windows WSL': 'Supports Python 3.10+, macOS / Linux / Windows WSL'
+'Technical Service (annual)': 'Technical Service (annual)'
+'Technical indicators: MACD/RSI/BOLL/Moving Averages': 'Technical indicators: MACD/RSI/BOLL/Moving Averages'
+'The Agent will automatically call Skills to fetch quotes, compute indicators and generate analysis reports.': 'The Agent will automatically call Skills to fetch quotes, compute indicators and generate analysis reports.'
+'The platform offers multiple financial analysis Skills, one-click install and ready to use.': 'The platform offers multiple financial analysis Skills, one-click install and ready to use.'
+'Use the stock skill to analyze the recent trends of A-share stocks 000001 and 600519 and give a bullish/bearish recommendation': 'Use the stock skill to analyze the recent trends of A-share stocks 000001 and 600519 and give a bullish/bearish recommendation'
+'VeroRun (TradeMind) A-share intelligent analysis guide, technical indicator details and quantitative strategy practice.': 'VeroRun (TradeMind) A-share intelligent analysis guide, technical indicator details and quantitative strategy practice.'
+'VeroRun Knowledge Center': 'VeroRun Knowledge Center'
+'VeroRun · AI Website Building Platform': 'VeroRun · AI Website Building Platform'
+'View All': 'View All'
+'WeChat + Douyin Mini Programs': 'WeChat + Douyin Mini Programs'
+'Website Guides': 'Website Guides'
+'Website building guides, AI applications, SEO optimization, and industry insights': 'Website building guides, AI applications, SEO optimization, and industry insights'
+'Write a comment... (max 500 chars)': 'Write a comment... (max 500 chars)'
+'Your Agent influence score': 'Your Agent influence score'
+'Your Agent position on the leaderboard': 'Your Agent position on the leaderboard'
+'{count} Pages': '{count} Pages'
+'{count} Reads': '{count} Reads'
+'{desc} — {version}. Supports {platforms}.': '{desc} — {version}. Supports {platforms}.'
+'🚀 Get Started Now': '🚀 Get Started Now'
 No AI application tips: No AI application tips
 No Fix Needed: No Fix Needed
 No Images: No Images
@@ -853,7 +864,6 @@ No updates: No updates
 No valid token provided: No valid token provided
 No website building guide: No website building guide
 Node Execution Failed: Node Execution Failed
-None: None
 Normal: Normal
 Not a stub order: Not a stub order
 Not configured: Not configured
@@ -886,7 +896,6 @@ Only supports PNG/JPG/SVG/ICO formats: Only supports PNG/JPG/SVG/ICO formats
 Operation Failed: Operation Failed
 Operation Log: Operation Log
 Operation Successful: Operation Successful
-Order: Order
 Order : Order 
 Order Number: Order Number
 Order canceled: Order canceled
@@ -901,17 +910,14 @@ Order refunded: Order refunded
 Original description cannot be empty: Original description cannot be empty
 Original text cannot be empty: Original text cannot be empty
 Original title cannot be empty: Original title cannot be empty
-Other: Other
 Output contains error/failure information: Output contains error/failure information
 Output is too short (<50 characters): Output is too short (<50 characters)
 Overall Rating 1-5: Overall Rating 1-5
 Overdue: Overdue
-Overview: Overview
 POST /admin/agent-matrix/chat — Send Instructions to Master Agent: POST /admin/agent-matrix/chat — Send Instructions to Master Agent
 PV (Page Views): PV (Page Views)
 Page: Page
 Page number: Page number
-Paid: Paid
 Paid User: Paid User
 Parameters: Parameters
 Password Must Contain Lowercase Letter: Password Must Contain Lowercase Letter
@@ -921,7 +927,12 @@ Password must be at least 8 characters: Password must be at least 8 characters
 Path parameter must: Path parameter must
 Pause: Pause
 Paused: Paused
-Pay Now: Pay Now
+'Open Douyin "Scan"': 'Open Douyin "Scan"'
+'Password must contain lowercase letters': 'Password must contain lowercase letters'
+'Password must contain numbers': 'Password must contain numbers'
+'Password must contain special characters (!@#$%^&* etc.)': 'Password must contain special characters (!@#$%^&* etc.)'
+'Password must contain uppercase letters': 'Password must contain uppercase letters'
+'Password reset successful, redirecting...': 'Password reset successful, redirecting...'
 'Payment channel {channel} is not configured. Set credentials in system_config first.': 'Payment channel {channel} is not configured. Set credentials in system_config first.'
 Payment Callback Domain: Payment Callback Domain
 Payment Created: Payment Created
@@ -944,10 +955,7 @@ Pending review: Pending review
 Pending shipment: Pending shipment
 Pending tickets: Pending tickets
 Percentage: Percentage
-Permanent: Permanent
 Philippines: Philippines
-Phone: Phone
-Phone Number: Phone Number
 Phone number and verification code cannot be empty: Phone number and verification code cannot be empty
 Phone number cannot be empty: Phone number cannot be empty
 Phone number has been updated: Phone number has been updated
@@ -958,7 +966,6 @@ Picture order updated: Picture order updated
 Picture size cannot exceed 1MB: Picture size cannot exceed 1MB
 Picture size cannot exceed 512KB: Picture size cannot exceed 512KB
 Picture uploaded successfully: Picture uploaded successfully
-Plan: Plan
 Plan Generated: Plan Generated
 Plugin: Plugin
 Plugin submission is not open yet: Plugin submission is not open yet
@@ -971,13 +978,10 @@ Preview: Preview
 'Preview mode — admin only': 'Preview mode — admin only'
 Price: Price
 Price Calculator - VeroRun AI · AI Website Builder Platform: Price Calculator - VeroRun AI · AI Website Builder Platform
-Privacy Policy: Privacy Policy
-Processed: Processed
 Processed Content Does Not Exist: Processed Content Does Not Exist
 Processed_id and action are required: Processed_id and action are required
 Processed_id is required: Processed_id is required
 Processing payment...: Processing payment...
-Product: Product
 Product ID: Product ID
 Product ID cannot be empty: Product ID cannot be empty
 Product cache: Product cache
@@ -1012,7 +1016,6 @@ Proportion: Proportion
 Publish: Publish
 Publish History (Social Media): Publish History (Social Media)
 Publish to social media: Publish to social media
-Published: Published
 Published Successfully: Published Successfully
 Publishing Platform: Publishing Platform
 Purchase Order ID: Purchase Order ID
@@ -1040,8 +1043,6 @@ Query Failed: Query Failed
 Query Timeout: Query Timeout
 Question 1: Question 1
 Queue item does not exist: Queue item does not exist
-Quick Start: Quick Start
-RAG Knowledge Base: RAG Knowledge Base
 Rate schedule: Rate schedule
 Rating must be between 1-5: Rating must be between 1-5
 Rating range 1-5: Rating range 1-5
@@ -1053,18 +1054,14 @@ Recipient: Recipient
 Recommend: Recommend
 Record: Record
 Record does not exist: Record does not exist
-Redirecting to Alipay...: Redirecting to Alipay...
 Redis Configuration: Redis Configuration
 Refresh: Refresh
 Refresh Statistics: Refresh Statistics
-Refunded: Refunded
-Refunding: Refunding
 Region does not exist: Region does not exist
 Region name and identifier cannot be empty: Region name and identifier cannot be empty
 Register and Get API Key: Register and Get API Key
 Register now and enjoy annual discounts 👉 Try it out: Register now and enjoy annual discounts 👉 Try it out
 Registered Address: Registered Address
-Registered Capital: Registered Capital
 Registration Time: Registration Time
 Reject: Reject
 Rejected: Rejected
@@ -1074,7 +1071,6 @@ Renewal: Renewal
 Renewal Exclusive: Renewal Exclusive
 Repair completed: Repair completed
 Repair failed: Repair failed
-Reply: Reply
 Reply content cannot be empty: Reply content cannot be empty
 Reply successful: Reply successful
 Requires admin permissions: Requires admin permissions
@@ -1082,7 +1078,6 @@ Requires management permissions: Requires management permissions
 Rescan: Rescan
 Reset Failed: Reset Failed
 Resize: Resize
-Resource: Resource
 Resource does not exist: Resource does not exist
 Response code: Response code
 Restore: Restore
@@ -1103,9 +1098,7 @@ Risk control status: Risk control status
 Rizhao: Rizhao
 Rotate: Rotate
 Rule name cannot be empty: Rule name cannot be empty
-Running: Running
 Russia: Russia
-SEO Optimization: SEO Optimization
 SKU Deleted: SKU Deleted
 SKU Updated: SKU Updated
 SMS Management: SMS Management
@@ -1124,7 +1117,6 @@ Sanya: Sanya
 Sanya City: Sanya City
 Saturday: Saturday
 Saudi Arabia: Saudi Arabia
-Save: Save
 Save configuration: Save configuration
 Save failed: Save failed
 Save successful: Save successful
@@ -1140,20 +1132,15 @@ Search Keywords: Search Keywords
 Search and Collect: Search and Collect
 Search keywords cannot be empty: Search keywords cannot be empty
 Select : Select 
-Select All: Select All
 Select reason: Select reason
 Select reason...: Select reason...
 Selected Value-added: Selected Value-added
 Semi-Annual (Yuan): Semi-Annual (Yuan)
 Semi-annual payment: Semi-annual payment
-Send: Send
-Send Failed: Send Failed
 Send Successfully: Send Successfully
 Sender: Sender
 Sender address: Sender address
-Sent: Sent
 Sequence index count mismatch: Sequence index count mismatch
-Service: Service
 Service quality: Service quality
 Session does not exist: Session does not exist
 Session has been cleared: Session has been cleared
@@ -1197,7 +1184,6 @@ Sort: Sort
 Sort has been saved: Sort has been saved
 Sort list cannot be empty: Sort list cannot be empty
 Sort successful: Sort successful
-Source: Source
 Source does not exist: Source does not exist
 Source is disabled: Source is disabled
 Source_id is required: Source_id is required
@@ -1219,23 +1205,18 @@ Standard Version: Standard Version
 Star Technology: Star Technology
 Start Building Your Site Free: Start Building Your Site Free
 Start Free: Start Free
-Start Now: Start Now
 Start collecting: Start collecting
 Start from scratch to understand the VeroRun platform and quickly get started with Agent development and financial analysis.: Start from scratch to understand the VeroRun platform and quickly get started with Agent development and financial analysis.
 Start from zero and quickly get started with the platform.: Start from zero and quickly get started with the platform.
 Static page generation module is not ready (platform/staticgen not available): Static page generation module is not ready (platform/staticgen not available)
 Static site has been updated: Static site has been updated
 Statistics: Statistics
-Status: Status
-Stopped: Stopped
-Sub Agent : Sub Agent 
 Sub Agent - : Sub Agent - 
 Sub-task Summary Title: Sub-task Summary Title
 Subdomain Does Not Exist: Subdomain Does Not Exist
 Subdomain and Display Name Cannot Be Empty: Subdomain and Display Name Cannot Be Empty
 Submit: Submit
 Submit for Review: Submit for Review
-Submitting...: Submitting...
 Subscription reactivated: Subscription reactivated
 Success: Success
 Successfully saved: Successfully saved
@@ -1249,12 +1230,10 @@ Suzhou: Suzhou
 Suzhou City: Suzhou City
 Sweden: Sweden
 Switzerland: Switzerland
-System: System
 System Agent has been updated: System Agent has been updated
 System Agent not configured: System Agent not configured
 System Base: System Base
 System Configuration: System Configuration
-System Settings: System Settings
 Tag 1: Tag 1
 Tag 2: Tag 2
 Tag 3: Tag 3
@@ -1266,7 +1245,6 @@ Taiwan Province: Taiwan Province
 Taizhou: Taizhou
 Tangshan: Tangshan
 Tangshan City: Tangshan City
-Target: Target
 Target Agent Name (must be in the list above): Target Agent Name (must be in the list above)
 Target Agent does not exist: Target Agent does not exist
 Target Agent is disabled: Target Agent is disabled
@@ -1288,14 +1266,10 @@ Technology: Technology
 Telegram Mini Program: Telegram Mini Program
 Template: Template
 Template CODE: Template CODE
-Terms of Service: Terms of Service
-Test: Test
-Test Failed: Test Failed
 Test Products: Test Products
 Test Task: Test Task
 Test Workflow: Test Workflow
 Test using Alipay sandbox environment: Test using Alipay sandbox environment
-Text: Text
 Text generation (Qwen-turbo): Text generation (Qwen-turbo)
 Text to Image: Text to Image
 Text to Image (Tongyi Wan2.7): Text to Image (Tongyi Wan2.7)
@@ -1308,6 +1282,14 @@ The system is running normally. This is a test message to confirm the system is 
 Theme does not exist: Theme does not exist
 Theme has been uninstalled: Theme has been uninstalled
 Third-party Binding: Third-party Binding
+'Re-scan': 'Re-scan'
+'Redirecting...': 'Redirecting...'
+'Reset failed': 'Reset failed'
+'Scan successful, logging in...': 'Scan successful, logging in...'
+'Scan the QR code on screen': 'Scan the QR code on screen'
+'Scan the QR code with Douyin to securely log in': 'Scan the QR code with Douyin to securely log in'
+'Scan with Douyin': 'Scan with Douyin'
+'Send failed': 'Send failed'
 'This category has {count} articles, please migrate or delete them first': 'This category has {count} articles, please migrate or delete them first'
 This coupon is not applicable to the current package: This coupon is not applicable to the current package
 This coupon is not applicable to the current scenario: This coupon is not applicable to the current scenario
@@ -1321,9 +1303,7 @@ This procurement order has not been placed on 1688 yet: This procurement order h
 This year: This year
 Three: Three
 Tibet Autonomous Region: Tibet Autonomous Region
-Ticket: Ticket
 Ticket (: Ticket (
-Ticket Management: Ticket Management
 Ticket creation failed: Ticket creation failed
 TikTok: TikTok
 TikTok API Error: TikTok API Error
@@ -1332,11 +1312,9 @@ TikTok Login Not Configured: TikTok Login Not Configured
 TikTok Mini Program: TikTok Mini Program
 TikTok User xxx: TikTok User xxx
 TikTok User_: TikTok User_
-Time: Time
 Time (ms): Time (ms)
 Timeout (seconds): Timeout (seconds)
 Times: Times
-Title: Title
 Title 1: Title 1
 Title 2: Title 2
 Title 3: Title 3
@@ -1354,10 +1332,7 @@ Top 5 Operating Systems: Top 5 Operating Systems
 Top Right: Top Right
 Top-left: Top-left
 Topic: Topic
-Total: Total
-Total Calls: Total Calls
 Total Limit (0 = Unlimited): Total Limit (0 = Unlimited)
-Total Users: Total Users
 Total attachment size exceeds 50MB limit: Total attachment size exceeds 50MB limit
 Total for first year: Total for first year
 Total number of products: Total number of products
@@ -1371,7 +1346,6 @@ Translation does not exist: Translation does not exist
 Trending Marketing Style: Trending Marketing Style
 Trial in progress: Trial in progress
 Two: Two
-Type: Type
 URL is empty: URL is empty
 UV (Unique Visitors): UV (Unique Visitors)
 Unified Social Credit Code (18 digits): Unified Social Credit Code (18 digits)
@@ -1380,11 +1354,9 @@ United Kingdom: United Kingdom
 United States: United States
 Unknown: Unknown
 Unknown ads operation: Unknown ads operation
-Unknown error: Unknown error
 Unknown user: Unknown user
 Unprocessed: Unprocessed
 Untitled topic: Untitled topic
-Unverified: Unverified
 Update successful: Update successful
 Updated: Updated
 Updated data cannot be empty: Updated data cannot be empty
@@ -1396,8 +1368,6 @@ Upgraded: Upgraded
 Upgrading...: Upgrading...
 Restarting service: Restarting service
 Upgrade discount: Upgrade discount
-Upload AccessKey.csv: Upload AccessKey.csv
-Upload failed: Upload failed
 Urumqi: Urumqi
 Urumqi City: Urumqi City
 Usage Count: Usage Count
@@ -1406,7 +1376,6 @@ Usage Ranking: Usage Ranking
 Usage Record: Usage Record
 Use AI to optimize product titles and descriptions to improve marketing effectiveness. AI service must be available.: Use AI to optimize product titles and descriptions to improve marketing effectiveness. AI service must be available.
 Used/Total: Used/Total
-User: User
 User Agent did not specify agent_id: User Agent did not specify agent_id
 User Authorization Token: User Authorization Token
 User Backend: User Backend
@@ -1425,6 +1394,7 @@ User initiated cancellation: User initiated cancellation
 VIP plan: VIP plan
 Valid: Valid
 Valid Period (days): Valid Period (days)
+'TradeMind Smart Stock Platform': 'TradeMind Smart Stock Platform'
 'Valid for 10 minutes. If this was not you, please ignore.': 'Valid for 10 minutes. If this was not you, please ignore.'
 Verification code: Verification code
 Verification code sent: Verification code sent
@@ -1433,12 +1403,10 @@ VeroRun Weiluo Intelligence: VeroRun Weiluo Intelligence
 VeroRun Email Verification Code: VeroRun Email Verification Code
 Version: Version
 Vietnam: Vietnam
-View: View
 View Cart: View Cart
 View Domain Configuration Guide →: View Domain Configuration Guide →
 View Full Comparison →: View Full Comparison →
 View Full Documentation: View Full Documentation
-View Full Guide: View Full Guide
 View Help Documentation: View Help Documentation
 View In-App Notifications and System Messages: View In-App Notifications and System Messages
 View Stock Details: View Stock Details
@@ -1448,13 +1416,11 @@ Wait 2 seconds: Wait 2 seconds
 Waiting for Activation: Waiting for Activation
 Waiting for authorization verification...: Waiting for authorization verification...
 Waterproof rating: Waterproof rating
-WeChat: WeChat
 WeChat + Douyin Mini Program: WeChat + Douyin Mini Program
 WeChat API Error: WeChat API Error
 WeChat Draft Created: WeChat Draft Created
 WeChat Mini Program: WeChat Mini Program
 WeChat Official Account: WeChat Official Account
-WeChat Pay: WeChat Pay
 WeChat Pay API V3 Key: WeChat Pay API V3 Key
 WeChat Pay AppID: WeChat Pay AppID
 WeChat Pay Certificate Serial Number: WeChat Pay Certificate Serial Number
@@ -1523,7 +1489,6 @@ Yangzhou: Yangzhou
 Yangzhou City: Yangzhou City
 Yantai: Yantai
 Yantai City: Yantai City
-Yes: Yes
 Yibin: Yibin
 Yibin City: Yibin City
 Yichang: Yichang
@@ -1537,8 +1502,8 @@ You can find the product ID in the Alibaba product detail page URL: You can find
 You have already reviewed this product: You have already reviewed this product
 You have already used this coupon: You have already used this coupon
 Your Email: Your Email
-Your Name: Your Name
 Your Phone: Your Phone
+'Waiting for scan...': 'Waiting for scan...'
 'Your verification code is: {code}, valid for 10 minutes. If this was not you, please ignore.': 'Your verification code is: {code}, valid for 10 minutes. If this was not you, please ignore.'
 Yueyang: Yueyang
 Yueyang City: Yueyang City
@@ -1626,7 +1591,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 ❌ Sending Failed: ❌ Sending Failed
 ❌ Si Ji Liu Dong API Key Not Configured: ❌ Si Ji Liu Dong API Key Not Configured
 ⬆ Upgrade Plan: ⬆ Upgrade Plan
-⬇ Download: ⬇ Download
 【Content】: 【Content】
 【Suitable Platform】: 【Suitable Platform】
 【Title】: 【Title】
@@ -1640,7 +1604,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 💬 AI Customer Service Chat: 💬 AI Customer Service Chat
 💬 Chat Window (TradeMind Support): 💬 Chat Window (TradeMind Support)
 💰 Payment Retry: 💰 Payment Retry
-💳 Alipay: 💳 Alipay
 💳 Change Payment: 💳 Change Payment
 💳 Pay Order: 💳 Pay Order
 📁 Local Upload: 📁 Local Upload
@@ -2015,7 +1978,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Failed': 'Failed'
 'Failed to load': 'Failed to load'
 'Failed to send, please retry': 'Failed to send, please retry'
-'Fair': 'Fair'
 'Feature Comparison': 'Feature Comparison'
 'Feature Inquiry': 'Feature Inquiry'
 'Feature Modules': 'Feature Modules'
@@ -2200,7 +2162,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'No tracking info available': 'No tracking info available'
 'None': 'None'
 'Not Bound': 'Not Bound'
-'Not Set': 'Not Set'
 'Notif Settings': 'Notif Settings'
 'Notification Preferences': 'Notification Preferences'
 'Notification Settings': 'Notification Settings'
@@ -2221,7 +2182,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Online Support': 'Online Support'
 'Only letters, numbers, and underscores': 'Only letters, numbers, and underscores'
 'Only letters, numbers, underscores allowed': 'Only letters, numbers, underscores allowed'
-'Operation failed': 'Operation failed'
 'Order History': 'Order History'
 'Order ID': 'Order ID'
 'Order Management': 'Order Management'
@@ -2266,7 +2226,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Personal Info & Membership': 'Personal Info & Membership'
 'Personalized Adjustments': 'Personalized Adjustments'
 'Phone': 'Phone'
-'Phone Number': 'Phone Number'
 'Phone Verification': 'Phone Verification'
 'Plan': 'Plan'
 'Plan Comparison,': 'Plan Comparison,'
@@ -2280,11 +2239,9 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Please complete SMS verification first': 'Please complete SMS verification first'
 'Please complete captcha first': 'Please complete captcha first'
 'Please complete phone verification first': 'Please complete phone verification first'
-'Please confirm username availability': 'Please confirm username availability'
 'Please contact admin': 'Please contact admin'
 'Please enter 11-digit phone number': 'Please enter 11-digit phone number'
 'Please enter 6-digit code': 'Please enter 6-digit code'
-'Please enter a valid email': 'Please enter a valid email'
 'Please enter description': 'Please enter description'
 'Please enter display name': 'Please enter display name'
 'Please enter email and code': 'Please enter email and code'
@@ -2465,7 +2422,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Starting at Pro': 'Starting at Pro'
 'Static Page, Cannot Update': 'Static Page, Cannot Update'
 'Status': 'Status'
-'Strong': 'Strong'
 'Sub Agent': 'Sub Agent'
 'Subject': 'Subject'
 'Submit Failed': 'Submit Failed'
@@ -2487,7 +2443,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'System Notifications — In-app': 'System Notifications — In-app'
 'System Requirements': 'System Requirements'
 'System Settings': 'System Settings'
-'Target': 'Target'
 'Tech': 'Tech'
 'Tech Team': 'Tech Team'
 'Templates': 'Templates'
@@ -2534,7 +2489,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Unified Social Credit Code': 'Unified Social Credit Code'
 'Unknown device': 'Unknown device'
 'Unknown error': 'Unknown error'
-'Unlimited': 'Unlimited'
 'Unread': 'Unread'
 'Unverified': 'Unverified'
 'Upload AccessKey.csv': 'Upload AccessKey.csv'
@@ -2596,7 +2550,6 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'WeChat/Alipay': 'WeChat/Alipay'
 'WeChat/Weibo/Toutiao Push': 'WeChat/Weibo/Toutiao Push'
 'WeChat/Weibo/Toutiao/Douyin': 'WeChat/Weibo/Toutiao/Douyin'
-'Weak': 'Weak'
 'Weak - Too Short': 'Weak - Too Short'
 'Web + Douyin + Toutiao': 'Web + Douyin + Toutiao'
 'Websites Built': 'Websites Built'
@@ -2648,10 +2601,8 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 '✕ Taken': '✕ Taken'
 '⬇ Direct Download': '⬇ Direct Download'
 '⬇ Download': '⬇ Download'
-? "。\n      {% if item.checksum_sha256 %}\n      下载后建议使用"
-: "。\n      {% if item.checksum_sha256 %}\n      下载后建议使用"
-? "校验文件完整性。\n      {% endif %}"
-: "校验文件完整性。\n      {% endif %}"
+'.': '.'
+'For checksum verification, run': 'For checksum verification, run'
 '🎁 ¥120 Credits (auto top-up, or buy manually)': '🎁 ¥120 Credits (auto top-up, or buy manually)'
 '🎁 ¥50 Credits (auto top-up, or buy manually)': '🎁 ¥50 Credits (auto top-up, or buy manually)'
 '🎁 ¥80 Credits (auto top-up, or buy manually)': '🎁 ¥80 Credits (auto top-up, or buy manually)'
@@ -2731,3 +2682,408 @@ stub confirm is disabled outside dev: stub confirm is disabled outside dev
 'Strong': 'Strong'
 'Perfect': 'Perfect'
 'Please confirm username availability': 'Please confirm username availability'
+# i18n-standard v1.0 Phase1 — dynamic placeholder keys
+'{category} — {brand} Docs': '{category} — {brand} Docs'
+'{title} — Preview — {brand}': '{title} — Preview — {brand}'
+'{years} Years': '{years} Years'
+'{title} — VeroRun': '{title} — VeroRun'
+'{name} v{version} — Download — VeroRun': '{name} v{version} — Download — VeroRun'
+'Invalid type': 'Invalid type'
+'Invalid category': 'Invalid category'
+'Title must be 1-200 characters': 'Title must be 1-200 characters'
+'Content must be 1-5000 characters': 'Content must be 1-5000 characters'
+'Thank you for your feedback, we will handle it as soon as possible!': 'Thank you for your feedback, we will handle it as soon as possible!'
+'Submission failed: {error}': 'Submission failed: {error}'
+'{category} — Technical Docs & Tutorials.': '{category} — Technical Docs & Tutorials.'
+'Start from scratch and get started on the platform quickly.': 'Start from scratch and get started on the platform quickly.'
+'A-share intelligent analysis and quantitative strategy guide.': 'A-share intelligent analysis and quantitative strategy guide.'
+'Product updates, version releases and feature announcements.': 'Product updates, version releases and feature announcements.'
+'FAQ, troubleshooting, account management and billing instructions.': 'FAQ, troubleshooting, account management and billing instructions.'
+'Legal compliance documents such as privacy policy, terms of service and AI service description.': 'Legal compliance documents such as privacy policy, terms of service and AI service description.'
+'Agent Trends · Stock Market Research · Hermes Ecosystem · Announcements': 'Agent Trends · Stock Market Research · Hermes Ecosystem · Announcements'
+'Agent Trends · Stock Market Research · Hermes Ecosystem': 'Agent Trends · Stock Market Research · Hermes Ecosystem'
+'Industry Insights': 'Industry Insights'
+'No Articles Yet': 'No Articles Yet'
+'Download the Hermes Agent framework, Skills, SDK and plugins — build financial capabilities for AI agents.': 'Download the Hermes Agent framework, Skills, SDK and plugins — build financial capabilities for AI agents.'
+'No downloads in this category.': 'No downloads in this category.'
+'No downloads yet. Stay tuned!': 'No downloads yet. Stay tuned!'
+'Console': 'Console'
+'Go Buy Cloud Services': 'Go Buy Cloud Services'
+'Pending Activation': 'Pending Activation'
+'Provisioning': 'Provisioning'
+'Running': 'Running'
+'Stopped': 'Stopped'
+'Terminated': 'Terminated'
+'Provision Failed': 'Provision Failed'
+'Service': 'Service'
+'Cores': 'Cores'
+'Resource': 'Resource'
+'Destroy': 'Destroy'
+'Load failed': 'Load failed'
+'Password:': 'Password:'
+'Confirm destroy this cloud service instance? This action cannot be undone!': 'Confirm destroy this cloud service instance? This action cannot be undone!'
+'Executed': 'Executed'
+'Operation failed': 'Operation failed'
+'Your Name': 'Your Name'
+'Phone Number': 'Phone Number'
+'Email Address': 'Email Address'
+'Please enter your request or question...': 'Please enter your request or question...'
+'Thank you for your message, we will contact you soon!': 'Thank you for your message, we will contact you soon!'
+'Start Now': 'Start Now'
+'Learn More': 'Learn More'
+'Product Preview': 'Product Preview'
+'View Full Guide': 'View Full Guide'
+'Latest Updates': 'Latest Updates'
+'No updates yet': 'No updates yet'
+'Read More': 'Read More'
+'Updates': 'Updates'
+'3-20 characters, alphanumeric, starting with a letter': '3-20 characters, alphanumeric, starting with a letter'
+'6-digit code': '6-digit code'
+'At least 10 characters, 3 of uppercase/lowercase/digits/special': 'At least 10 characters, 3 of uppercase/lowercase/digits/special'
+'At least 10 characters, including at least 3 of uppercase, lowercase, digits, and special characters': 'At least 10 characters, including at least 3 of uppercase, lowercase, digits, and special characters'
+'Briefly describe the issue': 'Briefly describe the issue'
+'Change Email': 'Change Email'
+'Change Phone': 'Change Phone'
+'Chat with AI customer service in real time': 'Chat with AI customer service in real time'
+'Confirm signing out this device?': 'Confirm signing out this device?'
+'Data Error': 'Data Error'
+'Describe your issue in detail...': 'Describe your issue in detail...'
+'Enter your real name and ID number, the information will be submitted to Alipay for identity verification': 'Enter your real name and ID number, the information will be submitted to Alipay for identity verification'
+'FAQ — common questions answered': 'FAQ — common questions answered'
+'Failed to load FAQs': 'Failed to load FAQs'
+'Get started in 5 minutes': 'Get started in 5 minutes'
+'Go Shopping': 'Go Shopping'
+'How to create and manage API keys': 'How to create and manage API keys'
+'In-site': 'In-site'
+'Last Active': 'Last Active'
+'Open Alipay to scan and verify': 'Open Alipay to scan and verify'
+'Password changed, other devices signed out': 'Password changed, other devices signed out'
+'Phone or email (optional)': 'Phone or email (optional)'
+'Plan details and payment methods': 'Plan details and payment methods'
+'Please enter your ID number': 'Please enter your ID number'
+'Please enter your real name': 'Please enter your real name'
+'Profile Update': 'Profile Update'
+'Scan the QR code below with the Alipay app to complete real-name verification': 'Scan the QR code below with the Alipay app to complete real-name verification'
+'Service Quality': 'Service Quality'
+'Sign out all other devices? The current device will not be affected.': 'Sign out all other devices? The current device will not be affected.'
+'Sign out this device': 'Sign out this device'
+'Signed out': 'Signed out'
+'Signed out all other devices': 'Signed out all other devices'
+'Street/road/alley + house number': 'Street/road/alley + house number'
+'The QR code is valid for 5 minutes, resubmit after expiry': 'The QR code is valid for 5 minutes, resubmit after expiry'
+'Third-party binding': 'Third-party binding'
+'Total:': 'Total:'
+'Unable to get phone number': 'Unable to get phone number'
+'User guides, FAQs and API documentation': 'User guides, FAQs and API documentation'
+'Valid until': 'Valid until'
+'Verification service temporarily unavailable': 'Verification service temporarily unavailable'
+'View in-site notifications and system messages': 'View in-site notifications and system messages'
+'account? After unbinding you will not be able to log in with this account.': 'account? After unbinding you will not be able to log in with this account.'
+'active tickets': 'active tickets'
+'coupons available': 'coupons available'
+'items': 'items'
+'orders': 'orders'
+'(For login, changeable once per month)': '(For login, changeable once per month)'
+'Bio': 'Bio'
+'Brief intro (500 chars max)': 'Brief intro (500 chars max)'
+'Career': 'Career'
+'Change Avatar': 'Change Avatar'
+'Date of Birth': 'Date of Birth'
+'Female': 'Female'
+'Freelance': 'Freelance'
+'Freelance Category': 'Freelance Category'
+'Gender': 'Gender'
+'Industry': 'Industry'
+'Male': 'Male'
+'New Address': 'New Address'
+'Not bound': 'Not bound'
+'Optional': 'Optional'
+'Personal Info': 'Personal Info'
+'Prefer not to say': 'Prefer not to say'
+'Remaining Calls': 'Remaining Calls'
+'Save Profile': 'Save Profile'
+'Secret': 'Secret'
+'Security Overview': 'Security Overview'
+'Select 3-5 tags': 'Select 3-5 tags'
+'Select career': 'Select career'
+'Select industry': 'Select industry'
+'Set display name': 'Set display name'
+'Shipping Address': 'Shipping Address'
+'Today''s Calls': 'Today''s Calls'
+'Verify': 'Verify'
+'Year': 'Year'
+'times': 'times'
+AI Customer Service Chat: AI Customer Service Chat
+AI Generate Website: AI Generate Website
+AI will create professional marketing copy for you: AI will create professional marketing
+  copy for you
+Achieving the Future: Achieving the Future
+Build Timeline: Build Timeline
+Build your website in 3 minutes — AI runs it automatically, so you can focus on your business: Build
+  your website in 3 minutes — AI runs it automatically, so you can focus on your business
+Can I try it for free?: Can I try it for free?
+Can I use a custom domain?: Can I use a custom domain?
+Copied to clipboard!: Copied to clipboard!
+Courses Faculty Trial Results Contact: Courses Faculty Trial Results Contact
+Departments Experts Appointment Cases Contact: Departments Experts Appointment Cases
+  Contact
+E-commerce: E-commerce
+Education: Education
+Enter a topic and AI automatically generates marketing copy, SEO content and social media posts: Enter
+  a topic and AI automatically generates marketing copy, SEO content and social media
+  posts
+Enter company/brand name: Enter company/brand name
+Enter product: Enter product
+Enter product or service info, then click Generate: Enter product or service info,
+  then click Generate
+Enter your business info and preview the AI-generated website homepage in 3 seconds: Enter
+  your business info and preview the AI-generated website homepage in 3 seconds
+Enter your company name, choose an industry, and click Generate to preview: Enter
+  your company name, choose an industry, and click Generate to preview
+? Experience VeroRun AI website building, AI customer service and AI content generation
+  for free — see the full AI-driven website building workflow.
+: Experience VeroRun AI website building, AI customer service and AI content generation
+  for free — see the full AI-driven website building workflow.
+Free Trial of: Free Trial of
+Friendly Natural Style: Friendly Natural Style
+Had enough? Start building your website now: Had enough? Start building your website
+  now
+? 'Hello! I''m the VeroRun AI customer service. Ask me about website building, AI
+  website building, pricing plans and more. Try asking:'
+: 'Hello! I''m the VeroRun AI customer service. Ask me about website building, AI
+  website building, pricing plans and more. Try asking:'
+Home Products Promotions Cart Mine: Home Products Promotions Cart Mine
+How does the AI customer service work?: How does the AI customer service work?
+How long does AI website building take?: How long does AI website building take?
+How much does a website cost?: How much does a website cost?
+Medical: Medical
+Menu Environment Reservation Reviews Contact: Menu Environment Reservation Reviews
+  Contact
+No registration needed — experience the power of AI website building right now: No
+  registration needed — experience the power of AI website building right now
+Online: Online
+Online 24/7, automatically answers visitor questions and identifies potential customers: Online
+  24/7, automatically answers visitor questions and identifies potential customers
+Please generate copy first: Please generate copy first
+Product/service name (e.g. AI website building): Product/service name (e.g. AI website
+  building)
+Professional Business Style: Professional Business Style
+Protecting Health: Protecting Health
+Quality Products: Quality Products
+Responsive Design: Responsive Design
+Restaurant: Restaurant
+Star Tech: Star Tech
+Taste of Life: Taste of Life
+Tech Innovation: Tech Innovation
+Tech Products Cases About Contact: Tech Products Cases About Contact
+The VeroRun smart website building platform keeps your website generating leads 24/7.: The
+  VeroRun smart website building platform keeps your website generating leads 24/7.
+VeroRun Smart Customer Service: VeroRun Smart Customer Service
+Viral Marketing Style: Viral Marketing Style
+'{name} Shop': '{name} Shop'
+'{name} · Education': '{name} · Education'
+? 'Website building services vary by plan:<br>• <strong>Basic</strong>: <span style="color:var(--cyan);font-weight:600">¥1,999/year</span>
+  — for individual entrepreneurs<br>• <strong>Standard</strong>: <span style="color:var(--cyan);font-weight:600">¥5,999/year</span>
+  — for SMBs (most popular)<br>• <strong>Pro</strong>: <span style="color:var(--cyan);font-weight:600">¥19,999/year</span>
+  — for growing businesses<br><br>All plans include AI capabilities, SSL certificates
+  and technical support. <a href="/services" style="color:var(--indigo)">See full
+  comparison →</a>'
+: 'Website building services vary by plan:<br>• <strong>Basic</strong>: <span style="color:var(--cyan);font-weight:600">¥1,999/year</span>
+  — for individual entrepreneurs<br>• <strong>Standard</strong>: <span style="color:var(--cyan);font-weight:600">¥5,999/year</span>
+  — for SMBs (most popular)<br>• <strong>Pro</strong>: <span style="color:var(--cyan);font-weight:600">¥19,999/year</span>
+  — for growing businesses<br><br>All plans include AI capabilities, SSL certificates
+  and technical support. <a href="/services" style="color:var(--indigo)">See full
+  comparison →</a>'
+? AI website building can generate a complete website in as little as <strong style="color:var(--cyan)">3
+  minutes</strong>!<br><br>The general flow from registration to launch:<br>1. 📝 Register
+  an account (1 minute)<br>2. 🤖 AI generates the website (3 minutes)<br>3. 🎨 Personalization
+  adjustments (1-2 days)<br>4. 🚀 Bind your domain and go live (instantly)<br><br>On
+  average, the entire process takes <strong style="color:var(--cyan)">3-7 days</strong>
+  — far faster than the 2-4 weeks of traditional website building.
+: AI website building can generate a complete website in as little as <strong style="color:var(--cyan)">3
+  minutes</strong>!<br><br>The general flow from registration to launch:<br>1. 📝 Register
+  an account (1 minute)<br>2. 🤖 AI generates the website (3 minutes)<br>3. 🎨 Personalization
+  adjustments (1-2 days)<br>4. 🚀 Bind your domain and go live (instantly)<br><br>On
+  average, the entire process takes <strong style="color:var(--cyan)">3-7 days</strong>
+  — far faster than the 2-4 weeks of traditional website building.
+? Of course! We offer <strong style="color:var(--cyan)">free registration</strong>
+  to try:<br><br>• Click Free sign-up in the top-right to create an account<br>• No
+  credit card required<br>• Experience the full AI website building flow for free<br>•
+  Choose a paid plan only when you are satisfied<br><br><a href="/register" style="color:var(--indigo)">Sign
+  up free now →</a>
+: Of course! We offer <strong style="color:var(--cyan)">free registration</strong>
+  to try:<br><br>• Click Free sign-up in the top-right to create an account<br>• No
+  credit card required<br>• Experience the full AI website building flow for free<br>•
+  Choose a paid plan only when you are satisfied<br><br><a href="/register" style="color:var(--indigo)">Sign
+  up free now →</a>
+? Yes! <strong style="color:var(--cyan)">All plans</strong> support binding a custom
+  domain, and a <strong>free SSL certificate</strong> (HTTPS) is configured automatically.<br><br>•
+  Buy your domain from any registrar<br>• Configure DNS resolution following our help
+  guide<br>• The system automatically issues and renews the SSL certificate<br><br><a
+  href="/docs" style="color:var(--indigo)">View the domain setup guide →</a>
+: Yes! <strong style="color:var(--cyan)">All plans</strong> support binding a custom
+  domain, and a <strong>free SSL certificate</strong> (HTTPS) is configured automatically.<br><br>•
+  Buy your domain from any registrar<br>• Configure DNS resolution following our help
+  guide<br>• The system automatically issues and renews the SSL certificate<br><br><a
+  href="/docs" style="color:var(--indigo)">View the domain setup guide →</a>
+? The AI smart customer service is a <strong style="color:var(--cyan)">24/7</strong>
+  online auto-response system:<br><br>• 🤖 Automatically answers common questions<br>•
+  🎯 Identifies potential customers and saves their contact info<br>• 📊 Provides consultation
+  data analytics<br>• 🔄 Supports custom knowledge base training<br>• 📱 Works on websites,
+  mini programs and WeChat official accounts<br><br>AI customer service is included
+  in the Standard plan and above.
+: The AI smart customer service is a <strong style="color:var(--cyan)">24/7</strong>
+  online auto-response system:<br><br>• 🤖 Automatically answers common questions<br>•
+  🎯 Identifies potential customers and saves their contact info<br>• 📊 Provides consultation
+  data analytics<br>• 🔄 Supports custom knowledge base training<br>• 📱 Works on websites,
+  mini programs and WeChat official accounts<br><br>AI customer service is included
+  in the Standard plan and above.
+? Thanks for your question! I need more details to help you. You can:<br><br>1️⃣ Try
+  the quick questions above<br>2️⃣ <a href="/register" style="color:var(--indigo)">Sign
+  up free</a> and chat in depth with our AI customer service<br>3️⃣ Or <a href="/docs"
+  style="color:var(--indigo)">view the help docs</a> to learn more
+: Thanks for your question! I need more details to help you. You can:<br><br>1️⃣ Try
+  the quick questions above<br>2️⃣ <a href="/register" style="color:var(--indigo)">Sign
+  up free</a> and chat in depth with our AI customer service<br>3️⃣ Or <a href="/docs"
+  style="color:var(--indigo)">view the help docs</a> to learn more
+? Professional business style:<br><br><span class="highlight">[Title]</span> AI-Powered
+  Website Building — Keep Your Business Online and Acquiring Customers 24/7<br><br><span
+  class="highlight">[Body]</span><br>In the wave of digitalization, your website is
+  the digital business card of your business. The VeroRun smart website building platform
+  deeply integrates AI technology, automating everything from content generation to
+  site deployment. No coding or design experience needed — enter your business info
+  and get a professional corporate website in 3 minutes. The built-in AI customer
+  service system responds to visitor inquiries 24/7 and precisely identifies potential
+  customers, boosting your lead acquisition efficiency 15x. Choose VeroRun to empower
+  your business growth.<br><br><span class="highlight">[Best for]</span> Corporate
+  websites, LinkedIn, industry media
+: Professional business style:<br><br><span class="highlight">[Title]</span> AI-Powered
+  Website Building — Keep Your Business Online and Acquiring Customers 24/7<br><br><span
+  class="highlight">[Body]</span><br>In the wave of digitalization, your website is
+  the digital business card of your business. The VeroRun smart website building platform
+  deeply integrates AI technology, automating everything from content generation to
+  site deployment. No coding or design experience needed — enter your business info
+  and get a professional corporate website in 3 minutes. The built-in AI customer
+  service system responds to visitor inquiries 24/7 and precisely identifies potential
+  customers, boosting your lead acquisition efficiency 15x. Choose VeroRun to empower
+  your business growth.<br><br><span class="highlight">[Best for]</span> Corporate
+  websites, LinkedIn, industry media
+? 'Friendly natural style:<br><br><span class="highlight">[Title]</span> Building
+  a Website Has Never Been This Easy!<br><br><span class="highlight">[Body]</span><br>Xiaoming
+  runs a dessert shop and always wanted a website but did not know tech. Until a friend
+  recommended VeroRun — enter your shop name, pick a template, and AI automatically
+  generated a complete brand website, including product pages and customer service.
+  The whole process was as simple as chatting.<br><br>VeroRun does not just help you
+  build a website — it builds it for you. Choose an industry, enter your info, one-click
+  generate: three steps to a corporate website. The built-in AI customer service is
+  online 24 hours a day, so late-night orders never slip through. The time of a boss
+  should be spent on more important things, right?<br><br><span class="highlight">[Best
+  for]</span> WeChat official accounts, Moments, Xiaohongshu'
+: 'Friendly natural style:<br><br><span class="highlight">[Title]</span> Building
+  a Website Has Never Been This Easy!<br><br><span class="highlight">[Body]</span><br>Xiaoming
+  runs a dessert shop and always wanted a website but did not know tech. Until a friend
+  recommended VeroRun — enter your shop name, pick a template, and AI automatically
+  generated a complete brand website, including product pages and customer service.
+  The whole process was as simple as chatting.<br><br>VeroRun does not just help you
+  build a website — it builds it for you. Choose an industry, enter your info, one-click
+  generate: three steps to a corporate website. The built-in AI customer service is
+  online 24 hours a day, so late-night orders never slip through. The time of a boss
+  should be spent on more important things, right?<br><br><span class="highlight">[Best
+  for]</span> WeChat official accounts, Moments, Xiaohongshu'
+? Viral marketing style:<br><br><span class="highlight">[Title]</span> 🔥 Shocking!
+  Build a Website in 3 Minutes? Bosses Are Secretly Using This!<br><br><span class="highlight">[Body]</span><br>Here
+  is a secret that e-commerce bosses will not tell you 👇<br><br>They build websites
+  with VeroRun:<br>⚡ 3-minute AI auto generation<br>🤖 24-hour AI customer service<br>📢
+  One-click publish to WeChat / Weibo / Toutiao<br><br>While you are still paying
+  thousands and waiting two weeks?<br><br>Stop grinding — use the tool!<br>Register
+  now for the annual discount 👉 Try it now<br><br><span class="highlight">[Best for]</span>
+  Douyin, Weibo, Toutiao
+: Viral marketing style:<br><br><span class="highlight">[Title]</span> 🔥 Shocking!
+  Build a Website in 3 Minutes? Bosses Are Secretly Using This!<br><br><span class="highlight">[Body]</span><br>Here
+  is a secret that e-commerce bosses will not tell you 👇<br><br>They build websites
+  with VeroRun:<br>⚡ 3-minute AI auto generation<br>🤖 24-hour AI customer service<br>📢
+  One-click publish to WeChat / Weibo / Toutiao<br><br>While you are still paying
+  thousands and waiting two weeks?<br><br>Stop grinding — use the tool!<br>Register
+  now for the annual discount 👉 Try it now<br><br><span class="highlight">[Best for]</span>
+  Douyin, Weibo, Toutiao
+? 'Technical analysis style:<br><br><span class="highlight">[Title]</span> From 0
+  to 1: Technical Architecture of AI-Driven Corporate Website Building<br><br><span
+  class="highlight">[Body]</span><br>The VeroRun platform uses a multi-layer AI architecture:
+  the underlying layer uses the Qwen large language model for semantic understanding
+  and content generation, the frontend uses an AI layout engine for intelligent arrangement
+  based on industry templates, and the backend uses a microservices architecture to
+  support multi-tenant parallel rendering. Key technical points include:<br><br>1.
+  Template matching algorithm: NLP-based enterprise info extraction + industry classification
+  for intelligent template matching<br>2. Content filling engine: auto-generates brand
+  copy, SEO metadata and product descriptions<br>3. Real-time preview rendering: WebSocket-driven
+  what-you-see-is-what-you-get editing experience<br><br><span class="highlight">[Best
+  for]</span> Zhihu, tech blogs, developer communities'
+: 'Technical analysis style:<br><br><span class="highlight">[Title]</span> From 0
+  to 1: Technical Architecture of AI-Driven Corporate Website Building<br><br><span
+  class="highlight">[Body]</span><br>The VeroRun platform uses a multi-layer AI architecture:
+  the underlying layer uses the Qwen large language model for semantic understanding
+  and content generation, the frontend uses an AI layout engine for intelligent arrangement
+  based on industry templates, and the backend uses a microservices architecture to
+  support multi-tenant parallel rendering. Key technical points include:<br><br>1.
+  Template matching algorithm: NLP-based enterprise info extraction + industry classification
+  for intelligent template matching<br>2. Content filling engine: auto-generates brand
+  copy, SEO metadata and product descriptions<br>3. Real-time preview rendering: WebSocket-driven
+  what-you-see-is-what-you-get editing experience<br><br><span class="highlight">[Best
+  for]</span> Zhihu, tech blogs, developer communities'
+? AI Matrix-driven smart business operations platform. More than website building
+  — it's a multi-agent AI matrix running your website.
+: AI Matrix-driven smart business operations platform. More than website building
+  — it's a multi-agent AI matrix running your website.
+API Key List: API Key List
+API key management, usage statistics, and quota preview.: API key management, usage
+  statistics, and quota preview.
+Access Logs: Access Logs
+Access logs will appear here: Access logs will appear here
+Are you sure you want to revoke this key? It cannot be recovered after revocation.: Are
+  you sure you want to revoke this key? It cannot be recovered after revocation.
+Based on your usage, we recommend upgrading to a higher plan to enjoy higher call limits and priority technical support.: Based
+  on your usage, we recommend upgrading to a higher plan to enjoy higher call limits
+  and priority technical support.
+Concurrent Connections: Concurrent Connections
+Copy and save your key now! You will not be able to view it again after closing this window.: Copy
+  and save your key now! You will not be able to view it again after closing this
+  window.
+? Create a new API key to access VeroRun services. Please store it securely — you
+  will not be able to view the full key again after closing.
+: Create a new API key to access VeroRun services. Please store it securely — you
+  will not be able to view the full key again after closing.
+'Current Plan:': 'Current Plan:'
+Daily Call Limit: Daily Call Limit
+Duration: Duration
+Export Logs: Export Logs
+Generate New API Key: Generate New API Key
+Generation failed, please try again later: Generation failed, please try again later
+'Generation failed: ': 'Generation failed: '
+IP Address: IP Address
+Key: Key
+No access logs yet: No access logs yet
+Peak Calls: Peak Calls
+Per-Second Call Limit: Per-Second Call Limit
+Please enter a key name: Please enter a key name
+Quota Management: Quota Management
+Revocation failed, please try again later: Revocation failed, please try again later
+'Revocation failed: ': 'Revocation failed: '
+Security Reminder: Security Reminder
+Status Code: Status Code
+Success Rate: Success Rate
+Unnamed: Unnamed
+Upgrade Plan: Upgrade Plan
+Upgrade Suggestion: Upgrade Suggestion
+Usage Statistics: Usage Statistics
+Used to identify the key for management: Used to identify the key for management
+? You have used {percent}% of your API quota ({used}/{limit} calls). Please schedule
+  calls reasonably to avoid affecting your business.
+: You have used {percent}% of your API quota ({used}/{limit} calls). Please schedule
+  calls reasonably to avoid affecting your business.
+Your new API key: Your new API key
+calls: calls
+e.g. Production key: e.g. Production key
+Theme: Theme
+Cyber Dark: Cyber Dark
+Cloud Light: Cloud Light
+Misty Gray: Misty Gray

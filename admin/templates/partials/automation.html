@@ -1,4 +1,4 @@
-﻿window.l_automation=function(){
+window.l_automation=function(){
   document.getElementById("pt").textContent="{{ _('Auto Schedule') }}";
   loadWorkflowList();
 };
@@ -84,9 +84,8 @@ function workflowStatusBadge(status){
 // ===== 操作 =====
 
 function openWorkflowEditor(id){
-  var url='/admin/workflow-editor';
-  if(id) url+='?id='+id;
-  window.open(url,'_blank');
+  window.__wfEditId = id || 0;
+  go('workflow_editor');
 }
 
 function runWorkflow(id){

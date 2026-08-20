@@ -71,7 +71,29 @@ window.__I18N_PLUGINS__ = {
   "Restarting service": "{{ _('Restarting service') }}...",
   "Upload Plugin": "{{ _('Upload Plugin') }}",
   "Uploading": "{{ _('Uploading') }}...",
-  "Custom": "{{ _('Custom') }}"
+  "Custom": "{{ _('Custom') }}",
+  "Pending": "{{ _('Pending') }}",
+  "No pending submissions": "{{ _('No pending submissions') }}",
+  "Submitter": "{{ _('Submitter') }}",
+  "Audit": "{{ _('Audit') }}",
+  "Review": "{{ _('Review') }}",
+  "Approve": "{{ _('Approve') }}",
+  "Reject": "{{ _('Reject') }}",
+  "Submitted for review": "{{ _('Submitted for review') }}",
+  "Reviewing": "{{ _('Reviewing') }}...",
+  "Approving": "{{ _('Approving') }}...",
+  "Rejecting": "{{ _('Rejecting') }}...",
+  "Reasons": "{{ _('Reasons') }}",
+  "Close": "{{ _('Close') }}",
+  "Review report": "{{ _('Review report') }}",
+  "Audit passed": "{{ _('Audit passed') }}",
+  "Manual review needed": "{{ _('Manual review needed') }}",
+  "Audit rejected": "{{ _('Audit rejected') }}",
+  "Approved": "{{ _('Approved') }}",
+  "Rejected": "{{ _('Rejected') }}",
+  "Force install": "{{ _('Force install') }}",
+  "Run review first": "{{ _('Run review first') }}",
+  "Audit rejected. Force install?": "{{ _('Audit rejected. Force install?') }}"
 };
 function _(key){return window.__I18N_PLUGINS__[key]||key;}
 
@@ -99,6 +121,7 @@ function _renderPluginUI(mc){
   h+='<div style="display:flex;gap:4px">';
   h+='<button class="tab-btn' + (_pluginTab==='installed'?' active':'') + '" onclick="_switchTab(\'installed\')">' + _('Installed') + ' ('+d.total_local+')</button>';
   h+='<button class="tab-btn' + (_pluginTab==='store'?' active':'') + '" onclick="_switchTab(\'store\')">' + _('Store') + ' ('+d.total_store+')</button>';
+  h+='<button class="tab-btn' + (_pluginTab==='pending'?' active':'') + '" onclick="_switchTab(\'pending\')">' + _('Pending') + '</button>';
   h+='</div>';
   h+='<div style="display:flex;gap:8px">';
   if(_pluginTab==='installed'){
@@ -113,12 +136,15 @@ function _renderPluginUI(mc){
   /* ── Tab content ─────────────────────────────────── */
   if(_pluginTab==='installed'){
     h+=_renderInstalledTab(d.local);
+  }else if(_pluginTab==='pending'){
+    h+=_renderPendingTab();
   }else{
     h+=_renderStoreTab(d.store);
   }
 
   h+='<div id="pluginActionForm" style="margin-top:16px"></div>';
   mc.innerHTML=h;
+  if(_pluginTab==='pending')loadPending();
 }
 
 /* ── Tab switch ────────────────────────────────────── */
@@ -174,6 +200,83 @@ function _renderInstalledTab(plugins){
   });
   h+='</table>';
   return h;
+}
+
+/* ── Pending tab (submission review queue) ─────────── */
+function _renderPendingTab(){
+  return '<div id="pendingBox"><div class="lo"><div class="s"></div>'+_('Loading')+'</div></div>';
+}
+function loadPending(){
+  var box=document.getElementById('pendingBox');
+  if(!box)return;
+  box.innerHTML='<div class="lo"><div class="s"></div>'+_('Loading')+'</div>';
+  fetch('/admin/plugins/submissions?status=pending',{headers:{'Authorization':'Bearer '+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){box.innerHTML='<div class="em">'+esc(d.error||'')+'</div>';return}
+    var items=d.data||[];
+    if(items.length===0){box.innerHTML='<div class="empty-state"><div style="margin-bottom:12px;font-size:40px">&#x1F4E4;</div><div style="color:var(--dim)">'+_('No pending submissions')+'</div></div>';return}
+    var h='<table style="width:100%;font-size:13px">';
+    h+='<tr><th style="text-align:left;padding:8px 12px">'+_('Name')+'</th><th style="text-align:left;padding:8px 12px">'+_('Version')+'</th><th style="text-align:left;padding:8px 12px">'+_('Submitter')+'</th><th style="text-align:center;padding:8px 12px">'+_('Audit')+'</th><th style="text-align:center;padding:8px 12px">'+_('Actions')+'</th></tr>';
+    items.forEach(function(s){
+      var auditTxt='-';
+      if(s.audit_status==='pass')auditTxt='<span class="bdg on">'+_('Audit passed')+'</span>';
+      else if(s.audit_status==='manual')auditTxt='<span class="bdg" style="background:rgba(240,192,64,.12);color:#f0c040">'+_('Manual review needed')+'</span>';
+      else if(s.audit_status==='reject')auditTxt='<span class="bdg" style="background:rgba(248,81,73,.12);color:#f85149">'+_('Audit rejected')+'</span>';
+      h+='<tr>';
+      h+='<td style="padding:10px 12px;font-weight:600">'+esc(s.name||s.identifier)+'</td>';
+      h+='<td style="padding:10px 12px;color:var(--dim)">v'+esc(s.version)+'</td>';
+      h+='<td style="padding:10px 12px;color:var(--dim)">'+esc(s.submitter||'-')+'</td>';
+      h+='<td style="padding:10px 12px;text-align:center">'+auditTxt+'</td>';
+      h+='<td style="padding:10px 12px;text-align:center;display:flex;gap:4px;flex-wrap:wrap;justify-content:center">';
+      /* H1 修复：reject 行改为「强制放行」需二次确认；未审核行禁用批准 */
+      var appBtn='<button class="btn bp bs" onclick="submissionApprove('+s.id+')">'+_('Approve')+'</button>';
+      if(s.audit_status==='reject'){
+        appBtn='<button class="btn bp bs" style="background:rgba(248,81,73,.15);color:#f85149" onclick="submissionApprove('+s.id+',true)">'+_('Force install')+'</button>';
+      }else if(!s.audit_status||s.audit_status==='pending'){
+        appBtn='<button class="btn bo bs" style="opacity:.6" onclick="showToast(\''+_('Run review first')+'\',\'error\')">'+_('Approve')+'</button>';
+      }
+      h+='<button class="btn bo bs" onclick="submissionReview('+s.id+')">'+_('Review')+'</button>';
+      h+=appBtn;
+      h+='<button class="btn bo bs" style="color:#f85149" onclick="submissionReject('+s.id+')">'+_('Reject')+'</button>';
+      h+='</td></tr>';
+    });
+    h+='</table>';
+    box.innerHTML=h;
+  }).catch(function(){box.innerHTML='<div class="em">'+_('Network error')+'</div>'});
+}
+function submissionReview(id){
+  var act=document.getElementById('pluginActionForm');
+  if(act) act.innerHTML='<div class="lo"><div class="s"></div>'+_('Reviewing')+'</div>';
+  fetch('/admin/plugins/submissions/'+id+'/review',{method:'POST',headers:{'Authorization':'Bearer '+T}}).then(function(r){return r.json()}).then(function(d){
+    if(!d.success){if(act)act.innerHTML='<div class="em">'+esc(d.error||'')+'</div>';return}
+    var r=d.data||{};
+    var reasons=(r.reasons||[]).join('<br>')||'-';
+    var h='<div class="modal-overlay"><div class="modal-box"><h3 style="margin:0 0 12px">'+_('Review report')+' <span style="color:var(--dim)">#'+id+'</span></h3>';
+    h+='<div style="margin-bottom:12px;font-size:13px">'+_('Audit')+': <strong>'+esc(r.status)+'</strong></div>';
+    h+='<div style="font-size:13px;color:var(--dim)">'+_('Reasons')+':<br>'+reasons+'</div>';
+    h+='<div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="btn bo" onclick="this.closest(\'.modal-overlay\').remove()">'+_('Close')+'</button></div>';
+    h+='</div></div>';
+    var div=document.createElement("div");div.innerHTML=h;document.body.appendChild(div.firstElementChild);
+    loadPending();
+  }).catch(function(){if(act)act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
+}
+function submissionApprove(id,force){
+  /* H1 修复：reject 状态强制放行需二次确认，请求体带 override=true */
+  if(force&&!confirm(_('Audit rejected. Force install?')))return;
+  var act=document.getElementById('pluginActionForm');
+  if(act) act.innerHTML='<div class="lo"><div class="s"></div>'+_('Approving')+'</div>';
+  fetch('/admin/plugins/submissions/'+id+'/approve',{method:'POST',headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},body:force?JSON.stringify({override:true}):'{}'}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast(_('Approved')+' #'+id,_('Success'));loadPending()}
+    else{if(act)act.innerHTML='<div class="em">'+esc(d.error||'')+'</div>';else showToast(esc(d.error||_('Failed')),'error')}
+  }).catch(function(){if(act)act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
+}
+function submissionReject(id){
+  if(!confirm(_('Reject')+' #'+id+'?'))return;
+  var act=document.getElementById('pluginActionForm');
+  if(act) act.innerHTML='<div class="lo"><div class="s"></div>'+_('Rejecting')+'</div>';
+  fetch('/admin/plugins/submissions/'+id+'/reject',{method:'POST',headers:{'Authorization':'Bearer '+T,'Content-Type':'application/json'},body:JSON.stringify({comment:''})}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){showToast(_('Rejected')+' #'+id,_('Success'));loadPending()}
+    else{if(act)act.innerHTML='<div class="em">'+esc(d.error||'')+'</div>';else showToast(esc(d.error||_('Failed')),'error')}
+  }).catch(function(){if(act)act.innerHTML='<div class="em">'+_('Network error')+'</div>'});
 }
 
 /* ── Store tab (card grid) ──────────────────────────── */
@@ -428,8 +531,15 @@ function pluginUpload(){
     fetch('/admin/plugins/upload',{method:'POST',headers:{'Authorization':'Bearer '+T},body:fd})
     .then(function(r){return r.json()}).then(function(d){
       if(d.success){
-        showToast(_('Installed')+' '+esc(d.data.name||d.data.identifier),_('Success'));
-        renderPluginPage();
+        if(d.data&&d.data.status==='pending'){
+          /* ★ P7: 上传进入审核队列（水印体系） */
+          showToast(_('Submitted for review')+' '+esc(d.data.name||d.data.identifier),_('Success'));
+          _pluginTab='pending';
+          renderPluginPage();
+        }else{
+          showToast(_('Installed')+' '+esc(d.data.name||d.data.identifier),_('Success'));
+          renderPluginPage();
+        }
       }else{
         act.innerHTML='<div class="em">'+esc(d.error||_('Install failed'))+'</div>';
       }

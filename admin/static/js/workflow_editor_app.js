@@ -361,6 +361,11 @@ function FlowEditor() {
     }, function () {
       return edges;
     });
+    // 通知内嵌加载器：__flowState 已就绪，可安全初始化（回调一次性消费）
+    if (window.onFlowReady) {
+      window.onFlowReady();
+      window.onFlowReady = null;
+    }
   }, [nodes, edges, rfInstance]);
 
   // 快捷键
@@ -423,5 +428,13 @@ function FlowEditor() {
   })));
 }
 
-// ── 挂载 React 应用 ──
-ReactDOM.render(E(FlowEditor), document.getElementById('react-flow-root'));
+// ── 挂载 / 卸载 React 应用（独立页首屏自动挂载；SPA 内嵌由加载器按需重挂载）──
+window.mountFlowEditor = function(){
+  var root = document.getElementById('react-flow-root');
+  if (root && window.ReactDOM) ReactDOM.render(E(FlowEditor), root);
+};
+window.unmountWorkflowEditor = function(){
+  var root = document.getElementById('react-flow-root');
+  if (root && window.ReactDOM) ReactDOM.unmountComponentAtNode(root);
+};
+window.mountFlowEditor();

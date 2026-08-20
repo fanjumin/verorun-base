@@ -13,11 +13,18 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+{# 防闪烁：样式渲染前先应用已保存主题（与后台 head.html 一致） #}
+<script>
+(function(){try{var t=localStorage.getItem('verorun_admin_theme');if(t==='light'||t==='slate')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+</script>
 <title>{{ _('Workflow Editor') }} — {{ _('Admin Panel') }}</title>
 <link rel="icon" href="data:,">
 
 {# 设计系统 vars #}
 <link rel="stylesheet" href="{{ url_for('static_files', filename='css/landing.css') }}"/>
+
+{# 后台三主题（兼容变量层后加载覆盖 design-system 默认值，实现主题跟随） #}
+<link rel="stylesheet" href="{{ url_for('static_files', filename='css/themes.css') }}"/>
 
 {# 编辑器专用样式 #}
 <link rel="stylesheet" href="{{ url_for('static_files', filename='css/workflow_editor.css') }}?v=2"/>
@@ -99,6 +106,11 @@ window.__t = {
 </head>
 <body>
 
+{# 独立路由兜底布局（SPA 内嵌时由 #wf-editor-root 承担，此处仅独立页生效） #}
+<style>
+html, body { height: 100%; margin: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--bg-deep); color: var(--text); font-family: var(--font-cn); font-size: 13px; }
+</style>
+
 <!-- 顶部工具栏 -->
 <header id="editor-toolbar">
   <div class="toolbar-left">
@@ -152,5 +164,7 @@ window.__t = {
 
 {# React 入口 — 预编译 JSX #}
 <script src="{{ url_for('static_files', filename='js/workflow_editor_app.js') }}?v=2"></script>
+{# 三主题切换（与后台一致，读取 localStorage） #}
+<script src="{{ url_for('static_files', filename='js/theme.js') }}"></script>
 </body>
 </html>

@@ -476,7 +476,8 @@ window.editor = (function() {
           var newId = d.data && (d.data.id || d.data.workflow_id);
           if (newId && !CURRENT_WORKFLOW_ID) {
             CURRENT_WORKFLOW_ID = newId;
-            if (history.pushState) {
+            // 内嵌模式不污染后台 URL，仅独立页同步地址栏
+            if (!window.__WF_EMBEDDED && history.pushState) {
               var u = new URL(window.location);
               u.searchParams.set('id', newId);
               history.pushState({}, '', u);
@@ -604,9 +605,14 @@ window.editor = (function() {
   function init() {
     renderNodePanel();
 
-    // 解析 URL ?id 参数
-    var params = new URLSearchParams(window.location.search);
-    var loadId = params.get('id');
+    // 内嵌模式优先读 __wfEditId；独立页回退解析 URL ?id 参数
+    var loadId = null;
+    if (typeof window.__wfEditId !== 'undefined' && window.__wfEditId) {
+      loadId = window.__wfEditId;
+    } else {
+      var params = new URLSearchParams(window.location.search);
+      loadId = params.get('id');
+    }
     if (loadId) {
       CURRENT_WORKFLOW_ID = parseInt(loadId);
       load(CURRENT_WORKFLOW_ID);

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="{{ lang }}">
 <head>
@@ -43,7 +43,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="{{ _('Menu') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a href="/docs">{{ _('Docs') }}</a>

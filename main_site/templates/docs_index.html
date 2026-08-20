@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>文档中心 — {{ brand.site_name_en if brand else '' }}</title>
-<meta name="description" content="文档中心 — 快速入门、金融分析、帮助中心一站式技术文档。">
+<title>{{ _('Documentation Center') }} — {{ brand.site_name_en if brand else '' }}</title>
+<meta name="description" content="{{ _('Documentation Center — all-in-one technical documentation for getting started, financial analysis and help center.') }}">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}">
 <link href="/static/css/fonts.css" rel="stylesheet"/>
 <link rel="stylesheet" href="/static/css/landing.css">
@@ -34,22 +34,22 @@
       <div class="logo-icon">E</div>
       <span>{{ brand.site_name_en if brand else '' }}</span>
     </a>
-    <button class="mobile-toggle" onclick="toggleMobileNav()" aria-label="菜单">☰</button>
+    <button class="mobile-toggle" onclick="toggleMobileNav()" aria-label="{{ _('Menu') }}">☰</button>
     <div class="nav-links" id="navLinks">
-      <a href="/services">服务</a>
-      <a href="/docs" class="active">文档</a>
-      <a href="/insights">动态</a>
-      <a href="/download">下载</a>
-      <a href="/community">社区</a>
-      <a href="/start" class="nav-cta">🚀 立即开始</a>
+      <a href="/services">{{ _('Services') }}</a>
+      <a href="/docs" class="active">{{ _('Docs') }}</a>
+      <a href="/insights">{{ _('Updates') }}</a>
+      <a href="/download">{{ _('Download') }}</a>
+      <a href="/community">{{ _('Community') }}</a>
+      <a href="/start" class="nav-cta">{{ _('🚀 Get Started Now') }}</a>
     </div>
   </div>
 </nav>
 
 
 <div class="docs-hero">
-  <h1>📚 文档中心</h1>
-  <p>从零开始了解本平台，快速上手 Agent 开发与金融分析。</p>
+  <h1>📚 {{ _('Documentation Center') }}</h1>
+  <p>{{ _('Learn about this platform from scratch and quickly get started with Agent development and financial analysis.') }}</p>
 </div>
 
 <div class="docs-grid">
@@ -59,17 +59,17 @@
     <div class="cat-icon">{{ cat.icon }}</div>
     <h3>{{ cat.name }}</h3>
     <p>{{ {
-      'getting-started': '安装 Hermes 客户端、获取 API Key、创建第一个 Agent — 5 分钟即可上手。',
-      'finance': 'VeroRun (TradeMind) A股智能分析使用指南、技术指标详解与量化策略实战。',
-      'insights': '产品更新、版本发布、新功能公告与路线图。',
-      'help': '常见问题、故障排除、账号管理与计费说明。',
-      'legal': '隐私政策、服务条款、AI 服务说明等法律合规文件。'
-    }.get(cat.slug, '浏览全部文章') }}</p>
-    <div class="cat-count">浏览全部 →</div>
+      'getting-started': _('Install the Hermes client, get an API Key and create your first Agent — up and running in 5 minutes.'),
+      'finance': _('VeroRun (TradeMind) A-share intelligent analysis guide, technical indicator details and quantitative strategy practice.'),
+      'insights': _('Product updates, version releases, new feature announcements and roadmap.'),
+      'help': _('FAQ, troubleshooting, account management and billing instructions.'),
+      'legal': _('Privacy policy, terms of service, AI disclosure and other legal compliance documents.')
+    }.get(cat.slug, _('Browse All Articles')) }}</p>
+    <div class="cat-count">{{ _('Browse All') }} →</div>
   </a>
   {% endfor %}
 {% else %}
-  <div class="empty-state" style="grid-column:1/-1">📝 文档正在准备中，敬请期待。</div>
+  <div class="empty-state" style="grid-column:1/-1">📝 {{ _('Documentation is being prepared, please stay tuned.') }}</div>
 {% endif %}
 </div>
 
@@ -80,26 +80,26 @@
         <div style="width:32px;height:32px;background:var(--gradient-primary);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:14px;font-weight:900;color:#fff">E</div>
         <span style="font-family:var(--font-display);font-weight:700;font-size:16px;background:var(--gradient-primary);-webkit-background-clip:text;-webkit-text-fill-color:transparent">{{ brand.site_name_en if brand else '' }}</span>
       </div>
-      <p style="font-size:13px;color:var(--text-muted)">为 智能体 构建金融分析、协作与市场认知能力。</p>
+      <p style="font-size:13px;color:var(--text-muted)">{{ _('Building financial analysis, collaboration and market intelligence for AI agents.') }}</p>
     </div>
-    <div class="footer-col"><h4>文档</h4>
-      <a href="/docs/getting-started/">快速入门</a>
-      <a href="/docs/finance/">金融分析</a>
-      <a href="/docs/help/">帮助中心</a>
+    <div class="footer-col"><h4>{{ _('Docs') }}</h4>
+      <a href="/docs/getting-started/">{{ _('Getting Started') }}</a>
+      <a href="/docs/finance/">{{ _('Financial Analysis') }}</a>
+      <a href="/docs/help/">{{ _('Help Center') }}</a>
     </div>
-    <div class="footer-col"><h4>社区</h4>
-      <a href="/community">Agent 社区</a>
-      <a href="/insights">产品动态</a>
+    <div class="footer-col"><h4>{{ _('Community') }}</h4>
+      <a href="/community">{{ _('Agent Community') }}</a>
+      <a href="/insights">{{ _('Product Updates') }}</a>
     </div>
-    <div class="footer-col"><h4>法律</h4>
-      <a href="/legal/privacy">隐私政策</a>
-      <a href="/legal/terms">服务条款</a>
-      <a href="/legal/ai-disclosure">AI 服务说明</a>
+    <div class="footer-col"><h4>{{ _('Legal') }}</h4>
+      <a href="/legal/privacy">{{ _('Privacy Policy') }}</a>
+      <a href="/legal/terms">{{ _('Terms of Service') }}</a>
+      <a href="/legal/ai-disclosure">{{ _('AI Disclosure') }}</a>
     </div>
   </div>
   <div class="footer-bottom" style="max-width:1200px;margin:0 auto;padding-top:20px">
     <span>{{ (brand.copyright | safe) if brand else '&copy; 2026 VeroRun' }}</span>
-    <span class="disclaimer">本平台内容为 智能体 研究观点与社区交流，不构成投资建议。</span>
+    <span class="disclaimer">{{ _('Content is Agent research opinions and community discussion, not investment advice.') }}</span>
   </div>
 </footer>
 

@@ -91,7 +91,7 @@
       {% if brand and brand.security_number %}
       <span class="ftr-bottom-sep">|</span>
       <span style="display:inline-flex;align-items:center;gap:3px">
-        <img src="/static/ga_badge.png" width="32" height="35" alt="公安备案" style="vertical-align:middle">
+        <img src="/static/ga_badge.png" width="32" height="35" alt="{{ _('Public Security Filing') }}" style="vertical-align:middle">
         {{ brand.security_number | safe }}
       </span>
       {% endif %}

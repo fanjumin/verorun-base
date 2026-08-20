@@ -41,7 +41,7 @@ from routes.internal_api import internal_api_bp
 # mini_program_bp 已解耦至插件 plugins/mini_app_builder/public_api.py（v2.0.0），
 # 由 PluginManager mount_all_routes() 挂载（见下方 ── PluginManager ── 段）
 
-from flask import (Flask, request, jsonify, render_template,
+from flask import (Flask, request, g, jsonify, render_template,
                    send_from_directory, redirect, Blueprint, Response, make_response)
 import json
 import secrets
@@ -58,11 +58,20 @@ def inject_deploy():
 
 
 # ══ i18n ══
-from i18n import _, get_lang, get_all_translations
+from i18n import _, get_lang, get_all_translations, resolve_locale
+
+@app.before_request
+def _i18n_resolve_locale():
+    """请求级语言协商（规范 §5）：?lang= → Cookie lang → Accept-Language → 部署默认。"""
+    g.lang_code = resolve_locale(
+        lang_param=request.args.get('lang'),
+        cookie=request.cookies.get('lang'),
+        accept_header=request.headers.get('Accept-Language') or '',
+    )
 
 @app.context_processor
 def inject_i18n():
-    return {'_': _, ')LANG': get_lang(), 'lang': get_lang(), 'translations': get_all_translations()}
+    return {'_': _, 'lang': get_lang(), 'translations': get_all_translations(get_lang())}
 app.jinja_env.globals['_'] = _
 
 
@@ -82,6 +91,39 @@ def add_security_headers(response):
         "connect-src 'self' ws: wss:; "
         "frame-ancestors 'none';"
     )
+    return response
+
+
+# ══ i18n 语言切换组件注入（i18n-standard §5）══
+import functools
+from flask import render_template_string
+
+
+@functools.lru_cache(maxsize=2)
+def _lang_switch_widget(lang):
+    return render_template_string('{% include "_lang_switch.html" %}', lang=lang)
+
+
+@app.after_request
+def inject_lang_switch(response):
+    """对 text/html 响应自动注入语言切换按钮（_lang_switch.html）。
+
+    跳过条件：非 text/html、无 </body>、页面含 data-lang-switch-off、
+    URL 带 no_lang_switch=1（插件 iframe 等特殊页面使用）。
+    注入失败静默跳过，绝不影响页面本身。
+    """
+    try:
+        if response.mimetype != 'text/html':
+            return response
+        data = response.get_data(as_text=True)
+        if '</body>' not in data or 'data-lang-switch-off' in data:
+            return response
+        if request.args.get('no_lang_switch'):
+            return response
+        widget = _lang_switch_widget(get_lang())
+        response.set_data(data.replace('</body>', widget + '</body>'))
+    except Exception:
+        pass
     return response
 
 
@@ -302,7 +344,7 @@ def user_notifications_list():
     """获取当前用户通知列表"""
     user_id = _get_user_id_from_token()
     if not user_id:
-        return jsonify({'success': False, 'error': '未登录'}), 401
+        return jsonify({'success': False, 'error': _('Please login first')}), 401
     try:
         limit = int(request.args.get('limit', 50))
         offset = int(request.args.get('offset', 0))
@@ -330,7 +372,7 @@ def user_notifications_unread():
     """获取未读通知数量"""
     user_id = _get_user_id_from_token()
     if not user_id:
-        return jsonify({'success': False, 'error': '未登录'}), 401
+        return jsonify({'success': False, 'error': _('Please login first')}), 401
     return jsonify({'success': True, 'count': get_unread_count(user_id)})
 
 
@@ -339,7 +381,7 @@ def user_notification_mark_read(nid):
     """标记单条通知已读"""
     user_id = _get_user_id_from_token()
     if not user_id:
-        return jsonify({'success': False, 'error': '未登录'}), 401
+        return jsonify({'success': False, 'error': _('Please login first')}), 401
     ok = mark_read(user_id, nid)
     return jsonify({'success': ok})
 
@@ -349,7 +391,7 @@ def user_notifications_read_all():
     """标记全部通知已读"""
     user_id = _get_user_id_from_token()
     if not user_id:
-        return jsonify({'success': False, 'error': '未登录'}), 401
+        return jsonify({'success': False, 'error': _('Please login first')}), 401
     ok = mark_read(user_id)
     return jsonify({'success': ok})
 
@@ -359,7 +401,7 @@ def user_notification_delete(nid):
     """删除单条通知"""
     user_id = _get_user_id_from_token()
     if not user_id:
-        return jsonify({'success': False, 'error': '未登录'}), 401
+        return jsonify({'success': False, 'error': _('Please login first')}), 401
     try:
         with get_db() as conn:
             conn.execute('DELETE FROM user_notifications WHERE user_id=%s AND id=%s', (user_id, nid))
@@ -374,7 +416,7 @@ def submit_feedback():
     """用户提交投诉/建议"""
     user_id = _get_user_id_from_token()
     if not user_id:
-        return jsonify({'success': False, 'error': '请先登录'}), 401
+        return jsonify({'success': False, 'error': _('Please login first')}), 401
     data = request.get_json(silent=True) or {}
     fb_type = data.get('type', '').strip()
     category = data.get('category', '').strip()
@@ -383,13 +425,13 @@ def submit_feedback():
     contact = data.get('contact', '').strip()
 
     if fb_type not in ('complaint', 'suggestion'):
-        return jsonify({'success': False, 'error': '类型无效'}), 400
+        return jsonify({'success': False, 'error': _('Invalid type')}), 400
     if category not in ('功能问题', '内容问题', '账号问题', '支付问题', '其他'):
-        return jsonify({'success': False, 'error': '分类无效'}), 400
+        return jsonify({'success': False, 'error': _('Invalid category')}), 400
     if not title or len(title) > 200:
-        return jsonify({'success': False, 'error': '标题 1-200 字'}), 400
+        return jsonify({'success': False, 'error': _('Title must be 1-200 characters')}), 400
     if not content or len(content) > 5000:
-        return jsonify({'success': False, 'error': '内容 1-5000 字'}), 400
+        return jsonify({'success': False, 'error': _('Content must be 1-5000 characters')}), 400
 
     try:
         with get_db() as conn:
@@ -398,9 +440,9 @@ def submit_feedback():
                 (user_id, fb_type, category, title, content, contact)
             )
             conn.commit()
-        return jsonify({'success': True, 'message': '感谢您的反馈，我们会尽快处理！'})
+        return jsonify({'success': True, 'message': _('Thank you for your feedback, we will handle it as soon as possible!')})
     except Exception as e:
-        return jsonify({'success': False, 'error': '提交失败: '+str(e)}), 500
+        return jsonify({'success': False, 'error': _('Submission failed: {error}', error=str(e))}), 500
 
 
 # ══ 静态文件 ══

@@ -53,6 +53,7 @@ git_script.py
 # Environment
 .env
 .env.*
+!.env.example
 *.env.local
 
 # OS
@@ -69,7 +70,7 @@ verify_*.py
 # DB backups
 backups/
 data/*.db
-data/*.mmdb
+**/data/*.mmdb
 
 # Runtime SQLite databases (plugins own DBs are created at runtime)
 plugins/*/*.db
@@ -121,7 +122,8 @@ tools/
 !veroguard/tools/
 site/
 deploy/caddy/
-docs/
+docs/*
+!docs/i18n-standard.md
 
 # Local deploy diagnostics (not tracked — health scripts are tracked separately)
 deploy/check*.sh

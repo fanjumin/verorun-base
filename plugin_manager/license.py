@@ -355,10 +355,24 @@ class LicenseManager:
                     pass
 
             # 在线验证（SPI，可降级）
+            # 附带本地商店登记的包哈希，供 License 服务端做「同包多站点复用」检测
+            _pkg_hash = ''
+            try:
+                from .models import get_registry_db
+                with get_registry_db() as conn:
+                    _cur = conn.execute(
+                        'SELECT package_hash FROM store_plugins WHERE identifier = %s',
+                        (plugin_id,))
+                    _row = _cur.fetchone()
+                if _row:
+                    _pkg_hash = _row['package_hash'] or ''
+            except Exception:
+                pass
             remote = _call_remote('POST', '/validate', {
                 'plugin_id': plugin_id,
                 'license_key': record.license_key,
                 'site_id': get_site_id(),
+                'package_hash': _pkg_hash,
             })
             if remote.get('success') and remote.get('data', {}).get('valid') is False:
                 self._update_status(plugin_id, LicenseStatus.REVOKED)

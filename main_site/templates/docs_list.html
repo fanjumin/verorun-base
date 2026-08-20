@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="{{ lang }}">
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>{{ _('{{ category.name }} — {{ brand.site_name_en if brand else '' }} 文档') }}</title>
-<meta content="{{ category.name }} — 技术文档与教程。" name="description"/>
+<title>{{ _('{category} — {brand} Docs', category=category.name, brand=brand.site_name_en if brand else '') }}</title>
+<meta content="{{ _('{category} — Technical Docs & Tutorials.', category=category.name) }}" name="description"/>
 <link href="{{ brand.favicon_url if brand and brand.favicon_url else '/static/favicon-32x32.png' }}" rel="icon" sizes="32x32" type="image/png"/>
 <link href="/static/css/fonts.css" rel="stylesheet"/>
 <link href="/static/css/landing.css" rel="stylesheet"/>
@@ -45,7 +45,7 @@
 <div class="logo-icon">E</div>
 <span>{{ brand.site_name_en if brand else '' }}</span>
 </a>
-<button aria-label="菜单" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<button aria-label="{{ _('Menu') }}" class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
 <div class="nav-links" id="navLinks">
 <a href="/services">{{ _('Services') }}</a>
 <a class="active" href="/docs">{{ _('Docs') }}</a>
@@ -60,11 +60,11 @@
 <a class="back" href="/docs">{{ _('← Back to Docs') }}</a>
 <h1>{{ category.icon }} {{ category.name }}</h1>
 <p class="cat-desc">{{ {
-    'getting-started': '从零开始，快速上手平台。',
-    'finance': 'A股智能分析与量化策略指南。',
-    'insights': '产品更新、版本发布与功能公告。',
-    'help': '常见问题、故障排除、账号管理与计费说明。',
-    'legal': '隐私政策、服务条款、AI 服务说明等法律合规文档。'
+    'getting-started': _('Start from scratch and get started on the platform quickly.'),
+    'finance': _('A-share intelligent analysis and quantitative strategy guide.'),
+    'insights': _('Product updates, version releases and feature announcements.'),
+    'help': _('FAQ, troubleshooting, account management and billing instructions.'),
+    'legal': _('Legal compliance documents such as privacy policy, terms of service and AI service description.')
   }.get(category.slug, '') }}</p>
 </div>
 <div class="docs-layout">

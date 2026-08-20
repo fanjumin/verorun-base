@@ -48,7 +48,8 @@ app.config['SESSION_TYPE'] = 'filesystem'
 
 # ══ Try to load i18n ══
 try:
-    from i18n import _ as _t
+    from i18n import _, get_lang, get_all_translations, resolve_locale
+    _t = _
 except Exception:
     _t = lambda s: s
 
@@ -234,7 +235,67 @@ def captcha_consume():
 
 @app.context_processor
 def inject_globals():
-    return dict(_=_t)
+    return dict(_=_t, lang=get_lang(), translations=get_all_translations(get_lang()))
+
+
+# ══ i18n 语言协商 + 语言切换（i18n-standard §5）══
+@app.before_request
+def _i18n_resolve_locale():
+    """按 ?lang= → Cookie → Accept-Language → DEPLOY_LANG 协商请求语言。"""
+    try:
+        from flask import g
+        g.lang_code = resolve_locale(
+            lang_param=request.args.get('lang'),
+            cookie=request.cookies.get('lang'),
+            accept_header=request.headers.get('Accept-Language') or '',
+        )
+    except Exception:
+        pass
+
+
+import functools
+from flask import render_template_string
+
+
+@functools.lru_cache(maxsize=2)
+def _lang_switch_widget(lang):
+    return render_template_string('{% include "_lang_switch.html" %}', lang=lang)
+
+
+@app.after_request
+def inject_lang_switch(response):
+    """对 text/html 响应自动注入语言切换按钮（_lang_switch.html）。
+
+    跳过条件：非 text/html、无 </body>、页面含 data-lang-switch-off、
+    URL 带 no_lang_switch=1。注入失败静默跳过，绝不影响页面本身。
+    """
+    try:
+        if response.mimetype != 'text/html':
+            return response
+        data = response.get_data(as_text=True)
+        if '</body>' not in data or 'data-lang-switch-off' in data:
+            return response
+        if request.args.get('no_lang_switch'):
+            return response
+        response.set_data(data.replace('</body>', _lang_switch_widget(get_lang()) + '</body>'))
+    except Exception:
+        pass
+    return response
+
+
+@app.route('/api/v1/i18n/lang', methods=['GET', 'POST'])
+def i18n_set_lang():
+    """查询 / 切换当前语言（写 Cookie，刷新后由 resolve_locale 生效）。"""
+    from i18n import _normalize_locale, SUPPORTED_LOCALES
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        lang = _normalize_locale(data.get('lang') or request.args.get('lang'))
+        if not lang or lang not in SUPPORTED_LOCALES:
+            return jsonify({'ok': False, 'error': _t('Unsupported language')}), 400
+        resp = jsonify({'ok': True, 'lang': lang})
+        resp.set_cookie('lang', lang, max_age=365 * 24 * 3600, samesite='Lax')
+        return resp
+    return jsonify({'ok': True, 'lang': get_lang()})
 
 
 @app.route('/health')

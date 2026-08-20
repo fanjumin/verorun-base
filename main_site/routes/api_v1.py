@@ -1242,3 +1242,19 @@ def api_tts():
             '[TTS] Public TTS failed: %s', e, exc_info=True
         )
         return api_err(str(e), 500)
+
+
+# ══ i18n 语言切换 API（规范 §5）══
+@api_v1_bp.route('/i18n/lang', methods=['GET', 'POST'])
+def i18n_set_lang():
+    """GET 返回当前语言；POST {lang} 写入 Cookie 并切换。仅支持 en / zh-CN。"""
+    from i18n import _normalize_locale, SUPPORTED_LOCALES, get_lang
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        lang = _normalize_locale(data.get('lang') or request.args.get('lang'))
+        if not lang or lang not in SUPPORTED_LOCALES:
+            return api_err(_('Unsupported language'), 400)
+        resp = api_ok({'lang': lang})
+        resp.set_cookie('lang', lang, max_age=365 * 24 * 3600, samesite='Lax')
+        return resp
+    return api_ok({'lang': get_lang()})

@@ -2,15 +2,23 @@
   "name": "Site Domains",
   "name_i18n_key": "plugin.name",
   "identifier": "site_domains",
-  "python_dependencies": {"required": [], "optional": {}},
-  "version": "1.2.1",
+  "python_dependencies": {
+    "required": [],
+    "optional": {}
+  },
+  "version": "1.3.2",
   "description": "Site Domains — Subdomain & Nginx configuration manager. Manage subdomain sites, bind service ports, and generate Nginx configs.",
   "author": "VeroRun",
   "min_app_version": "0.10.0",
   "category": "system",
   "icon": "site_domains",
   "icon_url": "",
-  "tags": ["domain", "subdomain", "nginx", "deploy"],
+  "tags": [
+    "domain",
+    "subdomain",
+    "nginx",
+    "deploy"
+  ],
   "screenshots": [],
   "readme_url": "",
   "dependencies": {},

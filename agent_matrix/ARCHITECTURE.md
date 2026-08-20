@@ -586,6 +586,7 @@ STEP 6 — 最终报告
   "result": {
     "task_id": "AT-20260510-0001",
     "status": "completed",
+    "failed": false,
     "result_data": {
       "post_id": 42,
       "title": "智能体 技术科普：从概念到实践",
@@ -608,6 +609,8 @@ STEP 6 — 最终报告
   }
 }
 ```
+
+> **重试行为（B-03 修订）**：`AgentRunner` 执行时，LLM/上游错误（401/5xx/网络异常或 `Error:` 前缀响应）按 `max_retries` 有限重试（指数退避 2s→4s→8s 封顶），仍失败则 `status=failed` 且 `failed=true`；低置信度（<0.7）触发原有内容重试，最终结果统一携带 `failed`（bool）字段，供 memory_engine 的 Reflexion/Extractor 判定。
 
 ---
 

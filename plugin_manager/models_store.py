@@ -136,15 +136,68 @@ CREATE INDEX IF NOT EXISTS idx_store_plugins_category
     ON store_plugins(category);
 CREATE INDEX IF NOT EXISTS idx_store_plugins_price
     ON store_plugins(price_type);
+
+-- 插件审核队列表（VeroRun 插件审核网关 · 批次2）
+-- 上传插件先进 pending 队列，AI 规则审核 + 人工审批通过后才安装
+CREATE TABLE IF NOT EXISTS plugin_submissions (
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    identifier      TEXT NOT NULL,                  -- 插件标识
+    name            TEXT DEFAULT '',
+    version         TEXT DEFAULT '',
+    status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(status IN ('pending','approved','rejected')),
+    submitter       TEXT DEFAULT '',                 -- 上传者（JWT 用户名）
+    submitter_id    TEXT DEFAULT '',                 -- 上传者 user_id
+    file_path       TEXT DEFAULT '',                 -- 暂存目录（plugins/.pending/<id>/）
+    file_size       BIGINT DEFAULT 0,               -- 上传包大小（bytes）
+    wm_method       TEXT DEFAULT '',                 -- 水印检测方式
+    wm_reason       TEXT DEFAULT '',
+    audit_status    TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(audit_status IN ('pending','pass','manual','reject')),
+    audit_report    TEXT DEFAULT '{}',               -- 审核报告 JSON
+    audit_reasons   TEXT DEFAULT '[]',               -- 审核理由 JSON array
+    review_comment  TEXT DEFAULT '',
+    reviewed_at     TEXT,
+    created_at      TEXT DEFAULT NOW(),
+    updated_at      TEXT DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_submissions_status
+    ON plugin_submissions(status);
 """
 
 
 # ── 初始化 ─────────────────────────────────────────────────────────────
 
+# ── B1 修复：plugin_submissions 幂等补列迁移 ──────────────────────────
+# PG 的 CREATE TABLE IF NOT EXISTS 不会为已存在的旧表补列；
+# 以下语句保证新旧库启动即自愈（ADD COLUMN IF NOT EXISTS 幂等）。
+_SUBMISSIONS_COLUMN_MIGRATIONS = [
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS "
+    "audit_status TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS audit_report TEXT DEFAULT '{}'",
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS audit_reasons TEXT DEFAULT '[]'",
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS review_comment TEXT DEFAULT ''",
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS reviewed_at TEXT",
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS wm_method TEXT DEFAULT ''",
+    "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS wm_reason TEXT DEFAULT ''",
+]
+
+
+def _migrate_submissions_columns(conn):
+    """幂等补列：对已存在的旧 plugin_submissions 表补齐新列。"""
+    for stmt in _SUBMISSIONS_COLUMN_MIGRATIONS:
+        try:
+            conn.execute(stmt)
+        except Exception as _e:
+            print(f'[PluginManager] ⚠️ submissions migration skipped: {_e}')
+
+
 def init_license_store_tables():
     """幂等初始化 License + Store 表"""
     with get_registry_db() as conn:
         conn.executescript(LICENSE_STORE_DDL)
+        _migrate_submissions_columns(conn)
         print(f'[PluginManager] ✅ plugin_licenses + store_plugins tables ready')
         conn.commit()
 

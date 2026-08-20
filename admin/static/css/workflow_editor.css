@@ -2,11 +2,12 @@
    Workflow Drag Editor — 三栏布局 + 节点样式
    ══════════════════════════════════════════════════════════════ */
 
-/* ── Layout ── */
-html, body { height: 100%; margin: 0; overflow: hidden; }
-body {
+/* ── Layout（SPA 内嵌容器；独立路由的 html/body 兜底见 workflow_editor.html 内联样式）── */
+#wf-editor-root {
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 96px);   /* 顶栏 48px + .con padding 40px + 余量 */
+  min-height: 420px;
   background: var(--bg-deep);
   color: var(--text);
   font-family: var(--font-cn);
@@ -323,4 +324,18 @@ body {
 #editor-right::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
+}
+
+/* ── Responsive（与后台 768px 侧边栏折叠协同）── */
+@media (max-width:1024px){
+  #editor-left{width:170px;min-width:170px}
+  #editor-right{width:240px;min-width:240px}
+}
+@media (max-width:768px){
+  #editor-main{flex-direction:column}
+  #editor-left{width:100%;min-width:0;border-right:none;border-bottom:1px solid var(--border);max-height:96px;display:flex;flex-wrap:wrap;gap:4px;padding:6px;overflow-y:auto}
+  #editor-left .panel-title{display:none}
+  #editor-left .node-panel-item{display:inline-flex;width:auto;margin:0}
+  #editor-right{width:100%;min-width:0;border-left:none;border-top:1px solid var(--border);max-height:180px}
+  #editor-canvas{min-height:320px}
 }

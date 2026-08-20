@@ -604,7 +604,7 @@ def _tool_cms_publish_post(args):
 
         if local_cats:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth-center'))
-        from models.cms import upsert_post
+            from models.cms import upsert_post
             post = dict(row)
             upsert_post({
                 'id': post_id,
