@@ -31,6 +31,11 @@ class SubscriptionStatus(str, Enum):
     SUSPENDED = 'suspended'     # 暂停（扣款失败）
 
 
+# 到期后未续费的宽限期（天）。宽限期内 License 保留 active，
+# 超过宽限期未续费则由 run_grace_lock_scan() 锁定为 expired。
+GRACE_DAYS = 7
+
+
 # ── DDL ───────────────────────────────────────────────────────────────
 
 PLUGIN_SUBSCRIPTION_DDL = """
@@ -203,7 +208,13 @@ class SubscriptionManager:
     # ── 续费处理 ──────────────────────────────────────────────────
 
     def renew(self, plugin_id: str) -> bool:
-        """手动续费（延长一个周期）"""
+        """手动续费（延长一个周期）
+
+        续费成功后：
+          - 清除待支付续费订单标记（防止 _ensure_renewal_order 幂等误判已支付订单仍待支付）
+          - 记录 last_renewed_at
+          - 仅对仍处于 active 的 License 延长有效期（避免覆盖其他状态）
+        """
         sub = self.get_subscription(plugin_id)
         if not sub:
             return False
@@ -216,6 +227,10 @@ class SubscriptionManager:
         new_start = max(now, current_end)
         new_end = self._calc_period_end(new_start, sub.interval_type)
 
+        extra = dict(sub.extra or {})
+        extra.pop('pending_renew_order', None)
+        extra['last_renewed_at'] = now.isoformat()
+
         with get_registry_db() as conn:
             conn.execute("""
                 UPDATE plugin_subscriptions SET
@@ -223,10 +238,66 @@ class SubscriptionManager:
                     current_period_end=%s,
                     last_charge_at=NOW(),
                     retry_count=0,
+                    extra=%s,
                     updated_at=NOW()
-                WHERE plugin_id=%s
-            """, (new_start.isoformat(), new_end.isoformat(), plugin_id))
-            # 同步续期 License
+                WHERE id=%s
+            """, (new_start.isoformat(), new_end.isoformat(),
+                  json.dumps(extra, ensure_ascii=False), sub.id))
+            # 同步续期 License（仅限 active，避免覆盖其他状态）
+            conn.execute("""
+                UPDATE plugin_licenses SET
+                    expires_at=%s,
+                    license_status='active',
+                    updated_at=NOW()
+                WHERE plugin_id=%s AND license_status='active'
+            """, (new_end.isoformat(), plugin_id))
+            conn.commit()
+        return True
+
+    def reactivate(self, plugin_id: str, interval_type: str = None,
+                   amount_fen: int = None) -> bool:
+        """补缴/重新购买后恢复订阅
+
+        适用：订阅已 expired / suspended / canceled，用户完成支付后恢复。
+        行为：
+          - 订阅恢复 active + auto_renew=1，重新计算一个完整周期
+          - 同步恢复 License 为 active 并刷新 expires_at
+        """
+        sub = self.get_subscription(plugin_id)
+        if not sub:
+            return False
+
+        if interval_type:
+            sub.interval_type = interval_type
+        if amount_fen is not None:
+            sub.amount_fen = amount_fen
+
+        now = datetime.now()
+        new_end = self._calc_period_end(now, sub.interval_type)
+
+        extra = dict(sub.extra or {})
+        extra.pop('pending_renew_order', None)
+        extra.pop('grace_since', None)
+        extra['last_renewed_at'] = now.isoformat()
+
+        with get_registry_db() as conn:
+            conn.execute("""
+                UPDATE plugin_subscriptions SET
+                    status='active',
+                    auto_renew=1,
+                    interval_type=%s,
+                    amount_fen=%s,
+                    current_period_start=%s,
+                    current_period_end=%s,
+                    last_charge_at=NOW(),
+                    retry_count=0,
+                    extra=%s,
+                    updated_at=NOW()
+                WHERE id=%s
+            """, (sub.interval_type, sub.amount_fen,
+                  now.isoformat(), new_end.isoformat(),
+                  json.dumps(extra, ensure_ascii=False), sub.id))
+            # 恢复 License（订阅恢复意味着用户已补缴，License 一并恢复）
             conn.execute("""
                 UPDATE plugin_licenses SET
                     expires_at=%s,
@@ -240,7 +311,12 @@ class SubscriptionManager:
     # ── 到期检查 ──────────────────────────────────────────────────
 
     def check_expired(self) -> List[PluginSubscription]:
-        """检查并标记所有到期的订阅"""
+        """检查并处理所有到期的订阅
+
+        - auto_renew=0 → 立即标记 expired 并同步过期 License
+        - auto_renew=1 → 进入宽限期（GRACE_DAYS 内 License 保留 active），
+          并生成续费订单供支付；超过宽限期由 run_grace_lock_scan() 锁定。
+        """
         now = datetime.now().isoformat()
         expired = []
 
@@ -252,7 +328,11 @@ class SubscriptionManager:
             for row in rows:
                 sub = PluginSubscription.from_row(dict(row))
                 if sub.auto_renew:
-                    # 自动续费：尝试扣款（此处仅标记，实际扣款由 scheduler 驱动）
+                    # 进入宽限期：生成续费订单（幂等，已生成则跳过）
+                    try:
+                        self._ensure_renewal_order(sub)
+                    except Exception as e:
+                        print(f'[PluginSub] renewal order failed for {sub.plugin_id}: {e}')
                     expired.append(sub)
                 else:
                     # 不续费：标记过期
@@ -261,7 +341,8 @@ class SubscriptionManager:
                         (sub.id,)
                     )
                     conn.execute(
-                        "UPDATE plugin_licenses SET license_status='expired', updated_at=NOW() WHERE plugin_id=%s",
+                        "UPDATE plugin_licenses SET license_status='expired', updated_at=NOW() "
+                        "WHERE plugin_id=%s AND license_status='active'",
                         (sub.plugin_id,)
                     )
                     conn.commit()
@@ -269,12 +350,103 @@ class SubscriptionManager:
 
         return expired
 
+    def _ensure_renewal_order(self, sub: PluginSubscription) -> Optional[str]:
+        """为到期自动续费订阅生成续费订单（幂等：已生成则跳过）"""
+        extra = dict(sub.extra or {})
+        if extra.get('pending_renew_order'):
+            return extra['pending_renew_order']
+
+        # 从原支付订单获取渠道与客户邮箱
+        from .payment import get_payment_order, create_payment_order, get_payment_router, update_payment_order
+        src = get_payment_order(sub.order_no)
+        if not src:
+            extra['renewal_error'] = 'source_order_missing'
+            self._update_extra(sub.plugin_id, extra, sub.id)
+            return None
+
+        order = create_payment_order(
+            plugin_id=sub.plugin_id,
+            channel=src.channel or 'alipay',
+            amount_fen=sub.amount_fen,
+            subject=f'{sub.plugin_id} renewal ({sub.interval_type})',
+            description='Plugin subscription renewal',
+            customer_email=src.customer_email or '',
+        )
+        # 标记续费订单：支付回调据此识别（审计追踪），并关联到订阅
+        try:
+            update_payment_order(order.order_no, extra=json.dumps({
+                'renewal': True,
+                'subscription_id': sub.id,
+            }, ensure_ascii=False))
+        except Exception as e:
+            print(f'[PluginSub] mark renewal order {order.order_no} failed: {e}')
+        try:
+            provider = get_payment_router().get_provider(order.channel)
+            result = provider.create_order(order)
+        except Exception as e:
+            extra['renewal_error'] = f'gateway: {e}'
+            self._update_extra(sub.plugin_id, extra, sub.id)
+            return None
+        if not result.success:
+            extra['renewal_error'] = f'gateway: {result.error}'
+            self._update_extra(sub.plugin_id, extra, sub.id)
+            return None
+
+        extra['pending_renew_order'] = order.order_no
+        if not extra.get('grace_since'):
+            extra['grace_since'] = datetime.now().isoformat()
+        self._update_extra(sub.plugin_id, extra, sub.id)
+        print(f'[PluginSub] renewal order {order.order_no} created for {sub.plugin_id}')
+        return order.order_no
+
+    def _update_extra(self, plugin_id: str, extra: dict, sub_id: int = None) -> None:
+        with get_registry_db() as conn:
+            if sub_id:
+                conn.execute(
+                    "UPDATE plugin_subscriptions SET extra=%s, updated_at=NOW() WHERE id=%s",
+                    (json.dumps(extra, ensure_ascii=False), sub_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE plugin_subscriptions SET extra=%s, updated_at=NOW() WHERE plugin_id=%s",
+                    (json.dumps(extra, ensure_ascii=False), plugin_id)
+                )
+            conn.commit()
+
+    def run_grace_lock_scan(self) -> List[PluginSubscription]:
+        """宽限期锁定：到期超过 GRACE_DAYS 仍未续费的自动续费订阅
+        → 订阅 expired + License 过期"""
+        locked = []
+        with get_registry_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM plugin_subscriptions "
+                "WHERE status='active' AND auto_renew=1 "
+                "  AND current_period_end::timestamp < NOW() - (%s * INTERVAL '1 day')",
+                (GRACE_DAYS,)
+            ).fetchall()
+            for row in rows:
+                sub = PluginSubscription.from_row(dict(row))
+                conn.execute(
+                    "UPDATE plugin_subscriptions SET status='expired', auto_renew=0, updated_at=NOW() WHERE id=%s",
+                    (sub.id,)
+                )
+                conn.execute(
+                    "UPDATE plugin_licenses SET license_status='expired', updated_at=NOW() "
+                    "WHERE plugin_id=%s AND license_status='active'",
+                    (sub.plugin_id,)
+                )
+                conn.commit()
+                locked.append(sub)
+        if locked:
+            print(f'[PluginSub] grace-locked {len(locked)} expired subscription(s)')
+        return locked
+
     # ── 查询 ──────────────────────────────────────────────────────
 
     def get_subscription(self, plugin_id: str) -> Optional[PluginSubscription]:
         with get_registry_db() as conn:
             row = conn.execute(
-                'SELECT * FROM plugin_subscriptions WHERE plugin_id=%s',
+                'SELECT * FROM plugin_subscriptions WHERE plugin_id=%s ORDER BY id DESC LIMIT 1',
                 (plugin_id,)
             ).fetchone()
             if row:
@@ -326,3 +498,21 @@ def get_subscription_manager() -> SubscriptionManager:
             if _SUB_MGR is None:
                 _SUB_MGR = SubscriptionManager()
     return _SUB_MGR
+
+
+# ── 定时任务包装（由 admin/app.py APScheduler 调度） ──────────────────
+
+def run_plugin_sub_scan() -> None:
+    """每日调度：插件订阅到期扫描（生成续费订单 / 标记过期）"""
+    mgr = get_subscription_manager()
+    expired = mgr.check_expired()
+    if expired:
+        print(f'[PluginSub] {len(expired)} subscription(s) past due')
+
+
+def run_plugin_sub_grace_scan() -> None:
+    """每日调度：插件订阅宽限期锁定（超期未续费 → License 过期）"""
+    mgr = get_subscription_manager()
+    locked = mgr.run_grace_lock_scan()
+    if locked:
+        print(f'[PluginSub] grace-locked {len(locked)} subscription(s)')

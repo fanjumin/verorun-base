@@ -152,14 +152,17 @@ except Exception as e:
 # 调度由插件 SUBSCRIPTION_JOBS 的 4 个任务接管。
 try:
     from plugins.subscription.scheduler import run_renewal_scan, run_dunning_scan, check_expired_subscriptions, cleanup_old_orders
+    from plugin_manager.subscription import run_plugin_sub_scan, run_plugin_sub_grace_scan
     from apscheduler.schedulers.background import BackgroundScheduler
     _renew_sched = BackgroundScheduler(timezone='Asia/Shanghai')
     _renew_sched.add_job(run_renewal_scan, 'cron', hour=2, minute=0)                 # 每日 02:00 扫描到期代扣
     _renew_sched.add_job(check_expired_subscriptions, 'cron', hour=2, minute=30)     # 每日 02:30 过期标记
     _renew_sched.add_job(run_dunning_scan, 'cron', hour=3, minute=0)                 # 每日 03:00 dunning 重试
     _renew_sched.add_job(cleanup_old_orders, 'cron', hour=3, minute=30)              # 每日 03:30 清理旧订单
+    _renew_sched.add_job(run_plugin_sub_scan, 'cron', hour=2, minute=15)             # 每日 02:15 插件订阅到期扫描
+    _renew_sched.add_job(run_plugin_sub_grace_scan, 'cron', hour=3, minute=15)       # 每日 03:15 插件订阅宽限期锁定
     _renew_sched.start()
-    print('[Subscription] ✅ 插件订阅自动续费调度已启动（02:00 续费 / 02:30 过期 / 03:00 dunning / 03:30 清理）')
+    print('[Subscription] ✅ 插件订阅自动续费调度已启动（02:00 续费 / 02:15 插件到期 / 02:30 过期 / 03:00 dunning / 03:15 插件宽限 / 03:30 清理）')
 except ImportError:
     print('[Subscription] ⚠️ APScheduler 未安装，订阅调度跳过')
 except Exception as e:

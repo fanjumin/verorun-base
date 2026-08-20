@@ -1552,7 +1552,7 @@ from .payment import (
 
 import os
 from i18n import _
-from .subscription import get_subscription_manager
+from .subscription import get_subscription_manager, SubscriptionStatus
 from .coupons import get_coupon_manager
 
 
@@ -1785,13 +1785,27 @@ def _activate_license_after_payment(order, order_no: str):
             detail = store.get_detail(order.plugin_id)
             if detail and detail.get('price_type') == 'sub':
                 sm = get_subscription_manager()
-                sm.create(
-                    plugin_id=order.plugin_id,
-                    license_key=order_no,
-                    order_no=order_no,
-                    interval_type=detail.get('price_interval', 'month'),
-                    amount_fen=detail.get('price_amount', 0),
-                )
+                existing = sm.get_subscription(order.plugin_id)
+                if existing and existing.status == SubscriptionStatus.ACTIVE:
+                    # 续费/重复支付回调：延长一个周期并同步续期 License
+                    if not sm.renew(order.plugin_id):
+                        print(f'[PluginSub] renewal failed for {order.plugin_id}')
+                elif existing:
+                    # 宽限期已锁定（expired/suspended/canceled）后补缴或重新购买：
+                    # 恢复订阅与 License（reactivate），避免静默新建重复订阅记录
+                    if not sm.reactivate(
+                            order.plugin_id,
+                            interval_type=detail.get('price_interval', existing.interval_type),
+                            amount_fen=detail.get('price_amount', existing.amount_fen)):
+                        print(f'[PluginSub] reactivate failed for {order.plugin_id}')
+                else:
+                    sm.create(
+                        plugin_id=order.plugin_id,
+                        license_key=order_no,
+                        order_no=order_no,
+                        interval_type=detail.get('price_interval', 'month'),
+                        amount_fen=detail.get('price_amount', 0),
+                    )
 
     _fire_payment_hook(order.plugin_id, 'purchase', order_no)
 
