@@ -109,6 +109,8 @@ CREATE TABLE IF NOT EXISTS store_plugins (
     readme_url      TEXT DEFAULT '',
     tagline         TEXT DEFAULT '',                 -- 宣传语（AI 提取/手写）
     tagline_i18n_key TEXT DEFAULT '',                -- 宣传语 i18n 查找键
+    tagline_font_size TEXT DEFAULT '12px',           -- 宣传语字号
+    tagline_color   TEXT DEFAULT '#ffffff',          -- 宣传语字体颜色
     downloads       BIGINT DEFAULT 0,
     rating          DOUBLE PRECISION DEFAULT 0.0,
     review_count    BIGINT DEFAULT 0,               -- 评价总数
@@ -186,11 +188,13 @@ _SUBMISSIONS_COLUMN_MIGRATIONS = [
     "ALTER TABLE plugin_submissions ADD COLUMN IF NOT EXISTS wm_reason TEXT DEFAULT ''",
 ]
 
-# ── 商店表幂等补列迁移（tagline / i18n 键）──────────────────────────
+# ── 商店表幂等补列迁移（tagline / i18n 键 / last_sync_ts）────────────
 _STORE_COLUMN_MIGRATIONS = [
     "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS name_i18n_key TEXT DEFAULT ''",
     "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS tagline TEXT DEFAULT ''",
     "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS tagline_i18n_key TEXT DEFAULT ''",
+    # P0-2：目录同步时间戳持久化（TEXT 存 ISO 时间串，与 store_plugins 其余时间列一致）
+    "ALTER TABLE store_plugins ADD COLUMN IF NOT EXISTS last_sync_ts TEXT DEFAULT ''",
 ]
 
 
@@ -310,6 +314,8 @@ class StorePlugin:
     readme_url: str = ''
     tagline: str = ''
     tagline_i18n_key: str = ''
+    tagline_font_size: str = '12px'
+    tagline_color: str = '#ffffff'
     downloads: int = 0
     rating: float = 0.0
     review_count: int = 0
@@ -349,6 +355,8 @@ class StorePlugin:
             readme_url=row.get('readme_url', ''),
             tagline=row.get('tagline', ''),
             tagline_i18n_key=row.get('tagline_i18n_key', ''),
+            tagline_font_size=row.get('tagline_font_size', '12px'),
+            tagline_color=row.get('tagline_color', '#ffffff'),
             downloads=row.get('downloads', 0),
             rating=row.get('rating', 0.0),
             review_count=row.get('review_count', 0),

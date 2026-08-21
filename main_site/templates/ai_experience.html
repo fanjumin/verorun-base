@@ -145,7 +145,7 @@
 
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-logo"><div class="icon">AI</div><span>VeroRun</span></a>
+    <a href="/" class="nav-logo"><div class="icon">AI</div><span>{{ brand.site_name_en if brand else 'VeroRun' }}</span></a>
     <div class="nav-links" id="nl">
       <a href="/">{{ _('Home') }}</a>
       <a href="/ai-matrix">{{ _('AI Matrix') }}</a>
@@ -299,7 +299,7 @@
 <footer class="footer">
   <div class="footer-grid">
     <div class="footer-brand">
-      <div class="footer-logo">VeroRun</div>
+      <div class="footer-logo">{{ brand.site_name_en if brand else 'VeroRun' }}</div>
       <p>{{ _("AI Matrix-driven smart business operations platform. More than website building — it's a multi-agent AI matrix running your website.") }}</p>
     </div>
     <div class="footer-col">
@@ -310,7 +310,7 @@
     <div class="footer-col"><h4>{{ _('Resources') }}</h4><a href="/docs">{{ _('Help Docs') }}</a><a href="/start">{{ _('Quick Start') }}</a></div>
     <div class="footer-col"><h4>{{ _('Company') }}</h4><a href="/about">{{ _('About Us') }}</a><a href="/privacy">{{ _('Privacy Policy') }}</a></div>
   </div>
-  <div class="footer-bottom"><p>© 2026 VeroRun. All rights reserved.</p></div>
+  <div class="footer-bottom"><p>{{ brand.copyright | safe if brand else '© 2026 ' + (brand.site_name_en if brand else 'VeroRun') + '. All rights reserved.' }}</p></div>
 </footer>
 
 <style>.cta-section{text-align:center;padding:60px 32px 80px;position:relative}.cta-section .cta-bg{position:absolute;inset:0;background:var(--gradient-dark);z-index:0}.cta-section .cta-content{position:relative;z-index:2}.cta-section h2{font-size:clamp(1.4em,2.5vw,2em);font-weight:700;margin-bottom:12px;color:var(--text-high)}.cta-section p{font-size:14px;color:var(--text-dim);margin-bottom:28px}.cta-section .cta-btn{display:inline-flex;align-items:center;gap:8px;padding:14px 36px;border-radius:12px;background:var(--gradient-primary);color:#fff;font-size:15px;font-weight:600;text-decoration:none;transition:all .3s}.cta-section .cta-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(99,102,241,.35)}</style>

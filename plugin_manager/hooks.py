@@ -89,11 +89,10 @@ class HookRegistry:
         for h in hooks:
             try:
                 h.callback(*args, **kwargs)
+            except SystemExit as e:
+                _hook_failure(h, hook, e)
             except Exception as e:
-                print(f'[HookRegistry] action "{hook}" error '
-                      f'(from {h.identifier}): {e}')
-                import traceback
-                traceback.print_exc()
+                _hook_failure(h, hook, e)
 
     def has_action(self, hook: str, callback: Callable = None) -> bool:
         """检查是否注册了指定 action"""
@@ -224,6 +223,17 @@ class HookRegistry:
                     for h in v
                 ]
             return result
+
+
+def _hook_failure(h: _Hook, hook: str, error: BaseException):
+    """钩子回调失败统一处理（P0-4）：有插件来源时计入熔断计数 + 日志。"""
+    if h.identifier:
+        from .guard import record_failure
+        record_failure(h.identifier)
+    print(f'[HookRegistry] {type(error).__name__} "{hook}" '
+          f'(from {h.identifier or "system"}): {error}')
+    import traceback
+    traceback.print_exc()
 
 
 # ── 模块级单例 ──────────────────────────────────────────────────────

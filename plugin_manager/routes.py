@@ -28,7 +28,11 @@ from flask import Blueprint, jsonify, request
 from .manager import PluginManager
 from .models import PluginStatus
 from .models_store import get_registry_db
-from .exceptions import PluginError
+from .exceptions import (
+    PluginError,
+    PluginNotFoundError, PluginStateError,
+    PluginVersionError, PluginDependencyError,
+)
 from .base import localize_plugin_dict
 
 bp = Blueprint('plugin_manager_api', __name__, url_prefix='/admin/plugins')
@@ -69,6 +73,46 @@ def _require_admin():
     if not payload or not payload.get('is_admin'):
         return jsonify({'success': False, 'error': '需要管理员权限'}), 403
     return None
+
+
+def _parse_positive_int(name: str, default: int, lo: int = 1, hi: int = 100000) -> int:
+    """解析正整数查询参数（D-PAGE-500）。
+
+    - 缺省/空 → default
+    - 非整数 → 抛 ValueError（由调用方转为 400）
+    - 超出 [lo, hi] → 截断到边界
+    """
+    raw = request.args.get(name, '')
+    if raw == '' or raw is None:
+        return default
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f'参数 {name} 必须为整数')
+    return max(lo, min(hi, v))
+
+
+def _get_jwt_user():
+    """从请求中解析 JWT 用户（管理员/用户 token 双通道）。
+
+    Returns:
+        (user_id, user_name, is_admin)；未登录返回 (None, '', False)
+    """
+    from services.jwt_service import validate_token
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = (request.args.get('token')
+                 or request.cookies.get('sso_token')
+                 or request.cookies.get('tm_token')
+                 or request.cookies.get('token'))
+    payload = validate_token(token) if token else None
+    if not payload:
+        return None, '', False
+    user_name = (payload.get('username')
+                 or payload.get('display_name')
+                 or payload.get('phone')
+                 or str(payload.get('user_id', '')))
+    return payload.get('user_id'), user_name, bool(payload.get('is_admin'))
 
 
 def _info_to_dict(info) -> dict:
@@ -362,6 +406,9 @@ def set_plugin_config(identifier: str):
 @bp.route('/hooks/actions', methods=['GET'])
 def list_hook_actions():
     """列出所有已注册的 Action 钩子"""
+    err = _require_admin()
+    if err:
+        return err
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -375,6 +422,9 @@ def list_hook_actions():
 @bp.route('/hooks/filters', methods=['GET'])
 def list_hook_filters():
     """列出所有已注册的 Filter 钩子"""
+    err = _require_admin()
+    if err:
+        return err
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -388,6 +438,9 @@ def list_hook_filters():
 @bp.route('/dependency-order', methods=['GET'])
 def dependency_order():
     """返回拓扑排序后的安装/激活顺序"""
+    err = _require_admin()
+    if err:
+        return err
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -403,6 +456,9 @@ def dependency_order():
 @bp.route('/<identifier>/dependencies', methods=['GET'])
 def plugin_dependencies(identifier: str):
     """获取插件依赖树"""
+    err = _require_admin()
+    if err:
+        return err
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -416,6 +472,9 @@ def plugin_dependencies(identifier: str):
 @bp.route('/<identifier>/config/validate', methods=['POST'])
 def validate_plugin_config(identifier: str):
     """校验插件配置（不保存）"""
+    err = _require_admin()
+    if err:
+        return err
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -605,13 +664,17 @@ def store_admin_save():
     if not identifier:
         return _json_result(False, error='identifier required', code=400)
 
-    # 空 tagline 时由 AI 从 README 自动提取（失败自动降级，不阻断上架）
-    try:
-        from i18n import get_lang
-        _lang = get_lang()
-    except Exception:
-        _lang = 'zh-CN'
-    tagline = _ensure_tagline(data, lang=_lang)
+    # 宣传语：开发者手填优先；仅当为空时由 AI 从 README 兜底提取（失败自动降级，不阻断上架）
+    tagline = (data.get('tagline') or '').strip()
+    if tagline:
+        tagline = tagline[:20]   # 长度限制 ≤20 字
+    else:
+        try:
+            from i18n import get_lang
+            _lang = get_lang()
+        except Exception:
+            _lang = 'zh-CN'
+        tagline = _ensure_tagline(data, lang=_lang)
 
     with get_registry_db() as conn:
         conn.execute("""
@@ -643,6 +706,8 @@ def store_admin_save():
                 readme_url=excluded.readme_url,
                 tagline=excluded.tagline,
                 tagline_i18n_key=excluded.tagline_i18n_key,
+                tagline_font_size=excluded.tagline_font_size,
+                tagline_color=excluded.tagline_color,
                 min_app_version=excluded.min_app_version,
                 depends_on=excluded.depends_on,
                 enabled=excluded.enabled,
@@ -669,6 +734,8 @@ def store_admin_save():
             data.get('readme_url', ''),
             tagline,
             data.get('tagline_i18n_key', ''),
+            data.get('tagline_font_size', '12px'),
+            data.get('tagline_color', '#ffffff'),
             data.get('min_app_version', '0.10.0'),
             json.dumps(data.get('depends_on', {})),
             int(data.get('enabled', 1)),
@@ -688,6 +755,10 @@ def store_admin_delete(identifier: str):
         return err
 
     with get_registry_db() as conn:
+        row = conn.execute(
+            'SELECT 1 FROM store_plugins WHERE identifier=%s', (identifier,)).fetchone()
+        if not row:
+            return _json_result(False, error=f'Plugin "{identifier}" not found', code=404)
         conn.execute('DELETE FROM store_plugins WHERE identifier=%s', (identifier,))
         conn.execute('DELETE FROM plugin_reviews WHERE plugin_identifier=%s', (identifier,))
         conn.commit()
@@ -752,6 +823,10 @@ def _annotate_store_plugins(mgr, plugins: list) -> None:
 @bp.route('/store/browse', methods=['GET'])
 def store_browse():
     """浏览商店插件列表"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr or not mgr.store_client:
         return _json_result(False, error='Store not available', code=503)
@@ -760,8 +835,11 @@ def store_browse():
     category = request.args.get('category', '')
     price_type = request.args.get('price_type', '')
     sort_by = request.args.get('sort_by', 'downloads')
-    page = int(request.args.get('page', 1))
-    page_size = int(request.args.get('page_size', 20))
+    try:
+        page = _parse_positive_int('page', 1)
+        page_size = _parse_positive_int('page_size', 20, 1, 100)
+    except ValueError as e:
+        return _json_result(False, error=str(e), code=400)
 
     data = mgr.store_client.search(query, category, price_type, page, page_size, sort_by)
     # 本地化：名称/宣传语自动继承系统语言
@@ -780,6 +858,10 @@ def store_browse():
 @bp.route('/store/<identifier>', methods=['GET'])
 def store_detail(identifier: str):
     """商店插件详情"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr or not mgr.store_client:
         return _json_result(False, error='Store not available', code=503)
@@ -884,6 +966,16 @@ def store_upgrade(identifier: str):
 
     try:
         result = mgr.upgrade(identifier)
+    except PluginNotFoundError:
+        return _json_result(False, error=f'插件 {identifier} 未安装', code=404)
+    except PluginStateError as e:
+        return _json_result(False, error=str(e), code=409)
+    except PluginVersionError as e:
+        return _json_result(False, error=str(e), code=409)
+    except PluginDependencyError as e:
+        return _json_result(False, error=str(e), code=400)
+    except ValueError as e:
+        return _json_result(False, error=f'Upgrade rejected: {e}', code=400)
     except Exception as e:
         traceback.print_exc()
         return _json_result(False, error=f'Upgrade failed: {e}', code=500)
@@ -911,6 +1003,10 @@ def store_upgrade(identifier: str):
 @bp.route('/store/check-compatibility/<identifier>', methods=['GET'])
 def store_check_compatibility(identifier: str):
     """检查插件与当前系统版本的兼容性"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -1561,6 +1657,10 @@ from .coupons import get_coupon_manager
 @bp.route('/store/<identifier>/purchase', methods=['POST'])
 def store_purchase(identifier: str):
     """发起购买，返回支付二维码"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -1576,9 +1676,14 @@ def store_purchase(identifier: str):
     if detail.get('price_type') == 'free':
         return _json_result(False, error='This plugin is free, no purchase needed', code=400)
 
-    channel = (request.json or {}).get('channel', '')
-    customer_email = (request.json or {}).get('customer_email', '')
-    coupon_code = (request.json or {}).get('coupon_code', '').strip()
+    # 防御：非 JSON 请求体统一按空 dict 处理（避免 Flask 415）
+    try:
+        body = request.json if request.is_json else {}
+    except Exception:
+        body = {}
+    channel = body.get('channel', '')
+    customer_email = body.get('customer_email', '')
+    coupon_code = (body.get('coupon_code') or '').strip()
     amount_fen = detail.get('price_amount', 0)
     price_type = detail.get('price_type', 'onetime')
 
@@ -1871,7 +1976,10 @@ def cancel_subscription(plugin_id: str):
         return err
 
     sm = get_subscription_manager()
-    body = request.json or {}
+    try:
+        body = request.json if request.is_json else {}
+    except Exception:
+        body = {}
     immediate = body.get('immediate', False)
 
     ok = sm.cancel(plugin_id, immediate=immediate)
@@ -1902,6 +2010,10 @@ def renew_subscription(plugin_id: str):
 @bp.route('/menus', methods=['GET'])
 def plugin_menus():
     """返回所有已安装+已启用插件的菜单项"""
+    err = _require_admin()
+    if err:
+        return err
+
     mgr = _get_manager()
     if not mgr:
         return _json_result(False, error='PluginManager not initialized', code=503)
@@ -1919,16 +2031,27 @@ def plugin_menus():
 @bp.route('/store/<identifier>/reviews', methods=['GET'])
 def store_reviews_list(identifier: str):
     """获取插件评价列表（分页，支持排序）"""
-    page = int(request.args.get('page', 1))
-    page_size = int(request.args.get('page_size', 20))
+    err = _require_admin()
+    if err:
+        return err
+
+    try:
+        page = _parse_positive_int('page', 1)
+        page_size = _parse_positive_int('page_size', 20, 1, 100)
+    except ValueError as e:
+        return _json_result(False, error=str(e), code=400)
     sort = request.args.get('sort', 'newest')  # newest / highest / lowest
 
+    # 注意：SQL 无表别名，ORDER BY 不得带 r. 前缀（D-REVIEWS-500）
     sort_map = {
-        'newest': 'r.created_at DESC',
-        'highest': 'r.rating DESC',
-        'lowest': 'r.rating ASC',
+        'newest': 'created_at DESC',
+        'highest': 'rating DESC',
+        'lowest': 'rating ASC',
     }
-    order_by = sort_map.get(sort, 'r.created_at DESC')
+    _ALLOWED_ORDER = ('created_at DESC', 'rating DESC', 'rating ASC')
+    order_by = sort_map.get(sort, 'created_at DESC')
+    if order_by not in _ALLOWED_ORDER:
+        order_by = 'created_at DESC'
 
     with get_registry_db() as conn:
         total = conn.execute(
@@ -1942,10 +2065,7 @@ def store_reviews_list(identifier: str):
             (identifier, page_size, offset)
         ).fetchall()
 
-        reviews = []
-        for r in rows:
-            review = dict(r)
-            reviews.append(review)
+        reviews = [dict(r) for r in rows]
 
         return _json_result(True, data={
             'reviews': reviews,
@@ -1960,41 +2080,39 @@ def store_reviews_list(identifier: str):
 
 @bp.route('/store/<identifier>/reviews', methods=['POST'])
 def store_review_create(identifier: str):
-    """创建评价（需购买验证）"""
+    """创建评价（免费插件登录即可评价；付费插件需购买）"""
     if not request.is_json:
         return _json_result(False, error='请求体必须是 JSON', code=400)
 
     data = request.json
-    rating = int(data.get('rating', 0))
-    content = data.get('content', '').strip()
+    try:
+        rating = int(data.get('rating', 0))
+    except (TypeError, ValueError):
+        return _json_result(False, error='评分必须为 1-5 的整数', code=400)
+    content = (data.get('content') or '').strip()
 
     if rating < 1 or rating > 5:
         return _json_result(False, error='评分必须在 1-5 之间', code=400)
 
-    # 从 JWT 获取用户信息
-    user_id = None
-    user_name = ''
-    try:
-        from flask import current_app
-        from plugins.auth_sso import verify_and_get_user
-        token = request.cookies.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
-        if token:
-            user_data = verify_and_get_user(token)
-            if user_data:
-                user_id = user_data.get('id')
-                user_name = user_data.get('display_name') or user_data.get('username', '')
-    except Exception:
-        pass
-
+    # 从 JWT 获取用户信息（管理员/用户 token 双通道）
+    user_id, user_name, _is_admin = _get_jwt_user()
     if not user_id:
         return _json_result(False, error='未登录', code=401)
 
-    # 检查是否已购买
+    # 评价资格：免费插件登录即可评价；付费插件需有效 License（D-REVIEW-FREE）
     mgr = _get_manager()
     if mgr and mgr.license_manager:
-        lic = mgr.license_manager.get_license(identifier)
-        if not lic or lic.get('license_status') not in ('active', 'grace'):
-            return _json_result(False, error='请先购买插件后再评价', code=403)
+        price_type = 'free'
+        try:
+            if mgr.store_client:
+                _detail = mgr.store_client.get_detail(identifier)
+                price_type = (_detail or {}).get('price_type', 'free')
+        except Exception:
+            price_type = 'free'
+        if price_type != 'free':
+            lic = mgr.license_manager.get_license(identifier)
+            if not lic or lic.get('license_status') not in ('active', 'grace'):
+                return _json_result(False, error='请先购买插件后再评价', code=403)
 
     with get_registry_db() as conn:
         # 检查是否已评价过
@@ -2037,19 +2155,9 @@ def store_review_create(identifier: str):
 @bp.route('/store/<identifier>/reviews/<int:review_id>', methods=['DELETE'])
 def store_review_delete(identifier: str, review_id: int):
     """删除评价（仅自己或管理员）"""
-    user_id = None
-    is_admin = False
-    try:
-        from flask import current_app
-        from plugins.auth_sso import verify_and_get_user
-        token = request.cookies.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
-        if token:
-            user_data = verify_and_get_user(token)
-            if user_data:
-                user_id = user_data.get('id')
-                is_admin = user_data.get('role') == 'admin' or user_data.get('is_admin', False)
-    except Exception:
-        pass
+    user_id, _user_name, is_admin = _get_jwt_user()
+    if not user_id and not is_admin:
+        return _json_result(False, error='未登录', code=401)
 
     with get_registry_db() as conn:
         review = conn.execute('SELECT * FROM plugin_reviews WHERE id=%s', (review_id,)).fetchone()
@@ -2078,6 +2186,10 @@ def store_review_delete(identifier: str, review_id: int):
 @bp.route('/store/<identifier>/reviews/<int:review_id>/reply', methods=['POST'])
 def store_review_reply(identifier: str, review_id: int):
     """管理员回复评价"""
+    err = _require_admin()
+    if err:
+        return err
+
     if not request.is_json:
         return _json_result(False, error='请求体必须是 JSON', code=400)
 

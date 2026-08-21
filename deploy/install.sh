@@ -234,6 +234,10 @@ apply_deploy_type() {
         edu)
             # Educational edition: verorun-edu over HTTPS, no domain, bundled plugins
             GIT_REPO="https://github.com/fanjumin/verorun-edu.git"
+            # 全量检出（含全部插件）——教育版需运行全部插件（VeroScholar 等）。
+            # 2026-08-20：sparse 白名单漏 plugins/ 曾导致插件被清空、蓝图挂载失败、
+            # 菜单点击落入 SPA catch-all 出现重叠 Admin。教育版必须全量。
+            SPARSE_DIRS=""
             ;;
     esac
 }

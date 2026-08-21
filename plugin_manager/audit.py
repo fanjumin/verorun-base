@@ -20,8 +20,9 @@ Plugin Manager — 插件审核引擎（AI 审核网关 · 批次2）
 import os
 import re
 import json
+import ast
 import hashlib
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .watermark import detect_official_watermark, OFFICIAL_PLUGIN_IDS
 
@@ -168,6 +169,172 @@ def _scan_dangerous(plugin_dir: str) -> List[str]:
     return out
 
 
+def _load_plugin_meta(plugin_dir: str) -> Dict[str, Any]:
+    """读取插件 plugin.json（失败返回空 dict，供权限一致性校验）。"""
+    meta_path = os.path.join(plugin_dir, 'plugin.json')
+    if not os.path.isfile(meta_path):
+        return {}
+    try:
+        with open(meta_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _scan_dangerous_ast(plugin_dir: str) -> List[str]:
+    """AST 级危险代码扫描（补充正则盲区，P0-1）。
+
+    正则 _DANGEROUS_PATTERNS 已覆盖 os.system()/eval() 等直接调用；
+    AST 层补抓可确定性判定的间接/混淆调用：
+      1) getattr(任意, 'system'/'popen'/'eval' 等) 动态取危险函数
+      2) 任意对象 .system()/.popen()/.Popen()（别名/局部变量绕过 os 前缀）
+      3) __import__('os').system(...) 链式调用
+    命中即并入「危险代码」判定（reject）。
+    """
+    hits = []
+    for path in _walk_files(plugin_dir):
+        if not path.endswith('.py'):
+            continue
+        try:
+            _sz = os.path.getsize(path)
+            if _sz > _MAX_SCAN_BYTES * 4:
+                continue  # 超大文件交由人工复核
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                src = f.read()
+        except OSError:
+            continue
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        rel = os.path.relpath(path, plugin_dir).replace('\\', '/')
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            # ① getattr 动态取危险函数
+            if (isinstance(fn, ast.Name) and fn.id == 'getattr'
+                    and len(node.args) >= 2
+                    and isinstance(node.args[1], ast.Constant)
+                    and str(node.args[1].value) in ('system', 'popen', 'Popen', 'eval', 'exec')):
+                hits.append(f'getattr 动态获取危险函数 {node.args[1].value}()（{rel}）')
+                continue
+            # ② 任意对象 .system()/.popen()/.Popen()（含 __import__('os').system 链式）
+            if isinstance(fn, ast.Attribute) and fn.attr in ('system', 'popen', 'Popen'):
+                if isinstance(fn.value, ast.Call) and isinstance(fn.value.func, ast.Name) and fn.value.func.id == '__import__':
+                    hits.append(f'__import__().{fn.attr} 动态命令执行（{rel}）')
+                elif not (isinstance(fn.value, ast.Name) and fn.value.id == 'os'):
+                    hits.append(f'.{fn.attr}() 命令执行（{rel}）')
+                continue
+    # 去重保序
+    seen, out = set(), []
+    for h in hits:
+        if h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out
+
+
+def _call_root_module(fn) -> Optional[str]:
+    """提取调用表达式根的模块名：urllib.request.urlopen → 'urllib'；requests.get → 'requests'；
+    无法确定（局部变量/调用链）返回 None。"""
+    node = fn
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
+
+
+def _is_network_call(fn) -> bool:
+    """判定 Call.func 是否命中常见网络请求写法。
+
+    覆盖：裸名 urlopen/urlretrieve、requests.*、requests.Session().xxx、
+    aiohttp.ClientSession().xxx、urllib.request.urlopen/urlretrieve。
+    仅匹配确定性网络动词，避免把 urllib.parse、aiohttp.web（服务端）等误判为外连。
+    """
+    _verbs = ('get', 'post', 'put', 'delete', 'patch', 'request')
+    if isinstance(fn, ast.Name) and fn.id in ('urlopen', 'urlretrieve'):
+        return True  # from urllib.request import urlopen 等
+    if not isinstance(fn, ast.Attribute):
+        return False
+    root = _call_root_module(fn)
+    if root == 'urllib':
+        return fn.attr in ('urlopen', 'urlretrieve')
+    if root in ('requests', 'aiohttp') and fn.attr in _verbs:
+        return True
+    # requests.Session().xxx / aiohttp.ClientSession().xxx（fn.value 是 Call，root 提取不到）
+    if (fn.attr in _verbs
+            and isinstance(fn.value, ast.Call)
+            and isinstance(fn.value.func, ast.Attribute)
+            and fn.value.func.attr in ('Session', 'ClientSession')
+            and _call_root_module(fn.value.func.value) in ('requests', 'aiohttp')):
+        return True
+    return False
+
+
+def _check_permission_consistency(plugin_dir: str, meta: Dict[str, Any]) -> List[str]:
+    """权限一致性校验（P0-1）：代码实际使用的网络外连/文件写操作，
+    必须在 plugin.json permissions 中显式声明。
+
+    仅覆盖可确定性判定的写法，避免误伤：
+      - 网络请求（urlopen/urlretrieve、requests.*、requests.Session().*、
+        aiohttp.ClientSession().*、urllib.request.urlopen/urlretrieve）
+      - 文件写/删除（open(...,'w'/'a'/'x')、os.remove/unlink、shutil.rmtree/move/rename）
+
+    读文件为插件常规操作，不纳入。结果以「权限不一致：」前缀进入人工复核（manual），不直接拒绝。
+    """
+    declared = set(meta.get('permissions') or [])
+    issues = []
+    for path in _walk_files(plugin_dir):
+        if not path.endswith('.py'):
+            continue
+        try:
+            _sz = os.path.getsize(path)
+            if _sz > _MAX_SCAN_BYTES * 4:
+                continue
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                src = f.read()
+        except OSError:
+            continue
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        rel = os.path.relpath(path, plugin_dir).replace('\\', '/')
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            # 网络外连（含 urllib.request.urlopen / requests.Session().xxx 链式）
+            if 'network:request' not in declared:
+                if _is_network_call(fn):
+                    issues.append(f'权限不一致：代码使用网络请求但未声明 network:request（{rel}）')
+            # 文件写/删除
+            if 'filesystem:write' not in declared:
+                fs = False
+                if isinstance(fn, ast.Name) and fn.id == 'open' and len(node.args) >= 2:
+                    mode = node.args[1]
+                    if isinstance(mode, ast.Constant) and isinstance(mode.value, str):
+                        mode_str = mode.value.lstrip()
+                        if mode_str and mode_str[0] in ('w', 'a', 'x'):
+                            fs = True
+                elif (isinstance(fn, ast.Attribute)
+                      and fn.attr in ('remove', 'unlink', 'rmtree', 'rename', 'move')
+                      and isinstance(fn.value, ast.Name) and fn.value.id in ('os', 'shutil')):
+                    fs = True
+                if fs:
+                    issues.append(f'权限不一致：代码执行文件写/删除但未声明 filesystem:write（{rel}）')
+    # 去重
+    seen, out = set(), []
+    for h in issues:
+        if h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out
+
+
 def _check_similarity(plugin_dir: str,
                       official_lib: Dict[str, Dict[str, str]]) -> List[str]:
     """与官方插件做文件级 SHA256 精确匹配，返回完全一致的命中列表。"""
@@ -236,6 +403,16 @@ def review_plugin(plugin_dir: str, watermark_result: Dict[str, Any] = None,
     report['dangerous'] = dangerous
     reasons.extend(f'危险代码：{d}' for d in dangerous)
 
+    # ⑤ AST 级危险扫描（补充正则盲区）
+    ast_dangerous = _scan_dangerous_ast(plugin_dir)
+    report['ast_dangerous'] = ast_dangerous
+    reasons.extend(f'危险代码：{d}' for d in ast_dangerous)
+
+    # ⑥ 权限一致性校验（声明必须覆盖实际使用，进入人工复核）
+    perm_issues = _check_permission_consistency(plugin_dir, _load_plugin_meta(plugin_dir))
+    report['permission_consistency'] = perm_issues
+    reasons.extend(perm_issues)
+
     # 判定优先级：reject > manual > pass
     status = 'pass'
     for r in reasons:
@@ -245,7 +422,7 @@ def review_plugin(plugin_dir: str, watermark_result: Dict[str, Any] = None,
             break
     if status == 'pass':
         for r in reasons:
-            if '人工复核' in r or '完全一致' in r:
+            if '人工复核' in r or '完全一致' in r or '权限不一致' in r:
                 status = 'manual'
                 break
 

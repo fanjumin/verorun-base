@@ -1,6 +1,6 @@
 # VeroRun — 企业多核 AI 操作系统
 
-[![Version](https://img.shields.io/badge/version-0.59.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.59.3-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-EULA%20v1.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)]()
 [![Plugins](https://img.shields.io/badge/plugins-30-orange.svg)]()

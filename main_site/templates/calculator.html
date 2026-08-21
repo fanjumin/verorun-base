@@ -86,7 +86,7 @@ body{font-family:Inter,'Noto Sans SC',system-ui,-apple-system,sans-serif;backgro
 <!-- ═══ Nav ═══ -->
 <nav class="nav">
   <div class="nav-inner">
-    <a href="/" class="nav-logo"><div class="icon">AI</div><span>VeroRun</span></a>
+    <a href="/" class="nav-logo"><div class="icon">AI</div><span>{{ brand.site_name_en if brand else 'VeroRun' }}</span></a>
     <div class="nav-links" id="nl">
       <a href="/">{{ _('Home') }}</a>
       <a href="/ai-matrix">{{ _('AI Matrix') }}</a>

@@ -93,9 +93,11 @@ class EventBus:
                 self._handlers[event] = [h for h in handlers if h is not handler]
 
     def _run_handler(self, event: str, handler: Callable, kwargs: dict):
-        """执行单个 handler，捕获异常避免线程池吞错。"""
+        """执行单个 handler，捕获异常避免线程池吞错（含 SystemExit，P0-4）。"""
         try:
             handler(**kwargs)
+        except SystemExit as e:
+            print(f'[EventBus] handler SystemExit for {event}: {e}')
         except Exception as e:
             print(f'[EventBus] handler error for {event}: {e}')
 

@@ -7,22 +7,40 @@ Plugin Manager — 商店客户端
 
 import os
 import json
+import time
 import threading
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+from urllib.parse import urlparse
 
 from .models_store import (
     StorePlugin, init_license_store_tables, get_registry_db,
 )
 from .discovery import parse_version
 
-# Store catalog URL (configurable via environment variable)
-STORE_CATALOG_URL = os.environ.get(
-    'APP_STORE_CATALOG_URL',
-    'https://raw.githubusercontent.com/fanjumin/verorun-store/main/store_catalog.json'
-)
+# ── 商店目录源（P0-2 多源回退）────────────────────────────────────
+# STORE_CATALOG_URLS: 逗号分隔的多源列表（主源优先，逐个回退）
+# STORE_CATALOG_URL:  兼容单源配置（APP_STORE_CATALOG_URL 为更早别名）
+_DEFAULT_CATALOG_URL = 'https://raw.githubusercontent.com/fanjumin/verorun-store/main/store_catalog.json'
+
+
+def _catalog_urls() -> List[str]:
+    """解析目录源列表（环境变量逗号分隔，主源优先）。"""
+    urls = (os.environ.get('STORE_CATALOG_URLS')
+            or os.environ.get('STORE_CATALOG_URL')
+            or os.environ.get('APP_STORE_CATALOG_URL')
+            or _DEFAULT_CATALOG_URL)
+    return [u.strip() for u in urls.split(',') if u.strip()]
+
+# 下载镜像前缀（P0-2）：设置后对 GitHub Raw 下载地址做 host 替换，走 CDN/镜像
+DOWNLOAD_MIRROR_PREFIX = os.environ.get('DOWNLOAD_MIRROR_PREFIX', '').strip()
+
+# 同步调度参数（P0-2）：成功固定间隔 6h；失败指数退避 15min 起、上限 6h
+SYNC_SUCCESS_INTERVAL = 6 * 3600
+SYNC_RETRY_BASE = 15 * 60
+SYNC_RETRY_MAX = 6 * 3600
 
 
 class StoreAPIClient:
@@ -31,25 +49,57 @@ class StoreAPIClient:
     def __init__(self):
         self._cache_lock = threading.Lock()
         init_license_store_tables()
-
-    # ── 缓存获取 ──────────────────────────────────────────────────
+        # P0-2：同步退避状态（连续失败指数退避，成功复位）
+        self._sync_failures = 0
+        self._last_sync_ts = 0.0
+        self._last_sync_error = ''
 
     def _fetch_catalog(self) -> dict:
-        """Fetch store_catalog.json from GitHub Raw.
+        """Fetch store_catalog.json 多源回退（P0-2）。
 
-        Returns:
-            {'plugins': [...], 'version': '...', 'updated_at': '...'}
-            Empty dict on failure.
+        按 STORE_CATALOG_URLS 顺序依次尝试，第一个成功即返回；
+        全失败返回空 dict（保留本地缓存），并记录退避状态供调度。
         """
-        try:
-            req = Request(STORE_CATALOG_URL, headers={
-                'User-Agent': 'VeroRun-PluginManager/1.0',
-            })
-            with urlopen(req, timeout=30) as resp:
-                return json.loads(resp.read().decode())
-        except Exception as e:
-            print(f'[StoreAPIClient] fetch catalog failed: {e}')
-            return {}
+        urls = _catalog_urls()
+        last_err = ''
+        for url in urls:
+            try:
+                req = Request(url, headers={
+                    'User-Agent': 'VeroRun-PluginManager/1.0',
+                })
+                with urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode())
+                if isinstance(data, dict):
+                    return data
+                last_err = f'bad catalog payload from {url}'
+            except Exception as e:
+                last_err = f'{url}: {e}'
+                print(f'[StoreAPIClient] fetch catalog failed: {last_err}')
+        self._last_sync_error = last_err
+        return {}
+
+    # ── 同步调度状态（P0-2）─────────────────────────────────────────
+
+    def record_success(self):
+        """同步成功：复位失败计数，记录时间戳。"""
+        self._sync_failures = 0
+        self._last_sync_ts = time.time()
+        self._last_sync_error = ''
+
+    def record_failure(self):
+        """同步失败：失败计数 +1（上限防溢出）。"""
+        self._sync_failures = min(self._sync_failures + 1, 32)
+
+    def next_sync_interval(self) -> int:
+        """返回距离下次同步的等待秒数（指数退避）。
+
+        成功（失败计数为 0）→ 固定 SYNC_SUCCESS_INTERVAL；
+        失败 n 次 → min(SYNC_RETRY_BASE * 2^(n-1), SYNC_RETRY_MAX)。
+        """
+        if self._sync_failures <= 0:
+            return SYNC_SUCCESS_INTERVAL
+        delay = SYNC_RETRY_BASE * (2 ** (self._sync_failures - 1))
+        return min(int(delay), SYNC_RETRY_MAX)
 
     # ── 搜索/列表 ──────────────────────────────────────────────────
 
@@ -127,7 +177,7 @@ class StoreAPIClient:
             if app_version and row['min_app_version']:
                 if not self._version_compatible(app_version, row['min_app_version']):
                     return None
-            return row['download_url']
+            return self._apply_mirror(row['download_url'])
 
     def download_package(self, identifier: str, dest_dir: str) -> str:
         """下载插件包并解压到 dest_dir（自动读取 download_url + package_hash 强校验）。
@@ -153,8 +203,21 @@ class StoreAPIClient:
             raise ValueError(f'商店中不存在 {identifier} 的下载地址')
         from .downloader import download_plugin
         return download_plugin(
-            row['download_url'], dest_dir,
+            self._apply_mirror(row['download_url']), dest_dir,
             expected_hash=row.get('package_hash') or '')
+
+    @staticmethod
+    def _apply_mirror(url: str) -> str:
+        """P0-2：按 DOWNLOAD_MIRROR_PREFIX 替换 GitHub Raw 下载 host 走镜像/CDN。
+
+        仅对 raw.githubusercontent.com / github.com 域名替换，其余 URL 原样返回。
+        """
+        if not url or not DOWNLOAD_MIRROR_PREFIX:
+            return url
+        parsed = urlparse(url)
+        if parsed.netloc not in ('raw.githubusercontent.com', 'github.com'):
+            return url
+        return DOWNLOAD_MIRROR_PREFIX.rstrip('/') + parsed.path
 
     @staticmethod
     def _version_compatible(current: str, required: str) -> bool:
@@ -267,6 +330,8 @@ class StoreAPIClient:
                         readme_url=excluded.readme_url,
                         tagline=COALESCE(NULLIF(excluded.tagline,''), store_plugins.tagline),
                         tagline_i18n_key=excluded.tagline_i18n_key,
+                        tagline_font_size=COALESCE(NULLIF(excluded.tagline_font_size,''), store_plugins.tagline_font_size),
+                        tagline_color=COALESCE(NULLIF(excluded.tagline_color,''), store_plugins.tagline_color),
                         updated_at=NOW()
                 """, (
                     pdata.get('identifier', ''),
@@ -292,6 +357,8 @@ class StoreAPIClient:
                     pdata.get('readme_url', ''),
                     pdata.get('tagline', ''),
                     pdata.get('tagline_i18n_key', ''),
+                    pdata.get('tagline_font_size', '12px'),
+                    pdata.get('tagline_color', '#ffffff'),
                     pdata.get('downloads', 0),
                     pdata.get('rating', 0.0),
                     pdata.get('review_count', 0),
@@ -325,6 +392,13 @@ class StoreAPIClient:
         plugins_data = catalog.get('plugins', [])
         for pdata in plugins_data:
             self._upsert_cache(pdata)
+        # P0-2：记录本次同步时间戳（供 /health 与管理页观测）
+        try:
+            with get_registry_db() as conn:
+                conn.execute("UPDATE store_plugins SET last_sync_ts=NOW()::text")
+                conn.commit()
+        except Exception as e:
+            print(f'[StoreAPIClient] sync_all: 更新 last_sync_ts 失败: {e}')
         return len(plugins_data)
 
     def check_updates(self, local_versions: dict) -> dict:

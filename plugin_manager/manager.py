@@ -19,6 +19,7 @@ import importlib
 import importlib.util
 import threading
 import inspect
+from contextlib import contextmanager
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 
@@ -31,7 +32,7 @@ from .exceptions import (
     PluginNotFoundError, PluginNotInstalledError,
     PluginNotEnabledError, PluginDependencyError,
     PluginCircularDependencyError, PluginStateError,
-    PluginVersionError,
+    PluginVersionError, PluginBusyError,
 )
 from .hooks import HookRegistry, get_hook_registry
 from .event_bus import EventBus, get_event_bus, EventName
@@ -50,6 +51,8 @@ def _get_validators():
 from .logger import get_plugin_logger, init_plugin_logging
 from .license import LicenseManager, get_license_manager
 from .store import StoreAPIClient, get_store_client
+from .watermark import OFFICIAL_PLUGIN_IDS
+from .guard import CIRCUIT_BREAKER_THRESHOLD, should_trip, record_failure
 
 # 敏感权限集合（软执行门卫，§10.2/§11.1）：声明即需管理员启用前审查
 SENSITIVE_PERMISSIONS = {
@@ -58,6 +61,41 @@ SENSITIVE_PERMISSIONS = {
     'filesystem:write',
     'admin:access',
 }
+
+# 插件能力 → 所需 permissions（P0-1 运行时门控；官方插件自动豁免，第三方必须显式声明）
+CAPABILITY_PERMISSIONS = {
+    'register_routes': 'routes',
+    'register_jobs': 'scheduler',
+    'register_dag_nodes': 'dag',
+    'register_health_checks': 'health',
+    'get_event_handlers': 'events',
+}
+
+# 宿主共享运行模块：被插件 import 但本身不是插件（无 plugin.json），由基础系统提供。
+# 安装/升级时用于静态校验，防止"安装即损坏"（D-INSTALL-01）。
+SHARED_PLUGIN_MODULES = ('_base',)
+
+# 锁获取超时（秒）：超时抛 PluginBusyError，避免单个异常操作挂起全部写操作
+LOCK_ACQUIRE_TIMEOUT = 30
+
+
+def _dag_handler_conforms(handler) -> bool:
+    """判断 DAG 节点处理器能否被引擎以 handler(node_def, input_data) 调用。
+
+    WorkflowEngine 对已注册节点统一按两个位置参数调用（见 orchestrator/workflow_engine.py
+    _execute_node）。签名不匹配（如单参数 params 旧式处理器）跳过并告警，
+    避免运行时 TypeError 中断整个工作流。
+    """
+    try:
+        sig = inspect.signature(handler)
+    except (TypeError, ValueError):
+        return True  # 内建/动态对象无法检查签名 → 按约定注册
+    positional = [p for p in sig.parameters.values()
+                  if p.kind in (inspect.Parameter.POSITIONAL_ONLY,
+                                inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+    has_varargs = any(p.kind == inspect.Parameter.VAR_POSITIONAL
+                      for p in sig.parameters.values())
+    return has_varargs or len(positional) >= 2
 
 
 class PluginManager:
@@ -68,7 +106,8 @@ class PluginManager:
         self.app = app
         self.plugins_dir = None
         self._discovery = PluginDiscovery()
-        self._lock = threading.Lock()
+        # 可重入锁：uninstall→disable 等嵌套调用安全；配合超时避免全局挂起（D-LOCK-01）
+        self._lock = threading.RLock()
 
         # 运行时缓存: {identifier: PluginInfo}
         self._cache: Dict[str, PluginInfo] = {}
@@ -88,6 +127,22 @@ class PluginManager:
 
         if app is not None:
             self.init_app(app)
+
+    @contextmanager
+    def _lock_timeout(self, timeout: float = LOCK_ACQUIRE_TIMEOUT):
+        """带超时的全局写锁（D-LOCK-01）。
+
+        - RLock 保证 uninstall→disable 等嵌套调用不互相死锁
+        - 超时抛 PluginBusyError，使单个异常操作快速失败而非挂起全局写操作
+        - finally 确保异常路径也释放锁
+        """
+        acquired = self._lock.acquire(timeout=timeout)
+        if not acquired:
+            raise PluginBusyError(f'插件系统正忙（{timeout} 秒内未能获得写锁），请稍后重试')
+        try:
+            yield
+        finally:
+            self._lock.release()
 
     # ── 初始化 ──────────────────────────────────────────────────────────
 
@@ -118,19 +173,91 @@ class PluginManager:
         self._license_mgr = get_license_manager()
         self._store_client = get_store_client()
 
-        # ── 异步同步商店目录（不阻塞 app 启动）─────────────
+        # ── 商店目录循环同步（P0-2：多源回退 + 指数退避 + 定时刷新）──
+        # 启动立即同步一次；成功每 SYNC_SUCCESS_INTERVAL 刷新，
+        # 失败按指数退避重试（15min 起、上限 6h），不阻塞 app 启动。
         store_client = self._store_client
-        def _sync_store_catalog():
+        def _sync_loop():
+            """商店目录循环同步（P0-2）。
+
+            跨 worker 互斥：仅持 PG advisory lock 的进程执行同步，其余 worker
+            每 10 分钟重试接管，避免多 worker 并发重复拉取消耗 GitHub 配额；
+            持锁进程崩溃时连接断开自动释放锁，由其他 worker 接管（退避不受影响）。
+            """
+            import psycopg2
+            lock_conn = None
+            while lock_conn is None:
+                try:
+                    lock_conn = psycopg2.connect(
+                        host=os.environ.get('PG_HOST', 'localhost'),
+                        port=os.environ.get('PG_PORT', '5432'),
+                        dbname=os.environ.get('PG_DB', 'appdb'),
+                        user=os.environ.get('PG_USER', 'app'),
+                        password=os.environ.get('PG_PASSWORD', ''),
+                    )
+                    cur = lock_conn.cursor()
+                    cur.execute('SELECT pg_try_advisory_lock(%s)', (775219,))
+                    acquired = bool(cur.fetchone()[0])
+                    cur.close()
+                    if not acquired:
+                        lock_conn.close()
+                        lock_conn = None
+                except Exception as e:
+                    if lock_conn is not None:
+                        try:
+                            lock_conn.close()
+                        except Exception:
+                            pass
+                        lock_conn = None
+                    print(f'[PluginManager] ⚠️ store sync leader election failed: {e}')
+                if lock_conn is None:
+                    time.sleep(600)  # 未获锁：10 分钟后重试接管
             try:
-                count = store_client.sync_all()
-                self._last_store_sync_ts = time.time()
-                if count < 0:
-                    print(f'[PluginManager] ⚠️ Store catalog sync failed, keeping cached data')
-                else:
-                    print(f'[PluginManager] Store catalog synced: {count} plugins')
-            except Exception as e:
-                print(f'[PluginManager] Store sync failed: {e}')
-        threading.Thread(target=_sync_store_catalog, daemon=True).start()
+                while True:
+                    try:
+                        count = store_client.sync_all()
+                        if count > 0:
+                            store_client.record_success()
+                            self._last_store_sync_ts = time.time()
+                            print(f'[PluginManager] Store catalog synced: {count} plugins')
+                        else:
+                            store_client.record_failure()
+                            print(f'[PluginManager] ⚠️ Store catalog sync failed (count={count})')
+                    except Exception as e:
+                        store_client.record_failure()
+                        print(f'[PluginManager] Store sync failed: {e}')
+                    try:
+                        time.sleep(store_client.next_sync_interval())
+                    except KeyboardInterrupt:
+                        return
+            finally:
+                try:
+                    lock_conn.close()  # 关闭连接 → advisory lock 自动释放
+                except Exception:
+                    pass
+        threading.Thread(target=_sync_loop, daemon=True, name='store-sync-loop').start()
+
+        # ── 进程内看门狗（P0-4 L3：内存超限告警，仅 Linux）──────────
+        # 进程内无法精确归因到单个插件，仅告警不自动禁用；建议结合重启恢复。
+        def _watchdog_loop():
+            try:
+                import resource
+            except ImportError:
+                return  # 非 Linux（如本机 Windows 无 resource 模块）跳过
+            mem_mb_limit = int(os.environ.get('PLUGIN_WATCHDOG_MEM_MB', '1024'))
+            while True:
+                try:
+                    rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+                    if rss_mb > mem_mb_limit:
+                        print(f'[Watchdog] ⚠️ 进程 RSS {rss_mb:.0f}MB 超限 {mem_mb_limit}MB，'
+                              f'可能由插件内存泄漏导致，建议重启')
+                except Exception:
+                    pass
+                try:
+                    time.sleep(60)
+                except KeyboardInterrupt:
+                    return
+        threading.Thread(target=_watchdog_loop, daemon=True, name='plugin-watchdog').start()
 
         # 从数据库加载已注册插件到缓存
         self._load_cache()
@@ -216,6 +343,69 @@ class PluginManager:
 
     # ── 预注册 ───────────────────────────────────────────────────────────
 
+    def _capability_allowed(self, info: PluginInfo, capability: str) -> bool:
+        """能力注册权限门控（P0-1）。
+
+        官方插件（OFFICIAL_PLUGIN_IDS）自动豁免，保持现状不受影响；
+        第三方插件必须在其 plugin.json permissions 中声明对应能力所需权限，
+        否则跳过该能力注册并降级（记日志、不崩溃、不影响其他插件）。
+        """
+        if info.identifier in OFFICIAL_PLUGIN_IDS:
+            return True
+        required = CAPABILITY_PERMISSIONS.get(capability)
+        if not required:
+            return True
+        declared = set(getattr(info, 'permissions', None) or [])
+        if required in declared:
+            return True
+        print(f'[PluginManager] ⚠️ {info.identifier}: 未声明权限 "{required}"，'
+              f'跳过能力 {capability}（最小权限降级）')
+        # P0-1 审核修复：降级落库（last_error 持久化），管理页可见，避免静默功能缺失
+        try:
+            reason = f'capability {capability} blocked: missing permission "{required}"'
+            info.last_error = ((info.last_error or '') + '; ' + reason
+                               if info.last_error else reason)
+            with get_registry_db() as conn:
+                conn.execute(
+                    'UPDATE plugin_registry SET last_error=%s WHERE identifier=%s',
+                    (info.last_error, info.identifier))
+                conn.commit()
+        except Exception as e:
+            print(f'[PluginManager] ⚠️ {info.identifier}: persist degradation notice failed: {e}')
+        return False
+
+    # ── P0-4 运行时故障隔离 ─────────────────────────────────────────
+
+    def _guard_failure(self, info: PluginInfo, context: str):
+        """记录插件一次失败（熔断计数）并检查是否触发熔断。"""
+        record_failure(info.identifier)
+        self._maybe_trip(info, context)
+
+    def _maybe_trip(self, info: PluginInfo, context: str):
+        """熔断检查：连续失败达到阈值 → 自动禁用插件。
+
+        置 ERROR + 落库 last_error（管理页可见根因）+ 卸载实例与钩子。
+        官方插件由 guard 豁免，不计入熔断。
+        """
+        if not should_trip(info.identifier):
+            return
+        if info.status == PluginStatus.ERROR:
+            return
+        reason = f'circuit breaker: 连续失败 ≥ {CIRCUIT_BREAKER_THRESHOLD} 次 ({context})'
+        info.last_error = reason
+        info.status = PluginStatus.ERROR
+        info.updated_at = datetime.now().isoformat()
+        try:
+            self._save_to_db(info)
+            self._instances.pop(info.identifier, None)
+            if self._hook_registry:
+                try:
+                    self._hook_registry.remove_all(info.identifier)
+                except Exception:
+                    pass
+        finally:
+            print(f'[PluginManager] 🧯 {info.identifier} 熔断自动禁用: {reason}')
+
     def _preload_routes(self):
         """启动时预注册 DB 中 ENABLED/ACTIVE 插件的蓝图与钩子（幂等）。
 
@@ -249,7 +439,12 @@ class PluginManager:
                     if hasattr(instance, 'setup') and callable(instance.setup):
                         instance.setup()
                     self._instances[pid] = instance
+                except SystemExit as e:
+                    self._guard_failure(info, 'preload-setup')
+                    print(f'[PluginManager] ⚠️ {pid}: preload setup SystemExit: {e}')
+                    continue
                 except Exception as e:
+                    self._guard_failure(info, 'preload-setup')
                     print(f'[PluginManager] ⚠️ {pid}: preload instance failed: {e}')
                     continue
             # ACTIVE 插件重启后恢复运行时订阅（事件监听/过滤器/后台任务）。
@@ -259,11 +454,15 @@ class PluginManager:
             if info.status == PluginStatus.ACTIVE and hasattr(instance, 'activate'):
                 try:
                     instance.activate()
+                except SystemExit as e:
+                    self._guard_failure(info, 'preload-activate')
+                    print(f'[PluginManager] ⚠️ {pid}: preload activate SystemExit: {e}')
                 except Exception as e:
+                    self._guard_failure(info, 'preload-activate')
                     print(f'[PluginManager] ⚠️ {pid}: preload activate failed: {e}')
             try:
-                # 注册路由（如插件提供 Blueprint）
-                if hasattr(instance, 'register_routes'):
+                # 注册路由（如插件提供 Blueprint；P0-1 权限门控）
+                if self._capability_allowed(info, 'register_routes') and hasattr(instance, 'register_routes'):
                     for bp in instance.register_routes():
                         if bp.name in self.app.blueprints:
                             continue
@@ -274,17 +473,21 @@ class PluginManager:
                             continue
                         self.app.register_blueprint(bp, url_prefix=prefix)
                         print(f'[PluginManager] {pid}: preloaded {prefix}')
-                # 注册钩子
-                if self._hook_registry and hasattr(instance, 'get_event_handlers'):
+                # 注册钩子（P0-1 权限门控）
+                if self._hook_registry and self._capability_allowed(info, 'get_event_handlers') and hasattr(instance, 'get_event_handlers'):
                     for event, handler in instance.get_event_handlers().items():
-                        self._hook_registry.add_action(event, handler)
+                        self._hook_registry.add_action(event, handler, identifier=pid)
                 # ENABLED 状态下预注册成功 → 提升为 ACTIVE
                 if info.status == PluginStatus.ENABLED:
                     info.status = PluginStatus.ACTIVE
                     info.updated_at = datetime.now().isoformat()
                     self._save_to_db(info)
                     print(f'[PluginManager] ✅ {pid} active (preloaded)')
+            except SystemExit as e:
+                self._guard_failure(info, 'preload')
+                print(f'[PluginManager] ⚠️ {pid}: preload SystemExit: {e}')
             except Exception as e:
+                self._guard_failure(info, 'preload')
                 print(f'[PluginManager] ⚠️ {pid}: preload warning: {e}')
 
     # ── 发现 ────────────────────────────────────────────────────────────
@@ -304,7 +507,7 @@ class PluginManager:
 
     def install(self, identifier: str) -> PluginInfo:
         """安装插件: 写入 registry 持久化, 状态 → INSTALLED"""
-        with self._lock:
+        with self._lock_timeout():
             if identifier in self._cache:
                 info = self._cache[identifier]
                 if info.status in (PluginStatus.INSTALLED, PluginStatus.ENABLED,
@@ -316,6 +519,9 @@ class PluginManager:
             info = self._discovery.discover_one(identifier)
             if info is None:
                 raise PluginNotFoundError(identifier)
+
+            # 宿主共享模块静态校验（D-INSTALL-01）
+            self._validate_shared_imports(info.path, identifier)
 
             info.status = PluginStatus.INSTALLED
             info.installed_at = datetime.now().isoformat()
@@ -335,11 +541,16 @@ class PluginManager:
 
     def enable(self, identifier: str) -> PluginInfo:
         """启用插件: 检查依赖 + 执行 setup(), 状态 → ENABLED"""
-        with self._lock:
+        with self._lock_timeout():
             # VR-PLG-002：以 DB 状态为权威，避免多 worker 下内存缓存滞后
             # 导致「disable 后 enable 报 cannot transition from active」。
             self.refresh_status_from_db()
             info = self._get_cached(identifier)
+
+            # 幂等：已是 ENABLED/ACTIVE 直接返回当前状态（D-IDEMPOTENT-01）
+            if info.status in (PluginStatus.ENABLED, PluginStatus.ACTIVE):
+                print(f'[PluginManager] {identifier} 已启用，跳过')
+                return info
 
             # 验证状态转换
             if not info.status.can_transition_to(PluginStatus.ENABLED):
@@ -405,7 +616,11 @@ class PluginManager:
 
                 self._instances[identifier] = instance
                 info.last_error = None
+            except SystemExit as e:
+                self._guard_failure(info, 'setup')
+                print(f'[PluginManager] ⚠️ {identifier} setup SystemExit: {e}')
             except Exception as e:
+                self._guard_failure(info, 'setup')
                 info.last_error = f'setup error: {e}'
                 self._save_to_db(info)
                 print(f'[PluginManager] ⚠️ {identifier} setup degraded (ENABLED, restart to load routes): {e}')
@@ -442,17 +657,21 @@ class PluginManager:
                     if hasattr(instance, 'activate') and callable(instance.activate):
                         instance.activate()
 
-                    # 注册钩子（如果启用了钩子系统）
-                    if self._hook_registry and hasattr(instance, 'get_event_handlers'):
+                    # 注册钩子（如果启用了钩子系统；P0-1 权限门控）
+                    if self._hook_registry and self._capability_allowed(info, 'get_event_handlers') and hasattr(instance, 'get_event_handlers'):
                         handlers = instance.get_event_handlers()
                         for event, handler in handlers.items():
-                            self._hook_registry.add_action(event, handler)
+                            self._hook_registry.add_action(event, handler, identifier=identifier)
 
                     info.status = PluginStatus.ACTIVE
                     info.updated_at = datetime.now().isoformat()
                     self._save_to_db(info)
                     print(f'[PluginManager] ✅ {identifier} active (auto)')
+            except SystemExit as e:
+                self._guard_failure(info, 'auto-activate')
+                print(f'[PluginManager] ⚠️ {identifier} auto-activate SystemExit: {e}')
             except Exception as e:
+                self._guard_failure(info, 'auto-activate')
                 import traceback
                 traceback.print_exc()
                 print(f'[PluginManager] ⚠️ {identifier} auto-activate warning: {e}')
@@ -463,7 +682,7 @@ class PluginManager:
 
     def activate(self, identifier: str) -> PluginInfo:
         """激活插件: 加载模块 + 注册路由/钩子, 状态 → ACTIVE"""
-        with self._lock:
+        with self._lock_timeout():
             # VR-PLG-002：以 DB 状态为权威，避免多 worker 下内存缓存滞后
             self.refresh_status_from_db()
             info = self._get_cached(identifier)
@@ -484,15 +703,23 @@ class PluginManager:
                 if hasattr(instance, 'activate') and callable(instance.activate):
                     instance.activate()
 
-                # 注册钩子（如果启用了钩子系统）
+                # 注册钩子（如果启用了钩子系统；P0-1 权限门控）
                 # 注意: Flask 不允许 app 处理首个请求后动态注册蓝图，
                 # 插件路由统一由启动时 _preload_routes() 预注册。
-                if self._hook_registry and hasattr(instance, 'get_event_handlers'):
+                if self._hook_registry and self._capability_allowed(info, 'get_event_handlers') and hasattr(instance, 'get_event_handlers'):
                     handlers = instance.get_event_handlers()
                     for event, handler in handlers.items():
-                        self._hook_registry.add_action(event, handler)
+                        self._hook_registry.add_action(event, handler, identifier=identifier)
 
+            except SystemExit as e:
+                self._guard_failure(info, 'activate')
+                info.last_error = f'activate SystemExit: {e}'
+                info.status = PluginStatus.ERROR
+                self._save_to_db(info)
+                print(f'[PluginManager] ❌ {identifier} activate SystemExit: {e}')
+                raise
             except Exception as e:
+                self._guard_failure(info, 'activate')
                 info.last_error = f'activate error: {e}'
                 info.status = PluginStatus.ERROR
                 self._save_to_db(info)
@@ -512,7 +739,7 @@ class PluginManager:
 
     def disable(self, identifier: str) -> PluginInfo:
         """禁用插件: 反注册路由/钩子, 状态 → DISABLED"""
-        with self._lock:
+        with self._lock_timeout():
             # VR-PLG-002：以 DB 状态为权威，避免多 worker 下内存缓存滞后
             self.refresh_status_from_db()
             info = self._get_cached(identifier)
@@ -560,45 +787,98 @@ class PluginManager:
 
     def uninstall(self, identifier: str) -> None:
         """卸载插件: 禁用 + 清理 + 移除 registry 记录"""
-        with self._lock:
+        with self._lock_timeout():
             info = self._get_cached(identifier)
+            orig_status = info.status
+            orig_last_error = info.last_error
 
-            # 如果处于 ACTIVE 或 ENABLED，先禁用
-            if info.status in (PluginStatus.ACTIVE, PluginStatus.ENABLED):
-                self.disable(identifier)
+            try:
+                # 如果处于 ACTIVE 或 ENABLED，先禁用
+                if info.status in (PluginStatus.ACTIVE, PluginStatus.ENABLED):
+                    self.disable(identifier)
 
-            # 执行 on_uninstall（如果插件有 cleanup）
-            instance = self._instances.pop(identifier, None)
-            if instance and hasattr(instance, 'on_uninstall'):
+                # 执行 on_uninstall（如果插件有 cleanup）
+                instance = self._instances.pop(identifier, None)
+                if instance and hasattr(instance, 'on_uninstall'):
+                    try:
+                        # 兼容两种签名：on_uninstall(registry) 与 on_uninstall()。
+                        # 历史版本 manager 曾无参调用，导致含 registry 参数的插件
+                        # 抛 TypeError 被吞，DROP SCHEMA 从未执行（数据残留）。
+                        _sig = inspect.signature(instance.on_uninstall)
+                        if 'registry' in _sig.parameters:
+                            instance.on_uninstall(info)
+                        else:
+                            instance.on_uninstall()
+                    except Exception as e:
+                        print(f'[PluginManager] {identifier} uninstall warning: {e}')
+
+                # 兜底：注销插件声明的 Agent（即使插件从未 enable 过）
+                _meta = info.metadata or {}
+                if _meta.get('agents') or _meta.get('declare_roles'):
+                    try:
+                        from agent_matrix.models import unregister_plugin_agents
+                        unregister_plugin_agents(identifier, _meta)
+                    except ImportError:
+                        pass
+
+                # 从数据库中移除记录
+                self._delete_from_db(identifier)
+
+                # 从缓存中移除
+                self._cache.pop(identifier, None)
+            except Exception:
+                # ── 失败回滚：恢复 DB 状态与缓存（D-UNINSTALL-01）──
                 try:
-                    # 兼容两种签名：on_uninstall(registry) 与 on_uninstall()。
-                    # 历史版本 manager 曾无参调用，导致含 registry 参数的插件
-                    # 抛 TypeError 被吞，DROP SCHEMA 从未执行（数据残留）。
-                    _sig = inspect.signature(instance.on_uninstall)
-                    if 'registry' in _sig.parameters:
-                        instance.on_uninstall(info)
-                    else:
-                        instance.on_uninstall()
+                    info.status = orig_status
+                    info.last_error = orig_last_error
+                    info.updated_at = datetime.now().isoformat()
+                    self._save_to_db(info)
+                    self._cache[identifier] = info
+                    print(f'[PluginManager] 🔁 {identifier} 卸载失败，已恢复状态 {orig_status.value}')
                 except Exception as e:
-                    print(f'[PluginManager] {identifier} uninstall warning: {e}')
-
-            # 兜底：注销插件声明的 Agent（即使插件从未 enable 过）
-            _meta = info.metadata or {}
-            if _meta.get('agents') or _meta.get('declare_roles'):
-                try:
-                    from agent_matrix.models import unregister_plugin_agents
-                    unregister_plugin_agents(identifier, _meta)
-                except ImportError:
-                    pass
-
-            # 从数据库中移除记录
-            self._delete_from_db(identifier)
-
-            # 从缓存中移除
-            self._cache.pop(identifier, None)
+                    print(f'[PluginManager] ⚠️ {identifier} 卸载回滚持久化失败: {e}')
+                import traceback
+                traceback.print_exc()
+                raise
 
             self._emit('plugin.uninstalled', plugin_id=identifier)
             print(f'[PluginManager] ✅ {identifier} uninstalled')
+
+    def _validate_shared_imports(self, plugin_dir: str, identifier: str):
+        """静态校验插件对宿主共享模块的依赖（D-INSTALL-01）。
+
+        插件源码中出现 ``plugins.<shared>`` import 时，宿主必须真实提供对应
+        目录（如 plugins/_base），否则安装/升级直接拒绝并给出明确错误，
+        避免"安装即损坏"（ImportError 导致半启用状态残留）。
+        """
+        referenced = set()
+        for root, _dirs, files in os.walk(plugin_dir):
+            for fn in files:
+                if not fn.endswith('.py'):
+                    continue
+                path = os.path.join(root, fn)
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                        text = f.read()
+                except OSError:
+                    continue
+                for shared in SHARED_PLUGIN_MODULES:
+                    if f'plugins.{shared}' in text:
+                        referenced.add(shared)
+
+        if not referenced:
+            return
+
+        plugins_root = os.path.dirname(os.path.abspath(plugin_dir))
+        missing = [
+            f'plugins/{shared}'
+            for shared in referenced
+            if not os.path.isdir(os.path.join(plugins_root, shared))
+        ]
+        if missing:
+            raise PluginDependencyError(
+                identifier,
+                [f'依赖宿主共享模块缺失: {m}（该模块由 VeroRun 基础系统提供）' for m in missing])
 
     # ── 在线升级 ─────────────────────────────────────────────────────────
 
@@ -618,7 +898,7 @@ class PluginManager:
             PluginVersionError: 目标版本不高于当前版本 / min_app_version 不满足
             ValueError: 商店无更新包 / 包内 identifier 不一致 / 包损坏
         """
-        with self._lock:
+        with self._lock_timeout():
             info = self._get_cached(identifier)
             if info.status not in (PluginStatus.INSTALLED, PluginStatus.ENABLED,
                                    PluginStatus.ACTIVE):
@@ -666,44 +946,50 @@ class PluginManager:
                 backup_root, f'v{old_version}-{time.strftime("%Y%m%d%H%M%S")}')
             swapped = False
 
+        try:
+            # ── 无锁阶段：网络下载 + SHA256 校验 + 解压到 staging（D-LOCK-01）──
+            # 下载/解压只写私有 staging 目录，不持全局锁，避免单插件网络异常挂起全局
+            if os.path.exists(staging_dir):
+                shutil.rmtree(staging_dir)
+            os.makedirs(os.path.dirname(staging_dir), exist_ok=True)
+            self._store_client.download_package(identifier, staging_dir)
+
+            # 校验 staging 内 plugin.json（JSON 合法 + identifier 一致）
+            json_path = os.path.join(staging_dir, 'plugin.json')
+            if not os.path.isfile(json_path):
+                raise ValueError('插件包缺少 plugin.json')
             try:
-                # 1. 下载 + SHA256 校验 + 解压到 staging（download_plugin 内完成）
-                if os.path.exists(staging_dir):
-                    shutil.rmtree(staging_dir)
-                os.makedirs(os.path.dirname(staging_dir), exist_ok=True)
-                self._store_client.download_package(identifier, staging_dir)
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    new_meta = json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                raise ValueError(f'插件包 plugin.json 解析失败: {e}')
+            if new_meta.get('identifier') != identifier:
+                raise ValueError(
+                    f'包内 identifier {new_meta.get("identifier")!r} '
+                    f'与目标 {identifier!r} 不一致，拒绝替换')
 
-                # 2. 校验 staging 内 plugin.json（JSON 合法 + identifier 一致）
-                json_path = os.path.join(staging_dir, 'plugin.json')
-                if not os.path.isfile(json_path):
-                    raise ValueError('插件包缺少 plugin.json')
-                try:
-                    with open(json_path, 'r', encoding='utf-8') as f:
-                        new_meta = json.load(f)
-                except (json.JSONDecodeError, IOError) as e:
-                    raise ValueError(f'插件包 plugin.json 解析失败: {e}')
-                if new_meta.get('identifier') != identifier:
-                    raise ValueError(
-                        f'包内 identifier {new_meta.get("identifier")!r} '
-                        f'与目标 {identifier!r} 不一致，拒绝替换')
+            # 宿主共享模块静态校验（D-INSTALL-01）
+            self._validate_shared_imports(staging_dir, identifier)
 
-                # 3. 备份旧目录
+            # ── 短锁阶段：备份 → 原子替换 → 刷新 registry ──
+            with self._lock_timeout():
+                # 备份旧目录
                 if os.path.isdir(plugin_dir):
                     os.makedirs(backup_root, exist_ok=True)
                     shutil.copytree(plugin_dir, backup_dir)
 
-                # 4. 原子替换
+                # 原子替换
                 if os.path.exists(plugin_dir):
                     shutil.rmtree(plugin_dir)
                 shutil.move(staging_dir, plugin_dir)
                 swapped = True
 
-                # 5. 清理空 staging 根目录
+                # 清理空 staging 根目录
                 staging_root = os.path.dirname(staging_dir)
                 if os.path.isdir(staging_root) and not os.listdir(staging_root):
                     os.rmdir(staging_root)
 
-                # 6. 用磁盘新 plugin.json 刷新 registry
+                # 用磁盘新 plugin.json 刷新 registry
                 disk_info = self._discovery.discover_one(identifier)
                 if disk_info is None:
                     raise ValueError(f'替换后无法从磁盘发现 {identifier}')
@@ -716,7 +1002,7 @@ class PluginManager:
                 info.last_error = None
                 self._save_to_db(info)
 
-                # 7. 清理旧备份（保留最近 N=3 份）
+                # 清理旧备份（保留最近 N=3 份）
                 self._prune_backups(identifier, keep=3)
 
                 needs_restart = info.status in (PluginStatus.ENABLED, PluginStatus.ACTIVE)
@@ -731,25 +1017,25 @@ class PluginManager:
                     'needs_restart': needs_restart,
                 }
 
-            except Exception:
-                # ── 失败回滚：已替换则恢复旧版，未替换则保持现状 ──
-                if swapped and os.path.isdir(backup_dir):
-                    try:
-                        if os.path.isdir(plugin_dir):
-                            shutil.rmtree(plugin_dir)
-                        shutil.copytree(backup_dir, plugin_dir)
-                        print(f'[PluginManager] 🔁 {identifier} 升级失败，已回滚到 v{old_version}')
-                    except Exception as e:
-                        print(f'[PluginManager] ⚠️ {identifier} 回滚失败（保留备份 {backup_dir}）: {e}')
-                # 清理残留 staging（备份保留供人工处理）
-                if os.path.isdir(staging_dir):
-                    try:
-                        shutil.rmtree(staging_dir)
-                    except OSError:
-                        pass
-                import traceback
-                traceback.print_exc()
-                raise
+        except Exception:
+            # ── 失败回滚：已替换则恢复旧版，未替换则保持现状 ──
+            if swapped and os.path.isdir(backup_dir):
+                try:
+                    if os.path.isdir(plugin_dir):
+                        shutil.rmtree(plugin_dir)
+                    shutil.copytree(backup_dir, plugin_dir)
+                    print(f'[PluginManager] 🔁 {identifier} 升级失败，已回滚到 v{old_version}')
+                except Exception as e:
+                    print(f'[PluginManager] ⚠️ {identifier} 回滚失败（保留备份 {backup_dir}）: {e}')
+            # 清理残留 staging（备份保留供人工处理）
+            if os.path.isdir(staging_dir):
+                try:
+                    shutil.rmtree(staging_dir)
+                except OSError:
+                    pass
+            import traceback
+            traceback.print_exc()
+            raise
 
     def _prune_backups(self, identifier: str, keep: int = 3):
         """清理插件旧版本备份，仅保留最近 keep 份（按 v<版本>-<时间戳> 字典序）"""
@@ -791,6 +1077,47 @@ class PluginManager:
                 result[pid] = {'error': str(e)}
                 print(f'[PluginManager] {pid}: get_dashboard_stats() failed: {e}')
         return result
+
+    # ── 插件 DAG 节点注册（register_dag_nodes）─────────────────────────
+
+    def register_all_dag_nodes(self, engine) -> int:
+        """将 ACTIVE 插件的 register_dag_nodes() 注册到 WorkflowEngine。
+
+        引擎节点调用约定: handler(node_def, input_data)。
+        仅注册符合该签名的处理器；签名不符（旧式单参数处理器）跳过并告警，
+        避免运行时 TypeError。返回注册成功数。
+        """
+        count = 0
+        for pid, instance in self._instances.items():
+            info = self._cache.get(pid)
+            if not info or info.status != PluginStatus.ACTIVE:
+                continue
+            if not hasattr(instance, 'register_dag_nodes'):
+                continue
+            if not self._capability_allowed(info, 'register_dag_nodes'):
+                continue
+            try:
+                nodes = instance.register_dag_nodes() or {}
+            except SystemExit as e:
+                self._guard_failure(info, 'register_dag_nodes')
+                print(f'[PluginManager] ⚠️ {pid}: register_dag_nodes() SystemExit: {e}')
+                continue
+            except Exception as e:
+                self._guard_failure(info, 'register_dag_nodes')
+                print(f'[PluginManager] ⚠️ {pid}: register_dag_nodes() 调用失败: {e}')
+                continue
+            for node_type, handler in nodes.items():
+                if not callable(handler):
+                    print(f'[PluginManager] ⚠️ {pid}: DAG 节点 {node_type} 处理器不可调用，跳过')
+                    continue
+                if not _dag_handler_conforms(handler):
+                    print(f'[PluginManager] ⚠️ {pid}: DAG 节点 {node_type} 处理器签名不符合'
+                          f' handler(node_def, input_data) 约定，跳过')
+                    continue
+                engine.register_node_handler(node_type, handler)
+                count += 1
+                print(f'[PluginManager] ✅ {pid}: DAG 节点 {node_type} 已注册')
+        return count
 
     # ── 批量操作 ────────────────────────────────────────────────────────
 
@@ -926,7 +1253,7 @@ class PluginManager:
                     if hasattr(instance, 'setup') and callable(instance.setup):
                         instance.setup()
                     self._instances[identifier] = instance
-                if hasattr(instance, 'register_routes'):
+                if self._capability_allowed(info, 'register_routes') and hasattr(instance, 'register_routes'):
                     for bp in instance.register_routes():
                         prefix = self._get_route_prefix(identifier, bp)
                         # 插件不得抢占 admin 核心根前缀（/admin），否则门卫会把整个
@@ -1185,7 +1512,7 @@ class PluginManager:
 
         校验失败会打印警告但仍会保存（防止前端设置损坏后无法恢复）。
         """
-        with self._lock:
+        with self._lock_timeout():
             info = self._cache.get(identifier)
             if not info:
                 return False
@@ -1215,7 +1542,7 @@ class PluginManager:
         Returns:
             {'success': bool, 'errors': [str], 'coerced': dict}
         """
-        with self._lock:
+        with self._lock_timeout():
             info = self._cache.get(identifier)
             if not info:
                 return {'success': False, 'errors': ['Plugin not found'], 'coerced': {}}

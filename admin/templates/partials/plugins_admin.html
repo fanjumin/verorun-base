@@ -93,13 +93,20 @@ window.__I18N_PLUGINS__ = {
   "Rejected": "{{ _('Rejected') }}",
   "Force install": "{{ _('Force install') }}",
   "Run review first": "{{ _('Run review first') }}",
-  "Audit rejected. Force install?": "{{ _('Audit rejected. Force install?') }}"
+  "Audit rejected. Force install?": "{{ _('Audit rejected. Force install?') }}",
+  "Plugin Center": "{{ _('Plugin Center') }}",
+  "Licenses": "{{ _('Licenses') }}",
+  "Subscriptions": "{{ _('Subscriptions') }}",
+  "Store Admin": "{{ _('Store Admin') }}"
 };
 function _(key){return window.__I18N_PLUGINS__[key]||key;}
 
 /* ── State ──────────────────────────────────────────── */
 var _pluginTab = 'installed';
 var _pluginData = {local:[],store:[]};
+/* 当前管理员角色：super_admin 才显示 Store Admin 子页 */
+var _isSuperAdmin=false;
+try{_isSuperAdmin=JSON.parse(atob(T.split('.')[1])).role==='super_admin';}catch(e){}
 
 /* ── Render page ────────────────────────────────────── */
 function renderPluginPage(){
@@ -118,10 +125,13 @@ function _renderPluginUI(mc){
 
   /* ── Header bar ──────────────────────────────────── */
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">';
-  h+='<div style="display:flex;gap:4px">';
+  h+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
   h+='<button class="tab-btn' + (_pluginTab==='installed'?' active':'') + '" onclick="_switchTab(\'installed\')">' + _('Installed') + ' ('+d.total_local+')</button>';
   h+='<button class="tab-btn' + (_pluginTab==='store'?' active':'') + '" onclick="_switchTab(\'store\')">' + _('Store') + ' ('+d.total_store+')</button>';
   h+='<button class="tab-btn' + (_pluginTab==='pending'?' active':'') + '" onclick="_switchTab(\'pending\')">' + _('Pending') + '</button>';
+  h+='<button class="tab-btn' + (_pluginTab==='licenses'?' active':'') + '" onclick="_switchTab(\'licenses\')">' + _('Licenses') + '</button>';
+  h+='<button class="tab-btn' + (_pluginTab==='subscriptions'?' active':'') + '" onclick="_switchTab(\'subscriptions\')">' + _('Subscriptions') + '</button>';
+  if(_isSuperAdmin){h+='<button class="tab-btn' + (_pluginTab==='store_admin'?' active':'') + '" onclick="_switchTab(\'store_admin\')">' + _('Store Admin') + '</button>';}
   h+='</div>';
   h+='<div style="display:flex;gap:8px">';
   if(_pluginTab==='installed'){
@@ -138,13 +148,26 @@ function _renderPluginUI(mc){
     h+=_renderInstalledTab(d.local);
   }else if(_pluginTab==='pending'){
     h+=_renderPendingTab();
-  }else{
+  }else if(_pluginTab==='store'){
     h+=_renderStoreTab(d.store);
+  }else{
+    /* licenses / subscriptions / store_admin：先渲染子容器，由 _renderSubTab 填充 */
+    h+='<div id="subview"><div class="lo"><div class="s"></div>'+_('Loading')+'</div></div>';
   }
 
   h+='<div id="pluginActionForm" style="margin-top:16px"></div>';
   mc.innerHTML=h;
-  if(_pluginTab==='pending')loadPending();
+  if(_pluginTab==='pending'){loadPending();}
+  else if(_pluginTab==='licenses'||_pluginTab==='subscriptions'||_pluginTab==='store_admin'){_renderSubTab();}
+}
+
+/* ── 子页渲染：licenses / subscriptions / store_admin 共用 #subview 容器，tab 结构不丢失 ── */
+function _renderSubTab(){
+  var sv=document.getElementById("subview");
+  if(!sv)return;
+  if(_pluginTab==='licenses'){renderLicenseList(sv);}
+  else if(_pluginTab==='subscriptions'){renderSubscriptionList(sv);}
+  else if(_pluginTab==='store_admin'){renderStoreAdminList(sv);}
 }
 
 /* ── Tab switch ────────────────────────────────────── */

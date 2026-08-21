@@ -204,6 +204,13 @@ try:
     app.config['AUTOMATION_WORKER'] = worker
     print(f'[Automation] ✅ 调度器 + Worker 池已初始化')
     print(f'[Automation] 📋 API: /admin/automation/*')
+    # 插件自定义 DAG 节点注册（如 veroscholar_search），供工作流执行使用
+    try:
+        if worker is not None:
+            _n = pm.register_all_dag_nodes(worker.workflow_engine)
+            print(f'[PluginManager] ✅ 已注册 {_n} 个插件 DAG 节点')
+    except Exception as e:
+        print(f'[PluginManager] ⚠️ 插件 DAG 节点注册失败: {e}')
 except ImportError as e:
     print(f'[Automation] ⚠️ 未安装 APScheduler: pip install apscheduler sqlalchemy')
     print(f'[Automation]    import error: {e}')
@@ -701,11 +708,97 @@ def reset_password_page():
 
 @app.route('/health')
 def health():
-    return jsonify({"status": "ok", "service": "admin-panel", "port": 8084})
+    """深度健康检查（P0-3）：DB 连通性 + 关键表 + 插件系统状态；异常返回 503。
+
+    供探活系统（health_service / 外部监控）真实判定 admin 服务健康度，
+    而非仅返回固定 ok。异常详情不外泄（仅记录错误类型）。
+    """
+    checks = {}
+    degraded = []
+    # ① DB 连通性（单独判定，失败不归因到其他检查；含 import 异常兜底）
+    try:
+        from plugin_manager.models import get_registry_db
+        with get_registry_db() as conn:
+            conn.execute('SELECT 1').fetchone()
+        checks['db'] = 'ok'
+    except Exception:
+        checks['db'] = 'error'
+        degraded.append('db connectivity error')
+    # ② 关键表 + 插件/商店状态（独立 try，异常归因为检查失败而非 db）
+    try:
+        with get_registry_db() as conn:
+            for tbl in ('plugin_registry', 'store_plugins', 'plugin_submissions'):
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM information_schema.tables "
+                    "WHERE table_schema='public' AND table_name=%s", (tbl,)
+                ).fetchone()
+                exists = bool(row and row['c'])
+                checks[f'table.{tbl}'] = exists
+                if not exists:
+                    degraded.append(f'missing table {tbl}')
+            def _cnt(sql):
+                r = conn.execute(sql).fetchone()
+                return int(r['c']) if r else 0
+            checks['plugins_enabled'] = _cnt(
+                "SELECT COUNT(*) AS c FROM plugin_registry "
+                "WHERE status IN ('enabled','active')")
+            checks['plugins_error'] = _cnt(
+                "SELECT COUNT(*) AS c FROM plugin_registry WHERE status='error'")
+            if checks['plugins_error']:
+                degraded.append(f"{checks['plugins_error']} plugin(s) in ERROR state")
+            checks['store_plugins_count'] = _cnt('SELECT COUNT(*) AS c FROM store_plugins')
+    except Exception as e:
+        degraded.append(f'plugin status check failed: {type(e).__name__}')
+
+    status = 'ok' if not degraded else 'degraded'
+    code = 200 if status == 'ok' else 503
+    return jsonify({
+        'status': status,
+        'service': 'admin-panel',
+        'port': 8084,
+        'checks': checks,
+        'issues': degraded,
+    }), code
+
+def _is_plugin_embed_path(path: str) -> bool:
+    """判断 path 是否为已注册插件 menu 声明的 embed_url 路径。
+
+    仅用于 SPA catch-all 护栏：命中且到达此处 = 插件蓝图未服务该路径，
+    返回 404 而不是渲染 admin 壳（否则插件 iframe 内嵌套管理面板 → 重叠+无限递归）。
+    """
+    try:
+        import json as _json
+        from plugin_manager.models import get_registry_db
+        with get_registry_db() as conn:
+            rows = conn.execute('SELECT metadata FROM plugin_registry').fetchall()
+        for row in rows:
+            meta = row['metadata']
+            if isinstance(meta, str):
+                try:
+                    meta = _json.loads(meta or '{}')
+                except Exception:
+                    continue
+            menu = (meta or {}).get('menu') or {}
+            items = menu.get('items') or []
+            if not items and menu.get('embed_url'):
+                items = [menu]  # 兼容旧单数格式
+            for it in items:
+                u = (it.get('embed_url') or '').split('?')[0].rstrip('/')
+                if u and (path == u or path.startswith(u + '/')):
+                    return True
+    except Exception:
+        pass
+    return False
+
 
 @app.route('/admin/<path:subpath>')
 def admin_spa_catchall(subpath):
     """SPA catch-all — /admin/xxx 全部渲染 admin SPA 壳，前端根据 pathname 路由"""
+    from flask import abort
+    # 防递归护栏：已注册插件 menu 的 embed_url 路径若未被插件蓝图服务，
+    # 直接 404，禁止回落 admin SPA 壳（避免 iframe 嵌套管理面板 → 重叠+无限递归）
+    if _is_plugin_embed_path(request.path):
+        abort(404)
     from services.jwt_service import validate_token
     from flask import make_response
     token = request.args.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')

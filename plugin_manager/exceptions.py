@@ -59,6 +59,18 @@ class PluginVersionError(PluginError):
     """版本不兼容"""
     def __init__(self, identifier: str, required: str, installed: str):
         super().__init__(f'插件 "{identifier}" 需要版本 {required}，当前 {installed}')
-        self.identifier = identifier
         self.required = required
         self.installed = installed
+
+
+class PluginBusyError(PluginError):
+    """插件系统繁忙（锁获取超时）"""
+    def __init__(self, message: str = '插件系统正忙，请稍后重试'):
+        super().__init__(message)
+
+
+class PluginUninstallError(PluginError):
+    """卸载失败"""
+    def __init__(self, identifier: str, detail: str = ''):
+        super().__init__(f'插件 "{identifier}" 卸载失败: {detail}')
+        self.identifier = identifier

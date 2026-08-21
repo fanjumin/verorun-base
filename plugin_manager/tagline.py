@@ -51,7 +51,7 @@ def build_tagline(plugin: dict, readme_text: str, lang: str = 'zh-CN') -> str:
     """
     t = (plugin.get('tagline') or '').strip()
     if t:
-        return t[:80]
+        return t[:20]
 
     category = plugin.get('category') or 'system'
     name = plugin.get('name') or plugin.get('identifier') or ''
@@ -70,7 +70,7 @@ def build_tagline(plugin: dict, readme_text: str, lang: str = 'zh-CN') -> str:
         out = out.strip('"\'“”‘’')
         if out:
             logger.info('tagline generated for %s: %s', plugin.get('identifier'), out)
-            return out[:40]
+            return out[:20]
     except Exception as e:
         logger.warning('tagline AI fallback for %s: %s', plugin.get('identifier'), e)
 

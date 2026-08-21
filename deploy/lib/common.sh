@@ -32,7 +32,13 @@
 # 审计 H-5：Sparse-checkout whitelist (base list). Entry scripts can extend it by appending,
 # e.g. install-code.sh runs SPARSE_DIRS="${SPARSE_DIRS} plugins" after sourcing.
 # 审计 M-1：appends scripts/ (the README references the scripts/dev_start.py local dev script).
-: "${SPARSE_DIRS:=admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n shared providers themes static deploy scripts plugins/site_domains}"
+# 审计 H-5 / 根治 2026-08-21：SPARSE_DIRS 采用 "未设置才赋默认、空串保持为空" 语义。
+# 原因：官方版/源码版把 SPARSE_DIRS 刻意置空表示"全量检出（disable sparse-checkout）"；
+# 若用 ${VAR:=default}，空串会被覆盖回白名单，导致只检出 plugins/site_domains、其余插件丢失。
+# 仅当变量从未被赋值（unset）时才填充默认白名单。
+if [ -z "${SPARSE_DIRS+x}" ]; then
+    SPARSE_DIRS="admin auth-center main_site health_service veroguard plugin_manager agent_matrix orchestrator i18n shared providers themes static deploy scripts plugins/site_domains"
+fi
 : "${FORCE_UPDATE:=0}"              # 审计 C-3：force-overwrite local modifications during update (used with --force)
 : "${PIP_MIRROR:=}"
 : "${PIP_MIRROR_DETECTED:=}"
